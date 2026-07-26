@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -17,8 +18,46 @@ class ScienceOverlayComposer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final overlayState = ref.watch(scienceOverlayStateProvider);
-    final prefs = ref.watch(scienceVisualizationPrefsProvider).valueOrNull ??
-        const ScienceVisualizationPrefs();
+    final prefsAsync = ref.watch(scienceVisualizationPrefsProvider);
+
+    if (prefsAsync.hasError || !prefsAsync.hasValue) {
+      return NightshadeCard(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!prefsAsync.hasError)
+                const CircularProgressIndicator(strokeWidth: 2)
+              else ...[
+                Text(
+                  'Could not load science overlay preferences',
+                  style: TextStyle(color: colors.error),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  prefsAsync.error.toString(),
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize11,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                NightshadeButton(
+                  label: 'Retry overlay preferences',
+                  icon: LucideIcons.refreshCw,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: () =>
+                      ref.invalidate(scienceVisualizationPrefsProvider),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    final prefs = prefsAsync.requireValue;
 
     return NightshadeCard(
       child: Padding(
@@ -41,6 +80,38 @@ class ScienceOverlayComposer extends ConsumerWidget {
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: NightshadeTypography.fontSize10,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(LucideIcons.info, size: 12, color: colors.textMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Overlays apply to the Imaging live view',
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.go('/imaging'),
+                  icon: Icon(
+                    LucideIcons.arrowRight,
+                    size: 12,
+                    color: colors.primary,
+                  ),
+                  label: Text(
+                    'Open Imaging',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],

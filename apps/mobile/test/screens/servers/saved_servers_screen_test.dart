@@ -176,6 +176,31 @@ void main() {
     expect(reloaded.displayName, 'Permanent pier');
   });
 
+  testWidgets('rename persistence failure stays visible and is retryable', (
+    tester,
+  ) async {
+    final service = _FailingRenameService();
+    await service.add(displayName: 'Old name', host: '10.0.0.30', port: 8080);
+    await _pump(tester, service: service);
+
+    await tester.longPress(find.text('Old name'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Lost edit');
+    await tester.tap(find.widgetWithText(TextButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Could not update Old name'), findsOneWidget);
+    expect(find.text('Old name'), findsOneWidget);
+    expect((await service.loadAll()).single.displayName, 'Old name');
+
+    // The failed operation must release the screen-wide busy gate.
+    await tester.longPress(find.text('Old name'));
+    await tester.pumpAndSettle();
+    expect(find.text('Rename'), findsOneWidget);
+  });
+
   testWidgets(
     'FAB invokes the onAddServer callback and refreshes when it returns a row',
     (tester) async {
@@ -201,6 +226,30 @@ void main() {
       expect(find.text('Added via FAB'), findsOneWidget);
     },
   );
+
+  testWidgets('add-server failure is visible and leaves the action retryable', (
+    tester,
+  ) async {
+    final service = SavedServersService();
+    var calls = 0;
+    await _pump(
+      tester,
+      service: service,
+      onAddServer: (_) async {
+        calls++;
+        throw StateError('pairing service unavailable');
+      },
+    );
+
+    await tester.tap(find.text('Add server'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Could not add server'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Add server'));
+    await tester.pumpAndSettle();
+    expect(calls, 2, reason: 'the failed callback must release the busy gate');
+  });
 
   testWidgets('notes line shows under the row when set', (tester) async {
     final service = SavedServersService();
@@ -309,4 +358,11 @@ void main() {
       expect(rows.single.host, '10.0.0.5');
     });
   });
+}
+
+class _FailingRenameService extends SavedServersService {
+  @override
+  Future<SavedServer> rename(String id, String displayName) {
+    throw StateError('disk full');
+  }
 }

@@ -69,7 +69,18 @@ class IntegratedMaster {
   /// Resumable accumulator sidecar (`.nsmaster`). Null for one-shot batch
   /// integrations.
   final String? sidecarPath;
+
+  /// Scientific per-pixel rejection-count map (linear FITS).
   final String? rejectionMapPath;
+
+  /// Stretched PNG sibling used by Session Review's Rejection overlay.
+  final String? rejectionMapPreviewPath;
+
+  /// Scientific drizzle coverage/weight map (linear FITS).
+  final String? coverageMapPath;
+
+  /// Stretched PNG sibling used by Session Review's Coverage overlay.
+  final String? coverageMapPreviewPath;
 
   final IntegratedMasterStatus status;
   final AccumulationMode accumulationMode;
@@ -142,6 +153,9 @@ class IntegratedMaster {
     required this.previewPngPath,
     required this.sidecarPath,
     required this.rejectionMapPath,
+    this.rejectionMapPreviewPath,
+    this.coverageMapPath,
+    this.coverageMapPreviewPath,
     required this.status,
     required this.accumulationMode,
     required this.channels,
@@ -181,6 +195,9 @@ class IntegratedMaster {
     String? previewPngPath,
     String? sidecarPath,
     String? rejectionMapPath,
+    String? rejectionMapPreviewPath,
+    String? coverageMapPath,
+    String? coverageMapPreviewPath,
     IntegratedMasterStatus? status,
     AccumulationMode? accumulationMode,
     int? channels,
@@ -213,6 +230,11 @@ class IntegratedMaster {
       previewPngPath: previewPngPath ?? this.previewPngPath,
       sidecarPath: sidecarPath ?? this.sidecarPath,
       rejectionMapPath: rejectionMapPath ?? this.rejectionMapPath,
+      rejectionMapPreviewPath:
+          rejectionMapPreviewPath ?? this.rejectionMapPreviewPath,
+      coverageMapPath: coverageMapPath ?? this.coverageMapPath,
+      coverageMapPreviewPath:
+          coverageMapPreviewPath ?? this.coverageMapPreviewPath,
       status: status ?? this.status,
       accumulationMode: accumulationMode ?? this.accumulationMode,
       channels: channels ?? this.channels,
@@ -253,6 +275,9 @@ class IntegratedMaster {
           other.previewPngPath == previewPngPath &&
           other.sidecarPath == sidecarPath &&
           other.rejectionMapPath == rejectionMapPath &&
+          other.rejectionMapPreviewPath == rejectionMapPreviewPath &&
+          other.coverageMapPath == coverageMapPath &&
+          other.coverageMapPreviewPath == coverageMapPreviewPath &&
           other.status == status &&
           other.accumulationMode == accumulationMode &&
           other.channels == channels &&
@@ -287,6 +312,9 @@ class IntegratedMaster {
     previewPngPath,
     sidecarPath,
     rejectionMapPath,
+    rejectionMapPreviewPath,
+    coverageMapPath,
+    coverageMapPreviewPath,
     status,
     accumulationMode,
     channels,

@@ -28,6 +28,27 @@ use super::*;
 // REAL PLATE SOLVING
 // =============================================================================
 
+/// Process-wide admission gate shared by UI, headless HTTP, sequencer, and
+/// recovery callers. External solvers write sibling `.ini`/`.wcs` artifacts;
+/// allowing overlapping runs can mix or delete another solve's result.
+static PLATE_SOLVE_GATE: OnceLock<Mutex<()>> = OnceLock::new();
+const DEFAULT_SOLVER_TIMEOUT_SECS: u32 = 60;
+const MAX_SOLVER_TIMEOUT_SECS: u32 = 3600;
+
+fn plate_solve_gate() -> &'static Mutex<()> {
+    PLATE_SOLVE_GATE.get_or_init(|| Mutex::new(()))
+}
+
+fn validate_solver_timeout(timeout_secs: Option<u32>) -> Result<u32, NightshadeError> {
+    let timeout = timeout_secs.unwrap_or(DEFAULT_SOLVER_TIMEOUT_SECS);
+    if timeout == 0 || timeout > MAX_SOLVER_TIMEOUT_SECS {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "Plate-solve timeout must be between 1 and {MAX_SOLVER_TIMEOUT_SECS} seconds"
+        )));
+    }
+    Ok(timeout)
+}
+
 /// Plate solve result
 #[derive(Debug, Clone)]
 pub struct PlateSolveResult {
@@ -103,19 +124,25 @@ fn apply_saved_preference_to_imaging() {
         } else {
             Some(pref.catalog_path.as_str())
         },
+        Some(pref.solver_choice.as_str()),
     );
 }
 
 /// Plate solve an image file (blind solve)
-pub async fn api_plate_solve_blind(file_path: String) -> Result<PlateSolveResult, NightshadeError> {
+pub async fn api_plate_solve_blind(
+    file_path: String,
+    timeout_secs: Option<u32>,
+) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
     tracing::info!("Blind plate solving: {}", file_path);
+    let _solve_guard = plate_solve_gate().lock().await;
 
     // Ensure the imaging crate sees the user's configured paths before
     // PlateSolverConfig::default() is called inside blind_solve.
     apply_saved_preference_to_imaging();
 
+    let timeout_secs = validate_solver_timeout(timeout_secs)?;
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err(NightshadeError::IoError(format!(
@@ -124,8 +151,17 @@ pub async fn api_plate_solve_blind(file_path: String) -> Result<PlateSolveResult
         )));
     }
 
-    // Run actual plate solve using ASTAP
-    let result = nightshade_imaging::blind_solve(path);
+    // External solvers are blocking subprocesses. Keep them off the async
+    // runtime worker and pass the UI/headless timeout through to the process
+    // runner, which kills and reaps the child on expiry.
+    let owned_path = path.to_path_buf();
+    let result = tokio::task::spawn_blocking(move || {
+        nightshade_imaging::blind_solve_with_timeout(&owned_path, timeout_secs)
+    })
+    .await
+    .map_err(|error| {
+        NightshadeError::OperationFailed(format!("Plate-solve task failed: {error}"))
+    })?;
 
     Ok(PlateSolveResult {
         success: result.success,
@@ -158,6 +194,7 @@ pub async fn api_plate_solve_near(
     hint_ra: f64,
     hint_dec: f64,
     search_radius: f64,
+    timeout_secs: Option<u32>,
 ) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
@@ -167,11 +204,13 @@ pub async fn api_plate_solve_near(
         hint_dec,
         file_path
     );
+    let _solve_guard = plate_solve_gate().lock().await;
 
     // Ensure the imaging crate sees the user's configured paths before
     // PlateSolverConfig::default() is called inside solve_near.
     apply_saved_preference_to_imaging();
 
+    let timeout_secs = validate_solver_timeout(timeout_secs)?;
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err(NightshadeError::IoError(format!(
@@ -180,8 +219,20 @@ pub async fn api_plate_solve_near(
         )));
     }
 
-    // Run actual plate solve using ASTAP with hints
-    let result = nightshade_imaging::solve_near(path, hint_ra, hint_dec, search_radius);
+    let owned_path = path.to_path_buf();
+    let result = tokio::task::spawn_blocking(move || {
+        nightshade_imaging::solve_near_with_timeout(
+            &owned_path,
+            hint_ra,
+            hint_dec,
+            search_radius,
+            timeout_secs,
+        )
+    })
+    .await
+    .map_err(|error| {
+        NightshadeError::OperationFailed(format!("Plate-solve task failed: {error}"))
+    })?;
 
     Ok(PlateSolveResult {
         success: result.success,
@@ -395,6 +446,7 @@ pub fn api_platesolve_set_config(config: PlateSolverConfigPayload) -> Result<(),
         } else {
             Some(config.catalog_path.as_str())
         },
+        Some(config.solver_choice.as_str()),
     );
 
     let pref = config.into_pref();

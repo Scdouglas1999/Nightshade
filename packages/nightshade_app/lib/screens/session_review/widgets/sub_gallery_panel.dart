@@ -7,6 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/image_download_service.dart';
+import '../../../utils/snackbar_helper.dart';
+import '../../../utils/filter_label.dart';
+
 /// Bulk-cull callback signature: rejects accepted subs above [hfrThreshold] or
 /// below [qualityThreshold].
 typedef BulkCullCallback = void Function({
@@ -47,6 +51,19 @@ class _SubGalleryPanelState extends ConsumerState<SubGalleryPanel> {
   double _hfrCull = 3.5;
 
   @override
+  void didUpdateWidget(covariant SubGalleryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.subs.isEmpty) {
+      _blinkTimer?.cancel();
+      _blinkTimer = null;
+      _blink = false;
+      _blinkIndex = 0;
+    } else if (_blinkIndex >= widget.subs.length) {
+      _blinkIndex = 0;
+    }
+  }
+
+  @override
   void dispose() {
     _blinkTimer?.cancel();
     super.dispose();
@@ -60,7 +77,17 @@ class _SubGalleryPanelState extends ConsumerState<SubGalleryPanel> {
     _blinkTimer?.cancel();
     if (_blink && widget.subs.isNotEmpty) {
       _blinkTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
-        if (!mounted) return;
+        if (!mounted || widget.subs.isEmpty) {
+          _blinkTimer?.cancel();
+          _blinkTimer = null;
+          if (mounted) {
+            setState(() {
+              _blink = false;
+              _blinkIndex = 0;
+            });
+          }
+          return;
+        }
         setState(() => _blinkIndex = (_blinkIndex + 1) % widget.subs.length);
       });
     }
@@ -291,7 +318,7 @@ class _SubTile extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${sub.filter ?? 'L'} · ${sub.exposureDuration.toInt()}s',
+                    '${filterLabel(sub.filter)} · ${sub.exposureDuration.toInt()}s',
                     style: NightshadeTypography.labelSm
                         .copyWith(color: colors.textPrimary),
                     maxLines: 1,
@@ -304,11 +331,86 @@ class _SubTile extends ConsumerWidget {
                     style: NightshadeTypography.caption
                         .copyWith(color: colors.textMuted),
                   ),
+                // Pull the full-resolution frame off the host to this device.
+                // Wires the long-built-but-unreachable download path (host
+                // streams `GET /api/images/<id>/download`), so a phone paired
+                // to the Pi can finally save/share the real FITS, not just the
+                // 512px thumbnail.
+                _SubDownloadButton(sub: sub, colors: colors),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Per-tile "save the full-resolution frame to this device" affordance.
+/// Streams via [downloadImageToDevice] (mobile → share sheet, desktop → save
+/// picker) with an inline spinner while the transfer runs.
+class _SubDownloadButton extends ConsumerStatefulWidget {
+  final DbCapturedImage sub;
+  final NightshadeColors colors;
+
+  const _SubDownloadButton({required this.sub, required this.colors});
+
+  @override
+  ConsumerState<_SubDownloadButton> createState() => _SubDownloadButtonState();
+}
+
+class _SubDownloadButtonState extends ConsumerState<_SubDownloadButton> {
+  bool _busy = false;
+
+  Future<void> _download() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final outcome = await downloadImageToDevice(
+        backend: ref.read(imagingBackendProvider),
+        imageId: widget.sub.id,
+        fileName: widget.sub.fileName,
+      );
+      if (!mounted) return;
+      switch (outcome.status) {
+        case ImageDownloadStatus.saved:
+          context.showSuccessSnackBar('Saved to ${outcome.savedPath}');
+        case ImageDownloadStatus.shared:
+          context.showSuccessSnackBar('Frame ready to share');
+        case ImageDownloadStatus.cancelled:
+          break;
+        case ImageDownloadStatus.failed:
+          context.showErrorSnackBar(outcome.error ?? 'Download failed');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: _busy
+          ? Padding(
+              padding: const EdgeInsets.all(8),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: widget.colors.textMuted,
+              ),
+            )
+          : IconButton(
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Download to this device',
+              icon: Icon(
+                NightshadeIcons.download,
+                color: widget.colors.textSecondary,
+              ),
+              onPressed: _download,
+            ),
     );
   }
 }
@@ -467,7 +569,7 @@ class _BlinkView extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
-            '${sub.fileName} · ${sub.filter ?? 'L'} · '
+            '${sub.fileName} · ${filterLabel(sub.filter)} · '
             '${sub.exposureDuration.toInt()}s'
             '${sub.hfr != null ? ' · HFR ${sub.hfr!.toStringAsFixed(2)}' : ''}',
             textAlign: TextAlign.center,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -24,6 +26,27 @@ class _FakeDiskSpaceService implements DiskSpaceService {
       throw const DiskSpaceException('', 'no canned response configured');
     }
     return _next!;
+  }
+}
+
+class _PendingDiskSpaceService implements DiskSpaceService {
+  final List<String> paths = <String>[];
+  final List<Completer<DiskSpaceInfo>> requests = <Completer<DiskSpaceInfo>>[];
+  int inFlight = 0;
+  int maxInFlight = 0;
+
+  @override
+  Future<DiskSpaceInfo> query(String path) async {
+    paths.add(path);
+    final request = Completer<DiskSpaceInfo>();
+    requests.add(request);
+    inFlight++;
+    if (inFlight > maxInFlight) maxInFlight = inFlight;
+    try {
+      return await request.future;
+    } finally {
+      inFlight--;
+    }
   }
 }
 
@@ -311,6 +334,104 @@ void main() {
       );
       await Future<void>.delayed(const Duration(milliseconds: 100));
       guard.stop();
+
+      expect(events, isEmpty);
+    });
+
+    test('does not overlap a slow disk query', () async {
+      final fake = _PendingDiskSpaceService();
+      final guard = DiskSpaceGuardService(diskService: fake);
+      addTearDown(guard.dispose);
+
+      guard.start(
+        capturePath: 'C:/data',
+        interval: const Duration(milliseconds: 5),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(fake.requests, hasLength(1));
+      expect(fake.maxInFlight, 1);
+
+      fake.requests.single.complete(
+        DiskSpaceInfo(
+          path: 'C:/',
+          totalBytes: _gb(500),
+          freeBytes: _gb(50),
+          sampledAt: DateTime.now(),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 15));
+
+      expect(fake.requests.length, greaterThanOrEqualTo(2));
+      expect(fake.maxInFlight, 1);
+      guard.stop();
+      for (final request in fake.requests.where((r) => !r.isCompleted)) {
+        request.complete(
+          DiskSpaceInfo(
+            path: 'C:/',
+            totalBytes: _gb(500),
+            freeBytes: _gb(50),
+            sampledAt: DateTime.now(),
+          ),
+        );
+      }
+    });
+
+    test('discards a slow low-space result after stop', () async {
+      final fake = _PendingDiskSpaceService();
+      final guard = DiskSpaceGuardService(diskService: fake);
+      addTearDown(guard.dispose);
+      final events = <DiskSpaceWatchdogEvent>[];
+      final sub = guard.events.listen(events.add);
+      addTearDown(sub.cancel);
+
+      guard.start(capturePath: 'C:/old', interval: const Duration(seconds: 1));
+      await Future<void>.delayed(Duration.zero);
+      guard.stop();
+      fake.requests.single.complete(
+        DiskSpaceInfo(
+          path: 'C:/old',
+          totalBytes: _gb(500),
+          freeBytes: _gb(1),
+          sampledAt: DateTime.now(),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(events, isEmpty);
+    });
+
+    test('discards the previous capture path result after restart', () async {
+      final fake = _PendingDiskSpaceService();
+      final guard = DiskSpaceGuardService(diskService: fake);
+      addTearDown(guard.dispose);
+      final events = <DiskSpaceWatchdogEvent>[];
+      final sub = guard.events.listen(events.add);
+      addTearDown(sub.cancel);
+
+      guard.start(capturePath: 'C:/old', interval: const Duration(seconds: 1));
+      await Future<void>.delayed(Duration.zero);
+      guard.start(capturePath: 'D:/new', interval: const Duration(seconds: 1));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fake.paths, ['C:/old', 'D:/new']);
+      fake.requests[0].complete(
+        DiskSpaceInfo(
+          path: 'C:/old',
+          totalBytes: _gb(500),
+          freeBytes: _gb(1),
+          sampledAt: DateTime.now(),
+        ),
+      );
+      fake.requests[1].complete(
+        DiskSpaceInfo(
+          path: 'D:/new',
+          totalBytes: _gb(500),
+          freeBytes: _gb(50),
+          sampledAt: DateTime.now(),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(events, isEmpty);
     });

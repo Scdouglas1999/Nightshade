@@ -87,6 +87,7 @@ const _$FilterCalibrationStatusEnumMap = {
   FilterCalibrationStatus.calibrated: 'calibrated',
   FilterCalibrationStatus.capturing: 'capturing',
   FilterCalibrationStatus.complete: 'complete',
+  FilterCalibrationStatus.partial: 'partial',
   FilterCalibrationStatus.failed: 'failed',
   FilterCalibrationStatus.skipped: 'skipped',
 };

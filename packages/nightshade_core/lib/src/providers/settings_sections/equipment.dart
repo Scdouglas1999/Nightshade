@@ -6,7 +6,8 @@
 //   * Camera: coolingBehavior, defaultGain, defaultOffset
 //   * Mount: enableMeridianFlip
 //   * Focuser: tempCompensation, tempCoefficient, backlashCompensation
-//   * Guider: ditherScale, settleThreshold, settleTimeout
+//   * Guider: ditherScale, settleThreshold, settleTimeout, settleTime,
+//     ditherRaOnly
 //
 // Does NOT own:
 //   * Per-device connection details (those live in EquipmentProfile) —
@@ -42,6 +43,39 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(enableMeridianFlip: value));
   }
 
+  /// Persist the mount meridian-flip configuration — the enable toggle plus
+  /// the warning-window minutes — in ONE batched transaction so the mount
+  /// configuration dialog can never leave the two knobs out of sync.
+  ///
+  /// The prior dialog issued two sequential `setEnableMeridianFlip` /
+  /// `setMeridianFlipMinutes` writes; a failure between them (or a malformed
+  /// minutes value swallowed by `int.tryParse(...) ?? old`) could persist the
+  /// toggle while dropping the minutes and still report success. Batching both
+  /// keys through [_saveSettings] makes persistence atomic, and the in-memory
+  /// [_patchState] runs only after the write resolves, so a failed write leaves
+  /// state unchanged and the dialog retryable.
+  ///
+  /// `meridian_flip_minutes` is the sequencer-owned timing key (see
+  /// `sequencer.dart`); it is co-written here because the mount configuration
+  /// dialog edits it together with the equipment-owned enable flag. Callers
+  /// validate `minutes` against the canonical 0..120 window
+  /// ([MeridianFlipSettings.validate]) before invoking.
+  Future<void> setMeridianFlipConfig({
+    required bool enableFlip,
+    required int minutes,
+  }) async {
+    await _saveSettings({
+      'enable_meridian_flip': enableFlip.toString(),
+      'meridian_flip_minutes': minutes.toString(),
+    });
+    _patchState(
+      (s) => s.copyWith(
+        enableMeridianFlip: enableFlip,
+        meridianFlipMinutes: minutes,
+      ),
+    );
+  }
+
   // -------- Focuser defaults --------
   Future<void> setTempCompensation(bool value) async {
     await _saveSetting('temp_compensation', value.toString());
@@ -58,6 +92,44 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(backlashCompensation: value));
   }
 
+  /// Persist the focuser temperature-compensation configuration — the enable
+  /// toggle, the steps/°C coefficient, and the backlash steps — in ONE batched
+  /// transaction so the focuser configuration dialog can never persist a
+  /// partial change.
+  ///
+  /// The prior dialog issued three sequential writes and swallowed malformed
+  /// numeric input via `tryParse(...) ?? old`, so a non-finite coefficient or a
+  /// mid-write failure could persist an inconsistent trio while still reporting
+  /// success. Batching all three keys through [_saveSettings] makes persistence
+  /// atomic; [_patchState] runs only after the write resolves, so a failed
+  /// write leaves state unchanged and the dialog retryable.
+  ///
+  /// Callers validate `tempCoefficient` is finite (the continuous compensator
+  /// multiplies it by a temperature delta and rounds — a NaN/∞ coefficient
+  /// would throw there) and `backlashCompensation` is within 0..10000 (the
+  /// canonical device/backlash limit used by the autofocus settings) before
+  /// invoking. Negative and zero coefficients are intentionally allowed: zero
+  /// is the documented "track temperature but do not move" state and the
+  /// default is a negative -12 steps/°C.
+  Future<void> setFocuserCompensationConfig({
+    required bool tempCompensation,
+    required double tempCoefficient,
+    required int backlashCompensation,
+  }) async {
+    await _saveSettings({
+      'temp_compensation': tempCompensation.toString(),
+      'temp_coefficient': tempCoefficient.toString(),
+      'backlash_compensation': backlashCompensation.toString(),
+    });
+    _patchState(
+      (s) => s.copyWith(
+        tempCompensation: tempCompensation,
+        tempCoefficient: tempCoefficient,
+        backlashCompensation: backlashCompensation,
+      ),
+    );
+  }
+
   // -------- Guider defaults --------
   Future<void> setDitherScale(String value) async {
     await _saveSetting('dither_scale', value);
@@ -72,5 +144,15 @@ extension EquipmentSettingsSection on AppSettingsNotifier {
   Future<void> setSettleTimeout(int value) async {
     await _saveSetting('settle_timeout', value.toString());
     _patchState((s) => s.copyWith(settleTimeout: value));
+  }
+
+  Future<void> setSettleTime(int value) async {
+    await _saveSetting('settle_time', value.toString());
+    _patchState((s) => s.copyWith(settleTime: value));
+  }
+
+  Future<void> setDitherRaOnly(bool value) async {
+    await _saveSetting('dither_ra_only', value.toString());
+    _patchState((s) => s.copyWith(ditherRaOnly: value));
   }
 }

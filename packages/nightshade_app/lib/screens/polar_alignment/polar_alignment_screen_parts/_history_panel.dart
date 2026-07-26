@@ -63,8 +63,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
     }
 
     // Direction indicators
-    final azDirection = error.azimuthError > 0 ? 'Right' : 'Left';
-    final altDirection = error.altitudeError > 0 ? 'Down' : 'Up';
+    final azDirection = error.azimuthAdjustment;
+    final altDirection = error.altitudeAdjustment;
     final azMagnitude = error.azimuthError.abs();
     final altMagnitude = error.altitudeError.abs();
 
@@ -104,8 +104,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                 children: [
                   Icon(
                     error.azimuthError > 0
-                        ? NightshadeIcons.arrowRight
-                        : NightshadeIcons.arrowLeft,
+                        ? NightshadeIcons.arrowLeft
+                        : NightshadeIcons.arrowRight,
                     size: 12,
                     color: _getErrorMagnitudeColor(colors, azMagnitude),
                   ),

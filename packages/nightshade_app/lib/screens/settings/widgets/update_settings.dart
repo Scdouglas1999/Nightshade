@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'settings_widgets.dart';
 
@@ -31,7 +32,14 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
   bool _loading = false;
   bool _busy = false;
   String? _loadError;
+  String? _pollError;
   Timer? _poll;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _loadGeneration = 0;
+  int _backendGeneration = 0;
+  int _nextStatusRequest = 0;
+  int _lastAppliedStatusRequest = 0;
+  int? _statusRefreshInFlightGeneration;
 
   NetworkBackend? get _backend {
     final b = ref.read(backendProvider);
@@ -41,33 +49,84 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _backendGeneration++;
+        _loadGeneration++;
+        _lastAppliedStatusRequest = 0;
+        _poll?.cancel();
+        _poll = null;
+        setState(() {
+          _version = null;
+          _status = null;
+          _loadError = null;
+          _pollError = null;
+          _loading = next is NetworkBackend;
+          _busy = false;
+        });
+        if (next is NetworkBackend) unawaited(_refresh());
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_refresh());
+    });
   }
 
   @override
   void dispose() {
+    _backendSubscription?.close();
     _poll?.cancel();
     super.dispose();
   }
 
   bool _isInProgress(String? state) =>
-      state == 'checking' || state == 'downloading' || state == 'applying';
+      state == 'checking' ||
+      state == 'downloading' ||
+      state == 'verifying' ||
+      state == 'cancelling' ||
+      state == 'installing' ||
+      state == 'applying';
+
+  bool _isAbortable(String? state) =>
+      state == 'checking' || state == 'downloading';
 
   Future<void> _refresh() async {
     final backend = _backend;
-    if (backend == null) return;
+    final generation = ++_loadGeneration;
+    if (backend == null) {
+      if (!mounted) return;
+      _poll?.cancel();
+      _poll = null;
+      setState(() {
+        _version = null;
+        _status = null;
+        _loading = false;
+        _loadError = null;
+        _pollError = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _loadError = null;
     });
     try {
+      // Reserve this status request before fetching the version. Any older
+      // poll that completes while this full refresh is in flight may render
+      // briefly, but can never overwrite the final snapshot.
+      final statusRequest = ++_nextStatusRequest;
       final version = await backend.getSystemVersion();
       final status = await backend.getUpdateStatus();
-      if (!mounted) return;
+      if (!_isCurrentLoad(backend, generation)) return;
+      if (statusRequest < _lastAppliedStatusRequest) return;
+      _lastAppliedStatusRequest = statusRequest;
       setState(() {
         _version = version;
         _status = status;
         _loading = false;
+        _pollError = null;
       });
       // Keep polling status while an operation is mid-flight so progress
       // updates without the user manually refreshing.
@@ -81,14 +140,13 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
         _poll = null;
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentLoad(backend, generation)) return;
       // The `/api/system/update/*` + version routes are only registered when
       // the appliance has an update server configured; otherwise they 404.
       // Surface that as a clear "not enabled" note rather than a raw error.
       final msg = '$e';
-      final notEnabled = msg.contains('404') ||
-          msg.toLowerCase().contains('route not found') ||
-          msg.toLowerCase().contains('not found');
+      final notEnabled = (e is ServerError && e.httpStatus == 404) ||
+          RegExp(r'\bHTTP 404\b').hasMatch(msg);
       setState(() {
         _loading = false;
         _loadError = notEnabled
@@ -100,34 +158,224 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     }
   }
 
+  bool _isCurrentLoad(NetworkBackend backend, int generation) =>
+      mounted &&
+      generation == _loadGeneration &&
+      identical(ref.read(backendProvider), backend);
+
   Future<void> _refreshStatusOnly() async {
     final backend = _backend;
     if (backend == null) return;
+    final backendGeneration = _backendGeneration;
+    // Timer.periodic does not await its callback. Keep at most one status GET
+    // in flight per connected host so a slow appliance cannot accumulate a
+    // queue of overlapping requests every two seconds. A host switch advances
+    // the generation, allowing the new rig to refresh immediately without the
+    // old rig's late finally block clearing its gate.
+    if (_statusRefreshInFlightGeneration == backendGeneration) return;
+    _statusRefreshInFlightGeneration = backendGeneration;
+    final request = ++_nextStatusRequest;
     try {
       final status = await backend.getUpdateStatus();
-      if (!mounted) return;
-      setState(() => _status = status);
+      if (!mounted ||
+          backendGeneration != _backendGeneration ||
+          request < _lastAppliedStatusRequest ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
+      _lastAppliedStatusRequest = request;
+      setState(() {
+        _status = status;
+        _pollError = null;
+      });
       if (!_isInProgress(status.state)) {
         _poll?.cancel();
         _poll = null;
       }
-    } catch (_) {
-      // transient — keep the last snapshot
+    } catch (e) {
+      if (!mounted ||
+          backendGeneration != _backendGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
+      // Keep the last valid snapshot, but never hide a broken monitoring
+      // link: the operator needs to know progress may now be stale.
+      setState(() {
+        _pollError = 'Could not refresh update progress: $e';
+      });
+    } finally {
+      if (_statusRefreshInFlightGeneration == backendGeneration) {
+        _statusRefreshInFlightGeneration = null;
+      }
     }
   }
 
-  Future<void> _run(String label, Future<void> Function() action) async {
-    final backend = _backend;
-    if (backend == null) return;
+  void _ensurePolling() {
+    _poll ??= Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshStatusOnly(),
+    );
+  }
+
+  Future<void> _run(
+    String label,
+    Future<Object?> Function(NetworkBackend backend) action, {
+    NetworkBackend? expectedBackend,
+    String? acceptedMessage,
+  }) async {
+    if (_busy) return;
+    final backend = expectedBackend ?? _backend;
+    if (backend == null || !identical(_backend, backend)) {
+      if (mounted && expectedBackend != null) {
+        context.showErrorSnackBar(
+          '$label cancelled because the connected rig changed.',
+        );
+      }
+      return;
+    }
     setState(() => _busy = true);
     try {
-      await action();
-      if (mounted) context.showSuccessSnackBar('$label started');
+      // Keep the whole command on the backend captured at admission. A host
+      // switch between tap and dispatch must never update the newly-selected
+      // rig.
+      await action(backend);
+      if (mounted && identical(ref.read(backendProvider), backend)) {
+        context.showSuccessSnackBar(
+          acceptedMessage ?? '$label request accepted',
+        );
+        // The job is queued asynchronously on the host. Poll even if the
+        // first snapshot still says idle so a fast admission race cannot
+        // leave the page frozen until a manual refresh.
+        _ensurePolling();
+        unawaited(_refreshStatusOnly());
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('$label failed: $e');
+      if (mounted && identical(ref.read(backendProvider), backend)) {
+        context.showErrorSnackBar('$label failed: $e');
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
-      await _refresh();
+      if (mounted && identical(ref.read(backendProvider), backend)) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _confirmApply() async {
+    final backend = _backend;
+    final stagedVersion = _status?.stagedVersion ?? 'the staged update';
+    if (backend == null) return;
+    final confirmed = await ConfirmDialog.show(
+      context: context,
+      title: 'Apply $stagedVersion?',
+      message: 'The connected rig will stop accepting work and restart. '
+          'Do not begin an imaging run until it reconnects on the new build.',
+      confirmLabel: 'Apply and Restart',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    final current = await _revalidateCommand(
+      backend,
+      'Apply',
+      (status) =>
+          !_isInProgress(status.state) &&
+          (status.stagedVersion?.isNotEmpty ?? false),
+      invalidMessage: 'The selected update is no longer staged.',
+    );
+    if (current == null) return;
+    await _run('Apply', _doApply, expectedBackend: backend);
+  }
+
+  Future<void> _confirmRollback() async {
+    final backend = _backend;
+    if (backend == null) return;
+    final confirmed = await ConfirmDialog.show(
+      context: context,
+      title: 'Roll back this rig?',
+      message: 'The connected rig will restart into its retained previous '
+          'build. Any active imaging work must already be stopped.',
+      confirmLabel: 'Roll Back and Restart',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    final current = await _revalidateCommand(
+      backend,
+      'Rollback',
+      (status) => !_isInProgress(status.state) && status.rollbackAvailable,
+      invalidMessage: 'A rollback restore point is no longer available.',
+    );
+    if (current == null) return;
+    await _run('Rollback', _doRollback, expectedBackend: backend);
+  }
+
+  Future<void> _confirmDiscard() async {
+    final backend = _backend;
+    final stagedVersion = _status?.stagedVersion ?? 'the staged update';
+    if (backend == null) return;
+    final confirmed = await ConfirmDialog.show(
+      context: context,
+      title: 'Discard $stagedVersion?',
+      message: 'The downloaded update will be removed from the connected '
+          'rig. It must be downloaded again before it can be applied.',
+      confirmLabel: 'Discard Update',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    final current = await _revalidateCommand(
+      backend,
+      'Discard',
+      (status) =>
+          !_isInProgress(status.state) &&
+          (status.stagedVersion?.isNotEmpty ?? false),
+      invalidMessage: 'There is no longer a staged update to discard.',
+    );
+    if (current == null) return;
+    await _run(
+      'Discard',
+      _doDiscard,
+      expectedBackend: backend,
+      acceptedMessage: 'Staged update discarded',
+    );
+  }
+
+  Future<RemoteUpdateStatus?> _revalidateCommand(
+    NetworkBackend backend,
+    String label,
+    bool Function(RemoteUpdateStatus status) isStillValid, {
+    required String invalidMessage,
+  }) async {
+    final backendGeneration = _backendGeneration;
+    final request = ++_nextStatusRequest;
+    try {
+      final status = await backend.getUpdateStatus();
+      if (!mounted ||
+          backendGeneration != _backendGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        if (mounted) {
+          context.showErrorSnackBar(
+            '$label cancelled because the connected rig changed.',
+          );
+        }
+        return null;
+      }
+      if (request >= _lastAppliedStatusRequest) {
+        _lastAppliedStatusRequest = request;
+        setState(() {
+          _status = status;
+          _pollError = null;
+        });
+      }
+      if (!isStillValid(status)) {
+        context.showErrorSnackBar('$invalidMessage Refresh and try again.');
+        return null;
+      }
+      return status;
+    } catch (e) {
+      if (mounted && identical(ref.read(backendProvider), backend)) {
+        context.showErrorSnackBar(
+          '$label cancelled because the rig state could not be verified: $e',
+        );
+      }
+      return null;
     }
   }
 
@@ -163,6 +411,15 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
               text: 'Could not read update state: $_loadError',
             ),
           ],
+          if (_pollError != null) ...[
+            const SizedBox(height: 12),
+            _InfoCard(
+              colors: colors,
+              icon: LucideIcons.wifiOff,
+              text: '$_pollError The status shown above may be stale; '
+                  'Nightshade will keep retrying.',
+            ),
+          ],
         ],
       ],
     );
@@ -191,7 +448,10 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           ),
           if (v != null) ...[
             const SizedBox(height: 4),
-            Text('Channel: ${v.channel} · ${v.platform}',
+            Text(
+                v.channel == null
+                    ? 'Platform: ${v.platform}'
+                    : 'Channel: ${v.channel} · ${v.platform}',
                 style: TextStyle(
                     color: colors.textMuted,
                     fontSize: NightshadeTypography.fontSize12)),
@@ -224,7 +484,7 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
                   color: colors.textSecondary,
                   fontSize: NightshadeTypography.fontSize12)),
           const SizedBox(height: 6),
-          Text(s?.state ?? (_loading ? 'Loading…' : 'idle'),
+          Text(_statusLabel(s?.state),
               style: TextStyle(
                   color: colors.textPrimary,
                   fontSize: NightshadeTypography.fontSize16,
@@ -235,6 +495,17 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
                 style: TextStyle(
                     color: colors.textSecondary,
                     fontSize: NightshadeTypography.fontSize13)),
+          ],
+          if (s?.availableVersion != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Available: ${s!.availableVersion}'
+              '${s.availableBuildNumber == null ? '' : ' (build ${s.availableBuildNumber})'}',
+              style: TextStyle(
+                color: colors.success,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
+            ),
           ],
           if (pct != null && _isInProgress(s?.state)) ...[
             const SizedBox(height: 10),
@@ -262,17 +533,71 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
                     color: colors.error,
                     fontSize: NightshadeTypography.fontSize12)),
           ],
+          if (s?.requiresManualUpgrade ?? false) ...[
+            const SizedBox(height: 6),
+            Text(
+              'This release requires a manual upgrade and cannot be staged '
+              'from Nightshade.',
+              style: TextStyle(
+                color: colors.warning,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+          ] else if (s != null && !s.canAuthenticateUpdates) ...[
+            const SizedBox(height: 6),
+            Text(
+              'This host can check for releases but cannot authenticate '
+              'update packages. Install a build with a trusted update key.',
+              style: TextStyle(
+                color: colors.warning,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+          ],
+          if (s != null && !_knownStates.contains(s.state)) ...[
+            const SizedBox(height: 6),
+            Text(
+              'This host reports an update state this app does not recognize. '
+              'Actions are disabled until the state returns to a supported '
+              'value or the client is updated.',
+              style: TextStyle(
+                color: colors.warning,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildActions(NightshadeColors colors) {
-    final state = _status?.state;
+    final status = _status;
+    final state = status?.state;
     final inProgress = _isInProgress(state);
     final hasStaged =
-        state == 'staged' || (_status?.stagedVersion?.isNotEmpty ?? false);
-    final canAct = !_busy && !inProgress;
+        state == 'staged' || (status?.stagedVersion?.isNotEmpty ?? false);
+    // Compatibility for hosts from before the explicit `available` state:
+    // their status returned idle with this message immediately after a check.
+    final legacyAvailable = state == 'idle' &&
+        (status?.message?.toLowerCase().contains('update') ?? false) &&
+        (status?.message?.toLowerCase().contains('available') ?? false);
+    final hasAvailable =
+        (status?.hasAvailableUpdate ?? false) || legacyAvailable;
+    final stateAllowsCommands = state == 'idle' ||
+        state == 'available' ||
+        state == 'staged' ||
+        state == 'failed';
+    final canAct = status != null &&
+        !_loading &&
+        !_busy &&
+        !inProgress &&
+        stateAllowsCommands;
+    final canDownload = canAct &&
+        hasAvailable &&
+        !status.requiresManualUpgrade &&
+        status.canAuthenticateUpdates;
+    final canRollback = canAct && status.rollbackAvailable;
 
     return Wrap(
       spacing: 8,
@@ -286,27 +611,35 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: canAct ? () => _run('Download', _doDownload) : null,
+          onPressed: canDownload ? () => _run('Download', _doDownload) : null,
           label: 'Download',
           icon: LucideIcons.download,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: canAct && hasStaged ? () => _run('Apply', _doApply) : null,
+          onPressed: canAct && hasStaged ? _confirmApply : null,
           label: 'Apply Staged',
           icon: LucideIcons.checkCircle,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
         ),
+        if (hasStaged)
+          NightshadeButton(
+            onPressed: canAct ? _confirmDiscard : null,
+            label: 'Discard Staged',
+            icon: LucideIcons.trash2,
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
         NightshadeButton(
-          onPressed: canAct ? () => _run('Rollback', _doRollback) : null,
+          onPressed: canRollback ? _confirmRollback : null,
           label: 'Rollback',
           icon: LucideIcons.undo2,
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
         ),
-        if (inProgress)
+        if (_isAbortable(state))
           NightshadeButton(
             onPressed: _busy ? null : () => _run('Abort', _doAbort),
             label: 'Abort',
@@ -325,11 +658,59 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     );
   }
 
-  Future<void> _doCheck() async => _backend?.checkForUpdate();
-  Future<void> _doDownload() async => _backend?.downloadUpdate();
-  Future<void> _doApply() async => _backend?.applyUpdate();
-  Future<void> _doRollback() async => _backend?.rollbackUpdate();
-  Future<void> _doAbort() async => _backend?.abortUpdate();
+  static const _knownStates = {
+    'idle',
+    'available',
+    'checking',
+    'downloading',
+    'verifying',
+    'cancelling',
+    'staged',
+    'installing',
+    'applying',
+    'failed',
+  };
+
+  String _statusLabel(String? state) {
+    if (_loading && state == null) return 'Loading…';
+    return switch (state) {
+      null => 'Unavailable',
+      'idle' => 'Ready to check',
+      'available' => 'Update available',
+      'checking' => 'Checking for updates…',
+      'downloading' => 'Downloading update…',
+      'verifying' => 'Verifying update…',
+      'cancelling' => 'Cancelling update…',
+      'staged' => 'Ready to apply',
+      'installing' || 'applying' => 'Restarting into update…',
+      'failed' => 'Update failed',
+      _ => 'Host state: $state',
+    };
+  }
+
+  Future<RemoteJob> _doCheck(NetworkBackend backend) {
+    return backend.checkForUpdate();
+  }
+
+  Future<RemoteJob> _doDownload(NetworkBackend backend) {
+    return backend.downloadUpdate();
+  }
+
+  Future<RemoteJob> _doApply(NetworkBackend backend) {
+    return backend.applyUpdate();
+  }
+
+  Future<RemoteJob> _doRollback(NetworkBackend backend) {
+    return backend.rollbackUpdate();
+  }
+
+  Future<RemoteJob> _doAbort(NetworkBackend backend) {
+    return backend.abortUpdate();
+  }
+
+  Future<void> _doDiscard(NetworkBackend backend) {
+    return backend.discardStagedUpdate();
+  }
 }
 
 class _InfoCard extends StatelessWidget {

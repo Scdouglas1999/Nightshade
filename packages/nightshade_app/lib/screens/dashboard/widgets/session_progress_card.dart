@@ -5,6 +5,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import 'glass_card.dart';
+import '../../../utils/filter_label.dart';
 
 class SessionProgressCard extends ConsumerWidget {
   final NightshadeColors colors;
@@ -72,7 +73,7 @@ class SessionProgressCard extends ConsumerWidget {
 
     // Current exposure info
     final currentExpText =
-        '${exposureSettings.exposureTime}s ${exposureSettings.filter ?? "L"}';
+        '${exposureSettings.exposureTime}s ${filterLabel(exposureSettings.filter)}';
 
     return DashboardGlassCard(
       colors: colors,

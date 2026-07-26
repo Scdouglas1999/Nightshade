@@ -3,10 +3,16 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_desktop/headless_api/handlers/sequencer_handlers.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
+
+class _MockSequenceRepository extends Mock implements SequenceRepository {}
+
+class _MockSequenceExecutor extends Mock implements SequenceExecutor {}
 
 void main() {
   group('SequencerHandlers', () {
@@ -57,6 +63,133 @@ void main() {
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
     });
+
+    test(
+      'meridian flip rejects malformed optional fields and unsafe bounds',
+      () async {
+        final base = <String, Object?>{
+          'mountId': 'mount-1',
+          'targetName': 'M31',
+          'targetRaHours': 0.7,
+          'targetDecDegrees': 41.2,
+        };
+        final invalid = <Map<String, Object?>>[
+          {'mountId': '   '},
+          {'targetName': '   '},
+          {'cameraId': 42},
+          {'pauseGuiding': 'maybe'},
+          {'targetRaHours': -0.1},
+          {'targetRaHours': 24.1},
+          {'targetDecDegrees': -90.1},
+          {'targetDecDegrees': 90.1},
+          {'settleTimeSecs': -1},
+          {'settleTimeSecs': 3601},
+        ];
+
+        for (final override in invalid) {
+          final response = await translateHandlerErrors(
+            handlers.handlePerformMeridianFlip(
+              Request(
+                'POST',
+                Uri.parse('http://localhost/api/sequencer/meridian-flip'),
+                body: jsonEncode({...base, ...override}),
+              ),
+            ),
+          );
+          expect(
+            response.statusCode,
+            HttpStatus.badRequest,
+            reason: '$override',
+          );
+        }
+      },
+    );
+
+    test(
+      'load-and-start hydrates the saved sequence through the editor',
+      () async {
+        final repository = _MockSequenceRepository();
+        final executor = _MockSequenceExecutor();
+        final sequence = Sequence.create(
+          name: 'Remote run',
+          databaseId: 42,
+          nodes: {'root': InstructionSetNode(id: 'root', name: 'Sequence')},
+          rootNodeId: 'root',
+        );
+        when(
+          () => repository.loadSequence(42),
+        ).thenAnswer((_) async => sequence);
+        when(() => executor.start()).thenAnswer((_) async {});
+
+        final scoped = ProviderContainer(
+          overrides: [
+            sequenceRepositoryProvider.overrideWithValue(repository),
+            sequenceExecutorProvider.overrideWithValue(executor),
+          ],
+        );
+        addTearDown(scoped.dispose);
+        final scopedHandlers = SequencerHandlers(scoped);
+
+        final response = await scopedHandlers.handleSequencerLoadAndStart(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/load-and-start'),
+            body: jsonEncode({'sequenceId': 42}),
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body, containsPair('status', 'started'));
+        expect(body, containsPair('sequenceId', 42));
+        final loaded = scoped.read(currentSequenceProvider);
+        expect(loaded?.name, 'Remote run');
+        expect(loaded?.databaseId, 42);
+        // Node ids are PRESERVED. This previously asserted `isNot('root')`,
+        // pinning a re-keying step that was measured on the running app to be a
+        // defect: because the copy keeps `databaseId` and saves back to the same
+        // library row, minting fresh UUIDs on open broke the two subsystems that
+        // treat a node's UUID as its durable identity —
+        // `SequenceRepository.saveSequence` (which upserts by id, so an emptied
+        // update set deleted and re-inserted every node row) and
+        // `SequenceDiffService` (which matches by id, so re-running an untouched
+        // sequence reported every node as both added AND removed). See
+        // nightshade_core's load_copy_for_editing_test.dart.
+        expect(loaded?.rootNodeId, 'root');
+        verify(() => repository.loadSequence(42)).called(1);
+        verify(() => executor.start()).called(1);
+      },
+    );
+
+    test(
+      'load-and-start returns 404 when the saved sequence is missing',
+      () async {
+        final repository = _MockSequenceRepository();
+        final executor = _MockSequenceExecutor();
+        when(() => repository.loadSequence(404)).thenAnswer((_) async => null);
+
+        final scoped = ProviderContainer(
+          overrides: [
+            sequenceRepositoryProvider.overrideWithValue(repository),
+            sequenceExecutorProvider.overrideWithValue(executor),
+          ],
+        );
+        addTearDown(scoped.dispose);
+        final response = await SequencerHandlers(scoped)
+            .handleSequencerLoadAndStart(
+              Request(
+                'POST',
+                Uri.parse('http://localhost/api/sequencer/load-and-start'),
+                body: jsonEncode({'sequenceId': 404}),
+              ),
+            );
+
+        expect(response.statusCode, HttpStatus.notFound);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'sequence_not_found');
+        verifyNever(() => executor.start());
+      },
+    );
 
     test('dither config validates required numeric fields as JSON', () async {
       final response = await translateHandlerErrors(
@@ -203,6 +336,43 @@ void main() {
         expect(response.headers['content-type'], 'application/json');
       },
     );
+
+    test('secondary rig start requires an explicit host save path', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleSecondaryRigStart(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/secondary-rig/start'),
+            body: jsonEncode({'cameraId': 'sim:secondary', 'exposureSecs': 60}),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'saveBasePath');
+    });
+
+    test('secondary rig start rejects fractional frame counts', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleSecondaryRigStart(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequencer/secondary-rig/start'),
+            body: jsonEncode({
+              'cameraId': 'sim:secondary',
+              'exposureSecs': 60,
+              'saveBasePath': '/tmp/nightshade-secondary',
+              'frameCount': 2.5,
+            }),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'frameCount');
+    });
 
     // =====================================================================
     // Recovery Mode HTTP handlers

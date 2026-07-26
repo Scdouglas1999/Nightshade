@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'science_ladder_model.dart';
@@ -44,6 +43,7 @@ class _ScienceRungSheet extends ConsumerWidget {
       title: spec.title,
       icon: _iconFor(spec.rung),
       width: 480,
+      actions: _actions(context, ref, colors),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -86,7 +86,6 @@ class _ScienceRungSheet extends ConsumerWidget {
           ],
         ],
       ),
-      actions: _actions(context, ref, colors),
     );
   }
 
@@ -107,20 +106,6 @@ class _ScienceRungSheet extends ConsumerWidget {
           ),
         ];
       case RungState.locked:
-        if (spec.rung == ScienceRung.track) {
-          return [
-            NightshadeButton(
-              onPressed: () {
-                ref
-                    .read(scienceSettingsProvider.notifier)
-                    .setFeatureEnabled(ScienceFeature.photometry, true);
-                Navigator.of(context).pop();
-              },
-              label: 'Turn on live photometry',
-              icon: LucideIcons.activity,
-            ),
-          ];
-        }
         return [
           NightshadeButton(
             onPressed: () => Navigator.of(context).pop(),

@@ -13,6 +13,11 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildStaticFileRoutes(
   StaticFileHandlers h,
 ) => <HeadlessRoute>[
+  // Site root: browsers get sent to the dashboard, machines get a JSON pointer.
+  HeadlessRoute(HttpMethod.get, '/', h.handleRoot),
+  // Requested unprompted by every browser; 204 so it is not an auth failure.
+  HeadlessRoute(HttpMethod.get, '/favicon.ico', h.handleFavicon),
+
   // Web Dashboard
   HeadlessRoute(HttpMethod.get, '/dashboard', h.handleDashboardIndex),
   HeadlessRoute(HttpMethod.get, '/dashboard/', h.handleDashboardIndex),

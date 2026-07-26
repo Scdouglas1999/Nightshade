@@ -33,8 +33,8 @@ class FramingHandlers {
     _logInfo('[API] POST /api/framing/slew-to-target');
     final payload = await readJsonObject(request);
 
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
 
     final backend = container.read(deviceBackendProvider);
 
@@ -61,13 +61,17 @@ class FramingHandlers {
     _logInfo('[API] POST /api/framing/center-on-target');
     final payload = await readJsonObject(request);
 
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
-    final maxIterations = optionalInt(payload, 'maxIterations') ?? 5;
-    final toleranceArcsec = optionalDouble(payload, 'toleranceArcsec') ?? 30.0;
-    final exposureTime = optionalDouble(payload, 'exposureTime') ?? 3.0;
-    final binning = optionalInt(payload, 'binning') ?? 2;
-    final gain = optionalInt(payload, 'gain') ?? 100;
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
+    final maxIterations =
+        optionalInt(payload, 'maxIterations', min: 1, max: 20) ?? 5;
+    final toleranceArcsec =
+        optionalDouble(payload, 'toleranceArcsec', min: 0.1, max: 3600) ?? 30.0;
+    final exposureTime =
+        optionalDouble(payload, 'exposureTime', min: 0.01, max: 600) ?? 3.0;
+    final binning = optionalInt(payload, 'binning', min: 1, max: 16) ?? 2;
+    final gain = optionalInt(payload, 'gain', min: 0);
+    final offset = optionalInt(payload, 'offset', min: 0);
     final syncMount = optionalBool(payload, 'syncMount') ?? false;
 
     Map<String, Object?> resultToJson(CenteringResult result) => {
@@ -101,6 +105,7 @@ class FramingHandlers {
         exposureTime: exposureTime,
         binning: binning,
         gain: gain,
+        offset: offset,
         syncMount: syncMount,
       );
 
@@ -137,6 +142,7 @@ class FramingHandlers {
         deviceId: null,
         work: (sink, cancellation) async {
           sink.update(0.0, 'Centering on RA=$ra DEC=$dec');
+          final centeringService = container.read(centeringServiceProvider);
           final workFuture = runCentering();
           final raced = await Future.any<dynamic>([
             workFuture,
@@ -145,6 +151,15 @@ class FramingHandlers {
             ),
           ]);
           if (raced is _CenteringCancelled) {
+            await centeringService.stop();
+            try {
+              await workFuture;
+            } catch (e) {
+              _logger.debug(
+                'Centering exited with the expected cancellation error: $e',
+                source: 'FramingHandlers',
+              );
+            }
             throw const JobCancelledException(
               'Center-on-target cancellation requested by client',
             );
@@ -172,8 +187,8 @@ class FramingHandlers {
     _logInfo('[API] POST /api/framing/sync');
     final payload = await readJsonObject(request);
 
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
 
     final backend = container.read(deviceBackendProvider);
 
@@ -271,9 +286,39 @@ class FramingHandlers {
       return jsonBadRequest({'error': 'No mount connected'});
     }
 
+    // Shared stop/abort no-op contract — see [kWasRunningField]. Observed live
+    // with no slew in progress:
+    //   POST /api/framing/abort-slew -> 200 {"status":"aborted"}
+    // An operator hitting abort in a hurry reads that as "the mount was
+    // stopped". This is the most dangerous instance of the pattern, because it
+    // can mask the fact that a slew is still running somewhere else.
+    //
+    // Fail SAFE, not merely honest: a failed status read still issues the
+    // abort. Never skip a mount abort because we could not confirm motion.
+    var wasRunning = true;
+    try {
+      final status = await backend.getMountStatus(mount.id);
+      wasRunning = status.slewing;
+    } catch (error) {
+      _logInfo(
+        'abort-slew precondition check skipped for ${mount.id}: '
+        'mount status read failed ($error)',
+      );
+    }
+
+    if (!wasRunning) {
+      return jsonOk({
+        'status': 'aborted',
+        kWasRunningField: false,
+        'message':
+            'The mount was not slewing; nothing to abort. Its motion state '
+            'is unchanged.',
+      });
+    }
+
     await backend.mountAbort(mount.id);
 
-    return jsonOk({'status': 'aborted'});
+    return jsonOk({'status': 'aborted', kWasRunningField: true});
   }
 
   // ===========================================================================
@@ -333,8 +378,8 @@ class FramingHandlers {
   Future<Response> handleSetTarget(Request request) async {
     _logInfo('[API] POST /api/framing/set-target');
     final payload = await readJsonObject(request);
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
     final name = requireString(payload, 'name');
 
     container
@@ -361,11 +406,16 @@ class FramingHandlers {
   Future<Response> handleSaveFraming(Request request) async {
     _logInfo('[API] POST /api/framing/save');
     final payload = await readJsonObject(request);
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
-    final positionAngle = requireDouble(payload, 'positionAngle');
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
+    final positionAngle = requireDouble(
+      payload,
+      'positionAngle',
+      min: 0,
+      max: 360,
+    );
     final name = requireString(payload, 'name');
-    final targetId = optionalInt(payload, 'targetId');
+    final targetId = optionalInt(payload, 'targetId', min: 1);
 
     final database = container.read(databaseProvider);
 

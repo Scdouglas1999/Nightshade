@@ -4,9 +4,12 @@
 // [SchedulerTabContent] — the same widget the standalone
 // /scheduler shell now embeds.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_app/screens/planner/widgets/scheduler_tab_content.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -15,11 +18,65 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../scheduler/scheduler_test_doubles.dart';
 
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void switchTo(NightshadeBackend backend) => state = backend;
+}
+
+Map<String, dynamic> _remoteSchedulerState({
+  SchedulerState state = SchedulerState.idle,
+  bool hasCandidates = true,
+}) {
+  return {
+    'status': {'state': state.name},
+    'decision': {
+      'score': 0,
+      'reasoning': <String>[],
+      'scoredCandidates': hasCandidates
+          ? <Object?>[
+              {
+                'targetId': 1,
+                'targetName': 'M42',
+                'totalScore': 1.0,
+                'factors': <Object?>[],
+                'hardConstraintFailed': false,
+                'rejectionReasons': <Object?>[],
+              },
+            ]
+          : <Object?>[],
+      'rejected': <Object?>[],
+      'evaluatedAt': DateTime.utc(2026, 7, 13).toIso8601String(),
+      'isSwitch': false,
+    },
+    'config': SchedulerConfig.defaults.toStorageJson(),
+  };
+}
+
 List<Override> _commonOverrides({
   IntegrationGoalService? goalService,
   TargetConstraintService? constraintService,
+  bool overrideReadiness = true,
 }) {
   return [
+    if (overrideReadiness)
+      schedulerEngineReadyProvider.overrideWith(
+        (ref) => ref.read(schedulerEngineProvider),
+      ),
+    schedulerAutoReevalProvider.overrideWith((ref) {}),
+    schedulerPreviewDecisionProvider.overrideWith(
+      (ref) => Completer<SchedulerDecision>().future,
+    ),
     allDbTargetsProvider.overrideWith(
       (ref) => const Stream<List<ndb.Target>>.empty(),
     ),
@@ -41,6 +98,205 @@ List<Override> _commonOverrides({
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('local scheduler authority failure is visible and retryable',
+      (tester) async {
+    var attempts = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(overrideReadiness: false),
+          schedulerEngineReadyProvider.overrideWith((ref) async {
+            attempts++;
+            throw StateError('settings store unavailable');
+          }),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.textContaining('Could not load scheduler configuration'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('settings store unavailable'), findsOneWidget);
+    expect(attempts, 1);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Retry'));
+    await tester.pump();
+    await tester.pump();
+    expect(attempts, 2);
+  });
+
+  testWidgets(
+      'remote Run button starts the host without constructing an engine',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final backend = _MockNetworkBackend();
+    when(backend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(),
+    );
+    when(() => backend.controlScheduler('start')).thenAnswer(
+      (_) async => _remoteSchedulerState(state: SchedulerState.running),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          schedulerEngineProvider.overrideWith(
+            (ref) => throw StateError('remote client created an engine'),
+          ),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Run unattended all night'),
+    );
+    await tester.pumpAndSettle();
+
+    verify(() => backend.controlScheduler('start')).called(1);
+  });
+
+  testWidgets('empty scheduler explains why unattended start is disabled',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final backend = _MockNetworkBackend();
+    when(backend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(hasCandidates: false),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          schedulerEngineProvider.overrideWith(
+            (ref) => throw StateError('remote client created an engine'),
+          ),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Run unattended all night'),
+    );
+    expect(button.onPressed, isNull);
+    expect(
+      find.textContaining('Add at least one target'),
+      findsOneWidget,
+    );
+    verifyNever(() => backend.controlScheduler('start'));
+  });
+
+  testWidgets(
+      'switching hosts retires an in-flight scheduler command immediately',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final oldBackend = _MockNetworkBackend();
+    final newBackend = _MockNetworkBackend();
+    final oldCommand = Completer<Map<String, dynamic>>();
+    when(oldBackend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(),
+    );
+    when(newBackend.getSchedulerState).thenAnswer(
+      (_) async => _remoteSchedulerState(),
+    );
+    when(() => oldBackend.controlScheduler('start')).thenAnswer(
+      (_) => oldCommand.future,
+    );
+    when(() => newBackend.controlScheduler('start')).thenAnswer(
+      (_) async => _remoteSchedulerState(state: SchedulerState.running),
+    );
+    late _SwappableBackendNotifier notifier;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          backendProvider.overrideWith((ref) {
+            notifier = _SwappableBackendNotifier(ref, oldBackend);
+            return notifier;
+          }),
+          schedulerEngineProvider.overrideWith(
+            (ref) => throw StateError('remote client created an engine'),
+          ),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final runButton =
+        find.widgetWithText(NightshadeButton, 'Run unattended all night');
+    await tester.tap(runButton);
+    await tester.pump();
+    verify(() => oldBackend.controlScheduler('start')).called(1);
+
+    notifier.switchTo(newBackend);
+    await tester.pumpAndSettle();
+
+    // The old host's pending request must not leave the replacement host busy.
+    await tester.tap(runButton);
+    await tester.pumpAndSettle();
+    verify(() => newBackend.controlScheduler('start')).called(1);
+
+    oldCommand.completeError(StateError('old host went away'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.textContaining('old host went away'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
       'per-row delete icon opens confirmation dialog and on confirm wipes '
@@ -108,6 +364,71 @@ void main() {
 
     expect(goalSvc.deletedForTarget, [2]);
     expect(constraintSvc.deletedForTarget, [2]);
+  });
+
+  testWidgets('scheduler row cleanup is cancelled after a host switch',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 800);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final engine = buildTestSchedulerEngine();
+    final goalSvc = FakeIntegrationGoalService();
+    final constraintSvc = FakeTargetConstraintService();
+    final decision = decisionWith(
+      chosenId: 1,
+      chosenName: 'NGC 7000',
+      scored: [scoreFor(id: 2, name: 'M31', total: 1.8)],
+    );
+    late _SwappableBackendNotifier notifier;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(
+            goalService: goalSvc,
+            constraintService: constraintSvc,
+          ),
+          backendProvider.overrideWith((ref) {
+            notifier = _SwappableBackendNotifier(ref, DisconnectedBackend());
+            return notifier;
+          }),
+          schedulerEngineProvider.overrideWithValue(engine),
+          schedulerStatusProvider.overrideWith((ref) {
+            return FakeSchedulerStatusNotifier(const SchedulerStatus(
+              state: SchedulerState.idle,
+            ));
+          }),
+          currentSchedulerDecisionProvider.overrideWith((ref) {
+            return FakeCurrentSchedulerDecisionNotifier(decision);
+          }),
+          allIntegrationGoalsProvider.overrideWith(
+            (ref) async => <IntegrationGoal>[],
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: SchedulerTabContent()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.tap(find.byKey(const ValueKey('scheduler-delete-row-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove from scheduler?'), findsOneWidget);
+
+    notifier.switchTo(DisconnectedBackend());
+    await tester.pump();
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Remove'));
+    await tester.pumpAndSettle();
+
+    expect(goalSvc.deletedForTarget, isEmpty);
+    expect(constraintSvc.deletedForTarget, isEmpty);
+    expect(find.textContaining('cleanup was cancelled'), findsOneWidget);
   });
 
   testWidgets('"Clear all" button works when SchedulerTabContent is embedded',

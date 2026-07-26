@@ -14,11 +14,13 @@ class _RecordingTransport extends NotificationTransport {
   final List<_SentMessage> sent = [];
   bool configured;
   bool failNext;
+  bool throwNext;
 
   _RecordingTransport(
     this.kind, {
     this.configured = true,
     this.failNext = false,
+    this.throwNext = false,
   });
 
   @override
@@ -34,6 +36,10 @@ class _RecordingTransport extends NotificationTransport {
     required String body,
   }) async {
     sent.add(_SentMessage(category: category, title: title, body: body));
+    if (throwNext) {
+      throwNext = false;
+      throw StateError('synthetic throw');
+    }
     if (failNext) {
       failNext = false;
       return NotificationResult.fail('synthetic failure');
@@ -222,6 +228,29 @@ void main() {
     await router.dispose();
   });
 
+  test('an unavailable transport does not consume the debounce slot', () async {
+    final transport = _RecordingTransport(
+      NotificationTransportKind.discord,
+      configured: false,
+    );
+    final matrix = NotificationRoutingMatrix.defaults().withRule(
+      NotificationCategory.frameCaptured,
+      const NotificationRoutingRule(
+        transports: [NotificationTransportKind.discord],
+        debounceSeconds: 60,
+      ),
+    );
+    final router = NotificationRouter(transports: [transport], matrix: matrix);
+
+    router.route(NotificationCategory.frameCaptured, const {});
+    transport.configured = true;
+    router.route(NotificationCategory.frameCaptured, const {});
+    await Future<void>.delayed(Duration.zero);
+
+    expect(transport.sent, hasLength(1));
+    await router.dispose();
+  });
+
   test('event stream → category classification', () async {
     final t = _RecordingTransport(NotificationTransportKind.discord);
     final matrix = NotificationRoutingMatrix.defaults().withRule(
@@ -303,6 +332,23 @@ void main() {
     await router.dispose();
   });
 
+  test(
+    'sendTest converts a throwing transport into a visible failure',
+    () async {
+      final transport = _RecordingTransport(
+        NotificationTransportKind.pushover,
+        throwNext: true,
+      );
+      final router = NotificationRouter(transports: [transport]);
+
+      final result = await router.sendTest(NotificationTransportKind.pushover);
+
+      expect(result.success, isFalse);
+      expect(result.error, contains('synthetic throw'));
+      await router.dispose();
+    },
+  );
+
   test('routeNotificationNode honours explicit transports', () async {
     final tA = _RecordingTransport(NotificationTransportKind.discord);
     final tB = _RecordingTransport(NotificationTransportKind.telegram);
@@ -322,6 +368,76 @@ void main() {
     expect(tA.sent, isEmpty);
     expect(tB.sent.length, 1);
     expect(tB.sent.first.body, 'Custom B');
+    await router.dispose();
+  });
+
+  test(
+    'NotificationNode honors custom severity and debounce filters',
+    () async {
+      final transport = _RecordingTransport(NotificationTransportKind.discord);
+      final matrix = NotificationRoutingMatrix.defaults().withRule(
+        NotificationCategory.custom,
+        const NotificationRoutingRule(
+          transports: [NotificationTransportKind.discord],
+          minSeverity: EventSeverity.warning,
+          debounceSeconds: 60,
+        ),
+      );
+      final router = NotificationRouter(
+        transports: [transport],
+        matrix: matrix,
+      );
+
+      router.routeNotificationNode(
+        title: 'info',
+        body: 'suppressed',
+        severity: EventSeverity.info,
+      );
+      router.routeNotificationNode(
+        title: 'warning',
+        body: 'sent',
+        severity: EventSeverity.warning,
+      );
+      router.routeNotificationNode(
+        title: 'warning again',
+        body: 'debounced',
+        severity: EventSeverity.warning,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(transport.sent, hasLength(1));
+      expect(transport.sent.single.title, 'warning');
+      await router.dispose();
+    },
+  );
+
+  test('update-available routing does not depend on the custom rule', () async {
+    final inApp = _RecordingTransport(NotificationTransportKind.inApp);
+    final push = _RecordingTransport(NotificationTransportKind.systemPush);
+    final matrix = NotificationRoutingMatrix.defaults().withRule(
+      NotificationCategory.custom,
+      const NotificationRoutingRule(enabled: false),
+    );
+    final router = NotificationRouter(
+      transports: [inApp, push],
+      matrix: matrix,
+    );
+    final events = StreamController<NightshadeEvent>();
+    router.attachEventStream(events.stream);
+
+    events.add(
+      _evt(
+        cat: EventCategory.system,
+        type: 'UpdateAvailable',
+        data: const {'latestVersion': '6.0', 'currentVersion': '5.9'},
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(inApp.sent, hasLength(1));
+    expect(push.sent, hasLength(1));
+    await events.close();
     await router.dispose();
   });
 

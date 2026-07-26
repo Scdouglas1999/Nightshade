@@ -1,13 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../backend/network_backend.dart';
 import '../database/database.dart'
     show PsfFieldTileRow, AstrometryResidualVectorRow;
 import '../services/optical_train_diagnostics_service.dart';
-import 'backend_provider.dart';
-import 'database_provider.dart';
 import 'science_provider.dart'
     show
         sessionPsfTilesProvider,
@@ -24,22 +19,23 @@ final opticalTrainDiagnosticsServiceProvider =
 /// Reactive PSF field tiles stream for a given session.
 final psfTilesForSessionProvider = StreamProvider.autoDispose
     .family<List<PsfFieldTileRow>, int>((ref, sessionId) {
-      final backend = ref.watch(backendProvider);
-      if (backend is NetworkBackend) {
-        return _pollRemotePsfTiles(backend, sessionId);
-      }
-      return ref.watch(scienceDaoProvider).watchPsfTilesForSession(sessionId);
+      return _watchScienceRows(ref, sessionPsfTilesProvider(sessionId));
     });
 
 /// Reactive astrometry residual vectors stream for a given session.
 final residualVectorsForSessionProvider = StreamProvider.autoDispose
     .family<List<AstrometryResidualVectorRow>, int>((ref, sessionId) {
-      final backend = ref.watch(backendProvider);
-      if (backend is NetworkBackend) {
-        return _pollRemoteResiduals(backend, sessionId);
-      }
-      return ref.watch(scienceDaoProvider).watchResidualsForSession(sessionId);
+      return _watchScienceRows(ref, sessionResidualVectorsProvider(sessionId));
     });
+
+Stream<List<T>> _watchScienceRows<T>(
+  Ref ref,
+  StreamProvider<List<T>> provider,
+) {
+  // Riverpod 2.x exposes no other lossless StreamProvider composition API.
+  // ignore: deprecated_member_use
+  return ref.watch(provider.stream);
+}
 
 /// Reactive optical train diagnostics for a given session.
 ///
@@ -155,26 +151,4 @@ List<AstrometryResidualVectorRow> _latestResidualSnapshot(
   return rows
       .where((row) => row.capturedImageId == latestId)
       .toList(growable: false);
-}
-
-Stream<List<PsfFieldTileRow>> _pollRemotePsfTiles(
-  NetworkBackend backend,
-  int sessionId,
-) async* {
-  yield await backend.getSessionPsfTiles(sessionId);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await backend.getSessionPsfTiles(sessionId);
-  }
-}
-
-Stream<List<AstrometryResidualVectorRow>> _pollRemoteResiduals(
-  NetworkBackend backend,
-  int sessionId,
-) async* {
-  yield await backend.getSessionResidualVectors(sessionId);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await backend.getSessionResidualVectors(sessionId);
-  }
 }

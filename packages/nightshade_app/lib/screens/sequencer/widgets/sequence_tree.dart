@@ -187,6 +187,11 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     // this mirrors the post-frame publish in initState.
     final registry = _nodeKeyRegistry;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // The owning ProviderScope may be torn down before this deferred
+      // callback runs (for example when the app/test root is replaced).
+      // StateController throws even on a read after disposal, so gate the
+      // compare-and-clear operation on the controller's lifetime.
+      if (!_registryController.mounted) return;
       if (_registryController.state == registry) {
         _registryController.state = null;
       }
@@ -396,59 +401,70 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                 ? Border.all(color: widget.colors.primary, width: 2)
                 : null,
           ),
-          child: Column(
-            children: [
-              // Sequence header with validation counts
-              _SequenceHeader(
-                colors: widget.colors,
-                sequence: sequence,
-                validation: validation,
-              ),
-
-              // Tree view
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
-                  child: _NodeTreeView(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // A modal IME can reduce the already-covered backing route to a
+              // few pixels after the shared shell consumes its inset. The
+              // fixed sequence header cannot be useful there and previously
+              // painted a yellow overflow stripe through the dialog scrim.
+              if (constraints.hasBoundedHeight && constraints.maxHeight < 80) {
+                return const SizedBox.expand();
+              }
+              return Column(
+                children: [
+                  // Sequence header with validation counts
+                  _SequenceHeader(
                     colors: widget.colors,
                     sequence: sequence,
-                    nodeId: rootNode.id,
-                    progress: progress,
                     validation: validation,
-                    depth: 0,
-                    isMobile: widget.isMobile,
-                    onNodeTap: widget.onNodeTap,
-                    keyRegistry: _nodeKeyRegistry,
                   ),
-                ),
-              ),
 
-              // Visual timeline (toggled via timelineVisibleProvider)
-              Consumer(
-                builder: (context, ref, child) {
-                  final showTimeline = ref.watch(timelineVisibleProvider);
-                  if (!showTimeline || widget.isMobile) {
-                    return const SizedBox.shrink();
-                  }
-                  return VisualTimeline(colors: widget.colors);
-                },
-              ),
+                  // Tree view
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: EdgeInsets.all(widget.isMobile ? 12 : 20),
+                      child: _NodeTreeView(
+                        colors: widget.colors,
+                        sequence: sequence,
+                        nodeId: rootNode.id,
+                        progress: progress,
+                        validation: validation,
+                        depth: 0,
+                        isMobile: widget.isMobile,
+                        onNodeTap: widget.onNodeTap,
+                        keyRegistry: _nodeKeyRegistry,
+                      ),
+                    ),
+                  ),
 
-              // Mini-map (toggled via minimapVisibleProvider)
-              Consumer(
-                builder: (context, ref, child) {
-                  final showMinimap = ref.watch(minimapVisibleProvider);
-                  if (!showMinimap || widget.isMobile) {
-                    return const SizedBox.shrink();
-                  }
-                  return SequenceMinimap(
-                    colors: widget.colors,
-                    scrollController: _scrollController,
-                  );
-                },
-              ),
-            ],
+                  // Visual timeline (toggled via timelineVisibleProvider)
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final showTimeline = ref.watch(timelineVisibleProvider);
+                      if (!showTimeline || widget.isMobile) {
+                        return const SizedBox.shrink();
+                      }
+                      return VisualTimeline(colors: widget.colors);
+                    },
+                  ),
+
+                  // Mini-map (toggled via minimapVisibleProvider)
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final showMinimap = ref.watch(minimapVisibleProvider);
+                      if (!showMinimap || widget.isMobile) {
+                        return const SizedBox.shrink();
+                      }
+                      return SequenceMinimap(
+                        colors: widget.colors,
+                        scrollController: _scrollController,
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
           ),
         );
       },

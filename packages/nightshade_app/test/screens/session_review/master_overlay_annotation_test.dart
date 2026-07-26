@@ -111,6 +111,38 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('shows decodable rejection and coverage overlay controls',
+      (tester) async {
+    final previewPath = await tester.runAsync(_writeSamplePng);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 640,
+            height: 480,
+            child: MasterOverlayView(
+              previewPngPath: previewPath!,
+              rejectionMapPngPath: previewPath,
+              coverageMapPngPath: previewPath,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+
+    expect(find.text('Rejection'), findsOneWidget);
+    expect(find.text('Coverage'), findsOneWidget);
+
+    await tester.tap(find.text('Rejection'));
+    await tester.tap(find.text('Coverage'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<String> _writeSamplePng() async {

@@ -85,11 +85,28 @@ pub(crate) fn not_connected_rotator() -> String {
 /// covered by the singleton's defaults and need no special handling at
 /// the call site.
 pub(crate) async fn read_camera_status() -> Result<CameraStatus, String> {
+    // Let the simulated sensor temperature move toward its setpoint before the
+    // caller samples it. Every simulated status read funnels through here, so
+    // this is the one place the ramp needs driving.
+    crate::api::devices::simulation::advance_sim_cooler().await;
     let cam = get_sim_camera().read().await;
     if !cam.status.connected {
         return Err(not_connected("camera"));
     }
     Ok(cam.status.clone())
+}
+
+/// Duration of the last exposure the simulator camera was asked for, so the
+/// download path can report a truthful `EXPTIME` instead of a constant.
+pub(crate) async fn read_camera_last_exposure_secs() -> Result<f64, String> {
+    if !get_sim_camera().read().await.status.connected {
+        return Err(not_connected("camera"));
+    }
+    Ok(
+        *crate::api::devices::simulation::get_sim_last_exposure_secs()
+            .read()
+            .await,
+    )
 }
 
 /// Write-side gate for camera ops: returns `Ok(())` only when the

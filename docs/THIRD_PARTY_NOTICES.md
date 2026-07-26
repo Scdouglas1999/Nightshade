@@ -21,7 +21,7 @@ notice bundle for resolved Dart, Flutter, plugin, font, and icon dependencies.
 | --- | --- | --- |
 | Nightshade native bridge | `nightshade_bridge.dll` on Windows; `libnightshade_bridge.so` on Linux | Nightshade Source-Available License for first-party code; statically linked Rust crates retain their licenses below. |
 | LibRaw | Dynamically linked `libraw.dll` / `libraw.so` next to the bridge | LibRaw is dual-licensed LGPL-2.1-or-later or CDDL-1.0. Nightshade uses the LGPL option. The full LGPL-2.1 text is in `LICENSES/LGPL-2.1.txt`; dynamic linking preserves replacement/relinking. Source: <https://www.libraw.org/download>. |
-| SQLite | `libsqlite3.so.0` and symlink in the Linux archive | Public domain. See <https://www.sqlite.org/copyright.html>. |
+| SQLite | Hermetic `libsqlite3.so` native asset from `package:sqlite3` (Linux/desktop archive) | Public domain. See <https://www.sqlite.org/copyright.html>. |
 | Microsoft Visual C++ runtime | Redistributable runtime DLLs staged by the Windows toolchain | Redistributed under the Microsoft Visual Studio license. |
 | WebRTC native libraries | Included by `flutter_webrtc` where required | BSD-style WebRTC/Chromium notices are included in Flutter's generated notice bundle. |
 

@@ -36,7 +36,8 @@ class _PluginInstructionPropertiesState
   @override
   void didUpdateWidget(_PluginInstructionProperties oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.node.id != widget.node.id &&
+    if ((oldWidget.node.id != widget.node.id ||
+            oldWidget.node.configJson != widget.node.configJson) &&
         widget.node.configJson != _configController.text) {
       _configController.text = widget.node.configJson;
       _jsonError = null;
@@ -54,7 +55,10 @@ class _PluginInstructionPropertiesState
     // throw at execution time, so surface the error inline instead of
     // silently storing garbage.
     try {
-      json.decode(value);
+      final decoded = json.decode(value);
+      if (decoded is! Map) {
+        throw const FormatException('Configuration must be a JSON object');
+      }
       setState(() => _jsonError = null);
       ref.read(currentSequenceProvider.notifier).updateNode(
             widget.node.copyWith(configJson: value),

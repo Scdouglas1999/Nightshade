@@ -4,6 +4,20 @@ part of '../device_handlers.dart';
 // Helpers
 // ===========================================================================
 
+/// Parse the wire `frameType` string into a [FrameType].
+///
+/// Why this rejects instead of defaulting: the previous `default:` arm
+/// silently coerced ANY unrecognised string to [FrameType.light].
+/// Observed on the live rig against a real ZWO ASI1600MM-Cool:
+///   POST /api/camera/expose {"frameType":"banana"} -> 200 {"status":"exposing"}
+/// The frame was captured and recorded as a light. A typo in a calibration
+/// script therefore silently mislabels darks/flats as lights, both in the
+/// image record and in the FITS `IMAGETYP` keyword, and the operator is
+/// never told. An unknown frame type is a bad request, not a light frame.
+///
+/// [FrameType.snapshot] is a declared enum value and was missing from the
+/// switch, so `"snapshot"` also fell through to `light`; it is mapped here
+/// so that adding the rejection arm does not start rejecting a valid type.
 FrameType _parseFrameType(String type) {
   switch (type.toLowerCase()) {
     case 'light':
@@ -15,9 +29,18 @@ FrameType _parseFrameType(String type) {
     case 'bias':
       return FrameType.bias;
     case 'darkflat':
+    case 'dark_flat':
       return FrameType.darkFlat;
+    case 'snapshot':
+      return FrameType.snapshot;
     default:
-      return FrameType.light;
+      throw BadRequestError(
+        field: 'frameType',
+        expected: 'one of: light, dark, flat, bias, darkFlat, snapshot',
+        message:
+            'Unknown frame type "$type"; expected one of '
+            'light, dark, flat, bias, darkFlat, snapshot',
+      );
   }
 }
 

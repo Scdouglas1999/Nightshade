@@ -386,8 +386,13 @@ class _ProfileSwitcher extends ConsumerWidget {
             );
           }).toList(),
           onSelected: (profileId) async {
-            final dao = ref.read(equipmentProfilesDaoProvider);
-            await dao.setActiveProfile(profileId);
+            // Single activation authority: the remote-aware notifier updates
+            // SQLite and write-throughs the active row into the native executor
+            // store (local), or hits the host load endpoint (remote) — a bare
+            // DAO write would leave the Rust sequencer on the old profile.
+            await ref
+                .read(equipmentProfilesProvider.notifier)
+                .setActiveProfile(profileId);
           },
         );
       },

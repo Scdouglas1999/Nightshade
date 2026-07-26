@@ -38,8 +38,21 @@ extension CatalogManagerLegacyIo on CatalogManager {
     void Function(DownloadProgress)? onProgress,
     Future<bool> Function()? isCancelled,
   }) async {
+    if (!isInitialized) {
+      throw StateError('CatalogManager not initialized');
+    }
+
+    // Ordered candidates: the GitHub release asset (integrity-verified,
+    // CDN-backed) FIRST, then the upstream third-party host as a fallback.
+    final baseUrl = await getCatalogBaseUrl();
+    final candidates = resolveCatalogDownloadCandidates(
+      source,
+      baseUrl: baseUrl,
+    );
+
     developer.log(
-      '[Catalog] Starting download of ${source.name} from ${source.downloadUrl}',
+      '[Catalog] Starting download of ${source.name}; '
+      'candidates: ${candidates.join(', ')}',
       name: 'CatalogManager',
       level: 800,
     );
@@ -58,170 +71,98 @@ extension CatalogManagerLegacyIo on CatalogManager {
     final tempFile = File(tempPath);
 
     try {
-      // Ensure catalog directory exists
-      if (!isInitialized) {
-        throw StateError('CatalogManager not initialized');
-      }
-
       final dir = Directory(catalogDirectory);
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
 
-      // Use http package for better cross-platform compatibility
-      final client = http.Client();
+      if (candidates.isEmpty) {
+        throw Exception('No download URL configured for ${source.name}');
+      }
 
-      try {
-        developer.log(
-          '[Catalog] Sending HTTP GET request to ${source.downloadUrl}',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        final request = http.Request('GET', Uri.parse(source.downloadUrl));
-        final streamedResponse = await client.send(request);
-
-        developer.log(
-          '[Catalog] Response status: ${streamedResponse.statusCode}',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        if (streamedResponse.statusCode != 200) {
-          final errorMsg =
-              'HTTP ${streamedResponse.statusCode}: Failed to download from ${source.downloadUrl}';
-          developer.log(errorMsg, name: 'CatalogManager', level: 1000);
-          _emitProgress(
-            DownloadProgress.error(source.name, errorMsg, catalogKey: type),
-            onProgress,
+      // Try each candidate in order. A candidate fails (HTTP status, SHA-256
+      // mismatch of the AS-DOWNLOADED bytes, gunzip failure, empty payload)
+      // ⇒ discard its partial and fall through to the next. A user cancel is
+      // terminal and propagates without trying the next candidate.
+      int? bytesReceived;
+      Object? lastError;
+      for (var i = 0; i < candidates.length; i++) {
+        final url = candidates[i];
+        final isPrimary = i == 0;
+        try {
+          bytesReceived = await _fetchCatalogCandidate(
+            source: source,
+            type: type,
+            url: url,
+            tempFile: tempFile,
+            onProgress: onProgress,
+            isCancelled: isCancelled,
           );
-          return false;
-        }
-
-        final contentLength = streamedResponse.contentLength ?? 0;
-        developer.log(
-          '[Catalog] Writing to $tempPath, expected size: $contentLength bytes',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        // Check if the download is gzip compressed
-        final isGzipped = source.downloadUrl.endsWith('.gz');
-
-        var bytesReceived = 0;
-        var lastEmittedBytes = 0;
-        // Coalesce progress so fast connections don't fire a setState per
-        // network chunk (thousands/sec). Also the natural cadence at which we
-        // poll the cancellation token.
-        const emitThresholdBytes = 512 * 1024;
-
-        Future<void> onChunk(int length) async {
-          bytesReceived += length;
-          if (bytesReceived - lastEmittedBytes < emitThresholdBytes) return;
-          lastEmittedBytes = bytesReceived;
-          _emitProgress(
-            DownloadProgress(
-              catalogName: source.name,
-              catalogKey: type,
-              progress: contentLength > 0 ? bytesReceived / contentLength : 0,
-              bytesReceived: bytesReceived,
-              totalBytes: contentLength,
-              status:
-                  'Downloading... ${(bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB',
-            ),
-            onProgress,
-          );
-          if (isCancelled != null && await isCancelled()) {
-            throw const CatalogCancelled();
-          }
-        }
-
-        if (isGzipped) {
-          // Gzip needs the whole compressed payload before it can decode, so
-          // buffer the (smaller) compressed bytes, then write the inflated
-          // result to the temp file in one shot.
-          final compressed = BytesBuilder(copy: false);
-          await for (final chunk in streamedResponse.stream) {
-            compressed.add(chunk);
-            await onChunk(chunk.length);
-          }
-
           developer.log(
-            '[Catalog] Decompressing gzip data...',
+            '[Catalog] ${source.name} downloaded from '
+            '${isPrimary ? 'primary' : 'fallback'} candidate $url',
             name: 'CatalogManager',
             level: 800,
           );
-          Uint8List finalBytes;
-          final compressedBytes = compressed.takeBytes();
-          try {
-            finalBytes = Uint8List.fromList(gzip.decode(compressedBytes));
-          } catch (e) {
-            developer.log(
-              '[Catalog] Gzip decompression failed: $e',
-              name: 'CatalogManager',
-              level: 900,
-            );
-            // Fall back to the raw payload (maybe it wasn't actually gzipped).
-            finalBytes = Uint8List.fromList(compressedBytes);
-          }
-          await tempFile.writeAsBytes(finalBytes, flush: true);
-        } else {
-          // Stream straight to disk so we never hold the whole catalog in
-          // memory (the GLADE+ "complete" tier is multiple GB).
-          final sink = tempFile.openWrite();
-          try {
-            await for (final chunk in streamedResponse.stream) {
-              sink.add(chunk);
-              await onChunk(chunk.length);
-            }
-          } finally {
-            await sink.close();
-          }
+          break;
+        } on CatalogCancelled {
+          rethrow;
+        } catch (e) {
+          lastError = e;
+          final more = i + 1 < candidates.length;
+          developer.log(
+            '[Catalog] Candidate ${i + 1}/${candidates.length} for '
+            '${source.name} ($url) failed: $e'
+            '${more ? ' — trying next candidate' : ''}',
+            name: 'CatalogManager',
+            level: 900,
+          );
+          // Never carry a partial from a failed candidate into the next try.
+          await _cleanupTempFile(tempFile);
         }
-
-        // Validate the freshly written temp file before promoting it.
-        if (!await tempFile.exists()) {
-          throw Exception('File was not created after download');
-        }
-        final fileSize = await tempFile.length();
-        if (fileSize == 0) {
-          throw Exception('Downloaded file is empty');
-        }
-
-        developer.log(
-          '[Catalog] Temp file verified: $fileSize bytes',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        // Count objects, then atomically promote temp -> final.
-        final objectCount = await _countObjects(tempPath);
-        await _promoteTempFile(tempFile, filePath);
-        await _saveMetadata(type, source, package, objectCount);
-        _invalidateLocalCatalogLoaders(
-          stars: type == 'stars',
-          dsos: type == 'dso',
-        );
-
-        developer.log(
-          '[Catalog] Catalog saved with $objectCount objects ($bytesReceived bytes received)',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        _emitProgress(
-          DownloadProgress.complete(
-            source.name,
-            bytesReceived,
-            catalogKey: type,
-          ),
-          onProgress,
-        );
-
-        return true;
-      } finally {
-        client.close();
       }
+
+      if (bytesReceived == null) {
+        throw lastError ??
+            Exception('All download candidates failed for ${source.name}');
+      }
+
+      // Validate the freshly written temp file before promoting it.
+      if (!await tempFile.exists()) {
+        throw Exception('File was not created after download');
+      }
+      final fileSize = await tempFile.length();
+      if (fileSize == 0) {
+        throw Exception('Downloaded file is empty');
+      }
+
+      developer.log(
+        '[Catalog] Temp file verified: $fileSize bytes',
+        name: 'CatalogManager',
+        level: 800,
+      );
+
+      // Count objects, then atomically promote temp -> final.
+      final objectCount = await _countObjects(tempPath);
+      await _promoteTempFile(tempFile, filePath);
+      await _saveMetadata(type, source, package, objectCount);
+      _invalidateLocalCatalogLoaders(
+        stars: type == 'stars',
+        dsos: type == 'dso',
+      );
+
+      developer.log(
+        '[Catalog] Catalog saved with $objectCount objects ($bytesReceived bytes received)',
+        name: 'CatalogManager',
+        level: 800,
+      );
+
+      _emitProgress(
+        DownloadProgress.complete(source.name, bytesReceived, catalogKey: type),
+        onProgress,
+      );
+
+      return true;
     } on CatalogCancelled {
       developer.log(
         '[Catalog] Download of ${source.name} cancelled by user',
@@ -252,6 +193,142 @@ extension CatalogManagerLegacyIo on CatalogManager {
       // Never leave a half-written `.partial` behind, regardless of outcome
       // (on success it has already been renamed away).
       await _cleanupTempFile(tempFile);
+    }
+  }
+
+  /// Fetch [source] from a single [url] into [tempFile], verifying the SHA-256
+  /// of the AS-DOWNLOADED bytes against [CatalogSource.sha256] BEFORE any
+  /// decompression or parse. Returns the number of bytes received on success.
+  ///
+  /// Throws on any failure (HTTP status, hash mismatch, gunzip failure) so the
+  /// caller can fall through to the next candidate. [CatalogCancelled]
+  /// propagates unchanged so a user cancel is never mistaken for a candidate
+  /// failure.
+  Future<int> _fetchCatalogCandidate({
+    required CatalogSource source,
+    required String type,
+    required String url,
+    required File tempFile,
+    void Function(DownloadProgress)? onProgress,
+    Future<bool> Function()? isCancelled,
+  }) async {
+    final client = http.Client();
+    try {
+      developer.log(
+        '[Catalog] Sending HTTP GET request to $url',
+        name: 'CatalogManager',
+        level: 800,
+      );
+
+      final request = http.Request('GET', Uri.parse(url));
+      final streamedResponse = await client.send(request);
+
+      developer.log(
+        '[Catalog] Response status: ${streamedResponse.statusCode}',
+        name: 'CatalogManager',
+        level: 800,
+      );
+
+      if (streamedResponse.statusCode != 200) {
+        throw Exception(
+          'HTTP ${streamedResponse.statusCode} downloading ${source.name} from $url',
+        );
+      }
+
+      final contentLength = streamedResponse.contentLength ?? 0;
+
+      // Gzip is decided per-URL (a candidate could serve compressed or not),
+      // not per-source: every HYG candidate ends in `.gz`, OpenNGC's do not.
+      final isGzipped = url.endsWith('.gz');
+
+      var bytesReceived = 0;
+      var lastEmittedBytes = 0;
+      // Coalesce progress so fast connections don't fire a setState per
+      // network chunk (thousands/sec). Also the natural cadence at which we
+      // poll the cancellation token.
+      const emitThresholdBytes = 512 * 1024;
+
+      Future<void> onChunk(int length) async {
+        bytesReceived += length;
+        if (bytesReceived - lastEmittedBytes < emitThresholdBytes) return;
+        lastEmittedBytes = bytesReceived;
+        _emitProgress(
+          DownloadProgress(
+            catalogName: source.name,
+            catalogKey: type,
+            progress: contentLength > 0 ? bytesReceived / contentLength : 0,
+            bytesReceived: bytesReceived,
+            totalBytes: contentLength,
+            status:
+                'Downloading... ${(bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB',
+          ),
+          onProgress,
+        );
+        if (isCancelled != null && await isCancelled()) {
+          throw const CatalogCancelled();
+        }
+      }
+
+      if (isGzipped) {
+        // Gzip needs the whole compressed payload before it can decode, so
+        // buffer the (smaller) compressed bytes. Verify their SHA-256 (this is
+        // the AS-DOWNLOADED hash) BEFORE decoding, then write the inflated
+        // result to the temp file in one shot.
+        final compressed = BytesBuilder(copy: false);
+        await for (final chunk in streamedResponse.stream) {
+          compressed.add(chunk);
+          await onChunk(chunk.length);
+        }
+        final compressedBytes = compressed.takeBytes();
+
+        if (!catalogBytesMatchSha256(source.sha256, compressedBytes)) {
+          throw CatalogHashMismatchException(
+            expected: source.sha256,
+            actual: sha256.convert(compressedBytes).toString(),
+          );
+        }
+
+        developer.log(
+          '[Catalog] Decompressing gzip data...',
+          name: 'CatalogManager',
+          level: 800,
+        );
+        // Hash already matched, so a decode failure is real corruption of an
+        // otherwise-authentic payload — surface it (caller falls through).
+        final finalBytes = Uint8List.fromList(gzip.decode(compressedBytes));
+        await tempFile.writeAsBytes(finalBytes, flush: true);
+      } else {
+        // Stream straight to disk so we never hold the whole catalog in
+        // memory, while hashing the AS-DOWNLOADED bytes incrementally so we can
+        // verify before the file is promoted/parsed.
+        Digest? streamedDigest;
+        final digestSink = ChunkedConversionSink<Digest>.withCallback(
+          (digests) => streamedDigest = digests.single,
+        );
+        final hashInput = sha256.startChunkedConversion(digestSink);
+        final sink = tempFile.openWrite();
+        try {
+          await for (final chunk in streamedResponse.stream) {
+            sink.add(chunk);
+            hashInput.add(chunk);
+            await onChunk(chunk.length);
+          }
+        } finally {
+          await sink.close();
+        }
+        hashInput.close();
+        final downloadedHash = streamedDigest!.toString();
+        if (!catalogSha256Matches(source.sha256, downloadedHash)) {
+          throw CatalogHashMismatchException(
+            expected: source.sha256,
+            actual: downloadedHash,
+          );
+        }
+      }
+
+      return bytesReceived;
+    } finally {
+      client.close();
     }
   }
 
@@ -395,17 +472,37 @@ extension CatalogManagerLegacyIo on CatalogManager {
   Future<void> _deleteCatalogs() async {
     final files = [
       hygStarCatalog.fileName,
+      // Legacy HYG file name (pre-v44 rename) so an older install is not
+      // stranded on disk after the star catalog was renamed to hyg_v44.csv.
+      'hyg_v42.csv',
       openNgcCatalog.fileName,
       'stars_metadata.json',
       'dso_metadata.json',
     ];
 
-    for (final fileName in files) {
-      final file = File(path.join(catalogDirectory, fileName));
-      if (await file.exists()) {
-        await file.delete();
+    final failures = <(String, Object)>[];
+    try {
+      for (final fileName in files) {
+        final file = File(path.join(catalogDirectory, fileName));
+        if (!await file.exists()) continue;
+        try {
+          await file.delete();
+        } catch (e) {
+          failures.add((file.path, e));
+        }
       }
+    } finally {
+      // A partially successful cleanup still invalidates in-memory loaders;
+      // otherwise searches can keep serving data from files already removed.
+      _invalidateLocalCatalogLoaders(stars: true, dsos: true);
     }
-    _invalidateLocalCatalogLoaders(stars: true, dsos: true);
+    if (failures.isNotEmpty) {
+      final first = failures.first;
+      throw FileSystemException(
+        'Could not delete ${failures.length} catalog '
+        'file${failures.length == 1 ? '' : 's'}: ${first.$2}',
+        first.$1,
+      );
+    }
   }
 }

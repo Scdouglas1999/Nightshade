@@ -28,9 +28,16 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
     final isConnected =
         guiderState.connectionState == DeviceConnectionState.connected;
     final isGuiding = guiderState.isGuiding;
-    final rmsTotal = guiderState.rmsTotal?.toStringAsFixed(2) ?? '---';
-    final rmsRa = guiderState.rmsRa?.toStringAsFixed(2) ?? '---';
-    final rmsDec = guiderState.rmsDec?.toStringAsFixed(2) ?? '---';
+    // RMS is only a statement about guiding that is happening NOW. The values
+    // linger in guider state after a session stops, so showing them unguarded
+    // put last session's numbers next to this card's own "Idle" label — and
+    // contradicted the command bar and quick-stats card, which both blank RMS
+    // when not guiding. Follow that contract.
+    String rmsOrDashes(double? value) =>
+        isGuiding && value != null ? value.toStringAsFixed(2) : '---';
+    final rmsTotal = rmsOrDashes(guiderState.rmsTotal);
+    final rmsRa = rmsOrDashes(guiderState.rmsRa);
+    final rmsDec = rmsOrDashes(guiderState.rmsDec);
 
     final l10n = context.l10n;
     // Guiding state text
@@ -113,7 +120,10 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
             children: [
               // Stats row with legend
               Container(
-                  width: 10, height: 2, color: NightshadeChartColors.seriesRed),
+                  width: 10,
+                  height: 2,
+                  color: NightshadeChartColors.forTheme(
+                      NightshadeChartColors.seriesRed, colors)),
               const SizedBox(width: 3),
               Text('$rmsRa"',
                   style: TextStyle(
@@ -123,7 +133,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
               Container(
                   width: 10,
                   height: 2,
-                  color: NightshadeChartColors.seriesBlue),
+                  color: NightshadeChartColors.forTheme(
+                      NightshadeChartColors.seriesBlue, colors)),
               const SizedBox(width: 3),
               Text('$rmsDec"',
                   style: TextStyle(
@@ -189,12 +200,14 @@ class _DashboardGuidingGraphPainter extends CustomPainter {
     if (data.isEmpty) return;
 
     final paintRa = Paint()
-      ..color = NightshadeChartColors.seriesRed
+      ..color = NightshadeChartColors.forTheme(
+          NightshadeChartColors.seriesRed, colors)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     final paintDec = Paint()
-      ..color = NightshadeChartColors.seriesBlue
+      ..color = NightshadeChartColors.forTheme(
+          NightshadeChartColors.seriesBlue, colors)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 

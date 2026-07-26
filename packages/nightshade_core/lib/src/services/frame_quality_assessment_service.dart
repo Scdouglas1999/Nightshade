@@ -204,6 +204,22 @@ class FrameQualityAssessmentService {
         ? FrameQualityLevel.needsReview
         : FrameQualityLevel.good;
 
+    // Never flag a frame without saying why.
+    //
+    // Every `reasons` entry above comes from a THRESHOLD being crossed, but a
+    // frame can be demoted by the score alone: `advisoryScore` starts at the
+    // frame's own `qualityScore`, so a frame that trips no individual threshold
+    // and merely scores in the 60s still lands in `needsReview` with an EMPTY
+    // reason list. The gallery then labels it "Needs Review" and offers the
+    // operator nothing to act on — observed on real captures scoring 64-66 with
+    // healthy HFR (2.5px) and 200 stars. State the composite instead.
+    if (level != FrameQualityLevel.good && reasons.isEmpty) {
+      reasons.add(
+        'Composite quality ${advisoryScore.toStringAsFixed(0)}/100 is below the '
+        'good-frame threshold, though no single measurement is out of range',
+      );
+    }
+
     final wouldAutoReject =
         heuristicScore >= 0.88 || (severeIssue && advisoryScore < 35);
 

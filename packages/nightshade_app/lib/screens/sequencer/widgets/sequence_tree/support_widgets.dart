@@ -118,6 +118,10 @@ class _NodeActionButton extends StatefulWidget {
 }
 
 class _NodeActionButtonState extends State<_NodeActionButton> {
+  /// Edge of the visible chip. Three of these sit in every tree row, so it
+  /// stays dense on desktop and is padded up to the touch minimum on a phone.
+  static const double _chipExtent = 24.0;
+
   bool _isHovered = false;
 
   @override
@@ -137,26 +141,38 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
             disabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 24,
-            height: 24,
-            margin: const EdgeInsets.only(left: 4),
-            decoration: BoxDecoration(
-              color: !disabled && _isHovered
-                  ? NightshadeDecorations.tintedBadge(
-                      color,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline4),
-                    ).color
-                  : Colors.transparent,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline4),
+          // The 24x24 chip is right for a dense desktop tree row, but it is
+          // also the whole hit area: a bare GestureDetector hit-tests its
+          // child's box, so on a phone these measured 28x24 against Android's
+          // 48. Padding the child (rather than wrapping the detector) grows the
+          // real hit box, not just the semantics rect — and only on touch
+          // platforms, so desktop density is untouched.
+          child: Padding(
+            padding: EdgeInsets.all(
+              NightshadeTouchTarget.paddingToReach(context, _chipExtent),
             ),
-            child: Icon(
-              widget.icon,
-              size: 12,
-              color: iconColor,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: _chipExtent,
+              height: _chipExtent,
+              margin: const EdgeInsets.only(left: 4),
+              decoration: BoxDecoration(
+                color: !disabled && _isHovered
+                    ? NightshadeDecorations.tintedBadge(
+                        color,
+                        borderRadius: BorderRadius.circular(
+                          NightshadeTokens.radiusInline4,
+                        ),
+                      ).color
+                    : Colors.transparent,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
+              ),
+              child: Icon(
+                widget.icon,
+                size: 12,
+                color: iconColor,
+              ),
             ),
           ),
         ),

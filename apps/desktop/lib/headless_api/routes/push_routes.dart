@@ -28,4 +28,7 @@ List<HeadlessRoute> buildPushRoutes(PushHandlers h) => <HeadlessRoute>[
     '/api/push/preferences',
     h.handlePutPreferences,
   ),
+  // Host-wide "can a critical alert actually reach a phone?" — counts and a
+  // verdict only, never token values or device identifiers.
+  HeadlessRoute(HttpMethod.get, '/api/push/targets', h.handleGetTargets),
 ];

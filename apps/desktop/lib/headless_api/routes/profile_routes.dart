@@ -52,6 +52,26 @@ List<HeadlessRoute> buildProfileRoutes(ProfileHandlers h) => <HeadlessRoute>[
   // Settings
   HeadlessRoute(HttpMethod.get, '/api/settings', h.handleGetSettings),
   HeadlessRoute(HttpMethod.post, '/api/settings', h.handleUpdateSettings),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/settings/meridian-flip',
+    h.handleGetMeridianFlipSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/settings/meridian-flip',
+    h.handleUpdateMeridianFlipSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/settings/home-assistant',
+    h.handleGetHomeAssistantSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/settings/home-assistant',
+    h.handleUpdateHomeAssistantSettings,
+  ),
   HeadlessRoute(HttpMethod.get, '/api/settings/location', h.handleGetLocation),
   HeadlessRoute(HttpMethod.post, '/api/settings/location', h.handleSetLocation),
   HeadlessRoute(

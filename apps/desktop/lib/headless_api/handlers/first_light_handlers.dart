@@ -235,19 +235,31 @@ class FirstLightHandlers {
   /// unrelated cards. `ra`/`dec` are decimal degrees; `radius` defaults to
   /// 0.02° (~72") and is capped at [_maxNearRadiusDeg].
   Future<Response> handleGetNear(Request request) async {
+    // ra/dec are required decimal degrees and must be finite and physical
+    // (RA 0..360, Dec -90..90); radius is optional (default 0.02°). Validate
+    // before the DAO read so a malformed request does no work.
     final params = request.url.queryParameters;
-    final ra = double.tryParse(params['ra'] ?? '');
-    final dec = double.tryParse(params['dec'] ?? '');
-    if (ra == null || dec == null) {
-      throw BadRequestError(
-        field: 'ra,dec',
-        expected: 'decimal degrees',
-        message: 'ra and dec query parameters are required (decimal degrees)',
-      );
+    final ra = requireQueryDouble(params, 'ra', min: 0, max: 360);
+    final dec = requireQueryDouble(params, 'dec', min: -90, max: 90);
+
+    // radius: absent/empty → 0.02° default. A supplied value must be a finite
+    // positive number — a malformed / NaN / non-positive radius is a 400 rather
+    // than silently becoming 0.02. A documented over-max value is still capped.
+    final radiusRaw = params['radius'];
+    final double radius;
+    if (radiusRaw == null || radiusRaw.isEmpty) {
+      radius = 0.02;
+    } else {
+      final parsed = double.tryParse(radiusRaw);
+      if (parsed == null || !parsed.isFinite || parsed <= 0) {
+        throw BadRequestError(
+          field: 'radius',
+          expected: 'positive number',
+          message: 'radius must be a finite positive number (degrees)',
+        );
+      }
+      radius = parsed > _maxNearRadiusDeg ? _maxNearRadiusDeg : parsed;
     }
-    var radius = double.tryParse(params['radius'] ?? '') ?? 0.02;
-    if (!radius.isFinite || radius <= 0) radius = 0.02;
-    if (radius > _maxNearRadiusDeg) radius = _maxNearRadiusDeg;
     _logInfo('[API] GET /api/firstlight/near?ra=$ra&dec=$dec&radius=$radius');
 
     final rows = await _dao.detectionsNear(ra, dec, radiusDeg: radius);

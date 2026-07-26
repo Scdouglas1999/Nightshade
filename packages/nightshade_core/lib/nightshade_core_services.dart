@@ -49,6 +49,7 @@ export 'src/services/import/observing_list_json_importer.dart';
 export 'src/services/import/astrobin_importer.dart';
 export 'src/services/import/ics_calendar_importer.dart';
 export 'src/services/import/generic_csv_importer.dart';
+export 'src/services/import/target_library_importer.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/wcs/gnomonic_projection.dart';
 export 'src/services/hips/healpix_nested.dart';

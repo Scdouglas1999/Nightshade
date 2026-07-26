@@ -20,17 +20,17 @@
 //! Order matters on ASCOM: binning must be set *before* frame geometry because
 //! `NumX`/`NumY` are expressed in *binned* pixels. Gain/offset are applied only
 //! when the node specified them (`None` = leave the camera's current value
-//! unchanged, mirroring Alpaca/INDI/native). Any setter error is propagated as
-//! a hard failure (fail-closed): a setter failure aborts the exposure rather
-//! than silently shooting at the wrong settings.
+//! unchanged, mirroring Alpaca/INDI/native). Binning and geometry setter errors
+//! are propagated as hard failures. Gain/offset are best-effort because those
+//! ASCOM properties are optional; failures are loudly logged before exposure
+//! continues at the camera's current values.
 
 use nightshade_native::camera::SubFrame;
 
 /// The minimal camera setter/getter surface the ASCOM exposure-apply step
 /// needs. The real `AscomCamera` (Windows COM) implements this, as does the
 /// cross-platform test spy. Every method mirrors the ASCOM ICameraV3 property
-/// it wraps and returns `Result<_, String>` so a `PropertyNotImplemented` /
-/// COM fault propagates as a hard failure.
+/// it wraps and returns `Result<_, String>`.
 //
 // The only non-test caller — the ASCOM COM worker — is `#[cfg(windows)]`-gated,
 // so on non-Windows builds this trait and `apply_exposure_params` are reached
@@ -54,7 +54,8 @@ pub trait ExposureApplyTarget {
 }
 
 /// Apply per-frame acquisition parameters to an ASCOM camera *before*
-/// `start_exposure`. Fails closed on any setter error.
+/// `start_exposure`. Fails closed on binning or geometry errors; gain/offset
+/// errors are logged and ignored because those ASCOM properties are optional.
 ///
 /// Steps, in order:
 /// 1. **Binning** — validated against the driver max, then `set_bin_x`/
@@ -62,8 +63,9 @@ pub trait ExposureApplyTarget {
 ///    pixels.
 /// 2. **Frame geometry** — a subframe (validated against the *binned* sensor
 ///    bounds) or a full frame reset to `sensor_size / bin`.
-/// 3. **Gain / offset** — applied only when `Some`; `None` leaves the camera's
-///    current value untouched.
+/// 3. **Gain / offset** — attempted only when `Some`; `None` leaves the
+///    camera's current value untouched. A failed attempt logs the requested
+///    value and continues at the camera's current value.
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn apply_exposure_params<C: ExposureApplyTarget>(
@@ -119,14 +121,26 @@ pub fn apply_exposure_params<C: ExposureApplyTarget>(
     }
 
     // 3. Gain / offset, only when the node specified them (None = leave the
-    //    camera's current value unchanged).
+    //    camera's current value unchanged). ICameraV3 makes these properties
+    //    optional, so a driver may reject their setters even though it can
+    //    still expose normally.
     if let Some(gain) = gain {
-        cam.set_gain(gain)
-            .map_err(|e| format!("Failed to set gain: {}", e))?;
+        if let Err(error) = cam.set_gain(gain) {
+            tracing::warn!(
+                requested_gain = gain,
+                error = %error,
+                "ASCOM camera could not apply the requested gain; exposure will continue at the camera's current gain"
+            );
+        }
     }
     if let Some(offset) = offset {
-        cam.set_offset(offset)
-            .map_err(|e| format!("Failed to set offset: {}", e))?;
+        if let Err(error) = cam.set_offset(offset) {
+            tracing::warn!(
+                requested_offset = offset,
+                error = %error,
+                "ASCOM camera could not apply the requested offset; exposure will continue at the camera's current offset"
+            );
+        }
     }
     Ok(())
 }
@@ -135,7 +149,7 @@ pub fn apply_exposure_params<C: ExposureApplyTarget>(
 // Tests — regression guard. These run on every platform (the module is
 // NOT `#[cfg(windows)]`-gated, unlike the COM worker) so a future refactor that
 // drops the gain/offset/binning apply, reorders binning vs. geometry, or
-// swallows a setter error is caught in the Linux/CI dev loop.
+// mishandles a setter error is caught in the Linux/CI dev loop.
 // =============================================================================
 #[cfg(test)]
 mod tests {
@@ -144,7 +158,7 @@ mod tests {
 
     /// Records every setter/getter call (in order) and lets a test force any
     /// setter to fail, so we can assert (a) the correct calls happened, (b) in
-    /// the correct order, and (c) that a setter failure aborts before
+    /// the correct order, and (c) which setter failures abort before
     /// `start_exposure`.
     #[derive(Default)]
     struct SpyCamera {
@@ -313,24 +327,42 @@ mod tests {
         assert_eq!(cam.set_num_y, Some(800));
     }
 
-    /// (5): a setter failure (here set_gain) aborts the apply with an
-    /// error — the exposure must fail closed rather than shoot at the wrong
-    /// settings.
+    /// (5): gain is optional in ASCOM, so a rejected gain must not prevent an
+    /// exposure. Offset is still attempted after the gain failure.
     #[test]
-    fn setter_failure_fails_closed() {
+    fn gain_setter_failure_is_best_effort() {
         let mut cam = SpyCamera::new();
         cam.fail_on = Some("set_gain");
         let result = apply_exposure_params(&mut cam, 2, 2, Some(100), Some(50), &None);
 
-        assert!(result.is_err(), "a set_gain failure must abort the apply");
-        let msg = result.unwrap_err();
         assert!(
-            msg.contains("Failed to set gain"),
-            "error must reference the failed setter, got: {}",
-            msg
+            result.is_ok(),
+            "a set_gain failure must not prevent exposure: {:?}",
+            result
         );
-        // Offset must NOT have been applied after the gain failure.
-        assert_eq!(cam.set_offset, None, "offset must not run after gain fails");
+        assert_eq!(cam.set_gain, None, "failed gain must not be recorded");
+        assert_eq!(
+            cam.set_offset,
+            Some(50),
+            "offset must still be attempted after gain fails"
+        );
+    }
+
+    /// Offset is also optional in ASCOM, so a rejected offset must not prevent
+    /// an exposure after the requested gain was successfully applied.
+    #[test]
+    fn offset_setter_failure_is_best_effort() {
+        let mut cam = SpyCamera::new();
+        cam.fail_on = Some("set_offset");
+        let result = apply_exposure_params(&mut cam, 2, 2, Some(100), Some(50), &None);
+
+        assert!(
+            result.is_ok(),
+            "a set_offset failure must not prevent exposure: {:?}",
+            result
+        );
+        assert_eq!(cam.set_gain, Some(100), "gain must still be applied");
+        assert_eq!(cam.set_offset, None, "failed offset must not be recorded");
     }
 
     /// fail-closed on binning: a binning setter failure aborts before any

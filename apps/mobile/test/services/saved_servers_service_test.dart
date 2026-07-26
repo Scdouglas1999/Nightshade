@@ -195,6 +195,42 @@ void main() {
       expect(reloaded.notes, 'Travel scope · indoor wifi');
     });
 
+    test('concurrent mutations do not erase one another', () async {
+      final service = SavedServersService(random: fixedRandom());
+      final row = await service.add(
+        displayName: 'Original',
+        host: '10.0.0.7',
+        port: 8080,
+      );
+
+      await Future.wait<Object?>([
+        service.rename(row.id, 'Backyard'),
+        service.setNotes(row.id, 'Permanent pier'),
+        service.touchLastConnected(row.id),
+      ]);
+
+      final reloaded = (await service.loadAll()).single;
+      expect(reloaded.displayName, 'Backyard');
+      expect(reloaded.notes, 'Permanent pier');
+      expect(reloaded.lastConnectedAt, isNotNull);
+    });
+
+    test('a failed mutation does not poison the mutation queue', () async {
+      final service = SavedServersService(random: fixedRandom());
+
+      await expectLater(
+        service.rename('missing', 'Never written'),
+        throwsStateError,
+      );
+      final added = await service.add(
+        displayName: 'Recovery',
+        host: '10.0.0.8',
+        port: 8080,
+      );
+
+      expect((await service.loadAll()).single.id, added.id);
+    });
+
     test('touchLastConnected stamps now and re-sorts by recency', () async {
       final service = SavedServersService(random: fixedRandom());
       final older = await service.add(

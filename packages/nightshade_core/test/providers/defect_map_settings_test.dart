@@ -1,10 +1,20 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/src/database/daos/settings_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/defect_map.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/defect_map_provider.dart';
+
+class _FailingSettingsDao extends SettingsDao {
+  _FailingSettingsDao(super.db);
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    throw StateError('write failed');
+  }
+}
 
 /// Unit tests for the per-camera defect-map settings
 /// provider. Verifies that:
@@ -102,6 +112,22 @@ void main() {
       expect(reloaded.method, DefectMapMethod.mean);
       expect(reloaded.kernel, DefectMapKernelSize.k5);
       expect(reloaded.saveOriginal, isFalse);
+    });
+
+    test('failed persistence leaves the confirmed state unchanged', () async {
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          settingsDaoProvider.overrideWithValue(_FailingSettingsDao(db)),
+        ],
+      );
+      await container.read(allSettingsProvider.future);
+      final notifier = container.read(defectMapSettingsProvider.notifier);
+
+      await expectLater(notifier.setAutoApply(true), throwsStateError);
+
+      expect(container.read(defectMapSettingsProvider).autoApply, isFalse);
     });
 
     test('DefectMapMethod.fromWire handles unknown values gracefully', () {

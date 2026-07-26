@@ -151,6 +151,12 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
+    // Recompute when location settings resolve after this widget mounts,
+    // otherwise the chart stays stuck on the "Set location" warning.
+    ref.listen(appSettingsProvider, (prev, next) {
+      if (next.hasValue) _calculateData();
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

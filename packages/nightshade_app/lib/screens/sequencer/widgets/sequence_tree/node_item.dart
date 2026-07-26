@@ -276,7 +276,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               size: ButtonSize.small,
             ),
             NightshadeButton(
-              onPressed: () {
+              onPressed: () async {
                 final name = nameController.text.trim();
                 if (name.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -288,6 +288,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                   return;
                 }
 
+                final messenger = ScaffoldMessenger.of(context);
                 try {
                   // Capture the full multi-selection when present, else just
                   // this node. createSnippetFromSelection requires the nodes
@@ -305,12 +306,16 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     sequence: sequence,
                   );
 
-                  ref.read(customSnippetsProvider.notifier).addSnippet(snippet);
+                  await ref
+                      .read(customSnippetsProvider.notifier)
+                      .addSnippet(snippet);
 
-                  Navigator.of(dialogContext).pop();
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
 
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text('Template "$name" created successfully'),
                         backgroundColor: widget.colors.success,
@@ -318,9 +323,11 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     );
                   }
                 } catch (e) {
-                  Navigator.of(dialogContext).pop();
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       SnackBar(
                         content: Text('Failed to create template: $e'),
                         backgroundColor: widget.colors.error,
@@ -767,6 +774,16 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                     final lockedTail = canEdit ? '' : lockedSuffix;
                     final toggleLabel =
                         widget.node.isEnabled ? 'Disable' : 'Enable';
+                    // On touch these fold into the kebab instead of sitting
+                    // inline. Three 24dp chips are not legal Android tap
+                    // targets, and padding each one up to 48 adds 72dp to a
+                    // row that then overflows a 360dp phone by 30 — measured,
+                    // not guessed. Moving them behind the kebab gives the same
+                    // three actions a single already-compliant 48dp target and
+                    // hands 84dp back to the row.
+                    if (NightshadeTouchTarget.isTouch(context)) {
+                      return const SizedBox.shrink();
+                    }
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -837,6 +854,55 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                         tooltip: 'More Actions',
                         padding: EdgeInsets.zero,
                         itemBuilder: (context) => [
+                          // The inline eye / duplicate / delete chips are not
+                          // rendered on touch (see above) — they live here so
+                          // the actions stay reachable through one compliant
+                          // target instead of three illegal ones.
+                          if (NightshadeTouchTarget.isTouch(context)) ...[
+                            PopupMenuItem<String>(
+                              value: 'toggle_enabled',
+                              height: 40,
+                              enabled: canEdit,
+                              child: Text(
+                                widget.node.isEnabled ? 'Disable' : 'Enable',
+                                style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize13,
+                                  color: canEdit
+                                      ? widget.colors.textPrimary
+                                      : widget.colors.textMuted,
+                                ),
+                              ),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'duplicate',
+                              height: 40,
+                              enabled: canEdit,
+                              child: Text(
+                                'Duplicate',
+                                style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize13,
+                                  color: canEdit
+                                      ? widget.colors.textPrimary
+                                      : widget.colors.textMuted,
+                                ),
+                              ),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'delete',
+                              height: 40,
+                              enabled: canEdit,
+                              child: Text(
+                                'Delete',
+                                style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize13,
+                                  color: canEdit
+                                      ? widget.colors.error
+                                      : widget.colors.textMuted,
+                                ),
+                              ),
+                            ),
+                            const PopupMenuDivider(height: 8),
+                          ],
                           if (widget.onMoveUp != null)
                             PopupMenuItem<String>(
                               value: 'move_up',
@@ -882,6 +948,15 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                         ],
                         onSelected: (value) {
                           switch (value) {
+                            case 'toggle_enabled':
+                              widget.onToggleEnabled?.call();
+                              break;
+                            case 'duplicate':
+                              widget.onDuplicate?.call();
+                              break;
+                            case 'delete':
+                              widget.onDelete?.call();
+                              break;
                             case 'move_up':
                               widget.onMoveUp?.call();
                               break;

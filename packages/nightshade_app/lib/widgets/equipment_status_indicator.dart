@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_app/screens/equipment/utils/equipment_disconnect.dart';
+import 'package:nightshade_app/utils/cooled_camera_guard.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 
 /// A compact equipment status indicator for the global status bar.
@@ -31,6 +32,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
     // Count connected devices
     final connectedCount = _countConnectedDevices(
+      activeProfile,
       cameraState,
       mountState,
       focuserState,
@@ -78,7 +80,16 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     );
   }
 
+  /// How many of the ACTIVE PROFILE's devices are connected.
+  ///
+  /// The denominator is the profile's device count, so the numerator has to be
+  /// scoped the same way. Counting every connected device instead let a
+  /// connection made outside the profile push the numerator past the
+  /// denominator — the status bar read "4/2" after connecting a weather device
+  /// and a safety monitor on a two-device profile, which reads as a broken
+  /// counter rather than as "two extra devices are attached".
   int _countConnectedDevices(
+    EquipmentProfileModel? profile,
     CameraStateSnapshot camera,
     MountState mount,
     FocuserState focuser,
@@ -86,13 +97,17 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     GuiderState guider,
     RotatorState rotator,
   ) {
+    if (profile == null) return 0;
+    bool counts(String? profileDeviceId, DeviceConnectionState state) =>
+        profileDeviceId != null && state == DeviceConnectionState.connected;
+
     int count = 0;
-    if (camera.connectionState == DeviceConnectionState.connected) count++;
-    if (mount.connectionState == DeviceConnectionState.connected) count++;
-    if (focuser.connectionState == DeviceConnectionState.connected) count++;
-    if (filterWheel.connectionState == DeviceConnectionState.connected) count++;
-    if (guider.connectionState == DeviceConnectionState.connected) count++;
-    if (rotator.connectionState == DeviceConnectionState.connected) count++;
+    if (counts(profile.cameraId, camera.connectionState)) count++;
+    if (counts(profile.mountId, mount.connectionState)) count++;
+    if (counts(profile.focuserId, focuser.connectionState)) count++;
+    if (counts(profile.filterWheelId, filterWheel.connectionState)) count++;
+    if (counts(profile.guiderId, guider.connectionState)) count++;
+    if (counts(profile.rotatorId, rotator.connectionState)) count++;
     return count;
   }
 
@@ -436,6 +451,12 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   }
 
   Future<void> _disconnectAll(WidgetRef ref, BuildContext context) async {
+    // Disconnect All includes the camera: gate on an active cooler so the TEC
+    // is never cut abruptly without an explicit confirm (same guard as the
+    // per-device card).
+    final proceed = await confirmDisconnectCooledCamera(context, ref);
+    if (!proceed || !context.mounted) return;
+
     // Skip by connection state via [runEquipmentDisconnectAll], not
     // error-message substring matching in notifier disconnect paths.
     final summary = await runEquipmentDisconnectAll(ref);

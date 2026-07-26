@@ -9,9 +9,82 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/snackbar_helper.dart';
+import '../../widgets/remote_host_path_dialog.dart';
 import 'widgets/plate_solve_parameters_section.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/solver_detection_card.dart';
+
+enum PlateSolverPathKind {
+  astapExecutable,
+  astapCatalogDirectory,
+  astrometryExecutable,
+}
+
+typedef PlateSolverPathPicker = Future<String?> Function({
+  required BuildContext context,
+  required PlateSolverPathKind kind,
+  required bool isRemote,
+  required String currentPath,
+});
+
+Future<String?> _pickPlateSolverPath({
+  required BuildContext context,
+  required PlateSolverPathKind kind,
+  required bool isRemote,
+  required String currentPath,
+}) async {
+  if (isRemote) {
+    return switch (kind) {
+      PlateSolverPathKind.astapExecutable => RemoteHostPathDialog.show(
+          context,
+          title: 'ASTAP executable on imaging host',
+          initialPath: currentPath,
+          hintText: r'C:\Program Files\astap\astap.exe or /usr/bin/astap',
+          submitLabel: 'Use host path',
+          clearLabel: 'Use auto-detect',
+        ),
+      PlateSolverPathKind.astapCatalogDirectory => RemoteHostPathDialog.show(
+          context,
+          title: 'ASTAP catalog directory on imaging host',
+          initialPath: currentPath,
+          hintText: r'C:\Program Files\astap or /opt/astap',
+          submitLabel: 'Use host path',
+          clearLabel: 'Use auto-detect',
+        ),
+      PlateSolverPathKind.astrometryExecutable => RemoteHostPathDialog.show(
+          context,
+          title: 'solve-field executable on imaging host',
+          initialPath: currentPath,
+          hintText: '/usr/bin/solve-field',
+          submitLabel: 'Use host path',
+          clearLabel: 'Use auto-detect',
+        ),
+    };
+  }
+
+  if (kind == PlateSolverPathKind.astapCatalogDirectory) {
+    return getDirectoryPath(confirmButtonText: 'Use this catalog folder');
+  }
+
+  final label = kind == PlateSolverPathKind.astapExecutable
+      ? 'ASTAP executable'
+      : 'solve-field';
+  final file = await openFile(
+    acceptedTypeGroups: [
+      XTypeGroup(
+        label: label,
+        extensions: Platform.isWindows ? const ['exe'] : null,
+      ),
+    ],
+    confirmButtonText: kind == PlateSolverPathKind.astapExecutable
+        ? 'Use this ASTAP'
+        : 'Use this solve-field',
+  );
+  return file?.path;
+}
+
+final plateSolverPathPickerProvider =
+    Provider<PlateSolverPathPicker>((ref) => _pickPlateSolverPath);
 
 /// Dedicated full-screen Plate Solving route.
 class PlateSolvingSettingsScreen extends ConsumerWidget {
@@ -50,47 +123,107 @@ class PlateSolvingSettings extends ConsumerStatefulWidget {
 }
 
 class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
+  bool _isChoosingPath = false;
+  int _pathChoiceGeneration = 0;
+
   Future<void> _browseAstapExecutable(PlateSolverPreference current) async {
-    final typeGroup = XTypeGroup(
-      label: 'ASTAP executable',
-      extensions: Platform.isWindows ? const ['exe'] : null,
+    await _choosePath(
+      kind: PlateSolverPathKind.astapExecutable,
+      currentPath: current.astapPath,
+      update: (path) => current.copyWith(astapPath: path),
     );
-    final file = await openFile(
-      acceptedTypeGroups: [typeGroup],
-      confirmButtonText: 'Use this ASTAP',
-    );
-    if (file == null || !mounted) return;
-    await _savePreference(current.copyWith(astapPath: file.path));
   }
 
   Future<void> _browseAstapCatalogDirectory(
-      PlateSolverPreference current) async {
-    final dir = await getDirectoryPath(
-      confirmButtonText: 'Use this catalog folder',
+    PlateSolverPreference current,
+  ) async {
+    await _choosePath(
+      kind: PlateSolverPathKind.astapCatalogDirectory,
+      currentPath: current.catalogPath,
+      update: (path) => current.copyWith(catalogPath: path),
     );
-    if (dir == null || !mounted) return;
-    await _savePreference(current.copyWith(catalogPath: dir));
   }
 
   Future<void> _browseAstrometryExecutable(
-      PlateSolverPreference current) async {
-    final typeGroup = XTypeGroup(
-      label: 'solve-field',
-      extensions: Platform.isWindows ? const ['exe'] : null,
+    PlateSolverPreference current,
+  ) async {
+    await _choosePath(
+      kind: PlateSolverPathKind.astrometryExecutable,
+      currentPath: current.astrometryPath,
+      update: (path) => current.copyWith(astrometryPath: path),
     );
-    final file = await openFile(
-      acceptedTypeGroups: [typeGroup],
-      confirmButtonText: 'Use this solve-field',
-    );
-    if (file == null || !mounted) return;
-    await _savePreference(current.copyWith(astrometryPath: file.path));
   }
 
-  Future<void> _savePreference(PlateSolverPreference next) async {
+  Future<void> _choosePath({
+    required PlateSolverPathKind kind,
+    required String currentPath,
+    required PlateSolverPreference Function(String path) update,
+  }) async {
+    if (_isChoosingPath) return;
+    final generation = ++_pathChoiceGeneration;
+    final authority = ref.read(backendProvider);
+    setState(() => _isChoosingPath = true);
+
+    try {
+      final path = await ref.read(plateSolverPathPickerProvider)(
+        context: context,
+        kind: kind,
+        isRemote: authority is NetworkBackend,
+        currentPath: currentPath,
+      );
+      if (path == null || !_isCurrentPathChoice(generation, authority)) return;
+
+      await _savePreference(
+        update(path),
+        expectedAuthority: authority,
+      );
+    } catch (error) {
+      if (mounted && _isCurrentPathChoice(generation, authority)) {
+        context.showErrorSnackBar(
+          'Could not choose a plate-solver path: $error',
+        );
+      }
+    } finally {
+      if (_isCurrentPathChoice(generation, authority)) {
+        setState(() => _isChoosingPath = false);
+      }
+    }
+  }
+
+  bool _isCurrentPathChoice(
+    int generation,
+    NightshadeBackend authority,
+  ) {
+    return mounted &&
+        generation == _pathChoiceGeneration &&
+        identical(ref.read(backendProvider), authority);
+  }
+
+  Future<void> _savePreference(
+    PlateSolverPreference next, {
+    Object? expectedAuthority,
+  }) async {
+    final authority = expectedAuthority ?? ref.read(backendProvider);
+    if (!identical(ref.read(backendProvider), authority)) {
+      if (mounted) {
+        context.showWarningSnackBar(
+          'The imaging host changed while choosing that path. Choose it '
+          'again for the current host.',
+        );
+      }
+      return;
+    }
     final notifier = ref.read(plateSolverSettingsNotifierProvider.notifier);
     try {
       final ok = await notifier.updatePreference(next);
       if (!mounted) return;
+      if (!identical(ref.read(backendProvider), authority)) {
+        context.showWarningSnackBar(
+          'The imaging host changed while saving. Verify the path on the '
+          'current host.',
+        );
+        return;
+      }
       if (ok) {
         context.showSuccessSnackBar('Plate-solver settings saved.');
       } else {
@@ -98,19 +231,24 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
             'then try again.');
       }
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !identical(ref.read(backendProvider), authority)) return;
       context.showErrorSnackBar('Failed to save plate-solver settings: $e');
     }
   }
 
   Future<void> _rescan() async {
+    final authority = ref.read(backendProvider);
     final notifier = ref.read(plateSolverSettingsNotifierProvider.notifier);
     try {
-      await notifier.rescan();
-      if (!mounted) return;
+      final started = await notifier.rescan();
+      if (!started ||
+          !mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
       context.showSuccessSnackBar('Re-scanned plate-solver paths.');
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !identical(ref.read(backendProvider), authority)) return;
       context.showErrorSnackBar('Re-scan failed: $e');
     }
   }
@@ -127,7 +265,16 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (!_isChoosingPath || previous == null || identical(previous, next)) {
+        return;
+      }
+      _pathChoiceGeneration++;
+      setState(() => _isChoosingPath = false);
+    });
+
     final colors = NightshadeColors.of(context);
+    final authority = ref.watch(backendProvider);
     final detectionAsync = ref.watch(plateSolverDetectionProvider);
     final prefAsync = ref.watch(plateSolverPreferenceProvider);
     final uiState = ref.watch(plateSolverSettingsNotifierProvider);
@@ -151,8 +298,9 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
               const SizedBox(height: 12),
               NightshadeButton(
                 label: 'Retry',
-                onPressed: _rescan,
+                onPressed: uiState.rescanning ? null : _rescan,
                 icon: LucideIcons.refreshCw,
+                isLoading: uiState.rescanning,
               ),
             ],
           ),
@@ -174,6 +322,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
           detection: detection,
           preference: pref,
           uiState: uiState,
+          authority: authority,
         ),
       ),
     );
@@ -183,6 +332,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
     required PlateSolverDetection detection,
     required PlateSolverPreference preference,
     required PlateSolverSettingsState uiState,
+    required NightshadeBackend authority,
   }) {
     return SettingsPage(
       title: 'Plate Solving',
@@ -193,31 +343,40 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
       children: [
         SolverDetectionCard(
           detection: detection,
+          choice: preference.choice,
           astapVerifyInfo: uiState.astapVerifyInfo,
           astapVerifyError: uiState.astapVerifyError,
+          astrometryVerifyInfo: uiState.astrometryVerifyInfo,
+          astrometryVerifyError: uiState.astrometryVerifyError,
         ),
-        if (detection.astapPath != null && !detection.astapReady) ...[
+        if (!detection.supports(preference.choice) &&
+            preference.choice != PlateSolverChoice.astrometry &&
+            detection.astapPath != null &&
+            !detection.astapReady) ...[
           const SizedBox(height: 12),
           _CatalogMissingHint(
             preference: preference,
-            onBrowseCatalog: () => _browseAstapCatalogDirectory(preference),
+            isBrowsing: _isChoosingPath,
+            onBrowseCatalog: _isChoosingPath
+                ? null
+                : () => _browseAstapCatalogDirectory(preference),
           ),
         ] else if (!detection.hasAnySolver) ...[
           const SizedBox(height: 16),
           _NoSolverQuickStart(
-            onRescan: uiState.savingPreference ? null : _rescan,
-            isRescanning: uiState.savingPreference,
+            onRescan: uiState.rescanning ? null : _rescan,
+            isRescanning: uiState.rescanning,
           ),
         ],
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
           child: NightshadeButton(
-            label: uiState.savingPreference ? 'Re-scanning…' : 'Re-scan',
+            label: uiState.rescanning ? 'Re-scanning…' : 'Re-scan',
             icon: LucideIcons.refreshCw,
             variant: ButtonVariant.outline,
-            isLoading: uiState.savingPreference,
-            onPressed: uiState.savingPreference ? null : _rescan,
+            isLoading: uiState.rescanning,
+            onPressed: uiState.rescanning ? null : _rescan,
           ),
         ),
         const SizedBox(height: 16),
@@ -231,8 +390,10 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                   ? (detection.astapPath ?? 'Auto-detect — not found')
                   : preference.astapPath,
               trailing: SettingsPathInput(
+                key: const ValueKey('plate_solver_astap_path'),
                 path: preference.astapPath,
                 onBrowse: () => _browseAstapExecutable(preference),
+                authorityKey: authority,
               ),
             ),
             SettingRow(
@@ -242,8 +403,10 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                   ? (detection.catalogPath ?? 'Auto-detect — not found')
                   : preference.catalogPath,
               trailing: SettingsPathInput(
+                key: const ValueKey('plate_solver_catalog_path'),
                 path: preference.catalogPath,
                 onBrowse: () => _browseAstapCatalogDirectory(preference),
+                authorityKey: authority,
               ),
             ),
             SettingRow(
@@ -278,8 +441,10 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                   ? (detection.astrometryPath ?? 'Auto-detect — not found')
                   : preference.astrometryPath,
               trailing: SettingsPathInput(
+                key: const ValueKey('plate_solver_astrometry_path'),
                 path: preference.astrometryPath,
                 onBrowse: () => _browseAstrometryExecutable(preference),
+                authorityKey: authority,
               ),
             ),
             SettingRow(
@@ -423,10 +588,17 @@ class _NoSolverQuickStart extends StatelessWidget {
     required this.isRescanning,
   });
 
-  Future<void> _openUrl(String url) async {
+  Future<void> _openUrl(BuildContext context, String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    var launched = false;
+    try {
+      launched = await canLaunchUrl(uri) &&
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && context.mounted) {
+      context.showErrorSnackBar('Could not open $url');
     }
   }
 
@@ -469,9 +641,9 @@ class _NoSolverQuickStart extends StatelessWidget {
               icon: LucideIcons.externalLink,
               size: ButtonSize.small,
               variant: ButtonVariant.outline,
-              onPressed: () => _openUrl(_astapDownloadUrl),
+              onPressed: () => _openUrl(context, _astapDownloadUrl),
             ),
-            onTap: () => _openUrl(_astapDownloadUrl),
+            onTap: () => _openUrl(context, _astapDownloadUrl),
           ),
           const SizedBox(height: 10),
           _QuickStartStep(
@@ -488,9 +660,9 @@ class _NoSolverQuickStart extends StatelessWidget {
               icon: LucideIcons.externalLink,
               size: ButtonSize.small,
               variant: ButtonVariant.outline,
-              onPressed: () => _openUrl(_astapDownloadUrl),
+              onPressed: () => _openUrl(context, _astapDownloadUrl),
             ),
-            onTap: () => _openUrl(_astapDownloadUrl),
+            onTap: () => _openUrl(context, _astapDownloadUrl),
           ),
           const SizedBox(height: 10),
           _QuickStartStep(
@@ -612,11 +784,13 @@ class _QuickStartStep extends StatelessWidget {
 /// so the user can point the app at the catalog they already have.
 class _CatalogMissingHint extends StatelessWidget {
   final PlateSolverPreference preference;
-  final VoidCallback onBrowseCatalog;
+  final VoidCallback? onBrowseCatalog;
+  final bool isBrowsing;
 
   const _CatalogMissingHint({
     required this.preference,
     required this.onBrowseCatalog,
+    required this.isBrowsing,
   });
 
   @override
@@ -649,10 +823,13 @@ class _CatalogMissingHint extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           NightshadeButton(
-            label: 'Browse for catalog directory',
+            label: isBrowsing
+                ? 'Choosing catalog directory…'
+                : 'Browse for catalog directory',
             icon: LucideIcons.folderOpen,
             size: ButtonSize.small,
             variant: ButtonVariant.outline,
+            isLoading: isBrowsing,
             onPressed: onBrowseCatalog,
           ),
         ],

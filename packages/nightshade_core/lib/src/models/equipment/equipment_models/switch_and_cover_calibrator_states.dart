@@ -9,8 +9,10 @@ part of '../equipment_models.dart';
 /// we hold a snapshot here so the UI can render channel counts and labels
 /// without re-fetching on every rebuild.
 ///
-/// Per-channel control UI is intentionally deferred (future work); the
-/// `SwitchCard` only surfaces connect/disconnect + status for now.
+/// Boolean relays and numeric/PWM channels share this snapshot. The legacy
+/// name/state lists remain convenient for compact telemetry, while the
+/// capability lists let the Equipment screen render a slider for analog
+/// channels and keep read-only channels visibly non-interactive.
 class SwitchState extends Equatable {
   final DeviceConnectionState connectionState;
   final String? deviceId;
@@ -28,8 +30,21 @@ class SwitchState extends Equatable {
   final List<String> channelNames;
 
   /// Per-channel boolean state. Length matches [channelCount] when
-  /// populated. Numeric channels collapse to `true` when value > 0.
+  /// populated. Numeric channels collapse to `true` when above the midpoint
+  /// of their advertised range, for compact on/off telemetry only.
   final List<bool> channelStates;
+
+  /// Driver descriptions, channel kinds, current numeric values, ranges,
+  /// increments, and writeability. Each populated list matches
+  /// [channelCount]. Older snapshots may leave these empty; consumers must
+  /// retain the boolean defaults in that case.
+  final List<String> channelDescriptions;
+  final List<bool> channelIsBoolean;
+  final List<double> channelValues;
+  final List<double> channelMinValues;
+  final List<double> channelMaxValues;
+  final List<double> channelSteps;
+  final List<bool> channelCanWrite;
 
   /// Wall-clock time of the last successful channel snapshot refresh,
   /// or null when no refresh has completed yet. The UI uses this to
@@ -48,6 +63,13 @@ class SwitchState extends Equatable {
     this.channelCount = 0,
     this.channelNames = const [],
     this.channelStates = const [],
+    this.channelDescriptions = const [],
+    this.channelIsBoolean = const [],
+    this.channelValues = const [],
+    this.channelMinValues = const [],
+    this.channelMaxValues = const [],
+    this.channelSteps = const [],
+    this.channelCanWrite = const [],
     this.lastChannelRefresh,
     this.lastError,
     this.autoReconnectEnabled = true,
@@ -63,6 +85,13 @@ class SwitchState extends Equatable {
     int? channelCount,
     List<String>? channelNames,
     List<bool>? channelStates,
+    List<String>? channelDescriptions,
+    List<bool>? channelIsBoolean,
+    List<double>? channelValues,
+    List<double>? channelMinValues,
+    List<double>? channelMaxValues,
+    List<double>? channelSteps,
+    List<bool>? channelCanWrite,
     DateTime? lastChannelRefresh,
     DeviceError? lastError,
     bool? autoReconnectEnabled,
@@ -75,6 +104,13 @@ class SwitchState extends Equatable {
       channelCount: channelCount ?? this.channelCount,
       channelNames: channelNames ?? this.channelNames,
       channelStates: channelStates ?? this.channelStates,
+      channelDescriptions: channelDescriptions ?? this.channelDescriptions,
+      channelIsBoolean: channelIsBoolean ?? this.channelIsBoolean,
+      channelValues: channelValues ?? this.channelValues,
+      channelMinValues: channelMinValues ?? this.channelMinValues,
+      channelMaxValues: channelMaxValues ?? this.channelMaxValues,
+      channelSteps: channelSteps ?? this.channelSteps,
+      channelCanWrite: channelCanWrite ?? this.channelCanWrite,
       lastChannelRefresh: lastChannelRefresh ?? this.lastChannelRefresh,
       lastError: clearError ? null : (lastError ?? this.lastError),
       autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
@@ -89,6 +125,13 @@ class SwitchState extends Equatable {
     channelCount,
     channelNames,
     channelStates,
+    channelDescriptions,
+    channelIsBoolean,
+    channelValues,
+    channelMinValues,
+    channelMaxValues,
+    channelSteps,
+    channelCanWrite,
     lastChannelRefresh,
     lastError,
     autoReconnectEnabled,

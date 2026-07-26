@@ -291,29 +291,48 @@ class NotificationRoutingRule extends Equatable {
   factory NotificationRoutingRule.fromJson(Map<String, dynamic> json) {
     final transportsRaw = json['transports'];
     final transports = <NotificationTransportKind>[];
-    if (transportsRaw is List) {
+    if (transportsRaw != null) {
+      if (transportsRaw is! List) {
+        throw const FormatException('transports must be a list');
+      }
       for (final entry in transportsRaw) {
-        if (entry is String) {
-          final t = NotificationTransportKind.fromStorageKey(entry);
-          if (t != null) transports.add(t);
+        if (entry is! String) {
+          throw const FormatException('transport names must be strings');
         }
+        final transport = NotificationTransportKind.fromStorageKey(entry);
+        if (transport == null) {
+          throw FormatException('unknown notification transport: $entry');
+        }
+        if (transports.contains(transport)) {
+          throw FormatException('duplicate notification transport: $entry');
+        }
+        transports.add(transport);
       }
     }
-    final sevName = json['minSeverity'] as String? ?? 'info';
-    final severity = EventSeverity.values.firstWhere(
-      (e) => e.name == sevName,
-      orElse: () => EventSeverity.info,
-    );
+    final severityRaw = json['minSeverity'];
+    final sevName = severityRaw == null
+        ? 'info'
+        : severityRaw is String
+        ? severityRaw
+        : throw const FormatException('minSeverity must be a string');
+    final severity = EventSeverity.values.where((e) => e.name == sevName);
+    if (severity.isEmpty) {
+      throw FormatException('unknown notification severity: $sevName');
+    }
+    final enabledRaw = json['enabled'];
+    if (enabledRaw != null && enabledRaw is! bool) {
+      throw const FormatException('enabled must be a boolean');
+    }
     return NotificationRoutingRule(
       transports: transports.isEmpty
           ? const [NotificationTransportKind.inApp]
           : transports,
-      minSeverity: severity,
-      maxPerHour: (json['maxPerHour'] as num?)?.toInt() ?? 0,
-      debounceSeconds: (json['debounceSeconds'] as num?)?.toInt() ?? 0,
+      minSeverity: severity.single,
+      maxPerHour: _nonNegativeWholeNumber(json, 'maxPerHour'),
+      debounceSeconds: _nonNegativeWholeNumber(json, 'debounceSeconds'),
       titleTemplate: json['titleTemplate'] as String?,
       bodyTemplate: json['bodyTemplate'] as String?,
-      enabled: json['enabled'] as bool? ?? true,
+      enabled: enabledRaw as bool? ?? true,
     );
   }
 
@@ -378,16 +397,32 @@ class NotificationRoutingMatrix extends Equatable {
   factory NotificationRoutingMatrix.fromJson(Map<String, dynamic> json) {
     final rulesRaw = json['rules'];
     final parsed = <NotificationCategory, NotificationRoutingRule>{};
-    if (rulesRaw is Map<String, dynamic>) {
+    if (rulesRaw != null) {
+      if (rulesRaw is! Map) {
+        throw const FormatException('rules must be an object');
+      }
       rulesRaw.forEach((key, value) {
-        final cat = NotificationCategory.fromStorageKey(key);
-        if (cat != null && value is Map<String, dynamic>) {
-          parsed[cat] = NotificationRoutingRule.fromJson(value);
+        if (key is! String) {
+          throw const FormatException('routing rule keys must be strings');
         }
+        final cat = NotificationCategory.fromStorageKey(key);
+        // Unknown categories are ignored for forward compatibility when an
+        // older controller reads a matrix written by a newer host.
+        if (cat == null) return;
+        if (value is! Map) {
+          throw FormatException('rule for $key must be an object');
+        }
+        parsed[cat] = NotificationRoutingRule.fromJson(
+          Map<String, dynamic>.from(value),
+        );
       });
     }
+    final enabledRaw = json['enabled'];
+    if (enabledRaw != null && enabledRaw is! bool) {
+      throw const FormatException('enabled must be a boolean');
+    }
     return NotificationRoutingMatrix(
-      enabled: json['enabled'] as bool? ?? true,
+      enabled: enabledRaw as bool? ?? true,
       rules: parsed,
     );
   }
@@ -436,6 +471,18 @@ bool _systemPushByDefault(NotificationCategory c) {
     default:
       return false;
   }
+}
+
+int _nonNegativeWholeNumber(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value == null) return 0;
+  if (value is! num ||
+      !value.isFinite ||
+      value.truncateToDouble() != value.toDouble() ||
+      value < 0) {
+    throw FormatException('$key must be a non-negative whole number');
+  }
+  return value.toInt();
 }
 
 NotificationRoutingRule _defaultRuleFor(NotificationCategory category) {

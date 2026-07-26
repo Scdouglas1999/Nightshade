@@ -9,17 +9,26 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/atlas_handlers.dart';
 import 'package:shelf/shelf.dart';
+
+import 'handler_test_helpers.dart';
+
+class _MockSkyAtlasService extends Mock implements SkyAtlasService {}
 
 void main() {
   group('AtlasHandlers error envelope', () {
     late ProviderContainer container;
     late AtlasHandlers handlers;
+    late _MockSkyAtlasService service;
 
     setUp(() {
-      container = ProviderContainer();
+      service = _MockSkyAtlasService();
+      container = ProviderContainer(
+        overrides: [skyAtlasServiceProvider.overrideWithValue(service)],
+      );
       handlers = AtlasHandlers(container);
     });
 
@@ -100,6 +109,112 @@ void main() {
       );
 
       await expectUnifiedError(response, expectedStatus: HttpStatus.badRequest);
+    });
+
+    test('cutout rejects unsafe outPixels before resolving a region', () async {
+      for (final raw in ['abc', '0', '-1', '4097', '1.5']) {
+        final response = await translateHandlerErrors(
+          handlers.handleGetRegionCutout(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/atlas/region/1/cutout?outPixels='
+                '${Uri.encodeQueryComponent(raw)}',
+              ),
+            ),
+            '1',
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest, reason: raw);
+        final body =
+            jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+        expect(body['field'], 'outPixels', reason: raw);
+      }
+    });
+
+    test('POST regions persists validated metadata on the host', () async {
+      when(
+        () => service.ensureRegion(
+          name: any(named: 'name'),
+          centerRaDeg: any(named: 'centerRaDeg'),
+          centerDecDeg: any(named: 'centerDecDeg'),
+          radiusDeg: any(named: 'radiusDeg'),
+          kind: any(named: 'kind'),
+          targetId: any(named: 'targetId'),
+        ),
+      ).thenAnswer((_) async => 42);
+
+      final response = await handlers.handleCreateRegion(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/atlas/regions'),
+          body: jsonEncode({
+            'name': '  M31 core  ',
+            'centerRaDeg': 10.68,
+            'centerDecDeg': 41.27,
+            'radiusDeg': 1.5,
+            'kind': 'target',
+            'targetId': 31,
+          }),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(jsonDecode(await response.readAsString()), {'id': 42});
+      verify(
+        () => service.ensureRegion(
+          name: 'M31 core',
+          centerRaDeg: 10.68,
+          centerDecDeg: 41.27,
+          radiusDeg: 1.5,
+          kind: 'target',
+          targetId: 31,
+        ),
+      ).called(1);
+    });
+
+    test('POST regions rejects impossible sky coordinates', () async {
+      for (final payload in [
+        {
+          'name': 'Bad RA',
+          'centerRaDeg': 361,
+          'centerDecDeg': 0,
+          'radiusDeg': 1,
+        },
+        {
+          'name': 'Bad Dec',
+          'centerRaDeg': 10,
+          'centerDecDeg': -91,
+          'radiusDeg': 1,
+        },
+        {
+          'name': 'Bad radius',
+          'centerRaDeg': 10,
+          'centerDecDeg': 20,
+          'radiusDeg': 0,
+        },
+      ]) {
+        final response = await translateHandlerErrors(
+          handlers.handleCreateRegion(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/atlas/regions'),
+              body: jsonEncode(payload),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest, reason: '$payload');
+      }
+      verifyNever(
+        () => service.ensureRegion(
+          name: any(named: 'name'),
+          centerRaDeg: any(named: 'centerRaDeg'),
+          centerDecDeg: any(named: 'centerDecDeg'),
+          radiusDeg: any(named: 'radiusDeg'),
+          kind: any(named: 'kind'),
+          targetId: any(named: 'targetId'),
+        ),
+      );
     });
   });
 }

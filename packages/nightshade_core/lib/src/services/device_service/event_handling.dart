@@ -1,8 +1,21 @@
 part of '../device_service.dart';
 
+/// Rate-limit window for repeated identical device-error TOASTS (see
+/// [_DeviceServiceEventHandling._handleDeviceError]). Within this window an
+/// identical `(deviceId, message)` error is still logged and still reflected in
+/// the equipment-card error state, but is NOT re-toasted — so a flapping device
+/// (e.g. a flaky network safety monitor reconnecting every few seconds) can
+/// never flood the notification stream, independent of any per-device heartbeat
+/// policy.
+const Duration _deviceErrorToastWindow = Duration(seconds: 60);
+final Map<String, DateTime> _recentDeviceErrorToasts = <String, DateTime>{};
+
 extension _DeviceServiceEventHandling on DeviceService {
   void _markUserInitiatedDisconnect(String deviceId) =>
       _reconnectCoordinator.markUserInitiatedDisconnect(deviceId);
+
+  void _clearUserInitiatedDisconnect(String deviceId) =>
+      _reconnectCoordinator.clearUserInitiatedDisconnect(deviceId);
 
   /// Resolve a display name without running discovery. Falls back to
   /// [getConnectedDevices] when the backend already knows this device
@@ -474,16 +487,14 @@ extension _DeviceServiceEventHandling on DeviceService {
         break;
     }
 
-    // Drive sequence-resume off this authoritative connected event so a
-    // reconnect from ANY source — including the Rust reconnection loop after
-    // the Dart coordinator has exhausted its own ~35s budget — resumes a
-    // paused sequence. Previously resume only fired inside the coordinator's
-    // own retry success, so a later out-of-band reconnect left the rig
-    // connected but idle until morning.
+    // Reset the reconnect lifecycle for every device type, then drive
+    // sequence-resume for camera/mount from this authoritative event. This
+    // also lets a manual or out-of-band connection recover a device whose
+    // bounded automatic retry budget was exhausted.
     final lower = deviceType.toLowerCase();
-    if (lower == 'camera' || lower == 'mount') {
-      unawaited(_reconnectCoordinator.onAuthoritativeDeviceConnected(lower));
-    }
+    unawaited(
+      _reconnectCoordinator.onAuthoritativeDeviceConnected(lower, deviceId),
+    );
   }
 
   void _applyDeviceConnecting(String deviceType, String deviceId) {
@@ -555,6 +566,67 @@ extension _DeviceServiceEventHandling on DeviceService {
     }
   }
 
+  /// Device id currently tracked by the equipment notifier for [type], or
+  /// `null` when that slot is empty.
+  String? _trackedDeviceIdFor(DeviceType type) {
+    switch (type) {
+      case DeviceType.camera:
+        return _ref.read(cameraStateProvider).deviceId;
+      case DeviceType.mount:
+        return _ref.read(mountStateProvider).deviceId;
+      case DeviceType.focuser:
+        return _ref.read(focuserStateProvider).deviceId;
+      case DeviceType.filterWheel:
+        return _ref.read(filterWheelStateProvider).deviceId;
+      case DeviceType.guider:
+        return _ref.read(guiderStateProvider).deviceId;
+      case DeviceType.rotator:
+        return _ref.read(rotatorStateProvider).deviceId;
+      case DeviceType.dome:
+        return _ref.read(domeStateProvider).deviceId;
+      case DeviceType.weather:
+        return _ref.read(weatherStateProvider).deviceId;
+      case DeviceType.safetyMonitor:
+        return _ref.read(safetyMonitorStateProvider).deviceId;
+      case DeviceType.coverCalibrator:
+        return _ref.read(coverCalibratorStateProvider).deviceId;
+      case DeviceType.switch_:
+        return _ref.read(switchStateProvider).deviceId;
+    }
+  }
+
+  /// Whether a `Disconnected` event for [eventDeviceId] may tear down the
+  /// equipment notifier for [type].
+  ///
+  /// The notifiers' `setDisconnected()` resets the WHOLE slot (including
+  /// `deviceId`) and takes no device id, so it cannot tell which device the
+  /// event was about. Applying it to a foreign or stale id therefore erases the
+  /// identity of the device that IS connected, while the native device registry
+  /// (the authority behind `GET /api/devices/connected` and every driver
+  /// command) still holds it. That divergence is unrecoverable through the
+  /// public API: `POST /api/devices/disconnect` gates on this notifier, so it
+  /// answers `device_not_connected` for a device that is listed as connected and
+  /// still reporting live status — the driver can then only be released by
+  /// restarting the process.
+  ///
+  /// An empty slot is allowed through (idempotent no-op) so genuine teardown
+  /// ordering is unaffected.
+  bool _disconnectEventOwnsSlot(DeviceType type, String eventDeviceId) {
+    final tracked = _trackedDeviceIdFor(type);
+    if (tracked == null || tracked.isEmpty || tracked == eventDeviceId) {
+      return true;
+    }
+    _safeLog(
+      (logger) => logger.warning(
+        'Ignoring stale ${type.name} Disconnected for $eventDeviceId; '
+        'currently-tracked ${type.name} is $tracked',
+        source: 'DeviceService',
+      ),
+      'disconnect-slot-guard-${type.name}',
+    );
+    return false;
+  }
+
   /// Handle device disconnection event
   void _handleDeviceDisconnected(String? deviceType, String? deviceId) {
     if (deviceType == null || deviceId == null) return;
@@ -591,9 +663,7 @@ extension _DeviceServiceEventHandling on DeviceService {
         // Only tear down camera-scoped polling state if the
         // disconnect event is for the camera we're actually tracking.
         // A stale event for a previously-disconnected camera must not
-        // kill polling/IDs for the CURRENT camera. We still flip the
-        // notifier and schedule reconnect — those operations are
-        // device-id aware via _attemptReconnect/setDisconnected.
+        // kill polling/IDs for the CURRENT camera.
         final trackedCameraId = _temperaturePoller.connectedCameraId;
         if (trackedCameraId != null && trackedCameraId == deviceId) {
           _temperaturePoller.stop();
@@ -607,54 +677,74 @@ extension _DeviceServiceEventHandling on DeviceService {
             'camera-disconnect-guard',
           );
         }
-        _ref.read(cameraStateProvider.notifier).setDisconnected();
+        // The notifier wipe is NOT device-id aware on its own — see
+        // [_disconnectEventOwnsSlot].
+        if (_disconnectEventOwnsSlot(DeviceType.camera, deviceId)) {
+          _ref.read(cameraStateProvider.notifier).setDisconnected();
+        }
         // Attempt auto-reconnection for camera
         unawaited(_attemptReconnect(DeviceType.camera, deviceId));
         break;
 
       case 'mount':
-        _ref.read(mountStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.mount, deviceId)) {
+          _ref.read(mountStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.mount, deviceId));
         break;
 
       case 'focuser':
-        _focuserVerifyGeneration++;
-        _ref.read(focuserStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.focuser, deviceId)) {
+          _focuserVerifyGeneration++;
+          _ref.read(focuserStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.focuser, deviceId));
         break;
 
       case 'filterwheel':
       case 'filter wheel':
-        _filterWheelVerifyGeneration++;
         _lastAppliedFilterOffsetByWheel.remove(deviceId);
-        _ref.read(filterWheelStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.filterWheel, deviceId)) {
+          _filterWheelVerifyGeneration++;
+          _ref.read(filterWheelStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.filterWheel, deviceId));
         break;
 
       case 'guider':
-        _ref.read(guiderStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.guider, deviceId)) {
+          _ref.read(guiderStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.guider, deviceId));
         break;
 
       case 'rotator':
-        _rotatorVerifyGeneration++;
-        _ref.read(rotatorStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.rotator, deviceId)) {
+          _rotatorVerifyGeneration++;
+          _ref.read(rotatorStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.rotator, deviceId));
         break;
 
       case 'dome':
-        _ref.read(domeStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.dome, deviceId)) {
+          _ref.read(domeStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.dome, deviceId));
         break;
 
       case 'weather':
-        _ref.read(weatherStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.weather, deviceId)) {
+          _ref.read(weatherStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.weather, deviceId));
         break;
 
       case 'safetymonitor':
       case 'safety monitor':
-        _ref.read(safetyMonitorStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.safetyMonitor, deviceId)) {
+          _ref.read(safetyMonitorStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.safetyMonitor, deviceId));
         break;
 
@@ -666,7 +756,9 @@ extension _DeviceServiceEventHandling on DeviceService {
       // knows the device is gone.
       case 'covercalibrator':
       case 'cover calibrator':
-        _ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.coverCalibrator, deviceId)) {
+          _ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.coverCalibrator, deviceId));
         break;
 
@@ -675,7 +767,9 @@ extension _DeviceServiceEventHandling on DeviceService {
         // Switch device now has a first-class state provider,
         // so disconnects route through `setDisconnected` and the
         // standard auto-reconnect path — same shape as safety monitor.
-        _ref.read(switchStateProvider.notifier).setDisconnected();
+        if (_disconnectEventOwnsSlot(DeviceType.switch_, deviceId)) {
+          _ref.read(switchStateProvider.notifier).setDisconnected();
+        }
         unawaited(_attemptReconnect(DeviceType.switch_, deviceId));
         break;
     }
@@ -779,6 +873,26 @@ extension _DeviceServiceEventHandling on DeviceService {
           ),
           'device-error-unknown-type',
         );
+    }
+
+    // Rate-limit the user-facing surface so a flapping device cannot flood it.
+    // Steps 1 (full logger record) and 2 (equipment-card error state) above run
+    // on EVERY error; here we suppress an identical (deviceId, message) toast +
+    // structured-history entry within the dedup window. The logger record from
+    // step 1 still captures every occurrence for diagnostics, so nothing is lost.
+    final now = DateTime.now();
+    final dedupKey = '${deviceId ?? deviceType ?? '?'}::$fullMessage';
+    final lastShown = _recentDeviceErrorToasts[dedupKey];
+    if (lastShown != null &&
+        now.difference(lastShown) < _deviceErrorToastWindow) {
+      return;
+    }
+    _recentDeviceErrorToasts[dedupKey] = now;
+    // Opportunistic cleanup so the map can't grow unbounded on long sessions.
+    if (_recentDeviceErrorToasts.length > 128) {
+      _recentDeviceErrorToasts.removeWhere(
+        (_, t) => now.difference(t) > _deviceErrorToastWindow,
+      );
     }
 
     // 3. Surface via the structured errorService. This routes through

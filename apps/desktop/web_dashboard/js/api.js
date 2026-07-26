@@ -57,6 +57,9 @@ class NightshadeApi {
   get isConnected() { return this._connected; }
   get isWsConnected() { return this._wsConnected; }
   get hasSessionCookie() { return this._useSessionCookie; }
+  get usesHeaderAuth() {
+    return !this._useSessionCookie && Boolean(this._authToken);
+  }
 
   // =========================================================================
   // HTTP helpers
@@ -160,6 +163,40 @@ class NightshadeApi {
 
   async _getWithTimeout(path, timeoutMs) {
     return this._request('GET', path, undefined, timeoutMs);
+  }
+
+  async _getBlob(path, timeoutMs) {
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      timeoutMs || this._requestTimeoutMs,
+    );
+    let resp;
+    try {
+      resp = await fetch(this._baseUrl + path, {
+        method: 'GET',
+        headers: this._headers(undefined, 'GET'),
+        credentials: 'include',
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        throw new Error('GET ' + path + ' timed out');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(
+        'GET ' + path + ' failed (' + resp.status + '): ' + text,
+      );
+    }
+    return {
+      blob: await resp.blob(),
+      contentDisposition: resp.headers.get('content-disposition') || '',
+    };
   }
 
   // =========================================================================
@@ -297,7 +334,20 @@ class NightshadeApi {
       throw new Error('GET ' + path + ' failed (' + resp.status + '): ' + text);
     }
     const buffer = await resp.arrayBuffer();
-    return new Uint16Array(buffer);
+    if (buffer.byteLength % 2 !== 0) {
+      throw new Error(
+        'GET ' + path + ' returned an odd-length 16-bit payload (' +
+        buffer.byteLength + ' bytes)',
+      );
+    }
+    // The wire contract is explicitly little-endian. Uint16Array uses the
+    // browser host's native byte order, so decode through DataView instead.
+    const view = new DataView(buffer);
+    const pixels = new Uint16Array(buffer.byteLength / 2);
+    for (let i = 0; i < pixels.length; i += 1) {
+      pixels[i] = view.getUint16(i * 2, true);
+    }
+    return pixels;
   }
 
   async cameraSetCooling(deviceId, enabled, targetTemp) {
@@ -551,7 +601,52 @@ class NightshadeApi {
   // =========================================================================
 
   async targetsSearch(query) {
-    return this._get('/api/targets/search?query=' + encodeURIComponent(query || ''));
+    const encoded = encodeURIComponent(query || '');
+    // Search both user-saved targets and the installed star/DSO catalogs.
+    // The dashboard labels this surface "Target Catalog" and the framing
+    // wizard promises catalog IDs; querying only /api/targets/search made M31
+    // return no matches on a host with a fully installed catalog.
+    const [savedResult, catalogResult] = await Promise.allSettled([
+      this._get('/api/targets/search?query=' + encoded),
+      this._get('/api/planetarium/catalog/search?query=' + encoded),
+    ]);
+    if (savedResult.status === 'rejected'
+        && catalogResult.status === 'rejected') {
+      throw savedResult.reason;
+    }
+
+    const saved = savedResult.status === 'fulfilled'
+      ? ((savedResult.value && savedResult.value.targets) || [])
+      : [];
+    const catalog = catalogResult.status === 'fulfilled'
+      ? ((catalogResult.value && catalogResult.value.results) || [])
+      : [];
+    const targets = saved.slice();
+    const seen = new Set(saved.map((target) => String(
+      target.catalogId || target.name || '',
+    ).trim().toLowerCase()));
+
+    for (const object of catalog) {
+      const key = String(object.catalogId || object.name || '')
+        .trim().toLowerCase();
+      if (key && seen.has(key)) continue;
+      if (key) seen.add(key);
+      targets.push({
+        // Catalog entries are not target-table rows until the user saves one.
+        // Keep id null so framing save creates a row instead of PUTting a
+        // synthetic catalog identifier to /api/targets/<id>.
+        id: null,
+        name: object.name,
+        catalogId: object.catalogId,
+        ra: object.raHours,
+        dec: object.dec,
+        objectType: object.type,
+        constellation: object.constellation,
+        magnitude: object.magnitude,
+        sizeArcmin: object.size,
+      });
+    }
+    return { targets };
   }
 
   // Mount Slew helpers — names match the brief. mountSlewToRaDec
@@ -682,35 +777,17 @@ class NightshadeApi {
     return this._get('/api/sequence-management/list');
   }
 
-  // TODO[W5-BACKEND-EXTEND]: no /api/sequencer/load-by-id endpoint exists.
-  // /api/sequencer/load requires a serialized sequence JSON string. To
-  // "load" a saved sequence by id from the dashboard we currently fetch the
-  // sequence + nodes via /api/sequence-management and post a synthesised
-  // payload below. A dedicated server-side endpoint would let the dashboard
-  // submit only the sequence id (matching the desktop UI's behaviour).
-  async sequencerLoadById(sequenceId) {
-    const [seqResp, nodesResp] = await Promise.all([
-      this._get('/api/sequence-management/' + encodeURIComponent(sequenceId)),
-      this._get(
-        '/api/sequence-management/' + encodeURIComponent(sequenceId) + '/nodes',
-      ),
-    ]);
-    const sequence = seqResp && seqResp.sequence;
-    const nodes = (nodesResp && nodesResp.nodes) || [];
-    if (!sequence) {
-      throw new Error('Sequence ' + sequenceId + ' not found');
-    }
-    // The backend expects a `json` field — pass the full sequence body so the
-    // Rust sequencer can rehydrate it. The desktop client builds the same
-    // payload, so any future schema change applies uniformly.
-    const payload = JSON.stringify({ sequence, nodes });
-    return this._post('/api/sequencer/load', { json: payload });
-  }
-
-  // Convenience for the ops sequencer panel: load + immediately start.
+  // Load and start atomically on the host. The host owns both the persisted
+  // sequence schema and native-executor serialization; browser-side database
+  // DTOs are intentionally not treated as native sequence definitions.
   async sequencerLoadAndStart(sequenceId) {
-    await this.sequencerLoadById(sequenceId);
-    return this.sequencerStart();
+    const parsedId = Number(sequenceId);
+    if (!Number.isInteger(parsedId) || parsedId < 1) {
+      throw new Error('Invalid sequence id: ' + sequenceId);
+    }
+    return this._post('/api/sequencer/load-and-start', {
+      sequenceId: parsedId,
+    });
   }
 
   // Abort = stop. Why an alias: the §2.17 brief uses "Abort"; the server uses
@@ -777,13 +854,11 @@ class NightshadeApi {
     );
   }
 
-  // TODO[W5-BACKEND-EXTEND]: handleDomeSync currently returns 501. The audit
-  // calls for a "sync-to-mount toggle"; once the bridge exposes
-  // apiDomeSetSlaved(), the handler can flip dome slaving and the UI control
-  // here will start working. We still POST so the failure surfaces clearly to
-  // the operator instead of being silently hidden.
+  // The host payload key is `enable` (matching NetworkBackend and
+  // DomeHandlers). Sending `enabled` made the server apply its default `true`,
+  // so turning this toggle off silently re-enabled dome slaving.
   async domeSyncToMount(deviceId, enabled) {
-    return this._post('/api/dome/sync', { deviceId, enabled });
+    return this._post('/api/dome/sync', { deviceId, enable: enabled });
   }
 
   // =========================================================================
@@ -918,16 +993,24 @@ class NightshadeApi {
         '/thumbnail' + qs;
   }
 
-  /// Build the download URL for the original. Used by the gallery
-  /// modal's "Download original" link. The server's auth middleware
-  /// accepts `access_token` query param for download routes too.
+  async imageThumbnailBlob(imageId, opts) {
+    const url = this.imageThumbnailUrl(imageId, opts);
+    const path = url.slice(this._baseUrl.length);
+    return this._getBlob(path, 60000);
+  }
+
+  /// Build the download URL for cookie/no-auth sessions. Bearer-only browser
+  /// sessions must use imageDownloadBlob() because URL navigation cannot add
+  /// an Authorization header and the server intentionally rejects bearer
+  /// tokens in general query strings.
   imageDownloadUrl(imageId) {
-    const url = this._baseUrl + '/api/images/' + encodeURIComponent(imageId) +
+    return this._baseUrl + '/api/images/' + encodeURIComponent(imageId) +
         '/download';
-    if (this._authToken) {
-      return url + '?access_token=' + encodeURIComponent(this._authToken);
-    }
-    return url;
+  }
+
+  async imageDownloadBlob(imageId) {
+    const path = '/api/images/' + encodeURIComponent(imageId) + '/download';
+    return this._getBlob(path, 120000);
   }
 
   /// Subscribe to /api/logs/tail (SSE). Returns the [EventSource] so
@@ -1199,7 +1282,7 @@ class NightshadeApi {
 
 
   /**
-   * Start a pairing session. The server prints a 6-digit code to its console;
+   * Start a pairing session. The server prints a pairing code to its console;
    * the operator then types it into the dashboard's pairing modal.
    * @returns {Promise<{expiresAt:string, expiresInSeconds:number}>}
    */
@@ -1208,10 +1291,10 @@ class NightshadeApi {
   }
 
   /**
-   * Complete pairing by submitting the 6-digit code shown on the desktop
+   * Complete pairing by submitting the code shown on the desktop
    * console. On success the server returns a bearer token and scope.
    * The server expects field name `code` (not `pairingCode`).
-   * @param {string} code 6-digit pairing code
+   * @param {string} code Pairing code
    * @param {string} deviceName Human-readable browser identity
    * @param {string} deviceId Stable identifier for this browser profile
    */
@@ -1330,13 +1413,15 @@ class NightshadeApi {
     }
 
     let ticket = '';
-    if (this._authToken) {
+    if (this._authToken || this._useSessionCookie) {
       try {
         const result = await this.issueWebSocketTicket();
         ticket = result && result.ticket ? String(result.ticket) : '';
       } catch (e) {
         // Why swallow: older servers did not expose /api/ws/ticket. Fall back
-        // to ?token=, which the server explicitly continues to accept.
+        // to ?token= for bearer sessions, which the server explicitly
+        // continues to accept. Cookie sessions have no raw-token fallback;
+        // a failed ticket request will therefore fail closed at the upgrade.
         ticket = '';
       }
     }
@@ -1381,6 +1466,10 @@ class NightshadeApi {
       try {
         const data = JSON.parse(msg.data);
         this._lastWsMessageAt = Date.now();
+        // Heartbeat ping/pong frames are real proof that the socket is alive.
+        // Surface that activity before the early returns below so consumers
+        // do not mistake a healthy, quiet connection for a dead event stream.
+        this._emit('ws:activity', { type: data.type || 'event' });
 
         if (data.type === 'ping') {
           this._ws.send(JSON.stringify({

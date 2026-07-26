@@ -156,14 +156,22 @@ void main() {
             pushedFramesDelta.add(
               int.parse(request.headers['framesDelta'] ?? '0'),
             );
+            // Model what the hub actually returns: it answers 200 for BOTH
+            // outcomes and distinguishes them with an `accepted` flag
+            // (hub_server.dart `_contributeHandler`). Omitting the flag made
+            // this fixture describe a hub that does not exist, and
+            // `ContributionReceipt.fromJson` defaults a missing `accepted` to
+            // false — so the fixture was silently modelling a REJECTION while
+            // the test asserted acceptance.
             return http.Response(
               jsonEncode({
                 'contributionId': 'ctr-$pushCount',
                 'tileId': 1234,
                 'order': 9,
+                'accepted': true,
                 'totalFramesAfter': 100 + pushCount,
               }),
-              201,
+              200,
             );
           }
           // pullTile GET: a tiny accumulator blob.

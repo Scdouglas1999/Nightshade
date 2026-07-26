@@ -16,24 +16,38 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/profile_handlers.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
+class _MockProfileSettingsBackend extends Mock
+    implements ProfileSettingsBackend {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    registerFallbackValue(const EquipmentProfile(id: '0', name: 'fallback'));
+  });
 
   group('ProfileHandlers default + reorder endpoints', () {
     late ProviderContainer container;
     late NightshadeDatabase db;
     late ProfileHandlers handlers;
+    late _MockProfileSettingsBackend profileBackend;
 
     setUp(() {
       db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      profileBackend = _MockProfileSettingsBackend();
+      when(() => profileBackend.saveProfile(any())).thenAnswer((_) async {});
+      when(() => profileBackend.loadProfile(any())).thenAnswer((_) async {});
       container = ProviderContainer(
-        overrides: [databaseProvider.overrideWithValue(db)],
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          profileSettingsBackendProvider.overrideWithValue(profileBackend),
+        ],
       );
       handlers = ProfileHandlers(container);
     });
@@ -136,6 +150,84 @@ void main() {
         expect(byId[idA]!.sortOrder, 2);
       },
     );
+
+    test(
+      'default rejects a missing id without clearing the current default',
+      () async {
+        final existingId = await seedProfile('Existing');
+
+        final response = await handlers.handleSetDefaultProfile(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/profiles/999/default'),
+          ),
+          '999',
+        );
+
+        expect(response.statusCode, HttpStatus.notFound);
+        expect(
+          (await db.equipmentProfilesDao.getDefaultProfile())?.id,
+          existingId,
+        );
+        expect(
+          (await db.equipmentProfilesDao.getActiveProfile())?.id,
+          existingId,
+        );
+      },
+    );
+
+    test(
+      'native activation failure preserves the current default and active',
+      () async {
+        final idA = await seedProfile('A');
+        final idB = await seedProfile('B');
+        when(
+          () => profileBackend.loadProfile(idB.toString()),
+        ).thenThrow(StateError('native executor unavailable'));
+
+        final response = await translateHandlerErrors(
+          handlers.handleSetDefaultProfile(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/profiles/$idB/default'),
+            ),
+            idB.toString(),
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.internalServerError);
+        expect((await db.equipmentProfilesDao.getDefaultProfile())?.id, idA);
+        expect((await db.equipmentProfilesDao.getActiveProfile())?.id, idA);
+      },
+    );
+
+    test('reorder rejects malformed or duplicate ids', () async {
+      final malformed = await translateHandlerErrors(
+        handlers.handleReorderProfiles(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/profiles/reorder'),
+            body: jsonEncode({
+              'profileIds': ['not-an-id'],
+            }),
+          ),
+        ),
+      );
+      expect(malformed.statusCode, HttpStatus.badRequest);
+
+      final duplicate = await translateHandlerErrors(
+        handlers.handleReorderProfiles(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/profiles/reorder'),
+            body: jsonEncode({
+              'profileIds': ['1', '1'],
+            }),
+          ),
+        ),
+      );
+      expect(duplicate.statusCode, HttpStatus.badRequest);
+    });
 
     test('reorder skips ids that no longer resolve to a row', () async {
       final idA = await seedProfile('A', sortOrder: 0);

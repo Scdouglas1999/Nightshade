@@ -18,45 +18,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/adaptive_exposure_settings.dart';
 import 'package:nightshade_app/screens/settings/widgets/preflight_settings.dart';
-import 'package:nightshade_app/widgets/tutorial_keys/settings_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
+import 'settings_sidebar_nav.dart';
 
-/// The sidebar's scrollable (the keyed grouped ListView). Targeting it
-/// explicitly avoids grabbing a Scrollable inside the detail pane.
-Finder get _sidebar => find.descendant(
-      of: find.byKey(SettingsTutorialKeys.categories),
-      matching: find.byType(Scrollable),
-    );
+/// Expands a collapsed sidebar group by its (upper-cased) header. Expanding an
+/// earlier group lengthens the list, so a later group's header can start below
+/// the fold. See settings_sidebar_nav.dart for why this must not hand-roll
+/// scroll-then-tap.
+Future<void> _expandGroup(WidgetTester tester, String groupTitle) =>
+    expandSettingsGroup(tester, groupTitle);
 
-/// Brings a sidebar row (built lazily by the grouped ListView) into view by
-/// dragging the sidebar until it appears.
-Future<void> _revealInSidebar(WidgetTester tester, Finder target) async {
-  await tester.scrollUntilVisible(
-    target,
-    100,
-    scrollable: _sidebar,
-  );
-}
-
-/// Expands a collapsed sidebar group by revealing + tapping its (upper-cased)
-/// header. Expanding an earlier group lengthens the list, so a later group's
-/// header can start below the fold.
-Future<void> _expandGroup(WidgetTester tester, String groupTitle) async {
-  final header = find.text(groupTitle.toUpperCase());
-  await _revealInSidebar(tester, header);
-  await tester.tap(header);
-  await tester.pumpAndSettle(const Duration(milliseconds: 300));
-}
-
-/// Selects a section row (after its group is expanded) by revealing + tapping.
-Future<void> _selectSection(WidgetTester tester, String sectionLabel) async {
-  final item = find.text(sectionLabel).first;
-  await _revealInSidebar(tester, item);
-  await tester.tap(item);
-  await tester.pumpAndSettle(const Duration(seconds: 1));
-}
+/// Selects a section row (after its group is expanded).
+Future<void> _selectSection(WidgetTester tester, String sectionLabel) =>
+    selectSettingsSection(tester, sectionLabel);
 
 /// In-memory stub of [AppSettingsNotifier] — same pattern as the main
 /// settings_screen_test. Tests inject an initial state and exercise
@@ -102,13 +78,13 @@ void main() {
     // Both groups start collapsed; expand them and reveal their sections (the
     // grouped ListView builds rows lazily, so scroll the entry into view).
     await _expandGroup(tester, 'Imaging');
-    await _revealInSidebar(tester, find.text('Adaptive Exposure'));
+    await revealInSettingsSidebar(tester, find.text('Adaptive Exposure'));
     expect(find.text('Adaptive Exposure'), findsOneWidget,
         reason: 'The "Adaptive Exposure" sidebar entry must exist under the '
             'Imaging group.');
 
     await _expandGroup(tester, 'Automation & Safety');
-    await _revealInSidebar(tester, find.text('Pre-flight Checks'));
+    await revealInSettingsSidebar(tester, find.text('Pre-flight Checks'));
     expect(find.text('Pre-flight Checks'), findsOneWidget,
         reason: 'The "Pre-flight Checks" sidebar entry must exist under the '
             'Automation & Safety group.');

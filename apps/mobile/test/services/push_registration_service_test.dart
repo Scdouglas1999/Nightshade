@@ -285,6 +285,147 @@ void main() {
     });
   });
 
+  group('Android (FCM) registration', () {
+    late MethodChannel channel;
+    late List<MethodCall> hostCalls;
+
+    setUp(() {
+      channel = const MethodChannel(channelName);
+      hostCalls = <MethodCall>[];
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    /// Fake PushBridge.kt: register succeeds (or throws [registerError]) and
+    /// `getFcmToken` returns [token]. `getApnsToken` is deliberately not
+    /// mocked — an Android run must never call it.
+    void mockNativeSide({String? token, Object? registerError}) {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            hostCalls.add(call);
+            switch (call.method) {
+              case 'registerForRemoteNotifications':
+                if (registerError != null) throw registerError;
+                return true;
+              case 'getFcmToken':
+                return token;
+              default:
+                throw MissingPluginException('no mock for ${call.method}');
+            }
+          });
+    }
+
+    test('POSTs platform=fcm with the cached FCM token', () async {
+      mockNativeSide(token: 'fcm-token-1');
+      http.Request? captured;
+      final client = MockClient((req) async {
+        captured = req;
+        return http.Response('{}', 200);
+      });
+      final service = PushRegistrationService(
+        channel: channel,
+        httpClient: client,
+        isIosOverride: false,
+        isAndroidOverride: true,
+      );
+      addTearDown(service.dispose);
+
+      await service.ensureRegistered(
+        backend: buildBackend(token: 'bearer-xyz'),
+        deviceId: 'mobile:android1',
+      );
+
+      expect(
+        hostCalls.map((c) => c.method),
+        containsAll(['registerForRemoteNotifications', 'getFcmToken']),
+      );
+      expect(captured, isNotNull);
+      expect(captured!.url.path, '/api/push/register-token');
+      expect(captured!.headers['Authorization'], 'Bearer bearer-xyz');
+      final body = jsonDecode(captured!.body) as Map<String, dynamic>;
+      expect(body['platform'], 'fcm');
+      expect(body['deviceId'], 'mobile:android1');
+      expect(body['token'], 'fcm-token-1');
+    });
+
+    test('an unprovisioned build (fcm_unconfigured) stays dormant: no token '
+        'pull, no POST, no throw', () async {
+      mockNativeSide(
+        token: 'must-not-be-read',
+        registerError: PlatformException(
+          code: 'fcm_unconfigured',
+          message: 'Firebase is not provisioned in this build',
+        ),
+      );
+      var httpCalls = 0;
+      final client = MockClient((req) async {
+        httpCalls++;
+        return http.Response('{}', 200);
+      });
+      final service = PushRegistrationService(
+        channel: channel,
+        httpClient: client,
+        isIosOverride: false,
+        isAndroidOverride: true,
+      );
+      addTearDown(service.dispose);
+
+      await service.ensureRegistered(
+        backend: buildBackend(),
+        deviceId: 'mobile:android1',
+      );
+
+      expect(
+        hostCalls.map((c) => c.method),
+        ['registerForRemoteNotifications'],
+        reason: 'the unconfigured error must short-circuit the token pull',
+      );
+      expect(httpCalls, 0);
+    });
+
+    test(
+      'a host-pushed onFcmToken registers against the captured target',
+      () async {
+        // Token not ready at ensureRegistered time; PushBridge pushes it later.
+        mockNativeSide(token: null);
+        http.Request? captured;
+        final client = MockClient((req) async {
+          captured = req;
+          return http.Response('{}', 200);
+        });
+        final service = PushRegistrationService(
+          channel: channel,
+          httpClient: client,
+          isIosOverride: false,
+          isAndroidOverride: true,
+        );
+        addTearDown(service.dispose);
+
+        await service.ensureRegistered(
+          backend: buildBackend(),
+          deviceId: 'mobile:late-android',
+        );
+        expect(captured, isNull);
+
+        const codec = StandardMethodCodec();
+        final message = codec.encodeMethodCall(
+          const MethodCall('onFcmToken', 'rotated-fcm-token'),
+        );
+        await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .handlePlatformMessage(channelName, message, (_) {});
+
+        expect(captured, isNotNull);
+        final body = jsonDecode(captured!.body) as Map<String, dynamic>;
+        expect(body['platform'], 'fcm');
+        expect(body['token'], 'rotated-fcm-token');
+        expect(body['deviceId'], 'mobile:late-android');
+      },
+    );
+  });
+
   group('host-pushed token (onApnsToken)', () {
     test(
       'a token pushed by the host after ensureRegistered triggers a POST',

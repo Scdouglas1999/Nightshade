@@ -118,12 +118,26 @@ class _NarrowbandMixerPanelState extends State<NarrowbandMixerPanel> {
   List<List<double>> _seedWeights() =>
       List.generate(widget.channels.length, (_) => <double>[0, 0, 0]);
 
-  bool _presetApplies(_NarrowbandPreset preset) =>
-      widget.channels.any((c) => preset.filterToRgb.containsKey(c.filter));
+  /// Canonicalise a raw filter label to the preset key it maps to, mirroring the
+  /// controller's fuzzy narrowband hints so real names ('Ha 7nm', 'O3', 'Sii')
+  /// resolve to 'Ha' / 'OIII' / 'SII'. Returns null for non-narrowband labels.
+  static String? _canon(String f) {
+    final n = f.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (n.startsWith('halpha') || n.startsWith('ha')) return 'Ha';
+    if (n.startsWith('oiii') || n.startsWith('o3')) return 'OIII';
+    if (n.startsWith('sii') || n.startsWith('s2')) return 'SII';
+    return null;
+  }
+
+  bool _presetApplies(_NarrowbandPreset preset) => widget.channels.any((c) {
+        final key = _canon(c.filter);
+        return key != null && preset.filterToRgb.containsKey(key);
+      });
 
   void _applyPreset(_NarrowbandPreset preset, {bool notify = true}) {
     final next = List.generate(widget.channels.length, (i) {
-      final mapped = preset.filterToRgb[widget.channels[i].filter];
+      final key = _canon(widget.channels[i].filter);
+      final mapped = key == null ? null : preset.filterToRgb[key];
       return mapped != null ? List<double>.from(mapped) : <double>[0, 0, 0];
     });
     void apply() {

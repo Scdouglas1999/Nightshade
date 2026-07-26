@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -30,6 +31,17 @@ part 'ffi_backend/status_profile_operations.dart';
 part 'ffi_backend/image_polar_operations.dart';
 part 'ffi_backend/session_heartbeat_operations.dart';
 part 'ffi_backend/bridge_model_mappers.dart';
+
+/// Map user-facing curve-fitting labels onto the native bridge's actual
+/// autofocus method enum strings. "Trend Lines" is the V-curve/trend-line
+/// implementation; unknown legacy labels also fail safely to VCurve.
+String autofocusCurveMethodForNativeBridge(String curveFitting) {
+  return switch (curveFitting.trim().toLowerCase()) {
+    'hyperbolic' => 'Hyperbolic',
+    'parabolic' || 'quadratic' => 'Parabolic',
+    _ => 'VCurve',
+  };
+}
 
 abstract class _FfiBackendBase implements NightshadeBackend {
   final _logger = Logger('FfiBackend');
@@ -121,6 +133,17 @@ class FfiBackend extends _FfiBackendBase
         _FfiStatusProfileOperations,
         _FfiImagePolarOperations,
         _FfiSessionHeartbeatOperations
-    implements NightshadeBackend {
+    implements NightshadeBackend, EnvironmentalStatusBackend {
   FfiBackend({super.database});
+
+  /// Pure bridge conversion seams. They avoid loading the native library in
+  /// mapper regression tests while keeping production conversion centralized
+  /// in [_FfiBackendBridgeModelMappers].
+  @visibleForTesting
+  EquipmentProfile profileFromBridgeForTesting(bridge.EquipmentProfile value) =>
+      _fromBridgeProfile(value);
+
+  @visibleForTesting
+  bridge.EquipmentProfile profileToBridgeForTesting(EquipmentProfile value) =>
+      _toBridgeProfile(value);
 }

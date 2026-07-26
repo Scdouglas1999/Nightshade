@@ -339,25 +339,35 @@ class NetworkSessionReplayDataSource implements SessionReplayDataSource {
     required this.backend,
     this.pageSize = 1000,
     this.maxPages = 25,
-  });
+  }) {
+    if (pageSize <= 0) {
+      throw ArgumentError.value(pageSize, 'pageSize', 'must be positive');
+    }
+    if (maxPages <= 0) {
+      throw ArgumentError.value(maxPages, 'maxPages', 'must be positive');
+    }
+  }
 
   @override
   Future<RemoteSequenceRunDetail> fetchRun(int runId) {
+    _validateRunId(runId);
     return backend.fetchSequenceRunById(runId);
   }
 
   @override
   Future<RemoteReplayEventsPage> fetchEvents(int runId) async {
+    _validateRunId(runId);
     // Walk all pages so the timeline is complete. We re-aggregate
     // the `is_partial` flag — if ANY page reports partial we
     // propagate it; the first page's `source` wins because the
     // server reports a single value per ring-buffer.
     final allItems = <RemoteReplayEvent>[];
     var offset = 0;
-    var total = 0;
+    int? advertisedTotal;
     var partial = false;
     String? partialReason;
     var source = 'unknown';
+    var complete = false;
 
     for (var page = 0; page < maxPages; page++) {
       final fetched = await backend.fetchSequenceRunEvents(
@@ -367,15 +377,49 @@ class NetworkSessionReplayDataSource implements SessionReplayDataSource {
       );
       if (page == 0) {
         source = fetched.source;
-        total = fetched.total;
+        advertisedTotal = fetched.total;
+      } else if (fetched.total != advertisedTotal) {
+        throw StateError(
+          'Replay event total changed during pagination '
+          '($advertisedTotal → ${fetched.total})',
+        );
+      }
+      if (fetched.items.length > pageSize) {
+        throw StateError(
+          'Replay event page returned ${fetched.items.length} rows for a '
+          '$pageSize-row request',
+        );
       }
       if (fetched.isPartial) {
         partial = true;
         partialReason ??= fetched.partialReason;
       }
+      if (allItems.isNotEmpty &&
+          fetched.items.isNotEmpty &&
+          fetched.items.first.timestampMs < allItems.last.timestampMs) {
+        throw StateError('Replay event pages are not chronological');
+      }
       allItems.addAll(fetched.items);
       offset += fetched.items.length;
-      if (fetched.items.isEmpty || offset >= fetched.total) break;
+      if (offset > fetched.total) {
+        throw StateError(
+          'Replay event pages exceeded advertised total ${fetched.total}',
+        );
+      }
+      if (fetched.items.isEmpty && offset < fetched.total) {
+        partial = true;
+        partialReason ??= 'server_empty_page';
+        break;
+      }
+      if (offset >= fetched.total) {
+        complete = true;
+        break;
+      }
+    }
+    final total = advertisedTotal ?? 0;
+    if (!complete && offset < total) {
+      partial = true;
+      partialReason ??= 'client_page_limit';
     }
 
     return RemoteReplayEventsPage(
@@ -389,19 +433,71 @@ class NetworkSessionReplayDataSource implements SessionReplayDataSource {
 
   @override
   Future<List<RemoteReplayFrame>> fetchFrames(int runId) async {
+    _validateRunId(runId);
     final allItems = <RemoteReplayFrame>[];
+    final knownIds = <int>{};
     var offset = 0;
+    int? advertisedTotal;
+    var complete = false;
     for (var page = 0; page < maxPages; page++) {
       final fetched = await backend.fetchSequenceRunFrames(
         runId,
         limit: pageSize,
         offset: offset,
       );
-      allItems.addAll(fetched.items);
+      if (page == 0) {
+        advertisedTotal = fetched.total;
+      } else if (fetched.total != advertisedTotal) {
+        throw StateError(
+          'Replay frame total changed during pagination '
+          '($advertisedTotal → ${fetched.total})',
+        );
+      }
+      if (fetched.items.length > pageSize) {
+        throw StateError(
+          'Replay frame page returned ${fetched.items.length} rows for a '
+          '$pageSize-row request',
+        );
+      }
+      for (final frame in fetched.items) {
+        if (!knownIds.add(frame.id)) {
+          throw StateError(
+            'Replay frame pagination returned duplicate frame id ${frame.id}',
+          );
+        }
+        allItems.add(frame);
+      }
       offset += fetched.items.length;
-      if (fetched.items.isEmpty || offset >= fetched.total) break;
+      if (offset > fetched.total) {
+        throw StateError(
+          'Replay frame pages exceeded advertised total ${fetched.total}',
+        );
+      }
+      if (fetched.items.isEmpty && offset < fetched.total) {
+        throw StateError(
+          'Replay frame pagination returned an empty page at $offset of '
+          '${fetched.total} rows',
+        );
+      }
+      if (offset >= fetched.total) {
+        complete = true;
+        break;
+      }
+    }
+    final total = advertisedTotal ?? 0;
+    if (!complete && offset < total) {
+      throw StateError(
+        'Replay frame history exceeds the safe pagination limit '
+        '($offset of $total rows loaded)',
+      );
     }
     return allItems;
+  }
+
+  void _validateRunId(int runId) {
+    if (runId <= 0) {
+      throw ArgumentError.value(runId, 'runId', 'must be positive');
+    }
   }
 }
 
@@ -438,6 +534,7 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
   /// Reset on every `play()` and on every `seekTo` during playback.
   DateTime? _playbackAnchor;
   int? _playbackAnchorPlayheadMs;
+  int _loadGeneration = 0;
 
   SessionReplayNotifier({required this.runId, required this.dataSource})
     : super(SessionReplayLoading(runId)) {
@@ -453,6 +550,7 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
   ReplaySnapshot? _latestSnapshot;
 
   Future<void> _bootstrap() async {
+    final loadGeneration = ++_loadGeneration;
     try {
       // Concurrent fetches: the three endpoints are independent. The
       // run header is required to anchor the timeline; events and
@@ -466,6 +564,19 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       final run = results[0] as RemoteSequenceRunDetail;
       final eventsPage = results[1] as RemoteReplayEventsPage;
       final frames = results[2] as List<RemoteReplayFrame>;
+      if (!mounted || loadGeneration != _loadGeneration) return;
+      if (run.id != runId) {
+        throw StateError(
+          'Replay data source returned run ${run.id} for requested run $runId',
+        );
+      }
+      if (!eventsPage.isPartial &&
+          eventsPage.total != eventsPage.items.length) {
+        throw StateError(
+          'Replay event history claimed ${eventsPage.total} rows but loaded '
+          '${eventsPage.items.length}',
+        );
+      }
 
       final runStartedMs = run.startedAt.millisecondsSinceEpoch;
       final markers = <ReplayMarker>[
@@ -473,6 +584,11 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
           ReplayEventMarker.fromRemote(e, runStartedMs),
         for (final f in frames) ReplayFrameMarker.fromRemote(f, runStartedMs),
       ]..sort((a, b) => a.offsetMs.compareTo(b.offsetMs));
+      if (markers.isNotEmpty && markers.first.offsetMs < 0) {
+        throw StateError(
+          'Replay timeline contains data before the run started',
+        );
+      }
 
       // Duration: prefer the explicit endedAt; fall back to the last
       // marker's offset (so a still-running session has a usable
@@ -480,9 +596,15 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       // floor to 1s so the scrubber never has a zero-width track.
       final endedMs = run.endedAt?.millisecondsSinceEpoch;
       final lastMarkerOffset = markers.isNotEmpty ? markers.last.offsetMs : 0;
-      final computedDurationMs = endedMs != null
-          ? (endedMs - runStartedMs)
-          : lastMarkerOffset;
+      final recordedDurationMs = endedMs == null ? 0 : endedMs - runStartedMs;
+      final runningDurationMs = endedMs == null
+          ? DateTime.now().millisecondsSinceEpoch - runStartedMs
+          : 0;
+      final computedDurationMs = [
+        recordedDurationMs,
+        runningDurationMs,
+        lastMarkerOffset,
+      ].reduce((a, b) => a > b ? a : b);
       final durationMs = computedDurationMs > 0 ? computedDurationMs : 1000;
 
       state = SessionReplayReady(
@@ -498,6 +620,7 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
       );
       _emitSnapshot();
     } catch (e) {
+      if (!mounted || loadGeneration != _loadGeneration) return;
       // : errors are a feature. Surface loudly with the
       // cause and a human message; the UI renders the failure as a
       // distinct screen state with a "Retry" button rather than a
@@ -720,6 +843,7 @@ class SessionReplayNotifier extends StateNotifier<SessionReplayState> {
 
   @override
   void dispose() {
+    _loadGeneration++;
     _playbackTimer?.cancel();
     _playbackTimer = null;
     _snapshotController.close();

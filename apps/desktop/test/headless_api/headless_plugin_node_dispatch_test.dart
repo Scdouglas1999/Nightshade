@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
 
+import 'handler_test_helpers.dart';
+
 class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
@@ -74,7 +76,7 @@ void main() {
   });
 
   Future<void> startServer({required PluginNodeDispatcher dispatcher}) async {
-    final testContainer = ProviderContainer(
+    final testContainer = createHeadlessTestContainer(
       overrides: [
         backendProvider.overrideWith(
           (ref) => _TestBackendNotifier(ref, backend),

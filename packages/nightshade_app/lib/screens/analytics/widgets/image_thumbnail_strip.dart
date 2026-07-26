@@ -7,7 +7,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
         imagingBackendProvider,
-        imagesDaoProvider,
+        ImagingBackend,
+        imagingRecordsRepositoryProvider,
         isRemoteModeProvider,
         loggingServiceProvider,
         DbCapturedImage,
@@ -15,6 +16,10 @@ import 'package:nightshade_core/nightshade_core.dart'
         FrameQualityAssessment,
         FrameQualityAssessmentService,
         FrameQualityLevel;
+
+import '../../../utils/snackbar_helper.dart';
+import '../analytics_screen.dart' show dbSessionImagesProvider;
+import '../../../utils/filter_label.dart';
 
 enum _QualityFilter {
   all,
@@ -284,11 +289,27 @@ class _ImageThumbnail extends ConsumerStatefulWidget {
 
 class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
   late Future<_ThumbnailPayload> _thumbnailFuture;
+  ProviderSubscription<ImagingBackend>? _backendSubscription;
 
   @override
   void initState() {
     super.initState();
     _thumbnailFuture = _loadThumbnail();
+    _backendSubscription = ref.listenManual<ImagingBackend>(
+      imagingBackendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        setState(() {
+          _thumbnailFuture = _loadThumbnail();
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   @override
@@ -498,7 +519,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             if (widget.calibration?.zeroPoint != null)
                               _ScienceBadge(
                                 tooltip:
-                                    'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} Â· '
+                                    'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} · '
                                     '${widget.calibration!.matchedStarCount} stars',
                                 color: colors.info,
                                 label:
@@ -550,7 +571,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.image.filter ?? 'L',
+                      filterLabel(widget.image.filter),
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize10,
                         fontWeight: FontWeight.w600,
@@ -694,6 +715,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
   Future<void> _showFrameMenu(BuildContext context) async {
     final colors = NightshadeColors.of(context);
     final isAccepted = widget.image.isAccepted;
+    final backend = ref.read(imagingBackendProvider);
     final action = await showMenu<_FrameMenuAction>(
       context: context,
       position: _menuPosition(context),
@@ -736,20 +758,43 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
           ),
       ],
     );
-    if (!mounted || action == null) return;
+    if (!mounted || !context.mounted || action == null) return;
+    if (!identical(ref.read(imagingBackendProvider), backend)) {
+      context.showErrorSnackBar(
+        'Connected rig changed; the frame was not modified',
+      );
+      return;
+    }
     switch (action) {
       case _FrameMenuAction.accept:
-        await ref.read(imagesDaoProvider).acceptImage(widget.image.id);
+        await _setAccepted(true);
         break;
       case _FrameMenuAction.reject:
-        await ref
-            .read(imagesDaoProvider)
-            .rejectImage(widget.image.id, 'Manual quality flag');
+        await _setAccepted(false);
         break;
       case _FrameMenuAction.info:
-        if (!mounted) return;
+        if (!context.mounted) return;
         _showCalibrationDetails(context);
         break;
+    }
+  }
+
+  /// Route accept/reject through the imaging-records repository so the write
+  /// reaches the remote host in NetworkBackend mode (the local DAO would only
+  /// mutate an empty companion DB), then refresh the polled session images.
+  Future<void> _setAccepted(bool accepted) async {
+    try {
+      final repo = ref.read(imagingRecordsRepositoryProvider);
+      if (accepted) {
+        await repo.acceptImage(widget.image.id);
+      } else {
+        await repo.rejectImage(widget.image.id, 'Manual quality flag');
+      }
+      if (!mounted) return;
+      ref.invalidate(dbSessionImagesProvider);
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Failed to update frame: $e');
     }
   }
 

@@ -42,6 +42,10 @@ final glanceModeProvider = StateNotifierProvider<GlanceModeNotifier, bool>(
 class GlanceModeNotifier extends StateNotifier<bool> {
   final Ref _ref;
   bool _isLoaded = false;
+  bool _requestedState = false;
+  int _requestRevision = 0;
+  Future<void> _writeTail = Future<void>.value();
+  Future<void> _requestedWrite = Future<void>.value();
 
   GlanceModeNotifier(this._ref) : super(false) {
     _load();
@@ -51,15 +55,15 @@ class GlanceModeNotifier extends StateNotifier<bool> {
   Future<void> _load() async {
     if (_isLoaded) return;
     _isLoaded = true;
+    final revisionAtStart = _requestRevision;
 
     try {
       final dao = _ref.read(settingsDaoProvider);
       final value = await dao.getSetting(_glanceModeKey);
-      if (value != null) {
+      if (value != null && revisionAtStart == _requestRevision && mounted) {
         final enabled = value == 'true';
-        if (enabled != state) {
-          state = enabled;
-        }
+        _requestedState = enabled;
+        state = enabled;
       }
     } catch (e) {
       developer.log(
@@ -72,14 +76,31 @@ class GlanceModeNotifier extends StateNotifier<bool> {
 
   /// Set the flag explicitly and persist it. No-ops when unchanged so an
   /// idempotent set doesn't trigger a redundant rebuild or write.
-  Future<void> setEnabled(bool enabled) async {
-    if (enabled == state) return;
-    state = enabled;
-    await _persist(enabled);
+  Future<void> setEnabled(bool enabled) {
+    if (enabled == _requestedState) return _requestedWrite;
+
+    _requestedState = enabled;
+    final revision = ++_requestRevision;
+    final operation = _writeTail.then((_) async {
+      try {
+        await _persist(enabled);
+        if (mounted && revision == _requestRevision) {
+          state = enabled;
+        }
+      } catch (_) {
+        if (revision == _requestRevision) {
+          _requestedState = state;
+        }
+        rethrow;
+      }
+    });
+    _writeTail = operation.then<void>((_) {}, onError: (_, __) {});
+    _requestedWrite = operation;
+    return operation;
   }
 
   /// Flip the flag and persist.
-  Future<void> toggle() => setEnabled(!state);
+  Future<void> toggle() => setEnabled(!_requestedState);
 
   Future<void> _persist(bool enabled) async {
     try {
@@ -91,6 +112,7 @@ class GlanceModeNotifier extends StateNotifier<bool> {
         name: 'GlanceMode',
         level: 1000,
       );
+      rethrow;
     }
   }
 }

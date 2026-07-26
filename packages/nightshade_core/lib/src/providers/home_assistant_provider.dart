@@ -16,9 +16,12 @@ import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
+import '../models/backend/host_mutation_event.dart';
 import '../models/notification/transport_configs.dart';
 import '../services/home_assistant/home_assistant_discovery_config.dart';
 import '../services/home_assistant/home_assistant_discovery_service.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'notification_router_provider.dart';
 
@@ -60,6 +63,60 @@ final homeAssistantConfigProvider =
       HomeAssistantConfigNotifier,
       HomeAssistantDiscoveryConfig
     >(HomeAssistantConfigNotifier.new);
+
+/// Sanitized host-owned Home Assistant configuration shown to a remote
+/// controller. Broker passwords never cross back to the client; only their
+/// presence is disclosed so the UI can offer an explicit replacement field.
+class HomeAssistantHostSettings {
+  final HomeAssistantDiscoveryConfig config;
+  final MqttTransportConfig broker;
+  final bool brokerPasswordConfigured;
+
+  const HomeAssistantHostSettings({
+    required this.config,
+    required this.broker,
+    required this.brokerPasswordConfigured,
+  });
+
+  factory HomeAssistantHostSettings.fromJson(Map<String, dynamic> json) {
+    final configJson = json['config'];
+    final brokerJson = json['broker'];
+    if (configJson is! Map<String, dynamic> ||
+        brokerJson is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Malformed Home Assistant host settings response',
+      );
+    }
+    return HomeAssistantHostSettings(
+      config: HomeAssistantDiscoveryConfig.fromJson(configJson),
+      broker: MqttTransportConfig.fromJson(
+        brokerJson,
+      ).copyWith(clearPassword: true),
+      brokerPasswordConfigured:
+          json['brokerPasswordConfigured'] as bool? ?? false,
+    );
+  }
+}
+
+/// Imaging-host Home Assistant snapshot for remote settings screens.
+///
+/// Local desktop callers continue to use [homeAssistantConfigProvider] and
+/// [mqttTransportConfigProvider] directly. Keeping this provider remote-only
+/// preserves the intentional per-device notification-router configuration.
+final remoteHomeAssistantHostSettingsProvider =
+    FutureProvider.autoDispose<HomeAssistantHostSettings?>((ref) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is! NetworkBackend) return null;
+      final subscription = backend.eventStream.listen((event) {
+        if (event.eventType == hostStateChangedEventType &&
+            event.data['entityType'] == HostMutationEntity.settings &&
+            event.data['namespace'] == 'home-assistant') {
+          ref.invalidateSelf();
+        }
+      });
+      ref.onDispose(subscription.cancel);
+      return backend.getHomeAssistantHostSettings();
+    });
 
 /// The discovery service singleton. Config changes (this feature's own
 /// settings and the shared MQTT broker settings) are forwarded in-place

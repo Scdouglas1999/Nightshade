@@ -12,6 +12,11 @@ class _WeatherSafetyCard extends ConsumerWidget {
     final isSafe = safetyState.isSafe;
     final status = safetyState.status;
     final snoozeUntil = safetyState.snoozeUntil;
+    final statusColor = status == WeatherSafetyStatus.safe
+        ? colors.success
+        : status == WeatherSafetyStatus.snoozed
+            ? colors.warning
+            : colors.error;
 
     return NightshadeCard(
       variant: CardVariant.subtle,
@@ -25,7 +30,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
-                  isSafe ? colors.success : colors.error,
+                  statusColor,
                   borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
@@ -33,7 +38,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
                       ? NightshadeIcons.shieldOk
                       : NightshadeIcons.shieldAlert,
                   size: 16,
-                  color: isSafe ? colors.success : colors.error,
+                  color: statusColor,
                 ),
               ),
               const SizedBox(width: 12),
@@ -116,7 +121,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
         if (snoozeUntil != null) {
           final remaining = snoozeUntil.difference(DateTime.now());
           final minutes = remaining.inMinutes;
-          return 'Snoozed for $minutes more minutes';
+          return 'Alerts snoozed for $minutes more minutes; safety unknown';
         }
         return 'Alerts snoozed';
     }

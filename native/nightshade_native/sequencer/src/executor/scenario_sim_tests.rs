@@ -1235,3 +1235,75 @@ async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
         "unattended escalation must record give-up"
     );
 }
+
+/// B19 end-to-end (state replay): a loaded sequence whose mount reports
+/// `mount_is_tracking == Ok(false)` for the first several trigger polls — the
+/// headless / still-parked / not-yet-slewed case — must NOT raise
+/// `MountTrackingLost`, and must therefore never self-cancel ~1.5 s after start.
+///
+/// The live trigger-monitor loop is an inline closure in the 7000-line executor
+/// and is not unit-invocable (see this module's header); the portion under test
+/// is the exact per-poll decision it runs, `mount_tracking_poll_verdict`, driven
+/// here against a real [`TriggerState`] in the same order the monitor applies it
+/// (compute verdict -> arm `mount_tracking_expected` -> flag loss -> record the
+/// reading). This proves both halves of the contract: the not-yet-tracking
+/// startup phase is silent, and a genuine ON -> OFF drop afterward still fires.
+#[test]
+fn b19_not_yet_tracking_mount_never_self_cancels() {
+    let mut state = TriggerState::new();
+
+    // Apply one Ok(is_tracking) poll exactly as the monitor's poll block does,
+    // returning whether THIS poll flagged a fresh loss.
+    let poll = |state: &mut TriggerState, is_tracking: bool| -> bool {
+        let (expected, just_lost) = super::mount_tracking_poll_verdict(
+            state.mount_tracking_expected,
+            is_tracking,
+            state.mount_is_tracking,
+            state.mount_tracking_lost,
+        );
+        state.set_mount_tracking_expected(expected);
+        if just_lost {
+            state.mount_tracking_lost = true;
+        }
+        state.mount_is_tracking = Some(is_tracking);
+        just_lost
+    };
+
+    // Startup: mount configured but not yet tracking for the first few polls.
+    for tick in 0..3 {
+        assert!(
+            !poll(&mut state, false),
+            "not-yet-tracking poll {tick} must not flag a loss"
+        );
+        assert!(
+            !state.mount_tracking_expected,
+            "baseline must stay disarmed until tracking is observed (poll {tick})"
+        );
+        assert!(!state.mount_tracking_lost);
+    }
+
+    // Mount begins tracking — baseline arms now, from an observed fact.
+    assert!(!poll(&mut state, true), "first Ok(true) is not a loss");
+    assert!(
+        state.mount_tracking_expected,
+        "baseline must arm once the mount is observed tracking"
+    );
+    assert!(!state.mount_tracking_lost);
+
+    // Healthy tracking continues.
+    assert!(!poll(&mut state, true));
+    assert!(!state.mount_tracking_lost);
+
+    // Genuine mid-sequence drop: ON -> OFF must fire exactly once.
+    assert!(
+        poll(&mut state, false),
+        "a true -> false transition is a real tracking loss and must fire"
+    );
+    assert!(state.mount_tracking_lost);
+
+    // Still off on the next poll — already flagged, must not re-fire.
+    assert!(
+        !poll(&mut state, false),
+        "loss must not be re-flagged once already recorded"
+    );
+}

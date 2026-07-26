@@ -1,9 +1,13 @@
 part of '../target_constraints_editor.dart';
 
 class _LoadedConstraints {
+  final NightshadeBackend authority;
+  final TargetConstraintService service;
   final List<TargetConstraint> constraints;
   final List<HorizonProfile> horizonProfiles;
   _LoadedConstraints({
+    required this.authority,
+    required this.service,
     required this.constraints,
     required this.horizonProfiles,
   });

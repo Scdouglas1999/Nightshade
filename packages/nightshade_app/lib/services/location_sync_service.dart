@@ -4,42 +4,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
-/// Provider that watches settings and syncs to planetarium provider and Rust backend
-/// This ensures settings is the source of truth - changes in settings automatically update planetarium and Rust
-/// Uses ref.listen to avoid modifying providers during build
+/// Mirrors the persisted observer location into the planetarium provider and the
+/// Rust backend. Settings is the single source of truth; this only fans changes
+/// out. Uses `ref.listen` to avoid modifying providers during build.
+///
+/// This deliberately does **not** auto-detect a location on first launch. It used
+/// to: with lat/lon at 0/0 it fetched an IP-geolocation estimate and persisted it
+/// as the observing site before the user had seen, let alone approved, it. That
+/// is unsafe in a way the user cannot see. Free IP services resolve to the ISP's
+/// egress point and disagree with each other — two virgin launches minutes apart
+/// on one machine recorded sites ~180 km apart — yet the dashboard then reports
+/// twilight times, the astro-dark countdown, and the imaging window off that
+/// guess with no hint that anything is approximate, and the summary screen shows
+/// it exactly as it shows a site the user typed.
+///
+/// 0/0 is the designed "not set" sentinel and every location-driven surface
+/// already has an honest empty state for it, so leaving it alone until the user
+/// acts is both safer and less code. The estimate is still one click away: the
+/// onboarding observing-site step offers it as a labelled suggestion, and
+/// Settings → Location has the same affordance.
 final locationSyncProvider = Provider<void>((ref) {
-  // First-launch auto-detect: if the user has never set a location (lat/lon
-  // are both 0), fetch an approximate position from IP geolocation once and
-  // persist it. Guarded so it runs at most once per app session and never
-  // overwrites a real location. Both desktop (app.dart) and mobile
-  // (main.dart) watch this provider, so wiring it here covers both.
-  var autoDetectAttempted = false;
-  Future<void> maybeAutoDetectLocation(AppSettingsState settings) async {
-    if (autoDetectAttempted) return;
-    if (settings.latitude != 0.0 || settings.longitude != 0.0) return;
-    autoDetectAttempted = true;
-    final location = await GeolocationService.fetchLocation();
-    if (location == null) return;
-    final (lat, lon, _) = location;
-    // Re-check: the user may have entered a location while the network call
-    // was in flight.
-    final current = ref.read(appSettingsProvider).valueOrNull;
-    if (current != null &&
-        (current.latitude != 0.0 || current.longitude != 0.0)) {
-      return;
-    }
-    final notifier = ref.read(appSettingsProvider.notifier);
-    await notifier.setLatitude(lat);
-    await notifier.setLongitude(lon);
-    // The persisted change flows back through the listener below, which syncs
-    // the planetarium provider and the Rust backend.
-  }
-
   // Use ref.listen to sync settings to planetarium provider and Rust backend whenever settings change
   // This defers the update until after the build phase, avoiding the Riverpod error
   ref.listen(appSettingsProvider, (previous, next) {
     next.whenData((settings) {
-      unawaited(maybeAutoDetectLocation(settings));
       // Schedule the update for after the current build phase
       Future.microtask(() async {
         // Update planetarium provider with settings location
@@ -83,9 +71,6 @@ final locationSyncProvider = Provider<void>((ref) {
         await _syncLocationToBackend(
             ref, settings.latitude, settings.longitude, settings.elevation);
       });
-    } else {
-      // No location set yet — auto-detect from IP on this first launch.
-      unawaited(maybeAutoDetectLocation(settings));
     }
     // Effective horizon must sync even when location is 0/0 (e.g. user
     // hasn't set location yet but did set the horizon).

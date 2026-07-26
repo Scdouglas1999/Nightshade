@@ -1,9 +1,8 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomDome};
+use nightshade_ascom::AscomDome;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -40,7 +39,6 @@ pub struct AscomDomeWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomDomeCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
 }
 
@@ -58,30 +56,41 @@ impl AscomDomeWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
+        // The device's friendly `Name` is read at construction (before connect)
+        // and ferried back to `new()` over this channel. `register_device` owns
+        // the success/error signalling; this side channel only carries the
+        // construction-time property payload the legacy init channel returned.
+        let (info_tx, info_rx) = std::sync::mpsc::channel();
 
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did.
+        register_device(move || {
             let mut dome = match AscomDome::new(&prog_id_clone) {
                 Ok(d) => d,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!("Failed to create ASCOM dome: {}", e)));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM dome: {}", e));
                 }
             };
 
             // Try to get the device name
             let name = dome.name().unwrap_or_else(|_| prog_id_clone.clone());
+            let _ = info_tx.send(name);
 
-            let _ = init_tx.send(Ok(name));
-
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — the typed `AscomDome`
+                        // (and its IDispatch) is released when this closure is
+                        // dropped, still on the STA worker thread that owns the
+                        // apartment. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomDomeCommand::Connect(reply) => {
                         let _ = reply.send(dome.connect());
@@ -138,21 +147,22 @@ impl AscomDomeWrapper {
                         let _ = reply.send(dome.heartbeat());
                     }
                 }
-            }
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
-            uninit_com();
-        });
-
-        // Wait for initialization
-        let name = init_rx
+        // The construction-time `Name` was sent on `info_tx` before the factory
+        // returned, so this receive completes immediately once `register_device`
+        // reports the device ready.
+        let name = info_rx
             .recv()
-            .map_err(|e| format!("Failed to receive init result: {}", e))??;
+            .map_err(|e| format!("Failed to receive device name: {}", e))?;
 
         Ok(Self {
             id: prog_id.clone(),
             name,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
         })
     }
@@ -353,13 +363,14 @@ impl AscomDomeWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomDomeWrapper
     where
         F: FnMut(AscomDomeCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -372,7 +383,6 @@ mod tests {
             id: "test-dome".to_string(),
             name: "Test Dome".to_string(),
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
         }
     }

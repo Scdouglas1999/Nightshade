@@ -24,7 +24,9 @@ import 'widgets/object_info_popup.dart';
 import 'widgets/mobile_widgets.dart';
 import 'widgets/mobile_overlay_layout.dart';
 import 'providers/device_orientation_provider.dart';
+import 'providers/finder_chart_catalog_provider.dart';
 import '../../services/mount_command_service.dart';
+import '../../utils/exported_file_reveal.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/planetarium_keys.dart';
 import 'widgets/full_screen_sky_view.dart';
@@ -114,6 +116,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
 
   // Help overlay state
   bool _showHelpOverlay = false;
+
+  bool _finderChartExportInFlight = false;
 
   // Gyroscope mount sync debounce timer
   Timer? _mountSyncDebounce;

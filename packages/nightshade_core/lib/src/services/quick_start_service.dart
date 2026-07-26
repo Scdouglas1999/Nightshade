@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../database/daos/sequence_checkpoints_dao.dart';
 import '../database/daos/sequences_dao.dart';
 import '../database/daos/sessions_dao.dart';
 import '../database/daos/targets_dao.dart';
+import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../backend/network_backend.dart';
 import '../providers/backend_provider.dart';
@@ -269,6 +271,10 @@ class QuickStartContext {
   /// Total integration time accumulated in hours
   final double totalIntegrationHours;
 
+  /// True only when the execution backend has a resumable checkpoint for this
+  /// sequence. Historical session progress alone is not a checkpoint.
+  final bool canResumeFromCheckpoint;
+
   const QuickStartContext({
     required this.sessionId,
     this.sessionName,
@@ -285,7 +291,46 @@ class QuickStartContext {
     required this.lastSessionDate,
     this.equipmentSnapshot,
     this.totalIntegrationHours = 0.0,
+    this.canResumeFromCheckpoint = false,
   });
+
+  /// Decorate this historical context with the backend's current checkpoint.
+  /// A name match is the strongest identity available in the checkpoint wire
+  /// model; mismatches remain load-only quick starts.
+  QuickStartContext withCheckpointInfo(CheckpointInfo? checkpoint) {
+    final matches =
+        checkpoint != null &&
+        checkpoint.canResume &&
+        sequenceName != null &&
+        checkpoint.sequenceName.trim() == sequenceName!.trim();
+    return QuickStartContext(
+      sessionId: sessionId,
+      sessionName: sessionName,
+      profileId: profileId,
+      profileName: profileName,
+      targetId: targetId,
+      targetName: targetName,
+      targetRa: targetRa,
+      targetDec: targetDec,
+      sequenceId: sequenceId,
+      sequenceName: sequenceName,
+      completedFrames: matches
+          ? math.max(completedFrames, checkpoint.completedExposures)
+          : completedFrames,
+      totalFrames: matches
+          ? math.max(totalFrames, checkpoint.completedExposures)
+          : totalFrames,
+      lastSessionDate: lastSessionDate,
+      equipmentSnapshot: equipmentSnapshot,
+      totalIntegrationHours: matches
+          ? math.max(
+              totalIntegrationHours,
+              checkpoint.completedIntegrationSecs / 3600.0,
+            )
+          : totalIntegrationHours,
+      canResumeFromCheckpoint: matches,
+    );
+  }
 
   /// Calculate the percentage of frames completed
   double get progressPercentage {
@@ -369,7 +414,8 @@ class QuickStartContext {
         other.totalFrames == totalFrames &&
         other.lastSessionDate == lastSessionDate &&
         other.equipmentSnapshot == equipmentSnapshot &&
-        other.totalIntegrationHours == totalIntegrationHours;
+        other.totalIntegrationHours == totalIntegrationHours &&
+        other.canResumeFromCheckpoint == canResumeFromCheckpoint;
   }
 
   @override
@@ -390,6 +436,7 @@ class QuickStartContext {
       lastSessionDate,
       equipmentSnapshot,
       totalIntegrationHours,
+      canResumeFromCheckpoint,
     );
   }
 }
@@ -468,7 +515,9 @@ class QuickStartService {
       final sessionAge = DateTime.now().difference(session.startTime);
       final hasProgress =
           session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
-      return sessionAge.inDays <= 7 && hasProgress;
+      return session.status == 'completed' &&
+          sessionAge.inDays <= 7 &&
+          hasProgress;
     }).toList();
 
     if (candidateSessions.isEmpty) {
@@ -714,7 +763,9 @@ class QuickStartService {
       final hasProgress =
           session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
 
-      if (sessionAge.inDays <= 7 && hasProgress) {
+      if (session.status == 'completed' &&
+          sessionAge.inDays <= 7 &&
+          hasProgress) {
         developer.log(
           'QuickStartService: Quick start available (recent session with progress found)',
           name: 'QuickStartService',
@@ -768,7 +819,9 @@ class QuickStartService {
         final hasProgress =
             session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
 
-        if (sessionAge.inDays <= 7 && hasProgress) {
+        if (session.status == 'completed' &&
+            sessionAge.inDays <= 7 &&
+            hasProgress) {
           contexts.add(await _buildQuickStartContext(session));
         }
       }
@@ -786,6 +839,115 @@ class QuickStartService {
 // =============================================================================
 // Providers
 // =============================================================================
+
+Future<CheckpointInfo?> _safeCheckpointInfo(NightshadeBackend backend) async {
+  try {
+    return await backend.getCheckpointInfo();
+  } catch (error, stackTrace) {
+    developer.log(
+      'QuickStartService: checkpoint availability check failed: $error',
+      name: 'QuickStartService',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace,
+    );
+    return null;
+  }
+}
+
+bool _isRecentCompletedSession(db.ImagingSession session, DateTime now) {
+  final age = now.difference(session.startTime);
+  final hasProgress =
+      session.successfulExposures > 0 || session.totalIntegrationSecs > 0;
+  return session.status == 'completed' && age.inDays <= 7 && hasProgress;
+}
+
+/// Builds Quick Start contexts from the same host-aware streams used by the
+/// Analytics and library screens. Remote controllers must not consult their
+/// empty local session/target/sequence tables.
+Future<List<QuickStartContext>> _remoteQuickStartContexts(
+  Ref ref,
+  NetworkBackend backend, {
+  required int limit,
+}) async {
+  final sessionsFuture = ref.watch(allSessionsProvider.future);
+  final targetsFuture = ref.watch(allDbTargetsProvider.future);
+  final sequencesFuture = ref.watch(allDbSequencesProvider.future);
+  final profilesFuture = ref.watch(allProfilesProvider.future);
+  final checkpointFuture = _safeCheckpointInfo(backend);
+
+  final sessions = List<db.ImagingSession>.from(await sessionsFuture)
+    ..sort((a, b) => b.startTime.compareTo(a.startTime));
+  final targets = await targetsFuture;
+  final sequences = await sequencesFuture;
+  final profiles = await profilesFuture;
+  final checkpoint = await checkpointFuture;
+
+  final candidates = <db.ImagingSession>[];
+  candidates.addAll(sessions.where((session) => session.status == 'active'));
+  final now = DateTime.now();
+  for (final session in sessions) {
+    if (candidates.length >= limit) break;
+    if (_isRecentCompletedSession(session, now)) {
+      candidates.add(session);
+    }
+  }
+
+  final targetById = {for (final target in targets) target.id: target};
+  final sequenceById = {
+    for (final sequence in sequences) sequence.id: sequence,
+  };
+  final profileById = {for (final profile in profiles) profile.id: profile};
+
+  final contexts = <QuickStartContext>[];
+  for (final session in candidates.take(limit)) {
+    final target = session.targetId == null
+        ? null
+        : targetById[session.targetId!];
+    final sequence = session.sequenceId == null
+        ? null
+        : sequenceById[session.sequenceId!];
+    final profile = session.profileId == null
+        ? null
+        : profileById[session.profileId!];
+
+    EquipmentSnapshot? snapshot;
+    final snapshotJson = session.equipmentSnapshot;
+    if (snapshotJson != null && snapshotJson.isNotEmpty) {
+      try {
+        snapshot = EquipmentSnapshot.fromJsonString(snapshotJson);
+      } catch (error, stackTrace) {
+        developer.log(
+          'QuickStartService: failed to parse host equipment snapshot: $error',
+          name: 'QuickStartService',
+          level: 900,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    final context = QuickStartContext(
+      sessionId: session.id,
+      sessionName: session.name,
+      profileId: session.profileId,
+      profileName: profile?.name,
+      targetId: session.targetId,
+      targetName: target?.name,
+      targetRa: target?.ra,
+      targetDec: target?.dec,
+      sequenceId: session.sequenceId,
+      sequenceName: sequence?.name,
+      completedFrames: session.successfulExposures,
+      totalFrames: session.totalExposures,
+      lastSessionDate: session.endTime ?? session.startTime,
+      equipmentSnapshot: snapshot,
+      totalIntegrationHours: session.totalIntegrationSecs / 3600.0,
+    );
+    contexts.add(context.withCheckpointInfo(checkpoint));
+  }
+  return contexts;
+}
 
 /// Provider for the QuickStartService
 final quickStartServiceProvider = Provider<QuickStartService>((ref) {
@@ -828,12 +990,24 @@ final quickStartServiceProvider = Provider<QuickStartService>((ref) {
 final quickStartContextProvider = FutureProvider<QuickStartContext?>((
   ref,
 ) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final contexts = await _remoteQuickStartContexts(ref, backend, limit: 1);
+    return contexts.isEmpty ? null : contexts.first;
+  }
   final service = ref.watch(quickStartServiceProvider);
-  return service.getQuickStartContext();
+  final context = await service.getQuickStartContext();
+  if (context == null) return null;
+  final checkpoint = await _safeCheckpointInfo(backend);
+  return context.withCheckpointInfo(checkpoint);
 });
 
 /// Provider for checking if quick start is available
 final quickStartAvailableProvider = FutureProvider<bool>((ref) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return (await _remoteQuickStartContexts(ref, backend, limit: 1)).isNotEmpty;
+  }
   final service = ref.watch(quickStartServiceProvider);
   return service.isQuickStartAvailable();
 });
@@ -841,6 +1015,14 @@ final quickStartAvailableProvider = FutureProvider<bool>((ref) async {
 /// Provider for multiple quick start contexts (for session list display)
 final quickStartContextsProvider =
     FutureProvider.family<List<QuickStartContext>, int>((ref, limit) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return _remoteQuickStartContexts(ref, backend, limit: limit);
+      }
       final service = ref.watch(quickStartServiceProvider);
-      return service.getQuickStartContexts(limit: limit);
+      final contexts = await service.getQuickStartContexts(limit: limit);
+      final checkpoint = await _safeCheckpointInfo(backend);
+      return contexts
+          .map((context) => context.withCheckpointInfo(checkpoint))
+          .toList(growable: false);
     });

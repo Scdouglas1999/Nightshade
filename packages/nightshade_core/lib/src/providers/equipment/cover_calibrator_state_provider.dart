@@ -18,6 +18,7 @@ final coverCalibratorStateProvider =
 class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
   final Ref _ref;
   int _retryAttempts = 0;
+  int _connectionRevision = 0;
 
   CoverCalibratorStateNotifier(this._ref) : super(const CoverCalibratorState());
 
@@ -25,20 +26,25 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
     String deviceId, {
     int maxRetries = kDefaultMaxRetries,
   }) async {
+    final revision = ++_connectionRevision;
     _retryAttempts = 0;
-    await _connectWithRetry(deviceId, maxRetries);
+    _setConnectingState(deviceId, deviceId);
+    await _connectWithRetry(deviceId, maxRetries, revision);
   }
 
-  Future<void> _connectWithRetry(String deviceId, int maxRetries) async {
+  Future<void> _connectWithRetry(
+    String deviceId,
+    int maxRetries,
+    int revision,
+  ) async {
     try {
-      setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectCoverCalibrator(deviceId);
-      if (!mounted) return;
+      if (!_isCurrentConnection(deviceId, revision)) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentAttempt(deviceId, revision)) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -49,8 +55,9 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(kDefaultRetryDelay * _retryAttempts);
-        if (!mounted) return;
-        await _connectWithRetry(deviceId, maxRetries);
+        if (!_isCurrentAttempt(deviceId, revision)) return;
+        _setConnectingState(deviceId, deviceId);
+        await _connectWithRetry(deviceId, maxRetries, revision);
       } else {
         state = state.copyWith(
           connectionState: DeviceConnectionState.error,
@@ -72,17 +79,17 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
 
   Future<void> disconnect() async {
     if (state.deviceId == null) return;
-    try {
-      final deviceService = _ref.read(deviceServiceProvider);
-      await deviceService.disconnectCoverCalibrator();
-    } catch (_) {
-      // DeviceService logs; notifier always clears connection state.
-    } finally {
-      setDisconnected();
-    }
+    final revision = ++_connectionRevision;
+    final deviceService = _ref.read(deviceServiceProvider);
+    await deviceService.disconnectCoverCalibrator();
+    if (mounted && revision == _connectionRevision) setDisconnected();
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    _setConnectingState(deviceId, deviceName);
+  }
+
+  void _setConnectingState(String deviceId, [String? deviceName]) {
     // Preserve `lastError` across Connecting; see camera
     // provider for the full rationale.
     state = state.copyWith(
@@ -103,6 +110,14 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
     final preservedAutoReconnect = state.autoReconnectEnabled;
     state = CoverCalibratorState(autoReconnectEnabled: preservedAutoReconnect);
   }
+
+  bool _isCurrentConnection(String deviceId, int revision) =>
+      mounted && revision == _connectionRevision && state.deviceId == deviceId;
+
+  bool _isCurrentAttempt(String deviceId, int revision) =>
+      mounted &&
+      revision == _connectionRevision &&
+      (state.deviceId == null || state.deviceId == deviceId);
 
   /// Enable or disable auto-reconnection for the cover calibrator.
   void setAutoReconnect(bool enabled) {

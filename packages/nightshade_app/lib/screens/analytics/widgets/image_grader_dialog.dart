@@ -9,11 +9,99 @@
 // `isAccepted` flag (with a rejection reason). Acceptance restoration is
 // a single tap on the rejected card.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../utils/authority_bound_dialog.dart';
+import '../analytics_screen.dart' show dbSessionImagesProvider;
+
+typedef ImageGraderPsfMetric = ({double? fwhm, double? eccentricity});
+
+/// Load the PSF metrics used by the grader from the authoritative host.
+///
+/// A mobile companion has its own (normally empty) local database, so reading
+/// [ScienceDao] there silently disables the FWHM and eccentricity rules. The
+/// network backend already exposes the host's session science products; local
+/// mode continues to read Drift directly.
+Future<Map<int, ImageGraderPsfMetric>> loadImageGraderPsfMetrics({
+  required NightshadeBackend backend,
+  required ScienceDao? localScienceDao,
+  required List<DbCapturedImage> frames,
+  int? sessionId,
+}) async {
+  final frameIds = frames.map((frame) => frame.id).toSet();
+  final tiles = <PsfFieldTileRow>[];
+
+  if (backend is NetworkBackend) {
+    if (sessionId != null) {
+      tiles.addAll(await backend.getSessionPsfTiles(sessionId));
+    } else {
+      tiles.addAll((await backend.getSessionlessScienceBundle()).psfTiles);
+    }
+  } else {
+    final dao = localScienceDao;
+    if (dao == null) {
+      throw StateError('A local science database is required in local mode');
+    }
+    if (sessionId != null) {
+      tiles.addAll(await dao.getPsfTilesForSession(sessionId));
+    } else {
+      for (final frame in frames) {
+        tiles.addAll(await dao.getPsfTilesForImage(frame.id));
+      }
+    }
+  }
+
+  final grouped = <int, List<PsfFieldTileRow>>{};
+  for (final tile in tiles) {
+    final imageId = tile.capturedImageId;
+    if (imageId == null || !frameIds.contains(imageId)) continue;
+    grouped.putIfAbsent(imageId, () => []).add(tile);
+  }
+
+  final result = <int, ImageGraderPsfMetric>{};
+  for (final entry in grouped.entries) {
+    final fwhms = <double>[];
+    final eccentricities = <double>[];
+    for (final tile in entry.value) {
+      if (tile.starCount <= 0) continue;
+      if (tile.medianFwhm.isFinite && tile.medianFwhm > 0) {
+        fwhms.add(tile.medianFwhm);
+      }
+      if (tile.medianEccentricity.isFinite && tile.medianEccentricity > 0) {
+        eccentricities.add(tile.medianEccentricity);
+      }
+    }
+    final fwhm = _imageGraderMedian(fwhms);
+    final eccentricity = _imageGraderMedian(eccentricities);
+    if (fwhm != null || eccentricity != null) {
+      result[entry.key] = (fwhm: fwhm, eccentricity: eccentricity);
+    }
+  }
+  return result;
+}
+
+double? _imageGraderMedian(List<double> values) {
+  if (values.isEmpty) return null;
+  final sorted = values.toList(growable: false)..sort();
+  final mid = sorted.length ~/ 2;
+  return sorted.length.isOdd
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2.0;
+}
+
+FrameGradeRules resolveImageGraderRules(
+  ScienceSettings settings,
+  List<DbCapturedImage> frames,
+) {
+  final persisted = settings.resolvedFrameGradeRules();
+  return persisted.isEmpty ? FrameGradeRules.suggestFrom(frames) : persisted;
+}
 
 class ImageGraderDialog extends ConsumerStatefulWidget {
   final List<DbCapturedImage> frames;
@@ -41,8 +129,9 @@ class ImageGraderDialog extends ConsumerStatefulWidget {
 }
 
 class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
-  late FrameGradeRules _rules = const FrameGradeRules();
-  bool _rulesLoaded = false;
+  FrameGradeRules _rules = const FrameGradeRules();
+  bool _rulesLoading = true;
+  String? _rulesError;
   bool _applying = false;
   String? _applyError;
 
@@ -51,55 +140,102 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
   /// sources them here — same data the capture-time auto-grader uses, so
   /// the preview and the automatic path can never disagree. Frames without
   /// PSF products simply have no entry and skip those rules.
-  Map<int, ({double? fwhm, double? eccentricity})> _psfMetricsByImage =
-      const {};
+  Map<int, ImageGraderPsfMetric> _psfMetricsByImage = const {};
+  bool _psfMetricsLoading = true;
+  String? _psfMetricsError;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _authorityGeneration = 0;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_rulesLoaded) return;
-    _rulesLoaded = true;
-    final persisted = ref.read(scienceSettingsProvider).valueOrNull;
-    _rules = persisted?.resolvedFrameGradeRules() ??
-        FrameGradeRules.suggestFrom(widget.frames);
-    _loadPsfMetrics();
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _authorityGeneration++;
+        setState(() {
+          _applying = false;
+          _applyError = 'Connected rig changed; reopen the grader to continue.';
+        });
+        closeAuthorityBoundDialog(context);
+      },
+    );
+    unawaited(_loadRules());
+    unawaited(_loadPsfMetrics());
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  Future<void> _loadRules() async {
+    if (_rulesError != null) {
+      ref.invalidate(scienceSettingsProvider);
+    }
+    if (!_rulesLoading) {
+      setState(() {
+        _rulesLoading = true;
+        _rulesError = null;
+      });
+    }
+    try {
+      final settings = await ref.read(scienceSettingsProvider.future);
+      if (mounted) {
+        setState(() {
+          _rules = resolveImageGraderRules(settings, widget.frames);
+          _rulesLoading = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _rulesLoading = false;
+          _rulesError = error.toString();
+        });
+      }
+    }
   }
 
   Future<void> _loadPsfMetrics() async {
-    final dao = ref.read(scienceDaoProvider);
-    final result = <int, ({double? fwhm, double? eccentricity})>{};
-    for (final frame in widget.frames) {
-      final tiles = await dao.getPsfTilesForImage(frame.id);
-      final fwhms = <double>[];
-      final eccs = <double>[];
-      for (final tile in tiles) {
-        if (tile.starCount <= 0) continue;
-        if (tile.medianFwhm.isFinite && tile.medianFwhm > 0) {
-          fwhms.add(tile.medianFwhm);
-        }
-        if (tile.medianEccentricity.isFinite && tile.medianEccentricity > 0) {
-          eccs.add(tile.medianEccentricity);
-        }
-      }
-      final fwhm = _median(fwhms);
-      final ecc = _median(eccs);
-      if (fwhm != null || ecc != null) {
-        result[frame.id] = (fwhm: fwhm, eccentricity: ecc);
-      }
+    if (!_psfMetricsLoading) {
+      setState(() {
+        _psfMetricsLoading = true;
+        _psfMetricsError = null;
+      });
     }
-    if (mounted) {
-      setState(() => _psfMetricsByImage = result);
+    final backend = ref.read(backendProvider);
+    final generation = _authorityGeneration;
+    try {
+      final result = await loadImageGraderPsfMetrics(
+        backend: backend,
+        localScienceDao:
+            backend is NetworkBackend ? null : ref.read(scienceDaoProvider),
+        frames: widget.frames,
+        sessionId: widget.sessionId,
+      );
+      if (_isCurrentAuthority(backend, generation)) {
+        setState(() {
+          _psfMetricsByImage = result;
+          _psfMetricsLoading = false;
+        });
+      }
+    } catch (error) {
+      if (_isCurrentAuthority(backend, generation)) {
+        setState(() {
+          _psfMetricsLoading = false;
+          _psfMetricsError = error.toString();
+        });
+      }
     }
   }
 
-  static double? _median(List<double> values) {
-    if (values.isEmpty) return null;
-    final sorted = values.toList(growable: false)..sort();
-    final mid = sorted.length ~/ 2;
-    return sorted.length.isOdd
-        ? sorted[mid]
-        : (sorted[mid - 1] + sorted[mid]) / 2.0;
-  }
+  bool _isCurrentAuthority(NightshadeBackend backend, int generation) =>
+      mounted &&
+      generation == _authorityGeneration &&
+      identical(ref.read(backendProvider), backend);
 
   ({
     int rejected,
@@ -128,6 +264,9 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
   }
 
   Future<void> _apply() async {
+    if (_applying) return;
+    final backend = ref.read(backendProvider);
+    final generation = _authorityGeneration;
     final preview = _preview();
     if (preview.rejections.isEmpty) {
       Navigator.of(context).pop(0);
@@ -141,13 +280,18 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
       await ref
           .read(scienceSettingsProvider.notifier)
           .setFrameGradeRules(_rules);
-      final dao = ref.read(imagesDaoProvider);
+      if (!_isCurrentAuthority(backend, generation)) return;
+      final repo = ref.read(imagingRecordsRepositoryProvider);
       for (final r in preview.rejections) {
-        await dao.rejectImage(r.frame.id, r.reason);
+        if (!_isCurrentAuthority(backend, generation)) return;
+        await repo.rejectImage(r.frame.id, r.reason);
+        if (!_isCurrentAuthority(backend, generation)) return;
       }
       if (!mounted) return;
+      ref.invalidate(dbSessionImagesProvider);
       Navigator.of(context).pop(preview.rejected);
     } catch (e) {
+      if (!_isCurrentAuthority(backend, generation)) return;
       setState(() {
         _applying = false;
         _applyError = e.toString();
@@ -179,6 +323,7 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
       icon: LucideIcons.sliders,
       width: 720,
       height: 640,
+      closeEnabled: !_applying,
       actions: [
         NightshadeButton(
           onPressed: _applying ? null : () => Navigator.of(context).pop(),
@@ -186,7 +331,10 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
           variant: ButtonVariant.ghost,
         ),
         NightshadeButton(
-          onPressed: preview.rejected == 0 ? null : _apply,
+          onPressed:
+              _rulesLoading || _rulesError != null || preview.rejected == 0
+                  ? null
+                  : _apply,
           isLoading: _applying,
           label: preview.rejected == 0
               ? 'Nothing to reject'
@@ -210,6 +358,31 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
             style: NightshadeTypography.captionSm
                 .copyWith(color: colors.textMuted),
           ),
+          if (_rulesLoading) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              'Loading saved grading rules…',
+              style: NightshadeTypography.captionSm.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+          ] else if (_rulesError != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Saved grading rules could not be loaded. Applying is '
+                    'disabled to protect the existing settings.',
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+                TextButton(onPressed: _loadRules, child: const Text('Retry')),
+              ],
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceMd + 2),
           _ThresholdSliders(
             colors: colors,
@@ -218,6 +391,34 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
             psfMetricsByImage: _psfMetricsByImage,
             onChanged: (next) => setState(() => _rules = next),
           ),
+          if (_psfMetricsLoading) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              'Loading FWHM and eccentricity measurements…',
+              style: NightshadeTypography.captionSm.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+          ] else if (_psfMetricsError != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'FWHM and eccentricity are unavailable. Those rules will '
+                    'not be applied until the measurements load.',
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: colors.warning,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _loadPsfMetrics,
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceMd),
           _PreviewSummary(
             colors: colors,

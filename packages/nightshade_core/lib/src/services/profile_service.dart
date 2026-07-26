@@ -4,10 +4,12 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/nightshade_backend.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/equipment_profile.dart' as remote_profile;
+import '../models/equipment_profile_validation.dart';
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/equipment_provider.dart';
@@ -15,9 +17,37 @@ import '../providers/profiles_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/unified_discovery_provider.dart';
 import '../utils/json_validation.dart';
+import 'device_exceptions.dart';
 import 'device_service.dart';
+import 'optical_train_limits.dart';
 
 part 'profile_service/profile_export_data.dart';
+
+typedef _BackendAuthority = ({
+  BackendNotifier owner,
+  NightshadeBackend backend,
+});
+
+/// Raised when startup auto-connect finishes activating a profile but one or
+/// more of its devices failed to connect. Startup deliberately attempts EVERY
+/// configured device (a single offline focuser must not strand the mount and
+/// camera) and then aggregates the failures here so the wiring layer can log
+/// loudly / surface a non-blocking notification. The profile is already active
+/// by the time this throws.
+class ProfileAutoConnectException implements Exception {
+  final String profileName;
+  final List<String> failures;
+
+  const ProfileAutoConnectException({
+    required this.profileName,
+    required this.failures,
+  });
+
+  @override
+  String toString() =>
+      'ProfileAutoConnectException: ${failures.length} device(s) failed to '
+      'connect for profile "$profileName": ${failures.join('; ')}';
+}
 
 /// Result of validating a profile's devices against discovered devices
 class ProfileValidationResult {
@@ -53,18 +83,31 @@ class ProfileService {
 
   ProfileService(this._ref);
 
-  NetworkBackend? get _remoteBackend {
-    final backend = _ref.read(backendProvider);
-    return backend is NetworkBackend ? backend : null;
+  _BackendAuthority get _authority {
+    final owner = _ref.read(backendProvider.notifier);
+    return (owner: owner, backend: owner.currentBackend);
+  }
+
+  void _requireAuthority(_BackendAuthority authority) {
+    if (!authority.owner.isCurrentBackend(authority.backend)) {
+      throw StateError(
+        'The imaging host changed while the profile operation was running.',
+      );
+    }
   }
 
   EquipmentProfilesNotifier get _profilesNotifier =>
       _ref.read(equipmentProfilesProvider.notifier);
 
-  Future<EquipmentProfileModel?> _getProfileModelById(int profileId) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
-      final profiles = await remote.getProfiles();
+  Future<EquipmentProfileModel?> _getProfileModelById(
+    int profileId, {
+    _BackendAuthority? authority,
+  }) async {
+    final operation = authority ?? _authority;
+    final backend = operation.backend;
+    if (backend is NetworkBackend) {
+      final profiles = await backend.getProfiles();
+      _requireAuthority(operation);
       for (final profile in profiles) {
         if (int.tryParse(profile.id) == profileId) {
           return EquipmentProfileModel.fromRemoteProfile(profile);
@@ -75,32 +118,43 @@ class ProfileService {
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile = await dao.getProfileById(profileId);
+    _requireAuthority(operation);
     return profile != null ? EquipmentProfileModel.fromDatabase(profile) : null;
   }
 
-  Future<EquipmentProfileModel?> _getActiveProfileModel() async {
-    final cached = _ref.read(activeEquipmentProfileProvider);
-    if (cached != null) {
-      return cached;
-    }
-
-    final remote = _remoteBackend;
-    if (remote != null) {
-      final active = await remote.getActiveProfile();
+  Future<EquipmentProfileModel?> _getActiveProfileModel({
+    _BackendAuthority? authority,
+  }) async {
+    final operation = authority ?? _authority;
+    final backend = operation.backend;
+    if (backend is NetworkBackend) {
+      final active = await backend.getActiveProfile();
+      _requireAuthority(operation);
       return active != null
           ? EquipmentProfileModel.fromRemoteProfile(active)
           : null;
     }
 
+    final cached = _ref.read(activeEquipmentProfileProvider);
+    if (cached != null) {
+      _requireAuthority(operation);
+      return cached;
+    }
+
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile = await dao.getActiveProfile();
+    _requireAuthority(operation);
     return profile != null ? EquipmentProfileModel.fromDatabase(profile) : null;
   }
 
-  Future<EquipmentProfileModel?> _getStartupProfileModel() async {
-    final remote = _remoteBackend;
-    if (remote != null) {
-      final profiles = await remote.getProfiles();
+  Future<EquipmentProfileModel?> _getStartupProfileModel({
+    _BackendAuthority? authority,
+  }) async {
+    final operation = authority ?? _authority;
+    final backend = operation.backend;
+    if (backend is NetworkBackend) {
+      final profiles = await backend.getProfiles();
+      _requireAuthority(operation);
       remote_profile.EquipmentProfile? defaultProfile;
       remote_profile.EquipmentProfile? activeProfile;
       for (final profile in profiles) {
@@ -112,21 +166,36 @@ class ProfileService {
         }
       }
       final chosen = defaultProfile ?? activeProfile;
-      return chosen != null
-          ? EquipmentProfileModel.fromRemoteProfile(chosen)
-          : _ref.read(activeEquipmentProfileProvider);
+      if (chosen != null) {
+        return EquipmentProfileModel.fromRemoteProfile(chosen);
+      }
+      // Older hosts may omit isActive from list rows while still exposing the
+      // authoritative active row on the dedicated endpoint. Never fall back
+      // to a cached profile from the previous host.
+      final active = await backend.getActiveProfile();
+      _requireAuthority(operation);
+      return active == null
+          ? null
+          : EquipmentProfileModel.fromRemoteProfile(active);
     }
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final profile =
         await dao.getDefaultProfile() ?? await dao.getActiveProfile();
+    _requireAuthority(operation);
     return profile != null ? EquipmentProfileModel.fromDatabase(profile) : null;
   }
 
-  Future<void> _persistProfileModel(EquipmentProfileModel profile) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
-      await remote.saveProfile(profile.toRemoteProfile());
+  Future<void> _persistProfileModel(
+    EquipmentProfileModel profile, {
+    _BackendAuthority? authority,
+  }) async {
+    final operation = authority ?? _authority;
+    _requireAuthority(operation);
+    final backend = operation.backend;
+    if (backend is NetworkBackend) {
+      await backend.saveProfile(profile.toRemoteProfile());
+      _requireAuthority(operation);
       _ref.invalidate(equipmentProfilesProvider);
       return;
     }
@@ -137,6 +206,7 @@ class ProfileService {
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final existing = await dao.getProfileById(profile.id!);
+    _requireAuthority(operation);
     if (existing == null) {
       throw Exception('Profile not found');
     }
@@ -193,6 +263,7 @@ class ProfileService {
         updatedAt: DateTime.now(),
       ),
     );
+    _requireAuthority(operation);
     _ref.invalidate(equipmentProfilesProvider);
   }
 
@@ -206,7 +277,8 @@ class ProfileService {
   /// discovered devices. Returns a result indicating which devices are
   /// available and which are missing.
   Future<ProfileValidationResult> validateProfile(int profileId) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
 
     if (profile == null) {
       throw Exception('Profile not found');
@@ -261,102 +333,137 @@ class ProfileService {
 
   /// Load and activate a profile, optionally connecting devices
   Future<void> loadProfile(int profileId, {bool autoConnect = false}) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
-      await remote.loadProfile(profileId.toString());
+    final authority = _authority;
+    final backend = authority.backend;
+    if (backend is NetworkBackend) {
+      await backend.loadProfile(profileId.toString());
+      _requireAuthority(authority);
       _ref.invalidate(equipmentProfilesProvider);
       if (autoConnect) {
-        final profile = await _getProfileModelById(profileId);
+        final profile = await _getProfileModelById(
+          profileId,
+          authority: authority,
+        );
         if (profile != null) {
           await _connectProfileDevicesFromModel(profile);
+          _requireAuthority(authority);
         }
       }
       return;
     }
 
-    final dao = _ref.read(equipmentProfilesDaoProvider);
-    await dao.setActiveProfile(profileId);
-    _ref.invalidate(equipmentProfilesProvider);
+    // Route activation through the single, remote-aware notifier authority so
+    // the local path updates SQLite AND write-throughs the active row into the
+    // native executor store (rather than a bare DAO write that the Rust
+    // sequencer never sees). The notifier refreshes provider state itself.
+    await _profilesNotifier.setActiveProfile(profileId);
+    _requireAuthority(authority);
 
     if (autoConnect) {
+      final dao = _ref.read(equipmentProfilesDaoProvider);
       final profile = await dao.getProfileById(profileId);
+      _requireAuthority(authority);
       if (profile != null) {
         await _connectProfileDevicesFromModel(
           EquipmentProfileModel.fromDatabase(profile),
         );
+        _requireAuthority(authority);
       }
     }
   }
 
   /// Set or clear the default startup profile.
+  ///
+  /// Delegates to the single [EquipmentProfilesNotifier] authority for both
+  /// remote (host endpoint) and local (SQLite + native write-through when
+  /// makeActive flips the active profile) so this service never becomes a
+  /// second, unsynchronized activation writer.
   Future<void> setDefaultProfile(
     int? profileId, {
     bool makeActive = true,
   }) async {
-    if (_remoteBackend != null) {
-      await _profilesNotifier.setDefaultProfile(
-        profileId,
-        makeActive: makeActive,
-      );
-      return;
-    }
-
-    final dao = _ref.read(equipmentProfilesDaoProvider);
-    if (profileId == null) {
-      await dao.clearDefaultProfile();
-    } else {
-      await dao.setDefaultProfile(profileId, makeActive: makeActive);
-    }
-    _ref.invalidate(equipmentProfilesProvider);
+    await _profilesNotifier.setDefaultProfile(
+      profileId,
+      makeActive: makeActive,
+    );
   }
 
   /// Connect devices from a profile model (local FFI or remote host).
+  ///
+  /// Reuses the canonical [DeviceService.connectAllFromProfile] progress path:
+  /// every configured device is dispatched (in parallel) and each device
+  /// reports its own outcome, so one offline device can no longer abort the
+  /// sweep and silently strand the rest — the historical bug where the loop
+  /// stopped on the first device error. Per-device failures are aggregated and,
+  /// if any occurred, surfaced as a [ProfileAutoConnectException] so the caller
+  /// can log/notify rather than pretend everything connected.
   Future<void> _connectProfileDevicesFromModel(
     EquipmentProfileModel profile,
   ) async {
     final deviceService = _ref.read(deviceServiceProvider);
-    final connections = <Future<void> Function()>[
-      if (profile.cameraId != null && profile.cameraId!.isNotEmpty)
-        () => deviceService.connectCamera(profile.cameraId!),
-      if (profile.mountId != null && profile.mountId!.isNotEmpty)
-        () => deviceService.connectMount(profile.mountId!),
-      if (profile.focuserId != null && profile.focuserId!.isNotEmpty)
-        () => deviceService.connectFocuser(profile.focuserId!),
-      if (profile.filterWheelId != null && profile.filterWheelId!.isNotEmpty)
-        () => deviceService.connectFilterWheel(profile.filterWheelId!),
-      if (profile.guiderId != null && profile.guiderId!.isNotEmpty)
-        () => deviceService.connectGuider(profile.guiderId!),
-      if (profile.rotatorId != null && profile.rotatorId!.isNotEmpty)
-        () => deviceService.connectRotator(profile.rotatorId!),
-      if (profile.domeId != null && profile.domeId!.isNotEmpty)
-        () => deviceService.connectDome(profile.domeId!),
-      if (profile.weatherId != null && profile.weatherId!.isNotEmpty)
-        () => deviceService.connectWeather(profile.weatherId!),
-      if (profile.safetyMonitorId != null &&
-          profile.safetyMonitorId!.isNotEmpty)
-        () => deviceService.connectSafetyMonitor(profile.safetyMonitorId!),
-      if (profile.switchId != null && profile.switchId!.isNotEmpty)
-        () => deviceService.connectSwitch(profile.switchId!),
-      if (profile.coverCalibratorId != null &&
-          profile.coverCalibratorId!.isNotEmpty)
-        () => deviceService.connectCoverCalibrator(profile.coverCalibratorId!),
-    ];
+    final failures = <String>[];
 
-    for (final connect in connections) {
-      await connect();
+    await for (final progress in deviceService.connectAllFromProfile(profile)) {
+      if (progress.status == DeviceConnectProgressStatus.failed) {
+        failures.add(
+          '${progress.deviceType} (${progress.deviceId}): '
+          '${progress.errorMessage ?? progress.error ?? 'unknown error'}',
+        );
+      }
+    }
+
+    if (failures.isNotEmpty) {
+      throw ProfileAutoConnectException(
+        profileName: profile.name,
+        failures: failures,
+      );
     }
   }
 
-  /// Auto-connect to active profile's devices on startup
+  /// Auto-connect to the startup profile's devices on startup.
+  ///
+  /// Contract:
+  ///   1. No-op when the Auto-connect setting is off or there is no startup
+  ///      profile (fresh install / no profiles) — never activates, never
+  ///      connects.
+  ///   2. Startup profile selection = default profile first, current active
+  ///      profile as the fallback when no default is set.
+  ///   3. The selected startup profile is ACTIVATED through the single
+  ///      [EquipmentProfilesNotifier] authority BEFORE any device connect
+  ///      (local: SQLite flip + strict native save/load once; remote: host load
+  ///      endpoint once, no slave-local write). Startup intentionally makes the
+  ///      selected startup profile active — so with profile A as default but B
+  ///      currently active, A becomes active (B inactive) while A stays default.
+  ///   4. If activation fails, NOTHING is connected and the error propagates.
+  ///   5. Only then are that same profile's device ids connected, attempting
+  ///      every device and aggregating failures (see
+  ///      [_connectProfileDevicesFromModel]).
+  ///
+  /// This method connects hardware, so the production wiring only invokes it on
+  /// the LOCAL hardware-owning master (desktop FfiBackend GUI / headless
+  /// daemon). A passive remote/mobile slave launch must never call it; a remote
+  /// client may still invoke it explicitly, in which case it drives the host via
+  /// the host load endpoint + host-side device connects.
   Future<void> autoConnectOnStartup() async {
+    final authority = _authority;
     final autoConnect = await _ref.read(autoConnectSettingsProvider.future);
-
+    _requireAuthority(authority);
     if (!autoConnect) return;
 
-    final activeProfile = await _getStartupProfileModel();
-    if (activeProfile != null) {
-      await _connectProfileDevicesFromModel(activeProfile);
-    }
+    final startupProfile = await _getStartupProfileModel(authority: authority);
+    final profileId = startupProfile?.id;
+    if (startupProfile == null || profileId == null) return;
+
+    // Activate/load the selected startup profile FIRST, through the single
+    // notifier authority, with a strict native write-through. A failure here
+    // (activation, or the native store never learning about the profile) throws
+    // before any connect, satisfying "activation failure -> connect nothing".
+    await _profilesNotifier.setActiveProfileStrict(profileId);
+    _requireAuthority(authority);
+
+    // The profile is now active; connect its devices (attempt-all + aggregate).
+    await _connectProfileDevicesFromModel(startupProfile);
+    _requireAuthority(authority);
   }
 
   // ===========================================================================
@@ -365,7 +472,8 @@ class ProfileService {
 
   /// Export a profile to JSON
   Future<String> exportProfileToJson(int profileId) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
 
     if (profile == null) {
       throw Exception('Profile not found');
@@ -384,10 +492,12 @@ class ProfileService {
 
   /// Export all profiles to JSON
   Future<String> exportAllProfilesToJson() async {
-    final remote = _remoteBackend;
+    final authority = _authority;
+    final backend = authority.backend;
     final List<ProfileExportData> exportData;
-    if (remote != null) {
-      final profiles = await remote.getProfiles();
+    if (backend is NetworkBackend) {
+      final profiles = await backend.getProfiles();
+      _requireAuthority(authority);
       exportData = profiles
           .map(
             (p) => ProfileExportData.fromModel(
@@ -398,6 +508,7 @@ class ProfileService {
     } else {
       final dao = _ref.read(equipmentProfilesDaoProvider);
       final profiles = await dao.getAllProfiles();
+      _requireAuthority(authority);
       exportData = profiles
           .map((p) => ProfileExportData.fromDatabase(p))
           .toList();
@@ -405,7 +516,7 @@ class ProfileService {
 
     final exportJson = exportData.map((p) => p.toJson()).toList();
     return jsonEncode({
-      'version': 1,
+      'version': 2,
       'exportDate': DateTime.now().toIso8601String(),
       'profiles': exportJson,
     });
@@ -420,15 +531,28 @@ class ProfileService {
 
   /// Import a profile from JSON
   Future<int> importProfileFromJson(String json) async {
+    final authority = _authority;
     final data = jsonDecode(json);
 
     // Handle single profile export
-    final profileData = data is Map && data.containsKey('profiles')
-        ? data['profiles'][0]
-        : data;
+    final Object? profileData;
+    if (data is Map && data.containsKey('profiles')) {
+      final profiles = data['profiles'];
+      if (profiles is! List || profiles.isEmpty) {
+        throw const FormatException(
+          'Profile export must contain at least one profile',
+        );
+      }
+      profileData = profiles.first;
+    } else {
+      profileData = data;
+    }
+    if (profileData is! Map<String, dynamic>) {
+      throw const FormatException('Profile entry must be a JSON object');
+    }
 
     final exportData = ProfileExportData.fromJson(profileData);
-    return await _createProfileFromExport(exportData);
+    return await _createProfileFromExport(exportData, authority: authority);
   }
 
   /// Import a profile from a file
@@ -440,11 +564,16 @@ class ProfileService {
 
   /// Import all profiles from JSON (batch import)
   Future<List<int>> importAllProfilesFromJson(String json) async {
+    final authority = _authority;
     final data = jsonDecode(json);
 
     List<dynamic> profilesData;
     if (data is Map && data.containsKey('profiles')) {
-      profilesData = data['profiles'];
+      final profiles = data['profiles'];
+      if (profiles is! List) {
+        throw const FormatException('"profiles" must be a JSON array');
+      }
+      profilesData = profiles;
     } else if (data is List) {
       profilesData = data;
     } else {
@@ -452,10 +581,29 @@ class ProfileService {
       profilesData = [data];
     }
 
+    if (profilesData.isEmpty) {
+      throw const FormatException(
+        'Profile export must contain at least one profile',
+      );
+    }
+
+    // Parse and validate the entire document before persisting the first row.
+    // A malformed later entry must not leave a misleading partial import.
+    final parsedProfiles = profilesData
+        .map((profileJson) {
+          if (profileJson is! Map<String, dynamic>) {
+            throw const FormatException('Each profile must be a JSON object');
+          }
+          return ProfileExportData.fromJson(profileJson);
+        })
+        .toList(growable: false);
+
     final ids = <int>[];
-    for (final profileJson in profilesData) {
-      final exportData = ProfileExportData.fromJson(profileJson);
-      final id = await _createProfileFromExport(exportData);
+    for (final exportData in parsedProfiles) {
+      final id = await _createProfileFromExport(
+        exportData,
+        authority: authority,
+      );
       ids.add(id);
     }
 
@@ -470,10 +618,15 @@ class ProfileService {
   }
 
   /// Create a profile from export data
-  Future<int> _createProfileFromExport(ProfileExportData data) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
-      final existingProfiles = await remote.getProfiles();
+  Future<int> _createProfileFromExport(
+    ProfileExportData data, {
+    required _BackendAuthority authority,
+  }) async {
+    _requireAuthority(authority);
+    final backend = authority.backend;
+    if (backend is NetworkBackend) {
+      final existingProfiles = await backend.getProfiles();
+      _requireAuthority(authority);
       var name = data.name;
       var suffix = 1;
       while (existingProfiles.any((p) => p.name == name)) {
@@ -495,6 +648,17 @@ class ProfileService {
         safetyMonitorId: data.safetyMonitorId,
         switchId: data.switchId,
         coverCalibratorId: data.coverCalibratorId,
+        cameraName: data.cameraName,
+        mountName: data.mountName,
+        focuserName: data.focuserName,
+        filterWheelName: data.filterWheelName,
+        guiderName: data.guiderName,
+        rotatorName: data.rotatorName,
+        safetyMonitorName: data.safetyMonitorName,
+        switchName: data.switchName,
+        telescopeName: data.telescopeName,
+        telescopeFocalLength: data.telescopeFocalLength,
+        telescopeAperture: data.telescopeAperture,
         focalLength: data.focalLength,
         aperture: data.aperture,
         focalRatio: data.focalRatio,
@@ -503,12 +667,23 @@ class ProfileService {
         defaultBinX: data.defaultBinX,
         defaultBinY: data.defaultBinY,
         defaultCoolingTemp: data.defaultCoolingTemp,
+        coolOnConnect: data.coolOnConnect,
+        defaultCenteringExposure: data.defaultCenteringExposure,
         filterNames: data.filterNames ?? const [],
         filterFocusOffsets: data.filterFocusOffsets ?? const {},
+        meridianFlipOverrides: data.meridianFlipOverrides,
+        profileIcon: data.profileIcon,
+        profileColor: data.profileColor,
       );
-      await remote.saveProfile(model.toRemoteProfile());
+      await backend.saveProfile(model.toRemoteProfile());
+      _requireAuthority(authority);
       _ref.invalidate(equipmentProfilesProvider);
-      final refreshed = await remote.getProfiles();
+      final savedId = int.tryParse(backend.lastSavedProfileId ?? '');
+      if (savedId != null && savedId > 0) {
+        return savedId;
+      }
+      final refreshed = await backend.getProfiles();
+      _requireAuthority(authority);
       for (final profile in refreshed) {
         if (profile.name == name) {
           final id = int.tryParse(profile.id);
@@ -526,6 +701,7 @@ class ProfileService {
 
     // Check for name conflicts and rename if needed
     final existingProfiles = await dao.getAllProfiles();
+    _requireAuthority(authority);
     var name = data.name;
     var suffix = 1;
     while (existingProfiles.any((p) => p.name == name)) {
@@ -533,7 +709,7 @@ class ProfileService {
       suffix++;
     }
 
-    return await dao.createProfile(
+    final id = await dao.createProfile(
       EquipmentProfilesCompanion.insert(
         name: name,
         description: Value(data.description),
@@ -548,6 +724,17 @@ class ProfileService {
         safetyMonitorId: Value(data.safetyMonitorId),
         switchId: Value(data.switchId),
         coverCalibratorId: Value(data.coverCalibratorId),
+        cameraName: Value(data.cameraName),
+        mountName: Value(data.mountName),
+        focuserName: Value(data.focuserName),
+        filterWheelName: Value(data.filterWheelName),
+        guiderName: Value(data.guiderName),
+        rotatorName: Value(data.rotatorName),
+        safetyMonitorName: Value(data.safetyMonitorName),
+        switchName: Value(data.switchName),
+        telescopeName: Value(data.telescopeName),
+        telescopeFocalLength: Value(data.telescopeFocalLength),
+        telescopeAperture: Value(data.telescopeAperture),
         focalLength: Value(data.focalLength),
         aperture: Value(data.aperture),
         focalRatio: Value(data.focalRatio),
@@ -556,6 +743,8 @@ class ProfileService {
         defaultBinX: Value(data.defaultBinX),
         defaultBinY: Value(data.defaultBinY),
         defaultCoolingTemp: Value(data.defaultCoolingTemp),
+        coolOnConnect: Value(data.coolOnConnect),
+        defaultCenteringExposure: Value(data.defaultCenteringExposure),
         filterNames: Value(
           data.filterNames != null ? jsonEncode(data.filterNames) : null,
         ),
@@ -564,8 +753,13 @@ class ProfileService {
               ? jsonEncode(data.filterFocusOffsets)
               : null,
         ),
+        meridianFlipOverrides: Value(data.meridianFlipOverrides),
+        profileIcon: Value(data.profileIcon),
+        profileColor: Value(data.profileColor),
       ),
     );
+    _requireAuthority(authority);
+    return id;
   }
 
   // ===========================================================================
@@ -574,11 +768,14 @@ class ProfileService {
 
   /// Create a new empty profile
   Future<int> createProfile(String name, {String? description}) async {
-    if (_remoteBackend != null) {
-      return _profilesNotifier.createProfile(
+    final authority = _authority;
+    if (authority.backend is NetworkBackend) {
+      final id = await _profilesNotifier.createProfile(
         name: name,
         description: description,
       );
+      _requireAuthority(authority);
+      return id;
     }
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
@@ -588,31 +785,39 @@ class ProfileService {
         description: Value(description),
       ),
     );
+    _requireAuthority(authority);
     _ref.invalidate(equipmentProfilesProvider);
     return id;
   }
 
   /// Duplicate an existing profile
   Future<int> duplicateProfile(int sourceId, String newName) async {
-    if (_remoteBackend != null) {
-      return _profilesNotifier.duplicateProfile(sourceId, newName);
+    final authority = _authority;
+    if (authority.backend is NetworkBackend) {
+      final id = await _profilesNotifier.duplicateProfile(sourceId, newName);
+      _requireAuthority(authority);
+      return id;
     }
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
     final id = await dao.duplicateProfile(sourceId, newName);
+    _requireAuthority(authority);
     _ref.invalidate(equipmentProfilesProvider);
     return id;
   }
 
   /// Delete a profile
   Future<void> deleteProfile(int profileId) async {
-    if (_remoteBackend != null) {
+    final authority = _authority;
+    if (authority.backend is NetworkBackend) {
       await _profilesNotifier.deleteProfile(profileId);
+      _requireAuthority(authority);
       return;
     }
 
     final dao = _ref.read(equipmentProfilesDaoProvider);
     await dao.deleteProfile(profileId);
+    _requireAuthority(authority);
     _ref.invalidate(equipmentProfilesProvider);
   }
 
@@ -624,7 +829,8 @@ class ProfileService {
     int profileId,
     Set<String> deviceTypes,
   ) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
     if (profile == null) {
       throw Exception('Profile not found');
     }
@@ -649,6 +855,7 @@ class ProfileService {
             ? null
             : profile.coverCalibratorId,
       ),
+      authority: authority,
     );
   }
 
@@ -667,7 +874,8 @@ class ProfileService {
     String? switchId,
     String? coverCalibratorId,
   }) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
     if (profile == null) {
       throw Exception('Profile not found');
     }
@@ -686,6 +894,7 @@ class ProfileService {
         switchId: switchId ?? profile.switchId,
         coverCalibratorId: coverCalibratorId ?? profile.coverCalibratorId,
       ),
+      authority: authority,
     );
   }
 
@@ -696,7 +905,8 @@ class ProfileService {
     double? aperture,
     double? focalRatio,
   }) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
     if (profile == null) {
       throw Exception('Profile not found');
     }
@@ -707,6 +917,7 @@ class ProfileService {
         aperture: aperture ?? profile.aperture,
         focalRatio: focalRatio ?? profile.focalRatio,
       ),
+      authority: authority,
     );
   }
 
@@ -719,7 +930,8 @@ class ProfileService {
     int? defaultBinY,
     double? defaultCoolingTemp,
   }) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
     if (profile == null) {
       throw Exception('Profile not found');
     }
@@ -732,6 +944,7 @@ class ProfileService {
         defaultBinY: defaultBinY ?? profile.defaultBinY,
         defaultCoolingTemp: defaultCoolingTemp ?? profile.defaultCoolingTemp,
       ),
+      authority: authority,
     );
   }
 
@@ -740,7 +953,8 @@ class ProfileService {
   /// Reads current device states and updates the active profile with
   /// all connected device IDs. Returns true if saved successfully.
   Future<bool> saveConnectedDevicesToProfile() async {
-    final activeModel = await _getActiveProfileModel();
+    final authority = _authority;
+    final activeModel = await _getActiveProfileModel(authority: authority);
 
     if (activeModel == null) {
       developer.log(
@@ -849,6 +1063,7 @@ class ProfileService {
         switchId: switchId ?? activeModel.switchId,
         coverCalibratorId: coverCalibratorId ?? activeModel.coverCalibratorId,
       ),
+      authority: authority,
     );
 
     developer.log(
@@ -865,7 +1080,8 @@ class ProfileService {
     List<String>? filterNames,
     Map<String, int>? filterFocusOffsets,
   }) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
     if (profile == null) {
       throw Exception('Profile not found');
     }
@@ -875,13 +1091,15 @@ class ProfileService {
         filterNames: filterNames ?? profile.filterNames,
         filterFocusOffsets: filterFocusOffsets ?? profile.filterFocusOffsets,
       ),
+      authority: authority,
     );
   }
 
   /// Sync filter names from connected filter wheel to the active profile
   /// Returns true if filters were synced, false otherwise
   Future<bool> syncFiltersFromHardware() async {
-    final activeProfile = await _getActiveProfileModel();
+    final authority = _authority;
+    final activeProfile = await _getActiveProfileModel(authority: authority);
 
     if (activeProfile == null) {
       developer.log(
@@ -929,6 +1147,7 @@ class ProfileService {
         filterNames: hwFilterNames,
         filterFocusOffsets: newOffsets,
       ),
+      authority: authority,
     );
 
     developer.log(
@@ -941,7 +1160,8 @@ class ProfileService {
 
   /// Sync filter names from connected filter wheel to a specific profile
   Future<bool> syncFiltersToProfile(int profileId) async {
-    final profile = await _getProfileModelById(profileId);
+    final authority = _authority;
+    final profile = await _getProfileModelById(profileId, authority: authority);
     if (profile == null) {
       throw Exception('Profile not found');
     }
@@ -968,6 +1188,7 @@ class ProfileService {
         filterNames: hwFilterNames,
         filterFocusOffsets: newOffsets,
       ),
+      authority: authority,
     );
 
     return true;

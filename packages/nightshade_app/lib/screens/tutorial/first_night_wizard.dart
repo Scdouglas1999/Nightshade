@@ -57,6 +57,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
   // seven-step length invariant on every read; doing it once per dialog
   // is sufficient and avoids re-running that check on every rebuild.
   late final List<FirstNightWizardStep> _steps = FirstNightWizardModel.steps;
+  bool _isSaving = false;
 
   @override
   Widget build(BuildContext context) {
@@ -89,26 +90,26 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       icon: NightshadeIcons.sparkle,
       width: 640,
       height: 560,
-      // The close button is the "soft close" — same effect as
-      // [_handleShowOnNextLaunch], i.e. wipe progress so the wizard
-      // reopens next launch. That's the least-surprising default: if the
-      // user X's out, they didn't say "never again", they said "not now".
-      onClose: () {
-        notifier.showOnNextLaunch();
-        Navigator.of(context).pop();
-      },
+      closeEnabled: !_isSaving,
+      // Closing just dismisses the dialog. Progress is persisted as the user
+      // steps through, so re-opening from Settings → Help resumes at the same
+      // step. The wizard is replay-only and no longer auto-launches, so closing
+      // here makes no promise about a next-launch reopen.
+      onClose: () => Navigator.of(context).pop(),
       actions: _buildActions(context, state, notifier),
       child: TutorialStepWidget(
         step: currentStep,
         currentIndex: state.currentStepIndex,
         totalSteps: _steps.length,
-        onShowMe: () => _handleShowMe(context, currentStep, notifier),
+        onShowMe: _isSaving
+            ? null
+            : () => _handleShowMe(context, currentStep, notifier),
       ),
     );
   }
 
   /// Build the footer button row. Layout shifts by step position:
-  /// - First step: [Skip Forever] [Show on Next Launch] [Next]
+  /// - First step: [Skip Forever] [Close] [Next]
   /// - Middle steps: [Skip Forever] [Back] [Next]
   /// - Last step: [Skip Forever] [Back] [Done]
   /// The Skip Forever ghost button is always visible so the user can opt
@@ -124,15 +125,16 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
         label: l10n.text('firstNightWizardSkipForever'),
         variant: ButtonVariant.ghost,
         size: ButtonSize.small,
-        onPressed: () => _handleSkipForever(context, notifier),
+        onPressed:
+            _isSaving ? null : () => _handleSkipForever(context, notifier),
       ),
       const SizedBox(width: 8),
       if (notifier.isFirstStep)
         NightshadeButton(
-          label: l10n.text('firstNightWizardShowNextLaunch'),
+          label: l10n.text('commonClose'),
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          onPressed: () => _handleShowOnNextLaunch(context, notifier),
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
         )
       else
         NightshadeButton(
@@ -140,7 +142,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
           icon: NightshadeIcons.chevronLeft,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          onPressed: () => notifier.back(),
+          onPressed: _isSaving ? null : () => _run(notifier.back),
         ),
       const SizedBox(width: 8),
       if (notifier.isLastStep)
@@ -149,7 +151,8 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
           icon: NightshadeIcons.check,
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
-          onPressed: () => _handleDone(context, notifier),
+          isLoading: _isSaving,
+          onPressed: _isSaving ? null : () => _handleDone(context, notifier),
         )
       else
         NightshadeButton(
@@ -157,7 +160,8 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
           icon: NightshadeIcons.chevronRight,
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
-          onPressed: () => notifier.next(),
+          isLoading: _isSaving,
+          onPressed: _isSaving ? null : () => _run(notifier.next),
         ),
     ];
   }
@@ -166,47 +170,62 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
   /// the wizard is reopened), closes the wizard, then navigates. We
   /// intentionally don't leave the wizard open behind the screen — modal
   /// dialogs over deep-content screens get visually confusing fast.
-  void _handleShowMe(
+  Future<void> _handleShowMe(
     BuildContext context,
     FirstNightWizardStep step,
     FirstNightWizardNotifier notifier,
-  ) {
+  ) async {
     if (!step.hasDeepLink) return;
-    // Persist that the user is "on" this step so re-opening Settings →
-    // Help resumes here.
-    notifier.goToStep(step.order);
-    Navigator.of(context).pop();
-    // Use post-frame to let the dialog pop animation finish before the
-    // route change — otherwise the navigator collapse and the go_router
-    // push race and the new screen appears half-transitioned.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        context.go(step.deepLinkRoute);
-      }
+    await _run(() => notifier.goToStep(step.order), onSuccess: () {
+      Navigator.of(context).pop();
+      // Use post-frame to let the dialog pop animation finish before the
+      // route change — otherwise the navigator collapse and the go_router
+      // push race and the new screen appears half-transitioned.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.go(step.deepLinkRoute);
+        }
+      });
     });
   }
 
-  void _handleSkipForever(
+  Future<void> _handleSkipForever(
     BuildContext context,
     FirstNightWizardNotifier notifier,
-  ) {
-    notifier.dismissForever();
-    Navigator.of(context).pop();
+  ) async {
+    await _run(notifier.dismissForever, onSuccess: () {
+      Navigator.of(context).pop();
+    });
   }
 
-  void _handleShowOnNextLaunch(
+  Future<void> _handleDone(
     BuildContext context,
     FirstNightWizardNotifier notifier,
-  ) {
-    notifier.showOnNextLaunch();
-    Navigator.of(context).pop();
+  ) async {
+    await _run(notifier.complete, onSuccess: () {
+      Navigator.of(context).pop();
+    });
   }
 
-  void _handleDone(
-    BuildContext context,
-    FirstNightWizardNotifier notifier,
-  ) {
-    notifier.complete();
-    Navigator.of(context).pop();
+  Future<void> _run(
+    Future<void> Function() operation, {
+    VoidCallback? onSuccess,
+  }) async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      await operation();
+      if (!mounted) return;
+      onSuccess?.call();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          content: Text('Could not save tutorial progress. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import '../../../utils/filter_label.dart';
 
 /// Reusable horizontal strip of the most recent captures from the active
 /// session.
@@ -159,8 +160,14 @@ class _FramesRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The caption under each tile is text, so its height follows the app's
+    // font-size / UI-scale setting (both land on MediaQuery.textScaler). A
+    // hard-coded 34 px made every tile overflow its row by 2 px as soon as the
+    // user picked "Large" in Appearance settings.
+    final captionHeight =
+        MediaQuery.textScalerOf(context).scale(_captionHeight);
     return SizedBox(
-      height: _tilePx + _captionHeight,
+      height: _tilePx + captionHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: frames.length + (hiddenCount > 0 ? 1 : 0),
@@ -275,7 +282,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
     return null;
   }
 
-  String _filterLabel() => widget.image.settings.filter ?? 'L';
+  String _filterLabel() => filterLabel(widget.image.settings.filter);
 
   String _exposureLabel() {
     final secs = widget.image.settings.exposureTime;

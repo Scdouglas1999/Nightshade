@@ -125,12 +125,15 @@ class RecoveryProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Max Retries',
+          label: 'Additional Retries',
+          helpText: 'Retries after the first attempt. Total executions are '
+              '1 + additional retries.',
           child: NodeNumberInput(
             colors: colors,
             value: node.maxRetries.toDouble(),
-            min: 1,
+            min: 0,
             max: 10,
+            helperText: 'Total executions: ${node.maxRetries + 1}',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(maxRetries: value.toInt()),

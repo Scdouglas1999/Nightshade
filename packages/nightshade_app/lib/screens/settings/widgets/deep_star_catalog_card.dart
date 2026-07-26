@@ -6,6 +6,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 
+final deepStarCatalogManagerProvider = Provider<DeepStarCatalogManager>(
+  (ref) => DeepStarCatalogManager(),
+);
+
 /// Settings card for the downloadable **deep-star tier** (Tycho-2 / Gaia subset
 /// below the bundled HYG floor).
 ///
@@ -22,42 +26,67 @@ class DeepStarCatalogCard extends ConsumerStatefulWidget {
 }
 
 class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
-  final DeepStarCatalogManager _manager = DeepStarCatalogManager();
+  late final DeepStarCatalogManager _manager;
   late final TextEditingController _urlController = TextEditingController();
 
   DeepStarStatus? _status;
   bool _loading = true;
-  bool _busy = false;
+  Object? _loadError;
+  _DeepStarAction? _action;
   DeepStarDownloadProgress? _progress;
   bool _cancelRequested = false;
+  bool _deleteConfirmationOpen = false;
+  int _refreshGeneration = 0;
+
+  bool get _busy => _action != null;
 
   @override
   void initState() {
     super.initState();
+    _manager = ref.read(deepStarCatalogManagerProvider);
     _refresh();
   }
 
   @override
   void dispose() {
+    _cancelRequested = true;
+    _refreshGeneration++;
     _urlController.dispose();
     super.dispose();
   }
 
   Future<void> _refresh() async {
-    setState(() => _loading = true);
-    final url = await _manager.getBaseUrl();
-    final status = await _manager.status();
-    if (!mounted) return;
-    setState(() {
-      _urlController.text = url;
-      _status = status;
-      _loading = false;
-    });
+    final generation = ++_refreshGeneration;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    }
+    try {
+      final results = await Future.wait<Object>([
+        _manager.getBaseUrl(),
+        _manager.status(),
+      ]);
+      if (!mounted || generation != _refreshGeneration) return;
+      setState(() {
+        _urlController.text = results[0] as String;
+        _status = results[1] as DeepStarStatus;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted || generation != _refreshGeneration) return;
+      setState(() {
+        _loading = false;
+        _loadError = e;
+      });
+    }
   }
 
   Future<void> _download() async {
+    if (_busy || _deleteConfirmationOpen) return;
     setState(() {
-      _busy = true;
+      _action = _DeepStarAction.download;
       _cancelRequested = false;
       _progress = null;
     });
@@ -65,7 +94,9 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
       await _manager.setBaseUrl(_urlController.text.trim());
       final ok = await _manager.download(
         onProgress: (p) {
-          if (mounted) setState(() => _progress = p);
+          if (mounted && _action == _DeepStarAction.download) {
+            setState(() => _progress = p);
+          }
         },
         isCancelled: () async => _cancelRequested,
       );
@@ -83,7 +114,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
     } finally {
       if (mounted) {
         setState(() {
-          _busy = false;
+          _action = null;
           _progress = null;
         });
         await _refresh();
@@ -92,7 +123,8 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
   }
 
   Future<void> _verify() async {
-    setState(() => _busy = true);
+    if (_busy || _deleteConfirmationOpen) return;
+    setState(() => _action = _DeepStarAction.verify);
     try {
       final result = await _manager.verify();
       if (!mounted) return;
@@ -103,27 +135,49 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
         context.showErrorSnackBar(
             '${result.missing.length} missing, ${result.corrupt.length} corrupt');
       }
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Verification failed: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _action = null);
     }
   }
 
   Future<void> _delete() async {
-    final confirm = await ConfirmDialog.show(
-      context: context,
-      title: 'Delete Deep-Star Tiles',
-      message: 'Remove the downloaded deep-star tier? The bundled HYG stars '
-          'are unaffected.',
-      confirmLabel: 'Delete',
-      isDestructive: true,
-    );
+    if (_busy || _deleteConfirmationOpen) return;
+    setState(() => _deleteConfirmationOpen = true);
+    final bool confirm;
+    try {
+      confirm = await ConfirmDialog.show(
+        context: context,
+        title: 'Delete Deep-Star Tiles',
+        message: 'Remove the downloaded deep-star tier? The bundled HYG stars '
+            'are unaffected.',
+        confirmLabel: 'Delete',
+        isDestructive: true,
+      );
+    } finally {
+      if (mounted) setState(() => _deleteConfirmationOpen = false);
+    }
+    if (!mounted) return;
     if (!confirm) return;
-    await _manager.delete();
-    ref.read(deepStarManifestRefreshProvider.notifier).state++;
-    ref.read(showDeepStarsProvider.notifier).state = false;
-    if (mounted) {
+    setState(() => _action = _DeepStarAction.delete);
+    try {
+      await _manager.delete();
+      if (!mounted) return;
+      ref.read(deepStarManifestRefreshProvider.notifier).state++;
+      ref.read(showDeepStarsProvider.notifier).state = false;
       context.showInfoSnackBar('Deep-star tiles deleted');
-      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      // Deletion is best-effort, so some files may have been removed even
+      // when the manager reports that others were locked or inaccessible.
+      ref.read(deepStarManifestRefreshProvider.notifier).state++;
+      context.showErrorSnackBar('Deletion incomplete: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _action = null);
+        await _refresh();
+      }
     }
   }
 
@@ -132,6 +186,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
     final colors = context.nightshadeColors;
     final status = _status;
     final isInstalled = status?.isInstalled ?? false;
+    final hasCatalogData = status?.hasCatalogData ?? false;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -158,7 +213,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                       .copyWith(color: colors.textPrimary),
                 ),
               ),
-              if (isInstalled)
+              if (hasCatalogData)
                 _Badge(
                   label: status!.isComplete ? 'Installed' : 'Partial',
                   color: status.isComplete ? colors.success : colors.warning,
@@ -178,6 +233,11 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
           const SizedBox(height: 16),
           if (_loading)
             const Center(child: CircularProgressIndicator())
+          else if (_loadError != null)
+            _LoadError(
+              error: _loadError!,
+              onRetry: _refresh,
+            )
           else ...[
             TextField(
               controller: _urlController,
@@ -220,6 +280,16 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                   fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
+            ] else if (hasCatalogData) ...[
+              const SizedBox(height: 12),
+              Text(
+                'A partial or unreadable download is present. Resume it or '
+                'delete it to reclaim the files.',
+                style: TextStyle(
+                  color: colors.warning,
+                  fontSize: NightshadeTypography.fontSize11,
+                ),
+              ),
             ],
             if (_busy && _progress != null) ...[
               const SizedBox(height: 16),
@@ -250,9 +320,9 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
               runSpacing: 8,
               children: [
                 NightshadeButton(
-                  label: _busy
+                  label: _action == _DeepStarAction.download
                       ? (_cancelRequested ? 'Stopping…' : 'Downloading…')
-                      : (isInstalled ? 'Re-download / Resume' : 'Download'),
+                      : (hasCatalogData ? 'Re-download / Resume' : 'Download'),
                   icon: NightshadeIcons.download,
                   variant: ButtonVariant.primary,
                   // Disabled until a host is entered: with no URL the request
@@ -261,7 +331,7 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                       ? null
                       : _download,
                 ),
-                if (_busy)
+                if (_action == _DeepStarAction.download)
                   NightshadeButton(
                     label: 'Pause',
                     icon: NightshadeIcons.close,
@@ -270,20 +340,24 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
                         ? null
                         : () => setState(() => _cancelRequested = true),
                   ),
-                if (isInstalled && !_busy) ...[
+                if (isInstalled)
                   NightshadeButton(
                     label: 'Verify',
                     icon: NightshadeIcons.success,
                     variant: ButtonVariant.outline,
-                    onPressed: _verify,
+                    isLoading: _action == _DeepStarAction.verify,
+                    onPressed:
+                        (_busy || _deleteConfirmationOpen) ? null : _verify,
                   ),
+                if (hasCatalogData)
                   NightshadeButton(
                     label: 'Delete',
                     icon: NightshadeIcons.delete,
                     variant: ButtonVariant.destructive,
-                    onPressed: _delete,
+                    isLoading: _action == _DeepStarAction.delete,
+                    onPressed:
+                        (_busy || _deleteConfirmationOpen) ? null : _delete,
                   ),
-                ],
               ],
             ),
           ],
@@ -294,6 +368,46 @@ class _DeepStarCatalogCardState extends ConsumerState<DeepStarCatalogCard> {
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
+
+enum _DeepStarAction { download, verify, delete }
+
+class _LoadError extends StatelessWidget {
+  const _LoadError({required this.error, required this.onRetry});
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Deep-star catalog unavailable',
+          style: NightshadeTypography.bodyMedium.copyWith(
+            color: colors.error,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          error.toString(),
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: NightshadeTypography.fontSize11,
+          ),
+        ),
+        const SizedBox(height: 12),
+        NightshadeButton(
+          label: 'Retry',
+          icon: NightshadeIcons.refresh,
+          variant: ButtonVariant.outline,
+          onPressed: onRetry,
+        ),
+      ],
+    );
+  }
 }
 
 class _Badge extends StatelessWidget {

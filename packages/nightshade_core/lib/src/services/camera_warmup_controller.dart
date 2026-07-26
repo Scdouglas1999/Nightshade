@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/nightshade_backend.dart';
 import '../backend/nightshade_exception.dart' show ConnectionException;
 import '../models/equipment/equipment_models.dart';
+import '../providers/capability_provider.dart';
 import '../providers/equipment_provider.dart';
+import '../providers/imaging_provider.dart' show coolingSettingsProvider;
 import 'logging_service.dart';
 
 /// Drives the gradual camera warm-up routine.
@@ -32,6 +34,7 @@ class CameraWarmupController {
 
   Timer? _timer;
   bool _cancelled = false;
+  int _generation = 0;
 
   /// True while a warm-up timer is currently running.
   bool get isWarming => _timer != null;
@@ -39,6 +42,14 @@ class CameraWarmupController {
   /// Begin a gradual warm-up. Throws if the camera is not connected or
   /// has no live device id. Any prior warm-up is cancelled first.
   Future<void> start({double ratePerMin = 2.0}) async {
+    if (!ratePerMin.isFinite || ratePerMin <= 0) {
+      throw ArgumentError.value(
+        ratePerMin,
+        'ratePerMin',
+        'Warm-up rate must be a finite positive value',
+      );
+    }
+
     final cameraState = _ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       throw const ConnectionException(
@@ -57,6 +68,7 @@ class CameraWarmupController {
 
     // Drop any in-flight warming before we touch state.
     cancel();
+    final generation = ++_generation;
 
     final notifier = _ref.read(cameraStateProvider.notifier);
     notifier.setWarming(true);
@@ -80,11 +92,25 @@ class CameraWarmupController {
 
     // Keep cooler tracking, but seed the setpoint at the current sensor
     // temp so the cooler does not first work harder before easing off.
-    await _backend.cameraSetCooling(
-      deviceId: deviceId,
-      enabled: true,
-      targetTemp: currentSetpoint,
-    );
+    try {
+      await _backend.cameraSetCooling(
+        deviceId: deviceId,
+        enabled: true,
+        targetTemp: currentSetpoint,
+      );
+    } catch (_) {
+      // A failed seed command means no warm-up loop was started. Roll the
+      // public state back instead of leaving every UI stuck on "Warming".
+      if (_generation == generation) {
+        notifier.setWarming(false);
+        _cancelled = true;
+      }
+      rethrow;
+    }
+
+    // A second start/cancel may have superseded us while the driver command
+    // was in flight. Never let this stale call install a fresh timer.
+    if (_cancelled || _generation != generation) return;
 
     // One tick of the warm-up state machine. Returns true when warming is
     // finished (cooler disabled or unrecoverable) so the scheduler stops.
@@ -112,10 +138,15 @@ class CameraWarmupController {
         return true;
       }
 
-      final coolerPower = state.coolerPower ?? 0.0;
-      if (coolerPower <= 2.0) {
+      final coolerPower = state.coolerPower;
+      if (coolerPower != null && coolerPower <= 2.0) {
         try {
           await _backend.cameraSetCooling(deviceId: deviceId, enabled: false);
+          if (_generation != generation) return true;
+          notifier.setCooling(false);
+          _ref.read(coolingSettingsProvider.notifier).state = _ref
+              .read(coolingSettingsProvider)
+              .copyWith(enabled: false);
           _log(
             (l) => l.info(
               'Warm-up complete. Cooler power reached '
@@ -127,6 +158,9 @@ class CameraWarmupController {
           _log(
             (l) => l.error('Failed to disable cooler at end of warm-up: $e'),
           );
+          // Keep the routine active and retry. Declaring completion here would
+          // leave the physical cooler enabled with no owner left to stop it.
+          return false;
         }
         return true;
       }
@@ -134,10 +168,15 @@ class CameraWarmupController {
       if (DateTime.now().difference(warmingStartTime) > maxWarmingDuration) {
         try {
           await _backend.cameraSetCooling(deviceId: deviceId, enabled: false);
+          if (_generation != generation) return true;
+          notifier.setCooling(false);
+          _ref.read(coolingSettingsProvider.notifier).state = _ref
+              .read(coolingSettingsProvider)
+              .copyWith(enabled: false);
           _log(
             (l) => l.warning(
               'Warm-up safety timeout (30 min). Cooler disabled at power '
-              '${coolerPower.toStringAsFixed(0)}%, sensor '
+              '${coolerPower?.toStringAsFixed(0) ?? "unknown"}%, sensor '
               '${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
             ),
           );
@@ -146,11 +185,21 @@ class CameraWarmupController {
             (l) =>
                 l.error('Failed to disable cooler after warm-up timeout: $e'),
           );
+          return false;
         }
         return true;
       }
 
-      currentSetpoint += stepPerTick;
+      final reportedMax = _ref
+          .read(cameraCapabilitiesProvider(deviceId))
+          .valueOrNull
+          ?.coolerMaxTempC;
+      final maximumSetpoint = reportedMax != null && reportedMax.isFinite
+          ? reportedMax
+          : 20.0;
+      currentSetpoint = (currentSetpoint + stepPerTick)
+          .clamp(double.negativeInfinity, maximumSetpoint)
+          .toDouble();
       try {
         await _backend.cameraSetCooling(
           deviceId: deviceId,
@@ -172,7 +221,7 @@ class CameraWarmupController {
 
     void scheduleNextTick() {
       _timer = Timer(tickInterval, () async {
-        if (_cancelled) {
+        if (_cancelled || _generation != generation) {
           _timer = null;
           return;
         }
@@ -186,9 +235,9 @@ class CameraWarmupController {
           _log((l) => l.error('Warm-up tick failed: $e'));
           finished = false;
         }
-        if (finished || _cancelled) {
+        if (finished || _cancelled || _generation != generation) {
           _timer = null;
-          notifier.setWarming(false);
+          if (_generation == generation) notifier.setWarming(false);
         } else {
           scheduleNextTick();
         }
@@ -203,6 +252,7 @@ class CameraWarmupController {
   /// the cooler off should call `cameraSetCooling(enabled: false)`
   /// themselves).
   void cancel() {
+    _generation++;
     _cancelled = true;
     _timer?.cancel();
     _timer = null;

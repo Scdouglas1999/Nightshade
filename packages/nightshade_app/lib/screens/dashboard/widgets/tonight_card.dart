@@ -50,8 +50,24 @@ class TonightCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final twilight = ref.watch(twilightTimesProvider);
     final moonInfo = ref.watch(moonInfoProvider);
-    final optimization =
-        ref.watch(_tonightOptimizationPlanProvider).valueOrNull;
+    final optimizationAsync = ref.watch(_tonightOptimizationPlanProvider);
+    final optimization = optimizationAsync.valueOrNull;
+
+    final String targetValue;
+    if (optimizationAsync.isLoading) {
+      targetValue = 'Planning...';
+    } else if (optimizationAsync.hasError) {
+      targetValue = 'Plan unavailable';
+    } else if (optimization?.primaryTarget != null) {
+      targetValue = optimization!.primaryTarget!.targetName;
+    } else if (optimization?.rationale.any(
+          (reason) => reason.toLowerCase().contains('location'),
+        ) ??
+        false) {
+      targetValue = 'Location needed';
+    } else {
+      targetValue = 'No match tonight';
+    }
 
     // Use select() to only watch the time field
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
@@ -125,7 +141,7 @@ class TonightCard extends ConsumerWidget {
           _TonightRow(
             icon: LucideIcons.target,
             label: 'Target',
-            value: optimization?.primaryTarget?.targetName ?? 'Planning...',
+            value: targetValue,
             colors: colors,
           ),
           const SizedBox(height: 6),
@@ -157,6 +173,28 @@ class TonightCard extends ConsumerWidget {
                 color: colors.textSecondary,
                 height: 1.35,
               ),
+            ),
+          ],
+          if (optimizationAsync.hasError) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Couldn’t generate tonight’s plan.',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () =>
+                      ref.invalidate(_tonightOptimizationPlanProvider),
+                  icon: const Icon(LucideIcons.refreshCw, size: 13),
+                  label: const Text('Retry'),
+                ),
+              ],
             ),
           ],
           if (optimization != null && optimization.alternates.isNotEmpty) ...[
@@ -233,6 +271,15 @@ class TonightCard extends ConsumerWidget {
     SessionOptimizationPlan plan,
   ) async {
     try {
+      final currentSequence = ref.read(currentSequenceProvider);
+      if (currentSequence != null &&
+          _sequenceAlreadyContainsTarget(currentSequence, target)) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+              content: Text('${target.targetName} is already in sequence.')),
+        );
+        return;
+      }
       final built = await buildPlanTonightTargetSequence(
         ref: ref,
         target: target,
@@ -262,9 +309,41 @@ class TonightCard extends ConsumerWidget {
           SnackBar(content: Text(e.message)),
         );
       }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Could not add target to sequence: $e')),
+        );
+      }
     }
   }
 }
+
+bool _sequenceAlreadyContainsTarget(
+  Sequence sequence,
+  TargetSuggestion target,
+) {
+  final targetNames = <String>{
+    _normalizedTargetName(target.targetName),
+    if (target.catalogId != null) _normalizedTargetName(target.catalogId!),
+  }..remove('');
+  for (final node in sequence.nodes.values.whereType<TargetHeaderNode>()) {
+    if (targetNames.contains(_normalizedTargetName(node.targetName))) {
+      return true;
+    }
+    final raDeltaHours = (node.raHours - target.raHours).abs();
+    final wrappedRaDeltaHours =
+        raDeltaHours > 12 ? 24 - raDeltaHours : raDeltaHours;
+    if (wrappedRaDeltaHours * 15 < 1 / 3600 &&
+        (node.decDegrees - target.decDegrees).abs() < 1 / 3600) {
+      return true;
+    }
+  }
+  return false;
+}
+
+String _normalizedTargetName(String value) =>
+    value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 class _SmartNightTonightAction extends ConsumerStatefulWidget {
   final NightshadeColors colors;
@@ -338,9 +417,44 @@ class _SmartNightTonightActionState
   Future<void> _loadDraft(SmartNightDraft draft) async {
     setState(() => _busy = true);
     try {
-      ref
-          .read(currentSequenceProvider.notifier)
-          .loadSequence(draft.plan.sequence, discardUnsaved: true);
+      final editor = ref.read(currentSequenceProvider.notifier);
+      try {
+        editor.loadSequence(draft.plan.sequence);
+      } on UnsavedChangesException catch (e) {
+        if (!mounted) return;
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Discard unsaved changes?'),
+            content: ConstrainedBox(
+              constraints: AdaptiveDialogConstraints.hybrid(
+                dialogContext,
+                designMaxWidth: 440,
+              ),
+              child: Text(
+                '"${e.currentSequenceName}" has unsaved changes. '
+                'Open tonight\'s Smart Night plan anyway?',
+              ),
+            ),
+            actions: [
+              NightshadeButton(
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+              ),
+              NightshadeButton(
+                label: 'Discard and open',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
+            ],
+          ),
+        );
+        if (discard != true || !mounted) return;
+        editor.loadSequence(draft.plan.sequence, discardUnsaved: true);
+      }
       if (!mounted) return;
       context.showSuccessSnackBar(
         'Smart Night plan loaded - '
@@ -367,6 +481,12 @@ bool _sequenceIsActive(SequenceExecutionState state) {
     case SequenceExecutionState.paused:
     case SequenceExecutionState.stopping:
     case SequenceExecutionState.recovering:
+    // A failed stop (hardware possibly still imaging), a pending cleanup, or an
+    // in-flight finalization are all "active" — Tonight must not offer to launch
+    // over a run that has not settled.
+    case SequenceExecutionState.stopFailed:
+    case SequenceExecutionState.cleanupFailed:
+    case SequenceExecutionState.finalizing:
       return true;
   }
 }
@@ -387,11 +507,11 @@ String _formatRecommendedFilters(SessionOptimizationPlan plan) {
   return '--';
 }
 
-class _TonightTargetActions extends StatelessWidget {
+class _TonightTargetActions extends StatefulWidget {
   final NightshadeColors colors;
   final TargetSuggestion target;
   final VoidCallback onSendToFraming;
-  final VoidCallback onAddToSequencer;
+  final Future<void> Function() onAddToSequencer;
 
   const _TonightTargetActions({
     required this.colors,
@@ -401,17 +521,34 @@ class _TonightTargetActions extends StatelessWidget {
   });
 
   @override
+  State<_TonightTargetActions> createState() => _TonightTargetActionsState();
+}
+
+class _TonightTargetActionsState extends State<_TonightTargetActions> {
+  bool _adding = false;
+
+  Future<void> _addToSequencer() async {
+    if (_adding) return;
+    setState(() => _adding = true);
+    try {
+      await widget.onAddToSequencer();
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         Expanded(
           child: Text(
-            target.catalogId ?? target.targetName,
+            widget.target.catalogId ?? widget.target.targetName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize11,
-              color: colors.textMuted,
+              color: widget.colors.textMuted,
             ),
           ),
         ),
@@ -421,8 +558,12 @@ class _TonightTargetActions extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints.tightFor(width: 32, height: 32),
             padding: EdgeInsets.zero,
-            onPressed: onSendToFraming,
-            icon: Icon(LucideIcons.frame, size: 15, color: colors.primary),
+            onPressed: _adding ? null : widget.onSendToFraming,
+            icon: Icon(
+              LucideIcons.frame,
+              size: 15,
+              color: widget.colors.primary,
+            ),
           ),
         ),
         Tooltip(
@@ -431,8 +572,17 @@ class _TonightTargetActions extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             constraints: const BoxConstraints.tightFor(width: 32, height: 32),
             padding: EdgeInsets.zero,
-            onPressed: onAddToSequencer,
-            icon: Icon(LucideIcons.listPlus, size: 15, color: colors.primary),
+            onPressed: _adding ? null : _addToSequencer,
+            icon: _adding
+                ? const SizedBox.square(
+                    dimension: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    LucideIcons.listPlus,
+                    size: 15,
+                    color: widget.colors.primary,
+                  ),
           ),
         ),
       ],

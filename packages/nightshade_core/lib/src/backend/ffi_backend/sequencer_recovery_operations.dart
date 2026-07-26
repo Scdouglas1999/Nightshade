@@ -140,6 +140,13 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   }
 
   @override
+  Future<void> sequencerUpdateMeridianFlipConfig(String configJson) async {
+    await bridge.NativeBridge.sequencerUpdateMeridianFlipConfig(
+      configJson: configJson,
+    );
+  }
+
+  @override
   Future<void> sequencerUpdateLocation({
     required double latitude,
     required double longitude,
@@ -397,7 +404,9 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
     // FRB now returns SequencerState (no progress); bridge_stub returns SequencerStatus (with progress).
     // Support both to keep mobile stubs working.
     if (status is bridge.SequencerState) {
-      final progress = status.totalExposures > 0
+      final progress = status.state.toLowerCase() == 'completed'
+          ? 1.0
+          : status.totalExposures > 0
           ? status.completedExposures / status.totalExposures
           : (status.totalIntegrationSecs > 0
                 ? status.elapsedSecs / status.totalIntegrationSecs
@@ -417,7 +426,9 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
         state: status.state,
         currentNodeId: status.currentNodeId,
         currentNodeName: status.currentNodeName,
-        progress: status.progress,
+        progress: status.state.toLowerCase() == 'completed'
+            ? 1.0
+            : status.progress.clamp(0.0, 1.0),
         message: status.message,
       );
     }

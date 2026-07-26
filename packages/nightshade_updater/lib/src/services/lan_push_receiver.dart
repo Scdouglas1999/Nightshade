@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/update_manifest.dart';
 import 'archive_extraction.dart';
+import 'update_compatibility.dart';
 import 'update_service.dart' show persistStagedManifest;
 import 'update_verifier.dart';
 
@@ -37,11 +38,14 @@ class LanPushReceiver {
   /// 1 GiB matches the largest legitimate Nightshade installer by an
   /// order of magnitude, which leaves plenty of headroom.
   static const int maxPackageBytes = 1024 * 1024 * 1024;
+  static const int maxManifestBytes = 1024 * 1024;
 
   final String _currentVersion;
   final int _currentBuildNumber;
   final UpdateVerifier _verifier;
   final int _serverPort;
+  final String _currentPlatform;
+  final String _currentArch;
 
   /// Pre-shared key required from push clients for authentication.
   /// Must be set before starting the server. Generate with [generatePushSecret].
@@ -65,10 +69,18 @@ class LanPushReceiver {
     String? pushSecret,
     UpdateVerifier? verifier,
     int serverPort = pushPort,
+    String? currentPlatform,
+    String? currentArch,
   }) : _currentVersion = currentVersion,
        _currentBuildNumber = currentBuildNumber,
        _pushSecret = pushSecret,
        _serverPort = serverPort,
+       _currentPlatform = normalizeUpdatePlatform(
+         currentPlatform ?? currentUpdatePlatform(),
+       ),
+       _currentArch = normalizeUpdateArchitecture(
+         currentArch ?? currentUpdateArchitecture(),
+       ),
        _verifier = verifier ?? UpdateVerifier();
 
   /// Set the pre-shared push secret. Must be called before [startServer].
@@ -92,6 +104,10 @@ class LanPushReceiver {
     'buildNumber': _currentBuildNumber,
     'isReceiving': _receiveState != _ReceiveState.idle,
   };
+
+  /// The actual bound port, useful when [serverPort] was zero and the OS chose
+  /// an ephemeral port.
+  int? get listeningPort => _server?.port;
 
   /// Start listening for LAN push connections.
   /// A push secret must be configured via the constructor or [setPushSecret]
@@ -165,9 +181,14 @@ class LanPushReceiver {
       return;
     }
 
+    final reader = _SocketFrameReader(socket);
     try {
       // --- Authentication phase ---
-      final authenticated = await _authenticateClient(socket, remoteAddress);
+      final authenticated = await _authenticateClient(
+        reader,
+        socket,
+        remoteAddress,
+      );
       if (!authenticated) {
         return; // socket already closed by _authenticateClient
       }
@@ -175,7 +196,7 @@ class LanPushReceiver {
       _receiveState = _ReceiveState.receiving;
       onProgress?.call(0, 0, 0, 'Authenticated connection from $remoteAddress');
 
-      await _receiveUpdate(socket);
+      await _receiveUpdate(reader, socket);
     } catch (e) {
       developer.log(
         'Error receiving update: $e',
@@ -185,6 +206,7 @@ class LanPushReceiver {
       onError?.call(e.toString());
     } finally {
       _releaseReceiveSlot();
+      unawaited(reader.cancel());
       await socket.close();
     }
   }
@@ -208,116 +230,66 @@ class LanPushReceiver {
   /// Authenticate an incoming client connection.
   /// Protocol: client sends [4-byte big-endian length][JSON {"secret":"..."}].
   /// Returns true if authenticated, false otherwise (socket is closed on failure).
-  Future<bool> _authenticateClient(Socket socket, String remoteAddress) async {
-    final authBuffer = BytesBuilder();
-    final completer = Completer<bool>();
-
-    late StreamSubscription<Uint8List> subscription;
-    Timer? timeout;
-
-    timeout = Timer(_authTimeout, () {
-      if (!completer.isCompleted) {
-        developer.log(
-          'Auth timeout from $remoteAddress',
-          name: 'LanPushReceiver',
-          level: 900,
-        );
+  Future<bool> _authenticateClient(
+    _SocketFrameReader reader,
+    Socket socket,
+    String remoteAddress,
+  ) async {
+    try {
+      final header = await reader
+          .readExactly(4)
+          .timeout(_authTimeout, onTimeout: () => null);
+      if (header == null) {
         socket.write(jsonEncode({'auth': 'rejected', 'reason': 'timeout'}));
-        socket.close();
-        subscription.cancel();
-        completer.complete(false);
+        return false;
       }
-    });
+      final authLen = ByteData.sublistView(header).getInt32(0, Endian.big);
+      if (authLen <= 0 || authLen > 4096) {
+        socket.write(
+          jsonEncode({'auth': 'rejected', 'reason': 'invalid frame'}),
+        );
+        return false;
+      }
 
-    subscription = socket.listen(
-      (data) {
-        authBuffer.add(data);
-        final bytes = authBuffer.toBytes();
+      final payload = await reader
+          .readExactly(authLen)
+          .timeout(_authTimeout, onTimeout: () => null);
+      if (payload == null) {
+        socket.write(jsonEncode({'auth': 'rejected', 'reason': 'timeout'}));
+        return false;
+      }
+      final authData = jsonDecode(utf8.decode(payload)) as Map<String, dynamic>;
+      final clientSecret = authData['secret'] as String?;
+      if (clientSecret == null ||
+          !_constantTimeCompare(clientSecret, _pushSecret!)) {
+        developer.log(
+          'Invalid push secret from $remoteAddress',
+          name: 'LanPushReceiver',
+          level: 1000,
+        );
+        socket.write(
+          jsonEncode({'auth': 'rejected', 'reason': 'invalid secret'}),
+        );
+        return false;
+      }
 
-        // Need at least 4 bytes for the length prefix
-        if (bytes.length < 4) return;
-
-        final authLen = ByteData.view(
-          Uint8List.fromList(bytes.sublist(0, 4)).buffer,
-        ).getInt32(0, Endian.big);
-
-        // Sanity check: auth message should be small (< 4KB)
-        if (authLen <= 0 || authLen > 4096) {
-          developer.log(
-            'Invalid auth length $authLen from $remoteAddress',
-            name: 'LanPushReceiver',
-            level: 1000,
-          );
-          socket.write(
-            jsonEncode({'auth': 'rejected', 'reason': 'invalid frame'}),
-          );
-          socket.close();
-          subscription.cancel();
-          timeout?.cancel();
-          if (!completer.isCompleted) completer.complete(false);
-          return;
-        }
-
-        // Wait until we have the full auth message
-        if (bytes.length < 4 + authLen) return;
-
-        // Parse the auth JSON
-        subscription.cancel();
-        timeout?.cancel();
-
-        try {
-          final authJson = utf8.decode(bytes.sublist(4, 4 + authLen));
-          final authData = jsonDecode(authJson) as Map<String, dynamic>;
-          final clientSecret = authData['secret'] as String?;
-
-          if (clientSecret == null ||
-              !_constantTimeCompare(clientSecret, _pushSecret!)) {
-            developer.log(
-              'Invalid push secret from $remoteAddress',
-              name: 'LanPushReceiver',
-              level: 1000,
-            );
-            socket.write(
-              jsonEncode({'auth': 'rejected', 'reason': 'invalid secret'}),
-            );
-            socket.close();
-            if (!completer.isCompleted) completer.complete(false);
-            return;
-          }
-
-          // Authentication successful
-          developer.log(
-            'Authenticated push client from $remoteAddress',
-            name: 'LanPushReceiver',
-            level: 800,
-          );
-          socket.write(jsonEncode({'auth': 'ok'}));
-          if (!completer.isCompleted) completer.complete(true);
-        } catch (e) {
-          developer.log(
-            'Failed to parse auth from $remoteAddress: $e',
-            name: 'LanPushReceiver',
-            level: 1000,
-          );
-          socket.write(
-            jsonEncode({'auth': 'rejected', 'reason': 'parse error'}),
-          );
-          socket.close();
-          if (!completer.isCompleted) completer.complete(false);
-        }
-      },
-      onError: (error) {
-        timeout?.cancel();
-        subscription.cancel();
-        if (!completer.isCompleted) completer.complete(false);
-      },
-      onDone: () {
-        timeout?.cancel();
-        if (!completer.isCompleted) completer.complete(false);
-      },
-    );
-
-    return completer.future;
+      developer.log(
+        'Authenticated push client from $remoteAddress',
+        name: 'LanPushReceiver',
+        level: 800,
+      );
+      socket.write(jsonEncode({'auth': 'ok'}));
+      await socket.flush();
+      return true;
+    } catch (e) {
+      developer.log(
+        'Failed to authenticate $remoteAddress: $e',
+        name: 'LanPushReceiver',
+        level: 1000,
+      );
+      socket.write(jsonEncode({'auth': 'rejected', 'reason': 'parse error'}));
+      return false;
+    }
   }
 
   /// Constant-time string comparison to prevent timing attacks
@@ -331,135 +303,78 @@ class LanPushReceiver {
   }
 
   /// Receive update data from socket
-  Future<void> _receiveUpdate(Socket socket) async {
+  Future<void> _receiveUpdate(_SocketFrameReader reader, Socket socket) async {
     // Protocol:
     // 1. Receive manifest length (4 bytes, big-endian)
     // 2. Receive manifest JSON
     // 3. Receive package data
 
-    final buffer = BytesBuilder();
-    UpdateManifest? manifest;
-    int? manifestLength;
-    int? packageSize;
-    int receivedPackageBytes = 0;
-    File? packageFile;
-    IOSink? packageSink;
+    final manifestHeader = await reader.readExactly(4);
+    if (manifestHeader == null) throw Exception('Incomplete manifest frame');
+    final manifestLength = ByteData.sublistView(
+      manifestHeader,
+    ).getInt32(0, Endian.big);
+    if (manifestLength <= 0 || manifestLength > maxManifestBytes) {
+      throw FormatException(
+        'Invalid update manifest length: $manifestLength bytes',
+      );
+    }
+    onProgress?.call(0, 0, 0, 'Receiving manifest...');
 
+    final manifestBytes = await reader.readExactly(manifestLength);
+    if (manifestBytes == null) throw Exception('Incomplete update manifest');
+    final manifest = UpdateManifest.fromJson(
+      jsonDecode(utf8.decode(manifestBytes)) as Map<String, dynamic>,
+    );
+    final manifestVerified = await _verifier.verifyManifestSignature(manifest);
+    if (!manifestVerified) {
+      throw Exception('Update manifest signature verification failed');
+    }
+    _assertCompatibleManifest(manifest);
+
+    final packageSize = manifest.compressedSize;
+    if (packageSize <= 0 || packageSize > maxPackageBytes) {
+      throw Exception(
+        'Invalid update package size: $packageSize bytes; expected '
+        '1-$maxPackageBytes bytes',
+      );
+    }
+
+    // Do not allocate staging storage until the manifest is authenticated,
+    // compatible with this host, and bounded to a legitimate size.
     final staging = await _getStagingDirectory();
     final packagePath = path.join(staging.path, 'update.zip');
-
-    // Why try/finally: a throw inside the for-await loop (e.g. signature
-    // failure, size-cap breach) used to leak the open package sink and
-    // leave a partial update.zip on disk. Closing in finally guarantees
-    // the file handle is released so the next attempt can re-open it
-    // (and a separate cleanup below removes the partial bytes on
-    // failure).
+    File? packageFile;
+    IOSink? packageSink;
+    var receivedPackageBytes = 0;
     var receiveSucceeded = false;
     try {
-      await for (final chunk in socket) {
-        buffer.add(chunk);
+      packageFile = File(packagePath);
+      packageSink = packageFile.openWrite();
+      socket.write(
+        jsonEncode({'status': 'receiving', 'version': manifest.version}),
+      );
+      await socket.flush();
 
-        // Step 1: Read manifest length
-        if (manifestLength == null && buffer.length >= 4) {
-          final bytes = buffer.takeBytes();
-          manifestLength = ByteData.view(
-            Uint8List.fromList(bytes.sublist(0, 4)).buffer,
-          ).getInt32(0, Endian.big);
-          buffer.add(bytes.sublist(4));
-          onProgress?.call(0, 0, 0, 'Receiving manifest...');
+      while (receivedPackageBytes < packageSize) {
+        final remaining = packageSize - receivedPackageBytes;
+        final chunk = await reader.readAtMost(
+          remaining < 64 * 1024 ? remaining : 64 * 1024,
+        );
+        if (chunk == null) {
+          throw Exception(
+            'Incomplete transfer: expected $packageSize bytes, received '
+            '$receivedPackageBytes',
+          );
         }
-
-        // Step 2: Read manifest JSON
-        if (manifest == null &&
-            manifestLength != null &&
-            buffer.length >= manifestLength) {
-          final bytes = buffer.takeBytes();
-          final manifestJson = utf8.decode(bytes.sublist(0, manifestLength));
-          manifest = UpdateManifest.fromJson(
-            jsonDecode(manifestJson) as Map<String, dynamic>,
-          );
-          // §7A.7: verify signature BEFORE we open update.zip for write
-          // so a forged or unsigned manifest can never trigger
-          // filesystem allocation.
-          final manifestVerified = await _verifier.verifyManifestSignature(
-            manifest,
-          );
-          if (!manifestVerified) {
-            throw Exception('Update manifest signature verification failed');
-          }
-          packageSize = manifest.compressedSize;
-
-          // §7A.7: hard cap independent of manifest. Even after
-          // signature verification we refuse oversized packages to
-          // bound the worst case (e.g. a signed manifest with an
-          // absurdly large size).
-          if (packageSize > maxPackageBytes) {
-            throw Exception(
-              'Update package too large: $packageSize bytes exceeds '
-              'LAN push hard cap of $maxPackageBytes bytes',
-            );
-          }
-
-          // Open file for writing package
-          packageFile = File(packagePath);
-          packageSink = packageFile.openWrite();
-
-          // Write remaining bytes to package
-          final remaining = bytes.sublist(manifestLength);
-          if (remaining.isNotEmpty) {
-            packageSink.add(remaining);
-            receivedPackageBytes += remaining.length;
-          }
-
-          onProgress?.call(
-            receivedPackageBytes,
-            packageSize,
-            receivedPackageBytes / packageSize,
-            'Receiving ${manifest.version}...',
-          );
-
-          // Send acknowledgment
-          socket.write(
-            jsonEncode({'status': 'receiving', 'version': manifest.version}),
-          );
-
-          buffer.clear();
-          continue;
-        }
-
-        // Step 3: Write package data
-        if (manifest != null && packageSink != null) {
-          final bytes = buffer.takeBytes();
-          packageSink.add(bytes);
-          receivedPackageBytes += bytes.length;
-
-          // §7A.7: belt-and-suspenders cap on accumulated bytes. The
-          // earlier manifest-size check is the primary defence; this
-          // guards against a future code path that lets bytes through
-          // without honouring `packageSize` (e.g. resumable transfers).
-          if (receivedPackageBytes > maxPackageBytes) {
-            throw Exception(
-              'LAN push exceeded hard cap of $maxPackageBytes bytes '
-              '(received $receivedPackageBytes)',
-            );
-          }
-
-          onProgress?.call(
-            receivedPackageBytes,
-            packageSize!,
-            receivedPackageBytes / packageSize,
-            'Receiving ${manifest.version}...',
-          );
-
-          // Break out of loop once we've received all expected bytes
-          if (receivedPackageBytes >= packageSize!) {
-            developer.log(
-              'All $receivedPackageBytes bytes received, breaking out of receive loop',
-              name: 'LanPushReceiver',
-            );
-            break;
-          }
-        }
+        packageSink.add(chunk);
+        receivedPackageBytes += chunk.length;
+        onProgress?.call(
+          receivedPackageBytes,
+          packageSize,
+          receivedPackageBytes / packageSize,
+          'Receiving ${manifest.version}...',
+        );
       }
       receiveSucceeded = true;
     } finally {
@@ -487,10 +402,6 @@ class LanPushReceiver {
       }
     }
 
-    if (manifest == null || packageFile == null) {
-      throw Exception('Incomplete transfer');
-    }
-
     // Verify package size
     final actualSize = await packageFile.length();
     if (actualSize != manifest.compressedSize) {
@@ -498,6 +409,14 @@ class LanPushReceiver {
       throw Exception(
         'Size mismatch: expected ${manifest.compressedSize}, got $actualSize',
       );
+    }
+
+    final packageHash = manifest.packageSha256;
+    if (packageHash == null ||
+        packageHash.isEmpty ||
+        !await _verifier.verifyFile(packageFile, packageHash)) {
+      await packageFile.delete();
+      throw Exception('Update package SHA-256 verification failed');
     }
 
     final extractPath = await extractVerifyAndStage(
@@ -538,10 +457,8 @@ class LanPushReceiver {
   /// per-file hashing never gains a verified marker and
   /// [UpdateService.applyUpdate] keeps refusing it (§7A.9).
   ///
-  /// Exposed for tests: the socket-driven [_receiveUpdate] entry point owns
-  /// a single-subscription [Socket] that cannot be re-driven in isolation,
-  /// but the staging behaviour this method performs is exactly what
-  /// PERSIST-001 guarantees.
+  /// Exposed for tests so the verified staging handoff can be exercised
+  /// without opening a TCP listener.
   @visibleForTesting
   Future<String> extractVerifyAndStage(
     Directory staging,
@@ -549,6 +466,7 @@ class LanPushReceiver {
     UpdateManifest manifest,
     int packageBytes,
   ) async {
+    _assertCompatibleManifest(manifest);
     onProgress?.call(packageBytes, packageBytes, 1.0, 'Extracting...');
 
     // Extract package
@@ -598,6 +516,15 @@ class LanPushReceiver {
     return extractDir.path;
   }
 
+  void _assertCompatibleManifest(UpdateManifest manifest) {
+    final incompatibility = incompatibleUpdateTargetMessage(
+      manifest,
+      currentPlatform: _currentPlatform,
+      currentArch: _currentArch,
+    );
+    if (incompatibility != null) throw Exception(incompatibility);
+  }
+
   /// Get staging directory
   Future<Directory> _getStagingDirectory() async {
     final appData = await getApplicationSupportDirectory();
@@ -615,3 +542,37 @@ class LanPushReceiver {
 }
 
 enum _ReceiveState { idle, authenticating, receiving }
+
+/// One subscription shared by authentication and update transfer. TCP can
+/// coalesce both protocol frames into one chunk, so leftover bytes must remain
+/// available when the authentication phase hands off to the manifest phase.
+class _SocketFrameReader {
+  final StreamIterator<Uint8List> _chunks;
+  List<int> _buffer = const [];
+
+  _SocketFrameReader(Stream<Uint8List> stream)
+    : _chunks = StreamIterator<Uint8List>(stream);
+
+  Future<Uint8List?> readExactly(int length) async {
+    while (_buffer.length < length) {
+      if (!await _chunks.moveNext()) return null;
+      _buffer = [..._buffer, ..._chunks.current];
+    }
+    final result = Uint8List.fromList(_buffer.sublist(0, length));
+    _buffer = _buffer.sublist(length);
+    return result;
+  }
+
+  Future<Uint8List?> readAtMost(int maxLength) async {
+    if (_buffer.isEmpty) {
+      if (!await _chunks.moveNext()) return null;
+      _buffer = _chunks.current;
+    }
+    final length = _buffer.length < maxLength ? _buffer.length : maxLength;
+    final result = Uint8List.fromList(_buffer.sublist(0, length));
+    _buffer = _buffer.sublist(length);
+    return result;
+  }
+
+  Future<void> cancel() => _chunks.cancel();
+}

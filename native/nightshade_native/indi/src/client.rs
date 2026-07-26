@@ -2263,7 +2263,25 @@ impl IndiClient {
                     names.push(elem.clone());
                 }
             }
-            return Ok(names);
+            if !names.is_empty() {
+                return Ok(names);
+            }
+        }
+
+        // Fallback: the driver published no FILTER_NAME property (optional in
+        // INDI) or an empty one. Synthesize generic names from the FILTER_SLOT
+        // count so a fresh install (no saved profile) still shows the wheel's
+        // slots instead of an empty list (see IndiFilterWheel::get_names).
+        if let Some(limits) = self
+            .get_number_limits(device, "FILTER_SLOT", "FILTER_SLOT_VALUE")
+            .await
+        {
+            if let (Some(min), Some(max)) = (limits.min, limits.max) {
+                let count = (max - min + 1.0).max(0.0) as usize;
+                if (1..=64).contains(&count) {
+                    return Ok((1..=count).map(|i| format!("Filter {i}")).collect());
+                }
+            }
         }
 
         Ok(Vec::new())

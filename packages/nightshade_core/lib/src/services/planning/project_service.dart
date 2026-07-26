@@ -450,9 +450,11 @@ const String projectTargetsTargetIndexSql = _projectTargetsTargetIndex;
 
 final projectServiceProvider = Provider<ProjectService>((ref) {
   final backend = ref.watch(backendProvider);
-  return ProjectService(
+  final service = ProjectService(
     ref.watch(databaseProvider),
     ref.watch(integrationGoalServiceProvider),
     remote: backend is NetworkBackend ? backend : null,
   );
+  ref.onDispose(() => service.dispose());
+  return service;
 });

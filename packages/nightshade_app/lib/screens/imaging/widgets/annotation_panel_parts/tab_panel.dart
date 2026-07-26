@@ -24,6 +24,24 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
   bool _isReAnnotating = false;
   bool _isSaving = false;
 
+  Future<void> _runPanelAction(
+    Future<void> Function() action,
+    String failureMessage,
+  ) async {
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$failureMessage: $error'),
+          backgroundColor: NightshadeColors.of(context).error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
   Future<void> _handleReAnnotate() async {
     if (_isReAnnotating) return;
     setState(() => _isReAnnotating = true);
@@ -31,6 +49,15 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
     try {
       final annotationService = ref.read(annotationServiceProvider);
       await annotationService.reAnnotate();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Re-annotation failed: $error'),
+            backgroundColor: NightshadeColors.of(context).error,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isReAnnotating = false);
@@ -47,67 +74,41 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
       return;
     }
 
-    final imagePath = currentImage.filePath;
-    if (imagePath == null) {
-      return;
-    }
-
     setState(() => _isSaving = true);
 
     try {
-      final settings = ref.read(annotationSettingsProvider).valueOrNull ??
-          const AnnotationSettings();
-      final markerStyle = ref.read(annotationMarkerStyleProvider).valueOrNull ??
-          const AnnotationMarkerStyle();
-
-      final width = currentImage.width;
-      final height = currentImage.height;
-
-      final baseImage = await _rgbaBufferToImage(
-        currentImage.displayData,
-        width,
-        height,
+      final savePath = await ref.read(annotationPngSavePickerProvider)(
+        annotationPngSuggestedName(
+          sourcePath: currentImage.filePath,
+          capturedAt: currentImage.capturedAt,
+        ),
       );
+      if (savePath == null || !mounted) return;
 
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
+      final settingsFuture = ref.read(annotationSettingsProvider.future);
+      final markerStyleFuture = ref.read(annotationMarkerStyleProvider.future);
+      final settings = await settingsFuture;
+      final markerStyle = await markerStyleFuture;
+      if (!mounted) return;
 
-      canvas.drawImage(baseImage, Offset.zero, Paint());
-
-      final painter = EnhancedAnnotationPainter(
+      await renderAnnotatedImagePng(
+        rgbaBytes: currentImage.displayData,
+        width: currentImage.width,
+        height: currentImage.height,
         annotation: annotation,
         settings: settings,
         markerStyle: markerStyle,
-        zoomLevel: 1.0,
-        imageOffset: Offset.zero,
+        outputPath: savePath,
+        writeBytes: ref.read(annotationPngWriterProvider),
       );
-      painter.paint(canvas, Size(width.toDouble(), height.toDouble()));
-
-      final picture = recorder.endRecording();
-      final compositeImage = await picture.toImage(width, height);
-      final pngData =
-          await compositeImage.toByteData(format: ui.ImageByteFormat.png);
-
-      if (pngData == null) {
-        throw StateError('Failed to encode annotated image as PNG');
-      }
-
-      final dir = p.dirname(imagePath);
-      final baseName = p.basenameWithoutExtension(imagePath);
-      final savePath = p.join(dir, '${baseName}_annotated.png');
-
-      final outFile = File(savePath);
-      await outFile.writeAsBytes(pngData.buffer.asUint8List());
-
-      baseImage.dispose();
-      compositeImage.dispose();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Annotated image saved to $savePath'),
-            duration: const Duration(seconds: 4),
-          ),
+        await revealExportedFile(
+          context,
+          savePath,
+          subject: 'Annotated image',
+          desktopMessage: 'Annotated image saved to $savePath',
+          desktopDuration: const Duration(seconds: 4),
         );
       }
     } catch (e) {
@@ -125,22 +126,6 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
         setState(() => _isSaving = false);
       }
     }
-  }
-
-  Future<ui.Image> _rgbaBufferToImage(
-    Uint8List rgbaBytes,
-    int width,
-    int height,
-  ) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      rgbaBytes,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-    return completer.future;
   }
 
   void _onObjectSelected(CelestialObjectAnnotation object) {
@@ -221,11 +206,15 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
 
   Future<void> _applyPreset(String name) async {
     try {
-      // Search both built-in and user presets
-      final userPresets =
-          ref.read(annotationPresetsProvider).valueOrNull ?? const [];
-      final allPresets = [...builtInAnnotationPresets, ...userPresets];
-      final preset = allPresets.where((p) => p.name == name).firstOrNull;
+      var preset = builtInAnnotationPresets
+          .where((candidate) => candidate.name == name)
+          .firstOrNull;
+      if (preset == null) {
+        final userPresets = await ref.read(annotationPresetsProvider.future);
+        preset = userPresets
+            .where((candidate) => candidate.name == name)
+            .firstOrNull;
+      }
       if (preset == null) {
         throw StateError('Preset "$name" not found');
       }
@@ -295,14 +284,29 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
   @override
   Widget build(BuildContext context) {
     final annotation = ref.watch(currentAnnotationProvider);
-    final settings = ref.watch(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settingsAsync = ref.watch(annotationSettingsProvider);
+    if (settingsAsync.hasError) {
+      return _annotationAuthorityState(
+        colors: widget.colors,
+        label: 'annotation settings',
+        error: settingsAsync.error,
+        onRetry: () => ref.invalidate(annotationSettingsProvider),
+      );
+    }
+    if (!settingsAsync.hasValue) {
+      return _annotationAuthorityState(
+        colors: widget.colors,
+        label: 'annotation settings',
+        onRetry: () => ref.invalidate(annotationSettingsProvider),
+      );
+    }
+    final settings = settingsAsync.requireValue;
     final sortMode = ref.watch(annotationPanelSortModeProvider);
     final selectedObject = ref.watch(selectedAnnotationObjectProvider);
     final presetsAsync = ref.watch(annotationPresetsProvider);
     final presets = [
       ...builtInAnnotationPresets,
-      ...(presetsAsync.valueOrNull ?? const [])
+      ...?presetsAsync.valueOrNull,
     ];
     final objects = annotation?.objects ?? [];
 
@@ -501,9 +505,15 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                 onSelected: (value) {
                   switch (value) {
                     case 'csv':
-                      unawaited(_exportCsv(displayableObjects));
+                      unawaited(_runPanelAction(
+                        () => _exportCsv(displayableObjects),
+                        'CSV export failed',
+                      ));
                     case 'ds9':
-                      unawaited(_exportDs9(displayableObjects));
+                      unawaited(_runPanelAction(
+                        () => _exportDs9(displayableObjects),
+                        'DS9 export failed',
+                      ));
                   }
                 },
                 itemBuilder: (context) => [
@@ -556,7 +566,9 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                 elevation: 0,
                 shape: _annotationMenuShape(widget.colors),
                 onSelected: (value) {
-                  if (value == '_save_as_preset') {
+                  if (value == '_retry_presets') {
+                    ref.invalidate(annotationPresetsProvider);
+                  } else if (value == '_save_as_preset') {
                     unawaited(_saveAsPreset());
                   } else if (value.startsWith('_delete:')) {
                     unawaited(_deletePreset(value.substring(8)));
@@ -607,21 +619,69 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                       ),
                     ));
                   }
+                  if (presetsAsync.hasError) {
+                    items.add(
+                      PopupMenuItem(
+                        enabled: false,
+                        child: Text(
+                          'Saved presets unavailable: ${presetsAsync.error}',
+                          style: TextStyle(
+                            color: widget.colors.error,
+                            fontSize: NightshadeTypography.fontSize11,
+                          ),
+                        ),
+                      ),
+                    );
+                    items.add(
+                      PopupMenuItem(
+                        value: '_retry_presets',
+                        child: Text(
+                          'Retry saved presets',
+                          style: TextStyle(
+                            color: widget.colors.primary,
+                            fontSize: NightshadeTypography.fontSize12,
+                          ),
+                        ),
+                      ),
+                    );
+                  } else if (!presetsAsync.hasValue) {
+                    items.add(
+                      const PopupMenuItem(
+                        enabled: false,
+                        child: Text('Loading saved presets…'),
+                      ),
+                    );
+                  }
                   items.add(const PopupMenuDivider());
-                  items.add(PopupMenuItem(
-                    value: '_save_as_preset',
-                    child: Row(
-                      children: [
-                        Icon(NightshadeIcons.save,
-                            size: 14, color: widget.colors.primary),
-                        const SizedBox(width: 8),
-                        Text('Save as Preset',
+                  items.add(
+                    PopupMenuItem(
+                      value: '_save_as_preset',
+                      enabled: presetsAsync.hasValue && !presetsAsync.hasError,
+                      child: Row(
+                        children: [
+                          Icon(
+                            NightshadeIcons.save,
+                            size: 14,
+                            color:
+                                presetsAsync.hasValue && !presetsAsync.hasError
+                                    ? widget.colors.primary
+                                    : widget.colors.textMuted,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Save as Preset',
                             style: TextStyle(
-                                color: widget.colors.primary,
-                                fontSize: NightshadeTypography.fontSize12)),
-                      ],
+                              color: presetsAsync.hasValue &&
+                                      !presetsAsync.hasError
+                                  ? widget.colors.primary
+                                  : widget.colors.textMuted,
+                              fontSize: NightshadeTypography.fontSize12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ));
+                  );
                   return items;
                 },
                 child: Padding(
@@ -683,11 +743,12 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                         .contains(AnnotationObjectFilter.stars),
                     colors: widget.colors,
                     onTap: () {
-                      unawaited(
-                        ref
+                      unawaited(_runPanelAction(
+                        () => ref
                             .read(annotationSettingsProvider.notifier)
                             .toggleObjectType(AnnotationObjectFilter.stars),
-                      );
+                        'Could not save annotation filters',
+                      ));
                     },
                   ),
                   AnnotationQuickSettingChip(
@@ -695,11 +756,12 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     isSelected: settings.showLabels,
                     colors: widget.colors,
                     onTap: () {
-                      unawaited(
-                        ref
+                      unawaited(_runPanelAction(
+                        () => ref
                             .read(annotationSettingsProvider.notifier)
                             .setShowLabels(!settings.showLabels),
-                      );
+                        'Could not save label visibility',
+                      ));
                     },
                   ),
                   AnnotationQuickSettingChip(
@@ -707,11 +769,12 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     isSelected: settings.showMagnitudes,
                     colors: widget.colors,
                     onTap: () {
-                      unawaited(
-                        ref
+                      unawaited(_runPanelAction(
+                        () => ref
                             .read(annotationSettingsProvider.notifier)
                             .setShowMagnitudes(!settings.showMagnitudes),
-                      );
+                        'Could not save magnitude visibility',
+                      ));
                     },
                   ),
                   AnnotationQuickSettingChip(
@@ -720,11 +783,12 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     isSelected: settings.compassEnabled,
                     colors: widget.colors,
                     onTap: () {
-                      unawaited(
-                        ref
+                      unawaited(_runPanelAction(
+                        () => ref
                             .read(annotationSettingsProvider.notifier)
                             .setCompassEnabled(!settings.compassEnabled),
-                      );
+                        'Could not save compass visibility',
+                      ));
                     },
                   ),
                   AnnotationQuickSettingChip(
@@ -734,11 +798,12 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     isSelected: settings.scaleBarEnabled,
                     colors: widget.colors,
                     onTap: () {
-                      unawaited(
-                        ref
+                      unawaited(_runPanelAction(
+                        () => ref
                             .read(annotationSettingsProvider.notifier)
                             .setScaleBarEnabled(!settings.scaleBarEnabled),
-                      );
+                        'Could not save scale-bar visibility',
+                      ));
                     },
                   ),
                   AnnotationQuickSettingChip(
@@ -748,12 +813,13 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     isSelected: settings.showSolveResiduals,
                     colors: widget.colors,
                     onTap: () {
-                      unawaited(
-                        ref
+                      unawaited(_runPanelAction(
+                        () => ref
                             .read(annotationSettingsProvider.notifier)
                             .setShowSolveResiduals(
                                 !settings.showSolveResiduals),
-                      );
+                        'Could not save residual visibility',
+                      ));
                     },
                   ),
                 ],
@@ -782,7 +848,10 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                       } else {
                         updated.addAll(typeFilters);
                       }
-                      unawaited(notifier.setObjectTypes(updated));
+                      unawaited(_runPanelAction(
+                        () => notifier.setObjectTypes(updated),
+                        'Could not save annotation filters',
+                      ));
                     },
                   );
                 }).toList(),
@@ -792,18 +861,17 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                 alignment: Alignment.centerLeft,
                 child: NightshadeButton(
                   onPressed: () {
-                    unawaited(
-                      ref
+                    unawaited(_runPanelAction(
+                      () => ref
                           .read(annotationSettingsProvider.notifier)
-                          .setObjectTypes(
-                        {
-                          AnnotationObjectFilter.galaxies,
-                          AnnotationObjectFilter.nebulae,
-                          AnnotationObjectFilter.starClusters,
-                          AnnotationObjectFilter.planetaryNebulae,
-                        },
-                      ),
-                    );
+                          .setObjectTypes({
+                        AnnotationObjectFilter.galaxies,
+                        AnnotationObjectFilter.nebulae,
+                        AnnotationObjectFilter.starClusters,
+                        AnnotationObjectFilter.planetaryNebulae,
+                      }),
+                      'Could not reset annotation filters',
+                    ));
                   },
                   label: 'Reset to defaults',
                   variant: ButtonVariant.ghost,

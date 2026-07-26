@@ -163,11 +163,11 @@ class ScienceLadderCard extends ConsumerWidget {
   void _runCta(BuildContext context, WidgetRef ref, ScienceRung rung) {
     switch (rung) {
       case ScienceRung.measure:
+        onJumpToFieldQuality();
       case ScienceRung.track:
       case ScienceRung.curve:
-        onJumpToPhotometry();
       case ScienceRung.period:
-        onJumpToFieldQuality();
+        onJumpToPhotometry();
       case ScienceRung.contribute:
         onOpenExport();
     }

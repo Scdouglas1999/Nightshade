@@ -27,7 +27,9 @@ Future<HeadlessApiServer> startHeadlessServices(
   required LoggingService logger,
   String? authToken,
   Map<String, HeadlessTokenScope> scopedAuthTokens = const {},
+  Map<String, HeadlessAuthGrant> fineGrainedAuthTokens = const {},
   bool requireAuth = false,
+  bool allowUnauthenticated = false,
   bool bindLocalOnly = true,
   int port = 8080,
   List<String> corsAllowedOrigins = const [],
@@ -38,7 +40,12 @@ Future<HeadlessApiServer> startHeadlessServices(
   String? tlsKeyPath,
 }) async {
   try {
-    container.read(databaseProvider);
+    final database = container.read(databaseProvider);
+    // Constructing Drift's lazy database does not load sqlite or open the
+    // file. Execute a real query before binding the API so a missing native
+    // runtime cannot leave a server that advertises healthy endpoints while
+    // every database-backed request hangs.
+    await database.customSelect('SELECT 1').getSingle();
     logger.info('Database initialized', source: _headlessLogSource);
   } catch (e) {
     logger.critical(
@@ -87,12 +94,27 @@ Future<HeadlessApiServer> startHeadlessServices(
   // open happens the first time a query runs.
   final pairingService = PairingService();
 
+  // Crash recovery is a production feature, not an opt-in API call. Configure
+  // its durable directory before accepting requests so the first sequence and
+  // `/api/sequencer/checkpoint/save` share the same checkpoint manager.
+  final checkpointSupportDir = await getApplicationSupportDirectory();
+  final checkpointDir = Directory(
+    '${checkpointSupportDir.path}${Platform.pathSeparator}checkpoints',
+  );
+  await checkpointDir.create(recursive: true);
+  await container
+      .read(sequenceExecutorProvider)
+      .initializeCheckpoints(checkpointDir.path);
+  logger.info('Sequencer checkpoints initialized', source: _headlessLogSource);
+
   final apiServer = HeadlessApiServer(
     port: port,
     container: container,
     authToken: authToken,
     scopedAuthTokens: scopedAuthTokens,
+    fineGrainedAuthTokens: fineGrainedAuthTokens,
     requireAuth: requireAuth,
+    allowUnauthenticated: allowUnauthenticated,
     bindLocalOnly: bindLocalOnly,
     corsAllowedOrigins: corsAllowedOrigins,
     pairingPrintCodes: pairingPrintCodes,
@@ -199,10 +221,9 @@ Future<HeadlessApiServer> startHeadlessServices(
   // the rig even when the server is loopback-only behind a reverse proxy. The
   // delivery is chosen from push_config.json (app-support dir, or the
   // NIGHTSHADE_PUSH_CONFIG override): the real FCM/APNs senders activate when
-  // the operator supplies a service-account JSON / .p8 key, otherwise the
-  // no-cloud mock delivery is the default. The mock exercises the full
-  // recipient lookup (device_push_tokens) + per-device preference gate
-  // (device_push_prefs) and logs each "would-send" frame.
+  // the operator supplies a service-account JSON / .p8 key. With no cloud
+  // channel the cellular path stays disabled; a would-send mock is permitted
+  // only when the operator explicitly sets `mock:true` for development.
   try {
     final pushAppSupportDir = await getApplicationSupportDirectory();
     final delivery = await apiServer.wireRemotePushDelivery(

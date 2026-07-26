@@ -91,6 +91,14 @@ class SequencerRunVitals {
   final int ditherCount;
   final List<String> warningMessages;
 
+  /// Errors recorded against the live run.
+  ///
+  /// The wire shape used to carry warnings only, so a remote/headless operator
+  /// could not see that (for example) a meridian flip had failed — the run read
+  /// as healthy right up to the terminal event. Defaulted to `const []` so an
+  /// older master that omits the key still deserializes.
+  final List<String> errorMessages;
+
   const SequencerRunVitals({
     required this.startTime,
     this.endTime,
@@ -102,6 +110,7 @@ class SequencerRunVitals {
     required this.meridianFlips,
     required this.ditherCount,
     this.warningMessages = const [],
+    this.errorMessages = const [],
   });
 
   factory SequencerRunVitals.fromJson(Map<String, dynamic> json) {
@@ -122,6 +131,8 @@ class SequencerRunVitals {
       warningMessages:
           (json['warningMessages'] as List<dynamic>?)?.cast<String>() ??
           const [],
+      errorMessages:
+          (json['errorMessages'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 
@@ -136,6 +147,7 @@ class SequencerRunVitals {
     'meridianFlips': meridianFlips,
     'ditherCount': ditherCount,
     'warningMessages': warningMessages,
+    'errorMessages': errorMessages,
   };
 }
 

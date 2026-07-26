@@ -3,9 +3,11 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../constellation_format.dart';
 
-/// A slim two-tone bar showing your share of a shared target's fused depth:
-/// your contribution filled in the accent, the rest of the swarm in a muted
-/// track, with a `2.1h of 12h (18%)` caption beneath.
+/// A slim two-tone bar showing the local imaging depth you could still add to a
+/// shared target: your local depth filled in the accent against the swarm's
+/// fused total, with a `2.1h available to contribute` caption beneath. This is
+/// what you hold locally — not an already-donated share (contributing is a
+/// separate, explicit step).
 ///
 /// Pure presentation — the seconds are resolved by the caller's provider.
 class ContributionBar extends StatelessWidget {
@@ -31,7 +33,7 @@ class ContributionBar extends StatelessWidget {
         Row(
           children: [
             Text(
-              'Your contribution',
+              'Your local depth',
               style: NightshadeTypography.labelSm.copyWith(
                 color: colors.textSecondary,
               ),

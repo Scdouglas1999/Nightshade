@@ -1,8 +1,7 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomSafetyMonitor};
+use nightshade_ascom::AscomSafetyMonitor;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -22,37 +21,40 @@ enum AscomSafetyMonitorCommand {
 
 pub struct AscomSafetyMonitorWrapper {
     sender: mpsc::Sender<AscomSafetyMonitorCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
 }
 
 impl AscomSafetyMonitorWrapper {
     pub fn new(prog_id: String) -> Result<Self, String> {
         let (tx, mut rx) = mpsc::channel(32);
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
         let prog_id_clone = prog_id.clone();
 
-        let handle = thread::spawn(move || {
-            if let Err(error) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", error)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did.
+        register_device(move || {
             let mut safety_monitor = match AscomSafetyMonitor::new(&prog_id_clone) {
                 Ok(safety_monitor) => safety_monitor,
                 Err(error) => {
-                    let _ = init_tx.send(Err(format!(
-                        "Failed to create ASCOM safety monitor: {}",
-                        error
-                    )));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM safety monitor: {}", error));
                 }
             };
 
-            let _ = init_tx.send(Ok(()));
-
-            while let Some(command) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let command = match rx.try_recv() {
+                    Ok(command) => command,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — the typed
+                        // `AscomSafetyMonitor` (and its IDispatch) is released
+                        // when this closure is dropped, still on the STA worker
+                        // thread that owns the apartment. The apartment persists
+                        // for the process lifetime, so COM is NOT uninitialized
+                        // here.
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match command {
                     AscomSafetyMonitorCommand::Connect(reply) => {
                         let _ = reply.send(safety_monitor.connect());
@@ -76,18 +78,13 @@ impl AscomSafetyMonitorWrapper {
                         let _ = reply.send(safety_monitor.supported_actions());
                     }
                 }
-            }
-
-            uninit_com();
-        });
-
-        init_rx
-            .recv()
-            .map_err(|error| format!("Failed to receive init result: {}", error))??;
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
         Ok(Self {
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
         })
     }
@@ -190,13 +187,14 @@ impl AscomSafetyMonitorWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomSafetyMonitorWrapper
     where
         F: FnMut(AscomSafetyMonitorCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -206,7 +204,6 @@ mod tests {
         });
         AscomSafetyMonitorWrapper {
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
         }
     }

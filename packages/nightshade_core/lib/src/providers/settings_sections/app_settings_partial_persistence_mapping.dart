@@ -115,6 +115,8 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     // Guider settle (calibration).
     'settle_threshold',
     'settle_timeout',
+    'settle_time',
+    'dither_ra_only',
     // Plate-solving extra.
     'plate_solver',
     'blind_solve',
@@ -464,6 +466,12 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       settleTimeout: settings.containsKey('settle_timeout')
           ? _parseInt(settings['settle_timeout'], current.settleTimeout)
+          : null,
+      settleTime: settings.containsKey('settle_time')
+          ? _parseInt(settings['settle_time'], current.settleTime)
+          : null,
+      ditherRaOnly: settings.containsKey('dither_ra_only')
+          ? _parseBool(settings['dither_ra_only'], current.ditherRaOnly)
           : null,
       bortleClass: settings.containsKey('bortle_class')
           ? _parseInt(settings['bortle_class'], current.bortleClass)

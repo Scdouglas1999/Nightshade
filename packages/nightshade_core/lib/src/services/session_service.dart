@@ -124,6 +124,12 @@ class SessionService {
   SessionStats? _currentStats;
   DateTime? _lastCheckpoint;
   int _imagesSinceCheckpoint = 0;
+  Future<void>? _checkpointDrain;
+  bool _checkpointRequested = false;
+  Future<int>? _startInFlight;
+  Future<void>? _endInFlight;
+  int _sessionGeneration = 0;
+  bool _disposed = false;
 
   // Status tracking
   final _statusController = StreamController<String>.broadcast();
@@ -157,17 +163,47 @@ class SessionService {
 
   /// Start a new imaging session
   /// Returns the session ID
-  Future<int> startSession({
+  Future<int> startSession({String? name, int? targetId, int? profileId}) {
+    if (_disposed) {
+      return Future<int>.error(
+        StateError('Cannot start a session after SessionService disposal.'),
+      );
+    }
+    final activeStart = _startInFlight;
+    if (activeStart != null) return activeStart;
+    if (_endInFlight != null) {
+      return Future<int>.error(
+        StateError('Cannot start a session while the previous one is ending.'),
+      );
+    }
+    if (_currentSessionId != null) {
+      return Future<int>.error(
+        Exception(
+          'Session already active. End current session before starting a new one.',
+        ),
+      );
+    }
+
+    late final Future<int> operation;
+    operation =
+        _startSessionOnce(
+          name: name,
+          targetId: targetId,
+          profileId: profileId,
+        ).whenComplete(() {
+          if (identical(_startInFlight, operation)) {
+            _startInFlight = null;
+          }
+        });
+    _startInFlight = operation;
+    return operation;
+  }
+
+  Future<int> _startSessionOnce({
     String? name,
     int? targetId,
     int? profileId,
   }) async {
-    if (_currentSessionId != null) {
-      throw Exception(
-        'Session already active. End current session before starting a new one.',
-      );
-    }
-
     _logger.debug('Starting new session...', source: 'SessionService');
     _logger.debug('  Name: $name', source: 'SessionService');
     _logger.debug('  Target ID: $targetId', source: 'SessionService');
@@ -179,8 +215,21 @@ class SessionService {
       profileId: profileId,
       targetId: targetId,
     );
+    if (_disposed) {
+      try {
+        await _records.endSession(sessionId, status: 'aborted');
+      } catch (error) {
+        _logger.error(
+          'Could not abort session $sessionId after SessionService was '
+          'disposed during startup: $error',
+          source: 'SessionService',
+        );
+      }
+      throw StateError('SessionService was disposed while starting a session.');
+    }
 
     // Initialize tracking
+    _sessionGeneration++;
     _currentSessionId = sessionId;
     _currentStats = SessionStats(lastUpdated: _now());
     _lastCheckpoint = _now();
@@ -191,7 +240,7 @@ class SessionService {
       _startCheckpointTimer();
     }
 
-    _statusController.add('Session started: ID $sessionId');
+    _emitStatus('Session started: ID $sessionId');
     _logger.info(
       'Session started with ID: $sessionId',
       source: 'SessionService',
@@ -237,30 +286,66 @@ class SessionService {
     await _performCheckpoint();
   }
 
-  /// End the current session with finalization
-  Future<void> endSession({String status = 'completed'}) async {
-    if (_currentSessionId == null) {
+  /// End the current session with finalization.
+  ///
+  /// Transactional: the durable writes run FIRST and the in-memory session
+  /// identity / stats / checkpoint timer are cleared ONLY after they all
+  /// succeed. If any write throws we rethrow WITHOUT clearing, so the session
+  /// stays active and the caller (e.g. SequenceExecutor's `cleanupFailed`
+  /// retry, or a later `endSession`) can re-run this and actually finalize the
+  /// row. The previous implementation cleared identity in a `finally` even on
+  /// failure, which left the DB row stuck `active` forever and made a retry a
+  /// ineffective retry (the early-return above would fire).
+  Future<void> endSession({String status = 'completed'}) {
+    if (_disposed) {
+      return Future<void>.error(
+        StateError('Cannot end a session after SessionService disposal.'),
+      );
+    }
+    final activeEnd = _endInFlight;
+    if (activeEnd != null) return activeEnd;
+
+    late final Future<void> operation;
+    operation = _endSessionOnce(status: status).whenComplete(() {
+      if (identical(_endInFlight, operation)) {
+        _endInFlight = null;
+      }
+    });
+    _endInFlight = operation;
+    return operation;
+  }
+
+  Future<void> _endSessionOnce({required String status}) async {
+    // A Stop/Abort tap can race a slow host-side Start. Wait for the admitted
+    // start to establish its durable id, then finalize that exact session;
+    // returning early here would leave a session running with no visible owner.
+    final pendingStart = _startInFlight;
+    if (pendingStart != null) await pendingStart;
+
+    final sessionId = _currentSessionId;
+    if (sessionId == null) {
       _logger.debug('No active session to end', source: 'SessionService');
       return;
     }
 
     _logger.info(
-      'Ending session $_currentSessionId with status: $status',
+      'Ending session $sessionId with status: $status',
       source: 'SessionService',
     );
 
+    // Calculate final statistics
+    final stats = _currentStats ?? SessionStats(lastUpdated: _now());
+
     try {
-      // Perform final checkpoint to save latest stats
+      // Perform final checkpoint to save latest stats (self-guarded; never
+      // throws — its own failure is logged, not propagated).
       if (_currentStats != null) {
         await _performCheckpoint();
       }
 
-      // Calculate final statistics
-      final stats = _currentStats ?? SessionStats(lastUpdated: DateTime.now());
-
       // Update session with final statistics and status
       await _records.updateSessionStats(
-        _currentSessionId!,
+        sessionId,
         totalExposures: stats.completedExposures + stats.failedExposures,
         successfulExposures: stats.completedExposures,
         failedExposures: stats.failedExposures,
@@ -271,37 +356,44 @@ class SessionService {
       );
 
       // Set end time and status
-      await _records.endSession(_currentSessionId!, status: status);
-
-      _statusController.add('Session ended: $_currentSessionId ($status)');
-      _logger.info('Session finalized', source: 'SessionService');
-      _logger.debug(
-        '  Completed: ${stats.completedExposures}',
-        source: 'SessionService',
-      );
-      _logger.debug(
-        '  Failed: ${stats.failedExposures}',
-        source: 'SessionService',
-      );
-      _logger.debug(
-        '  Integration: ${stats.totalIntegrationSecs}s',
-        source: 'SessionService',
-      );
-      _logger.debug(
-        '  Success rate: ${(stats.successRate * 100).toStringAsFixed(1)}%',
-        source: 'SessionService',
-      );
+      await _records.endSession(sessionId, status: status);
     } catch (e) {
-      _logger.error('Error ending session: $e', source: 'SessionService');
+      _logger.error(
+        'Error ending session $sessionId (retaining the active session so it '
+        'can be retried): $e',
+        source: 'SessionService',
+      );
+      // Do NOT clear identity/stats/timer — retain everything so a retry can
+      // actually finalize the row.
       rethrow;
-    } finally {
-      // Clean up
-      _stopCheckpointTimer();
-      _currentSessionId = null;
-      _currentStats = null;
-      _lastCheckpoint = null;
-      _imagesSinceCheckpoint = 0;
     }
+
+    // Durable finalization succeeded — now it is safe to clear.
+    _stopCheckpointTimer();
+    _sessionGeneration++;
+    _currentSessionId = null;
+    _currentStats = null;
+    _lastCheckpoint = null;
+    _imagesSinceCheckpoint = 0;
+
+    _emitStatus('Session ended: $sessionId ($status)');
+    _logger.info('Session finalized', source: 'SessionService');
+    _logger.debug(
+      '  Completed: ${stats.completedExposures}',
+      source: 'SessionService',
+    );
+    _logger.debug(
+      '  Failed: ${stats.failedExposures}',
+      source: 'SessionService',
+    );
+    _logger.debug(
+      '  Integration: ${stats.totalIntegrationSecs}s',
+      source: 'SessionService',
+    );
+    _logger.debug(
+      '  Success rate: ${(stats.successRate * 100).toStringAsFixed(1)}%',
+      source: 'SessionService',
+    );
   }
 
   /// Abort the current session (marks as 'aborted' status)
@@ -376,12 +468,15 @@ class SessionService {
       }
 
       return recoveryInfoList;
-    } catch (e) {
+    } catch (e, stackTrace) {
       _logger.error(
-        'Error finding incomplete sessions: $e',
+        'Error finding incomplete sessions: $e\n$stackTrace',
         source: 'SessionService',
       );
-      return [];
+      // A failed recovery scan is not equivalent to "no interrupted
+      // sessions". Propagate the failure so startup can warn the operator and
+      // offer a retry instead of silently moving on to Quick Start.
+      rethrow;
     }
   }
 
@@ -406,6 +501,7 @@ class SessionService {
     }
 
     // Restore session state
+    _sessionGeneration++;
     _currentSessionId = sessionId;
     _currentStats = SessionStats(
       completedExposures: session.successfulExposures,
@@ -424,7 +520,7 @@ class SessionService {
       _startCheckpointTimer();
     }
 
-    _statusController.add('Session recovered: $sessionId');
+    _emitStatus('Session recovered: $sessionId');
     _logger.info(
       'Session $sessionId recovered successfully',
       source: 'SessionService',
@@ -479,7 +575,7 @@ class SessionService {
     _stopCheckpointTimer(); // Ensure no duplicate timers
     _checkpointTimer = Timer.periodic(_config.checkpointTimeInterval, (_) {
       if (_currentSessionId != null && _currentStats != null) {
-        _performCheckpoint();
+        unawaited(_performCheckpoint());
       }
     });
     _logger.debug(
@@ -493,44 +589,95 @@ class SessionService {
     _checkpointTimer = null;
   }
 
-  Future<void> _performCheckpoint() async {
-    if (_currentSessionId == null || _currentStats == null) return;
+  Future<void> _performCheckpoint() {
+    if (_disposed || _currentSessionId == null || _currentStats == null) {
+      return Future<void>.value();
+    }
 
-    _logger.debug(
-      'Performing checkpoint for session $_currentSessionId...',
-      source: 'SessionService',
-    );
+    // Coalesce every trigger that arrives during a slow write into one
+    // follow-up pass. This keeps the database single-writer while ensuring an
+    // end-session request waits for a fresh snapshot rather than merely
+    // waiting for an older checkpoint that happened to be in flight.
+    _checkpointRequested = true;
+    final active = _checkpointDrain;
+    if (active != null) return active;
 
-    try {
-      // Save current statistics to database
-      await _records.updateSessionStats(
-        _currentSessionId!,
-        totalExposures:
-            _currentStats!.completedExposures + _currentStats!.failedExposures,
-        successfulExposures: _currentStats!.completedExposures,
-        failedExposures: _currentStats!.failedExposures,
-        totalIntegrationSecs: _currentStats!.totalIntegrationSecs,
-        avgHfr: _currentStats!.avgHfr,
-        avgGuidingRms: _currentStats!.avgGuidingRms,
-        autofocusCount: _currentStats!.autofocusCount,
-      );
+    late final Future<void> operation;
+    operation = _drainCheckpointRequests().whenComplete(() {
+      if (identical(_checkpointDrain, operation)) {
+        _checkpointDrain = null;
+      }
+    });
+    _checkpointDrain = operation;
+    return operation;
+  }
 
-      _lastCheckpoint = _now();
-      _imagesSinceCheckpoint = 0;
+  Future<void> _drainCheckpointRequests() async {
+    while (_checkpointRequested && !_disposed) {
+      _checkpointRequested = false;
+      final sessionId = _currentSessionId;
+      final stats = _currentStats;
+      final generation = _sessionGeneration;
+      final imagesAtStart = _imagesSinceCheckpoint;
+      if (sessionId == null || stats == null) return;
 
-      _statusController.add('Checkpoint saved');
-      _logger.debug('Checkpoint saved successfully', source: 'SessionService');
-    } catch (e) {
-      _logger.error(
-        'Error performing checkpoint: $e',
+      _logger.debug(
+        'Performing checkpoint for session $sessionId...',
         source: 'SessionService',
       );
-      _statusController.add('Checkpoint failed: $e');
+
+      try {
+        await _records.updateSessionStats(
+          sessionId,
+          totalExposures: stats.completedExposures + stats.failedExposures,
+          successfulExposures: stats.completedExposures,
+          failedExposures: stats.failedExposures,
+          totalIntegrationSecs: stats.totalIntegrationSecs,
+          avgHfr: stats.avgHfr,
+          avgGuidingRms: stats.avgGuidingRms,
+          autofocusCount: stats.autofocusCount,
+        );
+
+        if (_disposed ||
+            generation != _sessionGeneration ||
+            _currentSessionId != sessionId) {
+          continue;
+        }
+        _lastCheckpoint = _now();
+        final remainingImages = _imagesSinceCheckpoint - imagesAtStart;
+        _imagesSinceCheckpoint = remainingImages > 0 ? remainingImages : 0;
+
+        _emitStatus('Checkpoint saved');
+        _logger.debug(
+          'Checkpoint saved successfully',
+          source: 'SessionService',
+        );
+      } catch (e) {
+        _logger.error(
+          'Error performing checkpoint: $e',
+          source: 'SessionService',
+        );
+        if (!_disposed &&
+            generation == _sessionGeneration &&
+            _currentSessionId == sessionId) {
+          _emitStatus('Checkpoint failed: $e');
+        }
+      }
+    }
+  }
+
+  void _emitStatus(String message) {
+    if (!_disposed && !_statusController.isClosed) {
+      _statusController.add(message);
     }
   }
 
   /// Dispose of resources
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _sessionGeneration++;
+    _checkpointRequested = false;
     _stopCheckpointTimer();
     _statusController.close();
     _logger.debug('Disposed', source: 'SessionService');

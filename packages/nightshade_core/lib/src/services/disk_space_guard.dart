@@ -82,6 +82,8 @@ class DiskSpaceGuardService {
   StreamController<DiskSpaceWatchdogEvent>? _eventsController;
   bool _hasEmittedWarning = false;
   bool _hasEmittedAbort = false;
+  bool _watchdogPollInFlight = false;
+  int _watchdogGeneration = 0;
 
   DiskSpaceGuardService({
     required DiskSpaceService diskService,
@@ -243,10 +245,14 @@ class DiskSpaceGuardService {
     _eventsController ??= StreamController<DiskSpaceWatchdogEvent>.broadcast();
     _hasEmittedWarning = false;
     _hasEmittedAbort = false;
+    final generation = _watchdogGeneration;
 
     Future<void> poll() async {
+      if (generation != _watchdogGeneration || _watchdogPollInFlight) return;
+      _watchdogPollInFlight = true;
       try {
         final snapshot = await _diskService.query(capturePath);
+        if (generation != _watchdogGeneration) return;
         if (snapshot.freeBytes < abortBytes && !_hasEmittedAbort) {
           _hasEmittedAbort = true;
           _emit(
@@ -279,6 +285,7 @@ class DiskSpaceGuardService {
           _hasEmittedAbort = false;
         }
       } catch (e, stack) {
+        if (generation != _watchdogGeneration) return;
         _logger?.warning(
           'Disk-space watchdog poll failed: $e\n$stack',
           source: 'DiskSpaceGuardService',
@@ -298,18 +305,24 @@ class DiskSpaceGuardService {
             message: 'Disk-space monitoring failed: $e',
           ),
         );
+      } finally {
+        if (generation == _watchdogGeneration) {
+          _watchdogPollInFlight = false;
+        }
       }
     }
 
     // Run an immediate first poll so the user sees the current state.
     unawaited(poll());
-    _watchdogTimer = Timer.periodic(interval, (_) => poll());
+    _watchdogTimer = Timer.periodic(interval, (_) => unawaited(poll()));
   }
 
   /// Stop the watchdog (if running) and close the event stream.
   void stop() {
     _watchdogTimer?.cancel();
     _watchdogTimer = null;
+    _watchdogGeneration++;
+    _watchdogPollInFlight = false;
   }
 
   /// Dispose: cancels the timer and closes the event stream. Safe to call

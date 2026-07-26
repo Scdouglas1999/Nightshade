@@ -334,7 +334,7 @@ class _WaitTimeProperties extends ConsumerWidget {
                     );
               } else {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(waitForTwilight: null),
+                      node.copyWith(clearWaitForTwilight: true),
                     );
               }
             },

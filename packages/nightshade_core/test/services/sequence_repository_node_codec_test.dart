@@ -26,7 +26,7 @@ void main() {
   });
 
   test(
-    'cover / calibrator / science-photometry nodes round-trip through the DB',
+    'specialized nodes and recovery controls round-trip through the DB',
     () async {
       final root = InstructionSetNode(
         id: 'root',
@@ -34,6 +34,8 @@ void main() {
           'open-cover',
           'calib-on',
           'science',
+          'recovery',
+          'autofocus',
           'calib-off',
           'close-cover',
         ],
@@ -76,6 +78,28 @@ void main() {
             offset: 20,
             binning: BinningMode.two,
           ),
+          'recovery': RecoveryNode(
+            id: 'recovery',
+            parentId: 'root',
+            triggerType: TriggerType.cloudCoverThreshold,
+            triggerEveryNFrames: 7,
+            focusDriftWindowSize: 12,
+            focusDriftMinIncreasingCount: 6,
+            focusDriftMinTotalIncrease: 0.75,
+            guidingFailedDurationSecs: 44,
+            cloudMinutesBefore: 14,
+            cloudCoverageThresholdPercent: 61,
+            cloudOpeningMinDurationSecs: 420,
+            cloudCoverMaxPercent: 73,
+            cloudCoverDurationSecs: 88,
+            transparencyBelowThreshold: 0.62,
+            transparencyDurationSecs: 95,
+          ),
+          'autofocus': AutofocusNode(
+            id: 'autofocus',
+            parentId: 'root',
+            exposuresPerPoint: 4,
+          ),
           'calib-off': CalibratorOffNode(
             id: 'calib-off',
             parentId: 'root',
@@ -97,7 +121,11 @@ void main() {
         isNotNull,
         reason: 'loadSequence must not throw / drop the sequence',
       );
-      expect(loaded!.nodes.length, 6);
+      expect(loaded!.nodes.length, 8);
+
+      final reAutofocus = loaded.nodes['autofocus'];
+      expect(reAutofocus, isA<AutofocusNode>());
+      expect((reAutofocus as AutofocusNode).exposuresPerPoint, 4);
 
       final reOpen = loaded.nodes['open-cover'];
       expect(reOpen, isA<OpenCoverNode>());
@@ -134,6 +162,77 @@ void main() {
       expect(sci.quality.maxFwhmArcsec, 3.5);
       expect(sci.quality.requireAllRefsVisible, isFalse);
       expect(sci.quality.maxAirmass, 2.0);
+
+      final recovery = loaded.nodes['recovery'] as RecoveryNode;
+      expect(recovery.triggerType, TriggerType.cloudCoverThreshold);
+      expect(recovery.triggerEveryNFrames, 7);
+      expect(recovery.focusDriftWindowSize, 12);
+      expect(recovery.focusDriftMinIncreasingCount, 6);
+      expect(recovery.focusDriftMinTotalIncrease, 0.75);
+      expect(recovery.guidingFailedDurationSecs, 44);
+      expect(recovery.cloudMinutesBefore, 14);
+      expect(recovery.cloudCoverageThresholdPercent, 61);
+      expect(recovery.cloudOpeningMinDurationSecs, 420);
+      expect(recovery.cloudCoverMaxPercent, 73);
+      expect(recovery.cloudCoverDurationSecs, 88);
+      expect(recovery.transparencyBelowThreshold, 0.62);
+      expect(recovery.transparencyDurationSecs, 95);
+    },
+  );
+
+  test(
+    'database codec preserves frame, mosaic, and loop safety semantics',
+    () async {
+      final root = InstructionSetNode(
+        id: 'root-codec',
+        childIds: const ['target-codec', 'loop-codec', 'exposure-codec'],
+      );
+      final sequence = Sequence.create(
+        id: 'seq-codec-parity',
+        name: 'Codec parity',
+        rootNodeId: root.id,
+        nodes: {
+          root.id: root,
+          'target-codec': TargetHeaderNode(
+            id: 'target-codec',
+            parentId: root.id,
+            targetName: 'M31 panel',
+            raHours: 0.71,
+            decDegrees: 41.27,
+            mosaicPanel: const MosaicPanelInfo(
+              mosaicName: 'M31 2x2',
+              panelIndex: 2,
+              totalPanels: 4,
+              row: 0,
+              column: 1,
+            ),
+          ),
+          'loop-codec': LoopNode(
+            id: 'loop-codec',
+            parentId: root.id,
+            conditionType: LoopConditionType.forever,
+            maxSafetyIterations: 17,
+          ),
+          'exposure-codec': ExposureNode(
+            id: 'exposure-codec',
+            parentId: root.id,
+            frameType: FrameType.darkFlat,
+            count: 3,
+          ),
+        },
+      );
+
+      final id = await repo.saveSequence(sequence);
+      final loaded = await repo.loadSequence(id);
+
+      final target = loaded!.nodes['target-codec'] as TargetHeaderNode;
+      expect(target.mosaicPanel?.mosaicName, 'M31 2x2');
+      expect(target.mosaicPanel?.panelIndex, 2);
+      final loop = loaded.nodes['loop-codec'] as LoopNode;
+      expect(loop.maxSafetyIterations, 17);
+      final exposure = loaded.nodes['exposure-codec'] as ExposureNode;
+      expect(exposure.frameType, FrameType.darkFlat);
+      expect(exposure.count, 3);
     },
   );
 }

@@ -36,16 +36,24 @@ class DeviceReconnectCoordinator {
     required Future<void> Function() pauseSequence,
     required void Function(String deviceId, {int attempt, int maxAttempts})
     surfaceReconnecting,
-  }) : _ref = ref,
+    List<Duration>? retryDelays,
+    Future<void> Function(DeviceType type, String deviceId)? reconnectAttempt,
+  }) : assert(retryDelays == null || retryDelays.isNotEmpty),
+       _ref = ref,
        _backend = backend,
        _resumeSequence = resumeSequence,
        _pauseSequence = pauseSequence,
-       _surfaceReconnecting = surfaceReconnecting;
+       _surfaceReconnecting = surfaceReconnecting,
+       _retryDelays = retryDelays ?? reconnectDelays,
+       _reconnectAttemptOverride = reconnectAttempt;
 
   final Ref _ref;
   final NightshadeBackend _backend;
   final Future<void> Function() _resumeSequence;
   final Future<void> Function() _pauseSequence;
+  final List<Duration> _retryDelays;
+  final Future<void> Function(DeviceType type, String deviceId)?
+  _reconnectAttemptOverride;
 
   /// Drive the per-device heartbeat-health indicator into the
   /// "reconnecting" state. Injected (rather than reaching into the
@@ -74,6 +82,9 @@ class DeviceReconnectCoordinator {
 
   final Map<String, int> _reconnectionAttempts = {};
   final Map<String, Timer> _reconnectionTimers = {};
+  final Set<String> _reconnectionsInFlight = {};
+  final Set<String> _reconnectExhausted = {};
+  int _reconnectGeneration = 0;
 
   /// User-initiated disconnects suppress auto-reconnect briefly.
   final Set<String> _userInitiatedDisconnects = {};
@@ -153,12 +164,16 @@ class DeviceReconnectCoordinator {
     _userInitiatedDisconnects.add(deviceId);
     final reconnectKeys = _reconnectionTimers.keys
         .followedBy(_reconnectionAttempts.keys)
+        .followedBy(_reconnectionsInFlight)
+        .followedBy(_reconnectExhausted)
         .where((key) => key.endsWith(':$deviceId'))
         .toSet();
     for (final key in reconnectKeys) {
       _reconnectionTimers[key]?.cancel();
       _reconnectionTimers.remove(key);
       _reconnectionAttempts.remove(key);
+      _reconnectionsInFlight.remove(key);
+      _reconnectExhausted.remove(key);
     }
     _userDisconnectDebounceTimer?.cancel();
     _userDisconnectDebounceTimer = Timer(userDisconnectSuppressDuration, () {
@@ -171,14 +186,28 @@ class DeviceReconnectCoordinator {
     return _userInitiatedDisconnects.contains(deviceId);
   }
 
+  /// A disconnect command failed before the backend acknowledged teardown.
+  /// Remove the temporary suppression so the still-connected device is not
+  /// stranded without reconnect handling for the debounce window.
+  void clearUserInitiatedDisconnect(String deviceId) {
+    _userInitiatedDisconnects.remove(deviceId);
+    if (_userInitiatedDisconnects.isEmpty) {
+      _userDisconnectDebounceTimer?.cancel();
+      _userDisconnectDebounceTimer = null;
+    }
+  }
+
   /// Cancel every pending reconnect timer and zero the counters. Used
   /// during backend swap and from `DeviceService.dispose`.
   void cancelAll() {
+    _reconnectGeneration++;
     for (final timer in _reconnectionTimers.values) {
       timer.cancel();
     }
     _reconnectionTimers.clear();
     _reconnectionAttempts.clear();
+    _reconnectionsInFlight.clear();
+    _reconnectExhausted.clear();
   }
 
   /// Wind down before a backend swap: cancel timers, clear debounce
@@ -258,18 +287,21 @@ class DeviceReconnectCoordinator {
 
     final reconnectKey = _reconnectKey(type, deviceId);
 
+    // A Disconnected event can be emitted as cleanup by the very connect
+    // attempt that is already running. Coalesce those events with the
+    // coordinator-owned retry path: without these guards, each cleanup event
+    // schedules a second timer and, after the third failure, starts a fresh
+    // 1/3..3/3 batch forever.
+    if (_reconnectionTimers.containsKey(reconnectKey) ||
+        _reconnectionsInFlight.contains(reconnectKey) ||
+        _reconnectExhausted.contains(reconnectKey)) {
+      return;
+    }
+
     final attemptCount = _reconnectionAttempts[reconnectKey] ?? 0;
 
     if (attemptCount >= maxReconnectAttempts) {
-      _safeLog(
-        (logger) => logger.error(
-          'Failed to reconnect ${type.displayName} ($deviceId) after '
-          '$maxReconnectAttempts attempts',
-          source: 'DeviceReconnectCoordinator',
-        ),
-      );
-      _showReconnectionFailedNotification(type, deviceId);
-      _reconnectionAttempts.remove(reconnectKey);
+      _markReconnectExhausted(type, deviceId, reconnectKey);
       return;
     }
 
@@ -285,9 +317,10 @@ class DeviceReconnectCoordinator {
       maxAttempts: maxReconnectAttempts,
     );
 
-    final delay = attemptCount < reconnectDelays.length
-        ? reconnectDelays[attemptCount]
-        : reconnectDelays.last;
+    final delay = attemptCount < _retryDelays.length
+        ? _retryDelays[attemptCount]
+        : _retryDelays.last;
+    final generation = _reconnectGeneration;
 
     _safeLog(
       (logger) => logger.info(
@@ -299,9 +332,16 @@ class DeviceReconnectCoordinator {
       ),
     );
 
-    _reconnectionTimers[reconnectKey]?.cancel();
-
     _reconnectionTimers[reconnectKey] = Timer(delay, () async {
+      _reconnectionTimers.remove(reconnectKey);
+      if (generation != _reconnectGeneration ||
+          _suppressAutoReconnect ||
+          isUserInitiatedDisconnect(deviceId)) {
+        return;
+      }
+
+      _reconnectionsInFlight.add(reconnectKey);
+      Object? reconnectFailure;
       try {
         _safeLog(
           (logger) => logger.info(
@@ -312,10 +352,15 @@ class DeviceReconnectCoordinator {
           ),
         );
 
-        await _performReconnection(type, deviceId);
+        final reconnectAttempt = _reconnectAttemptOverride;
+        if (reconnectAttempt == null) {
+          await _performReconnection(type, deviceId);
+        } else {
+          await reconnectAttempt(type, deviceId);
+        }
 
         _reconnectionAttempts.remove(reconnectKey);
-        _reconnectionTimers.remove(reconnectKey);
+        _reconnectExhausted.remove(reconnectKey);
 
         _safeLog(
           (logger) => logger.info(
@@ -329,6 +374,7 @@ class DeviceReconnectCoordinator {
 
         await _considerSequenceResume(type);
       } catch (e) {
+        reconnectFailure = e;
         _safeLog(
           (logger) => logger.warning(
             'Reconnection attempt ${attemptCount + 1}/'
@@ -337,10 +383,40 @@ class DeviceReconnectCoordinator {
             source: 'DeviceReconnectCoordinator',
           ),
         );
+      } finally {
+        _reconnectionsInFlight.remove(reconnectKey);
+      }
 
-        unawaited(attemptReconnect(type, deviceId));
+      if (reconnectFailure != null && generation == _reconnectGeneration) {
+        final completedAttempts = _reconnectionAttempts[reconnectKey] ?? 0;
+        if (completedAttempts >= maxReconnectAttempts) {
+          _markReconnectExhausted(type, deviceId, reconnectKey);
+        } else {
+          unawaited(attemptReconnect(type, deviceId));
+        }
       }
     });
+  }
+
+  void _markReconnectExhausted(
+    DeviceType type,
+    String deviceId,
+    String reconnectKey,
+  ) {
+    // Multiple late Disconnected/Error events may all observe the terminal
+    // state. Notify once, then retain the exhausted marker until a real
+    // Connected event or an explicit user disconnect resets the lifecycle.
+    if (!_reconnectExhausted.add(reconnectKey)) {
+      return;
+    }
+    _safeLog(
+      (logger) => logger.error(
+        'Failed to reconnect ${type.displayName} ($deviceId) after '
+        '$maxReconnectAttempts attempts; automatic retries are exhausted',
+        source: 'DeviceReconnectCoordinator',
+      ),
+    );
+    _showReconnectionFailedNotification(type, deviceId);
   }
 
   /// Handle disconnection of critical devices (camera, mount) during
@@ -478,6 +554,77 @@ class DeviceReconnectCoordinator {
             .connect(deviceId, maxRetries: 1);
         break;
     }
+
+    final outcome = switch (type) {
+      DeviceType.camera => (
+        _ref.read(cameraStateProvider).connectionState,
+        _ref.read(cameraStateProvider).lastError,
+      ),
+      DeviceType.mount => (
+        _ref.read(mountStateProvider).connectionState,
+        _ref.read(mountStateProvider).lastError,
+      ),
+      DeviceType.focuser => (
+        _ref.read(focuserStateProvider).connectionState,
+        _ref.read(focuserStateProvider).lastError,
+      ),
+      DeviceType.filterWheel => (
+        _ref.read(filterWheelStateProvider).connectionState,
+        _ref.read(filterWheelStateProvider).lastError,
+      ),
+      DeviceType.guider => (
+        _ref.read(guiderStateProvider).connectionState,
+        _ref.read(guiderStateProvider).lastError,
+      ),
+      DeviceType.rotator => (
+        _ref.read(rotatorStateProvider).connectionState,
+        _ref.read(rotatorStateProvider).lastError,
+      ),
+      DeviceType.dome => (
+        _ref.read(domeStateProvider).connectionState,
+        _ref.read(domeStateProvider).lastError,
+      ),
+      DeviceType.weather => (
+        _ref.read(weatherStateProvider).connectionState,
+        _ref.read(weatherStateProvider).lastError,
+      ),
+      DeviceType.safetyMonitor => (
+        _ref.read(safetyMonitorStateProvider).connectionState,
+        _ref.read(safetyMonitorStateProvider).lastError,
+      ),
+      DeviceType.switch_ => (
+        _ref.read(switchStateProvider).connectionState,
+        _ref.read(switchStateProvider).lastError,
+      ),
+      DeviceType.coverCalibrator => (
+        _ref.read(coverCalibratorStateProvider).connectionState,
+        _ref.read(coverCalibratorStateProvider).lastError,
+      ),
+    };
+    validateReconnectOutcome(
+      type: type,
+      connectionState: outcome.$1,
+      lastError: outcome.$2,
+    );
+  }
+
+  /// State notifiers deliberately retain terminal connection failures in
+  /// `lastError` instead of rethrowing them, so awaiting `connect()` alone does
+  /// not prove that reconnection succeeded. Keep the coordinator's retry
+  /// counter honest by requiring the authoritative post-attempt state.
+  static void validateReconnectOutcome({
+    required DeviceType type,
+    required DeviceConnectionState connectionState,
+    Object? lastError,
+  }) {
+    if (connectionState == DeviceConnectionState.connected) {
+      return;
+    }
+    throw StateError(
+      '${type.displayName} reconnect finished in '
+      '${connectionState.name} state'
+      '${lastError == null ? '' : ': $lastError'}',
+    );
   }
 
   /// After a successful reconnect, resume a paused sequence if and only
@@ -539,7 +686,21 @@ class DeviceReconnectCoordinator {
   /// connected event closes that gap. Safe to call for any device type: only
   /// camera/mount drive a resume, and resume only fires once ALL critical
   /// devices are back (see [_considerSequenceResume]).
-  Future<void> onAuthoritativeDeviceConnected(String deviceType) async {
+  Future<void> onAuthoritativeDeviceConnected(
+    String deviceType,
+    String deviceId,
+  ) async {
+    final reconnectKeys = _reconnectionTimers.keys
+        .followedBy(_reconnectionAttempts.keys)
+        .followedBy(_reconnectExhausted)
+        .where((key) => key.endsWith(':$deviceId'))
+        .toSet();
+    for (final key in reconnectKeys) {
+      _reconnectionTimers.remove(key)?.cancel();
+      _reconnectionAttempts.remove(key);
+      _reconnectExhausted.remove(key);
+    }
+
     final lower = deviceType.toLowerCase();
     final DeviceType type;
     if (lower == 'camera') {

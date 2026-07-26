@@ -26,7 +26,7 @@ class CoordinateParser {
         degText = degText.substring(0, degText.length - 1).trim();
       }
       final deg = double.tryParse(degText);
-      if (deg != null && deg >= 0 && deg <= 360) {
+      if (deg != null && deg.isFinite && deg >= 0 && deg <= 360) {
         return (deg % 360) / 15.0;
       }
       return null;
@@ -34,7 +34,7 @@ class CoordinateParser {
 
     // Try decimal format first
     final decimal = double.tryParse(trimmed);
-    if (decimal != null) {
+    if (decimal != null && decimal.isFinite) {
       if (decimal >= 0 && decimal < 24) {
         return decimal;
       }
@@ -46,12 +46,13 @@ class CoordinateParser {
     }
 
     // Remove common separators and letters
-    final cleaned = trimmed
+    final cleaned = lower
         .replaceAll('h', ':')
         .replaceAll('m', ':')
         .replaceAll('s', '')
         .replaceAll(' ', ':')
-        .replaceAll(RegExp(r':+'), ':'); // Replace multiple colons with single
+        .replaceAll(RegExp(r':+'), ':')
+        .replaceAll(RegExp(r'^:|:$'), '');
 
     final parts = cleaned.split(':');
     if (parts.isEmpty || parts.length > 3) return null;
@@ -92,10 +93,11 @@ class CoordinateParser {
     if (input.trim().isEmpty) return null;
 
     final trimmed = input.trim();
+    final lower = trimmed.toLowerCase();
 
     // Try decimal format first
     final decimal = double.tryParse(trimmed);
-    if (decimal != null) {
+    if (decimal != null && decimal.isFinite) {
       if (decimal >= -90 && decimal <= 90) {
         return decimal;
       }
@@ -103,15 +105,19 @@ class CoordinateParser {
     }
 
     // Determine sign
-    final isNegative = trimmed.startsWith('-');
-    final cleaned = trimmed
+    final isNegative = lower.startsWith('-');
+    final cleaned = lower
         .replaceAll('+', '')
         .replaceAll('-', '')
         .replaceAll('°', ':')
+        .replaceAll('d', ':')
         .replaceAll('\'', ':')
+        .replaceAll('m', ':')
         .replaceAll('"', '')
+        .replaceAll('s', '')
         .replaceAll(' ', ':')
-        .replaceAll(RegExp(r':+'), ':'); // Replace multiple colons with single
+        .replaceAll(RegExp(r':+'), ':')
+        .replaceAll(RegExp(r'^:|:$'), '');
 
     final parts = cleaned.split(':');
     if (parts.isEmpty || parts.length > 3) return null;
@@ -126,6 +132,7 @@ class CoordinateParser {
       if (seconds < 0 || seconds >= 60) return null;
 
       final result = degrees + minutes / 60.0 + seconds / 3600.0;
+      if (result > 90) return null;
       return isNegative ? -result : result;
     } catch (e, stackTrace) {
       // Why: user-input parser — see parseRa above. Returning `null` is the

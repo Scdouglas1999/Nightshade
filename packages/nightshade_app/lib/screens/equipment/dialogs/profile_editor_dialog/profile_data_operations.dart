@@ -2,15 +2,61 @@
 
 part of '../profile_editor_dialog.dart';
 
+/// Normalized, validated form values produced once by
+/// [_ProfileEditorDataOperations._validateForm] and consumed by BOTH the
+/// local-DAO and remote-POST save paths so the two can never drift.
+class _ParsedProfileForm {
+  final String name;
+
+  /// `0` means "unspecified" (the model sentinel); any other value is finite
+  /// and strictly positive.
+  final double focalLength;
+  final double aperture;
+  final double? focalRatio;
+
+  final int? gain;
+  final int? offset;
+  final int binning;
+  final double? coolingTemp;
+  final double? centeringExposure;
+
+  final List<String> filterNames;
+  final Map<String, int> filterOffsets;
+
+  const _ParsedProfileForm({
+    required this.name,
+    required this.focalLength,
+    required this.aperture,
+    required this.focalRatio,
+    required this.gain,
+    required this.offset,
+    required this.binning,
+    required this.coolingTemp,
+    required this.centeringExposure,
+    required this.filterNames,
+    required this.filterOffsets,
+  });
+}
+
 extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
-  // Computed values for optical train
+  // Computed values for optical train.
+  //
+  // Returns null — so the readout shows `---` rather than a number — whenever
+  // the typed pair does not describe a physically possible system. Reporting
+  // `f/9999999990000.0` back to the user as if it were a derived fact is what
+  // made the unbounded input look accepted in the first place; the same
+  // [OpticalTrainLimits] window that gates the save gates the preview.
   double? get _computedFRatio {
     final focalLength = double.tryParse(_focalLengthController.text);
     final aperture = double.tryParse(_apertureController.text);
-    if (focalLength != null && aperture != null && aperture > 0) {
-      return focalLength / aperture;
+    if (focalLength == null || aperture == null || aperture <= 0) return null;
+    final ratio = focalLength / aperture;
+    if (!ratio.isFinite ||
+        ratio < OpticalTrainLimits.minFRatio ||
+        ratio > OpticalTrainLimits.maxFRatio) {
+      return null;
     }
-    return null;
+    return ratio;
   }
 
   double? get _computedScale {
@@ -92,22 +138,25 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       filterNames = filterWheelState.filterNames;
     }
 
-    if (filterNames.isNotEmpty && mounted) {
-      setState(() {
-        // Clear existing filters
-        for (final pair in _filterControllers) {
-          pair.dispose();
-        }
-        _filterControllers.clear();
-        // Add filters from connected wheel
-        for (final name in filterNames) {
-          _filterControllers.add(_FilterControllerPair(
-            nameController: TextEditingController(text: name),
-            offsetController: TextEditingController(text: '0'),
-          ));
-        }
-      });
+    if (!mounted) return;
+    if (filterNames.isEmpty) {
+      context.showInfoSnackBar('The filter wheel reported no filter names.');
+      return;
     }
+    setState(() {
+      // Clear existing filters
+      for (final pair in _filterControllers) {
+        pair.dispose();
+      }
+      _filterControllers.clear();
+      // Add filters from connected wheel
+      for (final name in filterNames) {
+        _filterControllers.add(_FilterControllerPair(
+          nameController: TextEditingController(text: name),
+          offsetController: TextEditingController(text: '0'),
+        ));
+      }
+    });
   }
 
   void _populateFromConnected() {
@@ -192,19 +241,11 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       if (_domeId == null &&
           domeState.connectionState == DeviceConnectionState.connected) {
         _domeId = domeState.deviceId;
-        if (_domeNameController.text.isEmpty) {
-          _domeNameController.text =
-              domeState.deviceName ?? domeState.deviceId ?? '';
-        }
       }
 
       if (_weatherId == null &&
           weatherState.connectionState == DeviceConnectionState.connected) {
         _weatherId = weatherState.deviceId;
-        if (_weatherNameController.text.isEmpty) {
-          _weatherNameController.text =
-              weatherState.deviceName ?? weatherState.deviceId ?? '';
-        }
       }
 
       if (_safetyMonitorId == null &&
@@ -231,71 +272,121 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
           coverCalibratorState.connectionState ==
               DeviceConnectionState.connected) {
         _coverCalibratorId = coverCalibratorState.deviceId;
-        if (_coverCalibratorNameController.text.isEmpty) {
-          _coverCalibratorNameController.text =
-              coverCalibratorState.deviceName ??
-                  coverCalibratorState.deviceId ??
-                  '';
-        }
       }
     });
   }
 
-  String _encodeFilterNames() {
-    if (_filterControllers.isEmpty) return '';
-    final names =
-        _filterControllers.map((c) => c.nameController.text.trim()).toList();
-    return jsonEncode(names);
-  }
+  /// Validate and normalize the entire form through the shared
+  /// [ProfileValidator] contract. On success returns a [_ParsedProfileForm]
+  /// carrying the normalized values that BOTH the local-DAO and remote-POST
+  /// save paths consume, so the two can never drift. On failure it surfaces a
+  /// stable inline name error plus a summary snackbar of the remaining field
+  /// errors, leaves the editor open/editing, and returns null.
+  _ParsedProfileForm? _validateForm() {
+    final nameResult = ProfileValidator.parseName(_nameController.text);
+    final focalResult =
+        ProfileValidator.parseFocalLength(_focalLengthController.text);
+    final apertureResult =
+        ProfileValidator.parseAperture(_apertureController.text);
+    final gainResult = ProfileValidator.parseOptionalWholeNonNegative(
+        _gainController.text,
+        label: 'Gain');
+    final offsetResult = ProfileValidator.parseOptionalWholeNonNegative(
+        _offsetController.text,
+        label: 'Offset');
+    final coolingResult =
+        ProfileValidator.parseCoolingTarget(_coolingTargetController.text);
+    final centeringResult = ProfileValidator.parseCenteringExposure(
+        _centeringExposureController.text);
+    final binningResult = ProfileValidator.parseBinning(_binning);
+    final filterResult = ProfileValidator.parseFilterRows([
+      for (final pair in _filterControllers)
+        ProfileFilterRowInput(
+          name: pair.nameController.text,
+          offset: pair.offsetController.text,
+        ),
+    ]);
 
-  String _encodeFilterOffsets() {
-    if (_filterControllers.isEmpty) return '';
-    final offsets = <String, int>{};
-    for (final pair in _filterControllers) {
-      final name = pair.nameController.text.trim();
-      final offset = int.tryParse(pair.offsetController.text) ?? 0;
-      if (name.isNotEmpty && offset != 0) {
-        offsets[name] = offset;
-      }
+    // Individually in-range optics can still describe an impossible system
+    // (600 mm at 0.1 mm aperture is f/6000), so cross-check the pair through
+    // the same shared contract once both fields parsed.
+    final trainError = focalResult.isValid && apertureResult.isValid
+        ? ProfileValidator.validateOpticalTrain(
+            focalLengthMm: focalResult.value!,
+            apertureMm: apertureResult.value!,
+          )
+        : null;
+
+    // Collect every non-name field error for the summary; the name gets its
+    // own inline treatment.
+    final fieldErrors = <String>[
+      if (!focalResult.isValid) focalResult.error!,
+      if (!apertureResult.isValid) apertureResult.error!,
+      if (trainError != null) trainError,
+      if (!gainResult.isValid) gainResult.error!,
+      if (!offsetResult.isValid) offsetResult.error!,
+      if (!coolingResult.isValid) coolingResult.error!,
+      if (!centeringResult.isValid) centeringResult.error!,
+      if (!binningResult.isValid) binningResult.error!,
+      if (!filterResult.isValid) ...filterResult.errors,
+    ];
+
+    if (!nameResult.isValid || fieldErrors.isNotEmpty) {
+      setState(() {
+        _nameError = nameResult.error;
+        // Keep the identity section open so the inline name error is visible.
+        if (nameResult.error != null) _expandedSections['identity'] = true;
+      });
+      final summary = <String>[
+        if (nameResult.error != null) nameResult.error!,
+        ...fieldErrors,
+      ].join('\n');
+      context.showErrorSnackBar(summary);
+      return null;
     }
-    return offsets.isNotEmpty ? jsonEncode(offsets) : '';
+
+    setState(() => _nameError = null);
+
+    final focalLength = focalResult.value!;
+    final aperture = apertureResult.value!;
+    return _ParsedProfileForm(
+      name: nameResult.value!,
+      focalLength: focalLength,
+      aperture: aperture,
+      focalRatio: aperture > 0 ? focalLength / aperture : null,
+      gain: gainResult.value,
+      offset: offsetResult.value,
+      binning: binningResult.value!,
+      coolingTemp: coolingResult.value,
+      centeringExposure: centeringResult.value,
+      filterNames: filterResult.config!.names,
+      filterOffsets: filterResult.config!.offsets,
+    );
   }
 
-  /// Build an [EquipmentProfileModel] from the current form state.
+  /// Build an [EquipmentProfileModel] from a validated [_ParsedProfileForm].
   ///
   /// Used by the REMOTE (slave) save path, which routes the full profile to the
   /// host's `POST /api/profiles` (SQLite-backed) via the equipment-profiles
   /// notifier instead of writing the slave's own (empty) local DB — a local
   /// write would be a phantom row the 10s host-poll erases.
-  EquipmentProfileModel _buildModelFromForm() {
-    final focalLength = double.tryParse(_focalLengthController.text) ?? 0.0;
-    final aperture = double.tryParse(_apertureController.text) ?? 0.0;
-    final fRatio = aperture > 0 ? focalLength / aperture : null;
-
-    final names =
-        _filterControllers.map((c) => c.nameController.text.trim()).toList();
-    final offsets = <String, int>{};
-    for (final pair in _filterControllers) {
-      final name = pair.nameController.text.trim();
-      final offset = int.tryParse(pair.offsetController.text) ?? 0;
-      if (name.isNotEmpty && offset != 0) {
-        offsets[name] = offset;
-      }
-    }
-
+  EquipmentProfileModel _buildModel(_ParsedProfileForm parsed) {
     return EquipmentProfileModel(
       id: widget.profile?.id,
-      name: _nameController.text.trim(),
+      name: parsed.name,
       profileIcon: _selectedIcon.isEmpty ? null : _selectedIcon,
       profileColor: _selectedColor?.toARGB32(),
       isDefault: _isDefault,
       isActive: widget.profile?.isActive ?? false,
       telescopeName: _telescopeNameController.text.trimOrNull,
-      telescopeFocalLength: double.tryParse(_focalLengthController.text),
-      telescopeAperture: double.tryParse(_apertureController.text),
-      focalLength: focalLength,
-      aperture: aperture,
-      focalRatio: fRatio,
+      // The optical fields mirror the parsed focal length/aperture; keep the
+      // long-standing "null when unspecified (0)" shape for the telescope
+      // columns.
+      telescopeFocalLength: parsed.focalLength > 0 ? parsed.focalLength : null,
+      telescopeAperture: parsed.aperture > 0 ? parsed.aperture : null,
+      focalLength: parsed.focalLength,
+      aperture: parsed.aperture,
+      focalRatio: parsed.focalRatio,
       cameraId: _cameraId,
       cameraName: _cameraNameController.text.trimOrNull,
       mountId: _mountId,
@@ -311,25 +402,35 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       domeId: _domeId,
       weatherId: _weatherId,
       safetyMonitorId: _safetyMonitorId,
+      safetyMonitorName: _safetyMonitorNameController.text.trimOrNull,
       switchId: _switchId,
+      switchName: _switchNameController.text.trimOrNull,
       coverCalibratorId: _coverCalibratorId,
-      filterNames: names,
-      filterFocusOffsets: offsets,
-      defaultGain: int.tryParse(_gainController.text),
-      defaultOffset: int.tryParse(_offsetController.text),
-      defaultBinX: _binning,
-      defaultBinY: _binning,
-      defaultCoolingTemp: double.tryParse(_coolingTargetController.text),
+      filterNames: parsed.filterNames,
+      filterFocusOffsets: parsed.filterOffsets,
+      defaultGain: parsed.gain,
+      defaultOffset: parsed.offset,
+      defaultBinX: parsed.binning,
+      defaultBinY: parsed.binning,
+      defaultCoolingTemp: parsed.coolingTemp,
       coolOnConnect: _coolOnConnect,
-      defaultCenteringExposure:
-          double.tryParse(_centeringExposureController.text),
+      defaultCenteringExposure: parsed.centeringExposure,
       sortOrder: widget.profile?.sortOrder ?? 0,
       createdAt: widget.profile?.createdAt,
     );
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    // In-flight guard: a fast double-tap can call _save again before the
+    // disabled/isLoading rebuild lands, which would issue a duplicate
+    // create/update. Bail if a save is already running.
+    if (_isSaving) return;
+
+    // Validate + normalize every field through the shared contract BEFORE any
+    // provider/DB/network call. On failure the editor stays open with inline +
+    // summary errors and no save is attempted.
+    final parsed = _validateForm();
+    if (parsed == null) return;
 
     setState(() => _isSaving = true);
 
@@ -340,35 +441,23 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
     final isRemote = ref.read(isRemoteModeProvider);
     if (isRemote) {
       try {
-        final model = _buildModelFromForm();
+        final model = _buildModel(parsed);
         final notifier = ref.read(equipmentProfilesProvider.notifier);
         // The model carries isDefault in its payload, so the host row's default
         // flag is set by the save itself. updateProfile() accepts a null-id
         // model as a remote CREATE.
-        await notifier.updateProfile(model);
+        final savedProfileId = await notifier.updateProfile(model);
         if (_isDefault) {
-          // Resolve the host-assigned id (for a create, model.id is null) so we
-          // ACTIVATE the right profile. On an update we already have the id.
-          var targetId = model.id;
-          if (targetId == null) {
-            final refreshed = await ref.read(equipmentProfilesProvider.future);
-            for (final p in refreshed.profiles) {
-              if (p.name == model.name) {
-                targetId = p.id;
-                break;
-              }
-            }
-          }
-          if (targetId != null) {
-            await notifier.setDefaultProfile(targetId, makeActive: true);
-          }
+          // The host returns the exact created/updated row id. Never rediscover
+          // by profile name: names are not unique and that can activate a
+          // different rig.
+          await notifier.setDefaultProfile(savedProfileId, makeActive: true);
         }
-        if (mounted) {
-          final action = widget.profile != null ? 'updated' : 'created';
-          context.showSuccessSnackBar(
-              'Profile "${_nameController.text.trim()}" $action');
-          Navigator.of(context).pop(true);
-        }
+        if (!mounted) return;
+        final action = widget.profile != null ? 'updated' : 'created';
+        context.showSuccessSnackBar(
+            'Profile "${_nameController.text.trim()}" $action');
+        if (mounted) Navigator.of(context).pop(true);
       } catch (e, st) {
         ref.read(loggingServiceProvider).error(
           'ProfileEditorDialog remote save failed: $e',
@@ -386,14 +475,19 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
     try {
       final dao = ref.read(equipmentProfilesDaoProvider);
 
-      // Parse numerical values
-      final focalLength = double.tryParse(_focalLengthController.text) ?? 0.0;
-      final aperture = double.tryParse(_apertureController.text) ?? 0.0;
-      final fRatio = aperture > 0 ? focalLength / aperture : null;
+      // Normalized numeric values from the validated form (see _validateForm).
+      final focalLength = parsed.focalLength;
+      final aperture = parsed.aperture;
+      final fRatio = parsed.focalRatio;
+      // Telescope columns keep the "null when unspecified (0)" shape.
+      final telescopeFocalLength = focalLength > 0 ? focalLength : null;
+      final telescopeAperture = aperture > 0 ? aperture : null;
 
-      // Build filter data
-      final filterNamesEncoded = _encodeFilterNames();
-      final filterOffsetsEncoded = _encodeFilterOffsets();
+      // Encode the validated filter set; an empty set persists as null.
+      final filterNamesEncoded =
+          parsed.filterNames.isEmpty ? '' : jsonEncode(parsed.filterNames);
+      final filterOffsetsEncoded =
+          parsed.filterOffsets.isEmpty ? '' : jsonEncode(parsed.filterOffsets);
 
       // Tracks the row id written this save so we can publish a host-mutation
       // (for instant slave refetch) and write the active profile through to the
@@ -408,14 +502,13 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         }
 
         final updated = existingProfile.copyWith(
-          name: _nameController.text.trim(),
+          name: parsed.name,
           profileIcon: Value(_selectedIcon.isEmpty ? null : _selectedIcon),
           profileColor: Value(_selectedColor?.toARGB32()),
           isDefault: _isDefault,
           telescopeName: Value(_telescopeNameController.text.trimOrNull),
-          telescopeFocalLength:
-              Value(double.tryParse(_focalLengthController.text)),
-          telescopeAperture: Value(double.tryParse(_apertureController.text)),
+          telescopeFocalLength: Value(telescopeFocalLength),
+          telescopeAperture: Value(telescopeAperture),
           focalLength: focalLength,
           aperture: aperture,
           focalRatio: Value(fRatio),
@@ -434,21 +527,22 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
           domeId: Value(_domeId),
           weatherId: Value(_weatherId),
           safetyMonitorId: Value(_safetyMonitorId),
+          safetyMonitorName:
+              Value(_safetyMonitorNameController.text.trimOrNull),
           switchId: Value(_switchId),
+          switchName: Value(_switchNameController.text.trimOrNull),
           coverCalibratorId: Value(_coverCalibratorId),
           filterNames:
               Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
           filterFocusOffsets:
               Value(filterOffsetsEncoded.isEmpty ? null : filterOffsetsEncoded),
-          defaultGain: Value(int.tryParse(_gainController.text)),
-          defaultOffset: Value(int.tryParse(_offsetController.text)),
-          defaultBinX: _binning,
-          defaultBinY: _binning,
-          defaultCoolingTemp:
-              Value(double.tryParse(_coolingTargetController.text)),
+          defaultGain: Value(parsed.gain),
+          defaultOffset: Value(parsed.offset),
+          defaultBinX: parsed.binning,
+          defaultBinY: parsed.binning,
+          defaultCoolingTemp: Value(parsed.coolingTemp),
           coolOnConnect: _coolOnConnect,
-          defaultCenteringExposure:
-              Value(double.tryParse(_centeringExposureController.text)),
+          defaultCenteringExposure: Value(parsed.centeringExposure),
           updatedAt: DateTime.now(),
         );
 
@@ -464,14 +558,13 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       } else {
         // Create new profile
         final companion = EquipmentProfilesCompanion(
-          name: Value(_nameController.text.trim()),
+          name: Value(parsed.name),
           profileIcon: Value(_selectedIcon.isEmpty ? null : _selectedIcon),
           profileColor: Value(_selectedColor?.toARGB32()),
           isDefault: Value(_isDefault),
           telescopeName: Value(_telescopeNameController.text.trimOrNull),
-          telescopeFocalLength:
-              Value(double.tryParse(_focalLengthController.text)),
-          telescopeAperture: Value(double.tryParse(_apertureController.text)),
+          telescopeFocalLength: Value(telescopeFocalLength),
+          telescopeAperture: Value(telescopeAperture),
           focalLength: Value(focalLength),
           aperture: Value(aperture),
           focalRatio: Value(fRatio),
@@ -490,21 +583,22 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
           domeId: Value(_domeId),
           weatherId: Value(_weatherId),
           safetyMonitorId: Value(_safetyMonitorId),
+          safetyMonitorName:
+              Value(_safetyMonitorNameController.text.trimOrNull),
           switchId: Value(_switchId),
+          switchName: Value(_switchNameController.text.trimOrNull),
           coverCalibratorId: Value(_coverCalibratorId),
           filterNames:
               Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
           filterFocusOffsets:
               Value(filterOffsetsEncoded.isEmpty ? null : filterOffsetsEncoded),
-          defaultGain: Value(int.tryParse(_gainController.text)),
-          defaultOffset: Value(int.tryParse(_offsetController.text)),
-          defaultBinX: Value(_binning),
-          defaultBinY: Value(_binning),
-          defaultCoolingTemp:
-              Value(double.tryParse(_coolingTargetController.text)),
+          defaultGain: Value(parsed.gain),
+          defaultOffset: Value(parsed.offset),
+          defaultBinX: Value(parsed.binning),
+          defaultBinY: Value(parsed.binning),
+          defaultCoolingTemp: Value(parsed.coolingTemp),
           coolOnConnect: Value(_coolOnConnect),
-          defaultCenteringExposure:
-              Value(double.tryParse(_centeringExposureController.text)),
+          defaultCenteringExposure: Value(parsed.centeringExposure),
         );
 
         final newId = await dao.createProfile(companion);
@@ -538,12 +632,11 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         await writeActiveProfileThroughToRustFromWidget(ref, savedProfileId);
       }
 
-      if (mounted) {
-        final action = widget.profile != null ? 'updated' : 'created';
-        context.showSuccessSnackBar(
-            'Profile "${_nameController.text.trim()}" $action');
-        Navigator.of(context).pop(true);
-      }
+      if (!mounted) return;
+      final action = widget.profile != null ? 'updated' : 'created';
+      context.showSuccessSnackBar(
+          'Profile "${_nameController.text.trim()}" $action');
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e, st) {
       ref.read(loggingServiceProvider).error(
         'ProfileEditorDialog save failed: $e',

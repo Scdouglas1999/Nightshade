@@ -9,6 +9,7 @@ class _SessionDetailDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final imagesAsyncValue = ref.watch(dbSessionImagesProvider(session.id));
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
     final l10n = context.l10n;
 
     return Dialog(
@@ -68,13 +69,22 @@ class _SessionDetailDialog extends ConsumerWidget {
                           // Open the Session Review / Morning Report (cull +
                           // integrate).
                           IconButton(
+                            key: const ValueKey('session_detail_review'),
                             icon: const Icon(LucideIcons.sparkles, size: 18),
                             onPressed: () {
+                              if (isRemote) {
+                                context.showInfoSnackBar(
+                                  'Session Review is available on the imaging host.',
+                                );
+                                return;
+                              }
                               Navigator.of(context).pop();
-                              context
-                                  .go('/session-review?session=${session.id}');
+                              context.push(
+                                  '/session-review?session=${session.id}');
                             },
-                            tooltip: 'Review & Integrate',
+                            tooltip: isRemote
+                                ? 'Review on imaging host'
+                                : 'Review & Integrate',
                           ),
                           // View the rich Feature-A session report.
                           IconButton(
@@ -255,7 +265,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       if (backend is NetworkBackend) {
         final filePath = await _saveRemoteExport(backend, session.id, 'json');
         if (context.mounted) {
-          context.showSuccessSnackBar('Exported to: $filePath');
+          await revealExportedFile(
+            context,
+            filePath,
+            subject: 'Nightshade session data',
+          );
         }
         return;
       }
@@ -266,10 +280,17 @@ class _SessionDetailDialog extends ConsumerWidget {
         nowProvider: clock.now,
       );
 
+      // The export lands in getApplicationDocumentsDirectory(), which is the
+      // private sandbox on Android/iOS — an "Exported to: <path>" line there
+      // names a file the user cannot open, so hand it to the share sheet.
       final filePath = await exportService.exportToJson(session.id);
 
       if (context.mounted) {
-        context.showSuccessSnackBar('Exported to: $filePath');
+        await revealExportedFile(
+          context,
+          filePath,
+          subject: 'Nightshade session data',
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -284,7 +305,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       if (backend is NetworkBackend) {
         final filePath = await _saveRemoteExport(backend, session.id, 'csv');
         if (context.mounted) {
-          context.showSuccessSnackBar('Exported to: $filePath');
+          await revealExportedFile(
+            context,
+            filePath,
+            subject: 'Nightshade session data',
+          );
         }
         return;
       }
@@ -295,10 +320,16 @@ class _SessionDetailDialog extends ConsumerWidget {
         nowProvider: clock.now,
       );
 
+      // Same sandbox problem as the JSON export: reveal rather than announce
+      // a path the phone user can never reach.
       final filePath = await exportService.exportToCsv(session.id);
 
       if (context.mounted) {
-        context.showSuccessSnackBar('Exported to: $filePath');
+        await revealExportedFile(
+          context,
+          filePath,
+          subject: 'Nightshade session data',
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -342,7 +373,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       if (backend is NetworkBackend) {
         final filePath = await _saveRemoteExport(backend, session.id, 'html');
         if (context.mounted) {
-          context.showSuccessSnackBar('Report exported to: $filePath');
+          await revealExportedFile(
+            context,
+            filePath,
+            subject: 'Nightshade session report',
+          );
         }
         return;
       }
@@ -356,7 +391,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       final filePath = await exportService.exportToHtml(session.id);
 
       if (context.mounted) {
-        context.showSuccessSnackBar('Report exported to: $filePath');
+        await revealExportedFile(
+          context,
+          filePath,
+          subject: 'Nightshade session report',
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -368,24 +407,32 @@ class _SessionDetailDialog extends ConsumerWidget {
 
 Stream<List<DbCapturedImage>> _pollRemoteSessionImages(
   NetworkBackend backend,
-  int sessionId,
-) async* {
-  yield await _fetchRemoteSessionImages(backend, sessionId);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteSessionImages(backend, sessionId);
-  }
-}
+  int sessionId, {
+  required Duration interval,
+}) =>
+    _pollRemoteImages(
+      () => _fetchRemoteSessionImages(backend, sessionId),
+      interval: interval,
+    );
 
 Stream<List<DbCapturedImage>> _pollRemoteStandaloneImages(
-  NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteStandaloneImages(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteStandaloneImages(backend);
-  }
-}
+  NetworkBackend backend, {
+  required Duration interval,
+}) =>
+    _pollRemoteImages(
+      () => _fetchRemoteStandaloneImages(backend),
+      interval: interval,
+    );
+
+Stream<List<DbCapturedImage>> _pollRemoteImages(
+  Future<List<DbCapturedImage>> Function() fetch, {
+  required Duration interval,
+}) =>
+    resilientDistinctPoll(
+      fetch: fetch,
+      unchanged: listEquals,
+      interval: interval,
+    );
 
 Future<List<DbCapturedImage>> _fetchRemoteSessionImages(
   NetworkBackend backend,

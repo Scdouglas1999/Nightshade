@@ -22,6 +22,21 @@ List<HeadlessRoute> buildCalibrationLibraryRoutes(
     h.handleMatch,
   ),
   HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration-library/accept',
+    h.handleAccept,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration-library/publish',
+    h.handlePublish,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration-library/retract',
+    h.handleRetract,
+  ),
+  HeadlessRoute(
     HttpMethod.put,
     '/api/calibration-library/<type>/<id>/tags',
     h.handleSetTags,

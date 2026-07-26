@@ -273,9 +273,19 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
             tooltip: _showAltitudeChart
                 ? 'Hide altitude chart'
                 : 'Show altitude chart',
-            visualDensity: VisualDensity.compact,
+            // `VisualDensity.compact` is what actually decided this button's
+            // hit area: `IconButton` sizes its tap padding from
+            // `kMinInteractiveDimension` PLUS `visualDensity
+            // .baseSizeAdjustment`, so compact's -2 took 8dp off 48 and the
+            // control measured 40x40 on a phone. `constraints` does not
+            // override that — it bounds the visual button — so raising the
+            // constraints alone left the measurement exactly where it was.
+            visualDensity: NightshadeTouchTarget.visualDensity(context),
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            constraints: NightshadeTouchTarget.constraints(
+              context,
+              desktopExtent: 28,
+            ),
           ),
 
           // Menu button
@@ -286,7 +296,10 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               color: widget.colors.textMuted,
             ),
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            constraints: NightshadeTouchTarget.constraints(
+              context,
+              desktopExtent: 28,
+            ),
             onSelected: (value) {
               switch (value) {
                 case 'toggle':

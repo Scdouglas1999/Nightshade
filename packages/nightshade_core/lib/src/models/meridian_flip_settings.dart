@@ -20,6 +20,24 @@ enum MeridianTriggerMethod {
 
 /// Extension for MeridianTriggerMethod display
 extension MeridianTriggerMethodExtension on MeridianTriggerMethod {
+  /// Whether the Dart-side standalone monitor can evaluate this trigger
+  /// without an active native sequence.
+  bool get supportsStandaloneMonitoring => switch (this) {
+    MeridianTriggerMethod.minutesPastMeridian ||
+    MeridianTriggerMethod.hourAngleThreshold => true,
+    MeridianTriggerMethod.minutesBeforeLimit ||
+    MeridianTriggerMethod.onTrackingLimitHit => false,
+  };
+
+  String? get standaloneMonitoringLimitation => switch (this) {
+    MeridianTriggerMethod.minutesBeforeLimit =>
+      'Mount tracking-limit time is only reported to an active sequence.',
+    MeridianTriggerMethod.onTrackingLimitHit =>
+      'Tracking-limit detection is only available inside an active sequence.',
+    MeridianTriggerMethod.minutesPastMeridian ||
+    MeridianTriggerMethod.hourAngleThreshold => null,
+  };
+
   String get displayName {
     switch (this) {
       case MeridianTriggerMethod.minutesPastMeridian:

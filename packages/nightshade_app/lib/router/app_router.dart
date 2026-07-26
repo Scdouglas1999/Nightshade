@@ -140,10 +140,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: kSequencerRoutePath,
             name: 'sequencer',
-            pageBuilder: (context, state) => const CustomTransitionPage(
-              child: SequencerScreen(),
+            pageBuilder: (context, state) => CustomTransitionPage(
+              child: SequencerScreen(
+                initialTabQuery: state.uri.queryParameters['tab'],
+              ),
               transitionsBuilder: PageTransitions.slideFadeTransition,
-              transitionDuration: Duration(milliseconds: 300),
+              transitionDuration: const Duration(milliseconds: 300),
             ),
           ),
           // Planetarium is a first-class Plan Tonight tab. This standalone path
@@ -392,6 +394,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
+          ),
+          // Collaborative Sky (6.0 pillar) — the unified distributed-imaging
+          // surface (co-imaging, mosaics, shared calibration). Nested under Plan
+          // Tonight → Discover; this path is kept for deep-link compatibility and
+          // redirects onto that segmented view.
+          GoRoute(
+            path: '/collaborative-sky',
+            name: 'collaborative-sky',
+            // Pure deep-link redirect onto the real segmented Discover view
+            // (CollaborativeSkyView). No pageBuilder: the redirect always fires,
+            // so any builder here would be dead — the surface renders via the
+            // Discover tab, never a standalone page.
+            redirect: (context, state) =>
+                '/planner?tab=discover&view=collaborative',
           ),
           GoRoute(
             path: '/planner',

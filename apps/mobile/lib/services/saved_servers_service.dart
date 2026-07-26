@@ -492,6 +492,19 @@ class SavedServersService {
   /// more than enough.
   final Random _random;
 
+  /// Tail of the in-process mutation queue.
+  ///
+  /// Every list mutation is a read/modify/write of one SharedPreferences
+  /// blob. Without serialization, two otherwise-correct operations can both
+  /// read the same snapshot and the later write silently erases the earlier
+  /// change (for example, a reachability refresh racing a rename). Keep the
+  /// whole operation in one queue, including secure-storage work, so callers
+  /// can safely issue mutations concurrently.
+  Future<void> _mutationTail = Future<void>.value();
+
+  /// Shares the one-shot legacy migration between concurrent first reads.
+  Future<void>? _migrationFuture;
+
   SavedServersService({
     FlutterSecureStorage? secureStorage,
     Future<SharedPreferences> Function()? prefsLoader,
@@ -518,7 +531,7 @@ class SavedServersService {
   /// runs exactly once.
   Future<List<SavedServer>> loadAll() async {
     final prefs = await _prefsLoader();
-    await _migrateLegacyIfNeeded(prefs);
+    await (_migrationFuture ??= _migrateLegacyIfNeeded(prefs));
     final raw = prefs.getString(SavedServersStorageKeys.list);
     if (raw == null || raw.isEmpty) return const [];
     List<dynamic> decoded;
@@ -609,6 +622,36 @@ class SavedServersService {
     String? relayUrl,
     String? relayApplianceId,
     bool relayAllowInsecureTls = false,
+  }) => _serializeMutation(
+    () => _addUnqueued(
+      displayName: displayName,
+      host: host,
+      port: port,
+      authToken: authToken,
+      pinnedFingerprint: pinnedFingerprint,
+      lastConnectedAt: lastConnectedAt,
+      notes: notes,
+      scheme: scheme,
+      tailscaleHost: tailscaleHost,
+      relayUrl: relayUrl,
+      relayApplianceId: relayApplianceId,
+      relayAllowInsecureTls: relayAllowInsecureTls,
+    ),
+  );
+
+  Future<SavedServer> _addUnqueued({
+    required String displayName,
+    required String host,
+    required int port,
+    String? authToken,
+    String? pinnedFingerprint,
+    DateTime? lastConnectedAt,
+    String notes = '',
+    String scheme = 'http',
+    String? tailscaleHost,
+    String? relayUrl,
+    String? relayApplianceId,
+    bool relayAllowInsecureTls = false,
   }) async {
     final id = _generateId();
     final entry = SavedServer(
@@ -651,6 +694,32 @@ class SavedServersService {
     String? notes,
     String? scheme,
     String? tailscaleHost,
+  }) => _serializeMutation(
+    () => _upsertUnqueued(
+      id: id,
+      displayName: displayName,
+      host: host,
+      port: port,
+      authToken: authToken,
+      pinnedFingerprint: pinnedFingerprint,
+      lastConnectedAt: lastConnectedAt,
+      notes: notes,
+      scheme: scheme,
+      tailscaleHost: tailscaleHost,
+    ),
+  );
+
+  Future<SavedServer> _upsertUnqueued({
+    String? id,
+    required String displayName,
+    required String host,
+    required int port,
+    String? authToken,
+    String? pinnedFingerprint,
+    DateTime? lastConnectedAt,
+    String? notes,
+    String? scheme,
+    String? tailscaleHost,
   }) async {
     final all = await loadAll();
     SavedServer? existing;
@@ -671,7 +740,7 @@ class SavedServersService {
       }
     }
     if (existing == null) {
-      return add(
+      return _addUnqueued(
         displayName: displayName,
         host: host,
         port: port,
@@ -721,6 +790,28 @@ class SavedServersService {
     String? pinnedFingerprint,
     DateTime? lastConnectedAt,
     String? notes,
+  }) => _serializeMutation(
+    () => _upsertRelayUnqueued(
+      displayName: displayName,
+      relayUrl: relayUrl,
+      relayApplianceId: relayApplianceId,
+      relayAllowInsecureTls: relayAllowInsecureTls,
+      authToken: authToken,
+      pinnedFingerprint: pinnedFingerprint,
+      lastConnectedAt: lastConnectedAt,
+      notes: notes,
+    ),
+  );
+
+  Future<SavedServer> _upsertRelayUnqueued({
+    required String displayName,
+    required String relayUrl,
+    required String relayApplianceId,
+    bool relayAllowInsecureTls = false,
+    String? authToken,
+    String? pinnedFingerprint,
+    DateTime? lastConnectedAt,
+    String? notes,
   }) async {
     final all = await loadAll();
     SavedServer? existing;
@@ -733,7 +824,7 @@ class SavedServersService {
       }
     }
     if (existing == null) {
-      return add(
+      return _addUnqueued(
         displayName: displayName,
         // A relay entry never dials these directly; persist a loopback
         // placeholder so the (required) host/port fields round-trip and the
@@ -766,7 +857,10 @@ class SavedServersService {
   /// Rename a saved server. Throws [StateError] when no row matches —
   /// the screen guards against this by reading from [loadAll] just
   /// before showing the rename dialog.
-  Future<SavedServer> rename(String id, String displayName) async {
+  Future<SavedServer> rename(String id, String displayName) =>
+      _serializeMutation(() => _renameUnqueued(id, displayName));
+
+  Future<SavedServer> _renameUnqueued(String id, String displayName) async {
     final all = await loadAll();
     for (var i = 0; i < all.length; i++) {
       if (all[i].id == id) {
@@ -780,7 +874,10 @@ class SavedServersService {
 
   /// Update the free-text notes for [id]. Same lookup semantics as
   /// [rename].
-  Future<SavedServer> setNotes(String id, String notes) async {
+  Future<SavedServer> setNotes(String id, String notes) =>
+      _serializeMutation(() => _setNotesUnqueued(id, notes));
+
+  Future<SavedServer> _setNotesUnqueued(String id, String notes) async {
     final all = await loadAll();
     for (var i = 0; i < all.length; i++) {
       if (all[i].id == id) {
@@ -795,7 +892,10 @@ class SavedServersService {
   /// Stamp `lastConnectedAt` to `DateTime.now()` for [id]. Called by
   /// the screen after a successful `/api/info` ping or after the user
   /// taps a row and the backend connect completes.
-  Future<void> touchLastConnected(String id) async {
+  Future<void> touchLastConnected(String id) =>
+      _serializeMutation(() => _touchLastConnectedUnqueued(id));
+
+  Future<void> _touchLastConnectedUnqueued(String id) async {
     final all = await loadAll();
     for (var i = 0; i < all.length; i++) {
       if (all[i].id == id) {
@@ -809,7 +909,10 @@ class SavedServersService {
   }
 
   /// Delete a row + its bearer token from secure storage. Idempotent.
-  Future<void> removeById(String id) async {
+  Future<void> removeById(String id) =>
+      _serializeMutation(() => _removeByIdUnqueued(id));
+
+  Future<void> _removeByIdUnqueued(String id) async {
     final all = await loadAll();
     final next = all.where((s) => s.id != id).toList(growable: false);
     if (next.length == all.length) return;
@@ -822,7 +925,10 @@ class SavedServersService {
   /// Drop the bearer token for [id] without removing the row. Useful
   /// when the operator wants to force a re-pair (e.g. they suspect the
   /// token was leaked) but keep the host/port/notes pinned.
-  Future<void> removeToken(String id) async {
+  Future<void> removeToken(String id) =>
+      _serializeMutation(() => _removeTokenUnqueued(id));
+
+  Future<void> _removeTokenUnqueued(String id) async {
     await _secureStorage.delete(
       key: '${SavedServersStorageKeys.tokenKeyPrefix}$id',
     );
@@ -867,7 +973,13 @@ class SavedServersService {
   /// caller surfaces the rejection rather than persisting a bad host.
   /// Same lookup semantics as [rename] (throws [StateError] when no row
   /// matches).
-  Future<SavedServer> setTailscaleHost(String id, String? tailscaleHost) async {
+  Future<SavedServer> setTailscaleHost(String id, String? tailscaleHost) =>
+      _serializeMutation(() => _setTailscaleHostUnqueued(id, tailscaleHost));
+
+  Future<SavedServer> _setTailscaleHostUnqueued(
+    String id,
+    String? tailscaleHost,
+  ) async {
     final trimmed = tailscaleHost?.trim();
     final clearing = trimmed == null || trimmed.isEmpty;
     if (!clearing && !SavedServer.isTailscaleEndpoint(trimmed)) {
@@ -895,6 +1007,18 @@ class SavedServersService {
   // ------------------------------------------------------------------
   // Internals
   // ------------------------------------------------------------------
+
+  Future<T> _serializeMutation<T>(Future<T> Function() operation) {
+    final completer = Completer<T>();
+    _mutationTail = _mutationTail.then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
+  }
 
   Future<void> _writeRow(
     SavedServer entry, {

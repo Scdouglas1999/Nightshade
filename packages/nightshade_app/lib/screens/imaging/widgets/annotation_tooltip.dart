@@ -138,10 +138,9 @@ class _AnnotationOverlayWrapperState
     // Use annotation service to identify object at position
     final annotationService = ref.read(annotationServiceProvider);
     final annotation = ref.read(currentAnnotationProvider);
-    final settings = ref.read(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settings = ref.read(annotationSettingsProvider).valueOrNull;
 
-    if (annotation?.plateSolve == null) return;
+    if (annotation?.plateSolve == null || settings == null) return;
 
     final result = await annotationService.identifyAtPixel(
       plateSolve: annotation!.plateSolve,

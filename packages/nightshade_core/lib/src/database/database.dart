@@ -31,6 +31,7 @@ import 'tables/guide_rms_history.dart';
 import 'tables/narrator_events.dart';
 import 'tables/sky_atlas_tables.dart';
 import 'tables/constellation_contributions.dart';
+import 'tables/coimaging_sessions.dart';
 import 'tables/transient_detections.dart';
 import 'tables/living_sky_retention.dart';
 import 'daos/images_dao.dart';
@@ -55,6 +56,7 @@ import 'daos/guide_rms_history_dao.dart';
 import 'daos/narrator_events_dao.dart';
 import 'daos/sky_atlas_dao.dart';
 import 'daos/constellation_contributions_dao.dart';
+import 'daos/coimaging_sessions_dao.dart';
 import 'daos/transient_detections_dao.dart';
 import 'daos/living_sky_retention_dao.dart';
 
@@ -79,6 +81,8 @@ part 'database/migration_v52.dart';
 part 'database/migration_v53.dart';
 part 'database/migration_v54.dart';
 part 'database/migration_v55.dart';
+part 'database/migration_v56.dart';
+part 'database/migration_v57.dart';
 part 'database/schema_helpers.dart';
 part 'database/default_settings.dart';
 part 'database/connection.dart';
@@ -125,6 +129,7 @@ part 'database/connection.dart';
     SkyAtlasRegions,
     SkyAtlasFolds,
     ConstellationContributions,
+    CoImagingSessions,
     TransientDetections,
     LivingSkyRetention,
   ],
@@ -151,6 +156,7 @@ part 'database/connection.dart';
     NarratorEventsDao,
     SkyAtlasDao,
     ConstellationContributionsDao,
+    CoImagingSessionsDao,
     TransientDetectionsDao,
     LivingSkyRetentionDao,
   ],
@@ -162,7 +168,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 55;
+  int get schemaVersion => 57;
 
   @override
   MigrationStrategy get migration => _buildMigrationStrategy();
@@ -181,5 +187,19 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   static Future<DatabaseRecoveryMarker?> consumeRecoveryMarker() async {
     final dbFile = await resolveDefaultDatabaseFile();
     return integrity.consumeRecoveryMarker(dbFile.parent);
+  }
+
+  /// Reads, but does not clear, the recovery notification. GUI callers should
+  /// acknowledge it only after the user has dismissed the warning.
+  static Future<DatabaseRecoveryMarker?> readRecoveryMarker() async {
+    final dbFile = await resolveDefaultDatabaseFile();
+    return integrity.readRecoveryMarker(dbFile.parent);
+  }
+
+  static Future<void> acknowledgeRecoveryMarker(
+    DatabaseRecoveryMarker marker,
+  ) async {
+    final dbFile = await resolveDefaultDatabaseFile();
+    await integrity.acknowledgeRecoveryMarker(dbFile.parent, marker);
   }
 }

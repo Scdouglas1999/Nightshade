@@ -30,17 +30,14 @@
 // 50ms pumps drains the AsyncValue overrides for `starImageProvider` and
 // `brainParamsProvider` without hanging.
 //
-// Why we swallow "overflowed" FlutterErrors: at representative phone/desktop
-// widths the brain-params shimmer and the calibration panel pack more
-// inline content than the cramped surface strictly fits. The overflow is
-// cosmetic and out of scope for this work; surface anything else so a real
-// layout regression still trips takeException().
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
+import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/guiding_keys.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
@@ -67,6 +64,18 @@ class _NoopTutorialProgressDao implements TutorialProgressDao {
   }
 }
 
+class _BuiltinGuiderConnected extends GuiderStateNotifier {
+  _BuiltinGuiderConnected(super.ref) {
+    // ignore: invalid_use_of_protected_member
+    state = const GuiderState(
+      connectionState: DeviceConnectionState.connected,
+      deviceId: builtinGuiderDeviceId,
+      deviceName: 'Built-in Guider',
+      isGuiding: true,
+    );
+  }
+}
+
 /// Drive several frames so AsyncValue providers (`starImageProvider`,
 /// `brainParamsProvider`) flow through their initial loading state and the
 /// PHD2 status bar lays out. We avoid `pumpAndSettle` because the connection
@@ -78,23 +87,6 @@ Future<void> _drainAsyncFrames(WidgetTester tester) async {
   for (var i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
-}
-
-/// Install a FlutterError.onError handler that drops "RenderFlex overflowed"
-/// exceptions during the current test and re-forwards everything else to
-/// the default presenter. See the file-level comment for the rationale.
-void _swallowKnownOverflows() {
-  final defaultOnError = FlutterError.onError;
-  FlutterError.onError = (details) {
-    final summary = details.exceptionAsString();
-    if (summary.contains('overflowed')) {
-      return; // Drop known brain-panel / calibration overflows at test sizes.
-    }
-    defaultOnError?.call(details);
-  };
-  addTearDown(() {
-    FlutterError.onError = defaultOnError;
-  });
 }
 
 List<Override> _commonOverrides() {
@@ -111,7 +103,6 @@ void main() {
   testWidgets(
       'renders_without_throwing: default desktop pump is exception-free',
       (tester) async {
-    _swallowKnownOverflows();
     // 1280x800 picks the desktop Row layout (not the mobile TabBar branch),
     // which is the primary production code path. If any of the wired
     // providers (phd2ConnectedProvider, phd2StateProvider, guideStatsProvider,
@@ -141,7 +132,6 @@ void main() {
   testWidgets(
       'shows_disconnected_state_when_phd2_unconnected: status bar advertises '
       '"PHD2 Disconnected" and the Connect button', (tester) async {
-    _swallowKnownOverflows();
     // Default guiderState is `disconnected` → phd2ConnectedProvider returns
     // false → the status bar must show the "PHD2 Disconnected" label (only
     // visible on non-mobile widths) and the Connect button (label "Connect"
@@ -176,7 +166,6 @@ void main() {
   testWidgets(
       'shows_connect_button_in_status_bar: GuidingTutorialKeys.connectBtn '
       'resolves to exactly one widget', (tester) async {
-    _swallowKnownOverflows();
     // The tutorial system looks up its anchor via GuidingTutorialKeys.connectBtn;
     // a copy/paste key drift inside the production build would silently
     // break the contextual tour for the guiding screen without any compile
@@ -200,5 +189,58 @@ void main() {
         reason: 'Right-side GuideControlsPanel must carry the controls key.');
     expect(find.byKey(GuidingTutorialKeys.graph), findsOneWidget,
         reason: 'Center-panel GuideGraphAdvanced must carry the graph key.');
+  });
+
+  testWidgets(
+      'built-in guider hides PHD2-only controls and disconnects generically',
+      (tester) async {
+    final handle = await pumpAppScreen(
+      tester,
+      const GuidingScreen(),
+      size: const Size(1280, 900),
+      settle: false,
+      extraOverrides: [
+        ..._commonOverrides(),
+        guiderStateProvider.overrideWith(_BuiltinGuiderConnected.new),
+        phd2StateProvider.overrideWith((ref) => Phd2State.guiding),
+      ],
+    );
+    when(
+      () => handle.backend.disconnectDevice(
+        DeviceType.guider,
+        builtinGuiderDeviceId,
+      ),
+    ).thenAnswer((_) async {});
+    await _drainAsyncFrames(tester);
+
+    expect(find.text('Built-in Guider Connected'), findsOneWidget);
+    expect(find.text('PHD2 Connected'), findsNothing);
+    expect(find.text('Calibration'), findsNothing);
+    expect(find.text('Brain Settings'), findsNothing);
+    expect(find.text('Guider Settings'), findsOneWidget);
+
+    final pause = find.descendant(
+      of: find.byType(GuideControlsPanel),
+      matching: find.text('Pause'),
+    );
+    final pauseInkWell = tester.widget<InkWell>(
+      find.ancestor(of: pause, matching: find.byType(InkWell)).first,
+    );
+    expect(pauseInkWell.onTap, isNull);
+
+    await tester.tap(find.text('Disconnect'));
+    await tester.pump();
+    await tester.pump();
+
+    verify(
+      () => handle.backend.disconnectDevice(
+        DeviceType.guider,
+        builtinGuiderDeviceId,
+      ),
+    ).called(1);
+    verifyNever(() => handle.backend.phd2Disconnect());
+
+    // Drain DeviceReconnectCoordinator's deliberate-disconnect debounce.
+    await tester.pump(const Duration(seconds: 11));
   });
 }

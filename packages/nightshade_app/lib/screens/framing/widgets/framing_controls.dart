@@ -18,7 +18,7 @@ class FramingSliderField extends StatelessWidget {
   final double max;
   final String? suffix;
   final NightshadeColors colors;
-  final ValueChanged<double> onChanged;
+  final ValueChanged<double>? onChanged;
 
   const FramingSliderField({
     super.key,
@@ -256,8 +256,8 @@ class FramingPreviewFovSlider extends StatelessWidget {
             child: Slider(
               value: value,
               min: 0.1,
-              max: 10.0,
-              divisions: 99,
+              max: 20.0,
+              divisions: 199,
               onChanged: onChanged,
             ),
           ),
@@ -269,7 +269,7 @@ class FramingPreviewFovSlider extends StatelessWidget {
                   style: TextStyle(
                       fontSize: NightshadeTypography.fontSize9,
                       color: colors.textMuted)),
-              Text('10°',
+              Text('20°',
                   style: TextStyle(
                       fontSize: NightshadeTypography.fontSize9,
                       color: colors.textMuted)),
@@ -803,6 +803,12 @@ class _FramingExportMosaicButtonState
 
   Future<void> _createProject() async {
     if (_isExporting || widget.panels.isEmpty) return;
+    if (ref.read(backendProvider) is NetworkBackend) {
+      context.showInfoSnackBar(
+        'Create durable mosaic projects on the imaging host.',
+      );
+      return;
+    }
 
     setState(() => _isExporting = true);
 
@@ -839,6 +845,7 @@ class _FramingExportMosaicButtonState
   @override
   Widget build(BuildContext context) {
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -879,7 +886,10 @@ class _FramingExportMosaicButtonState
               Text(
                 _isExporting
                     ? 'Creating project...'
-                    : 'Create Mosaic Project (${widget.panels.length} panels)',
+                    : isRemote
+                        ? 'Create Mosaic Project on imaging host'
+                        : 'Create Mosaic Project '
+                            '(${widget.panels.length} panels)',
                 style: NightshadeTypography.labelStrongSm
                     .copyWith(color: onPrimary),
               ),

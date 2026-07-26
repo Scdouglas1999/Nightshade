@@ -1,5 +1,15 @@
 part of '../scheduler_engine.dart';
 
+/// An operator-correctable admission failure that leaves the scheduler idle.
+class SchedulerStartException implements Exception {
+  final String message;
+
+  const SchedulerStartException(this.message);
+
+  @override
+  String toString() => message;
+}
+
 /// Snapshot of a candidate target plus the live data the engine needs to
 /// score it. The engine doesn't read the Targets DAO directly; the caller
 /// (provider layer) builds this from drift rows so the engine remains

@@ -4,10 +4,15 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path/path.dart' as path;
+import 'package:nightshade_core/src/backend/network_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_exception.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
+import 'package:nightshade_core/src/models/equipment_profile.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/models/imaging/imaging_models.dart';
+import 'package:nightshade_core/src/services/capture_preview_loader.dart';
 import 'package:nightshade_core/src/services/imaging_service.dart';
 import 'package:nightshade_core/src/services/science/science_processing_service.dart';
 
@@ -38,11 +43,20 @@ class _NoOpScienceProcessingService extends ScienceProcessingService {
   }
 }
 
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _NoOpCapturePreviewPublisher extends CapturePreviewPublisher {
+  @override
+  void publish(dynamic ref, CapturedImageData preview, String deviceId) {}
+}
+
 /// TestBackendNotifier that injects a mock backend into the provider.
 class TestBackendNotifier extends BackendNotifier {
   TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  void replaceBackend(NightshadeBackend backend) => state = backend;
 }
 
 /// Creates a sample CapturedImageResult for use in tests.
@@ -392,6 +406,7 @@ void main() {
   group('ImagingService Capture Pipeline', () {
     late ProviderContainer container;
     late MockBackend mockBackend;
+    late TestBackendNotifier backendNotifier;
     late StreamController<NightshadeEvent> eventStreamController;
 
     setUp(() {
@@ -417,7 +432,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           backendProvider.overrideWith(
-            (ref) => TestBackendNotifier(ref, mockBackend),
+            (ref) => backendNotifier = TestBackendNotifier(ref, mockBackend),
           ),
           // Set camera as connected with a device ID
           cameraStateProvider.overrideWith((ref) {
@@ -473,6 +488,255 @@ void main() {
           ),
         ),
       );
+    });
+
+    test(
+      'backend switch retires capture before old-host exposure admission',
+      () async {
+        final capabilityResult = Completer<CameraCapabilities?>();
+        when(
+          () => mockBackend.getCameraCapabilities(any()),
+        ).thenAnswer((_) => capabilityResult.future);
+
+        final oldService = container.read(imagingServiceProvider);
+        final capture = oldService.captureImage(
+          settings: const ExposureSettings(
+            exposureTime: 1,
+            gain: 100,
+            offset: 10,
+          ),
+        );
+        await untilCalled(() => mockBackend.getCameraCapabilities(any()));
+
+        final replacementBackend = MockBackend();
+        backendNotifier.replaceBackend(replacementBackend);
+        final replacementService = container.read(imagingServiceProvider);
+        expect(replacementService, isNot(same(oldService)));
+
+        capabilityResult.complete(null);
+        expect(await capture, isNull);
+        verifyNever(
+          () => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'backend switch while loading remote profile prevents retired FITS save',
+      () async {
+        final remoteBackend = _MockNetworkBackend();
+        final remoteEvents = StreamController<NightshadeEvent>.broadcast();
+        addTearDown(remoteEvents.close);
+        final activeProfile = Completer<EquipmentProfile?>();
+
+        when(
+          () => remoteBackend.eventStream,
+        ).thenAnswer((_) => remoteEvents.stream);
+        when(
+          () => remoteBackend.getCameraCapabilities(any()),
+        ).thenAnswer((_) async => null);
+        when(
+          () => remoteBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          ),
+        ).thenAnswer((_) async {
+          remoteEvents.add(
+            NightshadeEvent(
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              severity: EventSeverity.info,
+              category: EventCategory.imaging,
+              eventType: 'ExposureComplete',
+              data: const {},
+            ),
+          );
+        });
+        when(
+          () => remoteBackend.cameraGetLastImage(any()),
+        ).thenAnswer((_) async => makeCapturedImageResult());
+        when(
+          remoteBackend.getActiveProfile,
+        ).thenAnswer((_) => activeProfile.future);
+        when(
+          () => remoteBackend.cameraAbortExposure(any()),
+        ).thenAnswer((_) async {});
+        when(
+          () => remoteBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          ),
+        ).thenAnswer((_) async {});
+
+        late TestBackendNotifier remoteBackendNotifier;
+        final remoteContainer = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => remoteBackendNotifier = TestBackendNotifier(
+                ref,
+                remoteBackend,
+              ),
+            ),
+            cameraStateProvider.overrideWith((ref) {
+              final notifier = CameraStateNotifier(ref);
+              notifier.setConnecting('remote-camera', 'Remote Camera');
+              notifier.setConnected();
+              return notifier;
+            }),
+            capturePreviewPublisherProvider.overrideWithValue(
+              _NoOpCapturePreviewPublisher(),
+            ),
+            scienceProcessingServiceProvider.overrideWith(
+              (ref) => _NoOpScienceProcessingService(ref),
+            ),
+          ],
+        );
+        addTearDown(remoteContainer.dispose);
+
+        final capture = remoteContainer
+            .read(imagingServiceProvider)
+            .captureImage(
+              settings: const ExposureSettings(
+                exposureTime: 1,
+                gain: 100,
+                offset: 10,
+              ),
+            );
+        await untilCalled(remoteBackend.getActiveProfile);
+
+        final replacementBackend = MockBackend();
+        remoteBackendNotifier.replaceBackend(replacementBackend);
+        activeProfile.complete(
+          const EquipmentProfile(id: 'old', name: 'Old Host Profile'),
+        );
+
+        expect(await capture, isNull);
+        verifyNever(
+          () => remoteBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          ),
+        );
+        verifyNever(
+          () => replacementBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          ),
+        );
+      },
+    );
+
+    test('remote FITS header uses the imaging host active profile', () async {
+      final remoteBackend = _MockNetworkBackend();
+      final remoteEvents = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(remoteEvents.close);
+
+      when(
+        () => remoteBackend.eventStream,
+      ).thenAnswer((_) => remoteEvents.stream);
+      when(
+        () => remoteBackend.getCameraCapabilities(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => remoteBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        remoteEvents.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: const {},
+          ),
+        );
+      });
+      when(
+        () => remoteBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
+      when(remoteBackend.getActiveProfile).thenAnswer(
+        (_) async => const EquipmentProfile(
+          id: 'host-profile',
+          name: 'Remote Rig',
+          telescopeName: 'Remote RC10',
+          focalLength: 2000,
+          aperture: 250,
+        ),
+      );
+      when(
+        () => remoteBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((_) async {});
+
+      final remoteContainer = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => TestBackendNotifier(ref, remoteBackend),
+          ),
+          cameraStateProvider.overrideWith((ref) {
+            final notifier = CameraStateNotifier(ref);
+            notifier.setConnecting('remote-camera', 'Remote Camera');
+            notifier.setConnected();
+            return notifier;
+          }),
+          capturePreviewPublisherProvider.overrideWithValue(
+            _NoOpCapturePreviewPublisher(),
+          ),
+          scienceProcessingServiceProvider.overrideWith(
+            (ref) => _NoOpScienceProcessingService(ref),
+          ),
+        ],
+      );
+      addTearDown(remoteContainer.dispose);
+
+      final result = await remoteContainer
+          .read(imagingServiceProvider)
+          .captureImage(
+            settings: const ExposureSettings(
+              exposureTime: 1,
+              gain: 100,
+              offset: 10,
+            ),
+          );
+
+      expect(result, isNotNull);
+      final header =
+          verify(
+                () => remoteBackend.saveFitsFromLastCapture(
+                  deviceId: 'remote-camera',
+                  filePath: any(named: 'filePath'),
+                  headerData: captureAny(named: 'headerData'),
+                ),
+              ).captured.single
+              as FitsWriteHeader;
+      expect(header.telescope, 'Remote RC10');
+      expect(header.focalLength, 2000);
+      expect(header.aperture, 250);
     });
 
     test('captureImage throws when already capturing', () async {
@@ -651,6 +915,128 @@ void main() {
       expect(result.targetName, 'NGC 7000');
       expect(result.settings, settings);
     });
+
+    test('captureImage fails loudly when the FITS cannot be saved', () async {
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        binningX: 1,
+        binningY: 1,
+        frameType: FrameType.light,
+      );
+
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: const {},
+          ),
+        );
+      });
+      when(
+        () => mockBackend.cameraGetLastImage(any()),
+      ).thenAnswer((_) async => makeCapturedImageResult());
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenThrow(Exception('disk full'));
+
+      final service = container.read(imagingServiceProvider);
+
+      await expectLater(
+        service.captureImage(settings: settings),
+        throwsA(
+          isA<ImagingException>()
+              .having((e) => e.message, 'message', contains('disk full'))
+              .having(
+                (e) => e.userMessage,
+                'userMessage',
+                contains('could not be saved'),
+              ),
+        ),
+      );
+      // The diagnostic preview may remain visible, but it is not reported as
+      // a successful, durable capture to callers.
+      expect(container.read(currentImageProvider), isNotNull);
+      expect(service.isCapturing, isFalse);
+    });
+
+    test(
+      'loop capture stops after the first non-recoverable save error',
+      () async {
+        const settings = ExposureSettings(
+          exposureTime: 1.0,
+          gain: 100,
+          offset: 50,
+          binningX: 1,
+          binningY: 1,
+          frameType: FrameType.light,
+        );
+        var exposureStarts = 0;
+        when(
+          () => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          ),
+        ).thenAnswer((_) async {
+          exposureStarts++;
+          eventStreamController.add(
+            NightshadeEvent(
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              severity: EventSeverity.info,
+              category: EventCategory.imaging,
+              eventType: 'ExposureComplete',
+              data: const {},
+            ),
+          );
+        });
+        when(
+          () => mockBackend.cameraGetLastImage(any()),
+        ).thenAnswer((_) async => makeCapturedImageResult());
+        when(
+          () => mockBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          ),
+        ).thenThrow(Exception('read-only output folder'));
+        final errors = <String>[];
+
+        await container
+            .read(imagingServiceProvider)
+            .startLoopCapture(
+              settings: settings,
+              maxFrames: 3,
+              onError: errors.add,
+            );
+
+        expect(exposureStarts, 1);
+        expect(errors, hasLength(1));
+        expect(errors.single, contains('read-only output folder'));
+      },
+    );
 
     test('captureImage updates currentImageProvider on success', () async {
       const settings = ExposureSettings(
@@ -1181,10 +1567,8 @@ void main() {
     });
 
     test(
-      'a stale index past the mode list is clamped to the last mode',
+      'a stale index past the mode list aborts instead of changing modes',
       () async {
-        // A profile saved against a 5-mode camera, now used with a 3-mode
-        // camera, must not request a non-existent index 4.
         stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
 
         const settings = ExposureSettings(
@@ -1195,13 +1579,30 @@ void main() {
           readoutModeIndex: 4,
         );
 
-        await container
-            .read(imagingServiceProvider)
-            .captureImage(settings: settings);
-
-        verify(
-          () => mockBackend.cameraSetReadoutMode('test-camera-1', 2),
-        ).called(1);
+        await expectLater(
+          container
+              .read(imagingServiceProvider)
+              .captureImage(settings: settings),
+          throwsA(
+            isA<ValidationException>().having(
+              (e) => e.userMessage,
+              'userMessage',
+              contains('no longer available'),
+            ),
+          ),
+        );
+        verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
+        verifyNever(
+          () => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          ),
+        );
       },
     );
 
@@ -1228,10 +1629,7 @@ void main() {
       },
     );
 
-    test('a failed capability query skips the explicit set rather than '
-        'forcing an index', () async {
-      // The capability query throwing must be treated as "unknown", not as a
-      // two-mode camera — no silent fallback to index 0/1.
+    test('a failed capability query aborts before exposure', () async {
       when(
         () => mockBackend.getCameraCapabilities(any()),
       ).thenThrow(Exception('bridge crash'));
@@ -1278,11 +1676,54 @@ void main() {
         readoutModeIndex: 1,
       );
 
-      await container
-          .read(imagingServiceProvider)
-          .captureImage(settings: settings);
+      await expectLater(
+        container.read(imagingServiceProvider).captureImage(settings: settings),
+        throwsA(isA<Exception>()),
+      );
 
       verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
+      verifyNever(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      );
+    });
+
+    test('a rejected readout-mode command aborts before exposure', () async {
+      stubCapture(readoutModes: const ['Slow', 'Fast']);
+      when(
+        () => mockBackend.cameraSetReadoutMode('test-camera-1', 1),
+      ).thenThrow(Exception('driver rejected mode'));
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        readoutModeIndex: 1,
+      );
+
+      await expectLater(
+        container.read(imagingServiceProvider).captureImage(settings: settings),
+        throwsA(isA<Exception>()),
+      );
+      verifyNever(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      );
     });
   });
 
@@ -1344,6 +1785,7 @@ void main() {
       );
 
       final startedCompleter = Completer<void>();
+      final driverExposure = Completer<void>();
 
       when(
         () => mockBackend.cameraStartExposure(
@@ -1357,23 +1799,15 @@ void main() {
         ),
       ).thenAnswer((_) async {
         startedCompleter.complete();
-        // Wait a bit then emit ExposureComplete (the cancelExposure call will
-        // set _cancelRequested before this completes)
-        await Future.delayed(const Duration(milliseconds: 200));
-        eventStreamController.add(
-          NightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.info,
-            category: EventCategory.imaging,
-            eventType: 'ExposureComplete',
-            data: {},
-          ),
-        );
+        // Model a blocking camera driver: this call cannot return until the
+        // backend receives Abort. The old implementation deadlocked here
+        // because it waited for this Future before sending Abort.
+        await driverExposure.future;
       });
 
-      when(
-        () => mockBackend.cameraAbortExposure(any()),
-      ).thenAnswer((_) async {});
+      when(() => mockBackend.cameraAbortExposure(any())).thenAnswer((_) async {
+        if (!driverExposure.isCompleted) driverExposure.complete();
+      });
 
       final service = container.read(imagingServiceProvider);
 
@@ -1384,7 +1818,7 @@ void main() {
       // Cancel the exposure
       service.cancelExposure();
 
-      final result = await captureFuture;
+      final result = await captureFuture.timeout(const Duration(seconds: 1));
       expect(result, isNull, reason: 'Cancelled capture should return null');
 
       verify(() => mockBackend.cameraAbortExposure('test-camera-1')).called(1);
@@ -2033,6 +2467,68 @@ void main() {
       );
 
       expect(fullPath, endsWith('M31_L_2026-05-23_0012.fits'));
+    });
+
+    test(
+      'substitution values cannot inject directories or parent traversal',
+      () {
+        final subs = ImagingService.buildTimestampSubstitutions(
+          exposureSettings: settings,
+          targetName: '../M31\\Ha:unsafe',
+          frameNumber: 1,
+          timestamp: DateTime.utc(2026, 5, 23),
+        );
+
+        final fullPath = ImagingService.buildImageFilePath(
+          pattern: r'$TARGET/$TARGET_$FRAMENUM',
+          basePath: '/captures',
+          extension: 'fits',
+          substitutions: subs,
+        );
+
+        expect(path.isWithin('/captures', fullPath), isTrue);
+        expect(fullPath, isNot(contains('..')));
+        expect(fullPath, isNot(contains(r'\')));
+        expect(fullPath, endsWith('M31_Ha_unsafe_0001.fits'));
+      },
+    );
+
+    test('literal parent traversal in pattern is rejected', () {
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: DateTime.utc(2026, 5, 23),
+      );
+
+      expect(
+        () => ImagingService.buildImageFilePath(
+          pattern: r'../$TARGET',
+          basePath: '/captures',
+          extension: 'fits',
+          substitutions: subs,
+        ),
+        throwsA(isA<ValidationException>()),
+      );
+    });
+
+    test('lowercase and malformed variable syntax is rejected', () {
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: DateTime.utc(2026, 5, 23),
+      );
+
+      expect(
+        () => ImagingService.buildImageFilePath(
+          pattern: r'$target_$FRAMENUM',
+          basePath: '/captures',
+          extension: 'fits',
+          substitutions: subs,
+        ),
+        throwsA(isA<ValidationException>()),
+      );
     });
   });
 

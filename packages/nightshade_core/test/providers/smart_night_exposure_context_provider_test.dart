@@ -2,7 +2,11 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_core/src/backend/network_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/session_optimizer_provider.dart';
@@ -20,8 +24,116 @@ class _FakeAppSettingsNotifier extends AppSettingsNotifier {
   }
 }
 
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'remote Smart Night context uses host settings and host guide history',
+    () async {
+      final backend = _MockNetworkBackend();
+      when(
+        backend.getScienceSettings,
+      ).thenAnswer((_) async => {'science.camera.read_noise_e': '1.1'});
+      when(backend.getSmartNightSettings).thenAnswer(
+        (_) async => {
+          'smart_night.camera.full_well_e': '51000',
+          'smart_night.camera.qe_peak': '0.88',
+          'smart_night.glover_k_factor': '14',
+          HardwareSpecsService.cameraOverridesSettingKey: '''
+[
+  {
+    "model": "Remote Custom Camera",
+    "aliases": ["RemoteCam"],
+    "pixelSizeMicrons": 4.2,
+    "qePeak": 0.7,
+    "defaultGain": 10,
+    "gainPoints": [
+      {"gain": 10, "readNoiseE": 2.0, "fullWellE": 42000}
+    ]
+  }
+]
+''',
+        },
+      );
+      when(
+        () => backend.fetchGuideRmsHistory(mountId: 'remote-mount', limit: 20),
+      ).thenAnswer(
+        (_) async => RemotePage(
+          items: [
+            RemoteGuideRmsHistoryEntry(
+              id: 1,
+              mountId: 'remote-mount',
+              totalRmsArcsec: 0.8,
+              sampleCount: 100,
+              recordedAt: DateTime.now().subtract(const Duration(days: 2)),
+            ),
+            RemoteGuideRmsHistoryEntry(
+              id: 2,
+              mountId: 'remote-mount',
+              totalRmsArcsec: 1.2,
+              sampleCount: 80,
+              recordedAt: DateTime.now().subtract(const Duration(days: 40)),
+            ),
+          ],
+          total: 2,
+        ),
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          _initialSettingsProvider.overrideWithValue(
+            const AppSettingsState(
+              smartNightSubExposureFloorSecs: 30,
+              smartNightSubExposureCeilingSecs: 300,
+              smartNightTargetSnr: 35,
+            ),
+          ),
+          activeEquipmentProfileProvider.overrideWithValue(
+            const EquipmentProfileModel(
+              name: 'Remote rig',
+              cameraName: 'RemoteCam',
+              mountId: 'remote-mount',
+              focalLength: 500,
+              aperture: 100,
+              defaultGain: 10,
+              filterNames: ['L'],
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final context = await container.read(
+        smartNightExposureContextProvider.future,
+      );
+
+      expect(context, isNotNull);
+      expect(context!.camera.readNoiseE, 1.1);
+      expect(context.camera.fullWellE, 51000);
+      expect(context.camera.qePeak, 0.88);
+      expect(context.pixelSizeMicrons, 4.2);
+      expect(context.gloverKFactor, 14);
+      expect(context.guideSampleCount, 2);
+      expect(context.guideRmsArcsec, closeTo(0.9333, 0.0001));
+      verify(backend.getScienceSettings).called(1);
+      verify(backend.getSmartNightSettings).called(1);
+      verify(
+        () => backend.fetchGuideRmsHistory(mountId: 'remote-mount', limit: 20),
+      ).called(1);
+    },
+  );
 
   test(
     'Smart Night exposure context uses dedicated Smart Night settings',

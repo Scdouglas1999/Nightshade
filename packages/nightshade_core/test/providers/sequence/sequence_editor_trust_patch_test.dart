@@ -68,6 +68,24 @@ void main() {
   });
 
   group('SequenceLockedException', () {
+    test('loadSequence and clearSequence throw while a run is active', () {
+      final c = _newContainer();
+      final notifier = _notifier(c)..createSequence(name: 'active plan');
+      final replacement = Sequence.create(name: 'replacement');
+      c.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+
+      expect(
+        () => notifier.loadSequence(replacement, discardUnsaved: true),
+        throwsA(isA<SequenceLockedException>()),
+      );
+      expect(
+        () => notifier.clearSequence(discardUnsaved: true),
+        throwsA(isA<SequenceLockedException>()),
+      );
+      expect(c.read(currentSequenceProvider)?.name, 'active plan');
+    });
+
     test('addNode throws when sequence is running', () {
       final c = _newContainer();
       _notifier(c).createSequence();

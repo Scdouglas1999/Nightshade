@@ -64,6 +64,139 @@ enum SequenceExecutionState {
   completed,
   failed,
   recovering,
+
+  /// The native stop command FAILED. The hardware was NOT confirmed stopped
+  /// and may still be imaging, so this is a live, controllable state — never a
+  /// terminal one. Run/session identity, timers, watchdogs and the native
+  /// event subscription are all retained; Stop is re-enabled for a retry and
+  /// Start is blocked. A later authoritative native Stopped / Completed /
+  /// Failed event confirms termination and drives the real teardown.
+  stopFailed,
+
+  /// The native stop succeeded (the hardware is safe) but persistence cleanup —
+  /// finalizing the run row and ending the durable session — FAILED. Run/
+  /// session identity is retained so a Stop retry can re-run the cleanup; Start
+  /// is blocked until it completes (a fresh run would collide with the dangling
+  /// session). Not terminal.
+  cleanupFailed,
+
+  /// A nonterminal, busy finalization phase entered SYNCHRONOUSLY the instant a
+  /// natural terminal event (Completed / Failed / Stopped and their aliases) —
+  /// or an authoritative native terminal confirming a previously-failed stop —
+  /// claims teardown, held until the durable run/session cleanup succeeds.
+  ///
+  /// The hardware has already terminated authoritatively (a natural terminal is
+  /// authoritative; there is nothing left to stop), so this state owns NO
+  /// hardware and deliberately offers NO native Stop during pure persistence
+  /// finalization. It IS busy: start / resume / reset are blocked, so a rapid
+  /// Start cannot begin a new run whose identity an old cleanup could then
+  /// clobber. Only once cleanup succeeds does the executor publish the settled
+  /// `completed` / `failed` / `idle` state and the one-shot terminal-run result.
+  /// If cleanup fails it moves to the retryable [cleanupFailed] (which DOES
+  /// re-offer Stop), never back to a settled state.
+  finalizing,
+}
+
+/// Centralized run-control capabilities for [SequenceExecutionState].
+///
+/// Every playback surface — desktop toolbar, mobile playback bar, dashboard
+/// cockpit, the app-shell mini bar, the mobile sequencer tab — must agree on
+/// which buttons are live in each state. Before this extension each surface
+/// re-derived that from ad-hoc `state == running || state == paused` checks and
+/// they drifted: completed/failed surfaced a dead Pause button (or a silent
+/// no-op Start), and a failed native stop hid the Stop-retry affordance.
+/// Route every surface through these getters instead of open-coding the set.
+extension SequenceExecutionStateCapabilities on SequenceExecutionState {
+  /// A settled state a fresh run may start from. `stopFailed` / `cleanupFailed`
+  /// are deliberately excluded: the prior run's stop (or its persistence
+  /// cleanup) has not finished, so a new run would collide with live hardware
+  /// or a dangling session.
+  bool get canStart => switch (this) {
+    SequenceExecutionState.idle ||
+    SequenceExecutionState.completed ||
+    SequenceExecutionState.failed => true,
+    SequenceExecutionState.running ||
+    SequenceExecutionState.paused ||
+    SequenceExecutionState.stopping ||
+    SequenceExecutionState.recovering ||
+    SequenceExecutionState.stopFailed ||
+    SequenceExecutionState.cleanupFailed ||
+    SequenceExecutionState.finalizing => false,
+  };
+
+  /// A settled state that is safe to reset from (same set as [canStart]).
+  bool get canReset => canStart;
+
+  /// Stop is a meaningful action — either an initial stop or a retry of a
+  /// failed stop / failed cleanup. False for the settled non-active states
+  /// (the idle-stop guard) AND for `finalizing`: the hardware has already
+  /// terminated authoritatively, so there is nothing to stop during pure
+  /// persistence finalization (a cleanup FAILURE re-offers Stop via the
+  /// separate [cleanupFailed] state).
+  bool get canStop => switch (this) {
+    SequenceExecutionState.running ||
+    SequenceExecutionState.paused ||
+    SequenceExecutionState.recovering ||
+    SequenceExecutionState.stopping ||
+    SequenceExecutionState.stopFailed ||
+    SequenceExecutionState.cleanupFailed => true,
+    SequenceExecutionState.idle ||
+    SequenceExecutionState.completed ||
+    SequenceExecutionState.failed ||
+    SequenceExecutionState.finalizing => false,
+  };
+
+  /// Pause is meaningful only while the run is actively executing.
+  bool get canPause => this == SequenceExecutionState.running;
+
+  /// Resume is meaningful only from a paused run.
+  bool get canResume => this == SequenceExecutionState.paused;
+
+  /// Skip / skip-to-node only make sense while the run is live or paused.
+  bool get canSkip =>
+      this == SequenceExecutionState.running ||
+      this == SequenceExecutionState.paused;
+
+  /// The native executor / hardware may still be imaging. True for every live
+  /// state AND for `stopFailed` (a failed stop command means the hardware was
+  /// NOT confirmed stopped). False for `cleanupFailed` (native stop confirmed;
+  /// only persistence remains).
+  bool get ownsHardware => switch (this) {
+    SequenceExecutionState.running ||
+    SequenceExecutionState.paused ||
+    SequenceExecutionState.stopping ||
+    SequenceExecutionState.recovering ||
+    SequenceExecutionState.stopFailed => true,
+    SequenceExecutionState.idle ||
+    SequenceExecutionState.completed ||
+    SequenceExecutionState.failed ||
+    SequenceExecutionState.cleanupFailed ||
+    SequenceExecutionState.finalizing => false,
+  };
+
+  /// A run is in progress or in a non-idle lifecycle phase (live, tearing
+  /// down, recovering, or awaiting a stop/cleanup retry). The inverse of
+  /// [canStart]; drives "show the run controls / hide the Start button" logic.
+  bool get isBusy => !canStart;
+
+  /// A settled state (idle / completed / failed). Convenience inverse of
+  /// [isBusy]; equal to [canStart].
+  bool get isSettled => canStart;
+
+  /// The run needs operator attention — a failure surface the UI should call
+  /// out (failed, recovering, or a failed stop / cleanup awaiting retry).
+  bool get needsAttention => switch (this) {
+    SequenceExecutionState.failed ||
+    SequenceExecutionState.recovering ||
+    SequenceExecutionState.stopFailed ||
+    SequenceExecutionState.cleanupFailed => true,
+    SequenceExecutionState.idle ||
+    SequenceExecutionState.running ||
+    SequenceExecutionState.paused ||
+    SequenceExecutionState.stopping ||
+    SequenceExecutionState.finalizing ||
+    SequenceExecutionState.completed => false,
+  };
 }
 
 /// Node execution status

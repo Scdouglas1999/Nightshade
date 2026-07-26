@@ -19,26 +19,88 @@ class HandoffService {
 
   /// Current claim state for [targetId], expiring stale claims lazily.
   HandoffState state(int targetId) {
-    _expireStale(targetId);
-    final rows = _db.db.select(
-      'SELECT account_id, expires_at FROM handoff_claims WHERE target_id = ?;',
-      <Object?>[targetId],
-    );
-    if (rows.isEmpty) {
-      return HandoffState(targetId: targetId, holder: null, expiresAt: null);
-    }
+    final raw = _stateRaw('handoff_claims', 'target_id', targetId);
     return HandoffState(
       targetId: targetId,
-      holder: rows.first['account_id'] as String,
-      expiresAt: DateTime.tryParse(rows.first['expires_at'] as String),
+      holder: raw.holder,
+      expiresAt: raw.expiresAt,
     );
   }
 
   /// Claim [targetId] for [accountId]. Succeeds if free or already held by the
   /// same account (renewal). Returns null if another account currently holds it.
   HandoffClaim? claim({required int targetId, required String accountId}) {
-    _expireStale(targetId);
-    final current = state(targetId);
+    final claimed = _claimRaw('handoff_claims', 'target_id', targetId, accountId);
+    if (claimed == null) return null;
+    return HandoffClaim(
+      targetId: targetId,
+      claimToken: claimed.token,
+      expiresAt: claimed.expiresAt,
+    );
+  }
+
+  /// Release [targetId] if held by [accountId]. Returns true if a claim was
+  /// released, false if the account did not hold it.
+  bool release({required int targetId, required String accountId}) =>
+      _releaseRaw('handoff_claims', 'target_id', targetId, accountId);
+
+  // --- Session-scoped baton (co-imaging WS3) ---------------------------------
+  //
+  // A LIVE co-imaging session's "who is imaging now" baton is a property of the
+  // SESSION, not of the bare shared target: two distinct sessions that cone-merge
+  // onto the same `shared_targets` row must NOT collapse onto one baton (that let
+  // a stranger seize a victim session's hand-off / corrupt its attribution). The
+  // single-holder claim core below is reused verbatim, keyed on the session id in
+  // the dedicated `coimaging_batons` table, so each session has an isolated baton.
+
+  /// Current baton holder for co-imaging [sessionId] (holder/expiry only).
+  ({String? holder, DateTime? expiresAt}) sessionState(String sessionId) =>
+      _stateRaw('coimaging_batons', 'session_id', sessionId);
+
+  /// Claim the baton for co-imaging [sessionId]. Null when another account holds
+  /// it. Renews when the same account already holds it.
+  ({String token, DateTime expiresAt})? claimSession({
+    required String sessionId,
+    required String accountId,
+  }) =>
+      _claimRaw('coimaging_batons', 'session_id', sessionId, accountId);
+
+  /// Release the baton for co-imaging [sessionId] if held by [accountId].
+  bool releaseSession({
+    required String sessionId,
+    required String accountId,
+  }) =>
+      _releaseRaw('coimaging_batons', 'session_id', sessionId, accountId);
+
+  // --- Generic single-holder claim core --------------------------------------
+  // [table]/[col] are internal constants (never user input), so interpolating
+  // them is safe; [key] is always bound as a parameter.
+
+  ({String? holder, DateTime? expiresAt}) _stateRaw(
+    String table,
+    String col,
+    Object key,
+  ) {
+    _expireStaleRaw(table, col, key);
+    final rows = _db.db.select(
+      'SELECT account_id, expires_at FROM $table WHERE $col = ?;',
+      <Object?>[key],
+    );
+    if (rows.isEmpty) return (holder: null, expiresAt: null);
+    return (
+      holder: rows.first['account_id'] as String,
+      expiresAt: DateTime.tryParse(rows.first['expires_at'] as String),
+    );
+  }
+
+  ({String token, DateTime expiresAt})? _claimRaw(
+    String table,
+    String col,
+    Object key,
+    String accountId,
+  ) {
+    _expireStaleRaw(table, col, key);
+    final current = _stateRaw(table, col, key);
     if (current.holder != null && current.holder != accountId) {
       return null;
     }
@@ -46,50 +108,45 @@ class HandoffService {
     final now = DateTime.now().toUtc();
     final expiresAt = now.add(claimTtl);
     _db.db.execute(
-      'INSERT INTO handoff_claims (target_id, account_id, claim_token, '
+      'INSERT INTO $table ($col, account_id, claim_token, '
       'claimed_at, expires_at) VALUES (?, ?, ?, ?, ?) '
-      'ON CONFLICT(target_id) DO UPDATE SET '
+      'ON CONFLICT($col) DO UPDATE SET '
       'account_id = excluded.account_id, '
       'claim_token = excluded.claim_token, '
       'claimed_at = excluded.claimed_at, '
       'expires_at = excluded.expires_at;',
       <Object?>[
-        targetId,
+        key,
         accountId,
         token,
         now.toIso8601String(),
         expiresAt.toIso8601String(),
       ],
     );
-    return HandoffClaim(
-      targetId: targetId,
-      claimToken: token,
-      expiresAt: expiresAt,
-    );
+    return (token: token, expiresAt: expiresAt);
   }
 
-  /// Release [targetId] if held by [accountId]. Returns true if a claim was
-  /// released, false if the account did not hold it.
-  bool release({required int targetId, required String accountId}) {
-    final current = state(targetId);
+  bool _releaseRaw(String table, String col, Object key, String accountId) {
+    final current = _stateRaw(table, col, key);
     if (current.holder != accountId) return false;
-    _db.db.execute('DELETE FROM handoff_claims WHERE target_id = ?;', <Object?>[
-      targetId,
-    ]);
+    _db.db.execute(
+      'DELETE FROM $table WHERE $col = ?;',
+      <Object?>[key],
+    );
     return true;
   }
 
-  void _expireStale(int targetId) {
+  void _expireStaleRaw(String table, String col, Object key) {
     final rows = _db.db.select(
-      'SELECT expires_at FROM handoff_claims WHERE target_id = ?;',
-      <Object?>[targetId],
+      'SELECT expires_at FROM $table WHERE $col = ?;',
+      <Object?>[key],
     );
     if (rows.isEmpty) return;
     final exp = DateTime.tryParse(rows.first['expires_at'] as String);
     if (exp != null && !DateTime.now().toUtc().isBefore(exp)) {
       _db.db.execute(
-        'DELETE FROM handoff_claims WHERE target_id = ?;',
-        <Object?>[targetId],
+        'DELETE FROM $table WHERE $col = ?;',
+        <Object?>[key],
       );
     }
   }

@@ -1,5 +1,6 @@
 import '../../models/import/canonical_sequence_node.dart';
 import '../../models/import/import_result.dart';
+import '../../utils/coordinate_parser.dart';
 import 'csv_parser.dart';
 
 /// Parses Telescopius target / mosaic CSV exports into a [CanonicalSequenceNode]
@@ -395,37 +396,17 @@ class TelescopiusCsvImporter {
   /// Accepts the canonical Telescopius format `HHhMMmSS.SsZZ` (UTC-suffixed)
   /// as well as decimal hours, `HH:MM:SS.S`, and `HH MM SS.S`.
   static double? parseRaToHours(String raw) {
-    final text = raw.trim();
+    final text = raw
+        .trim()
+        .replaceFirst(RegExp(r'(?:z|utc)+$', caseSensitive: false), '')
+        .trim();
     if (text.isEmpty) return null;
     // Plain decimal hours.
     final decimal = double.tryParse(text);
     if (decimal != null && !text.contains(RegExp(r'[hHmMsS:]'))) {
-      return _normalizeRa(decimal);
+      return decimal.isFinite && decimal >= 0 && decimal < 24 ? decimal : null;
     }
-    // `HHhMMmSS.Ss` (Telescopius primary format). The trailing UTC suffix is
-    // accepted but ignored.
-    final hms = RegExp(
-      r'^([+-]?\d+(?:\.\d+)?)\s*[hH:\s]\s*([\d.]+)\s*[mM:\s]\s*([\d.]+)\s*[sS]?',
-    ).firstMatch(text);
-    if (hms != null) {
-      final h = double.tryParse(hms.group(1)!) ?? 0;
-      final m = double.tryParse(hms.group(2)!) ?? 0;
-      final s = double.tryParse(hms.group(3)!) ?? 0;
-      final sign = h.isNegative ? -1.0 : 1.0;
-      final magnitude = h.abs() + m / 60.0 + s / 3600.0;
-      return _normalizeRa(sign * magnitude);
-    }
-    // Two-component fallback `HHhMMm` (some exports omit seconds).
-    final hm = RegExp(
-      r'^([+-]?\d+(?:\.\d+)?)\s*[hH:\s]\s*([\d.]+)\s*[mM]?',
-    ).firstMatch(text);
-    if (hm != null) {
-      final h = double.tryParse(hm.group(1)!) ?? 0;
-      final m = double.tryParse(hm.group(2)!) ?? 0;
-      final sign = h.isNegative ? -1.0 : 1.0;
-      return _normalizeRa(sign * (h.abs() + m / 60.0));
-    }
-    return null;
+    return CoordinateParser.parseRa(text);
   }
 
   /// Parse a Telescopius Dec string into decimal degrees.
@@ -433,41 +414,20 @@ class TelescopiusCsvImporter {
   /// Accepts `±DD°MM'SS.S"`, `±DD MM SS.S`, `±DD:MM:SS.S`, and decimal
   /// degrees. The degree symbol can be Unicode (°) or ASCII (`d`).
   static double? parseDecToDegrees(String raw) {
-    final text = raw.trim();
+    final text = raw
+        .trim()
+        .replaceAll('′', "'")
+        .replaceAll('″', '"')
+        .replaceAll('”', '"');
     if (text.isEmpty) return null;
     // Plain decimal degrees.
     final decimal = double.tryParse(text);
     if (decimal != null && !text.contains(RegExp(r'''[°dDmM':\s"]'''))) {
-      return decimal.clamp(-90.0, 90.0);
+      return decimal.isFinite && decimal >= -90 && decimal <= 90
+          ? decimal
+          : null;
     }
-    final sign = text.startsWith('-') ? -1.0 : 1.0;
-    final cleaned = text.replaceFirst(RegExp(r'^[+-]'), '');
-    final dms = RegExp(
-      '^(\\d+(?:\\.\\d+)?)\\s*[°dD:\\s]\\s*([\\d.]+)\\s*'
-      "[′'mM:\\s]\\s*([\\d.]+)\\s*"
-      '[″”"sS]?',
-    ).firstMatch(cleaned);
-    if (dms != null) {
-      final d = double.tryParse(dms.group(1)!) ?? 0;
-      final m = double.tryParse(dms.group(2)!) ?? 0;
-      final s = double.tryParse(dms.group(3)!) ?? 0;
-      return (sign * (d + m / 60.0 + s / 3600.0)).clamp(-90.0, 90.0);
-    }
-    final dm = RegExp(
-      "^(\\d+(?:\\.\\d+)?)\\s*[°dD:\\s]\\s*([\\d.]+)\\s*[′'mM]?",
-    ).firstMatch(cleaned);
-    if (dm != null) {
-      final d = double.tryParse(dm.group(1)!) ?? 0;
-      final m = double.tryParse(dm.group(2)!) ?? 0;
-      return (sign * (d + m / 60.0)).clamp(-90.0, 90.0);
-    }
-    return null;
-  }
-
-  static double _normalizeRa(double ra) {
-    var v = ra % 24.0;
-    if (v < 0) v += 24.0;
-    return v;
+    return CoordinateParser.parseDec(text);
   }
 
   static int _findColumn(List<String> header, List<String> aliases) {

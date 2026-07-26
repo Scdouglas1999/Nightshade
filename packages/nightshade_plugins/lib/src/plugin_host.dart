@@ -22,6 +22,16 @@ class LoadedPlugin {
   /// Error that occurred during plugin operation, if any
   final String? error;
 
+  /// True only when initial registration failed and a fresh registration may
+  /// replace this entry. Enable/disable failures and compatibility blocks must
+  /// not make a provider refresh tear down an otherwise loaded plugin.
+  final bool registrationFailed;
+
+  /// True when the plugin's minimum Nightshade version is newer than this
+  /// host. Such an entry remains visible but cannot be enabled or retried by a
+  /// provider refresh; only running a compatible app version can unblock it.
+  final bool compatibilityBlocked;
+
   /// Creates a loaded plugin entry
   LoadedPlugin({
     required this.plugin,
@@ -29,16 +39,27 @@ class LoadedPlugin {
     required this.enabled,
     DateTime? loadedAt,
     this.error,
+    this.registrationFailed = false,
+    this.compatibilityBlocked = false,
   }) : loadedAt = loadedAt ?? DateTime.now();
 
   /// Create a copy with updated fields
-  LoadedPlugin copyWith({bool? enabled, String? error}) {
+  LoadedPlugin copyWith({
+    bool? enabled,
+    String? error,
+    bool clearError = false,
+    bool? registrationFailed,
+    bool? compatibilityBlocked,
+  }) {
+    assert(!clearError || error == null);
     return LoadedPlugin(
       plugin: plugin,
       context: context,
       enabled: enabled ?? this.enabled,
       loadedAt: loadedAt,
-      error: error ?? this.error,
+      error: clearError ? null : (error ?? this.error),
+      registrationFailed: registrationFailed ?? this.registrationFailed,
+      compatibilityBlocked: compatibilityBlocked ?? this.compatibilityBlocked,
     );
   }
 }
@@ -69,6 +90,9 @@ class PluginInfo {
   /// Error message if plugin failed
   final String? error;
 
+  /// Whether the current host version permits enabling this plugin.
+  final bool canEnable;
+
   /// Creates plugin info
   const PluginInfo({
     required this.id,
@@ -79,6 +103,7 @@ class PluginInfo {
     required this.enabled,
     required this.loadedAt,
     this.error,
+    this.canEnable = true,
   });
 }
 
@@ -94,6 +119,12 @@ class PluginHost {
   final PluginContextFactory _contextFactory;
   final Duration _lifecycleTimeout;
 
+  /// Running application version (e.g. `6.0.0`), or null when the host was
+  /// created without one. When set, [registerPlugin] enforces each plugin's
+  /// [NightshadePlugin.minAppVersion]; when null, enforcement is skipped so the
+  /// package and its tests work standalone.
+  final String? _appVersion;
+
   /// Registry of plugin-contributed sequence node definitions. Populated
   /// automatically when a [SequencePlugin] is registered + enabled; emptied
   /// when the plugin is unregistered or disabled.
@@ -108,8 +139,10 @@ class PluginHost {
     PluginContextFactory? contextFactory,
     Duration lifecycleTimeout = const Duration(seconds: 5),
     PluginNodeRegistry? nodeRegistry,
+    String? appVersion,
   }) : _contextFactory = contextFactory ?? PluginContextFactory(),
        _lifecycleTimeout = lifecycleTimeout,
+       _appVersion = appVersion,
        nodeRegistry = nodeRegistry ?? PluginNodeRegistry();
 
   /// Get all loaded plugins
@@ -129,6 +162,7 @@ class PluginHost {
         enabled: loaded.enabled,
         loadedAt: loaded.loadedAt,
         error: loaded.error,
+        canEnable: !loaded.compatibilityBlocked,
       );
     }).toList();
   }
@@ -164,23 +198,68 @@ class PluginHost {
     return _plugins[pluginId]?.enabled ?? false;
   }
 
+  /// The recorded error for [pluginId], or null when the plugin is healthy or
+  /// not loaded. The registration pipeline uses this to decide whether a
+  /// previously-failed plugin should be torn down and re-attempted (so the
+  /// Settings "Retry" actually recovers it) instead of being skipped forever.
+  String? pluginError(String pluginId) => _plugins[pluginId]?.error;
+
+  /// Whether [pluginId] is a retained failed initial registration that the
+  /// registration pipeline should tear down and recreate on Retry.
+  bool registrationFailed(String pluginId) =>
+      _plugins[pluginId]?.registrationFailed ?? false;
+
   /// Register a plugin
   ///
   /// Loads the plugin and calls its [onLoad] lifecycle method.
   /// The plugin starts in enabled state by default.
   ///
   /// Throws [PluginException] if:
+  /// - Plugin ID is unsafe (path-traversal / invalid characters)
   /// - Plugin ID already registered
   /// - Plugin loading fails
+  ///
+  /// A plugin whose [NightshadePlugin.minAppVersion] is newer than the host's
+  /// app version (when one was supplied) is NOT an error: it is registered
+  /// loaded-but-disabled with a descriptive [LoadedPlugin.error] and this
+  /// method returns normally, so the UI can surface "requires vX" without its
+  /// lifecycle ever running against an incompatible build.
   Future<void> registerPlugin(
     NightshadePlugin plugin, {
     bool enabled = true,
   }) async {
+    // Reject unsafe ids before anything touches disk: the id becomes a storage
+    // filename, so a `../`-style id must never reach [FilePluginStorage].
+    assertSafePluginId(plugin.id);
+
     if (_plugins.containsKey(plugin.id)) {
       throw PluginException('Plugin ${plugin.id} is already registered');
     }
 
     final context = _contextFactory.createContext(plugin.id);
+
+    // Enforce the declared minimum app version before running any lifecycle
+    // callback — an incompatible plugin may call APIs this build lacks. Only
+    // active when the host knows the running version.
+    final appVersion = _appVersion;
+    final minRequired = plugin.minAppVersion;
+    if (appVersion != null &&
+        minRequired != null &&
+        !_appVersionSatisfies(appVersion, minRequired)) {
+      _plugins[plugin.id] = LoadedPlugin(
+        plugin: plugin,
+        context: context,
+        enabled: false,
+        error:
+            'Requires Nightshade $minRequired or newer (running $appVersion).',
+        compatibilityBlocked: true,
+      );
+      context.logger.warning(
+        'Plugin ${plugin.id} requires app version $minRequired but the app is '
+        '$appVersion; registered as disabled.',
+      );
+      return;
+    }
 
     try {
       // Call onLoad lifecycle method
@@ -220,6 +299,7 @@ class PluginHost {
         context: context,
         enabled: false,
         error: e.toString(),
+        registrationFailed: true,
       );
 
       throw PluginException('Failed to register plugin ${plugin.id}', e);
@@ -279,6 +359,12 @@ class PluginHost {
     if (loaded == null) {
       throw PluginException('Plugin $pluginId not found');
     }
+    if (enabled && loaded.compatibilityBlocked) {
+      throw PluginException(
+        loaded.error ??
+            'Plugin $pluginId is incompatible with this app version',
+      );
+    }
 
     // No change needed
     if (loaded.enabled == enabled) {
@@ -316,7 +402,12 @@ class PluginHost {
       }
 
       // Update state
-      _plugins[pluginId] = loaded.copyWith(enabled: enabled, error: null);
+      _plugins[pluginId] = loaded.copyWith(
+        enabled: enabled,
+        clearError: true,
+        registrationFailed: false,
+        compatibilityBlocked: false,
+      );
       return true;
     } catch (e, stackTrace) {
       loaded.context.logger.error(
@@ -399,6 +490,80 @@ class PluginHost {
         error,
       );
     }
+  }
+}
+
+bool _appVersionSatisfies(String running, String minimum) {
+  final current = _SemanticVersion.tryParse(running);
+  final required = _SemanticVersion.tryParse(minimum);
+  if (current == null || required == null) return false;
+  return current.compareTo(required) >= 0;
+}
+
+class _SemanticVersion implements Comparable<_SemanticVersion> {
+  const _SemanticVersion(this.core, this.preRelease);
+
+  final List<int> core;
+  final List<String> preRelease;
+
+  static _SemanticVersion? tryParse(String raw) {
+    var value = raw.trim();
+    if (value.startsWith('v') || value.startsWith('V')) {
+      value = value.substring(1);
+    }
+    value = value.split('+').first;
+    final dash = value.indexOf('-');
+    final coreText = dash < 0 ? value : value.substring(0, dash);
+    final preText = dash < 0 ? '' : value.substring(dash + 1);
+    final parts = coreText.split('.');
+    if (parts.isEmpty || parts.length > 3) return null;
+    final core = <int>[];
+    for (final part in parts) {
+      if (!RegExp(r'^\d+$').hasMatch(part)) return null;
+      final number = int.tryParse(part);
+      if (number == null) return null;
+      core.add(number);
+    }
+    while (core.length < 3) {
+      core.add(0);
+    }
+
+    final preRelease = preText.isEmpty ? <String>[] : preText.split('.');
+    if (preRelease.any(
+      (part) => part.isEmpty || !RegExp(r'^[0-9A-Za-z-]+$').hasMatch(part),
+    )) {
+      return null;
+    }
+    return _SemanticVersion(core, preRelease);
+  }
+
+  @override
+  int compareTo(_SemanticVersion other) {
+    for (var i = 0; i < 3; i++) {
+      final comparison = core[i].compareTo(other.core[i]);
+      if (comparison != 0) return comparison;
+    }
+    if (preRelease.isEmpty && other.preRelease.isEmpty) return 0;
+    if (preRelease.isEmpty) return 1;
+    if (other.preRelease.isEmpty) return -1;
+
+    final common = preRelease.length < other.preRelease.length
+        ? preRelease.length
+        : other.preRelease.length;
+    for (var i = 0; i < common; i++) {
+      final left = preRelease[i];
+      final right = other.preRelease[i];
+      final leftNumber = int.tryParse(left);
+      final rightNumber = int.tryParse(right);
+      final comparison = switch ((leftNumber, rightNumber)) {
+        (final int a, final int b) => a.compareTo(b),
+        (final int _, null) => -1,
+        (null, final int _) => 1,
+        (null, null) => left.compareTo(right),
+      };
+      if (comparison != 0) return comparison;
+    }
+    return preRelease.length.compareTo(other.preRelease.length);
   }
 }
 

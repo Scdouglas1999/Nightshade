@@ -11,6 +11,11 @@ class SuggestionHandlers {
 
   SuggestionHandlers(this.container);
 
+  /// Upper bound for the `maxResults` page size. Suggestions are computed over
+  /// the user's own targets and sliced with `take(maxResults)`; 1000 is far more
+  /// than any "tonight" list surfaces while keeping the value sane.
+  static const int _maxSuggestionResults = 1000;
+
   LoggingService get _logger => container.read(loggingServiceProvider);
 
   void _logInfo(String message) =>
@@ -33,29 +38,69 @@ class SuggestionHandlers {
 
   Future<Response> handleGetSuggestionsForTonight(Request request) async {
     _logInfo('[API] GET /api/suggestions/tonight');
-    final database = container.read(databaseProvider);
 
-    // Parse query parameters
+    // Validate every query parameter BEFORE touching the database so a
+    // malformed request fails closed with a 400 and does no work. Each optional
+    // param keeps its documented default only when absent; a supplied but
+    // invalid value (NaN, out of the service range, a bogus sort mode, a
+    // non-boolean flag) is a 400 rather than silently snapping to the default.
+    final query = request.url.queryParameters;
+
+    // Altitude filter is in degrees; the sky spans -90..90 (negatives are valid
+    // for below-horizon inclusion, as the per-target score endpoint uses).
     final minAltitude =
-        double.tryParse(request.url.queryParameters['minAltitude'] ?? '') ??
-        30.0;
+        optionalQueryDouble(query, 'minAltitude', min: -90, max: 90) ?? 30.0;
+    // Score is documented 0..100 (TargetSuggestionConfig.minScore).
     final minScore =
-        double.tryParse(request.url.queryParameters['minScore'] ?? '') ?? 0.0;
+        optionalQueryDouble(query, 'minScore', min: 0, max: 100) ?? 0.0;
+    // maxResults bounds `suggestions.take(maxResults)`: a negative would throw a
+    // RangeError, so require a positive, sanely-bounded whole number.
     final maxResults =
-        int.tryParse(request.url.queryParameters['maxResults'] ?? '') ?? 20;
-    final sortModeStr = request.url.queryParameters['sortMode'] ?? 'bestScore';
+        optionalQueryInt(
+          query,
+          'maxResults',
+          min: 1,
+          max: _maxSuggestionResults,
+        ) ??
+        20;
+    // Preserve the handler's historical absent default (false) but reject a
+    // non-boolean supplied value instead of silently reading it as false.
     final prioritizeIncomplete =
-        request.url.queryParameters['prioritizeIncomplete'] == 'true';
-    final objectTypesStr = request.url.queryParameters['objectTypes'];
+        optionalQueryBool(query, 'prioritizeIncomplete') ?? false;
 
-    // Parse preferred object types
-    final preferredObjectTypes = objectTypesStr?.split(',') ?? <String>[];
+    // Sort mode must be a real enum member; an unknown value is a 400 rather
+    // than silently defaulting to bestScore (which would hide a client typo).
+    final sortModeStr = query['sortMode'];
+    final SuggestionSortMode sortMode;
+    if (sortModeStr == null || sortModeStr.isEmpty) {
+      sortMode = SuggestionSortMode.bestScore;
+    } else {
+      final match = SuggestionSortMode.values
+          .where((m) => m.name == sortModeStr)
+          .toList();
+      if (match.isEmpty) {
+        throw BadRequestError(
+          field: 'sortMode',
+          expected: SuggestionSortMode.values.map((m) => m.name).join(', '),
+          message: 'Unknown sortMode "$sortModeStr"',
+        );
+      }
+      sortMode = match.first;
+    }
 
-    // Parse sort mode
-    final sortMode = SuggestionSortMode.values.firstWhere(
-      (m) => m.name == sortModeStr,
-      orElse: () => SuggestionSortMode.bestScore,
-    );
+    // Normalize object types: split, trim, and drop blank entries so an empty
+    // or comma-only value (`objectTypes=` / `objectTypes=,,`) yields [] rather
+    // than a list of empty strings that would never match a target.
+    final objectTypesStr = query['objectTypes'];
+    final preferredObjectTypes = objectTypesStr == null
+        ? <String>[]
+        : objectTypesStr
+              .split(',')
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+
+    final database = container.read(databaseProvider);
 
     // Get location from settings
     final latitude = await database.settingsDao.getObserverLatitude();

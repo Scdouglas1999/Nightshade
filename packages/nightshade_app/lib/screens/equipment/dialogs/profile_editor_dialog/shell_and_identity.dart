@@ -108,9 +108,16 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
             label: 'Profile Name *',
             controller: _nameController,
             hint: 'e.g., Main Imaging Rig, Widefield Setup',
-            errorText: _nameController.text.isEmpty && _isSaving
-                ? 'Name is required'
-                : null,
+            errorText: _nameError,
+            onChanged: (_) {
+              // Clear a standing validation error the moment the user edits,
+              // and refresh the section summary that mirrors the name.
+              if (_nameError != null) {
+                setState(() => _nameError = null);
+              } else {
+                setState(() {});
+              }
+            },
           ),
           const SizedBox(height: 20),
 

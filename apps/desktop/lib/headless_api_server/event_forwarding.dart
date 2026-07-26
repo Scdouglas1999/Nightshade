@@ -105,7 +105,9 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
           }
         }
       }
-      return jsonEncode({'type': 'event', if (replay) 'replay': true, ...json});
+      return jsonEncode(
+        _eventJsonSafe({'type': 'event', if (replay) 'replay': true, ...json}),
+      );
     } catch (e) {
       _logError('Error encoding event for broadcast: $e');
       return null;
@@ -119,9 +121,9 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     String jsonEvent;
     try {
       if (event is Map<String, dynamic>) {
-        jsonEvent = jsonEncode({'type': 'event', ...event});
+        jsonEvent = jsonEncode(_eventJsonSafe({'type': 'event', ...event}));
       } else {
-        jsonEvent = jsonEncode(event);
+        jsonEvent = jsonEncode(_eventJsonSafe(event));
       }
     } catch (e) {
       _logError('Error encoding non-event payload for broadcast: $e');
@@ -134,6 +136,28 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
         _logWarning('Error broadcasting non-event payload: $e');
       }
     }
+  }
+
+  /// Recursively make bridge-originated payloads safe for `dart:convert`.
+  /// flutter_rust_bridge maps Rust u64/i64 values nested in event data to
+  /// Dart BigInt; jsonEncode cannot serialize those values directly.
+  Object? _eventJsonSafe(Object? value) {
+    if (value is BigInt) {
+      final maxSafeInteger = BigInt.from(9007199254740991);
+      if (value >= -maxSafeInteger && value <= maxSafeInteger) {
+        return value.toInt();
+      }
+      return value.toString();
+    }
+    if (value is Map) {
+      return value.map(
+        (key, nested) => MapEntry(key.toString(), _eventJsonSafe(nested)),
+      );
+    }
+    if (value is Iterable) {
+      return value.map(_eventJsonSafe).toList(growable: false);
+    }
+    return value;
   }
 
   void _broadcastCollaborationState(LiveCollaborationState state) {

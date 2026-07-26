@@ -1,5 +1,124 @@
 part of '../annotation_panel.dart';
 
+typedef AnnotationPngSavePicker = Future<String?> Function(
+  String suggestedName,
+);
+
+typedef AnnotationPngWriter = Future<void> Function(
+  String path,
+  Uint8List bytes,
+);
+
+/// Override points keep native dialogs and disk writes deterministic in tests.
+///
+/// The destination comes from [chooseExportTarget], not `getSaveLocation`:
+/// Android/iOS have no save dialog (`getSavePath` throws UnimplementedError),
+/// so saving an annotated image was dead on a phone. On touch platforms the
+/// returned path is inside the app sandbox and callers finish with
+/// [revealExportedFile].
+final annotationPngSavePickerProvider =
+    Provider<AnnotationPngSavePicker>((ref) {
+  return (suggestedName) async {
+    final target = await chooseExportTarget(
+      suggestedName: suggestedName,
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'PNG images', extensions: ['png']),
+      ],
+    );
+    return target?.path;
+  };
+});
+
+final annotationPngWriterProvider = Provider<AnnotationPngWriter>((ref) {
+  return (path, bytes) => File(path).writeAsBytes(bytes);
+});
+
+String annotationPngSuggestedName({
+  required String? sourcePath,
+  required DateTime capturedAt,
+}) {
+  if (sourcePath == null || sourcePath.trim().isEmpty) {
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(capturedAt);
+    return 'capture_${timestamp}_annotated.png';
+  }
+
+  // A remote imaging host may use a different path separator than this
+  // client. Normalize both forms before deriving the local suggested name.
+  final fileName = p.posix.basename(sourcePath.replaceAll('\\', '/'));
+  final lowerName = fileName.toLowerCase();
+  const compressedFitsExtensions = ['.fits.fz', '.fit.fz', '.fts.fz'];
+  for (final extension in compressedFitsExtensions) {
+    if (lowerName.endsWith(extension)) {
+      return '${fileName.substring(0, fileName.length - extension.length)}_annotated.png';
+    }
+  }
+  return '${p.posix.basenameWithoutExtension(fileName)}_annotated.png';
+}
+
+Future<void> renderAnnotatedImagePng({
+  required Uint8List rgbaBytes,
+  required int width,
+  required int height,
+  required ImageAnnotation annotation,
+  required AnnotationSettings settings,
+  required AnnotationMarkerStyle markerStyle,
+  required String outputPath,
+  required AnnotationPngWriter writeBytes,
+}) async {
+  ui.Image? baseImage;
+  ui.PictureRecorder? recorder;
+  ui.Picture? picture;
+  ui.Image? compositeImage;
+
+  try {
+    baseImage = await _rgbaBufferToImage(rgbaBytes, width, height);
+    recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawImage(baseImage, Offset.zero, Paint());
+
+    EnhancedAnnotationPainter(
+      annotation: annotation,
+      settings: settings,
+      markerStyle: markerStyle,
+      zoomLevel: 1.0,
+      imageOffset: Offset.zero,
+    ).paint(canvas, Size(width.toDouble(), height.toDouble()));
+
+    picture = recorder.endRecording();
+    compositeImage = await picture.toImage(width, height);
+    final pngData =
+        await compositeImage.toByteData(format: ui.ImageByteFormat.png);
+    if (pngData == null) {
+      throw StateError('Failed to encode annotated image as PNG');
+    }
+
+    await writeBytes(outputPath, pngData.buffer.asUint8List());
+  } finally {
+    compositeImage?.dispose();
+    picture?.dispose();
+    if (recorder?.isRecording ?? false) {
+      recorder!.endRecording().dispose();
+    }
+    baseImage?.dispose();
+  }
+}
+
+Future<ui.Image> _rgbaBufferToImage(
+  Uint8List rgbaBytes,
+  int width,
+  int height,
+) {
+  final completer = Completer<ui.Image>();
+  ui.decodeImageFromPixels(
+    rgbaBytes,
+    width,
+    height,
+    ui.PixelFormat.rgba8888,
+    completer.complete,
+  );
+  return completer.future;
+}
+
 class AnnotationObjectsPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final void Function(CelestialObjectAnnotation object) onObjectSelected;
@@ -33,6 +152,24 @@ class _AnnotationObjectsPanelState
   bool _isReAnnotating = false;
   bool _isSaving = false;
 
+  Future<void> _runPanelAction(
+    Future<void> Function() action,
+    String failureMessage,
+  ) async {
+    try {
+      await action();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$failureMessage: $error'),
+          backgroundColor: NightshadeColors.of(context).error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
   Future<void> _handleReAnnotate() async {
     if (_isReAnnotating) return;
     setState(() => _isReAnnotating = true);
@@ -40,6 +177,15 @@ class _AnnotationObjectsPanelState
     try {
       final annotationService = ref.read(annotationServiceProvider);
       await annotationService.reAnnotate();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Re-annotation failed: $error'),
+            backgroundColor: NightshadeColors.of(context).error,
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isReAnnotating = false);
@@ -56,77 +202,41 @@ class _AnnotationObjectsPanelState
       return;
     }
 
-    final imagePath = currentImage.filePath;
-    if (imagePath == null) {
-      return;
-    }
-
     setState(() => _isSaving = true);
 
     try {
-      final settings = ref.read(annotationSettingsProvider).valueOrNull ??
-          const AnnotationSettings();
-      final markerStyle = ref.read(annotationMarkerStyleProvider).valueOrNull ??
-          const AnnotationMarkerStyle();
-
-      final width = currentImage.width;
-      final height = currentImage.height;
-
-      // Build a ui.Image from the CapturedImageData RGBA display buffer.
-      // This works for all source formats (FITS, XISF, TIFF, PNG, etc.)
-      // because displayData is always pre-processed to RGBA.
-      final baseImage = await _rgbaBufferToImage(
-        currentImage.displayData,
-        width,
-        height,
+      final savePath = await ref.read(annotationPngSavePickerProvider)(
+        annotationPngSuggestedName(
+          sourcePath: currentImage.filePath,
+          capturedAt: currentImage.capturedAt,
+        ),
       );
+      if (savePath == null || !mounted) return;
 
-      // Create a PictureRecorder to draw the composite
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
+      final settingsFuture = ref.read(annotationSettingsProvider.future);
+      final markerStyleFuture = ref.read(annotationMarkerStyleProvider.future);
+      final settings = await settingsFuture;
+      final markerStyle = await markerStyleFuture;
+      if (!mounted) return;
 
-      // 1) Draw the base image
-      canvas.drawImage(baseImage, Offset.zero, Paint());
-
-      // 2) Draw annotation markers and labels on top using the same painter
-      //    as the live overlay, but at 1:1 pixel scale (no zoom/offset).
-      final painter = EnhancedAnnotationPainter(
+      await renderAnnotatedImagePng(
+        rgbaBytes: currentImage.displayData,
+        width: currentImage.width,
+        height: currentImage.height,
         annotation: annotation,
         settings: settings,
         markerStyle: markerStyle,
-        zoomLevel: 1.0,
-        imageOffset: Offset.zero,
+        outputPath: savePath,
+        writeBytes: ref.read(annotationPngWriterProvider),
       );
-      painter.paint(canvas, Size(width.toDouble(), height.toDouble()));
-
-      // Finish recording
-      final picture = recorder.endRecording();
-      final compositeImage = await picture.toImage(width, height);
-      final pngData =
-          await compositeImage.toByteData(format: ui.ImageByteFormat.png);
-
-      if (pngData == null) {
-        throw StateError('Failed to encode annotated image as PNG');
-      }
-
-      // Build save path: original_annotated.png next to the original file
-      final dir = p.dirname(imagePath);
-      final baseName = p.basenameWithoutExtension(imagePath);
-      final savePath = p.join(dir, '${baseName}_annotated.png');
-
-      final outFile = File(savePath);
-      await outFile.writeAsBytes(pngData.buffer.asUint8List());
-
-      // Clean up native resources
-      baseImage.dispose();
-      compositeImage.dispose();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Annotated image saved to $savePath'),
-            duration: const Duration(seconds: 4),
-          ),
+        await revealExportedFile(
+          context,
+          savePath,
+          subject: 'Annotated image',
+          desktopMessage: 'Annotated image saved to $savePath',
+          desktopDuration: const Duration(seconds: 4),
         );
       }
     } catch (e) {
@@ -146,23 +256,6 @@ class _AnnotationObjectsPanelState
     }
   }
 
-  /// Convert an RGBA pixel buffer to a [ui.Image].
-  Future<ui.Image> _rgbaBufferToImage(
-    Uint8List rgbaBytes,
-    int width,
-    int height,
-  ) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      rgbaBytes,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-    return completer.future;
-  }
-
   Future<void> _exportCsv(List<CelestialObjectAnnotation> objects) async {
     if (objects.isEmpty) return;
     final timestamp = DateFormat('yyyy-MM-dd_HHmmss').format(DateTime.now());
@@ -174,11 +267,12 @@ class _AnnotationObjectsPanelState
       extensions: ['csv'],
     );
     if (path != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Annotations exported to $path'),
-          duration: const Duration(seconds: 4),
-        ),
+      await revealExportedFile(
+        context,
+        path,
+        subject: 'Annotation CSV',
+        desktopMessage: 'Annotations exported to $path',
+        desktopDuration: const Duration(seconds: 4),
       );
     }
   }
@@ -194,11 +288,12 @@ class _AnnotationObjectsPanelState
       extensions: ['reg'],
     );
     if (path != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('DS9 regions exported to $path'),
-          duration: const Duration(seconds: 4),
-        ),
+      await revealExportedFile(
+        context,
+        path,
+        subject: 'DS9 region file',
+        desktopMessage: 'DS9 regions exported to $path',
+        desktopDuration: const Duration(seconds: 4),
       );
     }
   }
@@ -206,8 +301,23 @@ class _AnnotationObjectsPanelState
   @override
   Widget build(BuildContext context) {
     final annotation = ref.watch(currentAnnotationProvider);
-    final settings = ref.watch(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settingsAsync = ref.watch(annotationSettingsProvider);
+    if (settingsAsync.hasError) {
+      return _annotationAuthorityState(
+        colors: widget.colors,
+        label: 'annotation settings',
+        error: settingsAsync.error,
+        onRetry: () => ref.invalidate(annotationSettingsProvider),
+      );
+    }
+    if (!settingsAsync.hasValue) {
+      return _annotationAuthorityState(
+        colors: widget.colors,
+        label: 'annotation settings',
+        onRetry: () => ref.invalidate(annotationSettingsProvider),
+      );
+    }
+    final settings = settingsAsync.requireValue;
     final sortMode = ref.watch(annotationPanelSortModeProvider);
     final objects = annotation?.objects ?? [];
 
@@ -496,9 +606,15 @@ class _AnnotationObjectsPanelState
             onSelected: (value) {
               switch (value) {
                 case 'csv':
-                  unawaited(_exportCsv(displayableObjects));
+                  unawaited(_runPanelAction(
+                    () => _exportCsv(displayableObjects),
+                    'CSV export failed',
+                  ));
                 case 'ds9':
-                  unawaited(_exportDs9(displayableObjects));
+                  unawaited(_runPanelAction(
+                    () => _exportDs9(displayableObjects),
+                    'DS9 export failed',
+                  ));
               }
             },
             itemBuilder: (context) => [
@@ -608,11 +724,12 @@ class _AnnotationObjectsPanelState
                     .contains(AnnotationObjectFilter.stars),
                 colors: widget.colors,
                 onTap: () {
-                  unawaited(
-                    ref
+                  unawaited(_runPanelAction(
+                    () => ref
                         .read(annotationSettingsProvider.notifier)
                         .toggleObjectType(AnnotationObjectFilter.stars),
-                  );
+                    'Could not save annotation filters',
+                  ));
                 },
               ),
               AnnotationQuickSettingChip(
@@ -620,11 +737,12 @@ class _AnnotationObjectsPanelState
                 isSelected: settings.showLabels,
                 colors: widget.colors,
                 onTap: () {
-                  unawaited(
-                    ref
+                  unawaited(_runPanelAction(
+                    () => ref
                         .read(annotationSettingsProvider.notifier)
                         .setShowLabels(!settings.showLabels),
-                  );
+                    'Could not save label visibility',
+                  ));
                 },
               ),
               AnnotationQuickSettingChip(
@@ -632,11 +750,12 @@ class _AnnotationObjectsPanelState
                 isSelected: settings.showMagnitudes,
                 colors: widget.colors,
                 onTap: () {
-                  unawaited(
-                    ref
+                  unawaited(_runPanelAction(
+                    () => ref
                         .read(annotationSettingsProvider.notifier)
                         .setShowMagnitudes(!settings.showMagnitudes),
-                  );
+                    'Could not save magnitude visibility',
+                  ));
                 },
               ),
               AnnotationQuickSettingChip(
@@ -644,11 +763,12 @@ class _AnnotationObjectsPanelState
                 isSelected: settings.compassEnabled,
                 colors: widget.colors,
                 onTap: () {
-                  unawaited(
-                    ref
+                  unawaited(_runPanelAction(
+                    () => ref
                         .read(annotationSettingsProvider.notifier)
                         .setCompassEnabled(!settings.compassEnabled),
-                  );
+                    'Could not save compass visibility',
+                  ));
                 },
               ),
               AnnotationQuickSettingChip(
@@ -657,11 +777,12 @@ class _AnnotationObjectsPanelState
                 isSelected: settings.scaleBarEnabled,
                 colors: widget.colors,
                 onTap: () {
-                  unawaited(
-                    ref
+                  unawaited(_runPanelAction(
+                    () => ref
                         .read(annotationSettingsProvider.notifier)
                         .setScaleBarEnabled(!settings.scaleBarEnabled),
-                  );
+                    'Could not save scale-bar visibility',
+                  ));
                 },
               ),
             ],
@@ -690,7 +811,10 @@ class _AnnotationObjectsPanelState
                   } else {
                     updated.addAll(typeFilters);
                   }
-                  unawaited(notifier.setObjectTypes(updated));
+                  unawaited(_runPanelAction(
+                    () => notifier.setObjectTypes(updated),
+                    'Could not save annotation filters',
+                  ));
                 },
               );
             }).toList(),
@@ -700,16 +824,17 @@ class _AnnotationObjectsPanelState
             alignment: Alignment.centerLeft,
             child: NightshadeButton(
               onPressed: () {
-                unawaited(
-                  ref.read(annotationSettingsProvider.notifier).setObjectTypes(
-                    {
-                      AnnotationObjectFilter.galaxies,
-                      AnnotationObjectFilter.nebulae,
-                      AnnotationObjectFilter.starClusters,
-                      AnnotationObjectFilter.planetaryNebulae,
-                    },
-                  ),
-                );
+                unawaited(_runPanelAction(
+                  () => ref
+                      .read(annotationSettingsProvider.notifier)
+                      .setObjectTypes({
+                    AnnotationObjectFilter.galaxies,
+                    AnnotationObjectFilter.nebulae,
+                    AnnotationObjectFilter.starClusters,
+                    AnnotationObjectFilter.planetaryNebulae,
+                  }),
+                  'Could not reset annotation filters',
+                ));
               },
               label: 'Reset to defaults',
               variant: ButtonVariant.ghost,

@@ -233,6 +233,48 @@ impl From<&str> for DeviceOpError {
 /// [`DeviceOpError::Hardware`] (INDI failures are protocol/comm failures, i.e.
 /// retryable). The device id is not in scope at the trait-error boundary, so
 /// it is left `None`; the INDI message already names the property that failed.
+/// Classify a vendor-SDK error instead of flattening it to `Hardware`.
+///
+/// [`DeviceOpError::driver`] takes `impl Display`, so every native driver
+/// failure — including the ones the SDK layer had *already* classified —
+/// collapsed into `Hardware { .. }`, which
+/// `From<DeviceOpError> for NightshadeError` then renders as
+/// `OperationFailed`, which the HTTP layer answers as a generic 500.
+/// Observed on the live rig against a real ZWO ASI1600MM-Cool whose own
+/// capabilities report `readoutModes: []`:
+///   POST /api/camera/readoutMode {"modeIndex":0}
+///     -> 500 {"error":"internal_error","message":"Operation not supported"}
+/// The driver said "not supported", the HTTP layer already knows how to
+/// answer that (501), and only this conversion lost the category — while
+/// also inviting retry-on-5xx clients to retry a call that can never work.
+///
+/// Use `.map_err(DeviceOpError::from)` at native-driver call sites in place
+/// of `.map_err(DeviceOpError::driver)`. Everything that is genuinely a
+/// hardware/SDK fault still becomes `Hardware`, so 500 remains the answer
+/// for real faults.
+impl From<nightshade_native::NativeError> for DeviceOpError {
+    fn from(e: nightshade_native::NativeError) -> Self {
+        use nightshade_native::NativeError as N;
+        let detail = e.to_string();
+        match e {
+            N::NotSupported => DeviceOpError::Unsupported { detail },
+            N::InvalidParameter(_) => DeviceOpError::InvalidParameter { detail },
+            N::InvalidDevice(_) => DeviceOpError::InvalidDeviceId { detail },
+            N::DeviceNotFound(id) => DeviceOpError::DeviceNotFound(id),
+            N::NotConnected | N::Disconnected => DeviceOpError::NotConnected {
+                device_id: None,
+                detail,
+            },
+            // SdkError / SdkNotLoaded / the timeout family / anything else is
+            // a genuine hardware or host fault.
+            _ => DeviceOpError::Hardware {
+                device_id: None,
+                detail,
+            },
+        }
+    }
+}
+
 impl From<nightshade_indi::IndiError> for DeviceOpError {
     fn from(e: nightshade_indi::IndiError) -> Self {
         DeviceOpError::Hardware {
@@ -245,9 +287,65 @@ impl From<nightshade_indi::IndiError> for DeviceOpError {
 /// FFI edge mapping. The api layer historically wrapped every ops error as
 /// `NightshadeError::OperationFailed(string)`; reproducing that exactly (via
 /// `Display`) keeps the error that reaches Dart byte-for-byte identical.
+///
+/// Two variants are now forwarded structurally instead. The headless API maps
+/// the bridge error enum to an HTTP status (`_httpStatusForBackendError`:
+/// notConnected -> 409, deviceNotFound -> 404, ... orElse -> 500). While
+/// everything collapsed into `OperationFailed`, that mapper could never fire,
+/// so asking any equipment endpoint about a device that simply is not connected
+/// answered `500 internal_error` — verified on the rig: `GET
+/// /api/equipment/mount/status` for a disconnected mount returned 500. A 5xx
+/// reads as a server fault, which is exactly the class this codebase elsewhere
+/// refuses to return on device preconditions because it invites the client to
+/// auto-retry straight back into the serial bus.
+///
+/// Message compatibility: `DeviceNotFound` renders identically in both enums
+/// (`"Device not found: {id}"`), so that arm is byte-for-byte unchanged. The
+/// not-connected arm becomes `"Device not connected: {id}"`, which still
+/// contains the `not connected` substring the Dart classifiers key on
+/// (`NightshadeError.fromString`, `nightshade_exception.dart`) and additionally
+/// names the device. Every other variant keeps the legacy `OperationFailed`
+/// string.
 impl From<DeviceOpError> for NightshadeError {
     fn from(e: DeviceOpError) -> Self {
-        NightshadeError::OperationFailed(e.to_string())
+        match e {
+            DeviceOpError::DeviceNotFound(id) => NightshadeError::DeviceNotFound(id),
+            DeviceOpError::NotConnected { device_id, detail } => {
+                // Prefer the id (clean "Device not connected: <id>"); fall back
+                // to the driver's own phrasing for the arms that omit it.
+                NightshadeError::NotConnected(device_id.unwrap_or(detail))
+            }
+            // The HTTP layer already knows what to do with these categories
+            // (`_httpStatusForBackendError` maps `notSupported` -> 501 and
+            // `invalidParameter`/`invalidDeviceId` -> 400). Collapsing them into
+            // `OperationFailed` is what made those requests answer a generic
+            // 500 `internal_error`. Observed on the live rig against a real
+            // ZWO ASI1600MM-Cool:
+            //   POST /api/camera/readoutMode {"modeIndex":0} on a camera whose
+            //     own capabilities report `readoutModes: []` ->
+            //     500 {"error":"internal_error","message":"Operation not supported"}
+            //     — the driver had already classified it as unsupported.
+            //   POST /api/camera/expose {"binX":9} ->
+            //     500 {"error":"internal_error","message":"... Invalid parameter:
+            //     ZWO binning must be symmetric and between 1x1 and 4x4, got 9x9"}
+            //     — the driver had already classified it as a bad parameter.
+            // Both invite retry-on-5xx clients to retry a request that cannot
+            // ever succeed. `Hardware` and `Message` stay `OperationFailed`:
+            // they are genuine 500s and re-shaping them would change wording
+            // that Dart string classifiers key on for no status-code gain.
+            DeviceOpError::Unsupported { detail } => NightshadeError::NotSupported {
+                device_id: String::new(),
+                operation: detail,
+            },
+            DeviceOpError::InvalidParameter { detail } => {
+                NightshadeError::InvalidParameter(detail)
+            }
+            DeviceOpError::InvalidDeviceId { detail } => NightshadeError::InvalidDeviceId {
+                device_id: String::new(),
+                reason: detail,
+            },
+            other => NightshadeError::OperationFailed(other.to_string()),
+        }
     }
 }
 
@@ -291,6 +389,61 @@ mod tests {
                 assert_eq!(s, "Failed to park Alpaca mount: boom");
             }
             other => panic!("expected OperationFailed, got {other:?}"),
+        }
+    }
+
+    /// A not-connected device is a caller precondition, not a server fault.
+    /// The headless API turns `NotConnected` into HTTP 409; while this mapping
+    /// collapsed to `OperationFailed`, every equipment endpoint answered 500
+    /// for a merely-disconnected device (reproduced on the rig against a real
+    /// mount) and remote clients treat 5xx as retryable.
+    #[test]
+    fn ffi_mapping_forwards_not_connected_structurally() {
+        let err = DeviceOpError::not_connected(
+            Some("ascom:ASCOM.PegasusAstroNYX101.Telescope".to_string()),
+            "ASCOM mount not connected",
+        );
+        let mapped: NightshadeError = err.into();
+        match mapped {
+            NightshadeError::NotConnected(id) => {
+                assert_eq!(id, "ascom:ASCOM.PegasusAstroNYX101.Telescope");
+                // The Dart-side classifiers key on this substring.
+                assert!(NightshadeError::NotConnected(id)
+                    .to_string()
+                    .to_lowercase()
+                    .contains("not connected"));
+            }
+            other => panic!("expected NotConnected, got {other:?}"),
+        }
+    }
+
+    /// The driver-bare arms omit the id; keep their own phrasing as the payload
+    /// so the message still says which subsystem is down.
+    #[test]
+    fn ffi_mapping_not_connected_without_id_keeps_driver_detail() {
+        let err = DeviceOpError::not_connected(None, "INDI client not connected for ccd");
+        let mapped: NightshadeError = err.into();
+        match mapped {
+            NightshadeError::NotConnected(detail) => {
+                assert_eq!(detail, "INDI client not connected for ccd");
+            }
+            other => panic!("expected NotConnected, got {other:?}"),
+        }
+    }
+
+    /// `DeviceNotFound` renders identically in both enums, so forwarding it
+    /// changes the HTTP status (500 -> 404) without changing the wire message.
+    #[test]
+    fn ffi_mapping_device_not_found_is_message_identical() {
+        let op_err = DeviceOpError::device_not_found("ascom:Foo");
+        let legacy = op_err.to_string();
+        let mapped: NightshadeError = op_err.into();
+        match mapped {
+            NightshadeError::DeviceNotFound(_) => {
+                assert_eq!(mapped.to_string(), legacy);
+                assert_eq!(mapped.to_string(), "Device not found: ascom:Foo");
+            }
+            other => panic!("expected DeviceNotFound, got {other:?}"),
         }
     }
 

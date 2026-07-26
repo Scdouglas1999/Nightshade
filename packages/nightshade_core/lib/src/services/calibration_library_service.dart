@@ -2,16 +2,24 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
 import '../database/daos/calibration_tags_dao.dart';
 import '../database/daos/flat_library_dao.dart';
 import '../database/database.dart';
 import '../models/calibration/calibration_library_models.dart';
+import '../models/calibration/shared_calibration_models.dart';
+import '../models/collaboration/collaboration_models.dart';
 import '../providers/backend_provider.dart';
+import '../providers/constellation_provider.dart';
 import '../providers/database_provider.dart';
 import 'calibration/fits_header_reader.dart';
+import 'calibration/shared_calibration_library.dart';
 
 /// The Calibration Library Manager service: one unified browse / tag /
 /// auto-match surface over the master artifacts the imaging pipeline already
@@ -38,17 +46,37 @@ class CalibrationLibraryService {
     Ref? ref,
     this.headerReader = const FitsHeaderReader(),
     this.thresholds = CalibrationStalenessThresholds.defaults,
+    RemoteCalibrationLibrary? remoteLibrary,
+    NightshadeBackend? backend,
+    Future<String> Function()? sharedMasterDirResolver,
     DateTime Function()? now,
   }) : _db = db,
        _flatDao = flatLibraryDao,
        _tagsDao = tagsDao,
-       _ref = ref,
+       _backend = backend ?? ref?.read(backendProvider),
+       _backendNotifier = ref?.read(backendProvider.notifier),
+       _remoteLibrary = remoteLibrary,
+       _sharedMasterDirResolver = sharedMasterDirResolver,
        _now = now ?? DateTime.now;
 
   final NightshadeDatabase _db;
   final FlatLibraryDao _flatDao;
   final CalibrationTagsDao _tagsDao;
-  final Ref? _ref;
+  final NightshadeBackend? _backend;
+  final BackendNotifier? _backendNotifier;
+  bool _retired = false;
+
+  /// The hub-backed shared calibration library (WS1). When set, [match] folds
+  /// ranked REMOTE candidates into the local ranking and [acceptRemoteMaster]
+  /// can download + merge a chosen one. Null on a remote client (the appliance
+  /// owns matching) and in wirings without a hub.
+  final RemoteCalibrationLibrary? _remoteLibrary;
+
+  /// Resolves the directory accepted remote masters are downloaded into. Null in
+  /// wirings that never accept remote masters; [acceptRemoteMaster] then refuses
+  /// rather than guessing a path.
+  final Future<String> Function()? _sharedMasterDirResolver;
+
   final FitsHeaderReader headerReader;
   final CalibrationStalenessThresholds thresholds;
   final DateTime Function() _now;
@@ -60,10 +88,24 @@ class CalibrationLibraryService {
   /// DB (which on a remote client is empty). Null on the host / local builds,
   /// where the operations run against the local DB.
   NetworkBackend? get _remote {
-    final ref = _ref;
-    if (ref == null) return null;
-    final backend = ref.read(backendProvider);
+    final backend = _backend;
     return backend is NetworkBackend ? backend : null;
+  }
+
+  bool get _hasAuthority {
+    final backend = _backend;
+    if (backend == null) return true;
+    return !_retired && (_backendNotifier?.isCurrentBackend(backend) ?? false);
+  }
+
+  void retire() => _retired = true;
+
+  void _ensureAuthority() {
+    if (_hasAuthority) return;
+    throw StateError(
+      'The imaging host changed while the calibration library was loading. '
+      'The stale result was discarded; try again on the current host.',
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -82,7 +124,19 @@ class CalibrationLibraryService {
     CalibrationLibraryFilter filter = const CalibrationLibraryFilter(),
     bool enrichFromHeaders = true,
   }) async {
-    var records = await _loadAll();
+    _ensureAuthority();
+    final remote = _remote;
+    var records = remote == null
+        ? await _loadAll()
+        : [
+            for (final row in await remote.getCalibrationMasters(
+              type: filter.type == null
+                  ? null
+                  : calibrationMasterTypeWireName(filter.type!),
+            ))
+              CalibrationMasterRecord.fromJson(row),
+          ];
+    _ensureAuthority();
 
     if (filter.mastersOnly) {
       records = records.where((r) => r.isMaster).toList();
@@ -138,8 +192,9 @@ class CalibrationLibraryService {
           .toList();
     }
 
-    if (enrichFromHeaders) {
+    if (enrichFromHeaders && remote == null) {
       records = [for (final r in records) await _enrich(r)];
+      _ensureAuthority();
     }
 
     final cameraId = filter.cameraId?.trim();
@@ -148,6 +203,7 @@ class CalibrationLibraryService {
     }
 
     records.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    _ensureAuthority();
     return records;
   }
 
@@ -156,10 +212,23 @@ class CalibrationLibraryService {
     CalibrationMasterType type,
     int id,
   ) async {
-    final all = await _loadAll();
+    _ensureAuthority();
+    final remote = _remote;
+    final all = remote == null
+        ? await _loadAll()
+        : [
+            for (final row in await remote.getCalibrationMasters(
+              type: calibrationMasterTypeWireName(type),
+            ))
+              CalibrationMasterRecord.fromJson(row),
+          ];
+    _ensureAuthority();
     for (final record in all) {
       if (record.type == type && record.id == id) {
-        return _enrich(record);
+        if (remote != null) return record;
+        final enriched = await _enrich(record);
+        _ensureAuthority();
+        return enriched;
       }
     }
     return null;
@@ -188,19 +257,52 @@ class CalibrationLibraryService {
   ///    without an optical-train tag matched against a context that has one
   ///    also warns.
   ///  * **Defect maps**: per camera id; nearest temperature bucket.
+  ///
+  /// When a shared calibration library is configured ([_remoteLibrary]) and
+  /// [includeRemote] is set, ranked REMOTE candidates are folded into the same
+  /// per-type ranking (WS1): a downloaded master is preferred on an exact tuple
+  /// tie (local-first), the quality gate refuses any whose sensor/dimensions do
+  /// not match, and a REMOTE flat is only ever reused on an EXACT optical-train
+  /// match (never across trains). The chosen remote master's provenance (frame
+  /// count, dark current, who shot it, license) rides on the result so the user
+  /// can trust what they pull, then [acceptRemoteMaster] downloads + merges it.
   Future<CalibrationMatchSet> match(
     LightFrameContext context, {
     CalibrationMatchTolerances tolerances = CalibrationMatchTolerances.defaults,
+    bool includeRemote = true,
   }) async {
     final remote = _remote;
     if (remote != null) {
       // Remote client: the appliance owns the real master library, so the
       // host runs the matcher against its own DB and returns the transparent
       // per-type result.
-      return remote.matchCalibrationMasters(context);
+      final result = await remote.matchCalibrationMasters(context);
+      _ensureAuthority();
+      return result;
     }
     final all = await _loadAll();
+    String? remoteWarning;
+    if (includeRemote && _remoteLibrary != null) {
+      try {
+        final candidates = await _remoteLibrary.queryCandidates(context);
+        for (final candidate in candidates) {
+          if (_remoteCandidatePasses(candidate, context)) all.add(candidate);
+        }
+      } on Object catch (e) {
+        // Folding remote candidates is strictly additive and best-effort: a hub
+        // failure must never degrade local matching, but the operator must see
+        // that shared masters were not consulted (offline != 'none exist').
+        developer.log(
+          'Remote calibration candidates skipped: $e',
+          name: 'CalibrationLibraryService',
+          level: 900,
+        );
+        remoteWarning =
+            'Shared calibration hub unreachable — showing local masters only.';
+      }
+    }
     final setWarnings = <String>[];
+    if (remoteWarning != null) setWarnings.add(remoteWarning);
 
     final dark = _matchDark(
       all.where((r) => r.type == CalibrationMasterType.dark),
@@ -252,6 +354,397 @@ class CalibrationLibraryService {
       defectMap: defectMap,
       warnings: setWarnings,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shared calibration libraries (WS1)
+  // ---------------------------------------------------------------------------
+
+  /// Download a REMOTE master surfaced by [match] and merge it into the local
+  /// library, applying the WS1 quality + consent gates and conflict resolution:
+  ///
+  ///  * refuses a non-shareable license, a defect map, or a flat without an
+  ///    optical-train tag (a flat is never reusable across trains);
+  ///  * CONFLICT RESOLUTION — when a LOCAL master with the exact same tuple
+  ///    already exists, prefers the local copy and does NOT download
+  ///    ([RemoteMasterAcceptanceKind.preferredLocal]); otherwise downloads,
+  ///    writes the file, and inserts a new artifact row + a provenance-stamped
+  ///    `calibration_tags` annotation (keeping both)
+  ///    ([RemoteMasterAcceptanceKind.merged]).
+  ///
+  /// AUTHORITY: only [remote]'s `remoteId` is trusted. Everything the matcher
+  /// keys on — gain, offset, exposure, temperature, binning, sensor geometry,
+  /// filter, optical train, license, provenance — is re-read from the hub's own
+  /// row alongside the bytes and it is THAT record which is gated and filed.
+  /// [remote] reaches this method across an untrusted boundary (a REST client
+  /// posts a `/match` result back to `/api/calibration-library/accept`), so
+  /// filing the caller's copy would let a mutated payload register real master
+  /// bytes under a tuple they were never shot at — the matcher would then
+  /// silently subtract the wrong master from future lights. A hub that supplies
+  /// no authoritative record fails CLOSED (refused) rather than falling back to
+  /// the caller's metadata.
+  Future<RemoteMasterAcceptance> acceptRemoteMaster(
+    CalibrationMasterRecord remote,
+  ) async {
+    if (!remote.isRemote) {
+      throw ArgumentError('acceptRemoteMaster requires a remote record');
+    }
+    final library = _remoteLibrary;
+    if (library == null) {
+      throw StateError('no shared calibration library is configured');
+    }
+    // Cheap pre-gates on the caller's copy, purely to avoid spending a download
+    // on an ask that cannot be accepted. Both outcomes are conservative — they
+    // file nothing — so acting on untrusted metadata here is safe; the
+    // authoritative versions of both gates run again after the download.
+    final preRefusal = _acceptRefusal(remote);
+    if (preRefusal != null) {
+      return RemoteMasterAcceptance.refused(preRefusal);
+    }
+    final preLocal = await _loadAll();
+    final preDuplicate = _exactLocalDuplicate(remote, preLocal);
+    if (preDuplicate != null) {
+      return RemoteMasterAcceptance.preferredLocal(preDuplicate);
+    }
+
+    final dirResolver = _sharedMasterDirResolver;
+    if (dirResolver == null) {
+      throw StateError('no shared-master download directory is configured');
+    }
+    final download = await library.downloadMaster(remote);
+    final authority = download.master?.toMasterRecord(
+      remote.sourceHubKey ?? '',
+    );
+    if (authority == null) {
+      return RemoteMasterAcceptance.refused(
+        'The hub did not return an authoritative record for this master, so '
+        'the calibration tuple it would be filed under cannot be verified.',
+      );
+    }
+    if (authority.remoteId != remote.remoteId) {
+      return RemoteMasterAcceptance.refused(
+        'The hub returned master ${authority.remoteId} for a request for '
+        '${remote.remoteId}; refusing to file mismatched bytes.',
+      );
+    }
+
+    // Re-run the consent/reuse gates against the HUB's record, not the
+    // caller's: a caller could otherwise dress an un-shareable master (or a
+    // train-less flat) in an acceptable-looking payload.
+    final refusal = _acceptRefusal(authority);
+    if (refusal != null) {
+      return RemoteMasterAcceptance.refused(refusal);
+    }
+    // Conflict resolution: prefer a local exact-tuple master over the download.
+    final local = await _loadAll();
+    final duplicate = _exactLocalDuplicate(authority, local);
+    if (duplicate != null) {
+      return RemoteMasterAcceptance.preferredLocal(duplicate);
+    }
+
+    final dir = await dirResolver();
+    final fileName =
+        '${calibrationMasterTypeWireName(authority.type)}_'
+        '${authority.remoteId}.fits';
+    final destPath = '$dir/$fileName';
+    final file = File(destPath);
+    await file.parent.create(recursive: true);
+    await file.writeAsBytes(download.bytes, flush: true);
+
+    final newId = await _insertAcceptedMaster(authority, destPath);
+    return RemoteMasterAcceptance.merged(newId, destPath);
+  }
+
+  /// Publish a LOCAL master to the configured hub under [consent]'s license
+  /// (consent-gated: refuses when the consent does not permit sharing). The
+  /// trust signals (frame count, sensor dimensions, camera) are taken from the
+  /// record; [provenance] supplies the rest (e.g. measured dark current).
+  Future<SharedCalibrationMaster> publishMaster(
+    CalibrationMasterRecord record, {
+    required ContributionConsent consent,
+    Provenance provenance = const Provenance(),
+  }) async {
+    final library = _remoteLibrary;
+    if (library == null) {
+      throw StateError('no shared calibration library is configured');
+    }
+    if (!consent.permitsSharing) {
+      throw StateError(
+        'consent does not permit sharing (license '
+        '${consent.license.wireName})',
+      );
+    }
+    if (record.type == CalibrationMasterType.defectMap) {
+      throw StateError('defect maps cannot be shared');
+    }
+    if (record.type == CalibrationMasterType.flat &&
+        (record.opticalTrainId == null ||
+            record.opticalTrainId!.trim().isEmpty)) {
+      throw StateError(
+        'a flat can only be shared with an optical-train tag (flats are '
+        'never reusable across optical trains)',
+      );
+    }
+    final published = await library.publish(
+      record: record,
+      consent: consent,
+      provenance: provenance,
+    );
+    // Record the hub master id locally so the master can later be retracted
+    // (un-shared) — this is the owner-scoped retract handle the UI surfaces.
+    await _tagsDao.upsert(
+      record.type,
+      record.id,
+      publishedRemoteId: published.id,
+    );
+    return published;
+  }
+
+  /// Retract (un-share) a LOCAL master the user previously published to the hub.
+  ///
+  /// On a remote client the call routes to the appliance over REST (the rig owns
+  /// the published row + its retract handle); locally it resolves the hub master
+  /// id recorded at publish time, calls the hub's owner-scoped delete, and clears
+  /// the local retract handle so the master shows as un-shared again. Throws a
+  /// [StateError] when the master was never published or no hub is configured.
+  Future<void> retractPublishedMaster(CalibrationMasterRecord record) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.retractCalibrationMaster(
+        type: calibrationMasterTypeWireName(record.type),
+        id: record.id,
+      );
+      return;
+    }
+    final library = _remoteLibrary;
+    if (library == null) {
+      throw StateError('no shared calibration library is configured');
+    }
+    final remoteId =
+        record.publishedRemoteId ??
+        (await _tagsDao.getForMaster(
+          record.type,
+          record.id,
+        ))?.publishedRemoteId;
+    if (remoteId == null || remoteId.isEmpty) {
+      throw StateError('this master has not been published to a hub');
+    }
+    await library.retract(remoteId);
+    await _tagsDao.upsert(record.type, record.id, clearPublishedRemoteId: true);
+  }
+
+  /// The reason a remote master is refused outright, or null when it may be
+  /// accepted. Defense-in-depth: re-applies the consent + cross-train gates at
+  /// accept time, not just at match-folding time.
+  String? _acceptRefusal(CalibrationMasterRecord remote) {
+    if (remote.type == CalibrationMasterType.defectMap) {
+      return 'Defect maps are camera/firmware specific and are not shared.';
+    }
+    if (remote.license == null || !remote.license!.isShareable) {
+      return 'This master is not shared under a reusable license.';
+    }
+    if (remote.type == CalibrationMasterType.flat &&
+        (remote.opticalTrainId == null ||
+            remote.opticalTrainId!.trim().isEmpty)) {
+      return 'A shared flat without an optical-train tag is never reusable.';
+    }
+    return null;
+  }
+
+  /// The LOCAL master whose tuple exactly matches [remote] (so a download would
+  /// be a duplicate), or null when none — the "keep both otherwise" branch.
+  CalibrationMasterRecord? _exactLocalDuplicate(
+    CalibrationMasterRecord remote,
+    List<CalibrationMasterRecord> records,
+  ) {
+    for (final r in records) {
+      if (r.isRemote) continue;
+      if (r.type != remote.type) continue;
+      if (r.gain != remote.gain ||
+          r.offset != remote.offset ||
+          r.binX != remote.binX ||
+          r.binY != remote.binY) {
+        continue;
+      }
+      if (!_sameOptional(r.cameraId, remote.cameraId)) continue;
+      // Sensor dimensions must agree when both sides know them.
+      if (r.width != null && remote.width != null && r.width != remote.width) {
+        continue;
+      }
+      if (r.height != null &&
+          remote.height != null &&
+          r.height != remote.height) {
+        continue;
+      }
+      switch (remote.type) {
+        case CalibrationMasterType.dark:
+          if (!_sameExposure(r.exposureSeconds, remote.exposureSeconds)) {
+            continue;
+          }
+        case CalibrationMasterType.bias:
+          break;
+        case CalibrationMasterType.flat:
+          if (!_sameOptional(r.filter, remote.filter)) continue;
+          if (!_sameOptional(r.opticalTrainId, remote.opticalTrainId)) continue;
+        case CalibrationMasterType.defectMap:
+          continue;
+      }
+      return r;
+    }
+    return null;
+  }
+
+  /// Insert a downloaded master into its source table + a provenance-stamped
+  /// `calibration_tags` row. Returns the new artifact id.
+  Future<int> _insertAcceptedMaster(
+    CalibrationMasterRecord remote,
+    String destPath,
+  ) async {
+    final now = _now();
+    final int newId;
+    switch (remote.type) {
+      case CalibrationMasterType.dark:
+      case CalibrationMasterType.bias:
+        newId = await _db
+            .into(_db.darkLibrary)
+            .insert(
+              DarkLibraryCompanion.insert(
+                filePath: destPath,
+                exposureTime: remote.exposureSeconds ?? 0,
+                frameType: Value(
+                  remote.type == CalibrationMasterType.bias ? 'bias' : 'dark',
+                ),
+                temperature: Value(remote.temperature),
+                gain: Value(remote.gain ?? 0),
+                offset: Value(remote.offset ?? 0),
+                binX: Value(remote.binX),
+                binY: Value(remote.binY),
+                width: Value(remote.width),
+                height: Value(remote.height),
+                masterDarkPath: Value(destPath),
+                masterFrameCount: Value(remote.frameCount),
+                createdAt: Value(now),
+              ),
+            );
+      case CalibrationMasterType.flat:
+        newId = await _flatDao.addEntry(
+          filePath: destPath,
+          filter: remote.filter,
+          opticalTrainId: remote.opticalTrainId,
+          temperature: remote.temperature,
+          gain: remote.gain ?? 0,
+          offset: remote.offset ?? 0,
+          binX: remote.binX,
+          binY: remote.binY,
+          width: remote.width,
+          height: remote.height,
+          masterFrameCount: remote.frameCount ?? 0,
+          createdAt: now,
+        );
+      case CalibrationMasterType.defectMap:
+        throw StateError('defect maps cannot be merged');
+    }
+    final sharedBy =
+        remote.sharedBy ??
+        remote.provenance?.displayName ??
+        remote.provenance?.accountId;
+    await _tagsDao.upsert(
+      remote.type,
+      newId,
+      cameraId: remote.cameraId,
+      sharedBy: sharedBy,
+      sharedAt: now,
+      license: remote.license?.wireName,
+      provenanceJson: remote.provenance?.toJsonString(),
+    );
+    return newId;
+  }
+
+  /// Whether a REMOTE candidate passes the WS1 quality gate for [ctx]. The gate
+  /// FAILS CLOSED on the trust dimensions — a candidate is folded only when it
+  /// is provably sensor-compatible, never when identity is merely unknown:
+  ///  * a shareable license;
+  ///  * a camera identity that the context names AND the candidate matches (an
+  ///    unknown camera on either side is refused — a foreign sensor's
+  ///    dark-current / hot-pixel / amp-glow pattern would silently corrupt
+  ///    calibration);
+  ///  * sensor dimensions the candidate advertises (a candidate with no recorded
+  ///    geometry can never be proven sensor-matched, so it is refused), matching
+  ///    the context's own geometry exactly when the context knows it;
+  ///  * for a flat, an EXACT optical-train match (never train-less, never
+  ///    cross-train). Cross-account flat reuse on a bare train name is additionally
+  ///    prevented hub-side: `SharedCalibrationService.query` scopes flats to the
+  ///    requesting owner, so a candidate that reaches here is same-owner already.
+  bool _remoteCandidatePasses(
+    CalibrationMasterRecord r,
+    LightFrameContext ctx,
+  ) {
+    if (r.type == CalibrationMasterType.defectMap) return false;
+    if (r.license == null || !r.license!.isShareable) return false;
+    // Camera identity fails closed: refuse cross-/unknown-camera remotes.
+    final wantCam = ctx.cameraId?.trim();
+    if (wantCam == null || wantCam.isEmpty) return false;
+    if (r.cameraId == null || r.cameraId!.trim() != wantCam) return false;
+    // Sensor dimensions fail closed: a candidate that does not advertise its
+    // geometry is refused; when the context knows its own geometry the candidate
+    // must match it exactly.
+    if (r.width == null || r.height == null) return false;
+    final cw = ctx.sensorWidth;
+    final ch = ctx.sensorHeight;
+    if (cw != null && r.width != cw) return false;
+    if (ch != null && r.height != ch) return false;
+    if (r.type == CalibrationMasterType.flat) {
+      final wantTrain = ctx.opticalTrainId?.trim();
+      if (wantTrain == null || wantTrain.isEmpty) return false;
+      if (r.opticalTrainId == null || r.opticalTrainId!.trim() != wantTrain) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Append the trust-surfacing provenance lines for a REMOTE pick: who shared
+  /// it, the supporting frame count / dark-current, and the reuse license, plus
+  /// a soft "this is shared, verify it" warning.
+  void _applyRemoteProvenance(
+    CalibrationMasterRecord best,
+    List<String> reasons,
+    List<String> warnings,
+  ) {
+    if (!best.isRemote) return;
+    final prov = best.provenance;
+    final who = best.sharedBy ?? prov?.displayName ?? 'another member';
+    final buffer = StringBuffer('Shared master from $who');
+    final fc = best.frameCount ?? prov?.frameCount;
+    if (fc != null) buffer.write(' ($fc frames');
+    final dc = prov?.darkCurrent;
+    if (dc != null) {
+      buffer.write(
+        '${fc != null ? ', ' : ' ('}dark current '
+        '${dc.toStringAsFixed(3)} e-/px/s',
+      );
+    }
+    if (fc != null || dc != null) buffer.write(')');
+    if (best.license != null) {
+      buffer.write(' — license ${best.license!.wireName}');
+    }
+    reasons.add(buffer.toString());
+    warnings.add(
+      'This is a SHARED master you did not capture — review its provenance '
+      'before trusting your calibration to it.',
+    );
+  }
+
+  static bool _sameOptional(String? a, String? b) {
+    final na = a?.trim();
+    final nb = b?.trim();
+    if ((na == null || na.isEmpty) && (nb == null || nb.isEmpty)) return true;
+    return na == nb;
+  }
+
+  static bool _sameExposure(double? a, double? b) {
+    if (a == null || b == null) return a == b;
+    return (a - b).abs() < 0.001;
   }
 
   // ---------------------------------------------------------------------------
@@ -412,6 +905,10 @@ class CalibrationLibraryService {
           createdAt: row.createdAt,
           tags: tag?.tags ?? const [],
           notes: tag?.notes,
+          provenance: _provenanceFromTag(tag),
+          license: _licenseFromTag(tag),
+          sharedBy: tag?.sharedBy,
+          publishedRemoteId: tag?.publishedRemoteId,
         ),
       );
     }
@@ -440,6 +937,10 @@ class CalibrationLibraryService {
           createdAt: row.createdAt,
           tags: tag?.tags ?? const [],
           notes: tag?.notes,
+          provenance: _provenanceFromTag(tag),
+          license: _licenseFromTag(tag),
+          sharedBy: tag?.sharedBy,
+          publishedRemoteId: tag?.publishedRemoteId,
         ),
       );
     }
@@ -597,6 +1098,9 @@ class CalibrationLibraryService {
       final bT = _tempDelta(b, ctx);
       final byTemp = aT.compareTo(bT);
       if (byTemp != 0) return byTemp;
+      // Conflict resolution: on an otherwise-exact tie, prefer a LOCAL master
+      // over a remote one (you already have it; no download / trust step).
+      if (a.isRemote != b.isRemote) return a.isRemote ? 1 : -1;
       return b.createdAt.compareTo(a.createdAt);
     });
     final best = pool.first;
@@ -649,6 +1153,7 @@ class CalibrationLibraryService {
       reasons.add('Stacked master of ${best.frameCount} frames');
     }
 
+    _applyRemoteProvenance(best, reasons, warnings);
     score = _applyStaleness(score, best, reasons, warnings);
     return CalibrationMatch(
       record: best,
@@ -679,6 +1184,7 @@ class CalibrationLibraryService {
 
     pool.sort((a, b) {
       if (a.isMaster != b.isMaster) return a.isMaster ? -1 : 1;
+      if (a.isRemote != b.isRemote) return a.isRemote ? 1 : -1;
       return b.createdAt.compareTo(a.createdAt);
     });
     final best = pool.first;
@@ -694,6 +1200,7 @@ class CalibrationLibraryService {
       score -= 15;
       warnings.add('Matched a raw bias frame, not a stacked master.');
     }
+    _applyRemoteProvenance(best, reasons, warnings);
     score = _applyStaleness(score, best, reasons, warnings);
     return CalibrationMatch(
       record: best,
@@ -757,8 +1264,14 @@ class CalibrationLibraryService {
     }
 
     // Flats are matched by filter + RECENCY: dust and the optical train
-    // drift over days, so the newest qualifying flat wins outright.
-    pool.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // drift over days, so the newest qualifying flat wins outright; a LOCAL
+    // flat breaks an exact same-day tie (you already have it).
+    pool.sort((a, b) {
+      final byDate = b.createdAt.compareTo(a.createdAt);
+      if (byDate != 0) return byDate;
+      if (a.isRemote != b.isRemote) return a.isRemote ? 1 : -1;
+      return 0;
+    });
     final best = pool.first;
 
     final reasons = <String>[
@@ -792,6 +1305,7 @@ class CalibrationLibraryService {
       );
     }
 
+    _applyRemoteProvenance(best, reasons, warnings);
     score = _applyStaleness(score, best, reasons, warnings);
     return CalibrationMatch(
       record: best,
@@ -955,16 +1469,105 @@ class CalibrationLibraryService {
       await file.delete();
     }
   }
+
+  static Provenance? _provenanceFromTag(CalibrationTagEntry? tag) {
+    final raw = tag?.provenanceJson;
+    if (raw == null || raw.trim().isEmpty) return null;
+    return Provenance.fromJsonString(raw);
+  }
+
+  static ContributionLicense? _licenseFromTag(CalibrationTagEntry? tag) {
+    final raw = tag?.license;
+    if (raw == null || raw.trim().isEmpty) return null;
+    return ContributionLicense.fromWire(raw);
+  }
+}
+
+/// What happened when a REMOTE master was accepted into the local library.
+enum RemoteMasterAcceptanceKind {
+  /// The master was downloaded and merged in as a new local artifact.
+  merged,
+
+  /// An exact-tuple LOCAL master already existed, so the local copy was kept and
+  /// nothing was downloaded (conflict resolution: prefer local).
+  preferredLocal,
+
+  /// The master was refused by the quality/consent gate (e.g. non-shareable
+  /// license, or a flat without an optical-train tag).
+  refused,
+}
+
+/// The outcome of [CalibrationLibraryService.acceptRemoteMaster].
+class RemoteMasterAcceptance {
+  const RemoteMasterAcceptance._(
+    this.kind, {
+    this.mergedId,
+    this.filePath,
+    this.existing,
+    this.reason,
+  });
+
+  factory RemoteMasterAcceptance.merged(int id, String filePath) =>
+      RemoteMasterAcceptance._(
+        RemoteMasterAcceptanceKind.merged,
+        mergedId: id,
+        filePath: filePath,
+      );
+
+  factory RemoteMasterAcceptance.preferredLocal(
+    CalibrationMasterRecord existing,
+  ) => RemoteMasterAcceptance._(
+    RemoteMasterAcceptanceKind.preferredLocal,
+    existing: existing,
+  );
+
+  factory RemoteMasterAcceptance.refused(String reason) =>
+      RemoteMasterAcceptance._(
+        RemoteMasterAcceptanceKind.refused,
+        reason: reason,
+      );
+
+  final RemoteMasterAcceptanceKind kind;
+
+  /// The new local artifact id (set only when [kind] is `merged`).
+  final int? mergedId;
+
+  /// The downloaded file path (set only when [kind] is `merged`).
+  final String? filePath;
+
+  /// The kept local master (set only when [kind] is `preferredLocal`).
+  final CalibrationMasterRecord? existing;
+
+  /// Why the master was refused (set only when [kind] is `refused`).
+  final String? reason;
+
+  bool get accepted => kind == RemoteMasterAcceptanceKind.merged;
 }
 
 /// Riverpod provider for the [CalibrationLibraryService].
 final calibrationLibraryServiceProvider = Provider<CalibrationLibraryService>((
   ref,
 ) {
-  return CalibrationLibraryService(
+  final backend = ref.watch(backendProvider);
+  final settings = ref.watch(settingsDaoProvider);
+  final service = CalibrationLibraryService(
     db: ref.watch(databaseProvider),
     flatLibraryDao: ref.watch(flatLibraryDaoProvider),
     tagsDao: ref.watch(calibrationTagsDaoProvider),
     ref: ref,
+    backend: backend,
+    // WS1: fold ranked masters shared on the configured Constellation hub into
+    // the local ranking, and download-on-accept. Reuses the same settings-backed
+    // hub credentials Pillar C resolves; a no-hub config simply yields no remote
+    // candidates.
+    remoteLibrary: HubCalibrationLibrary(
+      credentialsResolver: () => resolveConstellationCredentials(settings),
+    ),
+    sharedMasterDirResolver: () async {
+      final dir = await getApplicationSupportDirectory();
+      return p.join(dir.path, 'shared_calibration');
+    },
   );
+  ref.onDispose(service.retire);
+  return service;
 });

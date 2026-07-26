@@ -133,22 +133,54 @@ jobs:
             fi
           done
 
+      # Decode the production upload keystore when provisioned. Absent secret ->
+      # KEYSTORE_FILE stays unset and build.gradle.kts falls back to the debug
+      # keystore staged above (debug-signed beta). A SET-but-broken keystore
+      # fails the build in gradle rather than silently debug-signing a release.
+      - name: Decode release keystore (optional)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Release keystore decoded: production signing enabled."
+          else
+            echo "ANDROID_KEYSTORE_BASE64 not set: building debug-signed beta APKs."
+          fi
+
       # The mobile app is a pure-Flutter companion (it talks to the desktop
       # server over HTTP/WS) — no Rust/NDK cross-compilation is required.
-      # `flutter build apk --release` produces a universal, debug-signed
-      # release APK; no production keystore is configured.
-      - name: Build release APK (universal)
+      # `--split-per-abi` emits one APK per ABI; gradle reads KEYSTORE_* from the
+      # env (KEYSTORE_FILE is exported by the decode step above when present).
+      - name: Build release APKs (per-ABI)
         working-directory: apps/mobile
-        run: flutter build apk --release
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: flutter build apk --release --split-per-abi
 
-      - name: Stage + checksum APK
+      - name: Stage + checksum APKs
         run: |
           set -euo pipefail
           mkdir -p dist
-          cp apps/mobile/build/app/outputs/flutter-apk/app-release.apk \
-             "dist/nightshade-${APP_VERSION}-android-universal.apk"
-          (cd dist && sha256sum "nightshade-${APP_VERSION}-android-universal.apk" \
-             > "nightshade-${APP_VERSION}-android-universal.apk.sha256")
+          apkdir="apps/mobile/build/app/outputs/flutter-apk"
+          found=0
+          for abi in armeabi-v7a arm64-v8a x86_64; do
+            src="$apkdir/app-$abi-release.apk"
+            [ -f "$src" ] || continue
+            dest="nightshade-${APP_VERSION}-android-$abi.apk"
+            cp "$src" "dist/$dest"
+            (cd dist && sha256sum "$dest" > "$dest.sha256")
+            found=$((found + 1))
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No per-ABI release APKs found in $apkdir"
+            ls -l "$apkdir" || true
+            exit 1
+          fi
           ls -l dist
 
       - name: Upload Android artifact
@@ -227,28 +259,21 @@ jobs:
             exit 1
           fi
           cp -Lv "$LIBRAW_PATH" "$BUNDLE_LIB/"
-          # Bundle sqlite too. sqlite3_flutter_libs dynamically links the host's
-          # libsqlite3.so.0; a bundle compiled against this runner's sqlite ABI
-          # crashes in sqlite3_initialize when loaded against a *different*
-          # system sqlite on the user's distro (e.g. a rolling-release desktop
-          # with a much newer sqlite). Ship the matching sqlite and load it via
-          # the launcher below so the app is ABI-consistent everywhere.
-          SQLITE_PATH="$(ldconfig -p | awk '/libsqlite3\.so\.0/ {print $NF; exit}')"
-          if [ -z "${SQLITE_PATH:-}" ] || [ ! -e "$SQLITE_PATH" ]; then
-            echo "libsqlite3.so.0 not found via ldconfig" >&2
+          # package:sqlite3 ^3 installs a hermetic libsqlite3.so via Dart build
+          # hooks (CMake copies build/native_assets/linux/ into bundle/lib).
+          # That build is linked with -Bsymbolic so it can coexist with the
+          # system libsqlite3 that GTK→tinysparql already loads on modern
+          # Linux. Do NOT replace it with the host's libsqlite3 or a symlink —
+          # that was the old sqlite3_flutter_libs packaging and it both
+          # clobbers the native asset and reintroduces dual-SQLite crashes.
+          if [ ! -f "$BUNDLE_LIB/libsqlite3.so" ] || [ -L "$BUNDLE_LIB/libsqlite3.so" ]; then
+            echo "MISSING: hermetic native-asset $BUNDLE_LIB/libsqlite3.so (regular file)" >&2
+            ls -l "$BUNDLE_LIB"/libsqlite3* >&2 || true
             exit 1
           fi
-          cp -Lv "$SQLITE_PATH" "$BUNDLE_LIB/libsqlite3.so.0"
-          # The plugin's DT_NEEDED is "libsqlite3.so.0", but the Dart sqlite3
-          # FFI dlopens the unversioned "libsqlite3.so". Provide both names so
-          # BOTH resolve to this one bundled copy — otherwise the FFI misses the
-          # bundle, falls back to the host's libsqlite3.so, and two mismatched
-          # sqlite instances crash in sqlite3_initialize on boot.
-          ln -sf libsqlite3.so.0 "$BUNDLE_LIB/libsqlite3.so"
-          # Launcher: prepend the bundled lib/ to the loader path so the
-          # ABI-matched sqlite/libraw win over whatever the host ships. This is
-          # the recommended entry point for the desktop bundle. Written with
-          # printf (not a heredoc) so YAML block-indentation can't corrupt it.
+          # Launcher: prepend the bundled lib/ so libraw (and the hermetic
+          # sqlite native asset) win the loader search. Written with printf
+          # (not a heredoc) so YAML block-indentation can't corrupt it.
           {
             printf '%s\n' '#!/usr/bin/env bash'
             printf '%s\n' 'HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}")")" && pwd)"'
@@ -365,20 +390,67 @@ jobs:
       - name: Build Rust native bridge (release)
         run: cargo build --locked --release --manifest-path native/nightshade_native/bridge/Cargo.toml
 
+      # SEC-001: bake the trusted OTA public key into the binary. Empty secret
+      # -> empty define -> runtime OTA stays fail-closed-disabled; the build
+      # still succeeds (unsigned beta).
       - name: Build Flutter Windows app (release)
         working-directory: apps/desktop
-        run: flutter build windows --release
+        run: flutter build windows --release "--dart-define=NIGHTSHADE_UPDATE_PUBLIC_KEY=${{ secrets.NIGHTSHADE_UPDATE_PUBLIC_KEY }}"
 
       - name: Stage native DLLs (bridge, libraw, MSVC runtime) into Release
         shell: pwsh
         run: ./scripts/stage_windows_release.ps1 -Profile Release
+
+      # OTA needs updater.exe inside the canonical archive. Build + stage it here
+      # (before Authenticode) so the signed binary is the one that ships and the
+      # one the OTA manifest hashes.
+      - name: Build + stage updater.exe
+        shell: pwsh
+        run: |
+          cargo build --locked --release --package nightshade_updater --manifest-path native/nightshade_native/Cargo.toml
+          $rel = "apps/desktop/build/windows/x64/runner/Release"
+          Copy-Item native/nightshade_native/target/release/updater.exe (Join-Path $rel "updater.exe") -Force
+          Write-Host "Staged updater.exe into $rel"
+
+      # Authenticode-sign every binary in the Release tree. No cert secret ->
+      # skip (unsigned beta). A SET-but-broken cert throws (fail loud).
+      - name: Authenticode sign (optional)
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: |
+          $rel = "apps/desktop/build/windows/x64/runner/Release"
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_BASE64)) {
+            Write-Host "WINDOWS_SIGNING_CERT_BASE64 not set: skipping Authenticode signing (unsigned beta)."
+            exit 0
+          }
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "WINDOWS_SIGNING_CERT_BASE64 is set but signtool.exe was not found under the Windows 10 SDK." }
+          $targets = @(Get-ChildItem $rel -Recurse -Include *.exe, *.dll | Select-Object -ExpandProperty FullName)
+          if ($targets.Count -eq 0) { throw "No *.exe/*.dll to sign under $rel" }
+          $pfx = Join-Path $env:RUNNER_TEMP "nightshade_codesign.pfx"
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64))
+            & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfx /p $env:WINDOWS_SIGNING_CERT_PASSWORD @targets
+            if ($LASTEXITCODE -ne 0) { throw "signtool sign failed (exit $LASTEXITCODE)" }
+            & $signtool.FullName verify /pa @targets
+            if ($LASTEXITCODE -ne 0) { throw "signtool verify failed (exit $LASTEXITCODE)" }
+            Write-Host "Authenticode-signed $($targets.Count) file(s)."
+          }
+          finally {
+            Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Verify the Release output is complete
         shell: pwsh
         run: |
           $rel = "apps/desktop/build/windows/x64/runner/Release"
           $missing = @()
-          foreach ($f in @("nightshade_desktop.exe", "nightshade_bridge.dll", "libraw.dll")) {
+          # 6.0 ships OTA auto-update, so updater.exe is now REQUIRED (it was
+          # forbidden under 5.0's manual-update-only policy).
+          foreach ($f in @("nightshade_desktop.exe", "nightshade_bridge.dll", "libraw.dll", "updater.exe")) {
             if (-not (Test-Path (Join-Path $rel $f))) { $missing += $f }
           }
           if ($missing.Count -gt 0) {
@@ -387,22 +459,32 @@ jobs:
             Write-Error "Missing required files in Release output: $($missing -join ', ')"
             exit 1
           }
+          # Vendor SDK DLLs stay forbidden: the release zip redistributes none.
           $forbidden = @(
-            "updater.exe",
             "ASICamera2.dll", "EAF_focuser.dll", "EFW_filter.dll",
             "qhyccd.dll", "AtikCameras.dll", "PlayerOneCamera.dll",
             "SVBCameraSDK.dll", "ogmacam.dll", "dlapi.dll"
           )
           $unexpected = @($forbidden | Where-Object { Test-Path (Join-Path $rel $_) })
           if ($unexpected.Count -gt 0) {
-            Write-Error "Official 5.0 is manual-update-only and redistributes no vendor SDKs; unexpected files: $($unexpected -join ', ')"
+            Write-Error "Release redistributes no vendor SDKs; unexpected files: $($unexpected -join ', ')"
             exit 1
           }
           Write-Host "Release output verified:"
           Get-ChildItem $rel | Format-Table Name, Length
 
-      - name: Package + checksum
+      # Stage the license/source files into Release, then let
+      # build_update_package.ps1 produce the ONE canonical zip + the signed OTA
+      # manifest that describes it (single archive => packageSha256 + files map
+      # all agree). downloadUrl is baked + signed into the manifest, so it must
+      # equal the real published asset URL: the immutable per-tag GitHub Releases
+      # download URL (the tag is always v<APP_VERSION>, validated by the version
+      # job). Empty NIGHTSHADE_UPDATE_PRIVATE_KEY -> unsigned manifest (OTA stays
+      # fail-closed-disabled); the build still succeeds.
+      - name: Package + sign OTA manifest
         shell: pwsh
+        env:
+          NIGHTSHADE_UPDATE_PRIVATE_KEY: ${{ secrets.NIGHTSHADE_UPDATE_PRIVATE_KEY }}
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $rel = "apps/desktop/build/windows/x64/runner/Release"
@@ -411,9 +493,12 @@ jobs:
           $env:GITHUB_SHA | Out-File -Encoding ascii (Join-Path $rel "SOURCE-COMMIT.txt")
           New-Item -ItemType Directory -Force -Path (Join-Path $rel "LICENSES") | Out-Null
           Copy-Item third_party/licenses/LGPL-2.1.txt (Join-Path $rel "LICENSES/LGPL-2.1.txt") -Force
-          $zip = "dist/nightshade-$($env:APP_VERSION)-windows-x64.zip"
-          Compress-Archive -Path "$rel/*" -DestinationPath $zip -Force
-          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  nightshade-$($env:APP_VERSION)-windows-x64.zip" `
+          $name = "nightshade-$($env:APP_VERSION)-windows-x64.zip"
+          $url = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/v$($env:APP_VERSION)/$name"
+          ./scripts/build_update_package.ps1 -SkipBuild -SkipUpdaterBuild -NoPusherCopy `
+            -OutputDir dist -DownloadUrl $url
+          $zip = "dist/$name"
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  $name" `
             | Out-File -Encoding ascii "$zip.sha256"
           Get-ChildItem dist
 
@@ -447,7 +532,8 @@ jobs:
           set -euo pipefail
           mkdir -p release-assets
           find artifacts -type f \( -name '*.apk' -o -name '*.tar.gz' \
-            -o -name '*.zip' -o -name '*.sha256' \) -exec cp -v {} release-assets/ \;
+            -o -name '*.zip' -o -name '*.sha256' -o -name 'manifest.json' \) \
+            -exec cp -v {} release-assets/ \;
           cp LICENSE release-assets/NIGHTSHADE-LICENSE.txt
           cp docs/THIRD_PARTY_NOTICES.md release-assets/THIRD_PARTY_NOTICES.md
           cp third_party/licenses/LGPL-2.1.txt release-assets/LGPL-2.1.txt

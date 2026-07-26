@@ -66,8 +66,9 @@ extension SequencerSettingsSection on AppSettingsNotifier {
   }
 
   Future<void> setUseSimulationMode(bool value) async {
-    await _saveSetting('use_simulation_mode', value.toString());
-    _patchState((s) => s.copyWith(useSimulationMode: value));
+    final effective = effectiveSimulationMode(value);
+    await _saveSetting('use_simulation_mode', effective.toString());
+    _patchState((s) => s.copyWith(useSimulationMode: effective));
   }
 
   // ---------------------------------------------------------------------

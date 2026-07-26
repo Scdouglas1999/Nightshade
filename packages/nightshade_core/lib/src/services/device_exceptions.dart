@@ -79,6 +79,17 @@ class InvalidDeviceIdException implements Exception {
       'phd2, builtin_guider).';
 }
 
+/// Normal terminal outcome for a user-cancelled autofocus sweep.
+///
+/// Kept distinct from hardware/fit failures so UI surfaces can say
+/// "cancelled" without alarming the operator or firing failure recovery.
+class AutofocusCancelledException implements Exception {
+  const AutofocusCancelledException();
+
+  @override
+  String toString() => 'Autofocus cancelled';
+}
+
 /// Per-device status emitted by [DeviceService.connectAllFromProfile] while
 /// a "Connect All" sweep is in flight.
 ///

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,66 @@ void main() {
       expect(state.status, contains('could not be parsed'));
     },
   );
+
+  test('late autofocus progress cannot resurrect a completed run', () async {
+    final notifier = container.read(autofocusOverlayProvider.notifier);
+    const result = AutofocusResult(
+      bestPosition: 1234,
+      bestHfr: 1.7,
+      focusData: [],
+      method: 'Hyperbolic',
+      timestamp: 1,
+      curveFitQuality: 0.95,
+      backlashApplied: true,
+    );
+    notifier.onAutofocusStarted();
+    notifier.onAutofocusCompleted(result);
+
+    eventStreamController.add(
+      NightshadeEvent(
+        timestamp: 2,
+        severity: EventSeverity.info,
+        category: EventCategory.equipment,
+        eventType: 'AutofocusProgress',
+        data: {
+          'detail': jsonEncode({
+            'type': 'autofocus_progress',
+            'point': 2,
+            'total_points': 9,
+            'hfr': 2.1,
+            'star_count': 20,
+            'focus_range': {'min': 1000, 'max': 1800},
+            'vcurve_points': [
+              {'position': 1100, 'hfr': 2.1},
+            ],
+            'star_crops': <Object>[],
+          }),
+        },
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(autofocusOverlayProvider);
+    expect(state.isRunning, isFalse);
+    expect(state.result, same(result));
+    expect(state.status, contains('Complete'));
+  });
+
+  test('autofocus cancellation is terminal but not an error', () {
+    final notifier = container.read(autofocusOverlayProvider.notifier);
+    notifier.onAutofocusStarted();
+    notifier.onAutofocusCancellationRequested();
+    expect(
+      container.read(autofocusOverlayProvider).status,
+      contains('Cancelling'),
+    );
+
+    notifier.onAutofocusCancelled();
+    final state = container.read(autofocusOverlayProvider);
+    expect(state.isRunning, isFalse);
+    expect(state.hasError, isFalse);
+    expect(state.status, 'Autofocus cancelled');
+  });
 
   test(
     'calibration complete refreshes calibration data through public API',

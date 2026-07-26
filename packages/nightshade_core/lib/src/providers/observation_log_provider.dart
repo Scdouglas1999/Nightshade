@@ -6,8 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/daos/observation_logs_dao.dart';
 import '../database/database.dart';
+import '../utils/resilient_poll_stream.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
+
+const _notProvided = Object();
 
 /// DAO provider for ObservationLogsDao.
 final observationLogsDaoProvider = Provider<ObservationLogsDao>((ref) {
@@ -65,24 +68,29 @@ final observationLogStatsProvider = FutureProvider<ObservationLogStats>((
 Stream<List<ObservationLogEntry>> _pollRemoteObservationLogs(
   NetworkBackend backend, {
   Duration interval = const Duration(seconds: 10),
-}) async* {
-  var last = await _fetchRemoteObservationLogs(backend);
-  yield last;
-  while (true) {
-    await Future<void>.delayed(interval);
-    final next = await _fetchRemoteObservationLogs(backend);
-    if (!listEquals(last, next)) {
-      last = next;
-      yield next;
-    }
-  }
-}
+}) => resilientDistinctPoll(
+  fetch: () => _fetchRemoteObservationLogs(backend),
+  unchanged: listEquals,
+  interval: interval,
+);
 
 Future<List<ObservationLogEntry>> _fetchRemoteObservationLogs(
   NetworkBackend backend,
 ) async {
-  final page = await backend.fetchNotesJournal();
-  final mapped = page.items.map(_observationLogFromRemote).toList()
+  const pageSize = 1000;
+  final rows = <RemoteNotesJournalEntry>[];
+  var offset = 0;
+  while (true) {
+    final page = await backend.fetchNotesJournal(
+      limit: pageSize,
+      offset: offset,
+    );
+    rows.addAll(page.items);
+    offset += page.items.length;
+    if (offset >= page.total || page.items.isEmpty) break;
+  }
+
+  final mapped = rows.map(_observationLogFromRemote).toList()
     // Host orders newest-first already; keep that invariant so `.first`/`.last`
     // the stats reader relies on stay correct.
     ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -171,31 +179,65 @@ class ObservationLogUiState {
 
   ObservationLogUiState copyWith({
     bool? isSaving,
-    String? statusMessage,
-    String? errorMessage,
-    String? filterQuery,
-    int? filterMinRating,
-    DateTime? filterStartDate,
-    DateTime? filterEndDate,
+    Object? statusMessage = _notProvided,
+    Object? errorMessage = _notProvided,
+    Object? filterQuery = _notProvided,
+    Object? filterMinRating = _notProvided,
+    Object? filterStartDate = _notProvided,
+    Object? filterEndDate = _notProvided,
   }) {
     return ObservationLogUiState(
       isSaving: isSaving ?? this.isSaving,
-      statusMessage: statusMessage,
-      errorMessage: errorMessage,
-      filterQuery: filterQuery ?? this.filterQuery,
-      filterMinRating: filterMinRating ?? this.filterMinRating,
-      filterStartDate: filterStartDate ?? this.filterStartDate,
-      filterEndDate: filterEndDate ?? this.filterEndDate,
+      statusMessage: identical(statusMessage, _notProvided)
+          ? this.statusMessage
+          : statusMessage as String?,
+      errorMessage: identical(errorMessage, _notProvided)
+          ? this.errorMessage
+          : errorMessage as String?,
+      filterQuery: identical(filterQuery, _notProvided)
+          ? this.filterQuery
+          : filterQuery as String?,
+      filterMinRating: identical(filterMinRating, _notProvided)
+          ? this.filterMinRating
+          : filterMinRating as int?,
+      filterStartDate: identical(filterStartDate, _notProvided)
+          ? this.filterStartDate
+          : filterStartDate as DateTime?,
+      filterEndDate: identical(filterEndDate, _notProvided)
+          ? this.filterEndDate
+          : filterEndDate as DateTime?,
     );
   }
 }
 
 class ObservationLogNotifier extends StateNotifier<ObservationLogUiState> {
   final Ref ref;
+  int _authorityRevision = 0;
+  final Map<int, Object> _deletingLogs = {};
+  Object? _deleteAllToken;
+  Future<String?>? _exportInFlight;
 
-  ObservationLogNotifier(this.ref) : super(const ObservationLogUiState());
+  ObservationLogNotifier(this.ref) : super(const ObservationLogUiState()) {
+    ref.listen(backendProvider, (previous, next) {
+      if (!mounted || identical(previous, next)) return;
+      _authorityRevision++;
+      _deletingLogs.clear();
+      _deleteAllToken = null;
+      _exportInFlight = null;
+      state = state.copyWith(
+        isSaving: false,
+        statusMessage: null,
+        errorMessage: null,
+      );
+    });
+  }
 
   ObservationLogsDao get _dao => ref.read(observationLogsDaoProvider);
+
+  void _refreshLogs() {
+    ref.invalidate(observationLogsProvider);
+    ref.invalidate(observedCatalogIdsProvider);
+  }
 
   /// Log a new observation.
   Future<int?> logObservation({
@@ -216,75 +258,185 @@ class ObservationLogNotifier extends StateNotifier<ObservationLogUiState> {
     double? latitude,
     double? longitude,
   }) async {
+    if (state.isSaving) return null;
+    final backend = ref.read(backendProvider);
+    final dao = _dao;
+    final authority = _authorityRevision;
     state = state.copyWith(isSaving: true, errorMessage: null);
 
     try {
-      final id = await _dao.insertLog(
-        timestamp: timestamp,
-        objectName: objectName,
-        ra: ra,
-        dec: dec,
-        objectType: objectType,
-        catalogId: catalogId,
-        altitude: altitude,
-        azimuth: azimuth,
-        notes: notes,
-        rating: rating,
-        equipmentProfileId: equipmentProfileId,
-        seeingConditions: seeingConditions,
-        transparency: transparency,
-        locationName: locationName,
-        latitude: latitude,
-        longitude: longitude,
-      );
+      final id = backend is NetworkBackend
+          ? await backend.createObservationLog(
+              timestamp: timestamp,
+              objectName: objectName,
+              ra: ra,
+              dec: dec,
+              objectType: objectType,
+              catalogId: catalogId,
+              altitude: altitude,
+              azimuth: azimuth,
+              notes: notes,
+              rating: rating,
+              equipmentProfileId: equipmentProfileId,
+              seeingConditions: seeingConditions,
+              transparency: transparency,
+              locationName: locationName,
+              latitude: latitude,
+              longitude: longitude,
+            )
+          : await dao.insertLog(
+              timestamp: timestamp,
+              objectName: objectName,
+              ra: ra,
+              dec: dec,
+              objectType: objectType,
+              catalogId: catalogId,
+              altitude: altitude,
+              azimuth: azimuth,
+              notes: notes,
+              rating: rating,
+              equipmentProfileId: equipmentProfileId,
+              seeingConditions: seeingConditions,
+              transparency: transparency,
+              locationName: locationName,
+              latitude: latitude,
+              longitude: longitude,
+            );
+      if (!_isCurrentAuthority(authority, backend, dao)) return null;
+      _refreshLogs();
       state = state.copyWith(
         isSaving: false,
         statusMessage: 'Observation logged for $objectName',
       );
       return id;
     } catch (e) {
-      state = state.copyWith(
-        isSaving: false,
-        errorMessage: 'Failed to log observation: $e',
-      );
+      if (_isCurrentAuthority(authority, backend, dao)) {
+        state = state.copyWith(
+          isSaving: false,
+          errorMessage: 'Failed to log observation: $e',
+        );
+      }
       return null;
     }
   }
 
   /// Delete an observation log entry.
-  Future<void> deleteLog(int id) async {
+  Future<bool> deleteLog(int id) async {
+    if (_deletingLogs.containsKey(id)) return false;
+    final token = Object();
+    _deletingLogs[id] = token;
+    final backend = ref.read(backendProvider);
+    final dao = _dao;
+    final authority = _authorityRevision;
+    state = state.copyWith(errorMessage: null);
     try {
-      await _dao.deleteLog(id);
-      state = state.copyWith(statusMessage: 'Observation deleted.');
+      if (backend is NetworkBackend) {
+        await backend.deleteObservationLog(id);
+      } else {
+        await dao.deleteLog(id);
+      }
+      if (!_isCurrentAuthority(authority, backend, dao)) return false;
+      _refreshLogs();
+      state = state.copyWith(
+        statusMessage: 'Observation deleted.',
+        errorMessage: null,
+      );
+      return true;
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Failed to delete observation: $e');
+      if (_isCurrentAuthority(authority, backend, dao)) {
+        state = state.copyWith(
+          errorMessage: 'Failed to delete observation: $e',
+        );
+      }
+      return false;
+    } finally {
+      if (identical(_deletingLogs[id], token)) _deletingLogs.remove(id);
     }
   }
 
   /// Export all logs to CSV.
-  Future<String?> exportCsv() async {
+  Future<String?> exportCsv() {
+    final existing = _exportInFlight;
+    if (existing != null) return existing;
+    final backend = ref.read(backendProvider);
+    final dao = _dao;
+    final authority = _authorityRevision;
+    late final Future<String?> operation;
+    operation = _exportCsv(backend, dao, authority).whenComplete(() {
+      if (identical(_exportInFlight, operation)) _exportInFlight = null;
+    });
+    _exportInFlight = operation;
+    return operation;
+  }
+
+  Future<String?> _exportCsv(
+    Object backend,
+    ObservationLogsDao dao,
+    int authority,
+  ) async {
+    state = state.copyWith(errorMessage: null);
     try {
-      final csv = await _dao.exportToCsv();
+      final csv = backend is NetworkBackend
+          ? observationLogsToCsv(await _fetchRemoteObservationLogs(backend))
+          : await dao.exportToCsv();
+      if (!_isCurrentAuthority(authority, backend, dao)) return null;
       if (csv.isEmpty) {
         state = state.copyWith(statusMessage: 'No observations to export.');
         return null;
       }
-      state = state.copyWith(statusMessage: 'Export complete.');
+      state = state.copyWith(
+        statusMessage: 'Export complete.',
+        errorMessage: null,
+      );
       return csv;
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Failed to export: $e');
+      if (_isCurrentAuthority(authority, backend, dao)) {
+        state = state.copyWith(errorMessage: 'Failed to export: $e');
+      }
       return null;
     }
   }
 
   /// Delete all observation logs.
   Future<void> deleteAllLogs() async {
+    if (_deleteAllToken != null) return;
+    final token = Object();
+    _deleteAllToken = token;
+    final backend = ref.read(backendProvider);
+    final dao = _dao;
+    final authority = _authorityRevision;
     try {
-      final count = await _dao.deleteAllLogs();
-      state = state.copyWith(statusMessage: 'Deleted $count observations.');
+      if (backend is NetworkBackend) {
+        await backend.deleteAllObservationLogs();
+        if (!_isCurrentAuthority(authority, backend, dao)) return;
+        _refreshLogs();
+        state = state.copyWith(statusMessage: 'Deleted all observations.');
+      } else {
+        final count = await dao.deleteAllLogs();
+        if (!_isCurrentAuthority(authority, backend, dao)) return;
+        _refreshLogs();
+        state = state.copyWith(statusMessage: 'Deleted $count observations.');
+      }
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Failed to delete observations: $e');
+      if (_isCurrentAuthority(authority, backend, dao)) {
+        state = state.copyWith(
+          errorMessage: 'Failed to delete observations: $e',
+        );
+      }
+    } finally {
+      if (identical(_deleteAllToken, token)) _deleteAllToken = null;
     }
+  }
+
+  bool _isCurrentAuthority(
+    int authority,
+    Object backend,
+    ObservationLogsDao dao,
+  ) {
+    return mounted &&
+        authority == _authorityRevision &&
+        identical(backend, ref.read(backendProvider)) &&
+        identical(dao, ref.read(observationLogsDaoProvider));
   }
 
   /// Set filter query text.

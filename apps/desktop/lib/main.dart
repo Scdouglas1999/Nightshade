@@ -121,7 +121,10 @@ void main(List<String> args) async {
     size: Size(1600, 900),
     minimumSize: Size(1200, 700),
     center: true,
-    backgroundColor: Colors.transparent,
+    // Opaque theme background — Colors.transparent + TitleBarStyle.hidden
+    // composites to an undraggable black hole on Linux/Wayland when the first
+    // Flutter frame is delayed. Match NightshadeColors.dark.background.
+    backgroundColor: Color(0xFF0A0C0F),
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
     title: 'Nightshade',
@@ -148,6 +151,7 @@ void main(List<String> args) async {
       // loudly (an unset version masks OTA update logic). The desktop entry
       // is the canonical place to wire it.
       appVersionProvider.overrideWithValue(appVersion),
+      pluginHostAppVersionOverride(appVersion.version),
       // wire `pluginNodeDispatcherProvider` (defined in
       // nightshade_core) to the real `PluginNodeExecutor` (defined in
       // nightshade_plugins). Without this override the Rust executor would
@@ -175,17 +179,30 @@ void main(List<String> args) async {
   final logger = container.read(loggingServiceProvider);
   await logger.ensureInitialized();
 
+  // Plugin nodes execute on the machine that owns the imaging hardware.
+  // Register bundled plugins before the UI can start a sequence; historically
+  // registration happened only after opening Settings > Integrations.
+  if (remoteTarget == null) {
+    try {
+      await initializeBundledPluginRuntime(container);
+      logger.info('Bundled plugin runtime initialized', source: 'desktop.main');
+    } catch (error, stackTrace) {
+      logger.error(
+        'Bundled plugin runtime failed to initialize: $error\n$stackTrace',
+        source: 'desktop.main',
+      );
+    }
+  }
+
   await initialiseCatalogManager(logger);
 
   final shouldMinimize = await shouldStartMinimized(container);
 
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-    if (shouldMinimize) {
-      await windowManager.minimize();
-    }
-  });
+  // Prepare the window but do NOT show it yet. Showing a TitleBarStyle.hidden
+  // surface before runApp paints leaves a black, undraggable window on Linux
+  // (no Flutter chrome / DragToMoveArea yet). The GTK runner also defers
+  // gtk_widget_show until first-frame for the same reason.
+  await windowManager.waitUntilReadyToShow(windowOptions, () async {});
 
   // Remote-client mode: connect to the headless rig now that the container is
   // live, then invalidate the host-backed providers so they re-fetch against
@@ -221,6 +238,23 @@ void main(List<String> args) async {
   // so it must NOT stand up its own embedded API server / discovery / host-side
   // seed listeners (those belong to the machine that owns the hardware).
   if (remoteTarget == null) {
+    // Automatic backups are host-owned and must start even when the Settings
+    // screen is never opened. Do NOT await this before first paint: a Riverpod
+    // future that transitively waits on the widget tree / first frame will
+    // hang main() forever and leave a blank frameless window (same class of
+    // bug as awaiting appSettingsProvider.future before runApp below).
+    unawaited(() async {
+      try {
+        await container.read(autoSaveLifecycleProvider.future);
+      } catch (error, stackTrace) {
+        logger.error(
+          'Automatic backup service failed to start',
+          source: 'desktop.main',
+          fields: {'error': '$error', 'stack': '$stackTrace'},
+        );
+      }
+    }());
+
     // --serve/--master: force the effective web-server setting ON for this run
     // so the embedded host server starts and slave clients can connect. We do
     // NOT flip the global default — we await the settings notifier, persist
@@ -265,4 +299,14 @@ void main(List<String> args) async {
       child: const NightshadeApp(isDesktop: true),
     ),
   );
+
+  // Reveal the frameless window only after Flutter has built at least one
+  // frame so the custom title bar (drag target) and scaffold are present.
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    await windowManager.show();
+    await windowManager.focus();
+    if (shouldMinimize) {
+      await windowManager.minimize();
+    }
+  });
 }

@@ -133,9 +133,8 @@ class CameraTemperaturePoller {
       }
 
       if (temp != null) {
-        _ref
-            .read(cameraStateProvider.notifier)
-            .updateTemperature(temp, power ?? 0.0);
+        _ref.read(cameraStateProvider.notifier).updateTemperature(temp, power);
+        _ref.read(cameraStateProvider.notifier).setCooling(status.coolerOn);
 
         _ref
             .read(temperatureHistoryProvider.notifier)
@@ -152,15 +151,17 @@ class CameraTemperaturePoller {
         final effectiveTarget =
             targetTemp ?? _ref.read(cameraStateProvider).targetTemp;
         final coolerPower = power ?? 0.0;
-        final isCooling = power != null && power > 0.0;
+        // Cooler power is duty cycle, not the on/off authority. A regulated
+        // cooler legitimately reports 0% while holding its target, and some
+        // drivers do not expose power at all. CameraStatus.coolerOn is the
+        // authoritative state on both FFI and remote backends.
+        final isCooling = status.coolerOn;
         // Drive the adaptive poll cadence: frequent while cooling, relaxed when
         // the cooler is off. (Only updated on a real reading; a null/errored
         // poll leaves the cadence unchanged.)
         _coolerActive = isCooling;
         final isAtTarget =
-            isCooling &&
-            targetTemp != null &&
-            (temp - targetTemp).abs() <= _atTargetToleranceC;
+            isCooling && (temp - effectiveTarget).abs() <= _atTargetToleranceC;
 
         _ref.read(coolingStatusProvider.notifier).state = CoolingStatus(
           currentTemp: temp,

@@ -43,12 +43,14 @@ class _FilterDropdown extends StatelessWidget {
   final List<String> filterNames;
   final int? currentPosition;
   final ValueChanged<int> onFilterSelected;
+  final bool enabled;
   final NightshadeColors colors;
 
   const _FilterDropdown({
     required this.filterNames,
     required this.currentPosition,
     required this.onFilterSelected,
+    this.enabled = true,
     required this.colors,
   });
 
@@ -70,7 +72,11 @@ class _FilterDropdown extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
-          value: currentPosition,
+          value: currentPosition != null &&
+                  currentPosition! >= 0 &&
+                  currentPosition! < filterNames.length
+              ? currentPosition
+              : null,
           isDense: true,
           dropdownColor: colors.surface,
           style: TextStyle(
@@ -87,11 +93,13 @@ class _FilterDropdown extends StatelessWidget {
               ),
             );
           }).toList(),
-          onChanged: (value) {
-            if (value != null) {
-              onFilterSelected(value);
-            }
-          },
+          onChanged: enabled
+              ? (value) {
+                  if (value != null) {
+                    onFilterSelected(value);
+                  }
+                }
+              : null,
         ),
       ),
     );

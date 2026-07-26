@@ -24,6 +24,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
   }
 
   void _onSearchChanged(String value) {
+    setState(() {});
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
@@ -39,136 +40,54 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
     // elsewhere (e.g. the filtered empty-state "Clear search" action).
     ref.listen<String>(sequenceSearchProvider, (previous, next) {
       if (next.isEmpty && _searchController.text.isNotEmpty) {
-        _searchController.clear();
+        setState(_searchController.clear);
       }
     });
+
+    if (Responsive.isMobile(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildTitle()),
+              const SizedBox(width: 12),
+              _ActionButton(
+                colors: widget.colors,
+                icon: LucideIcons.save,
+                label: 'Save',
+                isPrimary: true,
+                onPressed: () => _showSaveSequenceDialog(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _buildSearch()),
+              const SizedBox(width: 8),
+              _buildSortControl(sortOrder),
+            ],
+          ),
+        ],
+      );
+    }
 
     return Row(
       children: [
         // Title
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Sequence Library',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize24,
-                  fontWeight: FontWeight.w700,
-                  color: widget.colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Browse and load your saved imaging sequences',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: widget.colors.textMuted,
-                ),
-              ),
-            ],
-          ),
-        ),
+        Flexible(child: _buildTitle()),
 
         const SizedBox(width: 16),
         const Spacer(),
 
         // Sort dropdown
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-            border: Border.all(color: widget.colors.border),
-          ),
-          child: PopupMenuButton<SequenceSortOrder>(
-            initialValue: sortOrder,
-            onSelected: (value) {
-              ref.read(sequenceSortOrderProvider.notifier).state = value;
-            },
-            itemBuilder: (context) => [
-              _buildSortMenuItem(SequenceSortOrder.dateModified,
-                  'Last Modified', LucideIcons.clock, sortOrder),
-              _buildSortMenuItem(SequenceSortOrder.name, 'Name',
-                  LucideIcons.arrowUpAZ, sortOrder),
-              _buildSortMenuItem(SequenceSortOrder.nodeCount, 'Node Count',
-                  LucideIcons.layers, sortOrder),
-            ],
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.arrowUpDown,
-                    size: 14, color: widget.colors.textMuted),
-                const SizedBox(width: 8),
-                Text(
-                  _getSortLabel(sortOrder),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: widget.colors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(LucideIcons.chevronDown,
-                    size: 14, color: widget.colors.textMuted),
-              ],
-            ),
-          ),
-        ),
+        _buildSortControl(sortOrder),
 
         const SizedBox(width: 16),
 
         // Search
-        Flexible(
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 250),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              border: Border.all(color: widget.colors.border),
-            ),
-            child: Row(
-              children: [
-                Icon(LucideIcons.search,
-                    size: 16, color: widget.colors.textMuted),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: _onSearchChanged,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: widget.colors.textPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search sequences...',
-                      hintStyle: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: widget.colors.textMuted,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                if (_searchController.text.isNotEmpty)
-                  GestureDetector(
-                    onTap: () {
-                      _searchDebounce?.cancel();
-                      _searchController.clear();
-                      ref.read(sequenceSearchProvider.notifier).state = '';
-                    },
-                    child: Icon(LucideIcons.x,
-                        size: 16, color: widget.colors.textMuted),
-                  ),
-              ],
-            ),
-          ),
-        ),
+        Flexible(child: _buildSearch()),
 
         const SizedBox(width: 16),
 
@@ -181,6 +100,126 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           onPressed: () => _showSaveSequenceDialog(context),
         ),
       ],
+    );
+  }
+
+  Widget _buildTitle() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Sequence Library',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize24,
+            fontWeight: FontWeight.w700,
+            color: widget.colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Browse and load your saved imaging sequences',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13,
+            color: widget.colors.textMuted,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSortControl(SequenceSortOrder sortOrder) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: widget.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: widget.colors.border),
+      ),
+      child: PopupMenuButton<SequenceSortOrder>(
+        initialValue: sortOrder,
+        onSelected: (value) {
+          ref.read(sequenceSortOrderProvider.notifier).state = value;
+        },
+        itemBuilder: (context) => [
+          _buildSortMenuItem(SequenceSortOrder.dateModified, 'Last Modified',
+              LucideIcons.clock, sortOrder),
+          _buildSortMenuItem(SequenceSortOrder.dateCreated, 'Date Created',
+              LucideIcons.calendarPlus, sortOrder),
+          _buildSortMenuItem(
+              SequenceSortOrder.name, 'Name', LucideIcons.arrowUpAZ, sortOrder),
+          _buildSortMenuItem(SequenceSortOrder.nodeCount, 'Node Count',
+              LucideIcons.layers, sortOrder),
+        ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.arrowUpDown,
+                size: 14, color: widget.colors.textMuted),
+            const SizedBox(width: 8),
+            Text(
+              _getSortLabel(sortOrder),
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: widget.colors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(LucideIcons.chevronDown,
+                size: 14, color: widget.colors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearch() {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: widget.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        border: Border.all(color: widget.colors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.search, size: 16, color: widget.colors.textMuted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: widget.colors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search sequences...',
+                hintStyle: TextStyle(
+                  fontSize: NightshadeTypography.fontSize13,
+                  color: widget.colors.textMuted,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          if (_searchController.text.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchDebounce?.cancel();
+                setState(_searchController.clear);
+                ref.read(sequenceSearchProvider.notifier).state = '';
+              },
+              child:
+                  Icon(LucideIcons.x, size: 16, color: widget.colors.textMuted),
+            ),
+        ],
+      ),
     );
   }
 

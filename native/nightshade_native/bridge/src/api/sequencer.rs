@@ -621,11 +621,16 @@ pub(crate) async fn run_sequencer_event_loop(
                     EventCategory::Sequencer,
                     EventPayload::Sequencer(SequencerEvent::Completed),
                 )),
+                // Must be the TERMINAL `Failed` payload, not the generic
+                // `Error` one: the Dart executor treats `Error` as a
+                // recoverable mid-run condition, so flattening onto it left
+                // the run un-finalized forever (status stuck at 'running',
+                // stale active session blocking the next start).
                 ExecutorEvent::SequenceFailed { error } => Some(create_event_auto_id(
                     EventSeverity::Error,
                     EventCategory::Sequencer,
-                    EventPayload::Sequencer(SequencerEvent::Error {
-                        message: error.clone(),
+                    EventPayload::Sequencer(SequencerEvent::Failed {
+                        error: error.clone(),
                     }),
                 )),
                 ExecutorEvent::ExposureStarted {
@@ -741,6 +746,51 @@ pub(crate) async fn run_sequencer_event_loop(
                         message: message.clone(),
                     }),
                 )),
+                ExecutorEvent::MeridianFlipOutcome {
+                    outcome,
+                    target_name,
+                    new_pier_side,
+                    duration_secs,
+                    attempts,
+                    failed_steps,
+                    error,
+                    action_taken,
+                } => {
+                    // Severity drives the operator-facing escalation paths
+                    // (audible alert / push). A failed flip is Critical: the
+                    // mount may be on the wrong side of the pier and every
+                    // subsequent frame is suspect. A flip that only succeeded
+                    // after retries is a Warning — it worked, but the recenter
+                    // wobbled and the operator should look at the framing.
+                    let severity = match outcome.as_str() {
+                        "success" if failed_steps.is_empty() => EventSeverity::Info,
+                        "success" => EventSeverity::Warning,
+                        "aborted" => EventSeverity::Warning,
+                        _ => EventSeverity::Critical,
+                    };
+                    tracing::info!(
+                        "[EVENT_SUB] Meridian flip outcome: {} for '{}' after {} attempt(s) \
+                         ({} failed step(s))",
+                        outcome,
+                        target_name,
+                        attempts,
+                        failed_steps.len()
+                    );
+                    Some(create_event_auto_id(
+                        severity,
+                        EventCategory::Sequencer,
+                        EventPayload::Sequencer(SequencerEvent::MeridianFlipOutcome {
+                            outcome: outcome.clone(),
+                            target_name: target_name.clone(),
+                            new_pier_side: new_pier_side.clone(),
+                            duration_secs: *duration_secs,
+                            attempts: *attempts,
+                            failed_steps: failed_steps.clone(),
+                            error: error.clone(),
+                            action_taken: action_taken.clone(),
+                        }),
+                    ))
+                }
                 ExecutorEvent::TriggerFired {
                     trigger_id,
                     trigger_name,
@@ -763,19 +813,29 @@ pub(crate) async fn run_sequencer_event_loop(
                     ))
                 }
                 ExecutorEvent::RuntimeConfigUpdated { what } => {
-                    // surface runtime-config updates as a generic
-                    // sequencer Error event with informational severity so the
-                    // existing UI subscriber sees the change without needing
-                    // a new typed payload (a typed payload would require an
-                    // FRB regen).
+                    // Internal housekeeping — logged, NOT surfaced to the
+                    // operator's event feed.
+                    //
+                    // This used to be emitted as a `SequencerEvent::Error`
+                    // carrying Info severity, on the reasoning that "the existing
+                    // UI subscriber sees the change without needing a new typed
+                    // payload (a typed payload would require an FRB regen)".
+                    // Observed live on a completely healthy 10-frame run: the top
+                    // row of Recent Events read
+                    //   [!] Sequencer  Sequencer error  x2  13:26:45
+                    //       Runtime config updated: conditions_score
+                    // because the Dart display layer derives an event's title and
+                    // criticality from its PAYLOAD type, so an Error payload reads
+                    // as an error however benign its severity claims to be.
+                    //
+                    // No Dart code consumes this event — grep for
+                    // "Runtime config updated" outside comments finds nothing. It
+                    // fires roughly every 30s, so its only measurable effect was
+                    // filling a five-row panel with false errors and evicting the
+                    // events that mattered. The tracing line below is the correct
+                    // channel for it.
                     tracing::info!("[EVENT_SUB] Runtime config updated: {}", what);
-                    Some(create_event_auto_id(
-                        EventSeverity::Info,
-                        EventCategory::Sequencer,
-                        EventPayload::Sequencer(SequencerEvent::Error {
-                            message: format!("Runtime config updated: {}", what),
-                        }),
-                    ))
+                    None
                 }
                 // Recovery Mode — dispatch to first-class typed
                 // SequencerEvent variants. Pre-Wave-4.5 these tunneled
@@ -1622,6 +1682,48 @@ pub async fn api_sequencer_update_dither_config(
     Ok(())
 }
 
+/// Push the operator's meridian-flip settings onto the standard
+/// `meridian_flip` trigger.
+///
+/// `config_json` is a serialised `MeridianFlipConfig` — the SAME shape the Dart
+/// side already builds for a `MeridianFlipNode`, so there is exactly one
+/// wire format for meridian settings and one place to keep in sync.
+///
+/// Why JSON rather than a typed FRB struct: `MeridianFlipConfig` has 21 fields
+/// including a `Vec<f64>` retry ladder and two enums, and every one of them is
+/// already covered by the serde contract the sequence JSON uses. Mirroring it
+/// as an FRB struct would duplicate that contract and give it two places to
+/// drift.
+///
+/// Without this call the trigger keeps `MeridianFlipConfig::default()` for the
+/// whole run and the user's Settings → Meridian Flip panel is inert on the
+/// trigger path.
+pub async fn api_sequencer_update_meridian_flip_config(
+    config_json: String,
+) -> Result<(), NightshadeError> {
+    let config: nightshade_sequencer::MeridianFlipConfig = serde_json::from_str(&config_json)
+        .map_err(|e| {
+            NightshadeError::InvalidParameter(format!("Invalid meridian-flip config JSON: {}", e))
+        })?;
+    if config.max_retries > 0 && config.retry_delays_secs.is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "meridian-flip config sets max_retries > 0 but no retry delays; the flip \
+             would refuse to retry"
+                .to_string(),
+        ));
+    }
+    tracing::info!(
+        "[API] Updating meridian-flip trigger config from user settings (auto_center={}, \
+         minutes_past={:.1}, max_retries={})",
+        config.auto_center,
+        config.minutes_past_meridian,
+        config.max_retries
+    );
+    let mut executor = get_sequence_executor().write().await;
+    executor.update_meridian_flip_config(config).await;
+    Ok(())
+}
+
 /// Update observer location at runtime while a sequence is running or paused.
 /// Updates the executor's stored latitude/longitude so altitude-based triggers
 /// use the correct location on their next evaluation.
@@ -2217,6 +2319,9 @@ pub fn api_create_exposure_node(
         // global adaptive-exposure settings"; the per-node override is
         // set via a separate UI knob.
         adaptive_exposure: None,
+        // Factory nodes are light frames; the editor's frame-type
+        // dropdown rewrites this through the sequence serializer.
+        frame_type: "Light".to_string(),
     };
 
     let node = NodeDefinition {

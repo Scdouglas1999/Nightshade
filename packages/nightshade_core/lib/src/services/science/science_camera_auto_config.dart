@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/nightshade_backend.dart';
 import '../../backend/network_backend.dart';
 import '../../database/daos/settings_dao.dart';
 import '../../models/equipment/equipment_models.dart';
@@ -28,9 +29,15 @@ import '../smart_night/hardware_specs_service.dart';
 /// read-noise / full-well catalog (plus user overrides) that Smart Night's
 /// exposure model uses, so the two features can never disagree about the
 /// camera. Saturation and the e⁻/ADU conversion are derived from the
-/// driver-reported bit depth:
-///   maxAdu       = 2^bitDepth − 1   (65535 when capabilities are absent)
+/// driver-reported PIXEL-CONTAINER full scale (`CameraStatus.maxAdu`):
+///   maxAdu       = CameraStatus.maxAdu   (65535 when the camera is unreachable)
 ///   gain e⁻/ADU  = fullWell_e / maxAdu
+///
+/// It must NOT be `2^bitDepth − 1`: bit depth is ADC resolution, and 12/14-bit
+/// astro CMOS drivers left-justify their samples into the 16-bit pixel word. On
+/// a live ASI1600MM (bitDepth 12, frames measurably reaching 65504) the
+/// bit-depth form wrote `saturation_adu = 4095` — so photometry treated every
+/// real star as unsaturated — and inflated e⁻/ADU by 16x.
 ///
 /// The sync is opt-out: `science.camera.auto_managed=false` (set when the
 /// user manually edits any of the three fields) freezes the values, and
@@ -46,11 +53,17 @@ class ScienceCameraAutoConfig {
   static const saturationKey = 'science.camera.saturation_adu';
 
   final Ref _ref;
+  final NightshadeBackend _backend;
 
-  /// Last (name, gain, bitDepth) tuple applied, to skip redundant writes.
+  int _syncGeneration = 0;
+  bool _retired = false;
+
+  /// Last (name, gain, maxAdu) tuple applied, to skip redundant writes. Keyed on
+  /// the container full scale rather than bit depth because that is what the
+  /// written values are actually derived from.
   (String, int?, int)? _lastApplied;
 
-  ScienceCameraAutoConfig(this._ref);
+  ScienceCameraAutoConfig(this._ref, this._backend);
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
@@ -61,12 +74,14 @@ class ScienceCameraAutoConfig {
     String reason = 'unspecified',
     bool force = false,
   }) async {
+    final generation = ++_syncGeneration;
     try {
-      if (_ref.read(backendProvider) is NetworkBackend) {
+      if (!_isCurrent(generation) || _backend is NetworkBackend) {
         return; // The appliance host owns the hardware and these settings.
       }
       final dao = _ref.read(settingsDaoProvider);
       final autoManaged = await dao.getSetting(autoManagedKey);
+      if (!_isCurrent(generation)) return;
       if (autoManaged != null && autoManaged.toLowerCase() == 'false') {
         return;
       }
@@ -77,18 +92,21 @@ class ScienceCameraAutoConfig {
       }
 
       final bitDepth = await _resolveBitDepth(identity.deviceId);
-      if (!force && _lastApplied == (identity.name, identity.gain, bitDepth)) {
+      if (!_isCurrent(generation)) return;
+      final maxAdu = await _resolveMaxAdu(identity.deviceId);
+      if (!_isCurrent(generation)) return;
+      if (!force && _lastApplied == (identity.name, identity.gain, maxAdu)) {
         return;
       }
 
       final specs = await _specsWithOverrides(dao);
+      if (!_isCurrent(generation)) return;
       final match = specs.matchCamera(
         cameraName: identity.name,
         cameraId: identity.deviceId,
         gain: identity.gain,
       );
 
-      final maxAdu = ((1 << bitDepth) - 1).clamp(255, 65535);
       final updates = <String, String>{saturationKey: maxAdu.toString()};
       String source;
       if (match != null) {
@@ -100,26 +118,27 @@ class ScienceCameraAutoConfig {
             '${match.spec.model} @ gain ${identity.gain ?? match.spec.defaultGain} '
             '($bitDepth-bit)';
       } else {
-        // Unknown sensor: bit depth still gives a correct saturation level,
-        // but read noise / e-/ADU would be guesses — leave whatever the
-        // user (or a previous match) configured rather than overwrite with
-        // fabricated values.
+        // Unknown sensor: the driver's full scale still gives a correct
+        // saturation level, but read noise / e-/ADU would be guesses — leave
+        // whatever the user (or a previous match) configured rather than
+        // overwrite with fabricated values.
         source =
             '${identity.name} ($bitDepth-bit) — sensor not in catalog, '
             'read noise/gain unchanged';
       }
       updates[autoSourceKey] = source;
 
-      var changed = false;
-      for (final entry in updates.entries) {
-        final existing = await dao.getSetting(entry.key);
-        if (existing != entry.value) {
-          await dao.setSetting(entry.key, entry.value);
-          changed = true;
-        }
+      final existing = await dao.getAllSettings();
+      if (!_isCurrent(generation)) return;
+      final changedUpdates = Map<String, String>.fromEntries(
+        updates.entries.where((entry) => existing[entry.key] != entry.value),
+      );
+      if (changedUpdates.isNotEmpty) {
+        await dao.setSettings(changedUpdates);
+        if (!_isCurrent(generation)) return;
       }
-      _lastApplied = (identity.name, identity.gain, bitDepth);
-      if (changed) {
+      _lastApplied = (identity.name, identity.gain, maxAdu);
+      if (changedUpdates.isNotEmpty) {
         _logger.info(
           'Science camera settings auto-updated ($reason): $source -> '
           '${updates.entries.where((e) => e.key != autoSourceKey).map((e) => '${e.key.split('.').last}=${e.value}').join(', ')}',
@@ -127,11 +146,23 @@ class ScienceCameraAutoConfig {
         );
       }
     } catch (error, stack) {
+      if (!_isCurrent(generation)) return;
       _logger.warning(
         'Science camera auto-config sync failed ($reason): $error\n$stack',
         source: 'ScienceCameraAutoConfig',
       );
     }
+  }
+
+  bool _isCurrent(int generation) {
+    return !_retired &&
+        generation == _syncGeneration &&
+        identical(_ref.read(backendProvider), _backend);
+  }
+
+  void retire() {
+    _retired = true;
+    _syncGeneration++;
   }
 
   ({String name, String? deviceId, int? gain})? _resolveCameraIdentity() {
@@ -154,6 +185,7 @@ class ScienceCameraAutoConfig {
     return null;
   }
 
+  /// ADC resolution, for the human-readable `auto_source` label only.
   Future<int> _resolveBitDepth(String? deviceId) async {
     if (deviceId == null || deviceId.isEmpty) return 16;
     try {
@@ -167,6 +199,26 @@ class ScienceCameraAutoConfig {
       // which matches how virtually all drivers scale sub-16-bit sensors.
     }
     return 16;
+  }
+
+  /// Pixel-container full scale — the value photometry compares real pixels
+  /// against. Comes from the driver (`CameraStatus.maxAdu`).
+  ///
+  /// When the camera cannot be queried (offline, or only a profile name is
+  /// known) we fall back to the 16-bit container rather than to
+  /// `2^bitDepth - 1`, for the reason [_resolveBitDepth] already documents:
+  /// virtually all drivers scale sub-16-bit sensors into the 16-bit pixel word.
+  /// No frames are being measured in that state anyway.
+  Future<int> _resolveMaxAdu(String? deviceId) async {
+    if (deviceId != null && deviceId.isNotEmpty) {
+      try {
+        final status = await _backend.getCameraStatus(deviceId);
+        if (status.maxAdu > 0) return status.maxAdu;
+      } catch (_) {
+        // Camera offline / status unavailable — fall through.
+      }
+    }
+    return 65535;
   }
 
   Future<HardwareSpecsService> _specsWithOverrides(SettingsDao dao) async {
@@ -196,7 +248,9 @@ class ScienceCameraAutoConfig {
 final scienceCameraAutoConfigProvider = Provider<ScienceCameraAutoConfig>((
   ref,
 ) {
-  final service = ScienceCameraAutoConfig(ref);
+  final backend = ref.watch(backendProvider);
+  final service = ScienceCameraAutoConfig(ref, backend);
+  ref.onDispose(service.retire);
   ref.listen<(DeviceConnectionState, String?, String?, int?)>(
     cameraStateProvider.select(
       (s) => (s.connectionState, s.deviceName, s.deviceId, s.gain),

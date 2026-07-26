@@ -9,7 +9,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
   // ===========================================================================
 
   Widget _buildFiltersStep(NightshadeColors colors) {
-    final hasFilters = ref.watch(profileFiltersProvider).isNotEmpty;
+    final hasFilters = _hasConfiguredFilters;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,9 +287,11 @@ extension _FilterStep on _QuickStartWizardDialogState {
                 onChanged: (value) {
                   final parsed = double.tryParse(value);
                   if (parsed != null && parsed > 0) {
-                    config.exposureSecs = parsed;
-                    config.exposureEdited = true;
-                    _selectedPreset = _ExposurePreset.custom;
+                    _update(() {
+                      config.exposureSecs = parsed;
+                      config.exposureEdited = true;
+                      _selectedPreset = _ExposurePreset.custom;
+                    });
                   }
                 },
               ),
@@ -327,8 +329,10 @@ extension _FilterStep on _QuickStartWizardDialogState {
                 onChanged: (value) {
                   final parsed = int.tryParse(value);
                   if (parsed != null && parsed > 0) {
-                    config.count = parsed;
-                    _selectedPreset = _ExposurePreset.custom;
+                    _update(() {
+                      config.count = parsed;
+                      _selectedPreset = _ExposurePreset.custom;
+                    });
                   }
                 },
               ),

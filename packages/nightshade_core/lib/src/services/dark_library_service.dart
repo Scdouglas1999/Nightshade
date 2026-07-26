@@ -126,14 +126,17 @@ class DarkLibraryService {
     for (final frame in frames.skip(1)) {
       if (frame.exposureTime != first.exposureTime ||
           frame.gain != first.gain ||
+          frame.offset != first.offset ||
           frame.binX != first.binX ||
           frame.binY != first.binY ||
           frame.frameType != first.frameType) {
         throw ArgumentError(
-          'All frames must have matching exposure, gain, binning, '
+          'All frames must have matching exposure, gain, offset, binning, '
           'and frame type. Mismatch found: '
-          '${frame.exposureTime}s/gain${frame.gain}/${frame.binX}x${frame.binY}/${frame.frameType} '
-          'vs ${first.exposureTime}s/gain${first.gain}/${first.binX}x${first.binY}/${first.frameType}',
+          '${frame.exposureTime}s/gain${frame.gain}/offset${frame.offset}/'
+          '${frame.binX}x${frame.binY}/${frame.frameType} vs '
+          '${first.exposureTime}s/gain${first.gain}/offset${first.offset}/'
+          '${first.binX}x${first.binY}/${first.frameType}',
         );
       }
     }
@@ -150,8 +153,15 @@ class DarkLibraryService {
       }
       final bytes = await file.readAsBytes();
       final parsed = _parseFitsPixels(bytes);
-      imgWidth = parsed.width;
-      imgHeight = parsed.height;
+      if (imgWidth != null &&
+          (parsed.width != imgWidth || parsed.height != imgHeight)) {
+        throw ArgumentError(
+          'All frames must have matching dimensions. ${frame.filePath} is '
+          '${parsed.width}x${parsed.height}; expected ${imgWidth}x$imgHeight.',
+        );
+      }
+      imgWidth ??= parsed.width;
+      imgHeight ??= parsed.height;
       pixelSets.add(parsed.pixels);
     }
 
@@ -257,6 +267,7 @@ class DarkLibraryService {
   Future<List<DarkLibraryEntry>> getMatchingFrames({
     required double exposureTime,
     required int gain,
+    int offset = 0,
     int binX = 1,
     int binY = 1,
     String frameType = 'dark',
@@ -264,11 +275,16 @@ class DarkLibraryService {
     return _dao.getMatchingFrames(
       exposureTime: exposureTime,
       gain: gain,
+      offset: offset,
       binX: binX,
       binY: binY,
       frameType: frameType,
     );
   }
+
+  /// Get all raw and master entries in one exact library group.
+  Future<List<DarkLibraryEntry>> getEntriesForGroup(DarkGroupKey group) =>
+      _dao.getEntriesForGroup(group);
 
   /// Delete a single entry and optionally remove the file from disk.
   Future<void> deleteEntry(int id, {bool deleteFile = false}) async {

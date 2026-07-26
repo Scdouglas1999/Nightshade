@@ -5,6 +5,8 @@
 // `SessionReplayDataSource` so the tests exercise the real scan logic
 // without any HTTP plumbing.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -203,6 +205,51 @@ void main() {
       notifier.dispose();
     });
 
+    test('duration includes markers recorded just after endedAt', () async {
+      final source = _StubSource(
+        run: RemoteSequenceRunDetail(
+          id: runId,
+          startedAt: runStartedAt,
+          endedAt: runEndedAt,
+          status: 'completed',
+          frameCount: 1,
+        ),
+        eventsPage: const RemoteReplayEventsPage(
+          items: [],
+          total: 0,
+          isPartial: false,
+          source: 'logging_service_ring_buffer',
+        ),
+        frames: [frameAt(1, 660)],
+      );
+      final notifier = SessionReplayNotifier(runId: runId, dataSource: source);
+      await source.completed;
+
+      final ready = notifier.state as SessionReplayReady;
+      expect(ready.durationMs, const Duration(minutes: 11).inMilliseconds);
+      notifier.seekTo(ready.durationMs);
+      expect(notifier.computeSnapshotAt(ready.durationMs).frameCount, 1);
+      notifier.dispose();
+    });
+
+    test('disposing during bootstrap ignores the late response', () async {
+      final source = _DeferredSource();
+      final notifier = SessionReplayNotifier(runId: runId, dataSource: source);
+      notifier.dispose();
+
+      source.complete(
+        run: RemoteSequenceRunDetail(
+          id: runId,
+          startedAt: runStartedAt,
+          endedAt: runEndedAt,
+          status: 'completed',
+          frameCount: 0,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+    });
+
     test('a data-source failure transitions to SessionReplayError', () async {
       final source = _StubSource.failing(
         error: Exception('connection refused'),
@@ -255,6 +302,107 @@ void main() {
       notifier.dispose();
     });
   });
+
+  group('NetworkSessionReplayDataSource pagination', () {
+    test(
+      'marks event history partial when the client page cap is hit',
+      () async {
+        final backend = _PagingBackend();
+        backend.eventPages[0] = RemoteReplayEventsPage(
+          items: [eventAt(1, 'info', 'first')],
+          total: 2,
+          isPartial: false,
+          source: 'logging_service_ring_buffer',
+        );
+        final source = NetworkSessionReplayDataSource(
+          backend: backend,
+          pageSize: 1,
+          maxPages: 1,
+        );
+
+        final page = await source.fetchEvents(runId);
+
+        expect(page.isPartial, isTrue);
+        expect(page.partialReason, 'client_page_limit');
+      },
+    );
+
+    test(
+      'fails instead of silently truncating frames at the page cap',
+      () async {
+        final backend = _PagingBackend();
+        backend.framePages[0] = RemotePage(items: [frameAt(1, 1)], total: 2);
+        final source = NetworkSessionReplayDataSource(
+          backend: backend,
+          pageSize: 1,
+          maxPages: 1,
+        );
+
+        await expectLater(source.fetchFrames(runId), throwsStateError);
+      },
+    );
+
+    test('marks an early empty event page as partial', () async {
+      final backend = _PagingBackend();
+      backend.eventPages[0] = const RemoteReplayEventsPage(
+        items: [],
+        total: 2,
+        isPartial: false,
+        source: 'logging_service_ring_buffer',
+      );
+      final source = NetworkSessionReplayDataSource(
+        backend: backend,
+        pageSize: 1,
+      );
+
+      final page = await source.fetchEvents(runId);
+
+      expect(page.items, isEmpty);
+      expect(page.total, 2);
+      expect(page.isPartial, isTrue);
+      expect(page.partialReason, 'server_empty_page');
+    });
+
+    test('fails on early empty or duplicate frame pages', () async {
+      final emptyBackend = _PagingBackend();
+      emptyBackend.framePages[0] = const RemotePage(items: [], total: 2);
+      final emptySource = NetworkSessionReplayDataSource(
+        backend: emptyBackend,
+        pageSize: 1,
+      );
+      await expectLater(emptySource.fetchFrames(runId), throwsStateError);
+
+      final duplicateBackend = _PagingBackend();
+      duplicateBackend.framePages[0] = RemotePage(
+        items: [frameAt(1, 1)],
+        total: 2,
+      );
+      duplicateBackend.framePages[1] = RemotePage(
+        items: [frameAt(1, 2)],
+        total: 2,
+      );
+      final duplicateSource = NetworkSessionReplayDataSource(
+        backend: duplicateBackend,
+        pageSize: 1,
+      );
+      await expectLater(duplicateSource.fetchFrames(runId), throwsStateError);
+    });
+
+    test('rejects non-positive pagination configuration and run ids', () async {
+      final backend = _PagingBackend();
+      expect(
+        () => NetworkSessionReplayDataSource(backend: backend, pageSize: 0),
+        throwsArgumentError,
+      );
+      expect(
+        () => NetworkSessionReplayDataSource(backend: backend, maxPages: 0),
+        throwsArgumentError,
+      );
+      final source = NetworkSessionReplayDataSource(backend: backend);
+      await expectLater(source.fetchEvents(0), throwsArgumentError);
+      await expectLater(source.fetchFrames(-1), throwsArgumentError);
+    });
+  });
 }
 
 /// Stub data source that hands back canned results to exercise the
@@ -304,4 +452,64 @@ class _StubSource implements SessionReplayDataSource {
     if (failure != null) throw failure!;
     return frames!;
   }
+}
+
+class _DeferredSource implements SessionReplayDataSource {
+  final _run = Completer<RemoteSequenceRunDetail>();
+  final _events = Completer<RemoteReplayEventsPage>();
+  final _frames = Completer<List<RemoteReplayFrame>>();
+
+  void complete({required RemoteSequenceRunDetail run}) {
+    _run.complete(run);
+    _events.complete(
+      const RemoteReplayEventsPage(
+        items: [],
+        total: 0,
+        isPartial: false,
+        source: 'test',
+      ),
+    );
+    _frames.complete(const []);
+  }
+
+  @override
+  Future<RemoteSequenceRunDetail> fetchRun(int runId) => _run.future;
+
+  @override
+  Future<RemoteReplayEventsPage> fetchEvents(int runId) => _events.future;
+
+  @override
+  Future<List<RemoteReplayFrame>> fetchFrames(int runId) => _frames.future;
+}
+
+class _PagingBackend extends NetworkBackend {
+  final Map<int, RemoteReplayEventsPage> eventPages = {};
+  final Map<int, RemotePage<RemoteReplayFrame>> framePages = {};
+
+  _PagingBackend()
+    : super(serverHost: '127.0.0.1', autoConnectWebSocket: false);
+
+  @override
+  Future<RemoteReplayEventsPage> fetchSequenceRunEvents(
+    int runId, {
+    int? sinceMs,
+    int? untilMs,
+    String? severityMin,
+    int limit = 200,
+    int offset = 0,
+  }) async =>
+      eventPages[offset] ??
+      const RemoteReplayEventsPage(
+        items: [],
+        total: 0,
+        isPartial: false,
+        source: 'test',
+      );
+
+  @override
+  Future<RemotePage<RemoteReplayFrame>> fetchSequenceRunFrames(
+    int runId, {
+    int limit = 200,
+    int offset = 0,
+  }) async => framePages[offset] ?? const RemotePage(items: [], total: 0);
 }

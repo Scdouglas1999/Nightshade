@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:drift/drift.dart';
-import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
@@ -10,10 +9,10 @@ import '../database/daos/settings_dao.dart';
 import '../database/daos/equipment_profiles_dao.dart';
 import '../database/daos/targets_dao.dart';
 import '../providers/database_provider.dart';
+import '../providers/app_version_provider.dart';
 import '../models/sequence/sequence_models.dart';
-import '../models/imaging/imaging_models.dart';
 import 'logging_service.dart';
-import 'scheduler/horizon_profile.dart';
+import 'sequence_file_service.dart';
 import 'sequence_repository.dart';
 
 part 'backup_service/sequence_codec.dart';
@@ -119,6 +118,7 @@ class BackupService {
   final NightshadeDatabase database;
   final SequenceRepository sequenceRepository;
   final LoggingService _logger;
+  final Future<Directory> Function()? _backupDirectoryProvider;
 
   // Bumped from '2.0' to '2.1' when we broadened backup coverage to
   // include dark_library, flat_history, defect_maps, polar_alignment_history,
@@ -126,13 +126,23 @@ class BackupService {
   // and the science_* tables. Restore is idempotent (insertOrIgnore) so
   // older v2.0 backups remain restorable on the new code path.
   static const String backupVersion = '2.1';
-  static const String appVersion = '4.0.0'; // Must match version.yaml
+
+  /// Fallback for isolated tests/embedders that do not inject package info.
+  /// Production providers always supply appVersionProvider.
+  static const String appVersion = 'unknown';
+  final String runtimeAppVersion;
 
   BackupService({
     required this.database,
     required this.sequenceRepository,
     required LoggingService logger,
-  }) : _logger = logger;
+    String? appVersion,
+    Future<Directory> Function()? backupDirectoryProvider,
+  }) : runtimeAppVersion = appVersion?.trim().isNotEmpty == true
+           ? appVersion!.trim()
+           : BackupService.appVersion,
+       _backupDirectoryProvider = backupDirectoryProvider,
+       _logger = logger;
 
   /// Create a full backup of all application data
   ///
@@ -147,24 +157,32 @@ class BackupService {
     try {
       _logger.debug('Starting full backup...', source: 'BackupService');
 
-      // Export all data
-      final settings = await _exportSettings();
-      final profiles = await _exportProfiles();
-      final sequences = await _exportSequences();
-      final targets = await _exportTargets();
+      // Read every table from one Drift transaction so a capture/session
+      // update cannot land halfway through the archive and produce counts or
+      // foreign-key relationships from different moments in time.
+      final snapshot = await database.transaction(() async {
+        return (
+          settings: await _exportSettings(),
+          profiles: await _exportProfiles(),
+          sequences: await _exportSequences(),
+          targets: await _exportTargets(),
+          extendedTables: await _exportExtendedTables(),
+        );
+      });
+      final settings = snapshot.settings;
+      final profiles = snapshot.profiles;
+      final sequences = snapshot.sequences;
+      final targets = snapshot.targets;
 
-      // Extended coverage: each entry is the literal table name and
-      // a list of rows (each row is the drift-generated `toJson()` map).
-      // Restore round-trips through `_genericTableImport` which uses the
-      // companion's `fromJson` + InsertMode.insertOrIgnore so existing
-      // primary keys are preserved and user data is never overwritten.
-      final extendedTables = await _exportExtendedTables();
+      // Extended coverage: each entry is the literal table name and a list of
+      // rows. Restore round-trips through `_genericTableImport`.
+      final extendedTables = snapshot.extendedTables;
 
       // Build backup data structure
       final backup = <String, dynamic>{
         'version': backupVersion,
         'createdAt': DateTime.now().toIso8601String(),
-        'appVersion': appVersion,
+        'appVersion': runtimeAppVersion,
         'platform': Platform.operatingSystem,
         'metadata': {
           'settingsCount': settings.length,
@@ -196,11 +214,34 @@ class BackupService {
         );
       }
 
-      // Write backup file
+      // Write to a sibling temporary file and rename only after a flushed,
+      // complete JSON payload exists. A crash or full disk therefore leaves
+      // the previous destination intact rather than a plausible-looking
+      // truncated backup.
       final file = File(filePath);
       await file.parent.create(recursive: true);
       final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
-      await file.writeAsString(jsonString);
+      final tempFile = File(
+        path.join(
+          file.parent.path,
+          '.${path.basename(file.path)}.'
+          '${DateTime.now().microsecondsSinceEpoch}.tmp',
+        ),
+      );
+      try {
+        await tempFile.writeAsString(jsonString, flush: true);
+        try {
+          await tempFile.rename(file.path);
+        } on FileSystemException {
+          // Windows does not replace an existing destination via rename.
+          // The complete temp file already exists, so only now remove the old
+          // destination and perform the final same-directory rename.
+          if (await file.exists()) await file.delete();
+          await tempFile.rename(file.path);
+        }
+      } finally {
+        if (await tempFile.exists()) await tempFile.delete();
+      }
 
       final extendedItems = extendedTables.values.fold<int>(
         0,
@@ -303,90 +344,85 @@ class BackupService {
       // can run without risking unrecoverable data loss against garbage.
       // ---------------------------------------------------------------
 
-      // Clear existing data if requested
-      if (replaceExisting) {
-        _logger.debug('Clearing existing data...');
-        await _clearAllData();
-      }
-
-      // Restore data in order
-      final categoryCounts = <String, int>{};
-
-      // Restore settings — re-use the validated copy so we never re-parse.
-      if (staged.settings != null) {
-        final count = await _importSettings(
-          staged.settings!,
-          replace: replaceExisting,
-        );
-        categoryCounts['settings'] = count;
-        _logger.debug('Restored $count settings');
-      }
-
-      // Restore equipment profiles
-      if (staged.profiles != null) {
-        final count = await _importProfiles(
-          staged.profiles!,
-          replace: replaceExisting,
-        );
-        categoryCounts['profiles'] = count;
-        _logger.debug('Restored $count profiles');
-      }
-
-      // Restore sequences — the staged list holds fully-decoded sequences
-      // so a malformed node can't slip past validation into a half-wiped DB.
-      if (staged.sequences != null) {
-        var count = 0;
-        for (final sequence in staged.sequences!) {
-          await sequenceRepository.saveSequence(sequence);
-          count++;
+      // Apply every database mutation in one transaction. A malformed late
+      // extended-table row or write failure must roll back the earlier clear,
+      // settings, profiles, and sequences instead of returning a plausible
+      // partial restore.
+      final categoryCounts = await database.transaction(() async {
+        if (replaceExisting) {
+          _logger.debug('Clearing existing data...');
+          await _clearAllData();
         }
-        categoryCounts['sequences'] = count;
-        _logger.debug('Restored $count sequences');
-      }
 
-      // Restore targets
-      if (staged.targets != null) {
-        final count = await _importTargets(
-          staged.targets!,
-          replace: replaceExisting,
-        );
-        categoryCounts['targets'] = count;
-        _logger.debug('Restored $count targets');
-      }
+        // Restore data in order
+        final categoryCounts = <String, int>{};
 
-      // Restore the extended-coverage tables. Idempotent:
-      // insertOrIgnore on the row's primary key. We never overwrite
-      // existing rows, even when `replaceExisting` is true — the
-      // `_clearAllData` step that runs before this branch wipes the
-      // tables that the legacy backup pass owns, and the extended
-      // tables (calibration / science / forensics / notes / runs /
-      // alignments / guide history) are intentionally NOT cleared so
-      // a corrupted-payload restore can never destroy field-collected
-      // data.
-      for (final entry in _extendedTableImporters.entries) {
-        final key = entry.key;
-        if (!backup.containsKey(key)) continue;
-        final rows = backup[key];
-        if (rows is! List) {
-          _logger.debug(
-            'Skipping extended table "$key": payload is not a list',
+        // Restore settings — re-use the validated copy so we never re-parse.
+        if (staged.settings != null) {
+          final count = await _importSettings(
+            staged.settings!,
+            replace: replaceExisting,
           );
-          continue;
+          categoryCounts['settings'] = count;
+          _logger.debug('Restored $count settings');
         }
-        try {
+
+        // Restore equipment profiles
+        if (staged.profiles != null) {
+          final count = await _importProfiles(
+            staged.profiles!,
+            replace: replaceExisting,
+          );
+          categoryCounts['profiles'] = count;
+          _logger.debug('Restored $count profiles');
+        }
+
+        // Restore sequences — the staged list holds fully-decoded sequences
+        // so a malformed node can't slip past validation into a half-wiped DB.
+        if (staged.sequences != null) {
+          var count = 0;
+          for (final sequence in staged.sequences!) {
+            await sequenceRepository.saveSequence(sequence);
+            count++;
+          }
+          categoryCounts['sequences'] = count;
+          _logger.debug('Restored $count sequences');
+        }
+
+        // Restore targets
+        if (staged.targets != null) {
+          final count = await _importTargets(
+            staged.targets!,
+            replace: replaceExisting,
+          );
+          categoryCounts['targets'] = count;
+          _logger.debug('Restored $count targets');
+        }
+
+        // Restore the extended-coverage tables. Idempotent:
+        // insertOrIgnore on the row's primary key. We never overwrite
+        // existing rows, even when `replaceExisting` is true — the
+        // `_clearAllData` step that runs before this branch wipes the
+        // tables that the legacy backup pass owns, and the extended
+        // tables (calibration / science / forensics / notes / runs /
+        // alignments / guide history) are intentionally NOT cleared so
+        // a corrupted-payload restore can never destroy field-collected
+        // data.
+        for (final entry in _extendedTableImporters.entries) {
+          final key = entry.key;
+          if (!backup.containsKey(key)) continue;
+          final rows = backup[key];
+          if (rows is! List) {
+            throw FormatException(
+              'Extended backup table "$key" must be a JSON array',
+            );
+          }
           final count = await entry.value(rows);
           categoryCounts[key] = count;
           _logger.debug('Restored $count rows into "$key"');
-        } catch (e, st) {
-          // One bad table must not abort the whole restore — log and
-          // continue with the rest so the operator still gets the
-          // recoverable subset.
-          _logger.error(
-            'Failed to restore extended table "$key": $e\n$st',
-            source: 'BackupService',
-          );
         }
-      }
+        return categoryCounts;
+      });
 
       final totalItems = categoryCounts.values.fold<int>(
         0,
@@ -454,6 +490,24 @@ class BackupService {
     if (version is! String || version.isEmpty) {
       throw const _BackupValidationException(
         'Invalid backup file: missing version',
+      );
+    }
+    final versionMatch = RegExp(r'^(\d+)\.(\d+)$').firstMatch(version);
+    if (versionMatch == null) {
+      throw _BackupValidationException(
+        'Invalid backup file: unsupported version format "$version"',
+      );
+    }
+    final major = int.parse(versionMatch.group(1)!);
+    final minor = int.parse(versionMatch.group(2)!);
+    final currentParts = backupVersion.split('.');
+    final currentMajor = int.parse(currentParts[0]);
+    final currentMinor = int.parse(currentParts[1]);
+    if (major > currentMajor ||
+        (major == currentMajor && minor > currentMinor)) {
+      throw _BackupValidationException(
+        'Backup version $version is newer than supported version '
+        '$backupVersion. Update Nightshade before restoring it.',
       );
     }
 
@@ -573,33 +627,36 @@ class BackupService {
 
   /// List all backups in the default backup directory
   Future<List<File>> listBackups() async {
-    try {
-      final backupDir = await _getBackupDirectory();
-      if (!await backupDir.exists()) {
-        return [];
-      }
-
-      final files = await backupDir
-          .list()
-          .where(
-            (entity) =>
-                entity is File &&
-                (entity.path.endsWith('.nsbackup') ||
-                    entity.path.endsWith('.json')),
-          )
-          .map((entity) => entity as File)
-          .toList();
-
-      // Sort by modification time (newest first)
-      files.sort(
-        (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
-      );
-
-      return files;
-    } catch (e) {
-      _logger.debug('Failed to list backups: $e');
+    final backupDir = await _getBackupDirectory();
+    if (!await backupDir.exists()) {
       return [];
     }
+
+    final candidates = await backupDir
+        .list()
+        .where(
+          (entity) =>
+              entity is File &&
+              (entity.path.endsWith('.nsbackup') ||
+                  entity.path.endsWith('.json')),
+        )
+        .cast<File>()
+        .toList();
+    final dated = <({File file, DateTime modified})>[];
+    for (final file in candidates) {
+      try {
+        dated.add((file: file, modified: (await file.stat()).modified));
+      } on FileSystemException catch (error) {
+        // A file may disappear during retention cleanup. Keep the other valid
+        // backups visible, but record which individual entry was skipped.
+        _logger.warning(
+          'Skipping backup that could not be inspected (${file.path}): $error',
+          source: 'BackupService',
+        );
+      }
+    }
+    dated.sort((a, b) => b.modified.compareTo(a.modified));
+    return [for (final entry in dated) entry.file];
   }
 
   /// Auto-save a backup with timestamp
@@ -630,31 +687,12 @@ class BackupService {
     final profilesDao = EquipmentProfilesDao(database);
     final profiles = await profilesDao.getAllProfiles();
 
-    return profiles.map((profile) {
-      return {
-        'name': profile.name,
-        'description': profile.description,
-        'isActive': profile.isActive,
-        'cameraId': profile.cameraId,
-        'mountId': profile.mountId,
-        'focuserId': profile.focuserId,
-        'filterWheelId': profile.filterWheelId,
-        'guiderId': profile.guiderId,
-        'rotatorId': profile.rotatorId,
-        'domeId': profile.domeId,
-        'weatherId': profile.weatherId,
-        'focalLength': profile.focalLength,
-        'aperture': profile.aperture,
-        'focalRatio': profile.focalRatio,
-        'defaultGain': profile.defaultGain,
-        'defaultOffset': profile.defaultOffset,
-        'defaultBinX': profile.defaultBinX,
-        'defaultBinY': profile.defaultBinY,
-        'defaultCoolingTemp': profile.defaultCoolingTemp,
-        'filterNames': profile.filterNames,
-        'filterFocusOffsets': profile.filterFocusOffsets,
-      };
-    }).toList();
+    // Drift's generated JSON codec includes the primary key, default/active
+    // flags, timestamps, device display names, and every current profile
+    // column. The previous hand-written subset omitted `id` and `isDefault`;
+    // replace-restoring that backup allocated a new id and silently lost the
+    // startup profile designation, breaking foreign-key identity.
+    return profiles.map((profile) => profile.toJson()).toList();
   }
 
   Future<List<Map<String, dynamic>>> _exportSequences() async {
@@ -875,21 +913,20 @@ class BackupService {
     TableInfo table,
   ) async {
     var count = 0;
-    for (final raw in rows) {
-      if (raw is! Map) continue;
-      try {
-        final row = decoder(raw.cast<String, dynamic>());
-        final inserted = await database
-            .into(table)
-            .insert(row, mode: InsertMode.insertOrIgnore);
-        // `insert` returns the row id on success (or the existing one on
-        // conflict). Drift returns 0 specifically when an InsertOrIgnore
-        // conflicted and nothing was written.
-        if (inserted != 0) {
-          count++;
-        }
-      } catch (e) {
-        _logger.debug('Skipped malformed row during import: $e');
+    for (var index = 0; index < rows.length; index++) {
+      final raw = rows[index];
+      if (raw is! Map) {
+        throw FormatException('Extended table row $index is not an object');
+      }
+      final row = decoder(raw.cast<String, dynamic>());
+      final inserted = await database
+          .into(table)
+          .insert(row, mode: InsertMode.insertOrIgnore);
+      // `insert` returns the row id on success (or the existing one on
+      // conflict). Drift returns 0 specifically when an InsertOrIgnore
+      // conflicted and nothing was written.
+      if (inserted != 0) {
+        count++;
       }
     }
     return count;
@@ -901,21 +938,14 @@ class BackupService {
 
   Future<String?> _getBackupFilePath() async {
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-
-    final saveLocation = await file_selector.getSaveLocation(
-      suggestedName: 'nightshade_backup_$timestamp.nsbackup',
-      acceptedTypeGroups: [
-        const file_selector.XTypeGroup(
-          label: 'Nightshade Backup',
-          extensions: ['nsbackup', 'json'],
-        ),
-      ],
-    );
-
-    return saveLocation?.path;
+    final backupDir = await _getBackupDirectory();
+    await backupDir.create(recursive: true);
+    return path.join(backupDir.path, 'nightshade_backup_$timestamp.nsbackup');
   }
 
   Future<Directory> _getBackupDirectory() async {
+    final override = _backupDirectoryProvider;
+    if (override != null) return override();
     final docsDir = await getApplicationDocumentsDirectory();
     return Directory(path.join(docsDir.path, 'Nightshade', 'backups'));
   }
@@ -956,38 +986,13 @@ int _intOrDefault(Object? value, int fallback) {
   return (value as num?)?.toInt() ?? fallback;
 }
 
-BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
-  if (value is Map) {
-    return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
+Value<DateTime> _dateTimeValue(Object? value) {
+  if (value is DateTime) return Value(value);
+  if (value is String) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed != null) return Value(parsed);
   }
-  return const BrightnessTierPreferences();
-}
-
-/// Persist a [TargetSchedulerNode]'s azimuth horizon mask as
-/// `{id?, name, samples:[{az,alt}]}`. `null` profile encodes to `null`.
-Map<String, dynamic>? _backupHorizonToJson(HorizonProfile? profile) {
-  if (profile == null) return null;
-  return {
-    if (profile.id != null) 'id': profile.id,
-    'name': profile.name,
-    'samples': profile.samples.map((s) => s.toJson()).toList(),
-  };
-}
-
-/// Inverse of [_backupHorizonToJson]. Tolerates a missing/empty samples list
-/// (returns `null` — flat altitude floor) so legacy backups restore.
-HorizonProfile? _backupHorizonFromJson(Object? raw) {
-  if (raw is! Map) return null;
-  final map = raw.cast<String, dynamic>();
-  final samplesRaw = map['samples'] as List<dynamic>? ?? const [];
-  if (samplesRaw.isEmpty) return null;
-  return HorizonProfile(
-    id: (map['id'] as num?)?.toInt(),
-    name: map['name'] as String? ?? 'Site horizon',
-    samples: samplesRaw
-        .map((e) => HorizonSample.fromJson((e as Map).cast<String, dynamic>()))
-        .toList(),
-  );
+  return const Value.absent();
 }
 
 /// Raised by [BackupService._validateBackupPayload] when a backup file is
@@ -1029,10 +1034,12 @@ final backupServiceProvider = Provider<BackupService>((ref) {
   final database = ref.watch(databaseProvider);
   final sequenceRepo = ref.watch(sequenceRepositoryProvider);
   final logger = ref.watch(loggingServiceProvider);
+  final appVersion = ref.watch(appVersionProvider).version;
 
   return BackupService(
     database: database,
     sequenceRepository: sequenceRepo,
     logger: logger,
+    appVersion: appVersion,
   );
 });

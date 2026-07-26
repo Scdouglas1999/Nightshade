@@ -1,9 +1,8 @@
 /// Declarative route table for the plugin-management surface.
 ///
-/// Counterpart to `handlers/plugin_handlers.dart`. The upload endpoint
-/// uses the raw body for the archive bytes; the `filename` and
-/// optional `sha256` come in as query parameters (same shape as
-/// `/api/catalog/upload`).
+/// Counterpart to `handlers/plugin_handlers.dart`. The upload route remains
+/// registered for protocol compatibility and reports 501 because Dart AOT
+/// cannot load uploaded plugin code.
 ///
 /// Order constraint: the literal `upload` sub-path MUST register
 /// before any `<pluginId>` route on `/api/plugins`.

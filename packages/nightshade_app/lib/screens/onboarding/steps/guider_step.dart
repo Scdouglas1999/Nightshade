@@ -94,6 +94,12 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
               id: 'phd2:$host:$port',
               name: 'PHD2 ($host:$port)',
             );
+        // _connectGuider reads phd2Host/phd2Port from settings (not the device
+        // id), so persist the tested endpoint or a non-default host connects
+        // back to localhost:4400.
+        final s = ref.read(appSettingsProvider.notifier);
+        await s.setPhd2Host(host);
+        await s.setPhd2Port(port);
       }
     } catch (e) {
       if (!mounted) return;
@@ -112,179 +118,192 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Set up guiding (optional)',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w700,
+    // Scrollable: this step stacks a PHD2 card, a divider and a whole device
+    // picker, which together need more height than a small desktop window or a
+    // phone gives the wizard body. As a bare Column the surplus overflowed and
+    // painted over whatever sat below it.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set up guiding (optional)',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'PHD2 over TCP is the most common setup. We can also discover native guiders if your camera supports tracking.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.textSecondary,
+          const SizedBox(height: 6),
+          Text(
+            'PHD2 over TCP is the most common setup. We can also discover native guiders if your camera supports tracking.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-        // PHD2 quick path
-        NightshadeCard(
-          variant: CardVariant.subtle,
-          borderRadius: NightshadeTokens.radiusLg,
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(NightshadeIcons.crosshair,
-                      color: colors.primary, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    'PHD2',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextField(
-                      controller: _hostController,
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        labelText: 'Host',
-                        labelStyle: TextStyle(color: colors.textSecondary),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.primary),
-                        ),
-                        filled: true,
-                        fillColor: colors.background,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _portController,
-                      keyboardType: TextInputType.number,
-                      style: TextStyle(color: colors.textPrimary),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        labelText: 'Port',
-                        labelStyle: TextStyle(color: colors.textSecondary),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: NightshadeTokens.borderRadiusMd,
-                          borderSide: BorderSide(color: colors.primary),
-                        ),
-                        filled: true,
-                        fillColor: colors.background,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  NightshadeButton(
-                    icon: NightshadeIcons.bolt,
-                    label: _testing ? 'Testing…' : 'Test',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: _testing ? null : _testConnection,
-                  ),
-                ],
-              ),
-              if (_lastResult != null) ...[
-                const SizedBox(height: 10),
+          // PHD2 quick path
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            borderRadius: NightshadeTokens.radiusLg,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
                   children: [
-                    Icon(
-                      _lastResult == true
-                          ? LucideIcons.checkCircle2
-                          : NightshadeIcons.warning,
-                      size: 16,
-                      color:
-                          _lastResult == true ? colors.success : colors.error,
-                    ),
+                    Icon(NightshadeIcons.crosshair,
+                        color: colors.primary, size: 18),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _lastResult == true
-                            ? 'PHD2 reachable. Selection saved.'
-                            : (_lastError ?? 'Connection failed.'),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: _lastResult == true
-                              ? colors.success
-                              : colors.error,
-                        ),
+                    Text(
+                      'PHD2',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: _hostController,
+                        style: TextStyle(color: colors.textPrimary),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          labelText: 'Host',
+                          labelStyle: TextStyle(color: colors.textSecondary),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: NightshadeTokens.borderRadiusMd,
+                            borderSide: BorderSide(color: colors.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: NightshadeTokens.borderRadiusMd,
+                            borderSide: BorderSide(color: colors.primary),
+                          ),
+                          filled: true,
+                          fillColor: colors.background,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _portController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(color: colors.textPrimary),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          labelText: 'Port',
+                          labelStyle: TextStyle(color: colors.textSecondary),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: NightshadeTokens.borderRadiusMd,
+                            borderSide: BorderSide(color: colors.border),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: NightshadeTokens.borderRadiusMd,
+                            borderSide: BorderSide(color: colors.primary),
+                          ),
+                          filled: true,
+                          fillColor: colors.background,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    NightshadeButton(
+                      icon: NightshadeIcons.bolt,
+                      label: _testing ? 'Testing…' : 'Test',
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: _testing ? null : _testConnection,
+                    ),
+                  ],
+                ),
+                if (_lastResult != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(
+                        _lastResult == true
+                            ? LucideIcons.checkCircle2
+                            : NightshadeIcons.warning,
+                        size: 16,
+                        color:
+                            _lastResult == true ? colors.success : colors.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _lastResult == true
+                              ? 'PHD2 reachable. Selection saved.'
+                              : (_lastError ?? 'Connection failed.'),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: _lastResult == true
+                                ? colors.success
+                                : colors.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: Divider(color: colors.border, thickness: 1),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                'or pick a native guider',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.textMuted,
+          ),
+
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Divider(color: colors.border, thickness: 1),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'or pick a native guider',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.textMuted,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Divider(color: colors.border, thickness: 1),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-
-        // Native guider picker (camera-tracked etc.)
-        SizedBox(
-          height: 240,
-          child: OnboardingDevicePickerBody(
-            title: 'Native guiders',
-            subtitle:
-                'Cameras that publish a guider interface — usually only relevant for OAGs with dedicated drivers.',
-            icon: NightshadeIcons.visible,
-            deviceType: DeviceType.guider,
-            selectedDeviceId: draft.guiderId,
-            selectedDeviceName: draft.guiderName,
-            allowSkip: true,
-            onSelected: (device) => notifier.setGuider(
-              id: device.activeDeviceId,
-              name: device.displayName,
-            ),
-            onCleared: () => notifier.setGuider(id: ''),
+              Expanded(
+                child: Divider(color: colors.border, thickness: 1),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+
+          // Native guider picker (camera-tracked etc.).
+          //
+          // The height has to clear the picker's own chrome (heading, subtitle,
+          // Scan-again row, per-backend status row and skip footnote) plus its
+          // empty state. At 240 it did not: the list slot collapsed to almost
+          // nothing and the "No devices found" empty state painted straight
+          // through the footnote beneath it. The step scrolls, so the taller box
+          // costs reachability nothing.
+          SizedBox(
+            height: 340,
+            child: OnboardingDevicePickerBody(
+              title: 'Native guiders',
+              subtitle:
+                  'Cameras that publish a guider interface — usually only relevant for OAGs with dedicated drivers.',
+              icon: NightshadeIcons.visible,
+              deviceType: DeviceType.guider,
+              selectedDeviceId: draft.guiderId,
+              selectedDeviceName: draft.guiderName,
+              allowSkip: true,
+              onSelected: (device) => notifier.setGuider(
+                id: device.activeDeviceId,
+                name: device.displayName,
+              ),
+              onCleared: () => notifier.setGuider(id: ''),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

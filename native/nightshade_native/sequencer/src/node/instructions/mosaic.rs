@@ -52,7 +52,7 @@ impl InstructionNode for MosaicInstruction {
             return NodeStatus::Failure;
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let total_panels = config
             .panels_horizontal

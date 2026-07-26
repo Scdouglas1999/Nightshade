@@ -46,11 +46,8 @@ class YourSkyView extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final regionsAsync = ref.watch(skyAtlasRegionsProvider);
     final coverageAsync = ref.watch(skyAtlasCoverageProvider);
-    // HOST-ONLY: "Name a region" writes the local atlas DB. The atlas is owned
-    // by the host; a NetworkBackend companion only mirrors it, so the manual
-    // create control is hidden on a slave (auto-attach-on-fold also runs only
-    // on the host).
-    final canManageRegions = ref.watch(backendProvider) is! NetworkBackend;
+    final backend = ref.watch(backendProvider);
+    final canNameRegions = backend is FfiBackend || backend is NetworkBackend;
 
     return Column(
       children: [
@@ -81,7 +78,7 @@ class YourSkyView extends ConsumerWidget {
               ref,
               regions,
               coverageAsync,
-              canManageRegions,
+              canNameRegions,
             ),
             loading: _buildLoading,
             error: (error, _) => _buildError(ref, error),
@@ -96,12 +93,12 @@ class YourSkyView extends ConsumerWidget {
     WidgetRef ref,
     List<SkyAtlasRegionRow> regions,
     AsyncValue<List<AtlasTileCoverage>> coverageAsync,
-    bool canManageRegions,
+    bool canNameRegions,
   ) {
     final coverage = coverageAsync.valueOrNull ?? const <AtlasTileCoverage>[];
 
     if (regions.isEmpty && coverage.isEmpty) {
-      return _buildEmpty();
+      return _buildEmpty(context, canNameRegions);
     }
 
     return LayoutBuilder(
@@ -134,7 +131,7 @@ class YourSkyView extends ConsumerWidget {
                 subtitle: regions.isEmpty
                     ? 'Tiles are accumulating — name a region to track its depth.'
                     : '${regions.length} region${regions.length == 1 ? '' : 's'} imaged',
-                trailing: canManageRegions
+                trailing: canNameRegions
                     ? NightshadeButton(
                         label: 'Name a region',
                         icon: LucideIcons.plus,
@@ -146,7 +143,7 @@ class YourSkyView extends ConsumerWidget {
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               if (regions.isEmpty)
-                _buildNoRegionsHint(context, canManageRegions)
+                _buildNoRegionsHint(context, canNameRegions)
               else
                 _RegionGrid(
                   regions: regions,
@@ -169,7 +166,7 @@ class YourSkyView extends ConsumerWidget {
     );
   }
 
-  Widget _buildNoRegionsHint(BuildContext context, bool canManageRegions) {
+  Widget _buildNoRegionsHint(BuildContext context, bool canNameRegions) {
     final colors = NightshadeColors.of(context);
     return NightshadeCard(
       variant: CardVariant.subtle,
@@ -188,7 +185,7 @@ class YourSkyView extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceMd),
               Expanded(
                 child: Text(
-                  canManageRegions
+                  canNameRegions
                       ? 'Your atlas is filling in tile by tile. Image a target '
                           'and it becomes a named region automatically — or '
                           'name one yourself (a target, mosaic, or polar field) '
@@ -203,7 +200,7 @@ class YourSkyView extends ConsumerWidget {
               ),
             ],
           ),
-          if (canManageRegions) ...[
+          if (canNameRegions) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             Align(
               alignment: Alignment.centerLeft,
@@ -221,19 +218,27 @@ class YourSkyView extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildEmpty(BuildContext context, bool canNameRegions) {
     return ListView(
       // ListView so the empty state is still pull-to-refreshable in context.
       physics: const AlwaysScrollableScrollPhysics(),
       padding: NightshadeTokens.screenPadding,
-      children: const [
-        SizedBox(height: NightshadeTokens.spaceXl),
+      children: [
+        const SizedBox(height: NightshadeTokens.spaceXl),
         EmptyState(
           icon: LucideIcons.orbit,
           title: 'Your sky is dark — for now',
           body: 'Image and plate-solve a target and it folds into Your Sky '
               'automatically. Each frame deepens a permanent tile you can '
               'revisit and scrub through time.',
+          action: canNameRegions
+              ? NightshadeButton(
+                  label: 'Name a region',
+                  icon: LucideIcons.plus,
+                  variant: ButtonVariant.outline,
+                  onPressed: () => NameRegionSheet.show(context),
+                )
+              : null,
         ),
       ],
     );

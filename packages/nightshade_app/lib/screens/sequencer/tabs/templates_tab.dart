@@ -6,8 +6,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../sequencer_screen.dart';
+import 'package:nightshade_app/utils/authority_bound_dialog.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import '../widgets/quick_start_wizard_dialog.dart';
+import '../../../utils/count_label.dart';
 
 // ---------------------------------------------------------------------------
 // File split: the rest of this library lives in `templates_tab_parts/`.
@@ -26,23 +28,18 @@ part 'templates_tab_parts/_template_card.dart';
 part 'templates_tab_parts/_save_template_dialog.dart';
 part 'templates_tab_parts/_starters_section.dart';
 
-/// Provider for templates list - loads from database with built-in fallbacks
+/// Provider for the complete template catalog.
 // autoDispose: list is only consumed by TemplatesTab; refetching the DB on
 // revisit is cheap and reflects any templates the user just saved or
 // imported elsewhere.
 final sequenceTemplatesProvider =
     FutureProvider.autoDispose<List<Sequence>>((ref) async {
   final repository = ref.watch(sequenceRepositoryProvider);
-
-  // Load templates from database
   final dbTemplates = await repository.loadAllTemplates();
-
-  // If no templates exist, return built-in templates
-  if (dbTemplates.isEmpty) {
-    return _getBuiltInTemplates();
-  }
-
-  return dbTemplates;
+  // Built-ins are part of the product catalog, not an empty-database
+  // placeholder. Previously they all disappeared as soon as the user saved
+  // their first custom template.
+  return [...dbTemplates, ..._getBuiltInTemplates()];
 });
 
 /// Search provider for templates
@@ -133,13 +130,13 @@ class TemplatesTab extends ConsumerWidget {
                   isMobile: isMobile,
                 ),
 
-                // Your Templates
+                // Built-in and user templates
                 _TemplatesSectionHeader(
                   colors: colors,
                   icon: LucideIcons.fileStack,
-                  title: 'Your Templates',
+                  title: 'Templates',
                   subtitle:
-                      'Sequences you have saved as templates for quick reuse.',
+                      'Built-in recipes and templates you saved for quick reuse.',
                 ),
                 const SizedBox(height: 12),
                 templatesAsync.when(
@@ -195,12 +192,23 @@ class TemplatesTab extends ConsumerWidget {
                       // out at its natural height inside it.
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: maxExtent,
-                        childAspectRatio: isMobile ? 1.2 : 1.3,
-                        crossAxisSpacing: gridSpacing,
-                        mainAxisSpacing: gridSpacing,
-                      ),
+                      // A max-extent delegate chooses two ~195 px columns on
+                      // a 430 px phone, far below what the card's actions and
+                      // footer can lay out in. Mobile is deliberately one
+                      // card wide; desktop keeps the adaptive multi-column
+                      // grid.
+                      gridDelegate: isMobile
+                          ? SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 1,
+                              childAspectRatio: 1.2,
+                              mainAxisSpacing: gridSpacing,
+                            )
+                          : SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: maxExtent,
+                              childAspectRatio: 1.3,
+                              crossAxisSpacing: gridSpacing,
+                              mainAxisSpacing: gridSpacing,
+                            ),
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
                         return _TemplateCard(

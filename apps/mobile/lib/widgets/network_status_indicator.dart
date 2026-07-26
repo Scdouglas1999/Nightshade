@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../services/network_service.dart';
@@ -87,6 +88,7 @@ class _NetworkStatusIndicatorState
   Duration? _latency;
   StreamSubscription<Duration>? _latencySubscription;
   NetworkBackend? _trackedBackend;
+  int _backendGeneration = 0;
 
   @override
   void initState() {
@@ -97,27 +99,30 @@ class _NetworkStatusIndicatorState
 
   @override
   void dispose() {
+    _backendGeneration++;
     _latencySubscription?.cancel();
     super.dispose();
   }
 
   void _attachToBackend(NightshadeBackend backend) {
+    if (identical(backend, _trackedBackend)) return;
+    final generation = ++_backendGeneration;
+    _latencySubscription?.cancel();
+    _latencySubscription = null;
     if (backend is NetworkBackend) {
-      if (identical(backend, _trackedBackend)) {
-        return;
-      }
-      _latencySubscription?.cancel();
       _trackedBackend = backend;
       // Seed with the last observed value so the UI doesn't flash empty
       // immediately after a backend swap.
       _latency = backend.lastLatency;
       _latencySubscription = backend.latencyStream.listen((value) {
-        if (!mounted) return;
+        if (!mounted ||
+            generation != _backendGeneration ||
+            !identical(_trackedBackend, backend)) {
+          return;
+        }
         setState(() => _latency = value);
       });
     } else {
-      _latencySubscription?.cancel();
-      _latencySubscription = null;
       _trackedBackend = null;
       if (_latency != null) {
         _latency = null;
@@ -484,17 +489,103 @@ class _ConnectionDetailsSheet extends ConsumerStatefulWidget {
 class _ConnectionDetailsSheetState
     extends ConsumerState<_ConnectionDetailsSheet> {
   bool _reconnecting = false;
+  bool _searching = false;
+  bool _disconnecting = false;
 
   Future<void> _handleReconnectNow() async {
-    final backend = widget.backend;
-    if (backend == null) return;
+    if (_reconnecting) return;
+    final activeBackend = ref.read(backendProvider);
+    if (activeBackend is! NetworkBackend) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No remote server is selected. Reconnect first.'),
+          ),
+        );
+      }
+      return;
+    }
+    final backend = activeBackend;
     setState(() => _reconnecting = true);
     try {
       await backend.reconnectNow();
+    } catch (e) {
+      if (mounted && identical(ref.read(backendProvider), backend)) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Reconnect failed: $e')));
+      }
     } finally {
       if (mounted) {
         setState(() => _reconnecting = false);
       }
+    }
+  }
+
+  /// Run the discovery cascade and, on a hit, actually connect the backend to
+  /// the rig — the previous `NetworkService().rediscoverServer()` only stamped
+  /// last-server + NetworkService status and never brought the real WebSocket
+  /// session up, so the button appeared to work while the app stayed unable to
+  /// drive the rig.
+  Future<void> _handleSearchForServers() async {
+    setState(() => _searching = true);
+    DiscoveredServer? server;
+    Object? discoveryError;
+    try {
+      server = await EnhancedNightshadeDiscovery.discoverWithFallback();
+    } catch (e) {
+      discoveryError = e;
+    }
+    if (!mounted) return;
+    if (server == null) {
+      setState(() => _searching = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            discoveryError == null
+                ? 'No servers found on this network.'
+                : 'Server discovery failed: $discoveryError',
+          ),
+        ),
+      );
+      return;
+    }
+    try {
+      await ref
+          .read(backendProvider.notifier)
+          .connect(
+            server.host,
+            server.webPort,
+            authToken: server.authToken,
+            scheme: server.scheme,
+            pinnedFingerprint: server.fingerprint,
+          );
+      await EnhancedNightshadeDiscovery.saveLastServer(server);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _searching = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to connect: $e')));
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pop(context);
+  }
+
+  Future<void> _handleDisconnect() async {
+    if (_disconnecting) return;
+    setState(() => _disconnecting = true);
+    try {
+      await ref.read(backendProvider.notifier).disconnect();
+      await NetworkService().disconnect();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _disconnecting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Disconnect blocked: $e')));
     }
   }
 
@@ -645,12 +736,9 @@ class _ConnectionDetailsSheetState
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  NetworkService().rediscoverServer();
-                },
+                onPressed: _searching ? null : _handleSearchForServers,
                 icon: LucideIcons.search,
-                label: 'Search for Servers',
+                label: _searching ? 'Searching...' : 'Search for Servers',
                 variant: ButtonVariant.outline,
               ),
             ),
@@ -659,18 +747,9 @@ class _ConnectionDetailsSheetState
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  // Use the Riverpod-managed disconnect so the backend
-                  // swap happens cleanly (DeviceService quiesce, etc.).
-                  ref.read(backendProvider.notifier).disconnect();
-                  // Also clear NetworkService' last-known server so the
-                  // next launch doesn't auto-reconnect to a server the
-                  // user explicitly walked away from.
-                  NetworkService().disconnect();
-                },
+                onPressed: _disconnecting ? null : _handleDisconnect,
                 icon: LucideIcons.logOut,
-                label: 'Disconnect',
+                label: _disconnecting ? 'Disconnecting...' : 'Disconnect',
                 variant: ButtonVariant.destructive,
               ),
             ),

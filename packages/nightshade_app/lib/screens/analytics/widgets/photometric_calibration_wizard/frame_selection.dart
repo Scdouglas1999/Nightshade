@@ -3,9 +3,7 @@ part of '../photometric_calibration_wizard.dart';
 extension _PhotometricWizardFrameSelection
     on _PhotometricCalibrationWizardState {
   Widget _buildStep1SelectFrame(NightshadeColors colors) {
-    final sessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
-    final sessionId =
-        _selectedSessionId ?? (sessions.isNotEmpty ? sessions.first.id : null);
+    final sessionsAsync = ref.watch(allSessionsProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -26,6 +24,70 @@ extension _PhotometricWizardFrameSelection
               .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
+        sessionsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Container(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: NightshadeTokens.borderRadiusLg,
+              border: Border.all(color: colors.error.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.alertTriangle,
+                    size: NightshadeTokens.iconSm, color: colors.error),
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Expanded(
+                  child: Text(
+                    'Could not load imaging sessions: $error',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.error),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(allSessionsProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          data: (sessions) => _buildFrameSourceControls(colors, sessions),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFrameSourceControls(
+    NightshadeColors colors,
+    List<ImagingSession> sessions,
+  ) {
+    if (sessions.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: NightshadeTokens.borderRadiusLg,
+          border: Border.all(color: colors.border.withValues(alpha: 0.3)),
+        ),
+        child: Text(
+          'No imaging sessions found. Capture frames with a standard '
+          'star field first.',
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
+        ),
+      );
+    }
+
+    final selectedSessionExists =
+        sessions.any((session) => session.id == _selectedSessionId);
+    final sessionId =
+        selectedSessionExists ? _selectedSessionId! : sessions.first.id;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Wrap(
           spacing: NightshadeTokens.spaceLg,
           runSpacing: NightshadeTokens.spaceMd,
@@ -43,7 +105,7 @@ extension _PhotometricWizardFrameSelection
                   NightshadeDropdown(
                     isExpanded: true,
                     isDense: true,
-                    value: sessionId?.toString(),
+                    value: sessionId.toString(),
                     hint: 'Select session',
                     items: sessions.map((s) => s.id.toString()).toList(),
                     itemLabels: sessions
@@ -55,10 +117,12 @@ extension _PhotometricWizardFrameSelection
                         return;
                       }
                       _update(() {
+                        _retireAsyncWork();
                         _selectedSessionId = id;
                         _selectedImageIds.clear();
                         _starMatches = const [];
                         _computedCoefficients = null;
+                        _fitAttempted = false;
                       });
                     },
                   ),
@@ -71,31 +135,32 @@ extension _PhotometricWizardFrameSelection
                 label: 'Filter',
                 controller: _filterController,
                 hint: 'e.g., V, B, R',
-                onChanged: (value) => _update(() => _filterName = value),
+                onChanged: _changeFilter,
               ),
             ),
           ],
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
-        if (sessionId != null)
-          _buildFrameSelector(colors, sessionId)
-        else
-          Container(
-            padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: NightshadeTokens.borderRadiusLg,
-              border: Border.all(color: colors.border.withValues(alpha: 0.3)),
-            ),
-            child: Text(
-              'No imaging sessions found. Capture frames with a standard '
-              'star field first.',
-              style: NightshadeTypography.caption
-                  .copyWith(color: colors.textMuted),
-            ),
-          ),
+        _buildFrameSelector(colors, sessionId),
       ],
     );
+  }
+
+  void _changeFilter(String value) {
+    final changed =
+        value.trim().toLowerCase() != _filterName.trim().toLowerCase();
+    _update(() {
+      _filterName = value;
+      if (changed && _selectedImageIds.isNotEmpty) {
+        _selectedImageIds.clear();
+      }
+      if (changed) {
+        _retireAsyncWork();
+        _starMatches = const [];
+        _computedCoefficients = null;
+        _fitAttempted = false;
+      }
+    });
   }
 
   Widget _buildFrameSelector(NightshadeColors colors, int sessionId) {
@@ -108,28 +173,41 @@ extension _PhotometricWizardFrameSelection
         height:
             _PhotometricCalibrationWizardState._frameSelectorPreferredHeight,
         child: ShimmerLoading(
-          child: Row(
-            children: List.generate(
-              5,
-              (i) => Padding(
-                padding: EdgeInsets.only(
-                    right: i == 4 ? 0 : NightshadeTokens.spaceSm),
-                child: Container(
-                  width: 140,
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: NightshadeTokens.borderRadiusMd,
-                  ),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 5,
+            separatorBuilder: (_, __) =>
+                const SizedBox(width: NightshadeTokens.spaceSm),
+            itemBuilder: (_, __) => SizedBox(
+              width: 140,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: NightshadeTokens.borderRadiusMd,
                 ),
               ),
             ),
           ),
         ),
       ),
-      error: (error, _) => Text('Error loading images: $error',
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: colors.error)),
+      error: (error, _) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Error loading images: $error',
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: colors.error),
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(calibrationSessionImagesProvider(sessionId)),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
       data: (imageList) {
         final solvedImages = imageList
             .where((img) =>
@@ -138,7 +216,7 @@ extension _PhotometricWizardFrameSelection
 
         if (solvedImages.isEmpty) {
           return Text(
-            'No plate-solved light frames found in the latest session.',
+            'No plate-solved light frames found in the selected session.',
             style:
                 NightshadeTypography.caption.copyWith(color: colors.textMuted),
           );
@@ -153,49 +231,76 @@ extension _PhotometricWizardFrameSelection
             itemBuilder: (context, index) {
               final img = solvedImages[index];
               final isSelected = _selectedImageIds.contains(img.id);
-              return ListTile(
-                dense: true,
-                selected: isSelected,
-                selectedColor: colors.primary,
-                selectedTileColor:
-                    NightshadeDecorations.tintedBadge(colors.primary).color,
-                title: Text(
-                  img.fileName,
-                  style: NightshadeTypography.bodySm.copyWith(
-                    color: isSelected ? colors.primary : colors.textPrimary,
+              final frameFilter = img.filter?.trim();
+              final filterMismatch = !isSelected &&
+                  _filterName.trim().isNotEmpty &&
+                  frameFilter != null &&
+                  frameFilter.isNotEmpty &&
+                  frameFilter.toLowerCase() != _filterName.trim().toLowerCase();
+              return Material(
+                type: MaterialType.transparency,
+                child: ListTile(
+                  dense: true,
+                  selected: isSelected,
+                  selectedColor: colors.primary,
+                  selectedTileColor:
+                      NightshadeDecorations.tintedBadge(colors.primary).color,
+                  title: Text(
+                    img.fileName,
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: isSelected ? colors.primary : colors.textPrimary,
+                    ),
                   ),
-                ),
-                subtitle: Text(
-                  '${img.filter ?? "No filter"} | '
-                  '${img.exposureDuration.toStringAsFixed(1)}s | '
-                  'Stars: ${img.starCount ?? "?"} | '
-                  'RA: ${img.solvedRa?.toStringAsFixed(4) ?? "?"} '
-                  'Dec: ${img.solvedDec?.toStringAsFixed(4) ?? "?"}',
-                  style: NightshadeTypography.captionSm
-                      .copyWith(color: colors.textMuted),
-                ),
-                leading: Icon(
-                  isSelected ? LucideIcons.checkCircle2 : LucideIcons.image,
-                  color: isSelected ? colors.primary : colors.textMuted,
-                  size: NightshadeTokens.iconSm,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: NightshadeTokens.borderRadiusLg,
-                ),
-                onTap: () {
-                  _update(() {
-                    if (!_selectedImageIds.remove(img.id)) {
-                      _selectedImageIds.add(img.id);
+                  subtitle: Text(
+                    '${img.filter ?? "No filter"} | '
+                    '${img.exposureDuration.toStringAsFixed(1)}s | '
+                    'Stars: ${img.starCount ?? "?"} | '
+                    'RA: ${img.solvedRa?.toStringAsFixed(4) ?? "?"} '
+                    'Dec: ${img.solvedDec?.toStringAsFixed(4) ?? "?"}',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                  leading: Icon(
+                    isSelected ? LucideIcons.checkCircle2 : LucideIcons.image,
+                    color: isSelected ? colors.primary : colors.textMuted,
+                    size: NightshadeTokens.iconSm,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: NightshadeTokens.borderRadiusLg,
+                  ),
+                  onTap: () {
+                    if (filterMismatch) {
+                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${img.fileName} uses filter $frameFilter; this '
+                            'calibration is for ${_filterName.trim()}.',
+                          ),
+                        ),
+                      );
+                      return;
                     }
-                    if (_filterName.isEmpty && img.filter != null) {
-                      _filterName = img.filter!;
-                      _filterController.text = img.filter!;
-                    }
-                    // New frame selection invalidates downstream products.
-                    _starMatches = const [];
-                    _computedCoefficients = null;
-                  });
-                },
+                    _update(() {
+                      _retireAsyncWork();
+                      // Anchor the implicit default session as soon as the user
+                      // selects a frame. A newly-started session may then move
+                      // to the front of the history stream without hiding this
+                      // selection under a different session.
+                      _selectedSessionId = sessionId;
+                      if (!_selectedImageIds.remove(img.id)) {
+                        _selectedImageIds.add(img.id);
+                      }
+                      if (_filterName.isEmpty && img.filter != null) {
+                        _filterName = img.filter!;
+                        _filterController.text = img.filter!;
+                      }
+                      // New frame selection invalidates downstream products.
+                      _starMatches = const [];
+                      _computedCoefficients = null;
+                      _fitAttempted = false;
+                    });
+                  },
+                ),
               );
             },
           ),

@@ -11,6 +11,7 @@ import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/hardware_presets_provider.dart';
 import '../providers/profiles_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/tutorial_provider.dart';
 import '../services/hardware_presets/hardware_presets_service.dart';
 
@@ -34,7 +35,7 @@ final shouldRunEquipmentOnboardingProvider = FutureProvider<bool>((ref) async {
   // got past onboarding (either through this wizard or the original
   // equipment screen). The wizard is reachable from settings for those
   // users.
-  final backend = ref.read(backendProvider);
+  final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     final remoteProfiles = await backend.getProfiles();
     if (remoteProfiles.isNotEmpty) return false;
@@ -254,10 +255,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     double? reducerFactor,
   }) async {
     state = state.copyWith(
-      pixelSizeMicrons: pixelSizeMicrons ?? state.pixelSizeMicrons,
-      focalLengthMm: focalLengthMm ?? state.focalLengthMm,
-      apertureMm: apertureMm ?? state.apertureMm,
+      pixelSizeMicrons: pixelSizeMicrons,
+      focalLengthMm: focalLengthMm,
+      apertureMm: apertureMm,
       reducerFactor: reducerFactor ?? state.reducerFactor,
+      clearPixelSize: pixelSizeMicrons == null,
+      clearFocalLength: focalLengthMm == null,
+      clearAperture: apertureMm == null,
     );
     await _persistDraft();
   }
@@ -348,10 +352,26 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
   /// only retire onboarding when the user actually finishes.
   Future<int> complete() async {
     final draft = state;
+    final backendOwner = _ref.read(backendProvider.notifier);
+    final backend = backendOwner.currentBackend;
+    void requireAuthority(String action) {
+      if (!mounted || !backendOwner.isCurrentBackend(backend)) {
+        throw StateError(
+          'The imaging host changed while $action. The onboarding result was '
+          'not applied to the replacement host.',
+        );
+      }
+    }
+
     // Persist the new equipment profile. The DAO marks the first profile
     // as default+active on insert so the user lands on the dashboard
     // already pointed at their new rig.
-    final dao = _ref.read(equipmentProfilesDaoProvider);
+    final dao = backend is NetworkBackend
+        ? null
+        : _ref.read(equipmentProfilesDaoProvider);
+    final localProfiles = backend is NetworkBackend
+        ? null
+        : _ref.read(equipmentProfilesProvider.notifier);
     final focalRatio =
         (draft.focalLengthMm != null &&
             draft.apertureMm != null &&
@@ -401,21 +421,15 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     );
 
     final int id;
-    final backend = _ref.read(backendProvider);
     if (backend is NetworkBackend) {
       await backend.saveProfile(profile.toRemoteProfile());
+      requireAuthority('creating the equipment profile');
       _ref.invalidate(equipmentProfilesProvider);
-      final remoteProfiles = await backend.getProfiles();
-      var createdId = '';
-      for (final remoteProfile in remoteProfiles) {
-        if (remoteProfile.name == profile.name) {
-          createdId = remoteProfile.id;
-          break;
-        }
-      }
-      if (createdId.isEmpty) {
+      final createdId = backend.lastSavedProfileId;
+      if (createdId == null || createdId.isEmpty) {
         throw StateError(
-          'Host saved onboarding profile "${profile.name}" but id was not resolved',
+          'Host saved onboarding profile "${profile.name}" but did not '
+          'return its created id',
         );
       }
       final parsedId = int.tryParse(createdId);
@@ -425,21 +439,43 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
         );
       }
       await backend.loadProfile(createdId);
+      requireAuthority('activating the equipment profile');
       _ref.invalidate(equipmentProfilesProvider);
       id = parsedId;
     } else {
-      id = await dao.createProfile(profile.toCompanion());
-      _ref.invalidate(equipmentProfilesProvider);
+      id = await dao!.createProfile(profile.toCompanion());
+      requireAuthority('creating the equipment profile');
+      // dao.createProfile only auto-activates the FIRST profile; when older
+      // profiles already exist the new row is inserted inactive. Re-running
+      // onboarding must still leave the user pointed at the rig they just
+      // built, so route activation through the remote-aware notifier — that
+      // flips SQLite AND write-throughs the active row to the native executor
+      // store, making the terminal "active & ready" screen truthful. Idempotent
+      // for the first-profile case (already active), and it performs the native
+      // write-through a bare DAO insert skips. Local-only: this is the
+      // non-NetworkBackend branch, so [setActiveProfile] never hits the host.
+      await localProfiles!.setActiveProfile(id);
+      requireAuthority('activating the equipment profile');
     }
 
     // Persist the capture directory selection at the app-settings level so
     // the imaging service picks it up from day one.
     if (draft.captureDirectory != null &&
         draft.captureDirectory!.trim().isNotEmpty) {
-      final settingsDao = _ref.read(settingsDaoProvider);
-      await settingsDao.setDefaultImageDirectory(
-        draft.captureDirectory!.trim(),
-      );
+      final captureDir = draft.captureDirectory!.trim();
+      if (backend is NetworkBackend) {
+        final settings = await backend.getSettings();
+        requireAuthority('loading the capture-directory settings');
+        await backend.updateSettings(
+          settings.copyWith(imageOutputPath: captureDir),
+        );
+      } else {
+        await _ref
+            .read(settingsDaoProvider)
+            .setImageOutputDirectory(captureDir);
+      }
+      requireAuthority('saving the capture directory');
+      _ref.invalidate(appSettingsProvider);
     }
 
     // Note: marking the tutorial complete, wiping the draft blob, and flipping
@@ -478,7 +514,12 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
   Future<void> reset() async {
     final available = _ref.read(availableOnboardingDriversProvider);
     final defaults = available.where((d) => d != DriverType.simulator).toSet();
-    state = OnboardingDraft(selectedDrivers: defaults);
-    await _persistDraft();
+    final resetDraft = OnboardingDraft(selectedDrivers: defaults);
+    final settingsDao = _ref.read(settingsDaoProvider);
+    await settingsDao.setSetting(
+      OnboardingDraft.draftSettingsKey,
+      resetDraft.toJsonString(),
+    );
+    if (mounted) state = resetDraft;
   }
 }

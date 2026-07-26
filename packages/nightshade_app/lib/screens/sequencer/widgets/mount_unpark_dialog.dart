@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
 
 /// Result from the mount unpark dialog
@@ -92,27 +93,26 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
       _isUnparking = true;
     });
 
-    try {
-      // Get the mount state to find the device ID
-      final mountState = ref.read(mountStateProvider);
-      if (mountState.deviceId != null && mountState.isParked) {
-        // Unpark the mount
-        final backend = ref.read(deviceBackendProvider);
-        await backend.mountUnpark(mountState.deviceId!);
+    final mountState = ref.read(mountStateProvider);
+    final isAlreadyUnparked =
+        mountState.connectionState == DeviceConnectionState.connected &&
+            !mountState.isParked;
+    if (!isAlreadyUnparked) {
+      final result = await ref.read(mountCommandServiceProvider).unpark();
+      if (!result.isSuccess) {
+        if (mounted) {
+          setState(() {
+            _isUnparking = false;
+          });
+          context.showCommandActionResult(result);
+        }
+        return;
       }
+    }
 
-      if (mounted) {
-        Navigator.of(context).pop();
-        widget.onUnparkAndContinue();
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isUnparking = false;
-        });
-
-        context.showErrorSnackBar('Failed to unpark mount: $e');
-      }
+    if (mounted) {
+      Navigator.of(context).pop();
+      widget.onUnparkAndContinue();
     }
   }
 

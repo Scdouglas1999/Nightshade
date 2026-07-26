@@ -166,6 +166,9 @@ class NotificationRouter {
     if (_isDebounced(category, rule)) return;
     if (_isRateLimited(category, rule)) return;
 
+    final eligible = _eligibleTransports(rule.transports);
+    if (eligible.isEmpty) return;
+
     _lastFireTime[category] = DateTime.now();
     _recordRateHit(category);
 
@@ -179,10 +182,7 @@ class NotificationRouter {
       ctx,
     );
 
-    for (final kind in rule.transports) {
-      final transport = _transports[kind];
-      if (transport == null) continue;
-      if (!transport.isConfigured) continue;
+    for (final transport in eligible) {
       _dispatch(transport, category, title, body);
     }
   }
@@ -247,10 +247,18 @@ class NotificationRouter {
     if (!_matrix.enabled) return;
     final baseRule = _ruleFor(NotificationCategory.custom);
     if (!baseRule.enabled) return;
-    final transports = explicitTransports ?? baseRule.transports;
-    for (final kind in transports) {
-      final transport = _transports[kind];
-      if (transport == null || !transport.isConfigured) continue;
+    if (severity.index < baseRule.minSeverity.index) return;
+    if (_isDebounced(NotificationCategory.custom, baseRule)) return;
+    if (_isRateLimited(NotificationCategory.custom, baseRule)) return;
+
+    final eligible = _eligibleTransports(
+      explicitTransports ?? baseRule.transports,
+    );
+    if (eligible.isEmpty) return;
+
+    _lastFireTime[NotificationCategory.custom] = DateTime.now();
+    _recordRateHit(NotificationCategory.custom);
+    for (final transport in eligible) {
       _dispatch(transport, NotificationCategory.custom, title, body);
     }
   }
@@ -271,11 +279,16 @@ class NotificationRouter {
     if (!transport.isConfigured) {
       return NotificationResult.fail('${transport.name} is not configured');
     }
-    final result = await transport.send(
-      category: category,
-      title: title,
-      body: body,
-    );
+    late NotificationResult result;
+    try {
+      result = await transport.send(
+        category: category,
+        title: title,
+        body: body,
+      );
+    } catch (error) {
+      result = NotificationResult.fail(error.toString());
+    }
     _lastResults[kind] = result;
     return result;
   }
@@ -321,16 +334,15 @@ class NotificationRouter {
           (event.data['latestVersion'] as String?) ?? 'a new version';
       final current =
           (event.data['currentVersion'] as String?) ?? 'the current build';
-      routeNotificationNode(
-        title: 'Nightshade $latest available',
-        body:
-            'Open Settings > Updates to install the new build (currently on $current).',
-        severity: EventSeverity.info,
-        explicitTransports: const [
-          NotificationTransportKind.inApp,
-          NotificationTransportKind.systemPush,
-        ],
-      );
+      final title = 'Nightshade $latest available';
+      final body =
+          'Open Settings > Updates to install the new build (currently on $current).';
+      for (final transport in _eligibleTransports(const [
+        NotificationTransportKind.inApp,
+        NotificationTransportKind.systemPush,
+      ])) {
+        _dispatch(transport, NotificationCategory.custom, title, body);
+      }
       return;
     }
 
@@ -442,11 +454,23 @@ class NotificationRouter {
     // Fire and forget — the transport's own timeout caps the wait. We
     // record the result so the settings UI can show the latest status.
     Future.microtask(() async {
-      final result = await transport.send(
-        category: category,
-        title: title,
-        body: body,
-      );
+      late NotificationResult result;
+      try {
+        result = await transport.send(
+          category: category,
+          title: title,
+          body: body,
+        );
+      } catch (error, stackTrace) {
+        result = NotificationResult.fail(error.toString());
+        developer.log(
+          '[NotificationRouter] ${transport.name} threw while sending: $error',
+          name: 'NotificationRouter',
+          level: 1000,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
       _lastResults[transport.kind] = result;
       if (!result.success) {
         developer.log(
@@ -456,6 +480,21 @@ class NotificationRouter {
         );
       }
     });
+  }
+
+  List<NotificationTransport> _eligibleTransports(
+    Iterable<NotificationTransportKind> kinds,
+  ) {
+    final eligible = <NotificationTransport>[];
+    final seen = <NotificationTransportKind>{};
+    for (final kind in kinds) {
+      if (!seen.add(kind)) continue;
+      final transport = _transports[kind];
+      if (transport != null && transport.isConfigured) {
+        eligible.add(transport);
+      }
+    }
+    return eligible;
   }
 
   /// True if an identical phone push (same rendered title + body) was emitted

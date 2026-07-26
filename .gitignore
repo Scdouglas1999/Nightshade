@@ -312,6 +312,13 @@ dist-release/
 # Workflow scratch build-briefs (not source)
 .briefs/
 
+# Graphify analysis output and caches (generated, can exceed GitHub's file limit)
+**/graphify-out/
+
+# Local one-off analysis / desktop automation scratch
+/.narrative_hits.txt
+/.codex-kwin-focus-nightshade.js
+
 # Phase D — cellular push operator secrets (never committed). The FCM
 # service-account JSON and the APNs .p8 auth key are referenced by path from
 # push_config.json; keep all three out of git. The throwaway test-key
@@ -321,3 +328,7 @@ push_config.json
 *service-account*.json
 !**/test/push/fixtures/*.p8
 !**/test/push/fixtures/*.pem
+
+# Local release staging / packaging output (not source)
+.release-draft/
+dist-linux-v6-build/

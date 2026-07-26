@@ -35,6 +35,8 @@ class SubframeService {
     int? capturedImageId,
     String? instrument,
     double? exposureSeconds,
+    String? license,
+    String? consentId,
   }) {
     final contributionId = _uuid.v4();
     final path = _store.save(
@@ -48,7 +50,8 @@ class SubframeService {
       'INSERT INTO raw_subframe_contributions '
       '(contribution_id, account_id, tile_id, healpix_order, '
       'captured_image_id, path, bytes, instrument, exposure_seconds, '
-      'received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+      'license, consent_id, received_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
       <Object?>[
         contributionId,
         accountId,
@@ -59,6 +62,8 @@ class SubframeService {
         bytes.length,
         instrument,
         exposureSeconds,
+        license,
+        consentId,
         DateTime.now().toUtc().toIso8601String(),
       ],
     );
@@ -101,9 +106,11 @@ class SubframeService {
   /// Delete a stored subframe (file + ledger row). [requesterId] non-null scopes
   /// the delete to the owner; null (admin) may delete anyone's. Throws
   /// [SubframeNotFound] / [SubframeForbidden] for a clean handler mapping.
-  void delete(String contributionId, {String? requesterId}) {
+  /// Returns the deleted row's `consent_id` (or null) so the caller can revoke
+  /// the matching consent record — a deleted raw frame is no longer consented.
+  String? delete(String contributionId, {String? requesterId}) {
     final rows = _db.db.select(
-      'SELECT account_id, path FROM raw_subframe_contributions '
+      'SELECT account_id, path, consent_id FROM raw_subframe_contributions '
       'WHERE contribution_id = ?;',
       <Object?>[contributionId],
     );
@@ -113,11 +120,13 @@ class SubframeService {
       throw SubframeForbidden(contributionId);
     }
     final path = rows.first['path'] as String;
+    final consentId = rows.first['consent_id'] as String?;
     _store.delete(path);
     _db.db.execute(
       'DELETE FROM raw_subframe_contributions WHERE contribution_id = ?;',
       <Object?>[contributionId],
     );
+    return consentId;
   }
 }
 

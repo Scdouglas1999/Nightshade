@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
@@ -56,10 +58,12 @@ class NightshadeTooltip extends StatefulWidget {
 class _NightshadeTooltipState extends State<NightshadeTooltip>
     with SingleTickerProviderStateMixin {
   final _overlayController = OverlayPortalController();
+  final GlobalKey _childKey = GlobalKey();
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
@@ -82,6 +86,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
 
   @override
   void dispose() {
+    _dismissTimer?.cancel();
     _animController.dispose();
     super.dispose();
   }
@@ -99,6 +104,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
   }
 
   void _hideTooltip() {
+    _dismissTimer?.cancel();
     _isHovered = false;
     _animController.reverse().then((_) {
       if (mounted && _overlayController.isShowing) {
@@ -107,13 +113,27 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
     });
   }
 
+  // Touch trigger: show immediately on long-press (no hover), toggle off on a
+  // repeat long-press, and auto-dismiss after a few seconds.
+  void _toggleTooltipForTouch() {
+    if (_overlayController.isShowing) {
+      _hideTooltip();
+      return;
+    }
+    _dismissTimer?.cancel();
+    _isHovered = true;
+    _overlayController.show();
+    _animController.forward();
+    _dismissTimer = Timer(const Duration(seconds: 3), _hideTooltip);
+  }
+
   @override
   Widget build(BuildContext context) {
     return OverlayPortal(
       controller: _overlayController,
       overlayChildBuilder: (context) {
         return _TooltipOverlay(
-          targetContext: context,
+          targetKey: _childKey,
           message: widget.message,
           richMessage: widget.richMessage,
           position: widget.position,
@@ -126,14 +146,17 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
       child: MouseRegion(
         onEnter: (_) => _showTooltip(),
         onExit: (_) => _hideTooltip(),
-        child: widget.child,
+        child: GestureDetector(
+          onLongPress: _toggleTooltipForTouch,
+          child: KeyedSubtree(key: _childKey, child: widget.child),
+        ),
       ),
     );
   }
 }
 
 class _TooltipOverlay extends StatelessWidget {
-  final BuildContext targetContext;
+  final GlobalKey targetKey;
   final String message;
   final Widget? richMessage;
   final NightshadeTooltipPosition position;
@@ -143,7 +166,7 @@ class _TooltipOverlay extends StatelessWidget {
   final Animation<double> scaleAnimation;
 
   const _TooltipOverlay({
-    required this.targetContext,
+    required this.targetKey,
     required this.message,
     this.richMessage,
     required this.position,
@@ -157,8 +180,10 @@ class _TooltipOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
 
-    // Get target position
-    final renderBox = targetContext.findRenderObject() as RenderBox?;
+    // Get target position from the trigger child's render box (not this
+    // overlay's own context, which lives under the Overlay subtree).
+    final renderBox =
+        targetKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return const SizedBox.shrink();
 
     final targetSize = renderBox.size;
@@ -196,37 +221,26 @@ class _TooltipOverlay extends StatelessWidget {
         top = targetPosition.dy + (targetSize.height / 2);
     }
 
-    // Clamp to screen bounds (ensure positive range)
-    final maxLeft = (screenSize.width - padding).clamp(
-      padding,
-      double.infinity,
-    );
-    final maxTop = (screenSize.height - padding).clamp(
-      padding,
-      double.infinity,
-    );
-    left = left.clamp(padding, maxLeft);
-    top = top.clamp(padding, maxTop);
-
-    // For horizontal tooltips, use FractionalTranslation to center vertically
-    // For vertical tooltips, use FractionalTranslation to center horizontally
-    Offset translationOffset;
-    switch (position) {
-      case NightshadeTooltipPosition.top:
-        translationOffset = const Offset(-0.5, -1.0);
-      case NightshadeTooltipPosition.bottom:
-        translationOffset = const Offset(-0.5, 0.0);
-      case NightshadeTooltipPosition.left:
-        translationOffset = const Offset(-1.0, -0.5);
-      case NightshadeTooltipPosition.right:
-        translationOffset = const Offset(0.0, -0.5);
-    }
-
-    return Positioned(
-      left: left,
-      top: top,
-      child: FractionalTranslation(
-        translation: translationOffset,
+    // Anchor point only. Turning it into a final on-screen rect needs the
+    // tooltip's measured size, which is why that happens in the layout delegate
+    // below rather than here.
+    //
+    // Clamping `left`/`top` at this point is NOT enough, and used to be all this
+    // did: the tooltip was then offset by a FRACTION OF ITS OWN WIDTH
+    // (FractionalTranslation), so a `right`-positioned tooltip anchored at
+    // `screenWidth - 8` still drew its whole width past the edge, and a
+    // `top`/`bottom` one still drew half its width outside. Observed on the
+    // Imaging panel's "Stack & Share" button, whose tooltip appeared as a
+    // one-character sliver at the window edge. It affected every tooltip near any
+    // edge, since this is the shared design-system component.
+    return Positioned.fill(
+      child: CustomSingleChildLayout(
+        delegate: _TooltipLayoutDelegate(
+          anchor: Offset(left, top),
+          position: position,
+          padding: padding,
+          viewport: screenSize,
+        ),
         child: AnimatedBuilder(
           animation: fadeAnimation,
           builder: (context, child) {
@@ -384,4 +398,85 @@ class WithTooltip extends StatelessWidget {
       child: child,
     );
   }
+}
+
+/// Places the tooltip relative to its anchor and keeps it fully on screen.
+///
+/// A layout delegate rather than arithmetic at build time because the decision
+/// needs the tooltip's MEASURED size: the offset from the anchor is half (or all)
+/// of the tooltip's own width/height depending on which side it sits, and only
+/// the layout pass knows that. Clamping the anchor instead leaves the box itself
+/// hanging off the edge — see the note at the call site.
+class _TooltipLayoutDelegate extends SingleChildLayoutDelegate {
+  const _TooltipLayoutDelegate({
+    required this.anchor,
+    required this.position,
+    required this.padding,
+    required this.viewport,
+  });
+
+  /// The point on the trigger the tooltip points at.
+  final Offset anchor;
+  final NightshadeTooltipPosition position;
+
+  /// Minimum gap kept between the tooltip and each viewport edge.
+  final double padding;
+  final Size viewport;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    // Never ask the tooltip to be wider or taller than the space it has to fit
+    // in, so a long message wraps instead of being clipped.
+    final maxWidth = (viewport.width - padding * 2).clamp(0.0, double.infinity);
+    final maxHeight = (viewport.height - padding * 2).clamp(
+      0.0,
+      double.infinity,
+    );
+    return constraints.loosen().copyWith(
+      maxWidth: maxWidth == 0 ? constraints.maxWidth : maxWidth,
+      maxHeight: maxHeight == 0 ? constraints.maxHeight : maxHeight,
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    // Offset the anchor by the tooltip's own extent for the chosen side, which
+    // is what centres it on the trigger (or sits it fully to one side).
+    double x;
+    double y;
+    switch (position) {
+      case NightshadeTooltipPosition.top:
+        x = anchor.dx - childSize.width / 2;
+        y = anchor.dy - childSize.height;
+      case NightshadeTooltipPosition.bottom:
+        x = anchor.dx - childSize.width / 2;
+        y = anchor.dy;
+      case NightshadeTooltipPosition.left:
+        x = anchor.dx - childSize.width;
+        y = anchor.dy - childSize.height / 2;
+      case NightshadeTooltipPosition.right:
+        x = anchor.dx;
+        y = anchor.dy - childSize.height / 2;
+    }
+
+    // Now clamp the REAL box. Upper bounds are lower-bounded by `padding` so a
+    // tooltip larger than the viewport still starts on screen and is clipped at
+    // the far edge, rather than being pushed off the near one.
+    final maxX = (size.width - childSize.width - padding).clamp(
+      padding,
+      double.infinity,
+    );
+    final maxY = (size.height - childSize.height - padding).clamp(
+      padding,
+      double.infinity,
+    );
+    return Offset(x.clamp(padding, maxX), y.clamp(padding, maxY));
+  }
+
+  @override
+  bool shouldRelayout(_TooltipLayoutDelegate oldDelegate) =>
+      anchor != oldDelegate.anchor ||
+      position != oldDelegate.position ||
+      padding != oldDelegate.padding ||
+      viewport != oldDelegate.viewport;
 }

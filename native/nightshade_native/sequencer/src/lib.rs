@@ -1616,7 +1616,7 @@ pub struct FlatWizardConfig {
     /// Maximum brightness to try when auto-adjusting
     #[serde(default = "default_max_brightness")]
     pub max_brightness: i32,
-    /// Number of flat frames to take after finding optimal exposure
+    /// Number of flat frames the wizard captures and saves after finding optimal exposure
     #[serde(default = "default_flat_count")]
     pub flat_count: u32,
 }
@@ -1849,6 +1849,18 @@ pub struct ExposureConfig {
     /// loadable without an adaptive section.
     #[serde(default)]
     pub adaptive_exposure: Option<crate::scheduling::AdaptiveExposureConfig>,
+    /// FITS `IMAGETYP`-style frame type for every frame this node captures:
+    /// "Light" | "Dark" | "Flat" | "Bias" | "DarkFlat" | "Snapshot".
+    /// Drives the saved FITS header, and gates star-based quality grading
+    /// and in-burst dithering (both light-frame-only). `#[serde(default)]`
+    /// keeps old sequence JSON (which omitted the key and was implicitly
+    /// all-lights) loadable.
+    #[serde(default = "default_frame_type")]
+    pub frame_type: String,
+}
+
+fn default_frame_type() -> String {
+    "Light".to_string()
 }
 
 impl Default for ExposureConfig {
@@ -1871,6 +1883,7 @@ impl Default for ExposureConfig {
             triggers: Vec::new(),
             quality_check: None,
             adaptive_exposure: None,
+            frame_type: default_frame_type(),
         }
     }
 }
@@ -1896,6 +1909,34 @@ impl Binning {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutofocusFilterConfig {
+    /// Exposure override when this imaging filter is active.
+    #[serde(default)]
+    pub af_exposure_time: Option<f64>,
+    /// Autofocus filter override when this imaging filter is active.
+    #[serde(default)]
+    pub af_filter_name: Option<String>,
+    #[serde(default)]
+    pub binning: Binning,
+    #[serde(default)]
+    pub gain: Option<i32>,
+    #[serde(default)]
+    pub offset: Option<i32>,
+}
+
+impl Default for AutofocusFilterConfig {
+    fn default() -> Self {
+        Self {
+            af_exposure_time: None,
+            af_filter_name: None,
+            binning: Binning::One,
+            gain: None,
+            offset: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutofocusConfig {
     #[serde(default)]
     pub method: AutofocusMethod,
@@ -1907,6 +1948,15 @@ pub struct AutofocusConfig {
     pub exposure_duration: f64,
     #[serde(default)]
     pub filter: Option<String>,
+    /// Runtime overrides keyed by the imaging filter active when AF begins.
+    #[serde(default)]
+    pub filter_settings: std::collections::HashMap<String, AutofocusFilterConfig>,
+    /// Optional camera gain override. None preserves the camera's current value.
+    #[serde(default)]
+    pub gain: Option<i32>,
+    /// Optional camera offset override. None preserves the camera's current value.
+    #[serde(default)]
+    pub offset: Option<i32>,
     #[serde(default)]
     pub binning: Binning,
     /// Backlash compensation in focuser steps.
@@ -1931,6 +1981,33 @@ pub struct AutofocusConfig {
     /// Default 10 — matches the previous hardcoded `MIN_STAR_COUNT` constant.
     #[serde(default = "default_af_min_star_count")]
     pub min_star_count: u32,
+    /// Full-sweep attempts before reporting failure.
+    #[serde(default = "default_af_number_of_attempts")]
+    pub number_of_attempts: u32,
+    /// Frames measured and median-combined at each focus position.
+    #[serde(default = "default_af_exposures_per_point")]
+    pub exposures_per_point: u32,
+    /// Minimum acceptable curve-fit R².
+    #[serde(default = "default_af_r_squared_threshold")]
+    pub r_squared_threshold: f64,
+    /// Central image fraction retained for star measurement (0, 1].
+    #[serde(default = "default_af_outer_crop_ratio")]
+    pub outer_crop_ratio: f64,
+    /// Central image fraction excluded from star measurement [0, outer).
+    #[serde(default)]
+    pub inner_crop_ratio: f64,
+    /// Brightest stars used for HFR; zero means all eligible stars.
+    #[serde(default)]
+    pub use_brightest_n_stars: u32,
+    /// Extra mechanical settle after the driver first reports idle.
+    #[serde(default = "default_af_focuser_settle_time_ms")]
+    pub focuser_settle_time_ms: u64,
+    /// Outward-direction backlash compensation in focuser steps.
+    #[serde(default)]
+    pub backlash_out_compensation: i32,
+    /// Pause an active guider for the complete filter-switch + focus run.
+    #[serde(default)]
+    pub disable_guiding_during_af: bool,
 }
 
 fn default_af_max_duration() -> f64 {
@@ -1969,6 +2046,26 @@ fn default_af_min_star_count() -> u32 {
     10
 }
 
+fn default_af_number_of_attempts() -> u32 {
+    1
+}
+
+fn default_af_exposures_per_point() -> u32 {
+    1
+}
+
+fn default_af_r_squared_threshold() -> f64 {
+    0.7
+}
+
+fn default_af_outer_crop_ratio() -> f64 {
+    1.0
+}
+
+fn default_af_focuser_settle_time_ms() -> u64 {
+    500
+}
+
 impl Default for AutofocusConfig {
     fn default() -> Self {
         Self {
@@ -1977,6 +2074,9 @@ impl Default for AutofocusConfig {
             steps_out: default_af_steps_out(),
             exposure_duration: default_af_exposure_duration(),
             filter: None,
+            filter_settings: std::collections::HashMap::new(),
+            gain: None,
+            offset: None,
             binning: Binning::One,
             backlash_compensation: default_af_backlash_compensation(),
             use_temperature_prediction: default_af_use_temperature_prediction(),
@@ -1984,6 +2084,15 @@ impl Default for AutofocusConfig {
             outlier_rejection_sigma: default_af_outlier_rejection_sigma(),
             max_duration_secs: default_af_max_duration(),
             min_star_count: default_af_min_star_count(),
+            number_of_attempts: default_af_number_of_attempts(),
+            exposures_per_point: default_af_exposures_per_point(),
+            r_squared_threshold: default_af_r_squared_threshold(),
+            outer_crop_ratio: default_af_outer_crop_ratio(),
+            inner_crop_ratio: 0.0,
+            use_brightest_n_stars: 0,
+            focuser_settle_time_ms: default_af_focuser_settle_time_ms(),
+            backlash_out_compensation: 0,
+            disable_guiding_during_af: false,
         }
     }
 }
@@ -2000,6 +2109,7 @@ impl From<&AutofocusConfig> for crate::autofocus::AutofocusConfig {
             steps_out: config.steps_out,
             exposure_duration: config.exposure_duration,
             backlash_compensation: config.backlash_compensation,
+            backlash_out_compensation: config.backlash_out_compensation,
             use_temperature_prediction: config.use_temperature_prediction,
             max_star_count_change: config.max_star_count_change,
             outlier_rejection_sigma: config.outlier_rejection_sigma,
@@ -2315,6 +2425,36 @@ pub struct MeridianFlipConfig {
     /// Delay (seconds) between safety-action retries. Was const f64 = 5.0.
     #[serde(default = "default_safety_action_retry_delay_secs")]
     pub safety_action_retry_delay_secs: f64,
+
+    // -----------------------------------------------------------------------
+    // Post-flip guider re-lock settle. The `ResumingGuider` step previously
+    // hardcoded 1.5px / 10s / 60s and only checked `is_guiding`, so it ignored
+    // the user's guiding settle settings and accepted a poor re-lock that the
+    // normal Start Guiding path would reject. These mirror StartGuidingConfig
+    // and are `#[serde(default)]` so previously-saved sequences deserialize
+    // unchanged (defaults reproduce the old hardcoded values).
+    // -----------------------------------------------------------------------
+    /// Guider settle threshold (pixels) for the post-flip re-lock. Sourced from
+    /// the user's guiding settle settings; was hardcoded to 1.5px.
+    #[serde(default = "default_guider_settle_pixels")]
+    pub guider_settle_pixels: f64,
+
+    /// Guider settle stabilisation time (seconds) for the post-flip re-lock —
+    /// how long guiding must stay under the threshold. Was hardcoded to 10s.
+    #[serde(default = "default_guider_settle_time")]
+    pub guider_settle_time: f64,
+
+    /// Guider settle timeout (seconds) for the post-flip re-lock. Was hardcoded
+    /// to 60s.
+    #[serde(default = "default_guider_settle_timeout")]
+    pub guider_settle_timeout: f64,
+
+    /// Ceiling on post-settle guiding RMS (pixels) sampled after the re-lock
+    /// before declaring guiding good. Mirrors StartGuidingConfig's gate so a
+    /// poor post-flip re-lock fails (→ failure_action) instead of resuming
+    /// imaging on bad guiding. Was absent (only `is_guiding` was checked).
+    #[serde(default = "default_meridian_max_post_settle_rms_pixels")]
+    pub max_post_settle_rms_pixels: f64,
 }
 
 // AUDIT-FIX-5B: exposed as `pub(crate)` so executor tests can reference the
@@ -2333,6 +2473,25 @@ pub(crate) fn default_safety_action_retry_count() -> u32 {
 
 pub(crate) fn default_safety_action_retry_delay_secs() -> f64 {
     5.0
+}
+
+// Post-flip guider re-lock settle defaults. Numeric values match the
+// formerly-hardcoded executor constants (and StartGuidingConfig's defaults) so
+// behaviour is unchanged for users who do not override their guiding settle.
+pub(crate) fn default_guider_settle_pixels() -> f64 {
+    1.5
+}
+
+pub(crate) fn default_guider_settle_time() -> f64 {
+    10.0
+}
+
+pub(crate) fn default_guider_settle_timeout() -> f64 {
+    60.0
+}
+
+pub(crate) fn default_meridian_max_post_settle_rms_pixels() -> f64 {
+    3.0
 }
 
 impl Default for MeridianFlipConfig {
@@ -2358,6 +2517,10 @@ impl Default for MeridianFlipConfig {
             flip_coordinate_tolerance_deg: default_flip_coordinate_tolerance_deg(),
             safety_action_retry_count: default_safety_action_retry_count(),
             safety_action_retry_delay_secs: default_safety_action_retry_delay_secs(),
+            guider_settle_pixels: default_guider_settle_pixels(),
+            guider_settle_time: default_guider_settle_time(),
+            guider_settle_timeout: default_guider_settle_timeout(),
+            max_post_settle_rms_pixels: default_meridian_max_post_settle_rms_pixels(),
         }
     }
 }
@@ -2866,6 +3029,49 @@ mod recovery_action_serde_tests {
                 assert!(matches!(cfg.recovery_action, RecoveryAction::Continue));
             }
             other => panic!("expected NodeType::Recovery, got {other:?}"),
+        }
+    }
+
+    /// Sequence JSON authored before `frame_type` existed (every frame was
+    /// implicitly a light) must keep loading — and must default to "Light".
+    /// A serializer that DOES send the field must round-trip it verbatim.
+    #[test]
+    fn exposure_frame_type_defaults_to_light_and_round_trips() {
+        let legacy = r#"{
+            "type": "TakeExposure",
+            "duration_secs": 60.0,
+            "count": 5,
+            "filter": null,
+            "gain": null,
+            "offset": null,
+            "binning": "One",
+            "dither_every": null,
+            "save_to": null
+        }"#;
+        let node: NodeType = serde_json::from_str(legacy)
+            .expect("legacy TakeExposure without frame_type must deserialize");
+        match node {
+            NodeType::TakeExposure(cfg) => assert_eq!(cfg.frame_type, "Light"),
+            other => panic!("expected NodeType::TakeExposure, got {other:?}"),
+        }
+
+        let dark = r#"{
+            "type": "TakeExposure",
+            "duration_secs": 30.0,
+            "count": 20,
+            "filter": null,
+            "gain": null,
+            "offset": null,
+            "binning": "One",
+            "dither_every": 3,
+            "save_to": null,
+            "frame_type": "Dark"
+        }"#;
+        let node: NodeType = serde_json::from_str(dark)
+            .expect("TakeExposure with explicit frame_type must deserialize");
+        match node {
+            NodeType::TakeExposure(cfg) => assert_eq!(cfg.frame_type, "Dark"),
+            other => panic!("expected NodeType::TakeExposure, got {other:?}"),
         }
     }
 }

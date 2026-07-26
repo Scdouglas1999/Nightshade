@@ -40,6 +40,11 @@ class MobileSequenceHooks {
   LanPushNotificationReceiver? _lanPushReceiver;
   StreamSubscription<PushNotificationFrame>? _lanPushSubscription;
 
+  /// Last time a meridian-flip notification fired from a progress message.
+  /// Matches the 5-minute meridian window in [MobileEventNotifier] so a
+  /// sticky `meridian flip` status doesn't refire on every progress tick.
+  DateTime? _lastMeridianFlipNotified;
+
   /// Set true once [initialize] has wired up all listeners. Code that
   /// reads this provider for event-driven work should `await
   /// waitUntilInitialized()` before assuming notifications/foreground
@@ -300,9 +305,18 @@ class MobileSequenceHooks {
 
     switch (next) {
       case SequenceExecutionState.idle:
-        // Sequence stopped or not started
+        // Sequence stopped or not started. Any active imaging state —
+        // running, paused, recovering, or stopping — holds the wake lock
+        // and Android foreground service, so a stop issued from any of
+        // them must tear the session down. We skip null/idle (app start)
+        // and completed/failed (already stopped) to avoid a double stop.
         if (previous == SequenceExecutionState.running ||
-            previous == SequenceExecutionState.paused) {
+            previous == SequenceExecutionState.paused ||
+            previous == SequenceExecutionState.recovering ||
+            previous == SequenceExecutionState.stopping ||
+            previous == SequenceExecutionState.finalizing ||
+            previous == SequenceExecutionState.stopFailed ||
+            previous == SequenceExecutionState.cleanupFailed) {
           await _stopImagingSession(
             sequenceCompleted: false,
             errorMessage: 'Sequence stopped',
@@ -329,8 +343,9 @@ class MobileSequenceHooks {
         break;
 
       case SequenceExecutionState.stopping:
-        // Sequence is in the process of stopping
-        // Keep services active until fully stopped (transitions to idle)
+      case SequenceExecutionState.finalizing:
+        // Sequence is stopping / finalizing its durable records. Keep services
+        // active until it fully settles (transitions to idle/completed/failed).
         _setIosBackgroundBanner(Platform.isIOS);
         break;
 
@@ -359,6 +374,15 @@ class MobileSequenceHooks {
         // recovery banner on the dashboard surfaces the cause + retry
         // controls. We deliberately do NOT stop the imaging session
         // here — that only happens on `completed` or `failed`.
+        _setIosBackgroundBanner(true);
+        break;
+
+      case SequenceExecutionState.stopFailed:
+      case SequenceExecutionState.cleanupFailed:
+        // The stop (or its cleanup) has not finished — the run is not settled,
+        // so the wake lock / foreground service must stay held. We keep the
+        // banner up and do NOT tear down here; the teardown happens when the
+        // run finally settles to idle (handled above) or completes/fails.
         _setIosBackgroundBanner(true);
         break;
     }
@@ -437,7 +461,7 @@ class MobileSequenceHooks {
   void _handleProgressUpdate(
     SequenceProgress? previous,
     SequenceProgress next,
-  ) {
+  ) async {
     // Update foreground service notification with current progress
     if (_foregroundService.isRunning) {
       _foregroundService.updateProgress(
@@ -450,7 +474,15 @@ class MobileSequenceHooks {
 
     // Check for meridian flip events
     if (next.message?.toLowerCase().contains('meridian flip') == true) {
-      _notificationService.notifyMeridianFlip(
+      final prefs = await SharedPreferences.getInstance();
+      if (!MobilePreferences(prefs).notifyMeridianFlip) return;
+      final last = _lastMeridianFlipNotified;
+      if (last != null &&
+          DateTime.now().difference(last) < const Duration(minutes: 5)) {
+        return;
+      }
+      _lastMeridianFlipNotified = DateTime.now();
+      await _notificationService.notifyMeridianFlip(
         next.currentTarget ?? 'Unknown',
         DateTime.now(),
       );
@@ -528,8 +560,8 @@ class MobileSequenceHooks {
     final executionState = _ref.read(sequenceExecutionStateProvider);
     if (executionState == SequenceExecutionState.running) {
       // Get the sequence executor and pause
+      final backend = _ref.read(backendProvider);
       try {
-        final backend = _ref.read(backendProvider);
         await backend.sequencerPause();
       } catch (e, st) {
         // Caught here, sequence keeps running on a critical battery — this
@@ -541,6 +573,26 @@ class MobileSequenceHooks {
           error: e,
           stackTrace: st,
         );
+        // Retry once — a transient WS blip is the most common cause.
+        try {
+          await backend.sequencerPause();
+        } catch (retryError, retryStack) {
+          developer.log(
+            'Retry pause after critical battery failed: $retryError',
+            name: 'MobileSequenceHooks',
+            level: 1000,
+            error: retryError,
+            stackTrace: retryStack,
+          );
+          // The low-battery notification told the operator the sequence
+          // "will be paused". It didn't — page them so they aren't misled.
+          await _notificationService.notifySafety(
+            title: 'Auto-pause failed',
+            body:
+                'Battery is critical but the sequence could not be paused '
+                'automatically. Pause it manually now.',
+          );
+        }
       }
     }
   }

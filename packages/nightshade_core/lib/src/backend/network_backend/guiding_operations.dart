@@ -18,7 +18,13 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
     // red exception.
     try {
       final response = await _get('phd2/running', {'host': host, 'port': port});
-      return response['running'] as bool? ?? false;
+      final running = response['running'];
+      if (running is! bool) {
+        throw const FormatException(
+          'GET /api/phd2/running returned no boolean `running` field',
+        );
+      }
+      return running;
     } on ServerError catch (e) {
       if (e.httpStatus == 404) return false;
       rethrow;
@@ -74,18 +80,103 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   Future<Phd2Status> phd2GetStatus() async {
     final response = await _get('phd2/status');
     return Phd2Status(
-      state: response['state'] ?? 'Unknown',
-      connected: response['connected'] ?? false,
-      rmsRa: (response['rmsRa'] as num?)?.toDouble() ?? 0.0,
-      rmsDec: (response['rmsDec'] as num?)?.toDouble() ?? 0.0,
-      rmsTotal: (response['rmsTotal'] as num?)?.toDouble() ?? 0.0,
-      snr: (response['snr'] as num?)?.toDouble() ?? 0.0,
-      starMass: (response['starMass'] as num?)?.toDouble() ?? 0.0,
-      avgDistance: (response['avgDistance'] as num?)?.toDouble() ?? 0.0,
+      state: _requiredGuidingString(response, 'state', 'phd2/status'),
+      connected: _requiredGuidingBool(response, 'connected', 'phd2/status'),
+      rmsRa: _requiredGuidingDouble(response, 'rmsRa', 'phd2/status'),
+      rmsDec: _requiredGuidingDouble(response, 'rmsDec', 'phd2/status'),
+      rmsTotal: _requiredGuidingDouble(response, 'rmsTotal', 'phd2/status'),
+      snr: _requiredGuidingDouble(response, 'snr', 'phd2/status'),
+      starMass: _requiredGuidingDouble(response, 'starMass', 'phd2/status'),
+      avgDistance: _requiredGuidingDouble(
+        response,
+        'avgDistance',
+        'phd2/status',
+      ),
       // Per-star list from the built-in multi-star guider (empty for PHD2).
       // Rides through the status JSON as a `trackedStars` array — no FRB regen.
-      trackedStars: decodeTrackedStars(response['trackedStars']),
+      // This field was added after the original status route, so its absence on
+      // an older host is the one supported compatibility case.
+      trackedStars: _networkTrackedStars(response),
     );
+  }
+
+  String _requiredGuidingString(
+    Map<String, dynamic> response,
+    String key,
+    String endpoint,
+  ) {
+    final value = response[key];
+    if (value is! String) {
+      throw FormatException(
+        'GET /api/$endpoint returned no string `$key` field',
+      );
+    }
+    return value;
+  }
+
+  bool _requiredGuidingBool(
+    Map<String, dynamic> response,
+    String key,
+    String endpoint,
+  ) {
+    final value = response[key];
+    if (value is! bool) {
+      throw FormatException(
+        'GET /api/$endpoint returned no boolean `$key` field',
+      );
+    }
+    return value;
+  }
+
+  double _requiredGuidingDouble(
+    Map<String, dynamic> response,
+    String key,
+    String endpoint,
+  ) {
+    final value = response[key];
+    if (value is! num) {
+      throw FormatException(
+        'GET /api/$endpoint returned no numeric `$key` field',
+      );
+    }
+    return value.toDouble();
+  }
+
+  List<GuideStar> _networkTrackedStars(Map<String, dynamic> response) {
+    if (!response.containsKey('trackedStars')) return const [];
+    final raw = response['trackedStars'];
+    if (raw is! List) {
+      throw const FormatException(
+        'GET /api/phd2/status returned a non-list `trackedStars` field',
+      );
+    }
+
+    final stars = <GuideStar>[];
+    for (final value in raw) {
+      if (value is! Map) {
+        throw const FormatException(
+          'GET /api/phd2/status returned a non-object tracked star',
+        );
+      }
+      final star = Map<String, dynamic>.from(value);
+      final isLock = star.containsKey('is_lock')
+          ? star['is_lock']
+          : star['isLock'];
+      if (star['id'] is! num ||
+          star['x'] is! num ||
+          star['y'] is! num ||
+          star['flux'] is! num ||
+          star['snr'] is! num ||
+          isLock is! bool ||
+          (star['residual'] != null && star['residual'] is! num) ||
+          star['weight'] is! num) {
+        throw const FormatException(
+          'GET /api/phd2/status returned a malformed tracked star',
+        );
+      }
+      stars.add(GuideStar.fromJson(star));
+    }
+    return stars;
   }
 
   /// Decode a star-image JSON envelope (shared by the PHD2 and built-in

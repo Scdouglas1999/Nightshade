@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-16T19:55:28.086493Z",
+  "generatedAt": "2026-07-21T15:07:08.990573Z",
   "ready": false,
-  "passedCount": 1,
+  "passedCount": 3,
   "checkCount": 5,
   "checks": [
     {
@@ -26,15 +26,13 @@
       "label": "Full hardware/control smoke",
       "evidencePath": "docs/production-readiness/full-hardware-control-smoke-evidence.json",
       "templatePath": "docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json",
-      "passed": false,
+      "passed": true,
       "requirements": [
         "All required device classes are covered.",
         "Per-device connect/disconnect and status reads passed.",
         "Command results cover every required device type and the smoke log exists."
       ],
-      "issues": [
-        "Evidence file is missing or is not valid JSON."
-      ]
+      "issues": []
     },
     {
       "id": "second_device_lan_firewall",
@@ -49,7 +47,16 @@
         "Screenshot/log evidence artifact paths exist."
       ],
       "issues": [
-        "Evidence file is missing or is not valid JSON."
+        "usedPhysicalSecondDevice must be true.",
+        "clientDevice is required.",
+        "clientIp is required.",
+        "networkPath is required.",
+        "dashboardLoaded must be true.",
+        "authPositivePassed must be true.",
+        "authNegativePassed must be true.",
+        "websocketConnected must be true.",
+        "websocketReconnectObserved must be true.",
+        "evidenceArtifacts must be a non-empty list."
       ]
     },
     {
@@ -57,16 +64,14 @@
       "label": "Real remote-control actions",
       "evidencePath": "docs/production-readiness/real-remote-control-actions-evidence.json",
       "templatePath": "docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json",
-      "passed": false,
+      "passed": true,
       "requirements": [
         "Remote client sends actual safe commands.",
         "Evidence declares the applicable remote-control device types in scope.",
         "Command results all pass and include device IDs.",
         "Post-command state readback and request IDs are recorded in the server audit log."
       ],
-      "issues": [
-        "Evidence file is missing or is not valid JSON."
-      ]
+      "issues": []
     },
     {
       "id": "final_release_signoff",
@@ -83,7 +88,19 @@
         "Known limitations, supported hardware, and completed release notes artifacts exist."
       ],
       "issues": [
-        "Evidence file is missing or is not valid JSON."
+        "reviewer is required.",
+        "date is required.",
+        "commit is required.",
+        "date must be an ISO date in yyyy-mm-dd format.",
+        "commit must be a full 40-character git commit hash.",
+        "decision must be `ship`.",
+        "checklistComplete must be true.",
+        "noUnresolvedBlockers must be true.",
+        "knownLimitationsReviewed must be true.",
+        "releaseNotesReady must be true.",
+        "releaseNotesPath file does not exist: docs/release-notes.md.",
+        "Checklist audit has uncheckedItemCount=5.",
+        "Public release gate must be READY with blockerCount=0; decision=NOT_READY ready=false blockerCount=4."
       ]
     }
   ]

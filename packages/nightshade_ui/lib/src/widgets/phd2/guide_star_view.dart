@@ -71,8 +71,18 @@ class _GuideStarViewState extends State<GuideStarView> {
     super.didUpdateWidget(oldWidget);
     // Only rebuild image if pixels changed
     if (widget.pixels != _lastPixels) {
+      final old = _cachedImage;
       _cachedImage = null;
+      // Defer disposal so an _ImagePainter still compositing the outgoing
+      // frame this build isn't drawing an already-disposed image.
+      WidgetsBinding.instance.addPostFrameCallback((_) => old?.dispose());
     }
+  }
+
+  @override
+  void dispose() {
+    _cachedImage?.dispose();
+    super.dispose();
   }
 
   @override

@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../imaging/widgets/image_display.dart';
+import '../../../../utils/filter_label.dart';
 
 /// Live-frame tile for the Run dashboard.
 ///
@@ -878,7 +879,7 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
     return null;
   }
 
-  String _filterLabel() => widget.image.settings.filter ?? 'L';
+  String _filterLabel() => filterLabel(widget.image.settings.filter);
 
   String _exposureLabel() {
     final secs = widget.image.settings.exposureTime;

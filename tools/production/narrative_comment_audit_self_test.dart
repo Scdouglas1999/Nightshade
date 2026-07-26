@@ -10,15 +10,12 @@ import 'dart:io';
 Future<void> main() async {
   final tmp = Directory.systemTemp.createTempSync('narrative_audit_st_');
   try {
-    final result = Process.runSync(
-      'dart',
-      <String>[
-        'run',
-        'tools/production/narrative_comment_audit.dart',
-        '--self-test',
-        tmp.path,
-      ],
-    );
+    final result = Process.runSync('dart', <String>[
+      'run',
+      'tools/production/narrative_comment_audit.dart',
+      '--self-test',
+      tmp.path,
+    ]);
     stdout.write(result.stdout);
     stderr.write(result.stderr);
     if (result.exitCode != 0) {

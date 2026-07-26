@@ -26,6 +26,10 @@ void main() {
       expect(config.requireAuth, isFalse);
     });
 
+    test('allowUnauthenticated defaults to false (fail closed)', () {
+      expect(config.allowUnauthenticated, isFalse);
+    });
+
     test('pairing mode defaults to lanOpen (one-tap LAN pairing)', () {
       expect(config.pairingMode, PairingMode.lanOpen);
     });
@@ -97,6 +101,20 @@ void main() {
         reason: 'explicit opt-in exposes the server unauthenticated',
       );
     });
+
+    // --allow-unauthenticated is the serve-open escape hatch (authentication),
+    // distinct from --allow-unauthenticated-lan (network bind). It does not, on
+    // its own, open the LAN bind — that still requires the LAN flag.
+    test('--allow-unauthenticated sets the serve-open escape hatch', () {
+      final config = parseHeadlessAuthConfig(const ['--allow-unauthenticated']);
+      expect(config.allowUnauthenticated, isTrue);
+      expect(config.token, isNull);
+      expect(
+        config.bindLocalOnly,
+        isTrue,
+        reason: 'serve-open does not by itself open the LAN bind',
+      );
+    });
   });
 
   group('token normalisation', () {
@@ -157,6 +175,52 @@ void main() {
       final config = parseHeadlessAuthConfig(const ['--view-token=v']);
       expect(
         () => config.scopedTokens['x'] = HeadlessTokenScope.admin,
+        throwsUnsupportedError,
+      );
+    });
+  });
+
+  group('fine-grained scoped tokens', () {
+    test('--scoped-token parses a per-resource grant spec', () {
+      final config = parseHeadlessAuthConfig(const [
+        '--scoped-token=cam=camera:control,mount:view',
+      ]);
+      final grant = config.fineGrainedTokens['cam'];
+      expect(grant, isNotNull);
+      expect(
+        grant!.levelFor(HeadlessResource.camera),
+        HeadlessAccessLevel.control,
+      );
+      expect(grant.levelFor(HeadlessResource.mount), HeadlessAccessLevel.view);
+      expect(grant.isAdmin, isFalse);
+    });
+
+    test('--scoped-token accepts a coarse name as the spec', () {
+      final config = parseHeadlessAuthConfig(const ['--scoped-token=op=admin']);
+      expect(config.fineGrainedTokens['op']!.isAdmin, isTrue);
+    });
+
+    test('a fine-grained token alone opens the LAN', () {
+      final config = parseHeadlessAuthConfig(const [
+        '--scoped-token=cam=camera:control',
+      ]);
+      expect(config.bindLocalOnly, isFalse);
+    });
+
+    test('a malformed spec is skipped (fail-closed launch)', () {
+      final config = parseHeadlessAuthConfig(const [
+        '--scoped-token=cam=warp:control',
+        '--scoped-token=no-equals-sign',
+      ]);
+      expect(config.fineGrainedTokens, isEmpty);
+    });
+
+    test('fineGrainedTokens is unmodifiable', () {
+      final config = parseHeadlessAuthConfig(const [
+        '--scoped-token=cam=camera:control',
+      ]);
+      expect(
+        () => config.fineGrainedTokens['x'] = HeadlessAuthGrant.admin(),
         throwsUnsupportedError,
       );
     });

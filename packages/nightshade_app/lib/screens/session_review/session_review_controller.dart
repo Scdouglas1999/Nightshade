@@ -50,6 +50,34 @@ enum SessionReviewViewMode {
   workbench,
 }
 
+/// The distinguishable outcomes of [SessionReviewController.cullToRecommended],
+/// so the UI can tell a genuine "already optimal" no-op apart from a stale-curve
+/// guard bail (which deliberately rejects nothing).
+enum CullOutcome {
+  /// Subs were rejected down to the recommended keep-set.
+  culled,
+
+  /// The recommendation already keeps every accepted sub — nothing to reject.
+  alreadyOptimal,
+
+  /// The curve/population no longer maps to the live accepted subs, so the cull
+  /// bailed without rejecting. Re-integrate to refresh before culling.
+  staleCurve,
+}
+
+/// Result of [SessionReviewController.cullToRecommended]: the [outcome] and, for
+/// [CullOutcome.culled], how many subs were [rejected].
+class CullToRecommendedResult {
+  final CullOutcome outcome;
+  final int rejected;
+
+  const CullToRecommendedResult(this.outcome, this.rejected);
+
+  static const staleCurve = CullToRecommendedResult(CullOutcome.staleCurve, 0);
+  static const alreadyOptimal =
+      CullToRecommendedResult(CullOutcome.alreadyOptimal, 0);
+}
+
 /// One point of a master's multi-night integration-time growth, projected for
 /// the [GrowthCurvePanel]: cumulative integration *hours* as of a calendar
 /// [date]. A thin UI mirror of the core [IntegrationGrowthPoint] (which carries
@@ -311,10 +339,8 @@ class SessionReviewState {
   IntegratedMaster? get reviewedMaster =>
       masters.isNotEmpty ? masters.first : null;
 
-  /// On-disk coverage-map PNG for the reviewed master, when one was written by
-  /// the integration pipeline — fed to `MasterOverlayView`'s coverage overlay.
-  /// Null until a coverage map is surfaced on the master row (none today).
-  String? get coverageMapPath => null;
+  /// On-disk coverage-map PNG for the reviewed master, when drizzle wrote one.
+  String? get coverageMapPath => reviewedMaster?.coverageMapPreviewPath;
 
   /// The single-channel narrowband masters available to the
   /// `NarrowbandMixerPanel`: in-scope masters whose filter reads as narrowband
@@ -519,6 +545,7 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       // The base list is on screen; populate the smart backbone in the
       // background so the panels fill in without blocking the first paint.
       unawaited(loadSmartData());
+      unawaited(loadComposites());
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(loading: false, error: 'Failed to load: $e');
@@ -1296,11 +1323,11 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   /// leaving exactly `keepN` accepted. The "drop to recommended {keepN}" action
   /// the `SubCullRail` wires to the curve. No-op (returns 0) when no curve /
   /// recommendation is loaded. Returns the number of subs newly rejected.
-  Future<int> cullToRecommended() async {
+  Future<CullToRecommendedResult> cullToRecommended() async {
     final curve = state.improvementCurve;
-    if (curve == null) return 0;
+    if (curve == null) return CullToRecommendedResult.staleCurve;
     final rec = curve.recommendation;
-    if (rec.keepN <= 0) return 0;
+    if (rec.keepN <= 0) return CullToRecommendedResult.staleCurve;
 
     // The optimizer's `keptIndices` are positions into the *population the curve
     // was computed over* — `improvementCurvePopulation`, the ordered sub paths
@@ -1313,21 +1340,29 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     // reject arbitrary subs.
     final population = state.improvementCurvePopulation;
     final accepted = state.acceptedLights;
-    if (accepted.isEmpty) return 0;
+    if (accepted.isEmpty) return CullToRecommendedResult.staleCurve;
 
     // Guard: the curve must carry a population, and that population must be the
     // same set of subs (by path) that is currently accepted — otherwise the
     // index space no longer maps to these subs.
-    if (population.length != accepted.length) return 0;
+    if (population.length != accepted.length) {
+      return CullToRecommendedResult.staleCurve;
+    }
     final acceptedByPath = <String, DbCapturedImage>{
       for (final s in accepted) s.filePath: s,
     };
-    if (acceptedByPath.length != accepted.length) return 0; // duplicate paths
+    if (acceptedByPath.length != accepted.length) {
+      return CullToRecommendedResult.staleCurve; // duplicate paths
+    }
     for (final path in population) {
-      if (!acceptedByPath.containsKey(path)) return 0; // population diverged
+      if (!acceptedByPath.containsKey(path)) {
+        return CullToRecommendedResult.staleCurve; // population diverged
+      }
     }
 
-    if (rec.keepN >= population.length) return 0;
+    if (rec.keepN >= population.length) {
+      return CullToRecommendedResult.alreadyOptimal;
+    }
 
     // Map the kept indices through the population's paths to the live subs to
     // keep; everything accepted but not in that keep-set is culled.
@@ -1350,7 +1385,7 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       // the same indices, so re-derive the backbone.
       unawaited(loadSmartData());
     }
-    return rejected;
+    return CullToRecommendedResult(CullOutcome.culled, rejected);
   }
 
   /// Fold the current accepted subs into an accumulating master for this
@@ -1502,10 +1537,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   }
 
   Future<String> _outputDir() async {
-    final configured = await _ref
-        .read(settingsDaoProvider)
-        .getSetting('default_image_directory');
-    if (configured != null && configured.trim().isNotEmpty) {
+    final configured =
+        await _ref.read(settingsDaoProvider).getImageOutputDirectory();
+    if (configured.trim().isNotEmpty) {
       return p.join(configured.trim(), 'masters');
     }
     // Fall back to the documents dir under a masters subfolder.

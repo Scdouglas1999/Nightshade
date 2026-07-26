@@ -382,27 +382,47 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     return Row(
       children: metrics.map((metric) {
         return Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                metric.value,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize18,
-                  fontWeight: FontWeight.w600,
-                  color: metric.valueColor ?? colors.textPrimary,
-                  fontFamily: 'monospace',
+          child: Padding(
+            // Gutter between columns: at full width a sexagesimal Dec fills its
+            // share exactly, so without this the value ran straight into the
+            // next column's ("+00:00:00Parked").
+            padding: const EdgeInsets.only(right: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Scale down rather than wrap. These columns are equal-width
+                // `Expanded`s, and a sexagesimal Dec is one character wider than
+                // an RA because of its sign — so `+00:00:00` wrapped after
+                // `+00:00:0` and left a stray `0` on the line below, which reads
+                // as a completely different declination. Shrinking keeps the whole
+                // value on one line and legible; ellipsis would be worse here,
+                // since a truncated coordinate is indistinguishable from a real
+                // one.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    metric.value,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize18,
+                      fontWeight: FontWeight.w600,
+                      color: metric.valueColor ?? colors.textPrimary,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                metric.label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
+                const SizedBox(height: 2),
+                Text(
+                  metric.label,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       }).toList(),
@@ -605,28 +625,43 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
 
       case ConnectedDeviceType.coverCalibrator:
         final state = ref.watch(coverCalibratorStateProvider);
-        return [
-          if (state.hasCover)
+        final capabilities = ref.watch(
+          equipmentCoverCalibratorCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        final snapshot = capabilities.valueOrNull;
+        if (snapshot == null) {
+          return [
             _DeviceMetric(
-              value: _coverStatusLabel(state.coverStatus),
+              value: capabilities.hasError ? 'Unavailable' : 'Loading...',
+              label: 'Capabilities',
+            ),
+          ];
+        }
+        return [
+          if (snapshot.coverPresent)
+            _DeviceMetric(
+              value: _coverStatusLabel(
+                snapshot.coverStatus ?? CoverStatus.unknown,
+              ),
               label: 'Cover',
             ),
-          if (state.hasCalibrator) ...[
+          if (snapshot.calibratorPresent) ...[
             _DeviceMetric(
-              value: state.isCalibratorOn ? 'ON' : 'OFF',
+              value: _calibratorStatusLabel(snapshot.calibratorStatus),
               label: 'Light',
             ),
             _DeviceMetric(
-              value: state.isCalibratorOn
-                  ? '${state.brightness}/${state.maxBrightness}'
+              value: snapshot.calibratorStatus == CalibratorStatus.ready ||
+                      snapshot.calibratorStatus == CalibratorStatus.notReady
+                  ? '${snapshot.brightness ?? 0}/${snapshot.maxBrightness}'
                   : '---',
               label: 'Brightness',
             ),
           ],
-          if (!state.hasCover && !state.hasCalibrator)
+          if (!snapshot.coverPresent && !snapshot.calibratorPresent)
             _DeviceMetric(
-              value: 'Connected',
-              label: 'Status',
+              value: 'None reported',
+              label: 'Capabilities',
             ),
         ];
     }
@@ -664,6 +699,17 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       case CoverStatus.error:
         return 'Error';
     }
+  }
+
+  String _calibratorStatusLabel(CalibratorStatus? status) {
+    return switch (status) {
+      CalibratorStatus.ready => 'ON',
+      CalibratorStatus.notReady => 'WARMING',
+      CalibratorStatus.off => 'OFF',
+      CalibratorStatus.notPresent => 'N/A',
+      CalibratorStatus.error => 'ERROR',
+      CalibratorStatus.unknown || null => 'UNKNOWN',
+    };
   }
 
   String _formatTimeAgo(DateTime time) {

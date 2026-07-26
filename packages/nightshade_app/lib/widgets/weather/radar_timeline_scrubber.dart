@@ -51,9 +51,7 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
     with WidgetsBindingObserver {
   Timer? _animationTimer;
   bool _isDragging = false;
-  // Records whether playback was active so we can resume after a hidden
-  // window comes back without forcing the user to re-press play (§4.33).
-  bool _wasPlayingBeforePause = false;
+  bool _isAppPaused = false;
 
   @override
   void initState() {
@@ -65,14 +63,12 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_wasPlayingBeforePause) {
-        _wasPlayingBeforePause = false;
-        _updateAnimationTimer();
-      }
+      _isAppPaused = false;
+      _updateAnimationTimer();
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
+      _isAppPaused = true;
       if (_animationTimer != null && _animationTimer!.isActive) {
-        _wasPlayingBeforePause = true;
         _animationTimer?.cancel();
         _animationTimer = null;
       }
@@ -83,8 +79,21 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
   void didUpdateWidget(RadarTimelineScrubber oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isPlaying != widget.isPlaying ||
-        oldWidget.playbackSpeed != widget.playbackSpeed) {
+        oldWidget.playbackSpeed != widget.playbackSpeed ||
+        !identical(oldWidget.frames, widget.frames)) {
       _updateAnimationTimer();
+    }
+
+    if (widget.frames.isNotEmpty &&
+        (widget.currentIndex < 0 ||
+            widget.currentIndex >= widget.frames.length)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.frames.isEmpty) return;
+        if (widget.currentIndex < 0 ||
+            widget.currentIndex >= widget.frames.length) {
+          widget.onFrameChanged(_safeCurrentIndex);
+        }
+      });
     }
   }
 
@@ -102,7 +111,12 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
 
     // Only animate when there are at least two frames to cycle through. A
     // single frame has no loop, so a timer would just re-select index 0.
-    if (widget.isPlaying && !_isDragging && widget.frames.length > 1) {
+    if (widget.isPlaying &&
+        !_isDragging &&
+        !_isAppPaused &&
+        widget.frames.length > 1 &&
+        widget.playbackSpeed.isFinite &&
+        widget.playbackSpeed > 0) {
       // Base interval: 500ms per frame (2 FPS)
       const baseInterval = Duration(milliseconds: 500);
       final adjustedInterval = Duration(
@@ -122,7 +136,7 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
   void _advanceFrame() {
     if (widget.frames.isEmpty) return;
 
-    final nextIndex = (widget.currentIndex + 1) % widget.frames.length;
+    final nextIndex = (_safeCurrentIndex + 1) % widget.frames.length;
     widget.onFrameChanged(nextIndex);
   }
 
@@ -130,9 +144,9 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
   void _stepBackward() {
     if (widget.frames.isEmpty) return;
 
-    final prevIndex = widget.currentIndex > 0
-        ? widget.currentIndex - 1
-        : widget.frames.length - 1;
+    final currentIndex = _safeCurrentIndex;
+    final prevIndex =
+        currentIndex > 0 ? currentIndex - 1 : widget.frames.length - 1;
     widget.onFrameChanged(prevIndex);
   }
 
@@ -141,6 +155,11 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
     if (widget.frames.isEmpty) return;
 
     _advanceFrame();
+  }
+
+  int get _safeCurrentIndex {
+    if (widget.frames.isEmpty) return 0;
+    return widget.currentIndex.clamp(0, widget.frames.length - 1);
   }
 
   /// Finds the index of the frame closest to current time
@@ -228,7 +247,8 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
       return _buildSingleFrame(context, colors, widget.frames.first);
     }
 
-    final currentFrame = widget.frames[widget.currentIndex];
+    final currentIndex = _safeCurrentIndex;
+    final currentFrame = widget.frames[currentIndex];
     final nowIndex = _findNowIndex();
 
     return Container(
@@ -290,7 +310,7 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
                         .floor()
                         .clamp(0, widget.frames.length - 1);
 
-                    if (newIndex != widget.currentIndex) {
+                    if (newIndex != currentIndex) {
                       widget.onFrameChanged(newIndex);
                     }
                   },
@@ -304,7 +324,7 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
                     size: const Size(double.infinity, 40),
                     painter: _TimelineTrackPainter(
                       frames: widget.frames,
-                      currentIndex: widget.currentIndex,
+                      currentIndex: currentIndex,
                       nowIndex: nowIndex,
                       colors: colors,
                     ),
@@ -414,7 +434,7 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
           // Frame counter
           const SizedBox(height: 4),
           Text(
-            'Frame ${widget.currentIndex + 1} of ${widget.frames.length}',
+            'Frame ${currentIndex + 1} of ${widget.frames.length}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.textMuted,
               fontSize: 11,

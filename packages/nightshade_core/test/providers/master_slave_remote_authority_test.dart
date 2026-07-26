@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -10,6 +12,14 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void switchTo(NightshadeBackend backend) => state = backend;
 }
 
 void main() {
@@ -27,10 +37,18 @@ void main() {
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.saveProfile(any())).thenAnswer((_) async {});
+      when(() => backend.lastSavedProfileId).thenReturn('42');
       when(() => backend.getProfiles()).thenAnswer(
         (_) async => [
           const EquipmentProfile(id: '42', name: 'Remote Rig', isActive: true),
         ],
+      );
+      when(() => backend.getActiveProfile()).thenAnswer(
+        (_) async => const EquipmentProfile(
+          id: '42',
+          name: 'Remote Rig',
+          isActive: true,
+        ),
       );
 
       final container = ProviderContainer(
@@ -74,6 +92,46 @@ void main() {
 
       verify(() => backend.loadProfile('7')).called(1);
     });
+
+    test(
+      'a delayed profile save cannot return an id from the old host',
+      () async {
+        final hostA = _MockNetworkBackend();
+        final hostB = _MockNetworkBackend();
+        final save = Completer<void>();
+        for (final backend in [hostA, hostB]) {
+          when(
+            () => backend.eventStream,
+          ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+          when(() => backend.getProfiles()).thenAnswer((_) async => []);
+          when(() => backend.getActiveProfile()).thenAnswer((_) async => null);
+        }
+        when(() => hostA.lastSavedProfileId).thenReturn('42');
+        when(() => hostA.saveProfile(any())).thenAnswer((_) => save.future);
+
+        late _SwappableBackendNotifier backendNotifier;
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith((ref) {
+              backendNotifier = _SwappableBackendNotifier(ref, hostA);
+              return backendNotifier;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(equipmentProfilesProvider.future);
+
+        final creating = container
+            .read(equipmentProfilesProvider.notifier)
+            .createProfile(name: 'Delayed host A profile');
+        await untilCalled(() => hostA.saveProfile(any()));
+        backendNotifier.switchTo(hostB);
+        save.complete();
+
+        await expectLater(creating, throwsStateError);
+        expect(container.read(backendProvider), same(hostB));
+      },
+    );
 
     test('HostStateChanged target invalidates remote target catalog', () async {
       final backend = _MockNetworkBackend();

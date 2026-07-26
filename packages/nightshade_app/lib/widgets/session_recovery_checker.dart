@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -54,12 +56,36 @@ class _SessionRecoveryCheckerState
           );
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       ref.read(loggingServiceProvider).warning(
-          '[SessionRecovery] Error checking for incomplete sessions: $e',
-          source: 'SessionRecoveryChecker',
-          fields: {'error': e.toString()});
-      // Don't show error to user - this is a background check
+        '[SessionRecovery] Error checking for incomplete sessions: $e',
+        source: 'SessionRecoveryChecker',
+        fields: {
+          'error': e.toString(),
+          'stackTrace': stackTrace.toString(),
+        },
+      );
+      if (!mounted) return;
+
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.clearSnackBars();
+      messenger?.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Nightshade could not check for an interrupted imaging session. '
+            'Recovery status is unknown.',
+          ),
+          duration: const Duration(days: 1),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () {
+              _hasChecked = false;
+              ref.invalidate(incompleteSessionsProvider);
+              unawaited(_checkForIncompleteSessions());
+            },
+          ),
+        ),
+      );
     }
   }
 

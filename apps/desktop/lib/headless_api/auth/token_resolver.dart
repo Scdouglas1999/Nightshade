@@ -3,7 +3,7 @@ import 'dart:collection';
 import '../auth_policy.dart';
 import 'timing.dart';
 
-/// Resolves bearer tokens to their [HeadlessTokenScope] using constant-time
+/// Resolves bearer tokens to their [HeadlessAuthGrant] using constant-time
 /// comparison and a token-bucket rate limiter on comparison failures.
 ///
 /// Why: A naive `Map[token]` lookup leaks per-character timing because Dart's
@@ -12,7 +12,7 @@ import 'timing.dart';
 /// O(N*L) loop from being weaponised into a CPU exhaustion vector by an
 /// attacker spamming bad tokens.
 class TokenResolver {
-  final UnmodifiableMapView<String, HeadlessTokenScope> _tokensByValue;
+  final UnmodifiableMapView<String, HeadlessAuthGrant> _tokensByValue;
   final int maxFailuresPerWindow;
   final Duration failureWindow;
   final DateTime Function() _now;
@@ -24,11 +24,11 @@ class TokenResolver {
   static const int _maxFailureBuckets = 1024;
 
   TokenResolver({
-    required Map<String, HeadlessTokenScope> tokensByValue,
+    required Map<String, HeadlessAuthGrant> tokensByValue,
     this.maxFailuresPerWindow = 30,
     this.failureWindow = const Duration(minutes: 1),
     DateTime Function()? now,
-  }) : _tokensByValue = UnmodifiableMapView<String, HeadlessTokenScope>(
+  }) : _tokensByValue = UnmodifiableMapView<String, HeadlessAuthGrant>(
          tokensByValue,
        ),
        _now = now ?? DateTime.now;
@@ -37,13 +37,13 @@ class TokenResolver {
   bool get isNotEmpty => _tokensByValue.isNotEmpty;
   int get tokenCount => _tokensByValue.length;
 
-  /// Resolve [presented] to a scope using constant-time comparison.
+  /// Resolve [presented] to a grant using constant-time comparison.
   /// Returns `null` if the token is missing, empty, or no match found.
-  HeadlessTokenScope? resolve(String? presented) {
+  HeadlessAuthGrant? resolve(String? presented) {
     if (presented == null || presented.isEmpty) {
       return null;
     }
-    HeadlessTokenScope? matched;
+    HeadlessAuthGrant? matched;
     // Iterate the full map; do not break early so timing is independent of
     // which entry (if any) matched.
     for (final entry in _tokensByValue.entries) {
@@ -81,13 +81,17 @@ class TokenResolver {
     _failureBuckets.remove(clientKey);
   }
 
-  /// Distinct scopes available across all configured tokens, in stable order.
-  List<HeadlessTokenScope> distinctScopes() {
+  /// Distinct coarse-scope names across all configured grants, in stable
+  /// order. Surfaced on `/api/info` for back-compat — a fine-grained grant
+  /// reports as its [HeadlessAuthGrant.coarseScope] projection.
+  List<String> distinctCoarseScopeNames() {
     final seen = <HeadlessTokenScope>{};
-    for (final scope in _tokensByValue.values) {
-      seen.add(scope);
+    for (final grant in _tokensByValue.values) {
+      seen.add(grant.coarseScope);
     }
-    return seen.toList()..sort((a, b) => a.index.compareTo(b.index));
+    return (seen.toList()..sort((a, b) => a.index.compareTo(b.index)))
+        .map(headlessTokenScopeName)
+        .toList();
   }
 }
 

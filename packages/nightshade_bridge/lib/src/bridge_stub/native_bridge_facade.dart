@@ -140,14 +140,23 @@ abstract final class NativeBridge {
   static bool isPlateSolverAvailable() =>
       _nativeBridge.isPlateSolverAvailable();
   static String? getPlateSolverPath() => _nativeBridge.getPlateSolverPath();
-  static Future<PlateSolveResult> plateSolveBlind(String filePath) =>
-      _nativeBridge.plateSolveBlind(filePath);
+  static Future<PlateSolveResult> plateSolveBlind(
+    String filePath, [
+    int? timeoutSeconds,
+  ]) => _nativeBridge.plateSolveBlind(filePath, timeoutSeconds);
   static Future<PlateSolveResult> plateSolveNear(
     String filePath,
     double hintRa,
     double hintDec,
-    double searchRadius,
-  ) => _nativeBridge.plateSolveNear(filePath, hintRa, hintDec, searchRadius);
+    double searchRadius, [
+    int? timeoutSeconds,
+  ]) => _nativeBridge.plateSolveNear(
+    filePath,
+    hintRa,
+    hintDec,
+    searchRadius,
+    timeoutSeconds,
+  );
   static Future<AutofocusResultApi> apiRunAutofocus({
     required String deviceId,
     required String cameraId,
@@ -353,6 +362,9 @@ abstract final class NativeBridge {
     settleTimeout: settleTimeout,
     raOnly: raOnly,
   );
+  static Future<void> sequencerUpdateMeridianFlipConfig({
+    required String configJson,
+  }) => _nativeBridge.sequencerUpdateMeridianFlipConfig(configJson: configJson);
   static Future<void> sequencerUpdateLocation({
     required double latitude,
     required double longitude,
@@ -510,6 +522,11 @@ abstract final class NativeBridge {
   }) => _nativeBridge.apiGetRotatorStatus(deviceId: deviceId);
   static Future<void> apiRotatorHalt({required String deviceId}) =>
       _nativeBridge.apiRotatorHalt(deviceId: deviceId);
+  static Future<void> apiRotatorSetReverse({
+    required String deviceId,
+    required bool reverse,
+  }) =>
+      _nativeBridge.apiRotatorSetReverse(deviceId: deviceId, reverse: reverse);
   static Future<void> apiRotatorSyncToPa({
     required String deviceId,
     required double pa,

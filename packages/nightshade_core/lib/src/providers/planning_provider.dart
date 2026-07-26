@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +15,7 @@ import '../services/planning/project_service.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/weather/providers/openmeteo_cloud_provider.dart';
 import '../services/weather/radar_provider.dart';
+import '../utils/resilient_poll_stream.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'scheduler_provider.dart';
@@ -43,6 +46,16 @@ import 'settings_provider.dart';
 /// project id; an absent row or an empty string means "no active project".
 const String _activeProjectIdSettingKey = 'planning.active_project_id';
 
+String _activeProjectSettingKeyFor(Object backend) {
+  if (backend is! NetworkBackend) return _activeProjectIdSettingKey;
+  final identity =
+      '${backend.scheme.toLowerCase()}://'
+      '${backend.serverHost.trim().toLowerCase()}:${backend.serverPort}|'
+      '${backend.pinnedFingerprint?.trim().toLowerCase() ?? ''}';
+  final encoded = base64Url.encode(utf8.encode(identity)).replaceAll('=', '');
+  return '$_activeProjectIdSettingKey.remote.$encoded';
+}
+
 /// Persisted selection of the operator's currently-focused project.
 ///
 /// Mirrors the single-value-persisted-via-`settingsDao` pattern used by the
@@ -52,19 +65,30 @@ const String _activeProjectIdSettingKey = 'planning.active_project_id';
 final activeProjectIdProvider =
     StateNotifierProvider<ActiveProjectNotifier, int?>((ref) {
       final notifier = ActiveProjectNotifier(ref);
+      ref.listen(backendProvider, (_, next) {
+        notifier._switchBackend(next);
+      });
       // Kick off the async hydrate immediately. Until it resolves the state is
       // `null` (no active project), which is the correct cold-start default.
-      notifier._load();
+      unawaited(notifier._load());
       return notifier;
     });
 
 /// State notifier owning the active-project selection and its persistence.
 class ActiveProjectNotifier extends StateNotifier<int?> {
-  ActiveProjectNotifier(this._ref) : super(null);
+  ActiveProjectNotifier(this._ref) : super(null) {
+    _settingKey = _activeProjectSettingKeyFor(_ref.read(backendProvider));
+  }
 
   final Ref _ref;
+  late String _settingKey;
+  int _scopeRevision = 0;
   bool _isLoaded = false;
   Completer<void>? _loadCompleter;
+  int? _requestedProjectId;
+  int _requestRevision = 0;
+  Future<void> _writeTail = Future<void>.value();
+  Future<void> _requestedWrite = Future<void>.value();
 
   /// True once the persisted selection (if any) has been read into [state].
   bool get isLoaded => _isLoaded;
@@ -78,18 +102,51 @@ class ActiveProjectNotifier extends StateNotifier<int?> {
   }
 
   Future<void> _load() async {
+    final scopeAtStart = _scopeRevision;
+    final settingKeyAtStart = _settingKey;
+    final revisionAtStart = _requestRevision;
     try {
       final settingsDao = _ref.read(settingsDaoProvider);
-      final raw = await settingsDao.getSetting(_activeProjectIdSettingKey);
+      final raw = await settingsDao.getSetting(settingKeyAtStart);
       final parsed = _parse(raw);
-      if (parsed != null && mounted) {
+      if (scopeAtStart == _scopeRevision &&
+          revisionAtStart == _requestRevision &&
+          mounted) {
+        _requestedProjectId = parsed;
         state = parsed;
       }
+    } catch (error, stackTrace) {
+      developer.log(
+        'Failed to hydrate the active planner project for $settingKeyAtStart',
+        name: 'ActiveProjectNotifier',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
     } finally {
-      _isLoaded = true;
-      _loadCompleter?.complete();
-      _loadCompleter = null;
+      if (scopeAtStart == _scopeRevision) {
+        _isLoaded = true;
+        final completer = _loadCompleter;
+        if (completer != null && !completer.isCompleted) {
+          completer.complete();
+        }
+        _loadCompleter = null;
+      }
     }
+  }
+
+  void _switchBackend(Object backend) {
+    final nextKey = _activeProjectSettingKeyFor(backend);
+    if (nextKey == _settingKey) return;
+
+    _settingKey = nextKey;
+    _scopeRevision++;
+    _requestRevision++;
+    _requestedProjectId = null;
+    _requestedWrite = Future<void>.value();
+    _isLoaded = false;
+    if (mounted) state = null;
+    unawaited(_load());
   }
 
   /// Parse the stored value. Null/empty/whitespace and non-numeric values all
@@ -106,19 +163,44 @@ class ActiveProjectNotifier extends StateNotifier<int?> {
     return value;
   }
 
-  /// Select (or clear, with `null`) the active project and persist it. Passing
-  /// the id that is already active is a no-op write-through (kept idempotent so
-  /// callers need not pre-check).
-  Future<void> setActiveProject(int? id) async {
-    if (mounted) {
-      state = id;
+  /// Select (or clear, with `null`) the active project and persist it. Repeating
+  /// the confirmed selection is idempotent, and concurrent changes are applied
+  /// in invocation order so the last requested project wins.
+  Future<void> setActiveProject(int? id) {
+    if (id != null && id <= 0) {
+      return Future<void>.error(
+        ArgumentError.value(id, 'id', 'must be a positive project id'),
+      );
     }
-    final settingsDao = _ref.read(settingsDaoProvider);
-    if (id == null) {
-      await settingsDao.setSetting(_activeProjectIdSettingKey, '');
-    } else {
-      await settingsDao.setSetting(_activeProjectIdSettingKey, id.toString());
-    }
+    if (_isLoaded && id == _requestedProjectId) return _requestedWrite;
+
+    _requestedProjectId = id;
+    final scopeAtRequest = _scopeRevision;
+    final settingKeyAtRequest = _settingKey;
+    final revision = ++_requestRevision;
+    final operation = _writeTail
+        .then((_) async {
+          final settingsDao = _ref.read(settingsDaoProvider);
+          await settingsDao.setSetting(
+            settingKeyAtRequest,
+            id?.toString() ?? '',
+          );
+          if (mounted &&
+              scopeAtRequest == _scopeRevision &&
+              revision == _requestRevision) {
+            state = id;
+          }
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          if (scopeAtRequest == _scopeRevision &&
+              revision == _requestRevision) {
+            _requestedProjectId = state;
+          }
+          Error.throwWithStackTrace(error, stackTrace);
+        });
+    _writeTail = operation.then<void>((_) {}, onError: (_, __) {});
+    _requestedWrite = operation;
+    return operation;
   }
 }
 
@@ -138,20 +220,20 @@ final projectListProvider = StreamProvider<List<Project>>((ref) {
   // the host on a fixed tick with a change-guard (mirrors database_provider's
   // _pollRemote). Host-side project CRUD surfaces within the interval.
   if (backend is NetworkBackend) {
-    Stream<List<Project>> pollRemote() async* {
-      var last = await service.listProjects();
-      yield last;
-      while (true) {
-        await Future<void>.delayed(const Duration(seconds: 10));
-        final next = await service.listProjects();
-        if (!listEquals(last, next)) {
-          last = next;
-          yield next;
-        }
-      }
-    }
-
-    return pollRemote();
+    return resilientDistinctPoll(
+      fetch: service.listProjects,
+      unchanged: listEquals,
+      interval: const Duration(seconds: 10),
+      onRetainedError: (error, stackTrace) {
+        developer.log(
+          'Remote project poll failed; retaining last value',
+          name: 'PlanningProvider',
+          level: 900,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      },
+    );
   }
 
   Stream<List<Project>> listOnChange() async* {

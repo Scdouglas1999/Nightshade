@@ -8,7 +8,7 @@ import '../frb_generated.dart';
 import '../lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_to_rgba`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `percentile_sorted`, `percentile`, `sanitize_camera_id`, `store_captured_image_atomically`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `camera_start_exposure_configured_opt`, `camera_start_exposure_opt`, `classify_exposure_failure`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_to_rgba`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `percentile_sorted`, `percentile`, `sanitize_camera_id`, `store_captured_image_atomically`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `RawImageInfo`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from_frame_context`, `get_last_raw_image_info`
@@ -30,6 +30,10 @@ Future<void> apiCancelAutofocus() =>
 
 /// Start a camera exposure
 /// Returns progress updates via events, final image available via api_get_last_image
+/// Public bridge entry point. Gain/offset are explicit (`i32`) here so the
+/// generated FFI signature stays stable; this delegates to
+/// [`camera_start_exposure_opt`] with `Some(..)`, commanding both values
+/// exactly as before.
 Future<void> apiCameraStartExposure({
   required String deviceId,
   required double durationSecs,
@@ -44,6 +48,34 @@ Future<void> apiCameraStartExposure({
   offset: offset,
   binX: binX,
   binY: binY,
+);
+
+/// Start an exposure without collapsing omitted controls to zero and with the
+/// complete per-frame geometry/frame-type contract.
+Future<void> apiCameraStartExposureConfigured({
+  required String deviceId,
+  required double durationSecs,
+  int? gain,
+  int? offset,
+  required int binX,
+  required int binY,
+  int? startX,
+  int? startY,
+  int? width,
+  int? height,
+  required String frameType,
+}) => RustLib.instance.api.crateApiImagingApiCameraStartExposureConfigured(
+  deviceId: deviceId,
+  durationSecs: durationSecs,
+  gain: gain,
+  offset: offset,
+  binX: binX,
+  binY: binY,
+  startX: startX,
+  startY: startY,
+  width: width,
+  height: height,
+  frameType: frameType,
 );
 
 /// Get the last captured image for a specific device (display-ready format)
@@ -1051,6 +1083,18 @@ class AutofocusConfigApi {
   final int stepsOut;
   final String method;
   final int binning;
+  final int? gain;
+  final int? offset;
+  final int numberOfAttempts;
+  final int exposuresPerPoint;
+  final double rSquaredThreshold;
+  final double outerCropRatio;
+  final double innerCropRatio;
+  final int useBrightestNStars;
+  final BigInt focuserSettleTimeMs;
+  final String backlashCompMethod;
+  final int backlashIn;
+  final int backlashOut;
 
   const AutofocusConfigApi({
     required this.exposureTime,
@@ -1058,6 +1102,18 @@ class AutofocusConfigApi {
     required this.stepsOut,
     required this.method,
     required this.binning,
+    this.gain,
+    this.offset,
+    required this.numberOfAttempts,
+    required this.exposuresPerPoint,
+    required this.rSquaredThreshold,
+    required this.outerCropRatio,
+    required this.innerCropRatio,
+    required this.useBrightestNStars,
+    required this.focuserSettleTimeMs,
+    required this.backlashCompMethod,
+    required this.backlashIn,
+    required this.backlashOut,
   });
 
   @override
@@ -1066,7 +1122,19 @@ class AutofocusConfigApi {
       stepSize.hashCode ^
       stepsOut.hashCode ^
       method.hashCode ^
-      binning.hashCode;
+      binning.hashCode ^
+      gain.hashCode ^
+      offset.hashCode ^
+      numberOfAttempts.hashCode ^
+      exposuresPerPoint.hashCode ^
+      rSquaredThreshold.hashCode ^
+      outerCropRatio.hashCode ^
+      innerCropRatio.hashCode ^
+      useBrightestNStars.hashCode ^
+      focuserSettleTimeMs.hashCode ^
+      backlashCompMethod.hashCode ^
+      backlashIn.hashCode ^
+      backlashOut.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1077,7 +1145,19 @@ class AutofocusConfigApi {
           stepSize == other.stepSize &&
           stepsOut == other.stepsOut &&
           method == other.method &&
-          binning == other.binning;
+          binning == other.binning &&
+          gain == other.gain &&
+          offset == other.offset &&
+          numberOfAttempts == other.numberOfAttempts &&
+          exposuresPerPoint == other.exposuresPerPoint &&
+          rSquaredThreshold == other.rSquaredThreshold &&
+          outerCropRatio == other.outerCropRatio &&
+          innerCropRatio == other.innerCropRatio &&
+          useBrightestNStars == other.useBrightestNStars &&
+          focuserSettleTimeMs == other.focuserSettleTimeMs &&
+          backlashCompMethod == other.backlashCompMethod &&
+          backlashIn == other.backlashIn &&
+          backlashOut == other.backlashOut;
 }
 
 /// Autofocus result containing all data for display and analysis

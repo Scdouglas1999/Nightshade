@@ -176,12 +176,22 @@ extension CatalogManagerUnifiedApi on CatalogManager {
     if (!isInitialized) {
       throw StateError('CatalogManager not initialized');
     }
-    final downloadUrl = descriptor.downloadUrl.isNotEmpty
+    // Upstream fallback URL: static for stars/dso, dynamically built for the
+    // GLADE+ (`annotation`) TAP query which has no release asset.
+    final upstreamUrl = descriptor.downloadUrl.isNotEmpty
         ? descriptor.downloadUrl
         : (name == 'annotation'
               ? buildGladePlusUrl(AnnotationPackage.standard)
               : '');
-    if (downloadUrl.isEmpty) {
+
+    // Ordered candidates: GitHub release asset first, then upstream fallback.
+    final baseUrl = await getCatalogBaseUrl();
+    final candidates = catalogDownloadCandidates(
+      githubAssetName: descriptor.githubAssetName,
+      upstreamUrl: upstreamUrl,
+      baseUrl: baseUrl,
+    );
+    if (candidates.isEmpty) {
       throw StateError('No download URL configured for catalog $name');
     }
 
@@ -201,94 +211,68 @@ extension CatalogManagerUnifiedApi on CatalogManager {
       CatalogEvent.downloadStarted(
         jobId: jobId,
         name: descriptor.name,
-        downloadUrl: downloadUrl,
+        downloadUrl: candidates.first,
         totalBytes: descriptor.approximateSizeBytes,
       ),
     );
 
-    final client = http.Client();
-    int totalBytes = -1;
-    int downloadedBytes = 0;
-    DateTime lastProgressEmit = DateTime.fromMillisecondsSinceEpoch(
-      0,
-      isUtc: true,
-    );
     try {
-      final request = http.Request('GET', Uri.parse(downloadUrl));
-      final response = await client.send(request);
-      if (response.statusCode != 200) {
-        throw CatalogDownloadException(
-          phase: 'http_send',
-          message:
-              'HTTP ${response.statusCode} downloading $name from $downloadUrl',
-        );
-      }
-      totalBytes = response.contentLength ?? -1;
-
-      // Stream into the temp file. We collect bytes for SHA when gzip is
-      // off (so the on-disk file IS the hashed bytes); when gzip is on
-      // we keep the compressed bytes in-memory because we need to
-      // decompress before writing the final file anyway.
-      final tempFile = File(tempPath);
-      // Ensure no leftover partial from a prior failed run.
-      if (await tempFile.exists()) {
-        await tempFile.delete();
-      }
-      final compressedSink = descriptor.isGzipped ? null : tempFile.openWrite();
-      final compressedBuffer = descriptor.isGzipped ? <int>[] : null;
-
-      try {
-        await for (final chunk in response.stream) {
-          if (isCancelled != null && await isCancelled()) {
-            throw const CatalogCancelled();
-          }
-          if (compressedSink != null) {
-            compressedSink.add(chunk);
-          } else {
-            compressedBuffer!.addAll(chunk);
-          }
-          downloadedBytes += chunk.length;
-          onProgress?.call(downloadedBytes, totalBytes);
-
-          final now = DateTime.now();
-          if (now.difference(lastProgressEmit).inMilliseconds >= 1000) {
-            lastProgressEmit = now;
-            _eventController.add(
-              CatalogEvent.downloadProgress(
-                jobId: jobId,
-                name: descriptor.name,
-                downloadedBytes: downloadedBytes,
-                totalBytes: totalBytes,
-              ),
-            );
-          }
-        }
-      } finally {
-        await compressedSink?.close();
-      }
-
-      // Decompression / final-file materialisation.
-      Uint8List finalBytes;
-      if (descriptor.isGzipped) {
+      // Try each candidate in order. A candidate fails (HTTP status, SHA-256
+      // mismatch of the AS-DOWNLOADED bytes, gunzip failure, empty payload) ⇒
+      // discard its partial and fall through to the next. A user cancel is
+      // terminal and propagates without trying the next candidate.
+      Uint8List? finalBytes;
+      String? usedUrl;
+      Object? lastError;
+      for (var i = 0; i < candidates.length; i++) {
+        final url = candidates[i];
+        final isPrimary = i == 0;
         try {
-          finalBytes = Uint8List.fromList(gzip.decode(compressedBuffer!));
-        } catch (e) {
-          throw CatalogDownloadException(
-            phase: 'decompress',
-            message: 'Failed to gunzip $name: $e',
+          finalBytes = await _fetchUnifiedCandidate(
+            descriptor: descriptor,
+            url: url,
+            tempPath: tempPath,
+            jobId: jobId,
+            onProgress: onProgress,
+            isCancelled: isCancelled,
           );
+          usedUrl = url;
+          developer.log(
+            '[Catalog] ${descriptor.name} downloaded from '
+            '${isPrimary ? 'primary' : 'fallback'} candidate $url',
+            name: 'CatalogManager',
+            level: 800,
+          );
+          break;
+        } on CatalogCancelled {
+          rethrow;
+        } catch (e) {
+          lastError = e;
+          final more = i + 1 < candidates.length;
+          developer.log(
+            '[Catalog] downloadAndInstall($name) candidate '
+            '${i + 1}/${candidates.length} ($url) failed: $e'
+            '${more ? ' — trying next candidate' : ''}',
+            name: 'CatalogManager',
+            level: 900,
+          );
+          final t = File(tempPath);
+          if (await t.exists()) {
+            try {
+              await t.delete();
+            } catch (_) {
+              // A stale partial is harmless; the next attempt overwrites it.
+            }
+          }
         }
-        // Now write the decompressed payload to the temp file.
-        await tempFile.writeAsBytes(finalBytes, flush: true);
-      } else {
-        finalBytes = await tempFile.readAsBytes();
       }
 
-      if (finalBytes.isEmpty) {
-        throw CatalogDownloadException(
-          phase: 'verify',
-          message: 'Downloaded $name is empty after decompression',
-        );
+      if (finalBytes == null) {
+        throw lastError ??
+            const CatalogDownloadException(
+              phase: 'download',
+              message: 'All download candidates failed',
+            );
       }
 
       // SHA-256 over the FINAL bytes (post-decompression). This is what
@@ -301,7 +285,7 @@ extension CatalogManagerUnifiedApi on CatalogManager {
       if (await finalFile.exists()) {
         await finalFile.delete();
       }
-      await tempFile.rename(finalPath);
+      await File(tempPath).rename(finalPath);
 
       // Object count for the metadata sidecar.
       final objectCount = await _countObjects(finalPath);
@@ -314,7 +298,7 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         'objectCount': objectCount,
         'sizeBytes': finalBytes.length,
         'installedDate': installedAt.toIso8601String(),
-        'downloadUrl': downloadUrl,
+        'downloadUrl': usedUrl,
         if (descriptor.name == 'annotation') 'package': 'standard',
       };
       await File(metaPath).writeAsString(jsonEncode(metadata));
@@ -394,6 +378,132 @@ extension CatalogManagerUnifiedApi on CatalogManager {
         }
       }
       rethrow;
+    }
+  }
+
+  /// Fetch [descriptor] from a single [url] into [tempPath], verifying the
+  /// SHA-256 of the AS-DOWNLOADED bytes against [CatalogDescriptor.sha256]
+  /// BEFORE any gunzip. Returns the decompressed (final) bytes on success.
+  ///
+  /// Throws on any failure (HTTP status, hash mismatch, gunzip failure, empty
+  /// payload) so the caller can fall through to the next candidate.
+  /// [CatalogCancelled] propagates unchanged. Each call owns its own HTTP
+  /// client so a failed candidate never leaks a connection.
+  Future<Uint8List> _fetchUnifiedCandidate({
+    required CatalogDescriptor descriptor,
+    required String url,
+    required String tempPath,
+    String? jobId,
+    void Function(int downloaded, int total)? onProgress,
+    Future<bool> Function()? isCancelled,
+  }) async {
+    final client = http.Client();
+    int totalBytes = -1;
+    int downloadedBytes = 0;
+    DateTime lastProgressEmit = DateTime.fromMillisecondsSinceEpoch(
+      0,
+      isUtc: true,
+    );
+    try {
+      final request = http.Request('GET', Uri.parse(url));
+      final response = await client.send(request);
+      if (response.statusCode != 200) {
+        throw CatalogDownloadException(
+          phase: 'http_send',
+          message:
+              'HTTP ${response.statusCode} downloading ${descriptor.name} from $url',
+        );
+      }
+      totalBytes = response.contentLength ?? -1;
+
+      // Gzip is decided per-URL (a candidate could serve compressed or not).
+      final isGzipped = url.endsWith('.gz');
+
+      // Stream into the temp file. We collect bytes for SHA when gzip is
+      // off (so the on-disk file IS the hashed bytes); when gzip is on
+      // we keep the compressed bytes in-memory because we need to
+      // decompress before writing the final file anyway.
+      final tempFile = File(tempPath);
+      // Ensure no leftover partial from a prior failed run.
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+      final compressedSink = isGzipped ? null : tempFile.openWrite();
+      final compressedBuffer = isGzipped ? <int>[] : null;
+
+      try {
+        await for (final chunk in response.stream) {
+          if (isCancelled != null && await isCancelled()) {
+            throw const CatalogCancelled();
+          }
+          if (compressedSink != null) {
+            compressedSink.add(chunk);
+          } else {
+            compressedBuffer!.addAll(chunk);
+          }
+          downloadedBytes += chunk.length;
+          onProgress?.call(downloadedBytes, totalBytes);
+
+          final now = DateTime.now();
+          if (now.difference(lastProgressEmit).inMilliseconds >= 1000) {
+            lastProgressEmit = now;
+            _eventController.add(
+              CatalogEvent.downloadProgress(
+                jobId: jobId,
+                name: descriptor.name,
+                downloadedBytes: downloadedBytes,
+                totalBytes: totalBytes,
+              ),
+            );
+          }
+        }
+      } finally {
+        await compressedSink?.close();
+      }
+
+      // Decompression / final-file materialisation. Verify the AS-DOWNLOADED
+      // hash BEFORE any gunzip.
+      Uint8List finalBytes;
+      if (isGzipped) {
+        final compressed = Uint8List.fromList(compressedBuffer!);
+        if (!catalogBytesMatchSha256(descriptor.sha256, compressed)) {
+          throw CatalogHashMismatchException(
+            expected: descriptor.sha256,
+            actual: sha256.convert(compressed).toString(),
+          );
+        }
+        try {
+          finalBytes = Uint8List.fromList(gzip.decode(compressed));
+        } catch (e) {
+          throw CatalogDownloadException(
+            phase: 'decompress',
+            message: 'Failed to gunzip ${descriptor.name}: $e',
+          );
+        }
+        // Now write the decompressed payload to the temp file.
+        await tempFile.writeAsBytes(finalBytes, flush: true);
+      } else {
+        finalBytes = await tempFile.readAsBytes();
+        // For a non-gzipped source the on-disk bytes ARE the as-downloaded
+        // bytes. Only hash when a canonical digest is known (GLADE+ has none),
+        // so we don't scan a multi-GB TAP payload for nothing.
+        if (descriptor.sha256.trim().isNotEmpty &&
+            !catalogBytesMatchSha256(descriptor.sha256, finalBytes)) {
+          throw CatalogHashMismatchException(
+            expected: descriptor.sha256,
+            actual: sha256.convert(finalBytes).toString(),
+          );
+        }
+      }
+
+      if (finalBytes.isEmpty) {
+        throw CatalogDownloadException(
+          phase: 'verify',
+          message: 'Downloaded ${descriptor.name} is empty after decompression',
+        );
+      }
+
+      return finalBytes;
     } finally {
       client.close();
     }

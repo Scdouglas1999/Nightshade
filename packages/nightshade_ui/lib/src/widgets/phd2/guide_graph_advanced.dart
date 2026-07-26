@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/nightshade_colors.dart';
+import '../../utils/touch_target.dart';
 
 /// A single guide data point for the graph
 class GuideDataPoint {
@@ -169,6 +170,7 @@ class GuideGraphAdvanced extends StatelessWidget {
               if (!isVeryCompact) SizedBox(width: isCompact ? 6 : 8),
               // Time scale selector
               _buildScaleSelector(
+                context: context,
                 colors: colors,
                 label: isCompact ? 'T:' : 'Time:',
                 value: timeScale.label,
@@ -179,6 +181,7 @@ class GuideGraphAdvanced extends StatelessWidget {
               SizedBox(width: isCompact ? 8 : 16),
               // Y scale selector
               _buildScaleSelector(
+                context: context,
                 colors: colors,
                 label: isCompact ? 'Y:' : 'Scale:',
                 value: yScale.label,
@@ -268,6 +271,7 @@ class GuideGraphAdvanced extends StatelessWidget {
   }
 
   Widget _buildScaleSelector<T extends GraphScaleOption>({
+    required BuildContext context,
     required NightshadeColors colors,
     required String label,
     required String value,
@@ -294,28 +298,44 @@ class GuideGraphAdvanced extends StatelessWidget {
             orElse: () => items.first,
           ),
           onSelected: onChanged,
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: colors.surfaceHover,
-              borderRadius: BorderRadius.circular(4),
+          // The PAINTED pill keeps its compact 21dp height; only the hit box is
+          // floored to the platform touch minimum. Measured on the guiding
+          // screen at all three phone widths, the two selectors this builds
+          // ("5m" 46.0x21.0 and the Y-scale "±2\"" 56.0x21.0) were the smallest
+          // interactive targets in the app. Same platform rule as
+          // NightshadeButton._minInteractiveExtent: grow on touch only, so the
+          // dense desktop graph header does not reflow.
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: _touchTargetFloor(context),
+              minHeight: _touchTargetFloor(context),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: fontSize,
-                  ),
+            child: Center(
+              widthFactor: 1,
+              child: Container(
+                padding: padding,
+                decoration: BoxDecoration(
+                  color: colors.surfaceHover,
+                  borderRadius: BorderRadius.circular(4),
                 ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: colors.textPrimary,
-                  size: compact ? 14 : 16,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: fontSize,
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      color: colors.textPrimary,
+                      size: compact ? 14 : 16,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           itemBuilder: (context) => items.map((item) {
@@ -326,6 +346,10 @@ class GuideGraphAdvanced extends StatelessWidget {
     );
   }
 }
+
+/// Platform touch minimum for the graph's compact popup selectors.
+double _touchTargetFloor(BuildContext context) =>
+    NightshadeTouchTarget.minExtent(context);
 
 class _GraphPainter extends CustomPainter {
   final NightshadeColors colors;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,8 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+
+  void replaceWith(NightshadeBackend backend) => state = backend;
 }
 
 void main() {
@@ -121,6 +125,54 @@ void main() {
 
         expect(resolved.id, existingId);
         expect(await db.targetsDao.getAllTargets(), hasLength(1));
+      },
+    );
+
+    test(
+      'host switch during catalog lookup cannot create on the replacement rig',
+      () async {
+        final oldBackend = _MockNetworkBackend();
+        final newBackend = _MockNetworkBackend();
+        final oldTargets = Completer<List<Map<String, dynamic>>>();
+        when(
+          () => oldBackend.getAllTargets(),
+        ).thenAnswer((_) => oldTargets.future);
+        when(() => newBackend.getAllTargets()).thenAnswer((_) async => []);
+
+        late _FixedBackendNotifier backendNotifier;
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith((ref) {
+              backendNotifier = _FixedBackendNotifier(ref, oldBackend);
+              return backendNotifier;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+        final service = container.read(targetLibraryServiceProvider);
+
+        final ensuring = service.ensureCatalogTarget(
+          targetName: 'M31',
+          raHours: 0.7,
+          decDegrees: 41.3,
+          catalogId: 'M31',
+        );
+        await Future<void>.delayed(Duration.zero);
+        backendNotifier.replaceWith(newBackend);
+        oldTargets.complete([]);
+
+        await expectLater(
+          ensuring,
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains('host changed'),
+            ),
+          ),
+        );
+        verifyNever(() => oldBackend.createTarget(any()));
+        verifyNever(() => newBackend.createTarget(any()));
       },
     );
   });

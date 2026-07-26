@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/touch_target.dart';
 
 enum ButtonVariant { primary, outline, ghost, destructive }
 
@@ -30,10 +31,17 @@ class NightshadeButton extends StatefulWidget {
   State<NightshadeButton> createState() => _NightshadeButtonState();
 }
 
+/// How far outside the button's own box the keyboard focus ring is drawn, and
+/// how thick that stroke is, in logical pixels. Kept outside the box so the
+/// ring never overlaps the label and never changes the control's metrics.
+const double _focusRingOffset = 2.0;
+const double _focusRingWidth = 2.0;
+
 class _NightshadeButtonState extends State<NightshadeButton>
     with SingleTickerProviderStateMixin {
   bool _isHovered = false;
   bool _isPressed = false;
+  bool _isFocused = false;
 
   late AnimationController _pressController;
   late Animation<double> _scaleAnimation;
@@ -78,6 +86,19 @@ class _NightshadeButtonState extends State<NightshadeButton>
     setState(() => _isPressed = false);
     _pressController.reverse();
   }
+
+  /// Smallest interactive box this button may occupy, in logical pixels.
+  ///
+  /// The visual sizes are deliberately compact for dense desktop panels — 28px
+  /// tall for `small`, 40px for the DEFAULT `medium` — but both are under the
+  /// platform touch minimums (Android 48, iOS 44), which
+  /// `flutter_test`'s tap-target guidelines flag. On a tablet, which is a primary
+  /// way this app is driven, that is a genuinely hard-to-hit control.
+  ///
+  /// Applied only on touch platforms: growing desktop buttons to 48px would
+  /// re-flow every dense panel for no accessibility gain, since a mouse has none
+  /// of the imprecision the guideline exists to absorb.
+  double get _minInteractiveExtent => NightshadeTouchTarget.minExtent(context);
 
   EdgeInsets get _padding {
     return switch (widget.size) {
@@ -183,61 +204,149 @@ class _NightshadeButtonState extends State<NightshadeButton>
         cursor: isDisabled
             ? SystemMouseCursors.forbidden
             : SystemMouseCursors.click,
-        child: GestureDetector(
-          onTapDown: _handleTapDown,
-          onTapUp: _handleTapUp,
-          onTapCancel: _handleTapCancel,
-          onTap: isDisabled ? null : widget.onPressed,
-          child: AnimatedBuilder(
-            animation: _scaleAnimation,
-            builder: (context, child) {
-              return Transform.scale(
-                scale: _scaleAnimation.value,
-                child: child,
-              );
-            },
-            child: AnimatedContainer(
-              duration: NightshadeTokens.durationQuick,
-              curve: NightshadeTokens.curveSnappy,
-              decoration: BoxDecoration(
-                color: flatColor,
-                borderRadius: NightshadeTokens.borderRadiusSm,
-                border: Border.all(color: borderColor),
-              ),
-              child: Padding(
-                padding: _padding,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (widget.isLoading) ...[
-                      SizedBox(
-                        width: _iconSize,
-                        height: _iconSize,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(foregroundColor),
-                        ),
-                      ),
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                    ] else if (widget.icon != null) ...[
-                      Icon(
-                        widget.icon,
-                        size: _iconSize,
-                        color: foregroundColor,
-                      ),
-                      const SizedBox(width: NightshadeTokens.spaceSm - 2),
-                    ],
-                    Flexible(
-                      child: Text(
-                        widget.label,
-                        style: _textStyle.copyWith(color: foregroundColor),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+        // A bare GestureDetector has no focus node, so every NightshadeButton
+        // in the app was invisible to Tab traversal and could not be activated
+        // from the keyboard at all. Live proof: in the 13-step setup wizard the
+        // ONLY control Tab could reach was the header's "Skip onboarding"
+        // TextButton — three consecutive Tab presses produced a pixel-identical
+        // frame, and Return abandoned setup. The wizard was impossible to
+        // complete without a mouse.
+        child: FocusableActionDetector(
+          enabled: !isDisabled,
+          onShowFocusHighlight: (value) {
+            if (!mounted || _isFocused == value) return;
+            setState(() => _isFocused = value);
+          },
+          actions: <Type, Action<Intent>>{
+            // Enter and Space both arrive as ActivateIntent from the app-level
+            // default shortcuts; ButtonActivateIntent is the web variant.
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onPressed?.call();
+                return null;
+              },
+            ),
+            ButtonActivateIntent: CallbackAction<ButtonActivateIntent>(
+              onInvoke: (_) {
+                widget.onPressed?.call();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
+            onTapDown: _handleTapDown,
+            onTapUp: _handleTapUp,
+            onTapCancel: _handleTapCancel,
+            onTap: isDisabled ? null : widget.onPressed,
+            child: AnimatedBuilder(
+              animation: _scaleAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: child,
+                );
+              },
+              // The focus ring is a STROKE painted in an overflowing Positioned
+              // rather than a spread `BoxShadow` on the button itself. A spread
+              // shadow is a *filled* round-rect painted behind the box, so on the
+              // `ghost` and `outline` variants — whose fill is transparent until
+              // hover — it showed straight through the middle and turned the
+              // whole control into a solid primary slab with unreadable label
+              // text. Stroking it keeps the interior untouched for every variant.
+              //
+              // The Stack is unconditional (so the AnimatedContainer keeps its
+              // element slot, and with it the in-flight colour animation) and
+              // sizes itself to its only non-positioned child, so mounting the
+              // ring costs no layout: `Clip.none` lets it draw the 2px outside.
+              child: Stack(
+                clipBehavior: Clip.none,
+                // passthrough, NOT the default loose fit: a loose Stack strips
+                // the incoming minimum, so a button handed tight constraints —
+                // `Expanded(child: NightshadeButton(...))`, a stretched column —
+                // would silently shrink to its content the moment the ring was
+                // introduced. passthrough hands the AnimatedContainer exactly
+                // the constraints it saw before this Stack existed.
+                fit: StackFit.passthrough,
+                children: [
+                  AnimatedContainer(
+                    duration: NightshadeTokens.durationQuick,
+                    curve: NightshadeTokens.curveSnappy,
+                    // Floor the tappable box on touch platforms. `constraints`
+                    // rather than extra padding so the fill and border grow with
+                    // it and the whole visible control is the target, not a small
+                    // shape inside a larger invisible one.
+                    constraints: BoxConstraints(
+                      minWidth: _minInteractiveExtent,
+                      minHeight: _minInteractiveExtent,
+                    ),
+                    decoration: BoxDecoration(
+                      color: flatColor,
+                      borderRadius: NightshadeTokens.borderRadiusSm,
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Padding(
+                      padding: _padding,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (widget.isLoading) ...[
+                            SizedBox(
+                              width: _iconSize,
+                              height: _iconSize,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                  foregroundColor,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceSm),
+                          ] else if (widget.icon != null) ...[
+                            Icon(
+                              widget.icon,
+                              size: _iconSize,
+                              color: foregroundColor,
+                            ),
+                            const SizedBox(width: NightshadeTokens.spaceSm - 2),
+                          ],
+                          Flexible(
+                            child: Text(
+                              widget.label,
+                              style: _textStyle.copyWith(
+                                color: foregroundColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  if (_isFocused && !isDisabled)
+                    Positioned(
+                      left: -_focusRingOffset,
+                      top: -_focusRingOffset,
+                      right: -_focusRingOffset,
+                      bottom: -_focusRingOffset,
+                      // The ring sits over the button's own hit box, so it must
+                      // not eat the pointer events the button exists to receive.
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusSm + _focusRingOffset,
+                            ),
+                            border: Border.all(
+                              color: colors.primary,
+                              width: _focusRingWidth,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

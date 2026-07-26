@@ -24,6 +24,7 @@
 // so there's one canonical pairing path.
 
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -158,13 +159,15 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: colors.primary,
-        foregroundColor: colors.onPrimary,
-        icon: const Icon(LucideIcons.plus, size: 18),
-        label: Text(l10n.text('savedServersAdd')),
-        onPressed: _busy ? null : _handleAddServer,
-      ),
+      floatingActionButton: widget.onAddServer == null
+          ? null
+          : FloatingActionButton.extended(
+              backgroundColor: colors.primary,
+              foregroundColor: colors.onPrimary,
+              icon: const Icon(LucideIcons.plus, size: 18),
+              label: Text(l10n.text('savedServersAdd')),
+              onPressed: _busy ? null : _handleAddServer,
+            ),
     );
   }
 
@@ -238,42 +241,59 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     final scheme = server.scheme;
     try {
       final service = ref.read(savedServersServiceProvider);
+      final backendNotifier = ref.read(backendProvider.notifier);
       final token = await service.tokenFor(server.id);
       // Sanity-check reachability before swapping backends — a fail-
       // fast here keeps the dashboard from booting into a hung WS.
-      final ok = await EnhancedNightshadeDiscovery.testServerConnection(
+      //
+      // `probeServer`, not `testServerConnection`: the bool form reports a
+      // live host that REJECTED our token as `false`, and this screen then
+      // told the operator "Could not reach <host>". A Nightshade host drops
+      // every paired token when it restarts, so that is the single most
+      // common failure here — and the message sent people to debug their
+      // network when the actual fix is to pair again.
+      final outcome = await EnhancedNightshadeDiscovery.probeServer(
         host,
         server.port,
         authToken: token,
         scheme: scheme,
       );
-      if (!ok) {
+      if (outcome != ServerProbeOutcome.reachable) {
         if (!mounted) return;
+        final authExpired = outcome == ServerProbeOutcome.authRejected;
         _showSnack(
           context.l10n.text(
-            'savedServersUnreachable',
+            authExpired
+                ? 'savedServersPairingExpired'
+                : outcome == ServerProbeOutcome.incompatible
+                    ? 'savedServersIncompatible'
+                    : 'savedServersUnreachable',
             params: {'name': server.displayName, 'host': host},
           ),
           isError: true,
         );
-        ref.read(_reachabilityProvider.notifier).setStatus(server.id, false);
+        // Only a genuine reachability failure marks the row unreachable; a
+        // rejected credential must not paint the host as down, because it is
+        // demonstrably up and answering.
+        ref
+            .read(_reachabilityProvider.notifier)
+            .setStatus(server.id, authExpired);
         return;
       }
       final viewerId = (token != null && token.isNotEmpty)
           ? computeServerFingerprint(token)
           : server.id;
-      await ref
-          .read(backendProvider.notifier)
-          .connect(
-            host,
-            server.port,
-            authToken: token,
-            scheme: scheme,
-            pinnedFingerprint: server.pinnedFingerprint,
-            collaborationViewerId: viewerId,
-            collaborationDeviceName: server.id,
-            collaborationDisplayName: server.displayName,
-          );
+      await backendNotifier.connect(
+        host,
+        server.port,
+        authToken: token,
+        scheme: scheme,
+        pinnedFingerprint: server.pinnedFingerprint,
+        collaborationViewerId: viewerId,
+        collaborationDeviceName: server.id,
+        collaborationDisplayName: server.displayName,
+      );
+      final connectedBackend = backendNotifier.currentBackend;
       // Mirror the active server into the legacy single-slot record so
       // auto-reconnect on cold start still works. Also re-stamp our
       // own lastConnectedAt + reachability cache.
@@ -288,8 +308,29 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
         pairingSupported: true,
         fingerprint: server.pinnedFingerprint,
       );
-      await EnhancedNightshadeDiscovery.saveLastServer(discovered);
-      await service.touchLastConnected(server.id);
+      try {
+        await EnhancedNightshadeDiscovery.saveLastServer(discovered);
+      } catch (e, stackTrace) {
+        developer.log(
+          'Could not cache the active server for startup reconnect: $e',
+          name: 'SavedServersScreen',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
+      try {
+        await service.touchLastConnected(server.id);
+      } catch (e, stackTrace) {
+        developer.log(
+          'Could not update last-connected time for ${server.id}: $e',
+          name: 'SavedServersScreen',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
+      if (!backendNotifier.isCurrentBackend(connectedBackend)) return;
       ref.read(_reachabilityProvider.notifier).setStatus(server.id, true);
       ref.invalidate(_savedServersListProvider);
       if (!mounted) return;
@@ -298,6 +339,8 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       } else {
         Navigator.of(context).pop();
       }
+    } on BackendTransitionSupersededException {
+      return;
     } catch (e) {
       if (!mounted) return;
       _showSnack(
@@ -371,6 +414,12 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
           ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(
+        context.l10n.text('savedServersAddError', params: {'error': '$e'}),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -502,15 +551,13 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     );
     if (raw == null) return;
     final result = raw.trim();
-    try {
-      await ref
+    await _persistServerChange(
+      server,
+      () => ref
           .read(savedServersServiceProvider)
-          .setTailscaleHost(server.id, result);
-      ref.invalidate(_savedServersListProvider);
-    } on ArgumentError {
-      if (!mounted) return;
-      _showSnack(l10n.text('savedServersTailscaleInvalid'), isError: true);
-    }
+          .setTailscaleHost(server.id, result),
+      argumentErrorMessage: l10n.text('savedServersTailscaleInvalid'),
+    );
   }
 
   Future<void> _renameServer(SavedServer server) async {
@@ -530,8 +577,10 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     if (newName.isEmpty || newName == server.displayName) {
       return;
     }
-    await ref.read(savedServersServiceProvider).rename(server.id, newName);
-    ref.invalidate(_savedServersListProvider);
+    await _persistServerChange(
+      server,
+      () => ref.read(savedServersServiceProvider).rename(server.id, newName),
+    );
   }
 
   Future<void> _editNotes(SavedServer server) async {
@@ -550,10 +599,12 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       ),
     );
     if (updated == null) return;
-    await ref
-        .read(savedServersServiceProvider)
-        .setNotes(server.id, updated.trim());
-    ref.invalidate(_savedServersListProvider);
+    await _persistServerChange(
+      server,
+      () => ref
+          .read(savedServersServiceProvider)
+          .setNotes(server.id, updated.trim()),
+    );
   }
 
   Future<void> _confirmAndRemove(SavedServer server) async {
@@ -583,9 +634,40 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       },
     );
     if (confirmed != true) return;
-    await ref.read(savedServersServiceProvider).removeById(server.id);
-    ref.invalidate(_savedServersListProvider);
-    ref.read(_reachabilityProvider.notifier).setStatus(server.id, null);
+    final removed = await _persistServerChange(
+      server,
+      () => ref.read(savedServersServiceProvider).removeById(server.id),
+    );
+    if (removed && mounted) {
+      ref.read(_reachabilityProvider.notifier).setStatus(server.id, null);
+    }
+  }
+
+  Future<bool> _persistServerChange(
+    SavedServer server,
+    Future<void> Function() operation, {
+    String? argumentErrorMessage,
+  }) async {
+    if (_busy || !mounted) return false;
+    setState(() => _busy = true);
+    try {
+      await operation();
+      if (!mounted) return true;
+      ref.invalidate(_savedServersListProvider);
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      final message = e is ArgumentError && argumentErrorMessage != null
+          ? argumentErrorMessage
+          : context.l10n.text(
+              'savedServersUpdateError',
+              params: {'name': server.displayName, 'error': '$e'},
+            );
+      _showSnack(message, isError: true);
+      return false;
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _showSnack(String message, {bool isError = false}) {

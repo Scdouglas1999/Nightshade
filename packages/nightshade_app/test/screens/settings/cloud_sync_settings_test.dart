@@ -31,12 +31,14 @@
 // (config, password) the card saved so the secret-routing contract is
 // asserted directly.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/settings/widgets/cloud_sync_settings.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -65,6 +67,9 @@ class _FakeSyncService extends SyncService {
 
   int testConnectionCalls = 0;
   bool failTestConnection = false;
+  int pushCalls = 0;
+  bool throwFromPush = false;
+  Completer<void>? saveBarrier;
 
   @override
   Future<SyncConfig> loadConfig() async => config;
@@ -90,6 +95,7 @@ class _FakeSyncService extends SyncService {
   @override
   Future<void> saveConfig(SyncConfig config, {String? password}) async {
     saveCalls++;
+    await saveBarrier?.future;
     lastSavedConfig = config;
     lastSavedPassword = password;
     this.config = config;
@@ -112,6 +118,33 @@ class _FakeSyncService extends SyncService {
       );
     }
   }
+
+  @override
+  Future<SyncPushResult> pushNow() async {
+    pushCalls++;
+    if (throwFromPush) throw StateError('cloud target unavailable');
+    return SyncPushResult(
+      success: true,
+      remotePath: 'nightshade-sync/test-rig/bundle.nsbak',
+      timestamp: DateTime.utc(2026, 7, 14),
+    );
+  }
+}
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void switchTo(NightshadeBackend backend) => state = backend;
 }
 
 LoggingService _testLogger(Directory tempDir) => LoggingService(
@@ -331,5 +364,216 @@ void main() {
     // Validation fired before any persistence.
     expect(service.saveCalls, 0);
     expect(await service.hasStoredSecret(SyncProvider.s3), isFalse);
+  });
+
+  testWidgets('local actions are single-flight while config is saving',
+      (tester) async {
+    final service = makeService(
+      initial: const SyncConfig(
+        serverUrl: 'https://backups.example.test',
+        machineName: 'test-rig',
+      ),
+    );
+    service.saveBarrier = Completer<void>();
+    await _pumpCard(tester, service);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Save'));
+    await tester.pump();
+
+    final push = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Push Now'),
+    );
+    expect(push.onPressed, isNull);
+    expect(service.saveCalls, 1);
+
+    service.saveBarrier!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(service.saveCalls, 1);
+  });
+
+  testWidgets('thrown local push failure is visible and retryable',
+      (tester) async {
+    final service = makeService(
+      initial: const SyncConfig(
+        serverUrl: 'https://backups.example.test',
+        machineName: 'test-rig',
+      ),
+    )..throwFromPush = true;
+    await _pumpCard(tester, service);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Push Now'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(service.pushCalls, 1);
+    expect(find.textContaining('cloud target unavailable'), findsWidgets);
+    final push = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'Push Now'),
+    );
+    expect(push.onPressed, isNotNull);
+    expect(push.isLoading, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('remote card reads and pushes the imaging host', (tester) async {
+    final backend = _MockNetworkBackend();
+    const status = SyncStatus(
+      configured: true,
+      autoPushEnabled: true,
+      machineName: 'observatory-host',
+      serverUrl: 'https://backups.example.test',
+      pushInProgress: false,
+    );
+    when(() => backend.getCloudSyncStatus()).thenAnswer((_) async => status);
+    when(() => backend.pushCloudSyncNow()).thenAnswer(
+      (_) async => SyncPushResult(
+        success: true,
+        remotePath: 'nightshade-sync/observatory-host/bundle.nsbak',
+        timestamp: DateTime.utc(2026, 7, 13),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: SingleChildScrollView(child: RemoteCloudSyncCard()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('observatory-host'), findsOneWidget);
+    expect(find.text('Configured'), findsOneWidget);
+    expect(find.text('Enabled'), findsOneWidget);
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Push Host Backup Now'),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    verify(() => backend.pushCloudSyncNow()).called(1);
+    verify(() => backend.getCloudSyncStatus()).called(2);
+    expect(
+      find.textContaining('Host backup pushed to nightshade-sync'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('remote card does not report a false push result as success',
+      (tester) async {
+    final backend = _MockNetworkBackend();
+    const status = SyncStatus(
+      configured: true,
+      autoPushEnabled: false,
+      machineName: 'observatory-host',
+      serverUrl: 'https://backups.example.test',
+      pushInProgress: false,
+    );
+    when(() => backend.getCloudSyncStatus()).thenAnswer((_) async => status);
+    when(() => backend.pushCloudSyncNow()).thenAnswer(
+      (_) async => SyncPushResult(
+        success: false,
+        errorMessage: 'quota exceeded',
+        timestamp: DateTime.utc(2026, 7, 14),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: SingleChildScrollView(child: RemoteCloudSyncCard()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Push Host Backup Now'),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('quota exceeded'), findsOneWidget);
+    expect(find.textContaining('Host backup pushed'), findsNothing);
+    verify(() => backend.getCloudSyncStatus()).called(1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('remote card drops status from a previous imaging host',
+      (tester) async {
+    final hostA = _MockNetworkBackend();
+    final hostB = _MockNetworkBackend();
+    final hostAResponse = Completer<SyncStatus>();
+    when(() => hostA.getCloudSyncStatus())
+        .thenAnswer((_) => hostAResponse.future);
+    when(() => hostB.getCloudSyncStatus()).thenAnswer(
+      (_) async => const SyncStatus(
+        configured: true,
+        autoPushEnabled: false,
+        machineName: 'host-b',
+        serverUrl: 'https://b.example.test',
+        pushInProgress: false,
+      ),
+    );
+
+    late _SwappableBackendNotifier notifier;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => notifier = _SwappableBackendNotifier(ref, hostA),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: SingleChildScrollView(child: RemoteCloudSyncCard()),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    notifier.switchTo(hostB);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('host-b'), findsOneWidget);
+    expect(find.text('https://b.example.test'), findsOneWidget);
+
+    hostAResponse.complete(
+      const SyncStatus(
+        configured: true,
+        autoPushEnabled: true,
+        machineName: 'host-a',
+        serverUrl: 'https://a.example.test',
+        pushInProgress: false,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('host-b'), findsOneWidget);
+    expect(find.text('host-a'), findsNothing);
   });
 }

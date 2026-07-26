@@ -740,6 +740,8 @@ class _ZoneBasedDashboard extends StatelessWidget {
             pulseController: pulseController,
             isEditing: isEditing,
             onToggleEdit: onToggleEdit,
+            onManageWidgets: onManageWidgets,
+            onResetLayout: onResetLayout,
           ),
         ),
 

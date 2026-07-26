@@ -93,11 +93,11 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
 
     // Why: exposure counters are u32; u32 → f64 widening
     // is exact. The resulting fraction is a UI progress value in [0, 1].
-    let progress_val = if progress.total_exposures > 0 {
-        f64::from(progress.completed_exposures) / f64::from(progress.total_exposures)
-    } else {
-        0.0
-    };
+    let progress_val = sequencer_progress_fraction(
+        progress.state,
+        progress.completed_exposures,
+        progress.total_exposures,
+    );
 
     Ok(SequencerStatus {
         state: state_str,
@@ -106,6 +106,48 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
         progress: progress_val,
         message: progress.message,
     })
+}
+
+fn sequencer_progress_fraction(
+    state: ExecutorState,
+    completed_exposures: u32,
+    total_exposures: u32,
+) -> f64 {
+    // Non-exposure plans (Delay, Park, scripts, notifications, etc.) have no
+    // exposure denominator. Once the executor has completed, their progress
+    // is still unambiguously 100%.
+    if state == ExecutorState::Completed {
+        1.0
+    } else if total_exposures > 0 {
+        (f64::from(completed_exposures) / f64::from(total_exposures)).clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+
+    #[test]
+    fn completed_non_exposure_plan_reports_full_progress() {
+        assert_eq!(
+            sequencer_progress_fraction(ExecutorState::Completed, 0, 0),
+            1.0
+        );
+    }
+
+    #[test]
+    fn running_exposure_plan_reports_bounded_fraction() {
+        assert_eq!(
+            sequencer_progress_fraction(ExecutorState::Running, 2, 4),
+            0.5
+        );
+        assert_eq!(
+            sequencer_progress_fraction(ExecutorState::Running, 5, 4),
+            1.0
+        );
+    }
 }
 
 /// Set connected devices for the sequencer

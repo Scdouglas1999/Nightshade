@@ -126,7 +126,7 @@ class AuthHandlers {
       );
     }
     final issue = authCookieManager.mint(bearer);
-    final secure = !_isPlainLoopbackRequest(request);
+    final secure = !_isPlainHttpRequest(request);
     final setCookie = AuthCookieManager.buildSetCookieHeader(
       cookieToken: issue.cookieToken,
       maxAge: issue.maxAge,
@@ -178,7 +178,7 @@ class AuthHandlers {
     final cookieHeader = request.headers['cookie'];
     final sessionCookie = AuthCookieManager.extractCookie(cookieHeader);
     authCookieManager.revoke(sessionCookie);
-    final secure = !_isPlainLoopbackRequest(request);
+    final secure = !_isPlainHttpRequest(request);
     return jsonOk(
       {'loggedOut': true},
       headers: {
@@ -188,18 +188,15 @@ class AuthHandlers {
     );
   }
 
-  /// Whether this request landed on a plain-HTTP loopback bind.
+  /// Whether this request landed over plain HTTP.
   ///
-  /// The session cookie MUST carry `Secure` over the public LAN — but a
-  /// browser refuses to set a `Secure` cookie on a plain
-  /// `http://127.0.0.1` test rig, so we relax the attribute when (and
-  /// only when) the request was served over HTTP to loopback. Any
-  /// non-loopback or HTTPS request still gets `Secure`.
-  bool _isPlainLoopbackRequest(Request request) {
-    if (request.requestedUri.scheme == 'https') {
-      return false;
-    }
-    final host = request.requestedUri.host;
-    return host == '127.0.0.1' || host == 'localhost' || host == '::1';
-  }
+  /// Browsers discard a `Secure` cookie received from any plain-HTTP origin,
+  /// including the documented LAN dashboard (`http://<rig-ip>:8080`). The
+  /// attribute must therefore follow the transport, not the hostname.
+  ///
+  /// This does not make HTTP private: bearer/cookie traffic on a plain LAN
+  /// remains visible to that LAN. Operators who terminate TLS still receive a
+  /// `Secure` cookie because Shelf preserves the request URI scheme.
+  bool _isPlainHttpRequest(Request request) =>
+      request.requestedUri.scheme.toLowerCase() != 'https';
 }

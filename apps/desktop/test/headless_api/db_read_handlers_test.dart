@@ -124,7 +124,181 @@ void main() {
       final first = items.first as Map;
       expect(first['objectName'], 'M31');
       expect(first['notes'], 'Hazy sky');
+      expect(first['timestamp'], '2026-05-01T22:00:00.000Z');
       expect(body['total'], 1);
+    });
+
+    test('POST /api/notes-journal creates a validated observation', () async {
+      final timestamp = DateTime.utc(2026, 7, 13, 1, 2, 3);
+      final response = await translateHandlerErrors(
+        handlers.handleCreateObservationLog(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/notes-journal'),
+            body: jsonEncode({
+              'timestamp': timestamp.toIso8601String(),
+              'objectName': 'M31',
+              'objectType': 'galaxy',
+              'catalogId': 'M31',
+              'ra': 0.7,
+              'dec': 41.3,
+              'rating': 5,
+              'notes': 'Clear, steady',
+            }),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['id'], isA<int>());
+      final logs = await db.observationLogsDao.getAllLogs();
+      expect(logs, hasLength(1));
+      expect(logs.single.objectName, 'M31');
+      expect(logs.single.timestamp.toUtc(), timestamp);
+      expect(logs.single.rating, 5);
+    });
+
+    test('POST /api/notes-journal rejects malformed timestamp', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleCreateObservationLog(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/notes-journal'),
+            body: jsonEncode({
+              'timestamp': 'last Tuesday-ish',
+              'objectName': 'M31',
+              'ra': 0.7,
+              'dec': 41.3,
+            }),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'timestamp');
+      expect(await db.observationLogsDao.getAllLogs(), isEmpty);
+    });
+
+    test(
+      'DELETE /api/notes-journal supports one entry and clear-all',
+      () async {
+        final first = await db.observationLogsDao.insertLog(
+          timestamp: DateTime.utc(2026, 7, 12),
+          objectName: 'M31',
+          ra: 0.7,
+          dec: 41.3,
+        );
+        await db.observationLogsDao.insertLog(
+          timestamp: DateTime.utc(2026, 7, 13),
+          objectName: 'M42',
+          ra: 5.5,
+          dec: -5.4,
+        );
+
+        final singleResponse = await translateHandlerErrors(
+          handlers.handleDeleteObservationLog(
+            Request(
+              'DELETE',
+              Uri.parse('http://localhost/api/notes-journal/$first'),
+            ),
+            first.toString(),
+          ),
+        );
+        expect(singleResponse.statusCode, HttpStatus.ok);
+        expect(await db.observationLogsDao.getAllLogs(), hasLength(1));
+
+        final allResponse = await translateHandlerErrors(
+          handlers.handleDeleteAllObservationLogs(
+            Request('DELETE', Uri.parse('http://localhost/api/notes-journal')),
+          ),
+        );
+        expect(allResponse.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await allResponse.readAsString()) as Map;
+        expect(body['count'], 1);
+        expect(await db.observationLogsDao.getAllLogs(), isEmpty);
+      },
+    );
+
+    // =====================================================================
+    // /api/db/notes
+    // =====================================================================
+
+    test(
+      'POST, PUT, and DELETE /api/db/notes mutate the host journal',
+      () async {
+        final createResponse = await translateHandlerErrors(
+          handlers.handleCreateJournalNote(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/db/notes'),
+              body: jsonEncode({
+                'targetId': 'M31',
+                'sequenceRunId': 42,
+                'title': 'First light',
+                'body': 'Good guiding',
+                'tags': ['guiding'],
+                'sentiment': '😊',
+              }),
+            ),
+          ),
+        );
+        expect(createResponse.statusCode, HttpStatus.ok);
+        final createBody =
+            jsonDecode(await createResponse.readAsString()) as Map;
+        final created = createBody['note'] as Map;
+        final id = created['id'] as String;
+        expect(created['targetId'], 'M31');
+
+        final updateResponse = await translateHandlerErrors(
+          handlers.handleUpdateJournalNote(
+            Request(
+              'PUT',
+              Uri.parse('http://localhost/api/db/notes/$id'),
+              body: jsonEncode({
+                'body': 'Excellent guiding',
+                'tags': ['guiding', 'keeper'],
+                'clearTitle': true,
+                'clearSentiment': true,
+              }),
+            ),
+            id,
+          ),
+        );
+        expect(updateResponse.statusCode, HttpStatus.ok);
+        final updateBody =
+            jsonDecode(await updateResponse.readAsString()) as Map;
+        final updated = updateBody['note'] as Map;
+        expect(updated['body'], 'Excellent guiding');
+        expect(updated['title'], isNull);
+        expect(updated['sentiment'], isNull);
+        expect(updated['tags'], ['guiding', 'keeper']);
+
+        final deleteResponse = await translateHandlerErrors(
+          handlers.handleDeleteJournalNote(
+            Request('DELETE', Uri.parse('http://localhost/api/db/notes/$id')),
+            id,
+          ),
+        );
+        expect(deleteResponse.statusCode, HttpStatus.ok);
+        expect(await NotesService(db).getNoteById(id), isNull);
+      },
+    );
+
+    test('PUT /api/db/notes returns 404 for a missing note', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleUpdateJournalNote(
+          Request(
+            'PUT',
+            Uri.parse('http://localhost/api/db/notes/missing'),
+            body: jsonEncode({'body': 'No longer here'}),
+          ),
+          'missing',
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.notFound);
     });
 
     // =====================================================================
@@ -152,10 +326,19 @@ void main() {
           recordedAt: DateTime.utc(2026, 5, 1, 23, 0),
         ),
       );
+      await db.guideRmsHistoryDao.insertSample(
+        GuideRmsHistoryCompanion.insert(
+          sessionId: 'session-2',
+          mountId: 'other-mount',
+          totalRmsArcsec: 2.4,
+          sampleCount: 50,
+          recordedAt: DateTime.utc(2026, 5, 2),
+        ),
+      );
 
       final body = await doGet(
         handlers.handleListGuideRmsHistory,
-        'http://localhost/api/guide-rms-history',
+        'http://localhost/api/guide-rms-history?mountId=mount-1',
       );
 
       expect((body['items'] as List), hasLength(2));
@@ -355,6 +538,93 @@ void main() {
         expect(run['sequenceName'], 'NGC 7000 imaging');
         expect(run['frameCount'], 0);
         expect(run['status'], 'completed');
+      });
+
+      test(
+        'returns exact diff context only when explicitly requested',
+        () async {
+          final sequenceId = await db.sequencesDao.createSequence(
+            SequencesCompanion.insert(name: 'Orion'),
+          );
+          final firstRun = await db
+              .into(db.sequenceRuns)
+              .insert(
+                SequenceRunsCompanion.insert(
+                  sequenceId: Value(sequenceId),
+                  sequenceName: 'Orion',
+                  startedAt: DateTime.utc(2026, 7, 12, 1),
+                  status: const Value('completed'),
+                  sequenceSnapshotJson: const Value('{"version":1}'),
+                ),
+              );
+          final currentRun = await db
+              .into(db.sequenceRuns)
+              .insert(
+                SequenceRunsCompanion.insert(
+                  sequenceId: Value(sequenceId),
+                  sequenceName: 'Orion',
+                  startedAt: DateTime.utc(2026, 7, 13, 1),
+                  status: const Value('completed'),
+                  sequenceSnapshotJson: const Value('{"version":2}'),
+                ),
+              );
+          expect(firstRun, isPositive);
+
+          final normalResponse = await translateHandlerErrors(
+            handlers.handleGetSequenceRunById(
+              Request(
+                'GET',
+                Uri.parse('http://localhost/api/sequence-runs/$currentRun'),
+              ),
+              currentRun.toString(),
+            ),
+          );
+          final normalBody =
+              jsonDecode(await normalResponse.readAsString()) as Map;
+          expect(normalBody, isNot(contains('diffContext')));
+
+          final diffResponse = await translateHandlerErrors(
+            handlers.handleGetSequenceRunById(
+              Request(
+                'GET',
+                Uri.parse(
+                  'http://localhost/api/sequence-runs/$currentRun'
+                  '?includeDiffContext=true',
+                ),
+              ),
+              currentRun.toString(),
+            ),
+          );
+          expect(diffResponse.statusCode, HttpStatus.ok);
+          final diffBody = jsonDecode(await diffResponse.readAsString()) as Map;
+          final context = diffBody['diffContext'] as Map;
+          expect(context['runId'], currentRun);
+          expect(context['sequenceId'], sequenceId);
+          expect(context['currentSnapshotJson'], '{"version":2}');
+          expect(context['previousSnapshotJson'], '{"version":1}');
+        },
+      );
+
+      test('rejects an invalid includeDiffContext query value', () async {
+        final runId = await db.sequenceRunsDao.startRun(
+          sequenceId: null,
+          sequenceName: 'Orion',
+        );
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunById(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/sequence-runs/$runId'
+                '?includeDiffContext=yes',
+              ),
+            ),
+            runId.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['field'], 'includeDiffContext');
       });
     });
 

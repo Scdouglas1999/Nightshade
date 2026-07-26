@@ -274,6 +274,13 @@ class VoiceControlLifecycleController {
         return 'failed';
       case SequenceExecutionState.recovering:
         return 'recovering';
+      case SequenceExecutionState.stopFailed:
+      case SequenceExecutionState.cleanupFailed:
+      case SequenceExecutionState.finalizing:
+        // The run has not settled (the stop / finalization / its cleanup is
+        // still pending); report it on the wire as the transient 'stopping'
+        // vocabulary the native side already understands.
+        return 'stopping';
     }
   }
 

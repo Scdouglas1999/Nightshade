@@ -70,6 +70,36 @@ void main() {
     expect(find.byType(NightshadeDialog), findsOneWidget);
   });
 
+  testWidgets('closeEnabled false blocks every user dismissal path', (
+    tester,
+  ) async {
+    await _showDialog(
+      tester,
+      const NightshadeDialog(
+        title: 'Saving',
+        closeEnabled: false,
+        child: Text('Writing changes'),
+      ),
+    );
+
+    final closeButton = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, LucideIcons.x),
+    );
+    expect(closeButton.onPressed, isNull);
+
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(find.byType(NightshadeDialog), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(NightshadeDialog), findsOneWidget);
+
+    tester.state<NavigatorState>(find.byType(Navigator)).pop();
+    await tester.pumpAndSettle();
+    expect(find.byType(NightshadeDialog), findsNothing);
+  });
+
   testWidgets('actions slot renders provided widgets', (tester) async {
     await _showDialog(
       tester,

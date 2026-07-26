@@ -5,7 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Dialog for recovering interrupted imaging sessions
-class SessionRecoveryDialog extends ConsumerWidget {
+class SessionRecoveryDialog extends ConsumerStatefulWidget {
   final List<SessionRecoveryInfo> incompleteSessions;
 
   const SessionRecoveryDialog({
@@ -14,8 +14,32 @@ class SessionRecoveryDialog extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return AlertDialog(
+  ConsumerState<SessionRecoveryDialog> createState() =>
+      _SessionRecoveryDialogState();
+}
+
+class _SessionRecoveryDialogState extends ConsumerState<SessionRecoveryDialog> {
+  // Mutable copy so per-row discards remove their card immediately instead of
+  // leaving a stale row that still offers Resume/Discard on an aborted session.
+  late final List<SessionRecoveryInfo> _sessions;
+  final Set<int> _recoveringSessionIds = <int>{};
+  final Set<int> _discardingSessionIds = <int>{};
+  bool _discardingAll = false;
+
+  bool get _isBusy =>
+      _discardingAll ||
+      _recoveringSessionIds.isNotEmpty ||
+      _discardingSessionIds.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessions = List<SessionRecoveryInfo>.from(widget.incompleteSessions);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dialog = AlertDialog(
       title: Row(
         children: [
           Icon(LucideIcons.alertCircle,
@@ -41,29 +65,17 @@ class SessionRecoveryDialog extends ConsumerWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 400),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: incompleteSessions.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, index) {
-                  final session = incompleteSessions[index];
-                  return _SessionCard(
-                    session: session,
-                    onRecover: () {
-                      Navigator.of(context).pop();
-                      _recoverSession(ref, session);
-                    },
-                    onDiscard: () async {
-                      await _discardSession(ref, session);
-                      if (incompleteSessions.length == 1) {
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop();
-                      }
-                    },
-                  );
-                },
+            Flexible(
+              fit: FlexFit.loose,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < _sessions.length; i++) ...[
+                      _buildSessionCard(_sessions[i]),
+                      if (i < _sessions.length - 1) const Divider(),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -77,24 +89,70 @@ class SessionRecoveryDialog extends ConsumerWidget {
         // surfaced this dialog (dashboard "Recover sessions" + startup
         // auto-open).
         NightshadeButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
           label: 'Decide Later',
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: () => _confirmAndDiscardAll(context, ref),
+          onPressed:
+              _isBusy || _sessions.isEmpty ? null : _confirmAndDiscardAll,
+          isLoading: _discardingAll,
           label: 'Discard All',
           variant: ButtonVariant.destructive,
           size: ButtonSize.small,
         ),
       ],
     );
+    return PopScope(canPop: !_isBusy, child: dialog);
   }
 
-  Future<void> _confirmAndDiscardAll(
-      BuildContext context, WidgetRef ref) async {
-    final count = incompleteSessions.length;
+  Widget _buildSessionCard(SessionRecoveryInfo session) {
+    final isRecovering = _recoveringSessionIds.contains(session.sessionId);
+    final isDiscarding = _discardingSessionIds.contains(session.sessionId);
+    final busy = _isBusy;
+    return _SessionCard(
+      session: session,
+      isRecovering: isRecovering,
+      isDiscarding: isDiscarding,
+      onRecover: busy
+          ? null
+          : () async {
+              setState(
+                () => _recoveringSessionIds.add(session.sessionId),
+              );
+              final ok = await _recoverSession(session);
+              if (!mounted) return;
+              if (ok) {
+                Navigator.of(context).pop();
+              } else {
+                setState(
+                  () => _recoveringSessionIds.remove(session.sessionId),
+                );
+              }
+            },
+      onDiscard: busy
+          ? null
+          : () async {
+              setState(
+                () => _discardingSessionIds.add(session.sessionId),
+              );
+              final ok = await _discardSession(session);
+              if (!mounted) return;
+              setState(() {
+                _discardingSessionIds.remove(session.sessionId);
+                if (ok) _sessions.remove(session);
+              });
+              if (!ok) return;
+              if (_sessions.isEmpty) {
+                Navigator.of(context).pop();
+              }
+            },
+    );
+  }
+
+  Future<void> _confirmAndDiscardAll() async {
+    final count = _sessions.length;
     final sessionWord = count == 1 ? 'session' : 'sessions';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -127,12 +185,15 @@ class SessionRecoveryDialog extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
+    if (!mounted || _discardingAll) return;
+    setState(() => _discardingAll = true);
 
     // Track per-session failures so a single failed mark-aborted call
     // doesn't silently leave the user thinking everything was discarded.
     // Errors are a feature: surface them.
     final failures = <SessionRecoveryInfo>[];
-    for (final session in incompleteSessions) {
+    final sessions = List<SessionRecoveryInfo>.of(_sessions);
+    for (final session in sessions) {
       try {
         final sessionService = ref.read(sessionServiceProvider);
         await sessionService.markSessionAborted(session.sessionId);
@@ -141,33 +202,39 @@ class SessionRecoveryDialog extends ConsumerWidget {
       }
     }
 
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
-
-    if (failures.isNotEmpty && ref.context.mounted) {
-      final colors = NightshadeColors.of(ref.context);
-      ScaffoldMessenger.of(ref.context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to discard ${failures.length} of $count '
-            '$sessionWord.',
-          ),
-          backgroundColor: colors.error,
-        ),
-      );
+    if (!mounted) return;
+    if (failures.isEmpty) {
+      Navigator.of(context).pop();
+      return;
     }
+
+    setState(() {
+      _sessions
+        ..clear()
+        ..addAll(failures);
+      _discardingAll = false;
+    });
+    final colors = NightshadeColors.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Failed to discard ${failures.length} of $count '
+          '$sessionWord. The remaining sessions are still available to retry.',
+        ),
+        backgroundColor: colors.error,
+      ),
+    );
   }
 
-  Future<void> _recoverSession(
-      WidgetRef ref, SessionRecoveryInfo session) async {
+  Future<bool> _recoverSession(SessionRecoveryInfo session) async {
     try {
       final sessionNotifier = ref.read(sessionStateProvider.notifier);
       await sessionNotifier.recoverSession(session);
 
       // Show success message
-      if (ref.context.mounted) {
-        final colors = NightshadeColors.of(ref.context);
-        ScaffoldMessenger.of(ref.context).showSnackBar(
+      if (mounted) {
+        final colors = NightshadeColors.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               'Session recovered: ${session.sessionName ?? "Session ${session.sessionId}"}',
@@ -176,10 +243,11 @@ class SessionRecoveryDialog extends ConsumerWidget {
           ),
         );
       }
+      return true;
     } catch (e) {
-      if (ref.context.mounted) {
-        final colors = NightshadeColors.of(ref.context);
-        ScaffoldMessenger.of(ref.context).showSnackBar(
+      if (mounted) {
+        final colors = NightshadeColors.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
                 const Text('Could not recover the session. Please try again.'),
@@ -187,18 +255,19 @@ class SessionRecoveryDialog extends ConsumerWidget {
           ),
         );
       }
+      return false;
     }
   }
 
-  Future<void> _discardSession(
-      WidgetRef ref, SessionRecoveryInfo session) async {
+  Future<bool> _discardSession(SessionRecoveryInfo session) async {
     try {
       final sessionService = ref.read(sessionServiceProvider);
       await sessionService.markSessionAborted(session.sessionId);
+      return true;
     } catch (e) {
-      if (ref.context.mounted) {
-        final colors = NightshadeColors.of(ref.context);
-        ScaffoldMessenger.of(ref.context).showSnackBar(
+      if (mounted) {
+        final colors = NightshadeColors.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
                 const Text('Could not discard the session. Please try again.'),
@@ -206,19 +275,24 @@ class SessionRecoveryDialog extends ConsumerWidget {
           ),
         );
       }
+      return false;
     }
   }
 }
 
 class _SessionCard extends StatelessWidget {
   final SessionRecoveryInfo session;
-  final VoidCallback onRecover;
-  final VoidCallback onDiscard;
+  final VoidCallback? onRecover;
+  final VoidCallback? onDiscard;
+  final bool isRecovering;
+  final bool isDiscarding;
 
   const _SessionCard({
     required this.session,
     required this.onRecover,
     required this.onDiscard,
+    required this.isRecovering,
+    required this.isDiscarding,
   });
 
   @override
@@ -301,6 +375,7 @@ class _SessionCard extends StatelessWidget {
               children: [
                 NightshadeButton(
                   onPressed: onDiscard,
+                  isLoading: isDiscarding,
                   icon: LucideIcons.trash2,
                   label: 'Discard',
                   variant: ButtonVariant.destructive,
@@ -309,6 +384,7 @@ class _SessionCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 NightshadeButton(
                   onPressed: onRecover,
+                  isLoading: isRecovering,
                   icon: LucideIcons.rotateCcw,
                   label: 'Resume',
                 ),

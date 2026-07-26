@@ -56,6 +56,20 @@ pub enum FlipResult {
     Aborted { reason: String },
 }
 
+/// Autofocus inputs that must travel together for a post-flip refocus.
+///
+/// The autofocus node configuration selects the focus filter and supplies the
+/// sweep/exposure/backlash parameters. The surrounding instruction context
+/// supplies the connected wheel, the currently active imaging filter, and the
+/// per-filter focus offsets needed to switch to that focus filter safely.
+#[derive(Debug, Clone, Default)]
+pub struct PostFlipAutofocusConfig {
+    pub config: AutofocusConfig,
+    pub current_filter: Option<String>,
+    pub filterwheel_id: Option<String>,
+    pub filter_focus_offsets: std::collections::HashMap<String, i32>,
+}
+
 /// Context for executing a meridian flip.
 ///
 /// `cancellation_token`, `trigger_state`, `cover_calibrator_id`, and
@@ -82,9 +96,10 @@ pub struct FlipContext {
     /// `TriggerState::mark_flip_performed()` so subsequent trigger evaluations
     /// know not to fire again on the same target.
     pub trigger_state: Option<Arc<RwLock<TriggerState>>>,
-    /// User-tuned autofocus parameters used by the post-flip refocus step.
-    /// `None` falls back to `AutofocusConfig::default()`.
-    pub autofocus_config: Option<AutofocusConfig>,
+    /// User-tuned autofocus parameters and filter context used by the
+    /// post-flip refocus step. `None` falls back to an unfiltered
+    /// `AutofocusConfig::default()`.
+    pub autofocus_config: Option<PostFlipAutofocusConfig>,
     /// Phase G — dry-run / simulate flag. When `true`, the executor walks the
     /// full pre-flight and step sequence (altitude check, cover check, build
     /// the step list, emit every Starting/StepStarted/StepCompleted/Progress/
@@ -108,6 +123,18 @@ pub struct MeridianFlipExecutor {
     /// failures and other instruction-level errors surface to UI subscribers.
     executor_event_tx: Option<broadcast::Sender<ExecutorEvent>>,
     abort_requested: Arc<AtomicBool>,
+    /// Number of flip attempts made by the most recent [`Self::execute`] call.
+    /// `1` means the flip succeeded (or failed) on its first attempt; anything
+    /// higher means the retry ladder ran. Read by the caller so a flip that
+    /// only succeeded on a retry is recorded as DEGRADED in the run vitals
+    /// instead of being indistinguishable from a clean first-attempt flip.
+    attempts_made: u32,
+    /// One entry per failed attempt, oldest first, already formatted as
+    /// `"<step description>: <error>"`. Empty after a clean first-attempt
+    /// flip. This is the evidence behind the degraded/failed verdict — a
+    /// post-flip recenter that failed twice before succeeding is a real
+    /// framing risk the operator must see in the session report.
+    failed_attempts: Vec<String>,
 }
 
 impl MeridianFlipExecutor {
@@ -120,7 +147,21 @@ impl MeridianFlipExecutor {
             event_tx: None,
             executor_event_tx: None,
             abort_requested: Arc::new(AtomicBool::new(false)),
+            attempts_made: 0,
+            failed_attempts: Vec::new(),
         }
+    }
+
+    /// Attempts made by the most recent [`Self::execute`] call (0 before the
+    /// first call, 1 for a clean flip, `1 + retries` when the ladder ran).
+    pub fn attempts_made(&self) -> u32 {
+        self.attempts_made
+    }
+
+    /// Per-attempt failures from the most recent [`Self::execute`] call,
+    /// oldest first. Empty when every step passed on the first attempt.
+    pub fn failed_attempts(&self) -> &[String] {
+        &self.failed_attempts
     }
 
     /// Set event channel for progress updates
@@ -146,6 +187,12 @@ impl MeridianFlipExecutor {
     /// Execute the meridian flip
     pub async fn execute(&mut self, ctx: &FlipContext) -> FlipResult {
         let start_time = Instant::now();
+
+        // Reset the per-run attempt telemetry. An executor is normally
+        // constructed per flip, but resetting here keeps the accessors honest
+        // if one is ever reused for a second flip on the same target.
+        self.attempts_made = 0;
+        self.failed_attempts.clear();
 
         if self.config.max_retries > 0 && self.config.retry_delays_secs.is_empty() {
             let msg = format!(
@@ -189,9 +236,16 @@ impl MeridianFlipExecutor {
                     ctx.target_name, altitude, min_altitude
                 );
                 tracing::warn!("[MERIDIAN] {}", msg);
-                self.emit_event(MeridianFlipEvent::Failed {
-                    error: msg.clone(),
-                    action_taken: "Flip skipped due to low target altitude".to_string(),
+                // Aborted, not Failed: a target that has set too low to be worth
+                // imaging is routine end-of-target behaviour, and the result
+                // returned below is `Aborted`. Emitting `Failed` made the event
+                // logger print an ERROR banner reading "FLIP FAILED" for a
+                // deliberate skip (observed on the rig), which trips error
+                // dashboards and tells the operator something broke when
+                // nothing did. `failure_action` is driven by `FlipResult`, not
+                // by this event, so the handling is unchanged.
+                self.emit_event(MeridianFlipEvent::Aborted {
+                    reason: msg.clone(),
                 });
                 return FlipResult::Aborted { reason: msg };
             }
@@ -221,10 +275,12 @@ impl MeridianFlipExecutor {
                              Open the cover before flipping or post-flip plate solve will fail.",
                             cc_id
                         );
+                        // ERROR log stays (the operator must open the cover), but
+                        // the event matches the `Aborted` result so the flip is
+                        // not reported as a FAILED flip it never attempted.
                         tracing::error!("[MERIDIAN] {}", msg);
-                        self.emit_event(MeridianFlipEvent::Failed {
-                            error: msg.clone(),
-                            action_taken: "Flip refused: cover closed".to_string(),
+                        self.emit_event(MeridianFlipEvent::Aborted {
+                            reason: msg.clone(),
                         });
                         return FlipResult::Aborted { reason: msg };
                     }
@@ -235,10 +291,11 @@ impl MeridianFlipExecutor {
                              Wait for cover to settle before flipping.",
                             cc_id
                         );
+                        // See the cover-closed arm: ERROR log kept, event matched
+                        // to the `Aborted` result.
                         tracing::error!("[MERIDIAN] {}", msg);
-                        self.emit_event(MeridianFlipEvent::Failed {
-                            error: msg.clone(),
-                            action_taken: "Flip refused: cover moving".to_string(),
+                        self.emit_event(MeridianFlipEvent::Aborted {
+                            reason: msg.clone(),
                         });
                         return FlipResult::Aborted { reason: msg };
                     }
@@ -345,6 +402,7 @@ impl MeridianFlipExecutor {
 
         loop {
             attempt += 1;
+            self.attempts_made = attempt;
 
             match self
                 .execute_steps(&steps, ctx, total_steps, from_pier_side)
@@ -368,6 +426,11 @@ impl MeridianFlipExecutor {
                     };
                 }
                 Err(e) => {
+                    // Record every failed attempt, whether or not a retry
+                    // follows. A recenter that failed once and then succeeded
+                    // is still a framing risk the operator must be told about,
+                    // and the terminal-failure path needs the same list.
+                    self.failed_attempts.push(e.clone());
                     if self.is_cancelled(ctx) {
                         // restore tracking on cancel if we
                         // recorded it as on before the flip. The executor used
@@ -557,12 +620,6 @@ impl MeridianFlipExecutor {
         pre_flip_pier_side: PierSide,
     ) -> Result<PierSide, String> {
         let mut new_pier_side = PierSide::Unknown;
-        // track whether the flip *itself* (slew + pier-side
-        // verify) has succeeded. If the auto-center plate-solve fails AFTER the
-        // flip succeeded, we warn instead of treating the whole flip as failed —
-        // the mount is on the correct pier side, just slightly off centre. The
-        // instruction path warned; the executor ran execute_failure_action().
-        let mut flip_core_succeeded = false;
 
         for (idx, step) in steps.iter().enumerate() {
             if self.is_cancelled(ctx) {
@@ -591,35 +648,13 @@ impl MeridianFlipExecutor {
                     match self.verify_pier_side_changed(ctx, pre_flip_pier_side).await {
                         Ok(ps) => {
                             new_pier_side = ps;
-                            flip_core_succeeded = true;
                             Ok(())
                         }
                         Err(e) => Err(e),
                     }
                 }
                 FlipStep::ResumingTracking => self.resume_tracking(ctx).await,
-                FlipStep::PlateSolvingAndCentering => {
-                    // if the flip itself succeeded (slew +
-                    // pier-side verify) but plate-solve fails, warn and treat
-                    // the flip as a success — same as the instruction-path
-                    // implementation. The mount is correctly on the new pier
-                    // side; centring can be handled by the next exposure's
-                    // plate-solve loop.
-                    match self.plate_solve_and_center(ctx).await {
-                        Ok(()) => Ok(()),
-                        Err(e) if flip_core_succeeded => {
-                            tracing::warn!(
-                                "[MERIDIAN] Post-flip centering failed but flip itself succeeded: {}. \
-                                 Continuing — the next exposure's plate-solve loop will fine-tune.",
-                                e
-                            );
-                            // Emit a synthetic step-completed so progress
-                            // surfaces; the warning is in the log.
-                            Ok(())
-                        }
-                        Err(e) => Err(e),
-                    }
-                }
+                FlipStep::PlateSolvingAndCentering => self.plate_solve_and_center(ctx).await,
                 FlipStep::Refocusing => self.run_autofocus(ctx, idx, total_steps).await,
                 FlipStep::ResumingGuider => self.resume_guider(ctx).await,
                 FlipStep::Settling => self.wait_settle(ctx).await,
@@ -664,7 +699,20 @@ impl MeridianFlipExecutor {
             return Ok(());
         }
         tracing::info!("[MERIDIAN] Pausing guider...");
-        self.device_ops.guider_stop().await
+        // An unguided rig has no guider to pause, and that is not a failure to
+        // retry. Treating it as one put the flip into its retry ladder —
+        // "✗ Pausing guider FAILED: No active guider configured" then
+        // "Retry 3/4 scheduled in 120 seconds..." — which stalls the whole
+        // sequence for minutes over a no-op. Observed live: an unguided run sat
+        // on its exposure node while the flip retried.
+        match self.device_ops.guider_stop().await {
+            Ok(()) => Ok(()),
+            Err(error) if crate::device_ops::is_no_guider_configured(&error) => {
+                tracing::info!("[MERIDIAN] No guider configured — nothing to pause");
+                Ok(())
+            }
+            Err(error) => Err(error),
+        }
     }
 
     async fn stop_tracking(&self, ctx: &FlipContext) -> Result<(), String> {
@@ -981,6 +1029,10 @@ impl MeridianFlipExecutor {
         Ok(())
     }
 
+    fn resolve_post_flip_autofocus(ctx: &FlipContext) -> PostFlipAutofocusConfig {
+        ctx.autofocus_config.clone().unwrap_or_default()
+    }
+
     async fn run_autofocus(
         &self,
         ctx: &FlipContext,
@@ -1012,14 +1064,11 @@ impl MeridianFlipExecutor {
             }
         };
 
-        // pull autofocus parameters from the user equipment profile
-        // (passed via FlipContext::autofocus_config). When the caller did not
-        // supply one, fall back to AutofocusConfig::default(), which now (audit
-        // §1.7) carries every engine-tunable field. Previously hardcoded to
-        // steps_out=7 / step_size=100 / exposure=3.0 ignoring user config.
-        // Why: documented constructor-default contract on
-        // Option<AutofocusConfig> — None means "use defaults".
-        let af_config = ctx.autofocus_config.clone().unwrap_or_default();
+        // Pull the complete autofocus payload from the caller so filter
+        // selection and focus offsets are preserved along with the sweep
+        // parameters. None retains the intentional library-default path.
+        let autofocus = Self::resolve_post_flip_autofocus(ctx);
+        let af_config = &autofocus.config;
 
         // Determine the effective cancellation token for autofocus. Prefer the
         // shared sequence token so a Stop command propagates; fall back to the
@@ -1032,17 +1081,19 @@ impl MeridianFlipExecutor {
             .unwrap_or_else(|| self.abort_requested.clone());
 
         let instruction_ctx = InstructionContext {
+            // Flip-driven recenter is not a sequence node.
+            node_id: String::new(),
             target_ra: Some(ctx.target_ra_hours),
             target_dec: Some(ctx.target_dec_degrees),
             target_rotation: None,
             target_name: Some(ctx.target_name.clone()),
-            current_filter: af_config.filter.clone(),
+            current_filter: autofocus.current_filter.clone(),
             current_binning: af_config.binning,
             cancellation_token: cancel_token,
             camera_id: Some(camera_id),
             mount_id: Some(ctx.mount_id.clone()),
             focuser_id: Some(focuser_id),
-            filterwheel_id: None,
+            filterwheel_id: autofocus.filterwheel_id.clone(),
             rotator_id: None,
             dome_id: None,
             cover_calibrator_id: ctx.cover_calibrator_id.clone(),
@@ -1051,7 +1102,7 @@ impl MeridianFlipExecutor {
             longitude: None,
             device_ops: self.device_ops.clone(),
             trigger_state: ctx.trigger_state.clone(),
-            filter_focus_offsets: std::collections::HashMap::new(),
+            filter_focus_offsets: autofocus.filter_focus_offsets.clone(),
             // inherit the parent executor's broadcast handle
             // so the post-flip refocus's instruction-level errors (FITS-save
             // failure on the test exposure, etc.) reach UI subscribers. When
@@ -1129,7 +1180,7 @@ impl MeridianFlipExecutor {
             self.emit_event(MeridianFlipEvent::Progress { percent });
         };
 
-        let result = execute_autofocus(&af_config, &instruction_ctx, Some(&progress_fn)).await;
+        let result = execute_autofocus(af_config, &instruction_ctx, Some(&progress_fn)).await;
 
         match result.status {
             crate::NodeStatus::Success => {
@@ -1179,16 +1230,30 @@ impl MeridianFlipExecutor {
         }
         tracing::info!("[MERIDIAN] Resuming guider...");
 
-        // 1.5 px settle / 10 s settle time / 60 s timeout match the defaults
-        // used by StartGuidingConfig — keeping them aligned avoids surprising
-        // users with different post-flip settling behaviour than a regular
-        // sequence start.
-        const SETTLE_PIXELS: f64 = 1.5;
-        const SETTLE_TIME: f64 = 10.0;
-        const SETTLE_TIMEOUT: f64 = 60.0;
-        self.device_ops
-            .guider_start(SETTLE_PIXELS, SETTLE_TIME, SETTLE_TIMEOUT)
-            .await?;
+        // Post-flip guiding settles exactly like a normal Start Guiding: the
+        // settle threshold / time / timeout come from the user's guiding settle
+        // settings (plumbed onto MeridianFlipConfig from AppSettings), not a
+        // hardcoded constant, so a user who tunes settling gets it honoured
+        // after a flip too. The config defaults reproduce the old 1.5px / 10s /
+        // 60s values, so behaviour is unchanged for users on defaults.
+        let settle_pixels = self.config.guider_settle_pixels;
+        let settle_time = self.config.guider_settle_time;
+        let settle_timeout = self.config.guider_settle_timeout;
+        // Mirror `pause_guider`: with no guider configured there is nothing to
+        // resume, so do not send the flip into its 120-second retry ladder over
+        // a no-op. A real guider failure still fails closed below.
+        match self
+            .device_ops
+            .guider_start(settle_pixels, settle_time, settle_timeout)
+            .await
+        {
+            Ok(()) => {}
+            Err(error) if crate::device_ops::is_no_guider_configured(&error) => {
+                tracing::info!("[MERIDIAN] No guider configured — nothing to resume");
+                return Ok(());
+            }
+            Err(error) => return Err(error),
+        }
 
         // guider_start() can return Ok before the guider has actually
         // re-locked onto a star (PHD2 reports the Start accepted while
@@ -1198,7 +1263,8 @@ impl MeridianFlipExecutor {
         // resume UNGUIDED and the rest of the night trails.
         let poll_interval = std::time::Duration::from_secs(2);
         let deadline =
-            tokio::time::Instant::now() + std::time::Duration::from_secs_f64(SETTLE_TIMEOUT);
+            tokio::time::Instant::now() + std::time::Duration::from_secs_f64(settle_timeout);
+        let mut relocked = false;
         while tokio::time::Instant::now() < deadline {
             if self.is_cancelled(ctx) {
                 return Err("Abort requested while verifying post-flip guiding".to_string());
@@ -1206,10 +1272,11 @@ impl MeridianFlipExecutor {
             match self.device_ops.guider_get_status().await {
                 Ok(status) if status.is_guiding => {
                     tracing::info!(
-                        "[MERIDIAN] Guiding re-locked after flip: RMS total={:.2}\"",
+                        "[MERIDIAN] Guiding re-locked after flip: RMS total={:.2}px",
                         status.rms_total
                     );
-                    return Ok(());
+                    relocked = true;
+                    break;
                 }
                 Ok(status) => {
                     tracing::debug!(
@@ -1224,11 +1291,55 @@ impl MeridianFlipExecutor {
             tokio::time::sleep(poll_interval).await;
         }
 
-        Err(format!(
-            "Guiding did not re-lock within {:.0}s after the meridian flip. \
-             The guider may have failed to re-acquire a star.",
-            SETTLE_TIMEOUT
-        ))
+        if !relocked {
+            return Err(format!(
+                "Guiding did not re-lock within {:.0}s after the meridian flip. \
+                 The guider may have failed to re-acquire a star.",
+                settle_timeout
+            ));
+        }
+
+        // Post-settle RMS sanity — mirror execute_start_guiding's gate. A guider
+        // can report is_guiding while tracking poorly (a re-lock onto a hot
+        // pixel, or drift/over-correction that only blows up after the initial
+        // settle). Sample RMS over a short window and fail closed if the peak
+        // exceeds the ceiling, so a bad post-flip re-lock trips the flip failure
+        // action (default: pause + alert) instead of silently trailing the rest
+        // of the night on subs that look guided but aren't. rms_total is in
+        // pixels here, consistent with StartGuidingConfig::max_post_settle_rms_pixels.
+        let rms_ceiling = self.config.max_post_settle_rms_pixels;
+        const RMS_SAMPLES: u32 = 3;
+        let rms_interval = std::time::Duration::from_secs(2);
+        let mut max_rms: f64 = 0.0;
+        let mut sample_count: u32 = 0;
+        for _ in 0..RMS_SAMPLES {
+            if self.is_cancelled(ctx) {
+                return Err("Abort requested while validating post-flip guiding RMS".to_string());
+            }
+            tokio::time::sleep(rms_interval).await;
+            match self.device_ops.guider_get_status().await {
+                Ok(status) => {
+                    max_rms = max_rms.max(status.rms_total);
+                    sample_count += 1;
+                }
+                Err(e) => {
+                    tracing::warn!("[MERIDIAN] Post-flip RMS sample failed: {}", e);
+                }
+            }
+        }
+        if sample_count > 0 && max_rms > rms_ceiling {
+            return Err(format!(
+                "Post-flip guiding RMS too high: {:.2}px peak across {} sample(s) \
+                 (limit {:.2}px). The guider re-locked but is tracking poorly.",
+                max_rms, sample_count, rms_ceiling
+            ));
+        }
+        tracing::info!(
+            "[MERIDIAN] Post-flip guiding validated: peak RMS {:.2}px over {} sample(s)",
+            max_rms,
+            sample_count
+        );
+        Ok(())
     }
 
     async fn wait_settle(&self, ctx: &FlipContext) -> Result<(), String> {
@@ -1694,6 +1805,12 @@ mod tests {
         /// Phase G dry-run: number of real slew commands issued. A dry-run
         /// must leave this at zero (no mount movement).
         slew_calls: AtomicI32,
+        /// Number of post-flip plate solves that should return a real
+        /// unsuccessful solve result.
+        plate_solve_failures_remaining: AtomicI32,
+        /// Recorded guider-start calls, used to prove centering failure stops
+        /// the remaining post-flip steps.
+        guider_start_calls: AtomicI32,
         /// Whether the cover is closed.
         cover_state: AtomicI32,
         /// Notifications sent (level, title).
@@ -1931,6 +2048,9 @@ mod tests {
             _settle_time: f64,
             _settle_timeout: f64,
         ) -> DeviceResult<()> {
+            self.state
+                .guider_start_calls
+                .fetch_add(1, Ordering::Relaxed);
             Ok(())
         }
 
@@ -1945,6 +2065,13 @@ mod tests {
             hint_dec: Option<f64>,
             _hint_scale: Option<f64>,
         ) -> DeviceResult<PlateSolveResult> {
+            let should_fail = self
+                .state
+                .plate_solve_failures_remaining
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |remaining| {
+                    (remaining > 0).then_some(remaining - 1)
+                })
+                .is_ok();
             // Return success with the hint coordinates so total_offset==0.
             // Why: this is a test-only mock device op.
             // The hint-less case yields (0,0) which still satisfies the
@@ -1955,7 +2082,7 @@ mod tests {
                 dec_degrees: hint_dec.unwrap_or(0.0),
                 pixel_scale: 1.5,
                 rotation: 0.0,
-                success: true,
+                success: !should_fail,
             })
         }
 
@@ -2145,6 +2272,249 @@ mod tests {
         }
     }
 
+    /// A real post-flip plate-solve failure must fail the flip after pier-side
+    /// verification; otherwise later refocus/guiding steps would run and the
+    /// sequence could resume imaging off-frame.
+    #[tokio::test]
+    async fn test_post_flip_plate_solve_failure_fails_flip() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+        ]);
+        state
+            .plate_solve_failures_remaining
+            .store(1, Ordering::Relaxed);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: true,
+            refocus_after: false,
+            resume_guiding: true,
+            settle_time: 0.0,
+            max_retries: 0,
+            failure_action: FlipFailureAction::PauseAndAlert,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Failed { error, .. } => assert!(
+                error.contains("Plate solve failed"),
+                "Expected the post-flip solve error to propagate, got: {}",
+                error
+            ),
+            other => panic!(
+                "Expected failed post-flip solve to fail the flip, got {:?}",
+                other
+            ),
+        }
+        assert_eq!(
+            state.guider_start_calls.load(Ordering::Relaxed),
+            0,
+            "Guiding must not resume after post-flip centering fails"
+        );
+    }
+
+    /// Regression: a clean first-attempt flip must report exactly one attempt
+    /// and no failed steps, so the run vitals can distinguish it from a flip
+    /// that only worked because the retry ladder saved it.
+    #[tokio::test]
+    async fn clean_flip_reports_one_attempt_and_no_failed_steps() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+        ]);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: true,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Success { .. } => {}
+            other => panic!("Expected a clean flip to succeed, got {:?}", other),
+        }
+        assert_eq!(
+            executor.attempts_made(),
+            1,
+            "A flip that worked first time must report a single attempt"
+        );
+        assert!(
+            executor.failed_attempts().is_empty(),
+            "A clean flip must record no failed steps, got {:?}",
+            executor.failed_attempts()
+        );
+    }
+
+    /// Regression for the silent-degradation defect: a flip whose post-flip
+    /// plate-solve recenter FAILS and only succeeds on the retry is not a
+    /// clean flip. The mount ended up on the right side, but the framing was
+    /// only recovered on the second try — the operator must be able to see
+    /// that from the run record.
+    ///
+    /// Live evidence this guards: a run where
+    /// `"✗ Plate solving and centering FAILED"` was followed by
+    /// `"Retry 1/4 scheduled"` and the session still persisted
+    /// `errorMessages: []` / `warningMessages: []`.
+    #[tokio::test]
+    async fn retried_flip_reports_attempt_count_and_the_failed_step() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        // Pre-flip read is East; both attempts verify as West so the pier-side
+        // check passes and only the plate solve decides the outcome.
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+            crate::meridian::PierSide::West,
+        ]);
+        // Exactly one solve fails: attempt 1 fails, attempt 2 succeeds.
+        state
+            .plate_solve_failures_remaining
+            .store(1, Ordering::Relaxed);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: true,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 1,
+            retry_delays_secs: vec![0.0],
+            failure_action: FlipFailureAction::PauseAndAlert,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Success { .. } => {}
+            other => panic!(
+                "Expected the retry to salvage the flip and succeed, got {:?}",
+                other
+            ),
+        }
+        assert_eq!(
+            executor.attempts_made(),
+            2,
+            "The retried flip must report both attempts"
+        );
+        assert_eq!(
+            executor.failed_attempts().len(),
+            1,
+            "Exactly one attempt failed, got {:?}",
+            executor.failed_attempts()
+        );
+        assert!(
+            executor.failed_attempts()[0].contains("Plate solve failed"),
+            "The recorded failure must name the failing step, got {:?}",
+            executor.failed_attempts()
+        );
+    }
+
+    /// Regression: when the ladder is exhausted the telemetry must still carry
+    /// every attempt so the terminal error can say how hard the app tried.
+    #[tokio::test]
+    async fn exhausted_flip_reports_every_failed_attempt() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+            crate::meridian::PierSide::West,
+        ]);
+        // More failures than attempts, so the flip can never succeed.
+        state
+            .plate_solve_failures_remaining
+            .store(10, Ordering::Relaxed);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: true,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 1,
+            retry_delays_secs: vec![0.0],
+            failure_action: FlipFailureAction::PauseAndAlert,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Failed { .. } => {}
+            other => panic!("Expected the exhausted ladder to fail, got {:?}", other),
+        }
+        assert_eq!(
+            executor.attempts_made(),
+            2,
+            "max_retries=1 means two attempts were made"
+        );
+        assert_eq!(
+            executor.failed_attempts().len(),
+            2,
+            "Both attempts failed and both must be recorded, got {:?}",
+            executor.failed_attempts()
+        );
+    }
+
+    /// Disabling auto-center intentionally omits the solve/recenter step, so a
+    /// configured-off recenter is not treated as a failure.
+    #[tokio::test]
+    async fn test_disabled_post_flip_recenter_remains_successful() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+        ]);
+        state
+            .plate_solve_failures_remaining
+            .store(1, Ordering::Relaxed);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state);
+
+        match executor.execute(&ctx).await {
+            FlipResult::Success { .. } => {}
+            other => panic!(
+                "Expected disabled post-flip recenter to remain a success, got {:?}",
+                other
+            ),
+        }
+        assert_eq!(
+            state.plate_solve_failures_remaining.load(Ordering::Relaxed),
+            1,
+            "Plate solve must not run when auto_center is disabled"
+        );
+    }
+
     /// when cancellation is requested mid-settle, tracking should
     /// be restored back to its pre-flip state rather than left off.
     #[tokio::test]
@@ -2196,49 +2566,51 @@ mod tests {
         );
     }
 
-    /// post-flip refocus uses the user-supplied AutofocusConfig
-    /// (FlipContext::autofocus_config) — the executor must NOT silently fall
-    /// back to hardcoded steps_out=7 / step_size=100 / exposure=3.0.
-    #[tokio::test]
-    async fn test_autofocus_uses_user_profile_config() {
-        // We can't observe the autofocus call directly without a deeper mock,
-        // but we can verify the config plumbing: FlipContext accepts an
-        // AutofocusConfig and run_autofocus prefers it over the default.
+    /// Post-flip refocus resolves the complete caller-supplied autofocus
+    /// payload rather than silently substituting default sweep parameters or
+    /// dropping the filter wheel and focus offsets.
+    #[test]
+    fn test_autofocus_uses_supplied_config_and_filter_context() {
         let state = Arc::new(MockDeviceOpsState::default());
-        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
-
-        let config = MeridianFlipConfig::default();
-        let executor = MeridianFlipExecutor::new(config, ops);
         let mut ctx = make_ctx(&state);
 
-        // Provide a user config with non-default values.
         let user_af = AutofocusConfig {
             step_size: 250,
             steps_out: 11,
+            exposure_duration: 8.0,
+            filter: Some("Ha".to_string()),
             backlash_compensation: 200,
             outlier_rejection_sigma: 4.5,
             ..AutofocusConfig::default()
         };
-        ctx.autofocus_config = Some(user_af.clone());
+        let offsets =
+            std::collections::HashMap::from([("L".to_string(), 0), ("Ha".to_string(), 180)]);
+        ctx.autofocus_config = Some(PostFlipAutofocusConfig {
+            config: user_af,
+            current_filter: Some("L".to_string()),
+            filterwheel_id: Some("mock-wheel".to_string()),
+            filter_focus_offsets: offsets.clone(),
+        });
 
-        // Sanity: the executor copies the config, not a reference, and the
-        // tunables are visible via the public AutofocusConfig.
-        let observed = ctx.autofocus_config.as_ref().expect("user config set");
-        assert_eq!(observed.step_size, 250);
-        assert_eq!(observed.steps_out, 11);
-        assert_eq!(observed.backlash_compensation, 200);
-        assert!((observed.outlier_rejection_sigma - 4.5).abs() < 1e-9);
+        let observed = MeridianFlipExecutor::resolve_post_flip_autofocus(&ctx);
+        assert_eq!(observed.config.step_size, 250);
+        assert_eq!(observed.config.steps_out, 11);
+        assert!((observed.config.exposure_duration - 8.0).abs() < 1e-9);
+        assert_eq!(observed.config.filter.as_deref(), Some("Ha"));
+        assert_eq!(observed.config.backlash_compensation, 200);
+        assert!((observed.config.outlier_rejection_sigma - 4.5).abs() < 1e-9);
+        assert_eq!(observed.current_filter.as_deref(), Some("L"));
+        assert_eq!(observed.filterwheel_id.as_deref(), Some("mock-wheel"));
+        assert_eq!(observed.filter_focus_offsets, offsets);
 
-        // And the From-impl propagation into the engine config
-        // must carry every field through.
-        let engine: crate::autofocus::AutofocusConfig = (&user_af).into();
+        // The autofocus engine conversion still receives the resolved, tuned
+        // sweep parameters rather than library defaults.
+        let engine: crate::autofocus::AutofocusConfig = (&observed.config).into();
         assert_eq!(engine.step_size, 250);
         assert_eq!(engine.steps_out, 11);
+        assert!((engine.exposure_duration - 8.0).abs() < 1e-9);
         assert_eq!(engine.backlash_compensation, 200);
         assert!((engine.outlier_rejection_sigma - 4.5).abs() < 1e-9);
-
-        // Suppress unused-field warning on `executor`.
-        let _ = executor;
     }
 
     /// cover closed → flip refused with a clear error.
@@ -2599,5 +2971,74 @@ mod tests {
             1,
             "A real (non-simulated) flip must command exactly one slew"
         );
+    }
+
+    /// The post-flip guider settle params are plumbed onto MeridianFlipConfig
+    /// and default to the executor's former hardcoded 1.5px / 10s / 60s (plus a
+    /// 3.0px RMS ceiling matching StartGuidingConfig). A sequence saved before
+    /// these fields existed must therefore deserialize to identical post-flip
+    /// settle behaviour (no change on upgrade), while a rig that tunes its
+    /// guiding settle now has it honoured after a flip.
+    #[test]
+    fn test_guider_settle_defaults_and_serde_backcompat() {
+        // Defaults reproduce the old hardcoded executor constants.
+        let d = MeridianFlipConfig::default();
+        assert!((d.guider_settle_pixels - 1.5).abs() < 1e-9);
+        assert!((d.guider_settle_time - 10.0).abs() < 1e-9);
+        assert!((d.guider_settle_timeout - 60.0).abs() < 1e-9);
+        assert!((d.max_post_settle_rms_pixels - 3.0).abs() < 1e-9);
+
+        // A pre-existing sequence whose JSON predates these fields (they are
+        // absent) must deserialize to the defaults — no behaviour change on
+        // upgrade.
+        let mut value = serde_json::to_value(MeridianFlipConfig::default()).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("guider_settle_pixels");
+        obj.remove("guider_settle_time");
+        obj.remove("guider_settle_timeout");
+        obj.remove("max_post_settle_rms_pixels");
+        let restored: MeridianFlipConfig = serde_json::from_value(value).unwrap();
+        assert!((restored.guider_settle_pixels - 1.5).abs() < 1e-9);
+        assert!((restored.guider_settle_time - 10.0).abs() < 1e-9);
+        assert!((restored.guider_settle_timeout - 60.0).abs() < 1e-9);
+        assert!((restored.max_post_settle_rms_pixels - 3.0).abs() < 1e-9);
+
+        // A rig that tunes its guiding settle: the values carry through the wire
+        // format the Dart serializer emits (guider_settle_* keys).
+        let tuned = MeridianFlipConfig {
+            guider_settle_pixels: 0.8,
+            guider_settle_time: 15.0,
+            guider_settle_timeout: 90.0,
+            max_post_settle_rms_pixels: 1.5,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&tuned).unwrap();
+        let back: MeridianFlipConfig = serde_json::from_str(&json).unwrap();
+        assert!((back.guider_settle_pixels - 0.8).abs() < 1e-9);
+        assert!((back.guider_settle_time - 15.0).abs() < 1e-9);
+        assert!((back.guider_settle_timeout - 90.0).abs() < 1e-9);
+        assert!((back.max_post_settle_rms_pixels - 1.5).abs() < 1e-9);
+    }
+
+    /// Regression: an unguided rig must not send the flip into its retry ladder.
+    ///
+    /// `pause_guider` / `resume_guider` used to propagate "No active guider
+    /// configured" as a step failure, so the flip logged
+    /// "✗ Pausing guider FAILED" and "Retry 3/4 scheduled in 120 seconds...",
+    /// stalling the sequence for minutes over a device that does not exist.
+    /// Observed live on an unguided simulator run parked on its exposure node.
+    #[test]
+    fn no_guider_marker_is_treated_as_a_skippable_step() {
+        assert!(crate::device_ops::is_no_guider_configured(
+            "No active guider configured"
+        ));
+        // A real guider fault must still fail the step so the flip retries or
+        // aborts rather than silently imaging unguided through a flip.
+        assert!(!crate::device_ops::is_no_guider_configured(
+            "Guide star lost after flip"
+        ));
+        assert!(!crate::device_ops::is_no_guider_configured(
+            "Settle timed out after 60s"
+        ));
     }
 }

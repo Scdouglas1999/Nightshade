@@ -46,7 +46,9 @@
 use crate::camera::*;
 use crate::sync::player_one_mutex;
 use crate::traits::*;
-use crate::utils::{calculate_buffer_size_i32, safe_cstr_to_string, wait_for_exposure};
+use crate::utils::{
+    calculate_buffer_size_i32, safe_cstr_to_string, wait_for_exposure, CleanupGuard,
+};
 use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
@@ -440,6 +442,46 @@ impl PoaSdk {
     }
 }
 
+/// Full-scale ADU of the delivered pixel container for a Player One sensor of
+/// `bit_depth` bits read out as [`POAImgFormat::Raw16`].
+///
+/// `POACameraProperties.bit_depth` is the **ADC precision**, not the container:
+/// PlayerOneCamera.h documents the field as `int bitDepth; ///< ADC depth of
+/// CMOS sensor`. The delivered sample range is documented separately, on the
+/// output format itself:
+///
+/// ```text
+/// POA_RAW8 = 0,   ///< 8bit raw data, 1 pixel 1 byte, value range[0, 255]
+/// POA_RAW16,      ///< 16bit raw data, 1 pixel 2 bytes, value range[0, 65535]
+/// ```
+///
+/// — `SDKs/PlayerOne/PlayerOne_Camera_SDK_Linux_V3.7.1/.../include/PlayerOneCamera.h:50-51`,
+/// repeated verbatim in Player One's own C# and Python bindings
+/// (`include/PlayerOneCameraDLL.cs:29-30`, `python/pyPOACamera.py:21-22`). The
+/// sibling entries in that enum (`POA_RGB24`/`POA_MONO8`, "value range[0, 255]")
+/// state literal sample ranges, so `[0, 65535]` is the RAW16 sample range and
+/// not merely the width of the word. Player One exposes no sub-16-bit two-byte
+/// format at all — `POAImgFormat` is only RAW8/RAW16/RGB24/MONO8 — so a 12-bit
+/// sensor's only 16-bit path is RAW16, and its samples fill the 16-bit range.
+///
+/// [`crate::vendor::zwo`] carries the same correction for the same reason; that
+/// one was confirmed against an ASI1600MM on the bench. This one rests on Player
+/// One's SDK documentation rather than a measured frame — see the module note in
+/// `raw16_container_max_adu`'s test for the one measurement that would confirm it.
+///
+/// `bit_depth >= 16` needs no shift. `bit_depth == 0` (or a nonsensical value)
+/// means the SDK never populated the property; fall back to the container's own
+/// ceiling rather than underflowing to 0, which would report "this camera cannot
+/// produce any signal".
+fn raw16_container_max_adu(bit_depth: u32) -> u32 {
+    const CONTAINER_BITS: u32 = 16;
+    const CONTAINER_MAX: u32 = u16::MAX as u32;
+    if bit_depth == 0 || bit_depth >= CONTAINER_BITS {
+        return CONTAINER_MAX;
+    }
+    (((1u32 << bit_depth) - 1) << (CONTAINER_BITS - bit_depth)) & CONTAINER_MAX
+}
+
 /// Check POA error and convert to NativeError with detailed error messages
 fn check_poa_error(code: c_int, operation: &str) -> Result<(), NativeError> {
     match code {
@@ -478,9 +520,37 @@ fn check_poa_error(code: c_int, operation: &str) -> Result<(), NativeError> {
             "{}: Buffer size too small",
             operation
         ))),
-        11 => Err(NativeError::NotSupported),
+        // Codes 11-17 per PlayerOneCamera.h (POAErrors enum). These were
+        // previously mislabeled (11 as NotSupported, 12 as a config error) and
+        // 13-17 fell through to "Unknown" — critically, code 16
+        // (POA_ERROR_OPERATION_FAILED, "maybe the camera is disconnected
+        // suddenly") was not surfaced as a disconnect, so variant-keyed
+        // reconnect/recovery never fired on a mid-capture USB drop.
+        11 => Err(NativeError::SdkError(format!(
+            "{}: Camera is exposing - stop the exposure first",
+            operation
+        ))),
         12 => Err(NativeError::SdkError(format!(
-            "{}: Config error - camera may need reinitialization",
+            "{}: Invalid pointer (internal SDK argument error)",
+            operation
+        ))),
+        13 => Err(NativeError::InvalidParameter(format!(
+            "{}: Config is not writable",
+            operation
+        ))),
+        14 => Err(NativeError::InvalidParameter(format!(
+            "{}: Config is not readable",
+            operation
+        ))),
+        15 => Err(NativeError::SdkError(format!(
+            "{}: Access denied",
+            operation
+        ))),
+        // POA_ERROR_OPERATION_FAILED: "operation failed, maybe the camera is
+        // disconnected suddenly" — surface as a disconnect so recovery fires.
+        16 => Err(NativeError::Disconnected),
+        17 => Err(NativeError::SdkError(format!(
+            "{}: Memory allocation failed",
             operation
         ))),
         _ => Err(NativeError::SdkError(format!(
@@ -884,14 +954,17 @@ impl NativeDevice for PlayerOneCamera {
         let result = unsafe { (sdk.open_camera)(self.camera_id) };
         check_poa_error(result, "OpenCamera")?;
 
+        let camera_id = self.camera_id;
+        let cleanup_guard = CleanupGuard::new(|| {
+            // SAFETY: player_one_mutex remains held for the lifetime of this guard;
+            // camera_id was successfully opened immediately before the guard was created.
+            let _ = unsafe { (sdk.close_camera)(camera_id) };
+        });
+
         // Initialize camera
         // SAFETY: player_one_mutex held; camera was just successfully opened above so POAInitCamera is the required next call per PlayerOneCamera.h; takes the camera ID by value.
         let result = unsafe { (sdk.init_camera)(self.camera_id) };
-        if result != 0 {
-            // SAFETY: player_one_mutex held; camera was opened successfully (we're on the InitCamera-failed cleanup path) so POACloseCamera is the required cleanup — it pairs with POAOpenCamera.
-            unsafe { (sdk.close_camera)(self.camera_id) };
-            return Err(check_poa_error(result, "InitCamera").unwrap_err());
-        }
+        check_poa_error(result, "InitCamera")?;
 
         // Set default format (Raw16)
         // SAFETY: player_one_mutex held; camera was opened and initialized successfully above; POASetImageFormat takes the camera ID and a POAImgFormat discriminant (Raw16=1) by value.
@@ -910,6 +983,7 @@ impl NativeDevice for PlayerOneCamera {
                 unsafe { (sdk.set_image_size)(self.camera_id, info.max_width, info.max_height) };
         }
 
+        cleanup_guard.defuse();
         self.connected = true;
         tracing::info!("Connected to {}", self.camera_name());
         Ok(())
@@ -965,10 +1039,17 @@ impl NativeCamera for PlayerOneCamera {
         let result = unsafe { (sdk.get_camera_state)(self.camera_id, &mut camera_state) };
         check_poa_error(result, "GetCameraState")?;
 
+        // POACameraState (PlayerOneCamera.h): 0=STATE_CLOSED, 1=STATE_OPENED
+        // (opened, NOT exposing = idle/ready), 2=STATE_EXPOSING. The previous
+        // mapping used ZWO's ASIGetExpStatus codes (0=Idle,1=Exposing,2=
+        // Downloading), so a connected idle camera (OPENED=1) was reported
+        // "Exposing" and true Idle was never reported while connected — hanging
+        // any automation gate that polls for state==Idle. Frame-ready is tracked
+        // separately via POAImageReady, so this need not report Downloading.
         let state = match camera_state {
-            0 => CameraState::Idle,
-            1 => CameraState::Exposing,
-            2 => CameraState::Downloading,
+            0 => CameraState::Idle,     // STATE_CLOSED (not exposing)
+            1 => CameraState::Idle,     // STATE_OPENED (idle, ready)
+            2 => CameraState::Exposing, // STATE_EXPOSING
             _ => CameraState::Error,
         };
 
@@ -1441,7 +1522,13 @@ impl NativeCamera for PlayerOneCamera {
                 height: u32::try_from(info.max_height).unwrap_or(0),
                 pixel_size_x: info.pixel_size,
                 pixel_size_y: info.pixel_size,
-                max_adu: (1u32 << info.bit_depth) - 1,
+                // `max_adu` is the pixel-container full scale, NOT the ADC
+                // range: connect() hard-fails unless POASetImageFormat(Raw16)
+                // succeeds, so every frame this driver delivers is a 16-bit
+                // container whose samples span [0, 65535]. See
+                // [`raw16_container_max_adu`] and the `SensorInfo::max_adu`
+                // contract.
+                max_adu: raw16_container_max_adu(u32::try_from(info.bit_depth).unwrap_or(0)),
                 bit_depth: u32::try_from(info.bit_depth).unwrap_or(0),
                 color: info.is_color_camera != 0,
                 bayer_pattern: if info.is_color_camera != 0 {
@@ -1730,6 +1817,13 @@ impl NativeDevice for PlayerOneFilterWheel {
         // validates it and returns PW_ERROR_INVALID_HANDLE if stale.
         check_poa_pw_error(unsafe { (sdk.open_pw)(self.handle) }, "open filter wheel")?;
 
+        let handle = self.handle;
+        let cleanup_guard = CleanupGuard::new(|| {
+            // SAFETY: player_one_mutex remains held for the lifetime of this guard;
+            // handle was successfully opened immediately before the guard was created.
+            let _ = unsafe { (sdk.close_pw)(handle) };
+        });
+
         // SAFETY: PWProperties is repr(C) POD and props is a valid out-pointer.
         let mut props: PWProperties = unsafe { std::mem::zeroed() };
         // SAFETY: player_one_mutex held; handle has just been opened.
@@ -1748,6 +1842,7 @@ impl NativeDevice for PlayerOneFilterWheel {
 
         self.name = pw_cstr(&props.name);
         self.filter_count = props.position_count;
+        cleanup_guard.defuse();
         self.connected = true;
         Ok(())
     }
@@ -1893,6 +1988,77 @@ impl NativeFilterWheel for PlayerOneFilterWheel {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `max_adu` must be the RAW16 container ceiling, not the ADC range.
+    ///
+    /// `(1 << bit_depth) - 1` — what this used to publish — is the ADC range and
+    /// is 16x too small for a 12-bit Player One (Mars/Neptune/Uranus/Ceres/
+    /// Artemis class). PlayerOneCamera.h:51 documents the delivered RAW16 sample
+    /// range as `[0, 65535]` while :137 documents `bitDepth` as the "ADC depth
+    /// of CMOS sensor" — two different quantities.
+    #[test]
+    fn raw16_container_max_adu_accounts_for_left_justification() {
+        // 12-bit ADC (IMX462/IMX464/IMX294 class): 4095 << 4
+        assert_eq!(raw16_container_max_adu(12), 65520);
+        // 14-bit ADC: 16383 << 2
+        assert_eq!(raw16_container_max_adu(14), 65532);
+        // 10-bit ADC: 1023 << 6
+        assert_eq!(raw16_container_max_adu(10), 65472);
+        // A genuinely 16-bit ADC (IMX455/IMX571 class) needs no shift.
+        assert_eq!(raw16_container_max_adu(16), 65535);
+    }
+
+    /// Whatever ceiling we publish must be a value a `u16` sample can actually
+    /// hold, and must land on the sample grid the ADC produces — a 12-bit ADC
+    /// left-justified into 16 bits can only emit multiples of 16.
+    #[test]
+    fn raw16_container_max_adu_is_a_reachable_u16_sample() {
+        for bit_depth in 1..=16u32 {
+            let max = raw16_container_max_adu(bit_depth);
+            assert!(
+                max <= u32::from(u16::MAX),
+                "bit_depth {bit_depth} produced {max}, outside the u16 container"
+            );
+            let step = 1u32 << (16 - bit_depth.min(16));
+            assert_eq!(
+                max % step,
+                0,
+                "bit_depth {bit_depth}: {max} is not a multiple of the {step}-ADU sample step"
+            );
+        }
+    }
+
+    /// An unpopulated / nonsensical `bitDepth` must fall back to the container
+    /// ceiling, never to 0 — a 0 ceiling would tell every percent-of-full-scale
+    /// consumer that the camera cannot produce any signal at all, and the old
+    /// `(1 << bit_depth) - 1` also overflowed for `bit_depth >= 32`.
+    #[test]
+    fn raw16_container_max_adu_unknown_bit_depth_falls_back_to_container() {
+        assert_eq!(raw16_container_max_adu(0), 65535);
+        assert_eq!(raw16_container_max_adu(32), 65535);
+        assert_eq!(raw16_container_max_adu(u32::MAX), 65535);
+    }
+
+    /// The ceiling must agree with the pipeline's own saturation threshold.
+    ///
+    /// `nightshade_imaging::fits` uses `saturation_threshold: 65024` documented
+    /// as "4064 << 4" — 99.2% of a left-justified 12-bit ceiling. That threshold
+    /// is unreachable under the old `(1 << 12) - 1 = 4095` ceiling, which is what
+    /// made flat calibration impossible on ZWO before the same fix landed there.
+    #[test]
+    fn raw16_container_max_adu_agrees_with_pipeline_saturation_threshold() {
+        const PIPELINE_SATURATION_THRESHOLD: u32 = 65024;
+        let twelve_bit_ceiling = raw16_container_max_adu(12);
+        assert!(
+            PIPELINE_SATURATION_THRESHOLD < twelve_bit_ceiling,
+            "12-bit ceiling {twelve_bit_ceiling} is below the pipeline saturation threshold"
+        );
+        // The formula this replaced published the ADC range, which can never
+        // reach the threshold — so saturation was undetectable on a 12-bit ASI-
+        // class sensor, and a 50% flat target was below the camera's bias floor.
+        let old_adc_range_formula = |bits: u32| (1u32 << bits) - 1;
+        assert!(old_adc_range_formula(12) < PIPELINE_SATURATION_THRESHOLD);
+    }
 
     /// Default state must be cooler-off.
     ///

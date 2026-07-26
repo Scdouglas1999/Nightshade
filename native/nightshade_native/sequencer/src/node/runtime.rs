@@ -95,6 +95,12 @@ async fn execute_instruction_with_disconnect_retry(
         context
             .device_disconnect_recovery_pending
             .store(false, Ordering::Relaxed);
+        // Snapshot BEFORE executing: any recovery cycle that completes from here
+        // on advances the counter past this value, including one that finishes
+        // before we start watching for it.
+        let recovery_generation_before = context
+            .recovery_generation
+            .load(std::sync::atomic::Ordering::Acquire);
 
         let result = instruction.execute(node_id, node_type, context).await;
 
@@ -133,7 +139,7 @@ async fn execute_instruction_with_disconnect_retry(
             MAX_DISCONNECT_RETRIES
         );
 
-        match wait_for_disconnect_recovery(context).await {
+        match wait_for_disconnect_recovery(context, recovery_generation_before).await {
             DisconnectRecoveryOutcome::Recovered => {
                 tracing::info!(
                     "[RECOVERY] Device reconnected; retrying instruction '{}' (retry {}/{})",
@@ -181,7 +187,10 @@ enum DisconnectRecoveryOutcome {
 /// * on entry it sets `is_paused = true`,
 /// * on success it clears `is_paused` (and leaves `is_cancelled` false),
 /// * on give-up it sets `is_cancelled = true`.
-async fn wait_for_disconnect_recovery(context: &ExecutionContext) -> DisconnectRecoveryOutcome {
+async fn wait_for_disconnect_recovery(
+    context: &ExecutionContext,
+    generation_before: u64,
+) -> DisconnectRecoveryOutcome {
     // Phase 1: wait for the driver to engage (is_paused true). Bounded so a
     // missing/closed recovery channel does not hang the night.
     let engage_deadline = tokio::time::Instant::now() + RECOVERY_ENGAGE_TIMEOUT;
@@ -191,6 +200,18 @@ async fn wait_for_disconnect_recovery(context: &ExecutionContext) -> DisconnectR
         }
         if context.is_paused() {
             break;
+        }
+        // A recovery cycle that ran to completion while we were getting here
+        // never leaves `is_paused` set for us to see. Without this the run died
+        // on a SUCCESSFUL recovery ("No recovery driver engaged within 10s"
+        // logged right after "Loop succeeded ... resuming sequence"). Checked
+        // after `is_paused` so an in-flight recovery still takes Phase 2.
+        if context
+            .recovery_generation
+            .load(std::sync::atomic::Ordering::Acquire)
+            > generation_before
+        {
+            return DisconnectRecoveryOutcome::Recovered;
         }
         if tokio::time::Instant::now() >= engage_deadline {
             return DisconnectRecoveryOutcome::NoDriver;
@@ -373,10 +394,36 @@ impl Node for RuntimeNode {
         // Re-render in case interpolation values changed between Running
         // and Completed events (e.g. a target swap between events).
         let display_name = render_node_display_name(self.name(), context);
+        // The verb must follow `result`. This message was hardcoded to
+        // "Completed: {}" for EVERY outcome, so a node that failed, was
+        // cancelled or was skipped still announced that it had completed. It is
+        // the last progress message a run emits (the root container is the last
+        // node to reach a terminal status), and it lands in
+        // `SequenceProgress.message`, which `/api/sequencer/status` returns
+        // alongside the authoritative `state`.
+        //
+        // Observed verbatim on the live rig, on a run that genuinely failed at a
+        // Move Rotator node with no rotator connected:
+        //   {"state":"failed", ...,
+        //    "message":"Completed: CLAUDE SEQ AUDIT R4 FAIL"}
+        // The DB row for that run is `status='failed'` and its vitals carry
+        // "Sequence failed", so `state` was right and the message was the lie —
+        // but a client rendering the message (every status banner does) told the
+        // operator the night had finished cleanly.
+        let verb = match result {
+            NodeStatus::Success => "Completed",
+            NodeStatus::Failure => "Failed",
+            NodeStatus::Cancelled => "Cancelled",
+            NodeStatus::Skipped => "Skipped",
+            // Not reachable: `result` is the terminal status of the node body.
+            // Kept exhaustive so a new NodeStatus variant fails to compile here
+            // rather than silently reporting the wrong verb.
+            NodeStatus::Pending | NodeStatus::Running => "Finished",
+        };
         context.send_progress(ProgressUpdate::lifecycle(
             self.id().clone(),
             result,
-            format!("Completed: {}", display_name),
+            format!("{}: {}", verb, display_name),
         ));
 
         result
@@ -461,7 +508,9 @@ mod disconnect_recovery_tests {
             resume_notify.notify_waiters();
         });
 
-        let outcome = wait_for_disconnect_recovery(&ctx).await;
+        let outcome =
+            wait_for_disconnect_recovery(&ctx, ctx.recovery_generation.load(Ordering::Acquire))
+                .await;
         assert!(
             matches!(outcome, DisconnectRecoveryOutcome::Recovered),
             "driver pause->resume must resolve as Recovered so the node retries"
@@ -486,7 +535,9 @@ mod disconnect_recovery_tests {
             resume_notify.notify_waiters();
         });
 
-        let outcome = wait_for_disconnect_recovery(&ctx).await;
+        let outcome =
+            wait_for_disconnect_recovery(&ctx, ctx.recovery_generation.load(Ordering::Acquire))
+                .await;
         assert!(
             matches!(outcome, DisconnectRecoveryOutcome::Cancelled),
             "driver give-up must resolve as Cancelled so the node unwinds"
@@ -499,7 +550,9 @@ mod disconnect_recovery_tests {
     async fn wait_resolves_cancelled_when_already_cancelled() {
         let ctx = ExecutionContext::new("n".to_string());
         ctx.is_cancelled.store(true, Ordering::Relaxed);
-        let outcome = wait_for_disconnect_recovery(&ctx).await;
+        let outcome =
+            wait_for_disconnect_recovery(&ctx, ctx.recovery_generation.load(Ordering::Acquire))
+                .await;
         assert!(matches!(outcome, DisconnectRecoveryOutcome::Cancelled));
     }
 
@@ -509,7 +562,7 @@ mod disconnect_recovery_tests {
     #[tokio::test]
     async fn pending_flag_is_shared_with_instruction_context() {
         let ctx = ExecutionContext::new("n".to_string());
-        let inst = ctx.to_instruction_context().await;
+        let inst = ctx.to_instruction_context("test-node").await;
         // Writing through the InstructionContext side is visible on the
         // ExecutionContext side (same Arc allocation).
         inst.device_disconnect_recovery_pending
@@ -754,5 +807,66 @@ mod resume_short_circuit_tests {
             3,
             "a fresh Loop(3) must run all three iterations"
         );
+    }
+}
+
+#[cfg(test)]
+mod disconnect_recovery_race_tests {
+    use super::*;
+    use std::sync::atomic::Ordering as AtomicOrdering;
+
+    fn ctx() -> ExecutionContext {
+        ExecutionContext::new("node-under-test".to_string())
+    }
+
+    /// The bug: a recovery that COMPLETES before the failed instruction starts
+    /// watching leaves `is_paused` already cleared, so the old level-triggered
+    /// check waited out its 10s and returned `NoDriver` — killing the run on a
+    /// SUCCESSFUL recovery. The generation counter makes completion observable
+    /// after the fact.
+    #[tokio::test]
+    async fn already_completed_recovery_reads_as_recovered() {
+        let context = ctx();
+        let before = context.recovery_generation.load(AtomicOrdering::Acquire);
+
+        // Driver engaged and finished entirely before we look: pause raised and
+        // cleared again, generation advanced. `is_paused` is false right now.
+        context
+            .recovery_generation
+            .fetch_add(1, AtomicOrdering::AcqRel);
+        assert!(!context.is_paused());
+
+        let outcome = wait_for_disconnect_recovery(&context, before).await;
+        assert!(
+            matches!(outcome, DisconnectRecoveryOutcome::Recovered),
+            "a completed recovery must read as Recovered, not NoDriver"
+        );
+    }
+
+    /// The fail-closed direction that must NOT regress: with no driver at all the
+    /// generation never advances, so the wait still gives up rather than letting
+    /// the instruction retry against hardware that was never reconnected.
+    #[tokio::test(start_paused = true)]
+    async fn genuinely_absent_driver_still_reports_no_driver() {
+        let context = ctx();
+        let before = context.recovery_generation.load(AtomicOrdering::Acquire);
+
+        let outcome = wait_for_disconnect_recovery(&context, before).await;
+        assert!(
+            matches!(outcome, DisconnectRecoveryOutcome::NoDriver),
+            "no driver must still fail closed"
+        );
+    }
+
+    /// A cancel during the wait still unwinds rather than being mistaken for a
+    /// recovery.
+    #[tokio::test]
+    async fn cancellation_during_wait_unwinds() {
+        let context = ctx();
+        let before = context.recovery_generation.load(AtomicOrdering::Acquire);
+        context.is_cancelled.store(true, AtomicOrdering::Relaxed);
+
+        let outcome = wait_for_disconnect_recovery(&context, before).await;
+        assert!(matches!(outcome, DisconnectRecoveryOutcome::Cancelled));
     }
 }

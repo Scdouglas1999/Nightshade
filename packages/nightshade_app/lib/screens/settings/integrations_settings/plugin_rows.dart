@@ -120,8 +120,9 @@ class _PluginRow extends ConsumerWidget {
     // The enabled-set is the authoritative persisted truth. While it is
     // loading we fall back to the host's own snapshot so the switch is never
     // shown in a meaningless intermediate state.
-    final enabled =
-        enabledSet.valueOrNull?.contains(plugin.id) ?? plugin.enabled;
+    final enabled = hasError
+        ? plugin.enabled
+        : (enabledSet.valueOrNull?.contains(plugin.id) ?? plugin.enabled);
 
     return SettingRow(
       icon: hasError ? LucideIcons.alertTriangle : LucideIcons.puzzle,
@@ -189,7 +190,7 @@ class _PluginRowTrailing extends ConsumerWidget {
     final toggle = _PluginEnableSwitch(
       pluginId: plugin.id,
       value: enabled,
-      enabled: !enablementLoading,
+      enabled: !enablementLoading && plugin.canEnable,
     );
 
     // Wrap (not Row) so the pill + Configure button + switch reflow onto a

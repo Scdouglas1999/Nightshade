@@ -86,9 +86,14 @@ class InfoTab extends ConsumerWidget {
               FovPresetsPanel(colors: colors, selectedObject: selectedObject),
             ],
           ),
-          onGoTo: () {
+          onGoTo: () async {
             final coords = obj.coordinates;
-            ref.read(mountCommandServiceProvider).slewTo(coords.ra, coords.dec);
+            final result = await ref
+                .read(mountCommandServiceProvider)
+                .slewTo(coords.ra, coords.dec);
+            if (context.mounted) {
+              context.showCommandActionResult(result);
+            }
           },
           onFrameTarget: () async {
             // Open the Framing screen for this object. Reuse the same handoff

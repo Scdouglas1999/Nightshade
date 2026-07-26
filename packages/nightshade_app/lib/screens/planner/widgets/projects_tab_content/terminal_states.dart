@@ -6,8 +6,9 @@ part of '../projects_tab_content.dart';
 
 class _NoProjectsState extends StatelessWidget {
   final Future<void> Function() onCreate;
+  final bool creating;
 
-  const _NoProjectsState({required this.onCreate});
+  const _NoProjectsState({required this.onCreate, required this.creating});
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +21,8 @@ class _NoProjectsState extends StatelessWidget {
         label: 'New Project',
         icon: LucideIcons.folderPlus,
         variant: ButtonVariant.primary,
-        onPressed: () => onCreate(),
+        isLoading: creating,
+        onPressed: creating ? null : () => onCreate(),
       ),
     );
   }

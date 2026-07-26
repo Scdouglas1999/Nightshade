@@ -10,6 +10,7 @@ import 'package:file_selector/file_selector.dart';
 
 import '../../utils/confirm_dialog.dart';
 import '../../utils/device_format_utils.dart';
+import '../../utils/exported_file_reveal.dart';
 import '../../utils/snackbar_helper.dart';
 
 part 'equipment_profiles_screen_parts/screen_shell.dart';

@@ -39,6 +39,19 @@ Future<StreamSubscription<DiskSpaceWatchdogEvent>?> startDiskSpaceWatchdog({
     source: _headlessLogSource,
   );
 
+  var currentPath = initialPath;
+  container.listen(appSettingsProvider, (previous, next) {
+    final path = next.valueOrNull?.imageOutputPath;
+    if (path == null || path.isEmpty || path == currentPath) return;
+    currentPath = path;
+    guard.start(capturePath: path);
+    logger.info(
+      'Disk-space watchdog re-targeted to capturePath=$path after a '
+      'capture-directory settings change',
+      source: _headlessLogSource,
+    );
+  });
+
   final subscription = guard.events.listen(
     (event) async {
       switch (event.severity) {

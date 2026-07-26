@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
+import '../database/daos/settings_dao.dart';
 import '../database/database.dart' as ndb;
 import '../models/scheduler/integration_goal.dart';
 import '../models/scheduler/scheduler_decision.dart';
@@ -264,7 +266,22 @@ class SchedulerCandidateLoader {
   /// `scoreCandidate`, so a fully-imaged member target drops out of tonight's
   /// rotation even though it remains in the project.
   Future<List<SchedulerCandidate>> load({int? projectId}) async {
+    final backendNotifier = ref.read(backendProvider.notifier);
+    final backend = backendNotifier.currentBackend;
+    void requireAuthority() {
+      if (!backendNotifier.isCurrentBackend(backend)) {
+        throw StateError(
+          'Scheduler candidate load retired because the imaging backend changed',
+        );
+      }
+    }
+
+    // Snapshot equipment filters under the same backend authority as the
+    // catalog. Reading this later, after remote awaits, could otherwise attach
+    // the replacement host's filter wheel to the previous host's targets.
+    final availableFilters = _availableFilters();
     final goalService = ref.read(integrationGoalServiceProvider);
+    requireAuthority();
 
     // On a remote SLAVE the catalog/targets/constraints/horizons/project
     // membership all live in the HOST DB; the slave's local SQLite is empty.
@@ -273,12 +290,13 @@ class SchedulerCandidateLoader {
     // INNER JOIN would return no rows ("nothing eligible"). Source everything
     // from the host instead. goalService is already host-aware (above), so the
     // per-goal counts in the shared assembly loop are correct too.
-    final backend = ref.read(backendProvider);
     if (backend is NetworkBackend) {
       return _loadRemote(
         backend: backend,
         goalService: goalService,
         projectId: projectId,
+        availableFilters: availableFilters,
+        requireAuthority: requireAuthority,
       );
     }
 
@@ -288,8 +306,11 @@ class SchedulerCandidateLoader {
     // integration-goal service already ensures its own schema; we ensure
     // the other two here using the shared DDL constants.
     await db.customStatement(targetConstraintsSchemaSql);
+    requireAuthority();
     await db.customStatement(targetConstraintsTargetIndexSql);
+    requireAuthority();
     await db.customStatement(horizonProfilesSchemaSql);
+    requireAuthority();
 
     final List<QueryRow> targetRows;
     if (projectId != null) {
@@ -299,8 +320,11 @@ class SchedulerCandidateLoader {
       // Re-running the DDL is a no-op on an existing schema (`IF NOT EXISTS`).
       // These constants are the canonical project DDL, owned by ProjectService.
       await db.customStatement(projectsSchemaSql);
+      requireAuthority();
       await db.customStatement(projectTargetsSchemaSql);
+      requireAuthority();
       await db.customStatement(projectTargetsProjectIndexSql);
+      requireAuthority();
 
       // Restrict to the project's members. The effective priority is the
       // membership override when set, else the target's own priority — and we
@@ -317,12 +341,14 @@ class SchedulerCandidateLoader {
             variables: [Variable.withInt(projectId)],
           )
           .get();
+      requireAuthority();
     } else {
       targetRows = await db
           .customSelect(
             'SELECT id, name, ra, dec, priority, object_type, notes FROM targets ORDER BY priority DESC, name ASC',
           )
           .get();
+      requireAuthority();
     }
 
     // Pre-fetch all constraints + horizon profiles in two queries.
@@ -331,9 +357,11 @@ class SchedulerCandidateLoader {
           'SELECT id, target_id, kind, payload_json, enabled FROM target_constraints WHERE enabled = 1',
         )
         .get();
+    requireAuthority();
     final horizonRows = await db
         .customSelect('SELECT id, name, samples_json FROM horizon_profiles')
         .get();
+    requireAuthority();
 
     final horizonProfiles = <int, HorizonProfile>{};
     for (final row in horizonRows) {
@@ -376,6 +404,8 @@ class SchedulerCandidateLoader {
       constraintsByTarget: constraintsByTarget,
       horizonProfiles: horizonProfiles,
       goalService: goalService,
+      availableFilters: availableFilters,
+      requireAuthority: requireAuthority,
     );
   }
 
@@ -388,9 +418,12 @@ class SchedulerCandidateLoader {
     required NetworkBackend backend,
     required IntegrationGoalService goalService,
     int? projectId,
+    required List<String> availableFilters,
+    required void Function() requireAuthority,
   }) async {
     // Host catalog rows, indexed by id.
     final rawTargets = await backend.getAllTargets();
+    requireAuthority();
     final byId = <int, _LoaderTarget>{};
     for (final json in rawTargets) {
       final id = json['id'] as int?;
@@ -411,6 +444,7 @@ class SchedulerCandidateLoader {
       // Project scope: the membership rows carry the per-project priority
       // override; fall back to the target's own priority when unset.
       final memberships = await backend.getProjectTargets(projectId);
+      requireAuthority();
       final scoped = <_LoaderTarget>[];
       for (final m in memberships) {
         final base = byId[m.targetId];
@@ -432,13 +466,16 @@ class SchedulerCandidateLoader {
 
     // Host constraints (enabled only, matching the local query) + horizons.
     final allConstraints = await backend.getTargetConstraints();
+    requireAuthority();
     final constraintsByTarget = <int, List<TargetConstraint>>{};
     for (final tc in allConstraints) {
       if (!tc.enabled) continue;
       constraintsByTarget.putIfAbsent(tc.targetId, () => []).add(tc);
     }
     final horizonProfiles = <int, HorizonProfile>{};
-    for (final hp in await backend.getHorizonProfiles()) {
+    final remoteHorizons = await backend.getHorizonProfiles();
+    requireAuthority();
+    for (final hp in remoteHorizons) {
       if (hp.id != null) horizonProfiles[hp.id!] = hp;
     }
 
@@ -447,6 +484,8 @@ class SchedulerCandidateLoader {
       constraintsByTarget: constraintsByTarget,
       horizonProfiles: horizonProfiles,
       goalService: goalService,
+      availableFilters: availableFilters,
+      requireAuthority: requireAuthority,
     );
   }
 
@@ -458,18 +497,20 @@ class SchedulerCandidateLoader {
     required Map<int, List<TargetConstraint>> constraintsByTarget,
     required Map<int, HorizonProfile> horizonProfiles,
     required IntegrationGoalService goalService,
+    required List<String> availableFilters,
+    required void Function() requireAuthority,
   }) async {
-    final availableFilters = _availableFilters();
-
     final out = <SchedulerCandidate>[];
     for (final target in targets) {
       final id = target.id;
       final goals = await goalService.listForTarget(id);
+      requireAuthority();
       final counts = <int>[];
       for (final g in goals) {
         counts.add(
           await goalService.capturedFrameCount(targetId: id, filter: g.filter),
         );
+        requireAuthority();
       }
       final cs = constraintsByTarget[id] ?? const <TargetConstraint>[];
       // Only attach horizon profiles a constraint actually references —
@@ -504,6 +545,7 @@ class SchedulerCandidateLoader {
         ),
       );
     }
+    requireAuthority();
     return out;
   }
 
@@ -545,18 +587,71 @@ final targetConstraintsStreamProvider = StreamProvider<List<TargetConstraint>>((
   return ref.watch(targetConstraintServiceProvider).watchAll();
 });
 
+/// Durable store for the operator-tuned [SchedulerConfig]. The scoring sliders
+/// write through [save]; [schedulerEngineProvider] hydrates from [load] at
+/// cold start so tuned weights / min-altitude / hysteresis survive a restart.
+class SchedulerConfigStore {
+  SchedulerConfigStore(this._dao);
+
+  final SettingsDao _dao;
+  static const String _key = 'scheduler_config';
+
+  Future<SchedulerConfig> load() async {
+    final raw = await _dao.getSetting(_key);
+    if (raw == null || raw.isEmpty) return SchedulerConfig.defaults;
+    try {
+      return SchedulerConfig.fromStorageJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+    } catch (error) {
+      throw FormatException(
+        'Persisted scheduler configuration is invalid',
+        error,
+      );
+    }
+  }
+
+  Future<void> save(SchedulerConfig config) {
+    return _dao.setSetting(_key, jsonEncode(config.toStorageJson()));
+  }
+}
+
+final schedulerConfigStoreProvider = Provider<SchedulerConfigStore>((ref) {
+  return SchedulerConfigStore(ref.read(settingsDaoProvider));
+});
+
+/// One-shot cold-start load of the persisted scheduler config. Not invalidated
+/// on slider edits (those update the engine in place via `updateConfig`), so
+/// the engine is not torn down on every tweak.
+final schedulerPersistedConfigProvider = FutureProvider<SchedulerConfig>((ref) {
+  return ref.read(schedulerConfigStoreProvider).load();
+});
+
+/// Set as soon as the operator changes scheduler tuning in this process. It
+/// prevents a late cold-start read from overwriting an edit made while the
+/// settings row was still loading.
+final schedulerConfigUserDirtyProvider = StateProvider<bool>((ref) => false);
+
 /// The single engine instance for the app.
 final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
-  final settings = ref.watch(appSettingsProvider).valueOrNull;
+  final settingsAsync = ref.read(appSettingsProvider);
+  final settings = settingsAsync.valueOrNull;
   final lat = settings?.latitude ?? 0.0;
   final lng = settings?.longitude ?? 0.0;
+  // Hydrate the operator-tuned scoring config so tuned weights, minimum
+  // altitude, and hysteresis survive an app restart. Loading is a one-shot
+  // future; slider edits update the live engine in place rather than
+  // invalidating this, so a running engine is not rebuilt mid-session.
+  final persistedAsync = ref.read(schedulerPersistedConfigProvider);
+  final persistedConfig =
+      persistedAsync.valueOrNull ?? SchedulerConfig.defaults;
   // Why: route the scheduler's current-time reads through the user's
   // configured clock so window evaluations, scoring, and meridian-factor
   // calculations all reflect the operator's chosen timezone
   // The local offset still comes from
   // the system clock — the scheduler internally rebases to UTC for
   // ephemeris math.
-  final clock = ref.watch(clockProvider);
+  final clock = ref.read(clockProvider);
   final localOffset = DateTime.now().timeZoneOffset;
 
   // Build a candidate loader bound to a specific active-project scope. When
@@ -581,11 +676,48 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
       longitudeDegrees: lng,
       localOffset: localOffset,
     ),
+    config: persistedConfig,
     sequenceSink: _ExecutorSequenceSink(ref),
     candidateLoader: loaderFor(initialActiveId),
-    triggerStream: ref.watch(schedulerTriggerStreamProvider),
+    triggerStream: ref.read(schedulerTriggerStreamProvider),
     clock: clock.now,
   );
+
+  // Hydrate a late settings/config read in place. Watching either async
+  // provider here used to dispose and recreate the engine on completion,
+  // losing run/pause state and any target currently under scheduler control.
+  ref.listen<AsyncValue<AppSettingsState>>(appSettingsProvider, (
+    previous,
+    next,
+  ) {
+    final value = next.valueOrNull;
+    if (value == null) return;
+    final nextSite = SchedulerSite(
+      latitudeDegrees: value.latitude,
+      longitudeDegrees: value.longitude,
+      localOffset: DateTime.now().timeZoneOffset,
+    );
+    final currentSite = engine.site;
+    if (nextSite.latitudeDegrees == currentSite.latitudeDegrees &&
+        nextSite.longitudeDegrees == currentSite.longitudeDegrees &&
+        nextSite.localOffset == currentSite.localOffset) {
+      return;
+    }
+    engine.updateSite(nextSite);
+    engine.requestReevaluation(reason: 'observer location changed');
+  });
+  ref.listen<AsyncValue<SchedulerConfig>>(schedulerPersistedConfigProvider, (
+    previous,
+    next,
+  ) {
+    final value = next.valueOrNull;
+    if (value == null ||
+        ref.read(schedulerConfigUserDirtyProvider) ||
+        value == engine.config) {
+      return;
+    }
+    engine.updateConfig(value);
+  });
 
   // Re-scope (and immediately re-evaluate) whenever the active project changes
   // without tearing down the engine. The auto-reeval provider also pokes the
@@ -601,6 +733,43 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   return engine;
 });
 
+/// One-shot authority gate for every operation that can evaluate or start the
+/// unattended scheduler.
+///
+/// [schedulerEngineProvider] is intentionally synchronous because status
+/// listeners must retain one stable engine instance. That used to mean the
+/// shell constructed it immediately with `(0, 0)` and factory scoring defaults
+/// while persisted settings were still loading. A fast preview/start could
+/// therefore choose and dispatch the wrong target. This provider waits for
+/// both authoritative inputs before exposing the engine and hydrates that same
+/// stable instance in place.
+///
+/// Reads are deliberately one-shot. Once an engine is ready, a later transient
+/// settings refresh must not hide Pause/Stop or revoke control of an already
+/// running scheduler. Callers can invalidate this provider together with the
+/// failed input providers to retry a cold-start failure.
+final schedulerEngineReadyProvider = FutureProvider<SchedulerEngine>((
+  ref,
+) async {
+  final settingsFuture = ref.read(appSettingsProvider.future);
+  final configFuture = ref.read(schedulerPersistedConfigProvider.future);
+  final settings = await settingsFuture;
+  final persistedConfig = await configFuture;
+  final engine = ref.watch(schedulerEngineProvider);
+
+  engine.updateSite(
+    SchedulerSite(
+      latitudeDegrees: settings.latitude,
+      longitudeDegrees: settings.longitude,
+      localOffset: DateTime.now().timeZoneOffset,
+    ),
+  );
+  if (!ref.read(schedulerConfigUserDirtyProvider)) {
+    engine.updateConfig(persistedConfig);
+  }
+  return engine;
+});
+
 /// Side-effect provider that subscribes to the three "candidate inputs"
 /// (target catalog rows, integration goals, target constraints) and pokes
 /// the engine via `requestReevaluation()` whenever any of them changes.
@@ -610,7 +779,10 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
 /// Must be `.watch`ed from the app shell (or any always-mounted Consumer)
 /// so the listeners stay live for the lifetime of the scheduler engine.
 final schedulerAutoReevalProvider = Provider<void>((ref) {
-  final engine = ref.watch(schedulerEngineProvider);
+  // Starting the authority future here keeps the scheduler warm for the app
+  // shell without constructing a default-config/default-site engine early.
+  final engine = ref.watch(schedulerEngineReadyProvider).valueOrNull;
+  if (engine == null) return;
 
   ref.listen<AsyncValue<List<ndb.Target>>>(allDbTargetsProvider, (
     previous,
@@ -746,7 +918,7 @@ final schedulerPreviewDecisionProvider =
       if (backend is NetworkBackend) {
         return backend.getSchedulerPreview();
       }
-      final engine = ref.watch(schedulerEngineProvider);
+      final engine = await ref.watch(schedulerEngineReadyProvider.future);
       final clock = ref.watch(clockProvider);
       // Re-derive the preview each time the autopilot publishes a fresh decision
       // so the read-only view tracks live evaluation. Watching the decision (not
@@ -755,13 +927,55 @@ final schedulerPreviewDecisionProvider =
       return engine.previewDecision(clock.now());
     });
 
+/// Host-authoritative state consumed by the scheduler tab on a remote client.
+/// Keeping status, decision, and configuration in one response prevents a UI
+/// refresh from combining snapshots from different scheduler ticks.
+class SchedulerRemoteSnapshot {
+  final SchedulerStatus status;
+  final SchedulerDecision decision;
+  final SchedulerConfig config;
+
+  const SchedulerRemoteSnapshot({
+    required this.status,
+    required this.decision,
+    required this.config,
+  });
+
+  factory SchedulerRemoteSnapshot.fromJson(Map<String, dynamic> json) {
+    final status = json['status'];
+    final decision = json['decision'];
+    final config = json['config'];
+    if (status is! Map || decision is! Map || config is! Map) {
+      throw const FormatException(
+        'Malformed scheduler state from imaging host',
+      );
+    }
+    return SchedulerRemoteSnapshot(
+      status: SchedulerStatus.fromJson(status.cast<String, dynamic>()),
+      decision: SchedulerDecision.fromJson(decision.cast<String, dynamic>()),
+      config: SchedulerConfig.fromStorageJson(config.cast<String, dynamic>()),
+    );
+  }
+}
+
+final schedulerRemoteSnapshotProvider =
+    FutureProvider.autoDispose<SchedulerRemoteSnapshot>((ref) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is! NetworkBackend) {
+        throw StateError('Remote scheduler state requires a network backend');
+      }
+      return SchedulerRemoteSnapshot.fromJson(
+        await backend.getSchedulerState(),
+      );
+    });
+
 /// Read-only ranked candidate list (best-first, eligible only) the autopilot
 /// would consider right now — the headline ordering for the Planner. Shares
 /// the preview decision's inputs and side-effect-free guarantee; the first
 /// entry equals [schedulerPreviewDecisionProvider]'s chosen target.
 final schedulerPreviewRankingProvider =
     FutureProvider.autoDispose<List<TargetScore>>((ref) async {
-      final engine = ref.watch(schedulerEngineProvider);
+      final engine = await ref.watch(schedulerEngineReadyProvider.future);
       final clock = ref.watch(clockProvider);
       ref.watch(currentSchedulerDecisionProvider);
       return engine.previewRanking(clock.now());

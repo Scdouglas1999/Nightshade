@@ -31,10 +31,12 @@ part 'notes_panel/global_notes_dialog.dart';
 /// only has one place to land.
 
 /// Shared "delete this note?" confirmation used by every notes surface
-/// (target section, run section, target dialog). Standardizes on
-/// [NightshadeDialog] and the single delete-on-confirm path so the three
-/// previously copy-pasted variants can't drift.
-Future<void> confirmDeleteNote(
+/// (target section, run section, target dialog, editor). Standardizes on
+/// [NightshadeDialog] and the single delete-on-confirm path so the
+/// previously copy-pasted variants can't drift. Returns whether the note
+/// was actually deleted (false on cancel) so callers like the editor can
+/// decide whether to also dismiss themselves.
+Future<bool> confirmDeleteNote(
   BuildContext context,
   WidgetRef ref,
   JournalNote note,
@@ -68,8 +70,10 @@ Future<void> confirmDeleteNote(
     ),
   );
   if (confirmed == true) {
-    await ref.read(notesServiceProvider).deleteNote(note.id);
+    await ref.read(notesRepositoryProvider).deleteNote(note.id);
+    return true;
   }
+  return false;
 }
 
 // =============================================================================

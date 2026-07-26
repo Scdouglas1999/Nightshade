@@ -7,131 +7,135 @@ class TargetSearchState {
   final String query;
   final List<FramingTarget> results;
   final bool isSearching;
+  final String? errorMessage;
 
   const TargetSearchState({
     this.query = '',
     this.results = const [],
     this.isSearching = false,
+    this.errorMessage,
   });
 
   TargetSearchState copyWith({
     String? query,
     List<FramingTarget>? results,
     bool? isSearching,
+    String? errorMessage,
+    bool clearError = false,
   }) {
     return TargetSearchState(
       query: query ?? this.query,
       results: results ?? this.results,
       isSearching: isSearching ?? this.isSearching,
+      errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
   }
 }
 
 class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
   final Ref _ref;
+  int _requestRevision = 0;
 
   TargetSearchNotifier(this._ref) : super(const TargetSearchState());
 
   Future<void> search(String query) async {
-    if (query.isEmpty) {
+    final trimmedQuery = query.trim();
+    final revision = ++_requestRevision;
+    if (trimmedQuery.isEmpty) {
       state = const TargetSearchState();
       return;
     }
 
-    state = state.copyWith(query: query, isSearching: true);
+    state = TargetSearchState(query: trimmedQuery, isSearching: true);
 
     try {
       final results = <FramingTarget>[];
-      final qLower = query.toLowerCase().trim();
+      final qLower = trimmedQuery.toLowerCase();
 
       // Normalize query
       final normalizedQuery = qLower.replaceAll(RegExp(r'\s+'), '');
 
       // Search DSOs using the planetarium's loaded database
-      try {
-        final loadedDsos = await _ref.read(loadedDsosProvider.future);
+      final loadedDsos = await _ref.read(loadedDsosProvider.future);
+      if (revision != _requestRevision || !mounted) return;
 
-        final matchingDsos = loadedDsos
-            .where((o) {
-              final idLower = o.id.toLowerCase();
-              final nameLower = o.name.toLowerCase();
+      final matchingDsos = loadedDsos
+          .where((o) {
+            final idLower = o.id.toLowerCase();
+            final nameLower = o.name.toLowerCase();
 
-              // Direct matches
-              if (idLower.contains(qLower) || nameLower.contains(qLower)) {
-                return true;
-              }
-              if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower))) {
-                return true;
-              }
+            // Direct matches
+            if (idLower.contains(qLower) || nameLower.contains(qLower)) {
+              return true;
+            }
+            if (o.catalogIds.any((c) => c.toLowerCase().contains(qLower))) {
+              return true;
+            }
 
-              // Normalized matches
-              final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
-              if (normalizedId.contains(normalizedQuery)) return true;
+            // Normalized matches
+            final normalizedId = idLower.replaceAll(RegExp(r'\s+'), '');
+            if (normalizedId.contains(normalizedQuery)) return true;
 
-              final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
-              if (normalizedName.contains(normalizedQuery)) return true;
+            final normalizedName = nameLower.replaceAll(RegExp(r'\s+'), '');
+            if (normalizedName.contains(normalizedQuery)) return true;
 
-              if (o.catalogIds.any((c) {
-                final cNormalized =
-                    c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
-                return cNormalized.contains(normalizedQuery);
-              })) {
-                return true;
-              }
+            if (o.catalogIds.any((c) {
+              final cNormalized =
+                  c.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+              return cNormalized.contains(normalizedQuery);
+            })) {
+              return true;
+            }
 
-              return false;
-            })
-            .take(50)
-            .toList();
+            return false;
+          })
+          .take(50)
+          .toList();
 
-        // Convert to FramingTarget
-        for (final dso in matchingDsos) {
-          TargetType targetType;
-          switch (dso.type) {
-            case DsoType.galaxy:
-            case DsoType.galaxyPair:
-            case DsoType.galaxyTriplet:
-            case DsoType.galaxyGroup:
-              targetType = TargetType.galaxy;
-              break;
-            case DsoType.nebula:
-            case DsoType.emissionNebula:
-            case DsoType.reflectionNebula:
-            case DsoType.planetaryNebula:
-            case DsoType.darkNebula:
-            case DsoType.hiiRegion:
-            case DsoType.supernova:
-              targetType = TargetType.nebula;
-              break;
-            case DsoType.openCluster:
-            case DsoType.globularCluster:
-            case DsoType.clusterWithNebulosity:
-            case DsoType.association:
-            case DsoType.starCloud:
-              targetType = TargetType.cluster;
-              break;
-            case DsoType.star:
-            case DsoType.doubleStar:
-            case DsoType.nova:
-              targetType = TargetType.star;
-              break;
-            default:
-              targetType = TargetType.other;
-          }
-
-          results.add(FramingTarget(
-            name: dso.name,
-            raHours: dso.coordinates.ra,
-            decDegrees: dso.coordinates.dec,
-            catalogId: dso.id,
-            magnitude: dso.magnitude,
-            sizeArcmin: dso.sizeArcMin,
-            type: targetType,
-          ));
+      // Convert to FramingTarget
+      for (final dso in matchingDsos) {
+        TargetType targetType;
+        switch (dso.type) {
+          case DsoType.galaxy:
+          case DsoType.galaxyPair:
+          case DsoType.galaxyTriplet:
+          case DsoType.galaxyGroup:
+            targetType = TargetType.galaxy;
+            break;
+          case DsoType.nebula:
+          case DsoType.emissionNebula:
+          case DsoType.reflectionNebula:
+          case DsoType.planetaryNebula:
+          case DsoType.darkNebula:
+          case DsoType.hiiRegion:
+          case DsoType.supernova:
+            targetType = TargetType.nebula;
+            break;
+          case DsoType.openCluster:
+          case DsoType.globularCluster:
+          case DsoType.clusterWithNebulosity:
+          case DsoType.association:
+          case DsoType.starCloud:
+            targetType = TargetType.cluster;
+            break;
+          case DsoType.star:
+          case DsoType.doubleStar:
+          case DsoType.nova:
+            targetType = TargetType.star;
+            break;
+          default:
+            targetType = TargetType.other;
         }
-      } catch (e) {
-        _ref.read(loggingServiceProvider).warning('[Framing] Search error: $e',
-            source: 'TargetSearchNotifier', fields: {'error': e.toString()});
+
+        results.add(FramingTarget(
+          name: dso.name,
+          raHours: dso.coordinates.ra,
+          decDegrees: dso.coordinates.dec,
+          catalogId: dso.id,
+          magnitude: dso.magnitude,
+          sizeArcmin: dso.sizeArcMin,
+          type: targetType,
+        ));
       }
 
       // Sort results
@@ -156,20 +160,30 @@ class TargetSearchNotifier extends StateNotifier<TargetSearchState> {
       });
 
       state = TargetSearchState(
-        query: query,
+        query: trimmedQuery,
         results: results,
         isSearching: false,
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      if (revision != _requestRevision || !mounted) return;
+      _ref.read(loggingServiceProvider).error(
+        '[Framing] Local catalog search failed: $error',
+        source: 'TargetSearchNotifier',
+        fields: {'error': error.toString(), 'stackTrace': '$stackTrace'},
+      );
       state = TargetSearchState(
-        query: query,
+        query: trimmedQuery,
         results: [],
         isSearching: false,
+        errorMessage: 'Local catalog search is unavailable.',
       );
     }
   }
 
+  Future<void> retry() => search(state.query);
+
   void clear() {
+    _requestRevision++;
     state = const TargetSearchState();
   }
 }

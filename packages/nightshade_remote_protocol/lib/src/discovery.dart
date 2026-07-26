@@ -3,6 +3,8 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 
+import 'network_uri.dart';
+
 /// Discovered Nightshade server information
 class DiscoveredServer {
   final String host;
@@ -81,8 +83,18 @@ class DiscoveredServer {
   /// `GET /api/info` which carries the canonical answer.
   bool get isTls => scheme == 'https';
 
-  String get webUrl => '$scheme://$host:$webPort';
-  String get signalingUrl => '$scheme://$host:$signalingPort';
+  String get webUrl => buildNightshadeServerUri(
+    scheme: scheme,
+    host: host,
+    port: webPort,
+    pathAndQuery: '',
+  ).toString();
+  String get signalingUrl => buildNightshadeServerUri(
+    scheme: scheme,
+    host: host,
+    port: signalingPort,
+    pathAndQuery: '',
+  ).toString();
 
   DiscoveredServer copyWith({
     String? host,
@@ -123,7 +135,7 @@ class DiscoveredServer {
   }
 
   @override
-  String toString() => '$name ($host:$webPort)';
+  String toString() => '$name (${Uri(host: host, port: webPort).authority})';
 }
 
 /// Handle returned from [NightshadeDiscovery.startBroadcasting] so callers

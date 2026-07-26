@@ -34,7 +34,9 @@ class _FixedBackendNotifier extends BackendNotifier {
 }
 
 class _NoopSafeRigService extends SafeRigService {
-  _NoopSafeRigService(super.ref);
+  _NoopSafeRigService(super.ref) : super(stopSecondaryRig: _stopSecondaryRig);
+
+  static Future<void> _stopSecondaryRig() async {}
 
   @override
   Future<SafeRigResult> safeTheRig({
@@ -42,6 +44,9 @@ class _NoopSafeRigService extends SafeRigService {
     bool park = true,
     bool closeDome = false,
     bool closeCover = false,
+    bool abortExposure = false,
+    bool disableCooling = false,
+    bool quiesceSecondaryRig = true,
     bool notify = true,
   }) async => const SafeRigResult();
 }
@@ -80,14 +85,16 @@ void main() {
             const AppSettingsState(safetyFailMode: SafetyFailMode.failClosed),
           ),
         ),
-        weatherSettingsProvider.overrideWithValue(
-          const WeatherSettings(weatherSafetyEnabled: true),
+        weatherSettingsDataProvider.overrideWith(
+          (ref) =>
+              Stream.value(const WeatherSettings(weatherSafetyEnabled: true)),
         ),
         safeRigServiceProvider.overrideWith((ref) => _NoopSafeRigService(ref)),
         // Drive _pushCloudMotion all the way to the throwing backend call:
-        // a finite cover (50%) with no motion data.
+        // a low finite cover (10%) with no motion data. Low current cover must
+        // not be fabricated into a future-opening prediction.
         analyzeCloudMotionProvider.overrideWith((ref) async => null),
-        cloudCoverPercentageProvider.overrideWith((ref) async => 50.0),
+        cloudCoverPercentageProvider.overrideWith((ref) async => 10.0),
       ],
     );
     addTearDown(container.dispose);
@@ -108,12 +115,10 @@ void main() {
     // It reached (and tolerated) the faulting push.
     verify(
       () => backend.sequencerUpdateCloudMotion(
-        currentCoverPercent: any(named: 'currentCoverPercent'),
+        currentCoverPercent: 10.0,
         predictedArrivalMinutes: any(named: 'predictedArrivalMinutes'),
-        predictedOpeningMinutes: any(named: 'predictedOpeningMinutes'),
-        predictedOpeningDurationSecs: any(
-          named: 'predictedOpeningDurationSecs',
-        ),
+        predictedOpeningMinutes: null,
+        predictedOpeningDurationSecs: null,
         predictedClearSkyAlt: any(named: 'predictedClearSkyAlt'),
         predictedClearSkyAz: any(named: 'predictedClearSkyAz'),
       ),

@@ -4,6 +4,7 @@ class _DecisionPanel extends ConsumerWidget {
   final SchedulerStatus status;
   final SchedulerDecision? decision;
   final SchedulerConfig config;
+  final bool controlsBusy;
   final Future<void> Function() onStart;
   final Future<void> Function() onPause;
   final Future<void> Function() onResume;
@@ -17,6 +18,7 @@ class _DecisionPanel extends ConsumerWidget {
     required this.status,
     required this.decision,
     required this.config,
+    required this.controlsBusy,
     required this.onStart,
     required this.onPause,
     required this.onResume,
@@ -30,6 +32,7 @@ class _DecisionPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final canStart = decision?.scoredCandidates.isNotEmpty ?? false;
     return NightshadeCard(
       variant: CardVariant.subtle,
       borderRadius: NightshadeTokens.radiusInline8,
@@ -77,12 +80,27 @@ class _DecisionPanel extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceLg),
           _ControlsRow(
             status: status,
+            busy: controlsBusy,
+            canStart: canStart,
             onStart: onStart,
             onPause: onPause,
             onResume: onResume,
             onStop: onStop,
             onForceReeval: onForceReeval,
           ),
+          if (status.state == SchedulerState.idle && !canStart) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              decision == null
+                  ? 'Loading scheduler targets…'
+                  : 'Add at least one target before starting unattended '
+                      'autopilot.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.warning,
+              ),
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceLg),
           _ReasoningList(decision: decision, colors: colors),
           const SizedBox(height: NightshadeTokens.spaceLg),
@@ -236,6 +254,8 @@ class _Countdown extends StatelessWidget {
 
 class _ControlsRow extends StatelessWidget {
   final SchedulerStatus status;
+  final bool busy;
+  final bool canStart;
   final Future<void> Function() onStart;
   final Future<void> Function() onPause;
   final Future<void> Function() onResume;
@@ -244,6 +264,8 @@ class _ControlsRow extends StatelessWidget {
 
   const _ControlsRow({
     required this.status,
+    required this.busy,
+    required this.canStart,
     required this.onStart,
     required this.onPause,
     required this.onResume,
@@ -259,14 +281,16 @@ class _ControlsRow extends StatelessWidget {
       children: [
         if (status.state == SchedulerState.idle)
           Tooltip(
-            message: 'Hand the night to the autopilot: it runs unattended and '
-                're-picks the best target as conditions change. This does not '
-                'build an editable plan — use Plan Tonight for that.',
+            message: canStart
+                ? 'Hand the night to the autopilot: it runs unattended and '
+                    're-picks the best target as conditions change. This does '
+                    'not build an editable plan — use Plan Tonight for that.'
+                : 'Add at least one target before starting autopilot.',
             child: NightshadeButton(
               label: 'Run unattended all night',
               icon: LucideIcons.play,
               size: ButtonSize.medium,
-              onPressed: () => onStart(),
+              onPressed: busy || !canStart ? null : () => onStart(),
             ),
           ),
         if (status.state == SchedulerState.running)
@@ -275,14 +299,14 @@ class _ControlsRow extends StatelessWidget {
             icon: LucideIcons.pause,
             size: ButtonSize.small,
             variant: ButtonVariant.outline,
-            onPressed: () => onPause(),
+            onPressed: busy ? null : () => onPause(),
           ),
         if (status.state == SchedulerState.paused)
           NightshadeButton(
             label: 'Resume',
             icon: LucideIcons.play,
             size: ButtonSize.small,
-            onPressed: () => onResume(),
+            onPressed: busy ? null : () => onResume(),
           ),
         if (status.state != SchedulerState.idle)
           NightshadeButton(
@@ -290,14 +314,14 @@ class _ControlsRow extends StatelessWidget {
             icon: LucideIcons.square,
             size: ButtonSize.small,
             variant: ButtonVariant.destructive,
-            onPressed: () => onStop(),
+            onPressed: busy ? null : () => onStop(),
           ),
         NightshadeButton(
           label: 'Re-evaluate',
           icon: LucideIcons.refreshCw,
           size: ButtonSize.small,
           variant: ButtonVariant.ghost,
-          onPressed: () => onForceReeval(),
+          onPressed: busy ? null : () => onForceReeval(),
         ),
       ],
     );

@@ -151,10 +151,6 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
             ),
           ),
           const SizedBox(height: 8),
-          // No external docs site is wired up yet, so the chip uses a
-          // `nightshade://docs/diagnostics` anchor as a stable target for a
-          // future in-app docs viewer. Until that lands, the chip stays
-          // informational — tapping is a no-op rather than a broken link.
           _DocsInfoChip(colors: colors),
           const SizedBox(height: 16),
 

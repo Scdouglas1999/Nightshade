@@ -22,10 +22,6 @@ class MobilePlaybackBar extends ConsumerWidget {
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final sequence = ref.watch(currentSequenceProvider);
 
-    final isIdle = executionState == SequenceExecutionState.idle;
-    final isRunning = executionState == SequenceExecutionState.running;
-    final isPaused = executionState == SequenceExecutionState.paused;
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -53,17 +49,25 @@ class MobilePlaybackBar extends ConsumerWidget {
             context.showCommandActionResult(result);
           }
 
+          // Centralized capabilities so completed/failed offer a functional
+          // Start (never a silent exact-idle no-op) and stopFailed/cleanupFailed
+          // keep an enabled Stop retry.
+          final canStart = executionState.canStart;
+          final canPause = executionState.canPause;
+          final canResume = executionState.canResume;
+
           return Row(
             children: [
-              // Play/Pause button
+              // Play / Pause / Resume — the primary transport button.
               _MobilePlaybackButton(
                 colors: colors,
-                icon: isRunning ? LucideIcons.pause : LucideIcons.play,
-                label: isRunning ? 'Pause' : (isPaused ? 'Resume' : 'Start'),
-                isActive: isRunning,
+                icon: canPause ? LucideIcons.pause : LucideIcons.play,
+                label: canPause ? 'Pause' : (canResume ? 'Resume' : 'Start'),
+                isActive: canPause,
+                isEnabled: canStart || canPause || canResume,
                 isCompact: isNarrow,
                 onPressed: () async {
-                  if (isIdle) {
+                  if (canStart) {
                     await showDialog<void>(
                       context: context,
                       builder: (context) => PreFlightValidationDialog(
@@ -76,12 +80,12 @@ class MobilePlaybackBar extends ConsumerWidget {
                         },
                       ),
                     );
-                  } else if (isRunning) {
+                  } else if (canPause) {
                     final result =
                         await ref.read(sequenceActionServiceProvider).pause();
                     if (!context.mounted) return;
                     context.showCommandActionResult(result);
-                  } else if (isPaused) {
+                  } else if (canResume) {
                     final result =
                         await ref.read(sequenceActionServiceProvider).resume();
                     if (!context.mounted) return;
@@ -93,9 +97,10 @@ class MobilePlaybackBar extends ConsumerWidget {
               SizedBox(width: buttonSpacing),
 
               // Stop button — hold-to-confirm so a thumb-slip during an
-              // overnight session can't abort the run.
+              // overnight session can't abort the run. Enabled wherever a stop
+              // is meaningful, including a retry from stopFailed / cleanupFailed.
               HoldToConfirmButton(
-                enabled: isRunning || isPaused,
+                enabled: executionState.canStop,
                 holdColor: colors.error,
                 confirmText: 'Hold to stop',
                 semanticsLabel: 'Press and hold to stop the sequence',
@@ -109,7 +114,7 @@ class MobilePlaybackBar extends ConsumerWidget {
                     colors: colors,
                     icon: LucideIcons.square,
                     label: 'Stop',
-                    isEnabled: isRunning || isPaused,
+                    isEnabled: executionState.canStop,
                     isCompact: isNarrow,
                     onPressed: stopSequence,
                   ),
@@ -123,7 +128,7 @@ class MobilePlaybackBar extends ConsumerWidget {
                 colors: colors,
                 icon: LucideIcons.skipForward,
                 label: 'Skip',
-                isEnabled: isRunning,
+                isEnabled: executionState.canSkip,
                 isCompact: isNarrow,
                 onPressed: () async {
                   final result =
@@ -212,7 +217,13 @@ class _MobilePlaybackButton extends StatelessWidget {
           child: Container(
             width: buttonSize,
             height: buttonSize,
-            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            // Was a hardcoded 44 under a comment calling it "the minimum" — it
+            // is the iOS minimum, and this bar is a phone surface, so Android's
+            // 48 applies. Use the token so it cannot drift again.
+            constraints: const BoxConstraints(
+              minWidth: NightshadeTokens.minTouchTarget,
+              minHeight: NightshadeTokens.minTouchTarget,
+            ),
             decoration: BoxDecoration(
               color: isActive
                   ? NightshadeDecorations.statusChip(

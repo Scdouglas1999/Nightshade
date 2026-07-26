@@ -25,6 +25,11 @@ class LastNightRecapCard extends ConsumerWidget {
       data: (runs) => runs.isEmpty ? null : runs.first,
       orElse: () => null,
     );
+    // Only claim "Last night" when the run genuinely was last night; a
+    // weeks-old run under that header reads as a stale-data bug.
+    final isRecent = lastRun != null &&
+        DateTime.now().difference(lastRun.startedAt) <
+            const Duration(hours: 24);
 
     return DashboardGlassCard(
       colors: colors,
@@ -35,7 +40,7 @@ class LastNightRecapCard extends ConsumerWidget {
           DashboardCardHeader(
             colors: colors,
             icon: LucideIcons.history,
-            title: 'Last night',
+            title: isRecent ? 'Last night' : 'Last run',
             accent: colors.textMuted,
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),

@@ -2,7 +2,47 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/remote_directory_picker_dialog.dart';
+
+Future<String?> chooseFlatWizardSavePath({
+  required bool isRemote,
+  required Future<String?> Function() pickLocal,
+  required Future<String?> Function() pickRemote,
+}) =>
+    isRemote ? pickRemote() : pickLocal();
+
+typedef FlatWizardSavePathPicker = Future<String?> Function({
+  required BuildContext context,
+  required bool isRemote,
+  required String? currentPath,
+});
+
+final flatWizardSavePathPickerProvider = Provider<FlatWizardSavePathPicker>((
+  ref,
+) {
+  return ({
+    required BuildContext context,
+    required bool isRemote,
+    required String? currentPath,
+  }) {
+    return chooseFlatWizardSavePath(
+      isRemote: isRemote,
+      pickLocal: () => getDirectoryPath(
+        confirmButtonText: 'Select',
+        initialDirectory: currentPath,
+      ),
+      pickRemote: () => RemoteDirectoryPickerDialog.show(
+        context,
+        title: 'Select host flat-frame folder',
+        initialPath: currentPath,
+      ),
+    );
+  };
+});
 
 class SavePathDialog extends ConsumerStatefulWidget {
   final String? currentPath;
@@ -41,33 +81,59 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
   late TextEditingController _pathController;
   late bool _createDateSubfolder;
   late bool _createFilterSubfolders;
+  bool _isBrowsing = false;
+  int _browseGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _pathController = TextEditingController(text: widget.currentPath ?? '');
+    _pathController.addListener(_handlePathChanged);
     _createDateSubfolder = widget.createDateSubfolder;
     _createFilterSubfolders = widget.createFilterSubfolders;
   }
 
   @override
   void dispose() {
+    _pathController.removeListener(_handlePathChanged);
     _pathController.dispose();
     super.dispose();
   }
 
-  Future<void> _browsePath() async {
-    final result = await getDirectoryPath(
-      confirmButtonText: 'Select',
-      initialDirectory:
-          _pathController.text.isNotEmpty ? _pathController.text : null,
-    );
+  void _handlePathChanged() {
+    if (mounted) setState(() {});
+  }
 
-    if (result != null) {
-      setState(() {
-        _pathController.text = result;
-      });
+  Future<void> _browsePath() async {
+    if (_isBrowsing) return;
+    final generation = ++_browseGeneration;
+    final authority = ref.read(backendProvider);
+    final current =
+        _pathController.text.isNotEmpty ? _pathController.text : null;
+    setState(() => _isBrowsing = true);
+    try {
+      final result = await ref.read(flatWizardSavePathPickerProvider)(
+        context: context,
+        isRemote: authority is NetworkBackend,
+        currentPath: current,
+      );
+      if (!_isCurrentBrowse(generation, authority)) return;
+      if (result != null) _pathController.text = result;
+    } catch (error) {
+      if (mounted && _isCurrentBrowse(generation, authority)) {
+        context.showErrorSnackBar('Could not choose a save folder: $error');
+      }
+    } finally {
+      if (_isCurrentBrowse(generation, authority)) {
+        setState(() => _isBrowsing = false);
+      }
     }
+  }
+
+  bool _isCurrentBrowse(int generation, NightshadeBackend authority) {
+    return mounted &&
+        generation == _browseGeneration &&
+        identical(ref.read(backendProvider), authority);
   }
 
   void _confirm() {
@@ -82,6 +148,14 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (!_isBrowsing || previous == null || identical(previous, next)) {
+        return;
+      }
+      _browseGeneration++;
+      setState(() => _isBrowsing = false);
+    });
+
     final colors = NightshadeColors.of(context);
 
     return Dialog(
@@ -157,8 +231,9 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
                     const SizedBox(width: 12),
                     NightshadeButton(
                       label: 'Browse...',
-                      onPressed: _browsePath,
+                      onPressed: _isBrowsing ? null : _browsePath,
                       variant: ButtonVariant.outline,
+                      isLoading: _isBrowsing,
                     ),
                   ],
                 ),

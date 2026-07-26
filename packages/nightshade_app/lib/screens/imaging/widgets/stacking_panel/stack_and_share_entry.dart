@@ -22,6 +22,10 @@ class _StackAndShareEntry extends StatelessWidget {
   /// Whether the selection preview is currently being computed.
   final bool isBusy;
 
+  /// Whether this UI is controlling a separate imaging host. Stack & Share's
+  /// result database and artifacts are host-local in this release.
+  final bool isRemoteMode;
+
   /// Invoked when the button is pressed; null when the action is unavailable.
   final VoidCallback? onPressed;
 
@@ -29,6 +33,7 @@ class _StackAndShareEntry extends StatelessWidget {
     required this.sessionId,
     required this.liveStackingActive,
     required this.isBusy,
+    required this.isRemoteMode,
     required this.onPressed,
   });
 
@@ -36,11 +41,14 @@ class _StackAndShareEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     // Live stacking takes precedence in the disabled reason: even with a valid
     // session, the singleton engine is busy.
-    final disabledReason = liveStackingActive
-        ? 'Stop live stacking to run Stack & Share'
-        : sessionId == null
-            ? 'Select a session to stack'
-            : null;
+    final disabledReason = isRemoteMode
+        ? 'Stack & Share uses session files and result storage on the imaging '
+            'host. Open Nightshade on that computer to run it.'
+        : liveStackingActive
+            ? 'Stop live stacking to run Stack & Share'
+            : sessionId == null
+                ? 'Select a session to stack'
+                : null;
 
     // Only enable when there is a session, live stacking is idle, and we are not
     // mid-preview. The reason text is mutually exclusive with an active handler.
@@ -49,7 +57,7 @@ class _StackAndShareEntry extends StatelessWidget {
     final button = SizedBox(
       width: double.infinity,
       child: NightshadeButton(
-        label: 'Stack & Share',
+        label: isRemoteMode ? 'Stack & Share on imaging host' : 'Stack & Share',
         icon: NightshadeIcons.sparkle,
         isLoading: isBusy,
         onPressed: enabled ? onPressed : null,

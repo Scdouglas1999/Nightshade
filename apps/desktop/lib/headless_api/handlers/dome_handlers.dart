@@ -83,6 +83,13 @@ class DomeHandlers {
         'deviceId': deviceId,
       });
     }
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canSetShutter,
+      operation: 'open shutter',
+      capability: 'canSetShutter',
+    );
     await bridge.apiDomeOpenShutter(deviceId: deviceId);
     return jsonOk({'status': 'opening', 'deviceId': deviceId});
   }
@@ -97,6 +104,13 @@ class DomeHandlers {
         'deviceId': deviceId,
       });
     }
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canSetShutter,
+      operation: 'close shutter',
+      capability: 'canSetShutter',
+    );
     await bridge.apiDomeCloseShutter(deviceId: deviceId);
     return jsonOk({'status': 'closing', 'deviceId': deviceId});
   }
@@ -115,6 +129,13 @@ class DomeHandlers {
         'deviceId': deviceId,
       });
     }
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canSetAzimuth,
+      operation: 'slew',
+      capability: 'canSetAzimuth',
+    );
     await bridge.apiDomeSlewToAzimuth(deviceId: deviceId, azimuth: azimuth);
     return jsonOk({
       'status': 'slewing',
@@ -163,6 +184,13 @@ class DomeHandlers {
         'deviceId': deviceId,
       });
     }
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canPark,
+      operation: 'park',
+      capability: 'canPark',
+    );
     await bridge.apiDomePark(deviceId: deviceId);
     return jsonOk({'status': 'parking', 'deviceId': deviceId});
   }
@@ -274,6 +302,7 @@ class DomeHandlers {
       'canPark': caps.canPark,
       'canFindHome': caps.canFindHome,
       'canSyncAzimuth': caps.canSyncAzimuth,
+      'canSlave': caps.canSlave,
       'canSetSlave': caps.canSlave,
       'canAbort': caps.canAbort,
       'slewing': caps.slewing,

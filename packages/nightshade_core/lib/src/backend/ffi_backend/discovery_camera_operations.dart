@@ -157,14 +157,18 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
     int? width,
     int? height,
   }) async {
-    // Use provided gain/offset or fall back to 0 (camera defaults)
-    await bridge.NativeBridge.startExposure(
+    await bridge_api.apiCameraStartExposureConfigured(
       deviceId: deviceId,
       durationSecs: exposureTime,
-      gain: gain ?? 0,
-      offset: offset ?? 0,
+      gain: gain,
+      offset: offset,
       binX: binX,
       binY: binY,
+      startX: x,
+      startY: y,
+      width: width,
+      height: height,
+      frameType: frameType.name,
     );
   }
 

@@ -57,6 +57,7 @@ Future<UpdateStack?> provisionUpdateStack({
   required String logSource,
   String? serverUrl,
   String channel = 'stable',
+  Future<void> Function()? applySafetyCheck,
 }) async {
   final resolvedUrl = (serverUrl?.trim().isNotEmpty ?? false)
       ? serverUrl!.trim()
@@ -76,6 +77,21 @@ Future<UpdateStack?> provisionUpdateStack({
   );
   if (resolvedUrl.isNotEmpty) {
     service.configure(serverUrl: resolvedUrl, channel: resolvedChannel);
+    // Observability gap: a build with an update server but no compiled-in
+    // NIGHTSHADE_UPDATE_PUBLIC_KEY looks live (checks succeed) until a
+    // download is attempted, where it fails closed. Warn loudly so this is
+    // not mistaken for working OTA. The stack is still returned — fail-closed
+    // is preserved downstream in downloadAndStage / applyUpdate.
+    if (!service.canAuthenticateUpdates) {
+      logger.warning(
+        'OTA update server is configured but this build has no trusted update '
+        'public key (NIGHTSHADE_UPDATE_PUBLIC_KEY) compiled in. Update checks '
+        'will run, but downloads will be refused (fail-closed). Provision the '
+        'vendor public key at build time to enable signed OTA updates.',
+        source: logSource,
+        fields: {'update_server': resolvedUrl, 'channel': resolvedChannel},
+      );
+    }
   }
 
   final controller = UpdateController(
@@ -85,6 +101,7 @@ Future<UpdateStack?> provisionUpdateStack({
     stateDirectory: appData,
     channel: resolvedChannel,
     serverUrl: resolvedUrl.isEmpty ? null : resolvedUrl,
+    applySafetyCheck: applySafetyCheck,
   );
   await controller.bootstrap();
 

@@ -1,7 +1,7 @@
 name: nightshade_desktop
 description: Nightshade Desktop - Cross-platform astrophotography suite
 publish_to: 'none'
-version: 5.0.0+23
+version: 6.0.0+24
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
@@ -34,9 +34,11 @@ dependencies:
   # Navigation
   go_router: ^14.0.0
 
-  # Database
+  # Database — package:sqlite3 ^3 (via nightshade_core) ships SQLite through
+  # Dart build hooks. Do not add sqlite3_flutter_libs: it embeds a second
+  # un-namespaced libsqlite3 that clashes with GTK→tinysparql on modern Linux
+  # and segfaults in sqlite3_initialize at startup.
   drift: ^2.30.0
-  sqlite3_flutter_libs: ^0.5.18
 
   # Utilities
   flutter_hooks: ^0.20.5
@@ -97,6 +99,10 @@ dev_dependencies:
   freezed: ^3.2.0
   json_serializable: ^6.9.0
   drift_dev: ^2.33.0
+  # Pinned to match the version already used across the workspace test suites
+  # (e.g. nightshade_core). Test-only: lets the headless bootstrap tests mint an
+  # `is FfiBackend` role double without dragging in the native backend.
+  mocktail: ^1.0.4
 
 flutter:
   uses-material-design: true

@@ -25,7 +25,11 @@ import 'dart:math' as math;
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../database/daos/settings_dao.dart';
 import '../database/database.dart' as db;
+import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
+import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 
 /// A single (temperature, focus_position) training sample. Mirrors the Rust
@@ -62,8 +66,9 @@ class FocusTrainingSample {
 }
 
 /// User-tunable thresholds for the predictive-AF gates. Defaults match the
-/// Rust [`PredictiveAfConfig`] and are persisted in `app_settings` so the
-/// settings screen can mutate them.
+/// Rust [`PredictiveAfConfig`]. Mutating [PredictiveAfService.config] writes
+/// them to `app_settings`, and [PredictiveAfService.hydrateFromSettings]
+/// reloads them on startup so user-tuned gates survive a restart.
 class PredictiveAfConfig {
   /// Toggle for the whole feature. When `false`, the service does not
   /// gate AF runs at all — it still records samples on success so the
@@ -120,6 +125,57 @@ class PredictiveAfConfig {
       minCorrectionFactor: minCorrectionFactor ?? this.minCorrectionFactor,
       driftThresholdSteps: driftThresholdSteps ?? this.driftThresholdSteps,
       driftRunsBeforeWarn: driftRunsBeforeWarn ?? this.driftRunsBeforeWarn,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'enabled': enabled,
+    'minSamplesForTrust': minSamplesForTrust,
+    'highConfidenceThreshold': highConfidenceThreshold,
+    'lowConfidenceThreshold': lowConfidenceThreshold,
+    'minCorrectionFactor': minCorrectionFactor,
+    'driftThresholdSteps': driftThresholdSteps,
+    'driftRunsBeforeWarn': driftRunsBeforeWarn,
+  };
+
+  factory PredictiveAfConfig.fromJson(Map<String, dynamic> json) {
+    const defaults = PredictiveAfConfig();
+    T value<T>(String key, T fallback) {
+      final raw = json[key];
+      return raw is T ? raw : fallback;
+    }
+
+    double number(String key, double fallback) {
+      final raw = json[key];
+      return raw is num && raw.isFinite ? raw.toDouble() : fallback;
+    }
+
+    return PredictiveAfConfig(
+      enabled: value('enabled', defaults.enabled),
+      minSamplesForTrust: value(
+        'minSamplesForTrust',
+        defaults.minSamplesForTrust,
+      ),
+      highConfidenceThreshold: number(
+        'highConfidenceThreshold',
+        defaults.highConfidenceThreshold,
+      ),
+      lowConfidenceThreshold: number(
+        'lowConfidenceThreshold',
+        defaults.lowConfidenceThreshold,
+      ),
+      minCorrectionFactor: number(
+        'minCorrectionFactor',
+        defaults.minCorrectionFactor,
+      ),
+      driftThresholdSteps: value(
+        'driftThresholdSteps',
+        defaults.driftThresholdSteps,
+      ),
+      driftRunsBeforeWarn: value(
+        'driftRunsBeforeWarn',
+        defaults.driftRunsBeforeWarn,
+      ),
     );
   }
 }
@@ -187,6 +243,50 @@ class FilterFocusModel {
     'samples': samples.map((s) => s.toJson()).toList(),
     'max_training_samples': maxTrainingSamples,
   };
+
+  Map<String, dynamic> toWireJson() => <String, dynamic>{
+    ...toExportJson(),
+    'equipment_profile_id': equipmentProfileId,
+    'consecutive_bad_predictions': consecutiveBadPredictions,
+    'accumulated_drift_steps': accumulatedDriftSteps,
+  };
+
+  factory FilterFocusModel.fromWireJson(Map<String, dynamic> json) {
+    final samplesRaw = json['samples'];
+    if (samplesRaw is! List) {
+      throw const FormatException('Focus model samples must be an array');
+    }
+    return FilterFocusModel(
+      uuid: json['uuid'] as String,
+      equipmentProfileId: (json['equipment_profile_id'] as num?)?.toInt(),
+      filterName: json['filter_name'] as String,
+      filterIndex: (json['filter_index'] as num?)?.toInt(),
+      slopeStepsPerC: (json['slope_steps_per_c'] as num).toDouble(),
+      focusOffsetRelativeToLum: (json['focus_offset_relative_to_lum'] as num)
+          .toInt(),
+      interceptAtReferenceTemp: (json['intercept_at_reference_temp'] as num)
+          .toInt(),
+      referenceTempCelsius: (json['reference_temp_celsius'] as num).toDouble(),
+      lastTrainedAt: DateTime.parse(json['last_trained_at'] as String),
+      trainingRunCount: (json['training_run_count'] as num).toInt(),
+      confidenceScore: (json['confidence_score'] as num).toDouble(),
+      lastUsedAt: json['last_used_at'] is String
+          ? DateTime.parse(json['last_used_at'] as String)
+          : null,
+      samples: samplesRaw
+          .map(
+            (sample) => FocusTrainingSample.fromJson(
+              Map<String, dynamic>.from(sample as Map),
+            ),
+          )
+          .toList(),
+      maxTrainingSamples: (json['max_training_samples'] as num).toInt(),
+      consecutiveBadPredictions:
+          (json['consecutive_bad_predictions'] as num?)?.toInt() ?? 0,
+      accumulatedDriftSteps:
+          (json['accumulated_drift_steps'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 /// Confidence-gated decision returned by
@@ -310,25 +410,175 @@ class ShouldWarn extends DriftStatus {
 ///     the row + lifetime counter).
 class PredictiveAfService {
   final db.NightshadeDatabase _db;
+  final SettingsDao? _settingsDao;
   PredictiveAfConfig _config;
+  bool _disposed = false;
+  Future<void>? _hydration;
+  Future<void> _configWriteTail = Future<void>.value();
 
   final _driftController = StreamController<DriftStatus>.broadcast();
 
-  PredictiveAfService(this._db, {PredictiveAfConfig? config})
-    : _config = config ?? const PredictiveAfConfig();
+  PredictiveAfService(
+    this._db, {
+    PredictiveAfConfig? config,
+    SettingsDao? settingsDao,
+  }) : _config = config ?? const PredictiveAfConfig(),
+       _settingsDao = settingsDao;
 
-  // The getter/setter pair (rather than a plain field) is intentional:
-  // it gives external code a stable API surface while leaving room for
-  // future side effects (e.g. emitting an event when thresholds change).
-  // ignore: unnecessary_getters_setters
+  static const _enabledKey = 'predictive_af.enabled';
+  static const _minSamplesKey = 'predictive_af.min_samples_for_trust';
+  static const _highConfidenceKey = 'predictive_af.high_confidence_threshold';
+  static const _lowConfidenceKey = 'predictive_af.low_confidence_threshold';
+  static const _driftThresholdKey = 'predictive_af.drift_threshold_steps';
+  static const _driftRunsKey = 'predictive_af.drift_runs_before_warn';
+
   PredictiveAfConfig get config => _config;
 
-  /// Set new gate thresholds. Already-recorded samples / drift counters
-  /// are unaffected — only future [evaluateForFilter] calls see the new
-  /// config.
-  // ignore: unnecessary_getters_setters
+  /// Set new gate thresholds and persist them to `app_settings` so they
+  /// survive a restart. Already-recorded samples / drift counters are
+  /// unaffected — only future [evaluateForFilter] calls see the new config.
   set config(PredictiveAfConfig value) {
-    _config = value;
+    final dao = _settingsDao;
+    if (dao == null) {
+      _validateConfig(value);
+      _config = value;
+      return;
+    }
+    unawaited(updateConfig(value));
+  }
+
+  Future<void> updateConfig(PredictiveAfConfig value) async {
+    await hydrated;
+    _validateConfig(value);
+    final operation = _configWriteTail.then((_) async {
+      final dao = _settingsDao;
+      if (dao != null) await _persistConfig(dao, value);
+      if (!_disposed) _config = value;
+    });
+    _configWriteTail = operation.then<void>((_) {}, onError: (_, __) {});
+    await operation;
+  }
+
+  Future<void> get hydrated => _hydration ?? Future<void>.value();
+
+  void _validateConfig(PredictiveAfConfig value) {
+    if (value.minSamplesForTrust < 3 || value.minSamplesForTrust > 50) {
+      throw ArgumentError.value(
+        value.minSamplesForTrust,
+        'minSamplesForTrust',
+        'must be between 3 and 50',
+      );
+    }
+    if (!value.highConfidenceThreshold.isFinite ||
+        value.highConfidenceThreshold < 0.5 ||
+        value.highConfidenceThreshold > 1) {
+      throw ArgumentError.value(
+        value.highConfidenceThreshold,
+        'highConfidenceThreshold',
+        'must be between 0.5 and 1.0',
+      );
+    }
+    if (!value.lowConfidenceThreshold.isFinite ||
+        value.lowConfidenceThreshold < 0 ||
+        value.lowConfidenceThreshold > 0.9 ||
+        value.lowConfidenceThreshold > value.highConfidenceThreshold) {
+      throw ArgumentError.value(
+        value.lowConfidenceThreshold,
+        'lowConfidenceThreshold',
+        'must be between 0 and the high-confidence threshold',
+      );
+    }
+    if (!value.minCorrectionFactor.isFinite ||
+        value.minCorrectionFactor < 0 ||
+        value.minCorrectionFactor > 1) {
+      throw ArgumentError.value(
+        value.minCorrectionFactor,
+        'minCorrectionFactor',
+        'must be between 0 and 1',
+      );
+    }
+    if (value.driftThresholdSteps < 20 || value.driftThresholdSteps > 2000) {
+      throw ArgumentError.value(
+        value.driftThresholdSteps,
+        'driftThresholdSteps',
+        'must be between 20 and 2000',
+      );
+    }
+    if (value.driftRunsBeforeWarn < 1 || value.driftRunsBeforeWarn > 20) {
+      throw ArgumentError.value(
+        value.driftRunsBeforeWarn,
+        'driftRunsBeforeWarn',
+        'must be between 1 and 20',
+      );
+    }
+  }
+
+  Future<void> _persistConfig(SettingsDao dao, PredictiveAfConfig c) async {
+    await dao.setSettings({
+      _enabledKey: c.enabled.toString(),
+      _minSamplesKey: c.minSamplesForTrust.toString(),
+      _highConfidenceKey: c.highConfidenceThreshold.toString(),
+      _lowConfidenceKey: c.lowConfidenceThreshold.toString(),
+      _driftThresholdKey: c.driftThresholdSteps.toString(),
+      _driftRunsKey: c.driftRunsBeforeWarn.toString(),
+    });
+  }
+
+  /// Load the persisted gate thresholds from `app_settings` into [config].
+  /// Called once at provider construction; missing or unparseable keys keep
+  /// the current default for that field.
+  Future<void> hydrateFromSettings() {
+    return _hydration ??= _hydrateFromSettings();
+  }
+
+  Future<void> _hydrateFromSettings() async {
+    final dao = _settingsDao;
+    if (dao == null) return;
+    final String? enabled;
+    final String? minSamples;
+    final String? highConfidence;
+    final String? lowConfidence;
+    final String? driftThreshold;
+    final String? driftRuns;
+    try {
+      enabled = await dao.getSetting(_enabledKey);
+      minSamples = await dao.getSetting(_minSamplesKey);
+      highConfidence = await dao.getSetting(_highConfidenceKey);
+      lowConfidence = await dao.getSetting(_lowConfidenceKey);
+      driftThreshold = await dao.getSetting(_driftThresholdKey);
+      driftRuns = await dao.getSetting(_driftRunsKey);
+    } on StateError {
+      // Hydration is fired unawaited at provider construction; if the owner
+      // is disposed (and the database closed) before it lands, keep the
+      // defaults rather than surfacing a shutdown-order error.
+      if (_disposed) return;
+      rethrow;
+    }
+    if (_disposed) return;
+    final loaded = _config.copyWith(
+      enabled: enabled == null ? null : enabled == 'true',
+      minSamplesForTrust: minSamples == null ? null : int.tryParse(minSamples),
+      highConfidenceThreshold: highConfidence == null
+          ? null
+          : double.tryParse(highConfidence),
+      lowConfidenceThreshold: lowConfidence == null
+          ? null
+          : double.tryParse(lowConfidence),
+      driftThresholdSteps: driftThreshold == null
+          ? null
+          : int.tryParse(driftThreshold),
+      driftRunsBeforeWarn: driftRuns == null ? null : int.tryParse(driftRuns),
+    );
+    try {
+      _validateConfig(loaded);
+      _config = loaded;
+    } on ArgumentError catch (error) {
+      developer.log(
+        'Ignoring invalid persisted predictive-AF config: $error',
+        name: 'PredictiveAfService',
+        level: 900,
+      );
+    }
   }
 
   /// Stream of drift detection events. Listen here to surface
@@ -336,6 +586,7 @@ class PredictiveAfService {
   Stream<DriftStatus> get driftEvents => _driftController.stream;
 
   Future<void> dispose() async {
+    _disposed = true;
     await _driftController.close();
   }
 
@@ -979,12 +1230,117 @@ class _RegressionFit {
 /// so it can be reached from anywhere in the app.
 final predictiveAfServiceProvider = Provider<PredictiveAfService>((ref) {
   final database = ref.watch(databaseProvider);
-  final service = PredictiveAfService(database);
+  final settingsDao = ref.watch(settingsDaoProvider);
+  final service = PredictiveAfService(database, settingsDao: settingsDao);
+  unawaited(service.hydrateFromSettings());
   ref.onDispose(() async {
     await service.dispose();
   });
   return service;
 });
+
+class PredictiveAfSettingsSnapshot {
+  final PredictiveAfConfig config;
+  final List<FilterFocusModel> models;
+
+  const PredictiveAfSettingsSnapshot({
+    required this.config,
+    required this.models,
+  });
+}
+
+/// Settings-facing facade that keeps predictive AF host-authoritative. A
+/// remote companion never reads or mutates its private phone database.
+class PredictiveAfSettingsController {
+  final Ref _ref;
+  final NightshadeBackend _backend;
+
+  PredictiveAfSettingsController(this._ref, this._backend);
+
+  Future<PredictiveAfSettingsSnapshot> load({int? equipmentProfileId}) async {
+    final backend = _backend;
+    if (backend is NetworkBackend) {
+      final response = await backend.getPredictiveAfSettings();
+      final configRaw = response['config'];
+      final modelsRaw = response['models'];
+      if (configRaw is! Map || modelsRaw is! List) {
+        throw const FormatException('Invalid predictive AF response');
+      }
+      final models = <FilterFocusModel>[];
+      for (final raw in modelsRaw) {
+        if (raw is! Map) continue;
+        try {
+          models.add(
+            FilterFocusModel.fromWireJson(Map<String, dynamic>.from(raw)),
+          );
+        } catch (_) {
+          // A single corrupted historic row must not hide every healthy model.
+        }
+      }
+      return PredictiveAfSettingsSnapshot(
+        config: PredictiveAfConfig.fromJson(
+          Map<String, dynamic>.from(configRaw),
+        ),
+        models: models,
+      );
+    }
+
+    final service = _ref.read(predictiveAfServiceProvider);
+    await service.hydrated;
+    return PredictiveAfSettingsSnapshot(
+      config: service.config,
+      models: await service.listModels(equipmentProfileId: equipmentProfileId),
+    );
+  }
+
+  Future<void> updateConfig(PredictiveAfConfig config) async {
+    final backend = _backend;
+    if (backend is NetworkBackend) {
+      await backend.updatePredictiveAfConfig(config.toJson());
+      return;
+    }
+    await _ref.read(predictiveAfServiceProvider).updateConfig(config);
+  }
+
+  Future<void> clearSamples({
+    required int? equipmentProfileId,
+    required String filterName,
+  }) async {
+    final backend = _backend;
+    if (backend is NetworkBackend) {
+      await backend.clearPredictiveAfSamples(filterName);
+      return;
+    }
+    await _ref
+        .read(predictiveAfServiceProvider)
+        .clearSamples(
+          equipmentProfileId: equipmentProfileId,
+          filterName: filterName,
+        );
+  }
+
+  Future<String?> exportModel({
+    required int? equipmentProfileId,
+    required String filterName,
+  }) async {
+    final backend = _backend;
+    if (backend is NetworkBackend) {
+      return backend.exportPredictiveAfModel(filterName);
+    }
+    return _ref
+        .read(predictiveAfServiceProvider)
+        .exportModel(
+          equipmentProfileId: equipmentProfileId,
+          filterName: filterName,
+        );
+  }
+}
+
+final predictiveAfSettingsControllerProvider =
+    Provider<PredictiveAfSettingsController>((ref) {
+      final backend = ref.watch(backendProvider);
+      return PredictiveAfSettingsController(ref, backend);
+    });
 
 /// Last predictive-AF consultation, surfaced for the UI (focus model card).
 ///

@@ -9,9 +9,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/session_report_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
 
 SessionReport _fakeReport({
   String name = 'M42 night 1',
@@ -90,7 +99,19 @@ class _FakeAppSettingsNotifierForReport extends AppSettingsNotifier {
   Future<AppSettingsState> build() async => const AppSettingsState();
 }
 
-Future<void> _pump(WidgetTester tester, SessionReport report) async {
+class _FailingAppSettingsNotifierForReport extends AppSettingsNotifier {
+  @override
+  Future<AppSettingsState> build() async {
+    throw StateError('settings unavailable');
+  }
+}
+
+Future<void> _pump(
+  WidgetTester tester,
+  SessionReport report, {
+  NightshadeBackend? backend,
+  bool failAuxiliary = false,
+}) async {
   // Build the override list inside the function so it can include
   // family-keyed providers that depend on the report's session id /
   // primary target. Without `notesForTargetProvider` override the
@@ -104,16 +125,39 @@ Future<void> _pump(WidgetTester tester, SessionReport report) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (backend != null)
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
         sessionReportProvider(report.sessionId).overrideWith(
           (ref) async => report,
         ),
-        appSettingsProvider
-            .overrideWith(() => _FakeAppSettingsNotifierForReport()),
+        appSettingsProvider.overrideWith(
+          failAuxiliary
+              ? () => _FailingAppSettingsNotifierForReport()
+              : () => _FakeAppSettingsNotifierForReport(),
+        ),
+        recoveryHistoryForSessionProvider(report.sessionId).overrideWith(
+          (ref) async => failAuxiliary
+              ? throw StateError('recovery store unavailable')
+              : const [],
+        ),
+        opticalTrainSnapshotForSessionProvider(report.sessionId).overrideWith(
+          (ref) async => failAuxiliary
+              ? throw StateError('diagnostic store unavailable')
+              : const SessionOpticalTrainSnapshot(
+                  baseline: null,
+                  current: null,
+                ),
+        ),
         notesForTargetProvider(primaryTarget).overrideWith(
           (ref) => const Stream<List<JournalNote>>.empty(),
         ),
-        sessionInsightsProvider(report.sessionId)
-            .overrideWith((ref) async => const <SessionInsight>[]),
+        sessionInsightsProvider(report.sessionId).overrideWith(
+          (ref) async => failAuxiliary
+              ? throw StateError('insights unavailable')
+              : const <SessionInsight>[],
+        ),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -140,6 +184,10 @@ Future<void> _pump(WidgetTester tester, SessionReport report) async {
   // futures.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
+  // Providers below the initially visible scroll extent are first watched
+  // while that frame is built. Give their immediately-completing futures one
+  // more frame to publish data/error states.
+  await tester.pump();
 }
 
 void main() {
@@ -171,6 +219,18 @@ void main() {
     expect(find.text('L'), findsOneWidget);
     // The rejection-rollup line is rendered.
     expect(find.textContaining('Rejections:'), findsOneWidget);
+  });
+
+  testWidgets('remote report directs Session Review to the imaging host',
+      (tester) async {
+    await _pump(
+      tester,
+      _fakeReport(),
+      backend: _MockNetworkBackend(),
+    );
+
+    expect(find.text('Review on imaging host'), findsOneWidget);
+    expect(find.text('Review & Integrate'), findsNothing);
   });
 
   testWidgets('Copy as Markdown writes to the clipboard', (tester) async {
@@ -239,5 +299,22 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Autofocus skipped: dome was closing'), findsOneWidget);
+  });
+
+  testWidgets('partial report provider failures are visible and retryable',
+      (tester) async {
+    await _pump(tester, _fakeReport(), failAuxiliary: true);
+
+    expect(
+        find.textContaining('Could not load recovery history'), findsOneWidget);
+    expect(
+      find.textContaining('Could not load diagnostic settings'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Could not load retrospective suggestions'),
+      findsOneWidget,
+    );
+    expect(find.text('Retry'), findsNWidgets(3));
   });
 }

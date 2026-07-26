@@ -82,8 +82,17 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
     // the wizard it sets the latch and invalidates the provider so this
     // branch falls through on the next build.
     final setupNeedsAsync = ref.watch(shouldRunFirstRunSetupProvider);
-    final setupNeeds = setupNeedsAsync.valueOrNull;
-    if (setupNeeds != null && setupNeeds.hasAnyMissing) {
+    if (setupNeedsAsync.isLoading) {
+      return const _SetupGateState();
+    }
+    if (setupNeedsAsync.hasError) {
+      return _SetupGateState(
+        error: setupNeedsAsync.error,
+        onRetry: () => ref.invalidate(shouldRunFirstRunSetupProvider),
+      );
+    }
+    final setupNeeds = setupNeedsAsync.requireValue;
+    if (setupNeeds.hasAnyMissing) {
       return FirstRunSetupScreen(
         needs: setupNeeds,
         onCompleted: () {
@@ -207,6 +216,44 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
         currentIndex: _currentIndex,
         tabs: _tabs,
         onSelected: (i) => setState(() => _currentIndex = i),
+      ),
+    );
+  }
+}
+
+class _SetupGateState extends StatelessWidget {
+  final Object? error;
+  final VoidCallback? onRetry;
+
+  const _SetupGateState({this.error, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return Scaffold(
+      backgroundColor: colors.background,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: error == null
+                ? const CircularProgressIndicator()
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.cloudOff, color: colors.error, size: 36),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Could not check server setup: $error',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colors.textSecondary),
+                      ),
+                      const SizedBox(height: 16),
+                      NightshadeButton(label: 'Retry', onPressed: onRetry),
+                    ],
+                  ),
+          ),
+        ),
       ),
     );
   }

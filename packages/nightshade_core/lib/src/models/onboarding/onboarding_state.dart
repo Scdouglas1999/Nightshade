@@ -24,6 +24,14 @@ enum OnboardingStep {
   /// threads. Sits between the optical train and the capture directory.
   cameraDefaults,
   captureDir,
+
+  /// Observing site (latitude / longitude / elevation). Optional — a user
+  /// setting up indoors can skip it and be nudged from the next-steps screen —
+  /// but skipping leaves every location-driven surface (Tonight, planner
+  /// visibility, meridian-flip timing, weather radar) in its "location not set"
+  /// state. Persists straight to app settings, not the onboarding draft, since
+  /// the coordinates are global observer settings rather than per-profile.
+  site,
   summary,
 
   /// Terminal "what's next" step shown after the profile is created. This is
@@ -51,6 +59,10 @@ extension OnboardingStepOrder on OnboardingStep {
       // gain/offset/binning/cooling values, so the user can move on without
       // touching them.
       case OnboardingStep.cameraDefaults:
+      // The observing site is optional at setup time — a location can be added
+      // later from Settings — though skipping degrades the location-driven
+      // surfaces until it is.
+      case OnboardingStep.site:
         return true;
       case OnboardingStep.welcome:
       case OnboardingStep.drivers:
@@ -215,6 +227,9 @@ class OnboardingDraft {
     bool clearFocuser = false,
     bool clearFilterWheel = false,
     bool clearGuider = false,
+    bool clearFocalLength = false,
+    bool clearAperture = false,
+    bool clearPixelSize = false,
     bool clearCoolingTempC = false,
   }) {
     return OnboardingDraft(
@@ -234,9 +249,13 @@ class OnboardingDraft {
           : (filterWheelName ?? this.filterWheelName),
       guiderId: clearGuider ? null : (guiderId ?? this.guiderId),
       guiderName: clearGuider ? null : (guiderName ?? this.guiderName),
-      pixelSizeMicrons: pixelSizeMicrons ?? this.pixelSizeMicrons,
-      focalLengthMm: focalLengthMm ?? this.focalLengthMm,
-      apertureMm: apertureMm ?? this.apertureMm,
+      pixelSizeMicrons: clearPixelSize
+          ? null
+          : (pixelSizeMicrons ?? this.pixelSizeMicrons),
+      focalLengthMm: clearFocalLength
+          ? null
+          : (focalLengthMm ?? this.focalLengthMm),
+      apertureMm: clearAperture ? null : (apertureMm ?? this.apertureMm),
       reducerFactor: reducerFactor ?? this.reducerFactor,
       filterNames: filterNames ?? this.filterNames,
       captureDirectory: captureDirectory ?? this.captureDirectory,

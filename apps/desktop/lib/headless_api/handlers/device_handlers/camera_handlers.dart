@@ -5,13 +5,278 @@ extension CameraDeviceHandlers on DeviceHandlers {
   // Camera Control
   // ===========================================================================
 
+  /// Reject exposure parameters the camera has told us it cannot honour.
+  ///
+  /// Why: vendor SDKs clamp out-of-range requests instead of failing, and
+  /// the app then reported the *requested* value back as the camera's live
+  /// setting. Observed on the live rig against a real ZWO ASI1600MM-Cool
+  /// whose own `/api/equipment/camera/capabilities` reports
+  /// `gainMax: 600`, `offsetMax: 100`, `maxBinX/Y: 4`,
+  /// `canAsymmetricBin: false`, `maxWidth/Height: 4656x3520`:
+  ///
+  ///  * `{"gain": 601 | 1000 | 99999}` -> 200, and
+  ///    `/api/equipment/camera/status` then reported `gain: 99999`. The
+  ///    frames were byte-for-byte indistinguishable from gain 600
+  ///    (read noise stddev 1486 / 1457 / 1472 / 1478 across
+  ///    600/601/1000/99999), proving the sensor never left 600.
+  ///  * `{"offset": 101 | 500 | 5000}` -> 200 with identical pedestals
+  ///    (mean 1430.60 / 1430.28 / 1430.52 / 1430.45), proving the sensor
+  ///    never left offset 100, while status reported `offset: 5000`.
+  ///  * `{"binX": 9}` and `{"binX": 2, "binY": 1}` -> HTTP 500
+  ///    `internal_error`, even though the advertised capabilities already
+  ///    say 4 is the maximum and asymmetric binning is unsupported.
+  ///  * `{"x": 4600, "width": 512}` -> 200 with a 512x512 frame taken from
+  ///    x=4144, and `{"y": 3400, "height": 512}` -> 200 with a frame taken
+  ///    from y=3008. The requested origin does not exist on the sensor, so
+  ///    the driver silently relocated the subframe and the response never
+  ///    said so. Subframes are used for autofocus and guide-star crops, so
+  ///    a silently moved ROI returns pixels from the wrong part of the sky.
+  ///
+  /// A wrong number the operator cannot see is worse than a rejected
+  /// request, so each of these becomes a 400 naming the advertised range.
+  ///
+  /// A failed capability read skips the guard rather than failing the
+  /// request: this exists to stop unhonourable parameters, not to add a new
+  /// way for a valid exposure to fail. Same contract as the cooling-target
+  /// range check in [handleCameraSetCooling].
+  Future<void> _validateExposureAgainstCapabilities({
+    required DeviceBackend backend,
+    required String deviceId,
+    required int? gain,
+    required int? offset,
+    required int binX,
+    required int binY,
+    required int? x,
+    required int? y,
+    required int? width,
+    required int? height,
+  }) async {
+    CameraCapabilities? caps;
+    try {
+      caps = await backend.getCameraCapabilities(deviceId);
+    } catch (error) {
+      _logInfo(
+        'exposure range check skipped for $deviceId: '
+        'capability read failed ($error)',
+      );
+      return;
+    }
+    if (caps == null) {
+      // No capabilities AND not connected means the caller named a device
+      // that does not exist. The exposure path flattens the driver's typed
+      // `DeviceNotFound` into a plain string on its way up, so it lands in
+      // the error middleware's `orElse` and became a 500. Observed on the
+      // live rig:
+      //   POST /api/camera/expose {"deviceId":"native:zwo:9"}
+      //   -> 500 {"error":"internal_error",
+      //           "message":"Exposure failed: Device native:zwo:9 not found"}
+      // Naming a device that isn't there is a client mistake, and answering
+      // 5xx also invites retry-on-5xx clients to retry something that can
+      // never succeed.
+      final connected = await backend.getConnectedDevices();
+      if (!connected.any((device) => device.id == deviceId)) {
+        throw HandlerFailure(
+          code: 'device_not_found',
+          message:
+              'No connected camera with id "$deviceId". '
+              'Use GET /api/devices/connected for the current list.',
+          statusCode: HttpStatus.notFound,
+          details: {'deviceId': deviceId},
+        );
+      }
+      return;
+    }
+
+    _requireWithinRange(
+      value: gain,
+      min: caps.gainMin,
+      max: caps.gainMax,
+      field: 'gain',
+      deviceId: deviceId,
+    );
+    _requireWithinRange(
+      value: offset,
+      min: caps.offsetMin,
+      max: caps.offsetMax,
+      field: 'offset',
+      deviceId: deviceId,
+    );
+
+    // Binning. `maxBinX`/`maxBinY` are non-nullable in the model; a driver
+    // that does not publish a maximum reports 0, which we treat as unknown.
+    if (caps.maxBinX > 0 && binX > caps.maxBinX) {
+      throw BadRequestError(
+        field: 'binX',
+        expected: '1 to ${caps.maxBinX}',
+        message:
+            'Binning $binX is outside the range 1 to ${caps.maxBinX} '
+            'reported by $deviceId',
+      );
+    }
+    if (caps.maxBinY > 0 && binY > caps.maxBinY) {
+      throw BadRequestError(
+        field: 'binY',
+        expected: '1 to ${caps.maxBinY}',
+        message:
+            'Binning $binY is outside the range 1 to ${caps.maxBinY} '
+            'reported by $deviceId',
+      );
+    }
+    if (!caps.canAsymmetricBin && binX != binY) {
+      throw BadRequestError(
+        field: 'binY',
+        expected: 'binY equal to binX ($binX)',
+        message:
+            '$deviceId does not support asymmetric binning; '
+            'binX ($binX) and binY ($binY) must match',
+      );
+    }
+
+    // Subframe. x/y/width/height are in BINNED pixels — verified on the rig:
+    // a bin 2x2 request for the full binned frame (2328x1760) returns
+    // exactly 2328x1760, so the usable extent is the sensor divided by the
+    // bin factor.
+    if (x == null || y == null || width == null || height == null) return;
+    if (caps.maxWidth <= 0 || caps.maxHeight <= 0) return;
+    final binnedWidth = caps.maxWidth ~/ binX;
+    final binnedHeight = caps.maxHeight ~/ binY;
+    if (x + width > binnedWidth || y + height > binnedHeight) {
+      throw BadRequestError(
+        field: 'subframe',
+        expected:
+            'x + width <= $binnedWidth and y + height <= $binnedHeight',
+        message:
+            'Subframe ${width}x$height at ($x, $y) does not fit inside the '
+            '${binnedWidth}x$binnedHeight frame $deviceId provides at '
+            'bin ${binX}x$binY',
+      );
+    }
+  }
+
+  void _requireWithinRange({
+    required int? value,
+    required int? min,
+    required int? max,
+    required String field,
+    required String deviceId,
+  }) {
+    if (value == null || min == null || max == null) return;
+    if (value < min || value > max) {
+      throw BadRequestError(
+        field: field,
+        expected: '$min to $max',
+        message:
+            '$field $value is outside the range $min to $max reported by '
+            '$deviceId',
+      );
+    }
+  }
+
   Future<Response> handleCameraExpose(Request request) async {
     _logInfo('[API] POST /api/camera/expose');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final exposureTime = requireDouble(payload, 'exposureTime');
+    final exposureTime = requireDouble(
+      payload,
+      'exposureTime',
+      min: 0.001,
+      max: 86400,
+    );
     final frameTypeStr = optionalString(payload, 'frameType') ?? 'light';
     final frameType = _parseFrameType(frameTypeStr);
+    final binX = optionalInt(payload, 'binX', min: 1, max: 16) ?? 1;
+    final binY = optionalInt(payload, 'binY', min: 1, max: 16) ?? 1;
+
+    // A partial ROI is never useful: silently treating it as full-frame can
+    // turn a carefully framed test exposure into a multi-megabyte download.
+    // Require all four coordinates together and reject impossible dimensions
+    // before registering a command or touching the camera driver.
+    const subframeFields = ['x', 'y', 'width', 'height'];
+    final suppliedSubframeFields = subframeFields
+        .where((field) => payload[field] != null)
+        .length;
+    if (suppliedSubframeFields != 0 &&
+        suppliedSubframeFields != subframeFields.length) {
+      throw BadRequestError(
+        field: 'subframe',
+        expected: 'x, y, width, and height together',
+        message:
+            'Subframe requires x, y, width, and height; omit all four for full frame',
+      );
+    }
+    final x = optionalInt(payload, 'x', min: 0);
+    final y = optionalInt(payload, 'y', min: 0);
+    final width = optionalInt(payload, 'width', min: 1);
+    final height = optionalInt(payload, 'height', min: 1);
+    final gain = optionalInt(payload, 'gain', min: 0);
+    final offset = optionalInt(payload, 'offset', min: 0);
+
+    final backend = container.read(deviceBackendProvider);
+
+    // Refuse to start a second exposure on a camera that is already exposing.
+    //
+    // Why: the second request reprograms ROI / binning / gain on the sensor
+    // mid-exposure and destroys BOTH frames. Observed on the live rig against
+    // a real ZWO ASI1600MM-Cool — a 5 s full-frame light was in flight
+    // (`/api/equipment/camera/status` reporting `state: "exposing"`) when a
+    // 512x512 subframe request arrived at t=1.5 s:
+    //   second -> 500 {"error":"internal_error","message":"Failed to check
+    //             exposure status: SDK error: ZWO camera reported a failed
+    //             exposure"}
+    //   first  -> 500, same message, after 4.25 s
+    // Two collaborating clients (the desktop UI and a phone, or the sequencer
+    // and a live-view poller) can therefore silently destroy a long exposure,
+    // and both are told only "internal error". The app already knows an
+    // exposure is running, so the honest answer is 409 naming the state.
+    //
+    // This is a guard, not a lock: a request that arrives inside the window
+    // between this read and `cameraStartExposure` can still collide. Removing
+    // that last race needs a per-camera lock in the driver; this closes the
+    // case that is actually reachable from two polling clients.
+    try {
+      final status = await backend.getCameraStatus(deviceId);
+      const busyStates = {
+        CameraState.exposing,
+        CameraState.reading,
+        CameraState.download,
+      };
+      if (busyStates.contains(status.state)) {
+        throw HandlerFailure(
+          code: 'exposure_in_progress',
+          message:
+              'An exposure is already in progress on $deviceId '
+              '(camera is ${status.state.name}). Wait for it to finish or '
+              'POST /api/camera/abort first.',
+          statusCode: HttpStatus.conflict,
+          details: {'deviceId': deviceId, 'state': status.state.name},
+        );
+      }
+    } on HandlerFailure {
+      rethrow;
+    } catch (error) {
+      // A failed status read must not block a legitimate exposure; same
+      // contract as the capability guard below.
+      _logInfo(
+        'busy check skipped for $deviceId: status read failed ($error)',
+      );
+    }
+
+    // Reject exposure parameters the camera cannot honour rather than
+    // letting the vendor SDK silently clamp them and reporting success.
+    // Runs before `beginCommand` so a rejected request never registers a
+    // command id. See [_validateExposureAgainstCapabilities].
+    await _validateExposureAgainstCapabilities(
+      backend: backend,
+      deviceId: deviceId,
+      gain: gain,
+      offset: offset,
+      binX: binX,
+      binY: binY,
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+    );
 
     // register the command BEFORE kicking off the exposure so a
     // FrameAccepted event that arrives during `await
@@ -22,43 +287,129 @@ extension CameraDeviceHandlers on DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(deviceBackendProvider);
-    await backend.cameraStartExposure(
-      deviceId: deviceId,
-      exposureTime: exposureTime,
-      frameType: frameType,
-      gain: optionalInt(payload, 'gain'),
-      offset: optionalInt(payload, 'offset'),
-      binX: optionalInt(payload, 'binX') ?? 1,
-      binY: optionalInt(payload, 'binY') ?? 1,
-      x: optionalInt(payload, 'x'),
-      y: optionalInt(payload, 'y'),
-      width: optionalInt(payload, 'width'),
-      height: optionalInt(payload, 'height'),
-    );
+    try {
+      await backend.cameraStartExposure(
+        deviceId: deviceId,
+        exposureTime: exposureTime,
+        frameType: frameType,
+        gain: gain,
+        offset: offset,
+        binX: binX,
+        binY: binY,
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+      );
+    } catch (error, stackTrace) {
+      final message = error.toString();
+      final isBridgeCancellation =
+          error is bridge_error.NightshadeError &&
+          error.maybeMap(
+            exposureCancelled: (_) => true,
+            cancelled: (_) => true,
+            operationFailed: (failure) =>
+                failure.field0.trim() == 'Exposure cancelled',
+            orElse: () => false,
+          );
+      if (isBridgeCancellation ||
+          message == 'Exposure cancelled' ||
+          message.endsWith(': Exposure cancelled')) {
+        throw HandlerFailure(
+          code: 'exposure_cancelled',
+          message: 'Exposure cancelled',
+          statusCode: HttpStatus.conflict,
+          details: {'deviceId': deviceId},
+          cause: error,
+          stackTrace: stackTrace,
+        );
+      }
+      rethrow;
+    }
 
+    // `cameraStartExposure` does NOT return at shutter-open: it completes the
+    // whole expose -> read -> download -> store workflow before resolving (the
+    // remote client documents this and sizes its HTTP timeout to
+    // requestTimeout + exposureTime because of it). So by the time this line
+    // runs the frame is finished and stored — reporting `status: "exposing"`
+    // described a state that had already ended, and a client that polled
+    // `/api/equipment/camera/status` on the strength of it saw `idle` and had
+    // no way to tell "not started yet" from "already done".
+    //
+    // The blocking contract is deliberate and depended upon, so it is kept;
+    // only the description is corrected. Read the terminal state back rather
+    // than asserting one — if the driver ended in `error`, say `error`.
+    String terminalState = CameraState.idle.name;
+    try {
+      terminalState = (await backend.getCameraStatus(deviceId)).state.name;
+    } catch (error) {
+      _logInfo(
+        'terminal state read failed for $deviceId after exposure ($error)',
+      );
+    }
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
-      'status': 'exposing',
+      // `complete` = the exposure ran to completion and the frame is stored;
+      // fetch it from /api/camera/last-image[/jpeg] or /api/imaging/raw-data.
+      'status': 'complete',
+      'state': terminalState,
     });
   }
 
+  /// POST /api/camera/abort
+  ///
+  /// Implements the shared stop/abort no-op contract — see [kWasRunningField].
+  /// Observed live on a real ZWO ASI1600MM-Cool with the camera idle:
+  ///   POST /api/camera/abort -> 200 {"status":"aborted"}
+  /// which reads as "the exposure was stopped" when there was no exposure at
+  /// all. The camera state is already known here, so the response can say so.
   Future<Response> handleCameraAbort(Request request) async {
     _logInfo('[API] POST /api/camera/abort');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
+
+    final backend = container.read(deviceBackendProvider);
+
+    // Fail SAFE, not merely honest: if the state read fails we still issue the
+    // abort. Refusing to abort because we could not confirm an exposure was
+    // running would turn a diagnostic into a safety regression.
+    var wasRunning = true;
+    try {
+      final status = await backend.getCameraStatus(deviceId);
+      const busyStates = {
+        CameraState.exposing,
+        CameraState.reading,
+        CameraState.download,
+      };
+      wasRunning = busyStates.contains(status.state);
+    } catch (error) {
+      _logInfo(
+        'abort precondition check skipped for $deviceId: '
+        'status read failed ($error)',
+      );
+    }
+
+    if (!wasRunning) {
+      // No command is registered: nothing was actuated, so there is no
+      // device command for a later event to correlate against.
+      return jsonOk({
+        'status': 'aborted',
+        kWasRunningField: false,
+        'message': 'No exposure was in progress on $deviceId; nothing to abort.',
+      });
+    }
 
     final commandId = commandCorrelator?.beginCommand(
       operation: 'camera.abort',
       deviceId: deviceId,
     );
 
-    final backend = container.read(deviceBackendProvider);
     await backend.cameraAbortExposure(deviceId);
 
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
       'status': 'aborted',
+      kWasRunningField: true,
     });
   }
 
@@ -88,6 +439,29 @@ extension CameraDeviceHandlers on DeviceHandlers {
       });
     }
 
+    // JSON encodes each RGBA byte as a decimal number plus punctuation. A
+    // 4656x3520 frame therefore expanded to >200 MB on the wire and pushed the
+    // headless process past 1 GB while serializing one response. Keep the
+    // compatibility endpoint only for genuinely small images; large sensors
+    // must use the bounded binary JPEG endpoint.
+    const maxLegacyDisplayBytes = 16 * 1024 * 1024;
+    if (image.displayData.length > maxLegacyDisplayBytes) {
+      return jsonResponse({
+        'error': 'legacy_image_too_large',
+        'message':
+            'This image is too large for the legacy JSON representation. '
+            'Request the JPEG endpoint instead.',
+        'legacy': true,
+        'width': image.width,
+        'height': image.height,
+        'displayBytes': image.displayData.length,
+        'maxLegacyDisplayBytes': maxLegacyDisplayBytes,
+        'preferredFormat': 'jpeg',
+        'preferredEndpoint': '/api/camera/last-image/jpeg',
+      }, statusCode: HttpStatus.requestEntityTooLarge);
+    }
+
+    final timestamp = capturedImageTimestampUtc(image.timestamp);
     return jsonOk({
       'legacy': true,
       'preferredFormat': 'jpeg',
@@ -107,7 +481,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
           'starCount': image.stats.starCount,
         },
         'exposureTime': image.exposureTime,
-        'timestamp': image.timestamp,
+        'timestamp': timestamp,
         'isColor': image.isColor,
       },
     });
@@ -118,7 +492,8 @@ extension CameraDeviceHandlers on DeviceHandlers {
   /// Returns the host-authoritative stretched display buffer as JPEG.
   /// Metadata (stats, histogram, source dimensions) travels in `x-image-meta`.
   Future<Response> handleCameraGetLastImageJpeg(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final query = request.url.queryParameters;
+    final deviceId = (query['deviceId'] ?? '').trim();
     if (deviceId.isEmpty) {
       throw BadRequestError(
         field: 'deviceId',
@@ -127,11 +502,13 @@ extension CameraDeviceHandlers on DeviceHandlers {
       );
     }
 
+    // `maxWidth=0` is the internal sentinel for "original size" and remains
+    // the default when omitted. A caller that supplies the parameter must send
+    // a useful, bounded dimension rather than accidentally requesting an
+    // unbounded allocation with a typo or negative value.
     final maxWidth =
-        int.tryParse(request.url.queryParameters['maxWidth'] ?? '') ?? 0;
-    final quality =
-        (int.tryParse(request.url.queryParameters['quality'] ?? '') ?? 85)
-            .clamp(1, 100);
+        optionalQueryInt(query, 'maxWidth', min: 1, max: 16384) ?? 0;
+    final quality = optionalQueryInt(query, 'quality', min: 1, max: 100) ?? 85;
 
     final backend = container.read(deviceBackendProvider);
     final image = await backend.cameraGetLastImage(deviceId);
@@ -155,6 +532,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
       });
     }
 
+    final timestamp = capturedImageTimestampUtc(image.timestamp);
     return contentResponse(
       encoded.bytes,
       contentType: 'image/jpeg',
@@ -166,7 +544,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
         'x-image-encoded-width': encoded.encodedWidth.toString(),
         'x-image-encoded-height': encoded.encodedHeight.toString(),
         'x-image-meta': encoded.metaHeaderValue,
-        'x-frame-timestamp': image.timestamp,
+        'x-frame-timestamp': timestamp,
         'x-frame-exposure-secs': image.exposureTime.toString(),
         if (image.stats.hfr != null) 'x-frame-hfr': image.stats.hfr!.toString(),
         'x-frame-star-count': image.stats.starCount.toString(),
@@ -267,6 +645,45 @@ extension CameraDeviceHandlers on DeviceHandlers {
     final targetTemp = optionalDouble(payload, 'targetTemp');
 
     final backend = container.read(deviceBackendProvider);
+    // Why: a physically impossible setpoint was accepted and then reported back
+    // as the live target. Observed on a real ZWO ASI1600MM-Cool, whose own
+    // capabilities report coolerMinTempC -40 / coolerMaxTempC 30:
+    //   POST {"enabled":true,"targetTemp":-300} -> 200 {"status":"ok"}
+    //   GET  /api/camera/cooling -> {"coolerOn":true,"targetTemp":-300.0,...}
+    // and identically for +999. The setpoint is unreachable, so the cooler can
+    // never converge: any "wait for the sensor to reach target" step waits
+    // forever, and the reported target is a value the hardware will never honour.
+    // Only validated when a target is actually supplied and the camera
+    // advertises a range (both bounds present).
+    if (targetTemp != null) {
+      // A failed capability read skips the guard rather than failing the
+      // request: this check was added to stop an unreachable setpoint, not to
+      // add a new way for a valid cooling command to fail.
+      CameraCapabilities? caps;
+      try {
+        caps = await backend.getCameraCapabilities(deviceId);
+      } catch (error) {
+        _logInfo(
+          'cooling range check skipped for $deviceId: '
+          'capability read failed ($error)',
+        );
+        caps = null;
+      }
+      final minTemp = caps?.coolerMinTempC;
+      final maxTemp = caps?.coolerMaxTempC;
+      if (minTemp != null &&
+          maxTemp != null &&
+          (targetTemp < minTemp || targetTemp > maxTemp)) {
+        throw BadRequestError(
+          field: 'targetTemp',
+          expected: '$minTemp to $maxTemp',
+          message:
+              'Cooling target ${targetTemp}C is outside the range $minTemp to '
+              '${maxTemp}C reported by $deviceId',
+        );
+      }
+    }
+
     await backend.cameraSetCooling(
       deviceId: deviceId,
       enabled: enabled,
@@ -333,7 +750,10 @@ extension CameraDeviceHandlers on DeviceHandlers {
   /// gain/offset values, when the vendor SDK exposes them.
   ///
   /// Mirrors the FFI shape: the JSON body is the exact projection of
-  /// [CameraRecommendedSettings] (unityGain, hcgGain, defaultOffset, notes).
+  /// [CameraRecommendedSettings] (unityGain, hcgGain, defaultOffset,
+  /// recommendedCoolingSetpointC, notes). Nullable fields are emitted as JSON
+  /// `null` so remote clients recover the same honest "not reported" state the
+  /// FFI backend sees rather than a fabricated default.
   /// Older remote hosts won't expose this route — the network backend's
   /// fallback handles the resulting 404 by returning an empty recommendation.
   ///
@@ -354,6 +774,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
       'unityGain': recommended.unityGain,
       'hcgGain': recommended.hcgGain,
       'defaultOffset': recommended.defaultOffset,
+      'recommendedCoolingSetpointC': recommended.recommendedCoolingSetpointC,
       'notes': recommended.notes,
     });
   }
@@ -362,7 +783,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/camera/readoutMode');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final modeIndex = requireInt(payload, 'modeIndex');
+    final modeIndex = requireInt(payload, 'modeIndex', min: 0);
 
     final backend = container.read(deviceBackendProvider);
     await backend.cameraSetReadoutMode(deviceId, modeIndex);
@@ -374,9 +795,23 @@ extension CameraDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/camera/gain');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final gain = requireInt(payload, 'gain');
+    final gain = requireInt(payload, 'gain', min: 0);
 
     final backend = container.read(deviceBackendProvider);
+    // Same silent-clamp problem as POST /api/camera/expose; see
+    // [_validateExposureAgainstCapabilities].
+    await _validateExposureAgainstCapabilities(
+      backend: backend,
+      deviceId: deviceId,
+      gain: gain,
+      offset: null,
+      binX: 1,
+      binY: 1,
+      x: null,
+      y: null,
+      width: null,
+      height: null,
+    );
     await backend.cameraSetGain(deviceId, gain);
 
     return jsonOk({'status': 'ok'});
@@ -386,9 +821,23 @@ extension CameraDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/camera/offset');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final offset = requireInt(payload, 'offset');
+    final offset = requireInt(payload, 'offset', min: 0);
 
     final backend = container.read(deviceBackendProvider);
+    // Same silent-clamp problem as POST /api/camera/expose; see
+    // [_validateExposureAgainstCapabilities].
+    await _validateExposureAgainstCapabilities(
+      backend: backend,
+      deviceId: deviceId,
+      gain: null,
+      offset: offset,
+      binX: 1,
+      binY: 1,
+      x: null,
+      y: null,
+      width: null,
+      height: null,
+    );
     await backend.cameraSetOffset(deviceId, offset);
 
     return jsonOk({'status': 'ok'});

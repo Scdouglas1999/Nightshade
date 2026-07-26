@@ -15,13 +15,50 @@ import 'glass_card.dart';
 /// - Narrow (<280px): Single column stack
 /// - Medium (280-400px): 2x2 grid
 /// - Wide (>400px): Single row with all 4 buttons
-class QuickActionsCard extends ConsumerWidget {
+class QuickActionsCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
   const QuickActionsCard({super.key, required this.colors});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QuickActionsCard> createState() => _QuickActionsCardState();
+}
+
+enum _QuickActionOperation { snapshot, autofocus, park }
+
+class _QuickActionsCardState extends ConsumerState<QuickActionsCard> {
+  _QuickActionOperation? _activeOperation;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _operationGeneration++;
+        if (_activeOperation == _QuickActionOperation.snapshot) {
+          final notifier = ref.read(sessionStateProvider.notifier);
+          if (notifier.mounted) notifier.setCapturing(false);
+        }
+        if (mounted && _activeOperation != null) {
+          setState(() => _activeOperation = null);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     // Watch mount capabilities to gate Park button
     final cameraState = ref.watch(cameraStateProvider);
     final focuserState = ref.watch(focuserStateProvider);
@@ -34,46 +71,43 @@ class QuickActionsCard extends ConsumerWidget {
     final isMountConnected =
         mountState.connectionState == DeviceConnectionState.connected;
     final hasTarget = session.targetRa != null && session.targetDec != null;
+    final actionInFlight = _activeOperation != null;
 
     // Build action buttons with their callbacks
     final actionButtons = [
       _ActionButtonData(
         icon: LucideIcons.camera,
-        label: 'Snapshot',
-        onTap: isCameraConnected ? () => _handleSnapshot(context, ref) : null,
+        label: _activeOperation == _QuickActionOperation.snapshot
+            ? 'Capturing...'
+            : 'Snapshot',
+        onTap: isCameraConnected && !actionInFlight ? _handleSnapshot : null,
       ),
       _ActionButtonData(
         icon: LucideIcons.focus,
-        label: 'Autofocus',
-        onTap: isCameraConnected && isFocuserConnected
-            ? () => _handleAutofocus(context, ref)
+        label: _activeOperation == _QuickActionOperation.autofocus
+            ? 'Focusing...'
+            : 'Autofocus',
+        onTap: isCameraConnected && isFocuserConnected && !actionInFlight
+            ? _handleAutofocus
             : null,
       ),
       _ActionButtonData(
         icon: LucideIcons.crosshair,
         label: 'Center',
-        onTap: isCameraConnected && isMountConnected && hasTarget
-            ? () => _handleCenter(context, ref)
+        onTap: isCameraConnected &&
+                isMountConnected &&
+                hasTarget &&
+                !actionInFlight
+            ? _handleCenter
             : null,
       ),
       _ActionButtonData(
         icon: LucideIcons.parkingCircle,
-        label: 'Park',
-        onTap: isMountConnected
-            ? () async {
-                if (!mountState.canPark) {
-                  context.showErrorSnackBar(
-                      'Mount driver does not support parking');
-                  return;
-                }
-                try {
-                  await ref.read(mountCommandServiceProvider).park();
-                } catch (e) {
-                  if (context.mounted) {
-                    context.showErrorSnackBar('Failed to park mount: $e');
-                  }
-                }
-              }
+        label: _activeOperation == _QuickActionOperation.park
+            ? 'Parking...'
+            : 'Park',
+        onTap: isMountConnected && !actionInFlight
+            ? () => _handlePark(mountState)
             : null,
       ),
     ];
@@ -189,13 +223,20 @@ class QuickActionsCard extends ConsumerWidget {
     );
   }
 
-  Future<void> _handleSnapshot(BuildContext context, WidgetRef ref) async {
+  Future<void> _handleSnapshot() async {
+    if (!_beginOperation(_QuickActionOperation.snapshot)) return;
     final cameraState = ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       context.showErrorSnackBar('Camera not connected');
+      _finishOperation(_operationGeneration);
       return;
     }
 
+    final generation = _operationGeneration;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final backend = ref.read(backendProvider);
+    final imagingService = ref.read(imagingServiceProvider);
+    final sessionNotifier = ref.read(sessionStateProvider.notifier);
     try {
       var settings = ref.read(exposureSettingsProvider);
       if (cameraState.gain != null) {
@@ -215,9 +256,6 @@ class QuickActionsCard extends ConsumerWidget {
         }
       }
 
-      final imagingService = ref.read(imagingServiceProvider);
-      final sessionNotifier = ref.read(sessionStateProvider.notifier);
-
       sessionNotifier.setCapturing(true);
 
       final result = await imagingService.captureImage(
@@ -225,38 +263,66 @@ class QuickActionsCard extends ConsumerWidget {
         targetName: ref.read(sessionStateProvider).targetName,
       );
 
-      if (result != null) {
-        ref.read(currentImageProvider.notifier).state = result;
-        ref.read(lastImageStatsProvider.notifier).state = result.stats;
+      if (result != null &&
+          _hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+            imagingService: imagingService,
+          )) {
+        // ImagingService owns preview/stat publication. Re-publishing its
+        // early return here can overwrite a newer raw-ready preview.
         sessionNotifier.recordExposureComplete(
           exposureTime: settings.exposureTime,
           hfr: result.stats.hfr,
         );
 
-        if (!context.mounted) return;
-        context.showSuccessSnackBar('Snapshot captured');
+        if (mounted) context.showSuccessSnackBar('Snapshot captured');
       }
     } catch (e) {
-      if (!context.mounted) return;
-      context.showErrorSnackBar('Snapshot failed: $e');
+      if (mounted &&
+          _hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+            imagingService: imagingService,
+          )) {
+        context.showErrorSnackBar('Snapshot failed: $e');
+      }
     } finally {
-      ref.read(sessionStateProvider.notifier).setCapturing(false);
+      if (_hasAuthority(
+        container: container,
+        backend: backend,
+        generation: generation,
+        imagingService: imagingService,
+      )) {
+        if (sessionNotifier.mounted) sessionNotifier.setCapturing(false);
+        _finishOperation(generation);
+      }
     }
   }
 
-  Future<void> _handleAutofocus(BuildContext context, WidgetRef ref) async {
+  Future<void> _handleAutofocus() async {
+    if (!_beginOperation(_QuickActionOperation.autofocus)) return;
     final cameraState = ref.read(cameraStateProvider);
     final focuserState = ref.read(focuserStateProvider);
 
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       context.showErrorSnackBar('Camera not connected');
+      _finishOperation(_operationGeneration);
       return;
     }
 
     if (focuserState.connectionState != DeviceConnectionState.connected) {
       context.showErrorSnackBar('Focuser not connected');
+      _finishOperation(_operationGeneration);
       return;
     }
+
+    final generation = _operationGeneration;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final backend = ref.read(backendProvider);
+    final deviceService = ref.read(deviceServiceProvider);
 
     // Show progress notification - the device service will handle detailed progress
     // via activeOperationsProvider, but we show a quick snackbar for immediate feedback
@@ -266,16 +332,24 @@ class QuickActionsCard extends ConsumerWidget {
     );
 
     try {
-      final deviceService = ref.read(deviceServiceProvider);
       final result = await deviceService.runAutofocus(
         exposureTime: 3.0,
         stepSize: 100,
         stepsOut: 7,
         method: 'VCurve',
         binning: 1,
+        useSettingsDefaults: true,
       );
 
-      if (!context.mounted) return;
+      if (!mounted ||
+          !_hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+            deviceService: deviceService,
+          )) {
+        return;
+      }
 
       // Show success with key result metrics
       final hfrText = result.bestHfr.toStringAsFixed(2);
@@ -283,13 +357,80 @@ class QuickActionsCard extends ConsumerWidget {
       context.showSuccessSnackBar(
         'Autofocus complete: Position $posText, HFR $hfrText',
       );
+    } on AutofocusCancelledException {
+      if (mounted &&
+          _hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+            deviceService: deviceService,
+          )) {
+        context.showInfoSnackBar('Autofocus cancelled');
+      }
     } catch (e) {
-      if (!context.mounted) return;
-      context.showErrorSnackBar('Autofocus failed: $e');
+      if (mounted &&
+          _hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+            deviceService: deviceService,
+          )) {
+        context.showErrorSnackBar('Autofocus failed: $e');
+      }
+    } finally {
+      if (_hasAuthority(
+        container: container,
+        backend: backend,
+        generation: generation,
+        deviceService: deviceService,
+      )) {
+        _finishOperation(generation);
+      }
     }
   }
 
-  void _handleCenter(BuildContext context, WidgetRef ref) {
+  Future<void> _handlePark(MountState mountState) async {
+    if (!_beginOperation(_QuickActionOperation.park)) return;
+    final generation = _operationGeneration;
+    final container = ProviderScope.containerOf(context, listen: false);
+    final backend = ref.read(backendProvider);
+    final service = ref.read(mountCommandServiceProvider);
+
+    try {
+      if (!mountState.canPark) {
+        context.showErrorSnackBar('Mount driver does not support parking');
+        return;
+      }
+      final result = await service.park();
+      if (mounted &&
+          _hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+          )) {
+        context.showCommandActionResult(result);
+      }
+    } catch (e) {
+      if (mounted &&
+          _hasAuthority(
+            container: container,
+            backend: backend,
+            generation: generation,
+          )) {
+        context.showErrorSnackBar('Failed to park mount: $e');
+      }
+    } finally {
+      if (_hasAuthority(
+        container: container,
+        backend: backend,
+        generation: generation,
+      )) {
+        _finishOperation(generation);
+      }
+    }
+  }
+
+  void _handleCenter() {
     // Check if we have a target set
     final session = ref.read(sessionStateProvider);
     final targetRa = session.targetRa;
@@ -315,6 +456,37 @@ class QuickActionsCard extends ConsumerWidget {
         ),
       );
     }
+  }
+
+  bool _beginOperation(_QuickActionOperation operation) {
+    if (_activeOperation != null) return false;
+    _operationGeneration++;
+    setState(() => _activeOperation = operation);
+    return true;
+  }
+
+  void _finishOperation(int generation) {
+    if (!mounted || generation != _operationGeneration) return;
+    setState(() => _activeOperation = null);
+  }
+
+  bool _hasAuthority({
+    required ProviderContainer container,
+    required NightshadeBackend backend,
+    required int generation,
+    ImagingService? imagingService,
+    DeviceService? deviceService,
+  }) {
+    if (generation != _operationGeneration ||
+        !identical(container.read(backendProvider), backend)) {
+      return false;
+    }
+    if (imagingService != null &&
+        !identical(container.read(imagingServiceProvider), imagingService)) {
+      return false;
+    }
+    return deviceService == null ||
+        identical(container.read(deviceServiceProvider), deviceService);
   }
 }
 

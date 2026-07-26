@@ -51,6 +51,13 @@ enum Phd2State {
   settling,
   paused,
   lostLock,
+
+  /// PHD2 reported a state string we do not recognise (new/unmapped AppState),
+  /// or the process is in an indeterminate phase. Distinct from [stopped] so
+  /// the UI never falsely offers "Start" over a possibly-live process — an
+  /// unknown state is treated as potentially active (Stop is offered, Start is
+  /// not). See `Phd2Controller._updateStateFromString`.
+  unknown,
 }
 
 /// PHD2 settle progress

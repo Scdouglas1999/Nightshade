@@ -29,6 +29,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/widgets/remote_directory_picker_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -74,15 +75,11 @@ final shouldRunFirstRunSetupProvider = FutureProvider<FirstRunSetupNeeds>((
   // Honor the persistent latch first. If the user has completed setup on
   // this device, we never auto-route to the wizard again even if a
   // future server reset would otherwise trigger the conditions.
-  final prefsAsync = ref.watch(mobilePreferencesProvider);
-  final prefs = prefsAsync.valueOrNull;
-  if (prefs == null) {
-    // Treat the not-yet-loaded prefs state as "skip the wizard for this
-    // build" — the provider will re-resolve once shared_preferences is
-    // ready and the next build will route correctly. This avoids a
-    // false-positive flash of the wizard while prefs load.
-    return FirstRunSetupNeeds.none;
-  }
+  // Await the latch instead of treating its loading state as "setup done".
+  // The dashboard holds an explicit loading gate while this resolves; a
+  // transient fail-open result would briefly expose controls and then replace
+  // them with the wizard once SharedPreferences finished loading.
+  final prefs = await ref.watch(mobilePreferencesProvider.future);
   if (prefs.firstRunCompleted) return FirstRunSetupNeeds.none;
 
   final backend = ref.watch(backendProvider);
@@ -104,6 +101,11 @@ final shouldRunFirstRunSetupProvider = FutureProvider<FirstRunSetupNeeds>((
     final settings = await backend.getSettings();
     missingPath = settings.imageOutputPath.trim().isEmpty;
   } catch (e, st) {
+    // Fail closed: if the server cannot prove an output path exists, route
+    // through the wizard where the retry/error is visible. Treating this as
+    // configured would suppress the wizard for the rest of the connection and
+    // let the first capture fail much later with a less actionable error.
+    missingPath = true;
     developer.log(
       'first-run: getSettings failed: $e',
       name: 'FirstRunSetup',
@@ -117,6 +119,7 @@ final shouldRunFirstRunSetupProvider = FutureProvider<FirstRunSetupNeeds>((
     final profiles = await backend.getProfiles();
     missingProfiles = profiles.isEmpty;
   } catch (e, st) {
+    missingProfiles = true;
     developer.log(
       'first-run: getProfiles failed: $e',
       name: 'FirstRunSetup',
@@ -130,6 +133,7 @@ final shouldRunFirstRunSetupProvider = FutureProvider<FirstRunSetupNeeds>((
     final status = await backend.getCatalogStatus();
     missingCatalogs = !status.catalogs.any((c) => c.isInstalled);
   } catch (e, st) {
+    missingCatalogs = true;
     developer.log(
       'first-run: getCatalogStatus failed: $e',
       name: 'FirstRunSetup',
@@ -148,10 +152,9 @@ final shouldRunFirstRunSetupProvider = FutureProvider<FirstRunSetupNeeds>((
 
 /// Three-step setup wizard. Step list:
 ///
-///   * Step 0 — Image output path. Operator picks a preset
-///     ("Pictures/Nightshade", "Documents/Nightshade") or types a custom
-///     path. The path is written via `NetworkBackend.updateSettings` so
-///     the imaging service picks it up immediately.
+///   * Step 0 — Image output path. Operator browses the host filesystem or
+///     types an absolute host path. The host validates containment, existence,
+///     and writability before `NetworkBackend.updateSettings` persists it.
 ///   * Step 1 — Catalogs. Lists available catalogs from
 ///     `/api/catalog/available` with a `requiredForPlateSolve` badge.
 ///     Operator selects what to install; the wizard fires
@@ -181,8 +184,8 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   bool _busy = false;
 
   // Step 0 state.
-  String _selectedPathPreset = 'pictures';
   final TextEditingController _customPathController = TextEditingController();
+  String? _lastBrowsedHostPath;
 
   // Step 1 state.
   List<RemoteAvailableCatalog>? _availableCatalogs;
@@ -192,6 +195,8 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
 
   // Step 2 state.
   List<EquipmentProfile>? _profiles;
+  String? _profileLoadError;
+  bool _loadingBootstrapData = false;
 
   @override
   void initState() {
@@ -216,60 +221,99 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   }
 
   Future<void> _loadCatalogsAndProfiles() async {
+    if (_loadingBootstrapData) return;
+    _loadingBootstrapData = true;
     final backend = ref.read(backendProvider);
-    if (backend is! NetworkBackend) return;
-    try {
-      final results = await Future.wait<dynamic>([
-        backend.listAvailableCatalogs(),
-        backend.getProfiles(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _availableCatalogs = results[0] as List<RemoteAvailableCatalog>;
-        _profiles = results[1] as List<EquipmentProfile>;
+    if (backend is! NetworkBackend) {
+      if (mounted) {
+        setState(() {
+          _loadingBootstrapData = false;
+          _catalogLoadError = 'The phone is not connected to a server.';
+          _profileLoadError = 'The phone is not connected to a server.';
+        });
+      }
+      return;
+    }
+
+    List<RemoteAvailableCatalog>? catalogs;
+    List<EquipmentProfile>? profiles;
+    String? catalogError;
+    String? profileError;
+
+    await Future.wait<void>([
+      () async {
+        try {
+          catalogs = await backend.listAvailableCatalogs();
+        } catch (e, st) {
+          catalogError = e is ServerError ? e.message : e.toString();
+          developer.log(
+            'first-run: failed to load catalogs: $e',
+            name: 'FirstRunSetup',
+            level: 1000,
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }(),
+      () async {
+        try {
+          profiles = await backend.getProfiles();
+        } catch (e, st) {
+          profileError = e is ServerError ? e.message : e.toString();
+          developer.log(
+            'first-run: failed to load profiles: $e',
+            name: 'FirstRunSetup',
+            level: 1000,
+            error: e,
+            stackTrace: st,
+          );
+        }
+      }(),
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _loadingBootstrapData = false;
+      _catalogLoadError = catalogError;
+      _profileLoadError = profileError;
+      if (catalogs != null) {
+        _availableCatalogs = catalogs;
         // Pre-select catalogs that the server flagged as required for
         // plate-solving. Operators almost always want these and the
         // checkbox stays editable so power users can opt out.
-        for (final c in _availableCatalogs!) {
+        for (final c in catalogs!) {
           if (c.requiredForPlateSolve) {
             _catalogsToInstall.add(c.name);
           }
         }
-      });
-    } catch (e, st) {
-      developer.log(
-        'first-run: failed to load catalogs/profiles: $e',
-        name: 'FirstRunSetup',
-        level: 1000,
-        error: e,
-        stackTrace: st,
-      );
-      if (!mounted) return;
-      setState(() {
-        _catalogLoadError = e is ServerError ? e.message : e.toString();
-      });
-    }
+      } else {
+        _availableCatalogs = null;
+      }
+      _profiles = profiles;
+    });
   }
 
-  /// Translate a preset key into a real absolute path. Server-side the
-  /// imaging service expands `~` and resolves relative paths against the
-  /// data dir, but mobile operators almost always want a Pictures/Documents
-  /// subdir — we send the explicit string the server will store as-is.
   String? _resolveSelectedPath() {
-    switch (_selectedPathPreset) {
-      case 'pictures':
-        return '~/Pictures/Nightshade';
-      case 'documents':
-        return '~/Documents/Nightshade';
-      case 'custom':
-        final trimmed = _customPathController.text.trim();
-        if (trimmed.isEmpty) return null;
-        return trimmed;
-    }
-    return null;
+    final trimmed = _customPathController.text.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  Future<void> _browseImageOutputPath() async {
+    if (_busy) return;
+    final selected = await RemoteDirectoryPickerDialog.show(
+      context,
+      title: 'Choose capture folder on host',
+      initialPath: _lastBrowsedHostPath,
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _lastBrowsedHostPath = selected;
+      _customPathController.text = selected;
+    });
   }
 
   Future<void> _commitImageOutputPath() async {
+    if (_busy) return;
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) return;
     final path = _resolveSelectedPath();
@@ -287,10 +331,32 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
     }
     setState(() => _busy = true);
     try {
+      final validation = await backend.validateRemoteDirectory(
+        path,
+        mustExist: true,
+        mustBeWritable: true,
+      );
+      if (validation['valid'] != true) {
+        final reason = validation['error'];
+        throw ServerError(
+          code: 'invalid_output_path',
+          message: reason is String && reason.trim().isNotEmpty
+              ? reason.trim()
+              : 'Choose an existing, writable capture folder on the host',
+        );
+      }
+      final normalized = validation['normalizedPath'];
+      final validatedPath = normalized is String && normalized.trim().isNotEmpty
+          ? normalized.trim()
+          : path;
       final current = await backend.getSettings();
-      await backend.updateSettings(current.copyWith(imageOutputPath: path));
+      await backend.updateSettings(
+        current.copyWith(imageOutputPath: validatedPath),
+      );
       if (!mounted) return;
       setState(() {
+        _customPathController.text = validatedPath;
+        _lastBrowsedHostPath = validatedPath;
         _busy = false;
         _activeStep = 1;
       });
@@ -302,6 +368,7 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   }
 
   Future<void> _commitCatalogs() async {
+    if (_busy) return;
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) return;
     if (_catalogsToInstall.isEmpty) {
@@ -338,14 +405,20 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   }
 
   Future<void> _finish() async {
-    final prefs = ref.read(mobilePreferencesProvider).valueOrNull;
-    if (prefs != null) {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final prefs = await ref.read(mobilePreferencesProvider.future);
       await prefs.setFirstRunCompleted(true);
+      // Refresh the gate so the next build skips this screen.
+      ref.invalidate(shouldRunFirstRunSetupProvider);
+      if (!mounted) return;
+      widget.onCompleted();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showApiErrorWithPrefix(context, 'Could not finish setup', e);
     }
-    // Refresh the gate so the next build skips this screen.
-    ref.invalidate(shouldRunFirstRunSetupProvider);
-    if (!mounted) return;
-    widget.onCompleted();
   }
 
   Future<void> _skip() async {
@@ -413,49 +486,32 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Choose where Nightshade should save captured images. The path '
-          'is relative to the server, not your phone.',
+          'Choose where Nightshade should save captured images on the imaging '
+          'host. The folder must already exist and be writable.',
           style: TextStyle(color: colors.textSecondary, fontSize: 13),
         ),
         const SizedBox(height: 12),
-        RadioListTile<String>(
-          value: 'pictures',
-          groupValue: _selectedPathPreset,
-          onChanged: _busy
-              ? null
-              : (v) => setState(() => _selectedPathPreset = v ?? 'pictures'),
-          title: const Text('~/Pictures/Nightshade'),
-          subtitle: const Text('Recommended for Windows/macOS desktops'),
-        ),
-        RadioListTile<String>(
-          value: 'documents',
-          groupValue: _selectedPathPreset,
-          onChanged: _busy
-              ? null
-              : (v) => setState(() => _selectedPathPreset = v ?? 'pictures'),
-          title: const Text('~/Documents/Nightshade'),
-          subtitle: const Text('Often synced to cloud storage'),
-        ),
-        RadioListTile<String>(
-          value: 'custom',
-          groupValue: _selectedPathPreset,
-          onChanged: _busy
-              ? null
-              : (v) => setState(() => _selectedPathPreset = v ?? 'pictures'),
-          title: const Text('Custom path'),
-        ),
-        if (_selectedPathPreset == 'custom') ...[
-          const SizedBox(height: 8),
-          TextField(
-            controller: _customPathController,
-            enabled: !_busy,
-            decoration: const InputDecoration(
-              labelText: 'Absolute path',
-              hintText: 'e.g. D:\\Astro\\Captures',
-              border: OutlineInputBorder(),
-            ),
+        TextField(
+          controller: _customPathController,
+          enabled: !_busy,
+          decoration: const InputDecoration(
+            labelText: 'Host capture directory',
+            hintText: r'e.g. D:\Astro\Captures or /mnt/captures',
+            helperText:
+                'This path belongs to the imaging host, not this phone.',
+            border: OutlineInputBorder(),
           ),
-        ],
+        ),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: NightshadeButton(
+            onPressed: _busy ? null : _browseImageOutputPath,
+            label: 'Browse host folders',
+            icon: LucideIcons.folderOpen,
+            variant: ButtonVariant.outline,
+          ),
+        ),
         const SizedBox(height: 16),
         NightshadeButton(
           onPressed: _busy ? null : _commitImageOutputPath,
@@ -583,6 +639,36 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   }
 
   Widget _buildProfileStep(NightshadeColors colors) {
+    final loadError = _profileLoadError;
+    if (loadError != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Could not list equipment profiles: $loadError',
+            style: TextStyle(color: colors.error),
+          ),
+          const SizedBox(height: 12),
+          NightshadeButton(
+            onPressed: _busy || _loadingBootstrapData
+                ? null
+                : () {
+                    setState(() {
+                      _profileLoadError = null;
+                      _profiles = null;
+                    });
+                    unawaited(_loadCatalogsAndProfiles());
+                  },
+            label: _loadingBootstrapData ? 'Retrying…' : 'Retry',
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _busy ? null : _finish,
+            child: const Text('Finish without a profile'),
+          ),
+        ],
+      );
+    }
     final profiles = _profiles;
     if (profiles == null) {
       return const Padding(
@@ -622,31 +708,16 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'No equipment profile yet. The full equipment-onboarding wizard '
-          'will help you discover cameras, mounts, and other devices, then '
-          'save the configuration as a reusable profile. You can also '
-          'finish setup here and create a profile later from the Devices '
-          'tab.',
+          'No equipment profile yet. Equipment profiles are created on the '
+          'paired desktop or host — once you set one up there it appears '
+          'here automatically. You can finish setup now and pick a profile '
+          'later.',
           style: TextStyle(color: colors.textSecondary, fontSize: 13),
         ),
         const SizedBox(height: 16),
         NightshadeButton(
           onPressed: _busy ? null : _finish,
           label: 'Finish without a profile',
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: _busy
-              ? null
-              : () async {
-                  // The full equipment onboarding lives in nightshade_app
-                  // and is reached via the equipment screen route. We
-                  // close the wizard with the latch set so the operator
-                  // can return to the dashboard and tap "Add equipment"
-                  // without the wizard re-asserting itself.
-                  await _finish();
-                },
-          child: const Text('Set up equipment from the Devices tab'),
         ),
       ],
     );

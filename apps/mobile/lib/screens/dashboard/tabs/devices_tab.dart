@@ -25,12 +25,21 @@ class DevicesTab extends ConsumerWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        // Pull-to-refresh re-evaluates the device discovery futures so a
-        // user can recover from a stuck "Searching" state without leaving
-        // the screen.
-        ref.invalidate(availableCamerasProvider);
-        ref.invalidate(availableMountsProvider);
-        ref.invalidate(availableFocusersProvider);
+        // Re-enumerate devices on the backend; the per-device state
+        // notifiers pick up whatever the rescan surfaces. Refresh the host
+        // focus snapshot too so the focus card's retry copy is actionable.
+        try {
+          await ref.read(deviceBackendProvider).rescanDevices();
+          if (ref.read(isRemoteModeProvider) && activeProfile != null) {
+            final profileData = focusProfileDataProvider(
+              activeProfile.id.toString(),
+            );
+            ref.invalidate(profileData);
+            await ref.read(profileData.future);
+          }
+        } catch (e) {
+          if (context.mounted) showApiError(context, e);
+        }
       },
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -45,12 +54,11 @@ class DevicesTab extends ConsumerWidget {
           const _MountCard(),
           const SizedBox(height: 12),
           const _FocuserCard(),
-          // surface the temperature-compensation focus model when
-          // the focuser is connected AND the active profile already has
-          // collected focus data points. We gate on profile + connection
-          // here so the FocusModelCurveCard never renders its "Focuser not
-          // connected" / "No active profile" empty states underneath the
-          // _FocuserCard (which already conveys both of those facts).
+          // Surface the temperature-compensation focus model when the focuser
+          // and profile exist. A remote controller must not pre-gate this from
+          // its own documents folder: the samples live on the imaging host and
+          // FocusModelCurveCard fetches them over the backend-aware provider.
+          // In local mode retain the old "only once data exists" gate.
           Consumer(
             builder: (context, ref, _) {
               final focuser = ref.watch(focuserStateProvider);
@@ -59,10 +67,13 @@ class DevicesTab extends ConsumerWidget {
                 return const SizedBox.shrink();
               }
               if (profile == null) return const SizedBox.shrink();
-              final focusService = ref.watch(focusModelServiceProvider);
-              final data = focusService.getProfileData(profile.id.toString());
-              if (data == null || data.dataPoints.isEmpty) {
-                return const SizedBox.shrink();
+              if (!ref.watch(isRemoteModeProvider)) {
+                final focusData = ref.watch(
+                  focusProfileDataProvider(profile.id.toString()),
+                );
+                if (focusData.valueOrNull?.dataPoints.isEmpty != false) {
+                  return const SizedBox.shrink();
+                }
               }
               return const Padding(
                 padding: EdgeInsets.only(top: 12),
@@ -175,15 +186,15 @@ class _ProfileSummary extends StatelessWidget {
 }
 
 /// Shared visual shell so each device card lines up regardless of state.
-class _DeviceCard extends StatelessWidget {
+class _DeviceCard extends StatefulWidget {
   final IconData icon;
   final String title;
   final DeviceConnectionState state;
   final String? deviceName;
   final String? statusLine;
   final DeviceError? error;
-  final VoidCallback? onConnect;
-  final VoidCallback? onDisconnect;
+  final Future<void> Function()? onConnect;
+  final Future<void> Function()? onDisconnect;
 
   const _DeviceCard({
     required this.icon,
@@ -197,10 +208,28 @@ class _DeviceCard extends StatelessWidget {
   });
 
   @override
+  State<_DeviceCard> createState() => _DeviceCardState();
+}
+
+class _DeviceCardState extends State<_DeviceCard> {
+  bool _actionInFlight = false;
+
+  Future<void> _run(Future<void> Function()? action) async {
+    if (action == null || _actionInFlight) return;
+    setState(() => _actionInFlight = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _actionInFlight = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final isConnected = state == DeviceConnectionState.connected;
-    final isBusy = state == DeviceConnectionState.connecting;
+    final isConnected = widget.state == DeviceConnectionState.connected;
+    final isBusy =
+        widget.state == DeviceConnectionState.connecting || _actionInFlight;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -214,11 +243,11 @@ class _DeviceCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 20, color: colors.primary),
+              Icon(widget.icon, size: 20, color: colors.primary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  title,
+                  widget.title,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -226,25 +255,25 @@ class _DeviceCard extends StatelessWidget {
                   ),
                 ),
               ),
-              _StateChip(state: state),
+              _StateChip(state: widget.state),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            deviceName ?? 'No device assigned',
+            widget.deviceName ?? 'No device assigned',
             style: TextStyle(color: colors.textSecondary, fontSize: 13),
           ),
-          if (statusLine != null) ...[
+          if (widget.statusLine != null) ...[
             const SizedBox(height: 4),
             Text(
-              statusLine!,
+              widget.statusLine!,
               style: TextStyle(color: colors.textMuted, fontSize: 12),
             ),
           ],
-          if (error != null) ...[
+          if (widget.error != null) ...[
             const SizedBox(height: 6),
             Text(
-              error!.message,
+              widget.error!.message,
               style: TextStyle(color: colors.error, fontSize: 12),
             ),
           ],
@@ -255,11 +284,12 @@ class _DeviceCard extends StatelessWidget {
                 Expanded(
                   // 48 dp min height per HIG via ButtonSize.large.
                   child: NightshadeButton(
-                    label: 'Disconnect',
+                    label: isBusy ? 'Disconnecting…' : 'Disconnect',
                     icon: LucideIcons.unplug,
                     variant: ButtonVariant.outline,
                     size: ButtonSize.large,
-                    onPressed: onDisconnect,
+                    isLoading: isBusy,
+                    onPressed: isBusy ? null : () => _run(widget.onDisconnect),
                   ),
                 )
               else
@@ -269,7 +299,7 @@ class _DeviceCard extends StatelessWidget {
                     icon: isBusy ? null : LucideIcons.plug,
                     size: ButtonSize.large,
                     isLoading: isBusy,
-                    onPressed: isBusy ? null : onConnect,
+                    onPressed: isBusy ? null : () => _run(widget.onConnect),
                   ),
                 ),
             ],

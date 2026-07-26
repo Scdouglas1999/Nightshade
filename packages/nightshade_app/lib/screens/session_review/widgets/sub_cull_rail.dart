@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../session_review_controller.dart';
+import '../../../utils/filter_label.dart';
 
 /// Workbench evolution of [SubGalleryPanel]: the same grade-badged sub grid with
 /// **blink** + **bulk-reject below threshold**, plus two power-user culling
@@ -117,6 +118,32 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
   }
 
   @override
+  void didUpdateWidget(covariant SubCullRail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (!identical(oldWidget.controller, widget.controller)) {
+      _removeControllerListener?.call();
+      _removeControllerListener =
+          widget.controller.addListener(_onControllerChanged);
+    }
+
+    final currentIds = widget.subs.map((sub) => sub.id).toSet();
+    _selected.removeWhere((id) => !currentIds.contains(id));
+    _cellRects.removeWhere((id, _) => !currentIds.contains(id));
+
+    if (widget.subs.isEmpty) {
+      _blinkTimer?.cancel();
+      _blinkTimer = null;
+      _blink = false;
+      _blinkIndex = 0;
+      _lassoStart = null;
+      _lassoEnd = null;
+    } else if (_blinkIndex >= widget.subs.length) {
+      _blinkIndex = 0;
+    }
+  }
+
+  @override
   void dispose() {
     _removeControllerListener?.call();
     _blinkTimer?.cancel();
@@ -131,7 +158,17 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
     _blinkTimer?.cancel();
     if (_blink && widget.subs.isNotEmpty) {
       _blinkTimer = Timer.periodic(const Duration(milliseconds: 600), (_) {
-        if (!mounted) return;
+        if (!mounted || widget.subs.isEmpty) {
+          _blinkTimer?.cancel();
+          _blinkTimer = null;
+          if (mounted) {
+            setState(() {
+              _blink = false;
+              _blinkIndex = 0;
+            });
+          }
+          return;
+        }
         setState(() => _blinkIndex = (_blinkIndex + 1) % widget.subs.length);
       });
     }
@@ -156,8 +193,10 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
 
   Future<void> _rejectSelected() async {
     final ids = _selected.toList();
+    final currentSubs = {for (final sub in widget.subs) sub.id: sub};
     for (final id in ids) {
-      final sub = widget.subs.firstWhere((s) => s.id == id);
+      final sub = currentSubs[id];
+      if (sub == null) continue;
       if (sub.isAccepted) widget.onSetAccepted(id, false);
     }
     setState(() {
@@ -168,14 +207,26 @@ class _SubCullRailState extends ConsumerState<SubCullRail> {
   }
 
   Future<void> _cullToRecommended(IntegrationCurve curve) async {
-    final n = await widget.controller.cullToRecommended();
+    final result = await widget.controller.cullToRecommended();
     if (!mounted) return;
+    final keepN = curve.recommendation.keepN;
+    final String message;
+    switch (result.outcome) {
+      case CullOutcome.culled:
+        message = 'Culled to best $keepN subs (${result.rejected} rejected, '
+            '+${curve.recommendation.predictedSnrGainPct.toStringAsFixed(0)}% SNR)';
+        break;
+      case CullOutcome.alreadyOptimal:
+        message = 'Already at the recommended $keepN subs';
+        break;
+      case CullOutcome.staleCurve:
+        message =
+            'Curve is out of date — re-integrate to refresh before culling';
+        break;
+    }
     NightshadeToastHelper.show(
       context: context,
-      message: n > 0
-          ? 'Culled to best ${curve.recommendation.keepN} subs '
-              '($n rejected, +${curve.recommendation.predictedSnrGainPct.toStringAsFixed(0)}% SNR)'
-          : 'Already at the recommended ${curve.recommendation.keepN} subs',
+      message: message,
       severity: NightshadeAlertSeverity.info,
     );
   }
@@ -461,7 +512,7 @@ class _CullToolbar extends StatelessWidget {
           ),
         if (!selectMode)
           NightshadeButton(
-            label: 'Reject below threshold',
+            label: 'Reject HFR above',
             icon: NightshadeIcons.error,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
@@ -628,7 +679,7 @@ class _SubTile extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '${sub.filter ?? 'L'} · ${sub.exposureDuration.toInt()}s',
+                    '${filterLabel(sub.filter)} · ${sub.exposureDuration.toInt()}s',
                     style: NightshadeTypography.labelSm
                         .copyWith(color: colors.textPrimary),
                     maxLines: 1,
@@ -830,7 +881,7 @@ class _BlinkView extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
-            '${sub.fileName} · ${sub.filter ?? 'L'} · '
+            '${sub.fileName} · ${filterLabel(sub.filter)} · '
             '${sub.exposureDuration.toInt()}s'
             '${sub.hfr != null ? ' · HFR ${sub.hfr!.toStringAsFixed(2)}' : ''}',
             textAlign: TextAlign.center,

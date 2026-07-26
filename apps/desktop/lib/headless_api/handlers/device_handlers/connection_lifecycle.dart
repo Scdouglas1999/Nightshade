@@ -124,12 +124,23 @@ extension DeviceConnectionHandlers on DeviceHandlers {
 
   /// POST /api/devices/disconnect
   ///
-  /// Body: `{deviceId, deviceType}`. The disconnect path always operates on
+  /// Body: `{deviceId, deviceType}`. The disconnect path normally operates on
   /// the device currently held in the matching StateNotifier; we still
   /// require `deviceId` so the caller cannot silently disconnect a
-  /// different device than they think they are. If the supplied `deviceId`
-  /// does not match the currently-connected one, we return 409 rather than
-  /// guess.
+  /// different device than they think they are.
+  ///
+  /// When the notifier does NOT agree with the request, the DRIVER REGISTRY is
+  /// consulted before refusing. The registry (`backend.getConnectedDevices`, the
+  /// same source `GET /api/devices/connected` renders and the source every
+  /// driver command dispatches through) is the authority on what is actually
+  /// open; the notifier is a UI mirror of it. A notifier that has lost the
+  /// device — e.g. wiped by a stale `Disconnected` event for a different device
+  /// of the same type — used to make this endpoint answer
+  /// `device_not_connected` for a device that `/api/devices/connected` still
+  /// listed and whose `status` still returned live values, leaving the driver
+  /// releasable only by restarting the process. So: if the registry holds the
+  /// requested device, release it and report success; only a device that neither
+  /// surface knows about is a 409.
   Future<Response> handleDisconnectDevice(Request request) async {
     _logInfo('[API] POST /api/devices/disconnect');
     final payload = await readJsonObject(request);
@@ -145,15 +156,40 @@ extension DeviceConnectionHandlers on DeviceHandlers {
     }
 
     final connectedId = _connectedDeviceIdFor(deviceType);
-    if (connectedId == null || connectedId.isEmpty) {
-      throw HandlerFailure(
-        code: 'device_not_connected',
-        message: 'No ${deviceType.name} is currently connected',
-        statusCode: 409,
-        details: {'deviceId': deviceId, 'deviceType': deviceType.name},
-      );
-    }
     if (connectedId != deviceId) {
+      // The notifier is empty or tracking a different device. Fall back to the
+      // driver registry rather than refusing outright.
+      final orphanReleased = await _releaseFromDriverRegistry(
+        deviceType,
+        deviceId,
+      );
+      if (orphanReleased) {
+        publishHostMutationFromContainer(
+          container,
+          entityType: HostMutationEntity.equipment,
+          action: HostMutationAction.disconnected,
+          entityId: deviceId,
+          extra: {'deviceType': deviceType.name, 'deviceId': deviceId},
+        );
+        return jsonOk({
+          'status': 'disconnected',
+          'deviceId': deviceId,
+          'deviceType': deviceType.name,
+          // Truthfulness: the caller asked for a device the equipment state did
+          // not know about. Say so rather than pretending it was a normal
+          // teardown, so a dashboard can surface the divergence.
+          'releasedFromDriverRegistry': true,
+        });
+      }
+
+      if (connectedId == null || connectedId.isEmpty) {
+        throw HandlerFailure(
+          code: 'device_not_connected',
+          message: 'No ${deviceType.name} is currently connected',
+          statusCode: 409,
+          details: {'deviceId': deviceId, 'deviceType': deviceType.name},
+        );
+      }
       throw HandlerFailure(
         code: 'device_id_mismatch',
         message:
@@ -198,6 +234,66 @@ extension DeviceConnectionHandlers on DeviceHandlers {
       'deviceId': deviceId,
       'deviceType': deviceType.name,
     });
+  }
+
+  /// Release [deviceId] straight through the driver registry when the equipment
+  /// notifier for [deviceType] cannot vouch for it.
+  ///
+  /// Returns true when the registry held the device and the driver was closed.
+  /// Returns false when the registry does not list it, in which case the caller
+  /// reports the normal 409 — the request really is about a device nothing has
+  /// open.
+  ///
+  /// `backend.disconnectDevice` is a COMPLETE release: the native
+  /// `DeviceManager::disconnect_device` stops that device's heartbeat before
+  /// closing the driver. It is used directly (instead of `DeviceService`) because
+  /// `DeviceService.disconnect<Type>()` derives its target from the very notifier
+  /// that has already lost the device, so it would throw
+  /// `DeviceNotConnectedException` and the driver would stay open forever.
+  Future<bool> _releaseFromDriverRegistry(
+    DeviceType deviceType,
+    String deviceId,
+  ) async {
+    final backend = container.read(deviceBackendProvider);
+    List<DeviceInfo> connected;
+    try {
+      connected = await backend.getConnectedDevices();
+    } catch (e) {
+      _logWarning(
+        '[API] POST /api/devices/disconnect could not read the driver registry '
+        'while checking ${deviceType.name} $deviceId: $e',
+      );
+      return false;
+    }
+
+    final held = connected.any(
+      (d) => d.id == deviceId && d.deviceType == deviceType,
+    );
+    if (!held) return false;
+
+    _logWarning(
+      '[API] POST /api/devices/disconnect: ${deviceType.name} $deviceId is open '
+      'in the driver registry but the equipment state does not track it '
+      '(tracked: ${_connectedDeviceIdFor(deviceType) ?? 'none'}). Releasing the '
+      'driver directly so it cannot be stranded.',
+    );
+    try {
+      await backend.disconnectDevice(deviceType, deviceId);
+    } catch (e, stackTrace) {
+      throw HandlerFailure(
+        code: 'device_disconnect_failed',
+        message: _sanitizeConnectErrorMessage(e),
+        statusCode: 502,
+        details: {
+          'deviceId': deviceId,
+          'deviceType': deviceType.name,
+          'releasedFromDriverRegistry': true,
+        },
+        cause: e,
+        stackTrace: stackTrace,
+      );
+    }
+    return true;
   }
 
   /// Dispatches connect by [DeviceType] to the matching `DeviceService`

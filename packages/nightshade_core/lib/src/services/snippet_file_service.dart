@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../models/sequence/template_snippet.dart';
 import '../providers/settings_provider.dart';
+import '../utils/export_target.dart';
 
 /// File extension Nightshade writes for shared / exported snippet bundles.
 ///
@@ -134,15 +135,22 @@ class SnippetFileService {
     return '$base.$snippetFileExtension';
   }
 
-  /// Write [snippet] to a user-chosen path via the platform save dialog.
+  /// Write [snippet] to the platform's export destination.
   ///
   /// Returns the destination path on success, or `null` if the user
   /// cancelled the dialog. The file content is identical to what
   /// [encodeSnippet] returns.
+  ///
+  /// The destination comes from [chooseExportTarget], not a bare save dialog:
+  /// `file_selector` has no `getSavePath` on Android/iOS, so asking for one
+  /// threw UnimplementedError and snippet export was dead on a phone. There the
+  /// path is inside the app sandbox, so the caller must hand it to the share
+  /// sheet (`revealExportedFile`) — this service has no `BuildContext` and
+  /// cannot do that itself, which is why the path is returned.
   Future<String?> exportSnippet(TemplateSnippet snippet) async {
     final jsonString = encodeSnippet(snippet);
 
-    final saveLocation = await file_selector.getSaveLocation(
+    final target = await chooseExportTarget(
       initialDirectory: _initialDirectoryOrNull,
       suggestedName: suggestedFilename(snippet),
       acceptedTypeGroups: [
@@ -153,11 +161,11 @@ class SnippetFileService {
       ],
     );
 
-    if (saveLocation == null) return null;
+    if (target == null) return null;
 
-    final file = File(saveLocation.path);
+    final file = File(target.path);
     await file.writeAsString(jsonString);
-    return saveLocation.path;
+    return target.path;
   }
 
   /// Write [snippet] to [path]. Used by the share workflow which needs

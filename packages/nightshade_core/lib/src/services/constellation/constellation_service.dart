@@ -32,6 +32,7 @@ import 'package:path/path.dart' as p;
 import '../../database/daos/constellation_contributions_dao.dart';
 import '../../database/daos/living_sky_retention_dao.dart';
 import '../../database/tables/living_sky_retention.dart';
+import '../../models/collaboration/collaboration_models.dart';
 import '../logging_service.dart';
 import '../sky_atlas/sky_atlas_models.dart';
 import '../sky_atlas/sky_atlas_service.dart';
@@ -109,7 +110,23 @@ class ContributionOutcome {
   /// Tiles the hub rejected on geometry/order mismatch (tileId -> reason).
   final Map<int, String> rejected;
 
-  const ContributionOutcome({required this.accepted, required this.rejected});
+  /// The TRUE per-call frame delta actually pushed this contribution — the sum
+  /// of `export.framesInDelta` across every accepted tile, NOT a tile count.
+  /// Co-imaging combined accounting reports THIS so the headline depth equals
+  /// what the fusion received (never a hardcoded +1 per accepted tile).
+  final int framesPushed;
+
+  /// The TRUE per-call integration-seconds delta actually pushed this
+  /// contribution — the sum of `export.integrationSeconds` across accepted
+  /// tiles. Pairs with [framesPushed] for honest combined accounting.
+  final double integrationSecondsPushed;
+
+  const ContributionOutcome({
+    required this.accepted,
+    required this.rejected,
+    this.framesPushed = 0,
+    this.integrationSecondsPushed = 0.0,
+  });
 
   int get acceptedCount => accepted.length;
   int get rejectedCount => rejected.length;
@@ -476,12 +493,16 @@ class ConstellationService {
     String? instrumentFingerprint,
     String? solver,
     ConstellationPrivacy privacy = ConstellationPrivacy.sums,
+    ContributionLicense license = ContributionLicense.ccBy,
+    bool attributionConsent = true,
   }) async {
     if (privacy == ConstellationPrivacy.subs) {
       return contributeRawSubs(
         targetId,
         radiusDeg: radiusDeg,
         instrumentFingerprint: instrumentFingerprint,
+        license: license,
+        attributionConsent: attributionConsent,
       );
     }
     final joined = _joined[targetId];
@@ -490,6 +511,12 @@ class ConstellationService {
     final client = await _requireClient();
     final accepted = <int, ContributionReceipt>{};
     final rejected = <int, String>{};
+    // The TRUE per-call delta actually shipped — accumulated from each pushed
+    // tile's `export.framesInDelta` / `export.integrationSeconds` so callers
+    // (co-imaging combined accounting) report what fusion received, never a
+    // tile-acceptance count.
+    var framesPushed = 0;
+    var integrationSecondsPushed = 0.0;
     // When the caller forces [since] we honour it verbatim; otherwise the anchor
     // is the per-tile contribution high-water (epoch on the first contribution).
     try {
@@ -559,6 +586,8 @@ class ConstellationService {
             tileId: tile.tileId,
             order: _order,
             deltaPath: export.path,
+            license: license.wireName,
+            attributionConsent: attributionConsent,
             // TRUE delta: only the frames/seconds imaged since the anchor, not
             // the whole accumulated tile total.
             framesDelta: export.framesInDelta,
@@ -566,16 +595,35 @@ class ConstellationService {
             instrument: instrumentFingerprint,
             solver: solver,
           );
-          accepted[tile.tileId] = receipt;
+          // Only treat the contribution as accepted when the hub's quality gate
+          // actually accepted it. A 200 response carrying accepted=false means
+          // the frames were offered but rejected; the old code unconditionally
+          // inserted the receipt into `accepted` and counted the frames as
+          // pushed, silently reporting a rejection as success.
+          if (receipt.accepted) {
+            accepted[tile.tileId] = receipt;
+            framesPushed += export.framesInDelta;
+            integrationSecondsPushed += export.integrationSeconds;
+          } else {
+            rejected[tile.tileId] =
+                'Hub quality gate rejected the contribution (accepted=false)';
+            _logger.warning(
+              'contributeTarget(#$targetId): hub reported accepted=false for '
+              'tile ${tile.tileId}; recorded as rejected, not contributed.',
+              source: _logSource,
+            );
+          }
 
           // The exported `.nst` delta has served its purpose — it is now on the
           // hub. Reclaim it immediately rather than leaving it to accrue in the
           // cache until the next sweep (best-effort; a failure is non-fatal).
           await _atlas.deleteExportedDelta(tile.tileId);
 
-          // Advance the high-water so the NEXT contribute anchors here. The
-          // newest own fold shipped is at/after now; we stamp the contribution
-          // time (UTC) as the next anchor and accrue the cumulative tally.
+          // Advance the high-water so the NEXT contribute anchors here. A
+          // quality-gate rejection of these specific frames is definitive, so
+          // the anchor advances regardless — re-offering the identical delta
+          // would only be rejected again. Only ACCEPTED frames accrue to the
+          // cumulative contributed tally.
           if (hubKey != null && _contributions != null) {
             final now = DateTime.now().toUtc();
             await _contributions.upsertContribution(
@@ -586,10 +634,11 @@ class ConstellationService {
               lastContributedLabel: now.toIso8601String(),
               contributionId: receipt.contributionId,
               contributedFrames:
-                  (receiptRow?.contributedFrames ?? 0) + export.framesInDelta,
+                  (receiptRow?.contributedFrames ?? 0) +
+                  (receipt.accepted ? export.framesInDelta : 0),
               contributedIntegrationSeconds:
                   (receiptRow?.contributedIntegrationSeconds ?? 0) +
-                  export.integrationSeconds,
+                  (receipt.accepted ? export.integrationSeconds : 0),
             );
           }
         } on ConstellationException catch (e) {
@@ -611,7 +660,12 @@ class ConstellationService {
         '$skippedEmpty already-current, ${rejected.length} rejected.',
         source: _logSource,
       );
-      return ContributionOutcome(accepted: accepted, rejected: rejected);
+      return ContributionOutcome(
+        accepted: accepted,
+        rejected: rejected,
+        framesPushed: framesPushed,
+        integrationSecondsPushed: integrationSecondsPushed,
+      );
     } finally {
       client.close();
     }
@@ -639,6 +693,8 @@ class ConstellationService {
     int targetId, {
     double radiusDeg = 1.5,
     String? instrumentFingerprint,
+    ContributionLicense license = ContributionLicense.ccBy,
+    bool attributionConsent = true,
   }) async {
     final resolver = _rawSubframeResolver;
     if (resolver == null) {
@@ -703,6 +759,8 @@ class ConstellationService {
             tileId: tileId,
             order: _order,
             fitsPath: frame.filePath,
+            license: license.wireName,
+            attributionConsent: attributionConsent,
             capturedImageId: frame.capturedImageId,
             exposureSeconds: frame.exposureSeconds,
             instrument: instrumentFingerprint,

@@ -7,6 +7,7 @@ class _SearchField extends StatelessWidget {
   final TextEditingController controller;
   final NightshadeColors colors;
   final ValueChanged<String> onChanged;
+  final double height;
 
   /// On phone the field tightens (shorter, smaller hint) so search + the
   /// Filters button fit one row and the controls bar stays a single strip.
@@ -17,6 +18,7 @@ class _SearchField extends StatelessWidget {
     required this.colors,
     required this.onChanged,
     this.compact = false,
+    this.height = 36,
   });
 
   @override
@@ -27,7 +29,7 @@ class _SearchField extends StatelessWidget {
         ? 'Search catalogs'
         : 'Search tonight candidates and installed catalogs';
     return SizedBox(
-      height: 36,
+      height: height,
       child: TextField(
         controller: controller,
         onChanged: onChanged,
@@ -550,8 +552,9 @@ class _MinAltitudeControl extends ConsumerWidget {
         );
         if (result != null) {
           final notifier = ref.read(suggestionFilterProvider.notifier);
-          notifier.state =
-              notifier.state.copyWith(minCurrentAltitude: () => result);
+          notifier.state = notifier.state.copyWith(
+            minCurrentAltitude: () => result.isNaN ? null : result,
+          );
           ref.read(_plannerVisibleCountProvider.notifier).state =
               _kPlannerPageSize;
         }
@@ -588,8 +591,9 @@ class _MoonSeparationControl extends ConsumerWidget {
         );
         if (result != null) {
           final notifier = ref.read(suggestionFilterProvider.notifier);
-          notifier.state =
-              notifier.state.copyWith(minMoonDistance: () => result);
+          notifier.state = notifier.state.copyWith(
+            minMoonDistance: () => result.isNaN ? null : result,
+          );
           ref.read(_plannerVisibleCountProvider.notifier).state =
               _kPlannerPageSize;
         }
@@ -780,12 +784,9 @@ Future<double?> _showAngleSlider({
     },
   ).then((value) {
     if (value == null) return null;
-    // -1 sentinel from the Clear button → tell caller to reset to null.
+    // -1 sentinel from the Clear button → NaN tells the caller to clear the
+    // filter, distinct from a null barrier-dismiss which is a no-op.
     if (value < 0) return double.nan;
     return value;
-  }).then((v) {
-    if (v == null) return null;
-    if (v.isNaN) return null;
-    return v;
   });
 }

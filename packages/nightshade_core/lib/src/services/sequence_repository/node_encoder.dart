@@ -9,6 +9,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
       ExposureNode() => {
         'durationSecs': node.durationSecs,
         'count': node.count,
+        'frameType': node.frameType.name,
         'filter': node.filter,
         'filterIndex': node.filterIndex,
         'gain': node.gain,
@@ -40,6 +41,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'method': _autofocusMethodToString(node.method),
         'stepSize': node.stepSize,
         'stepsOut': node.stepsOut,
+        'exposuresPerPoint': node.exposuresPerPoint,
         'exposureDuration': node.exposureDuration,
         'useSettingsDefaults': node.useSettingsDefaults,
         'maxDurationSecs': node.maxDurationSecs,
@@ -100,6 +102,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'priority': node.priority,
         'startAfter': node.startAfter?.millisecondsSinceEpoch,
         'endBefore': node.endBefore?.millisecondsSinceEpoch,
+        'mosaicPanel': node.mosaicPanel?.toJson(),
         // Persist the per-target integration budget
         // when configured. `null`/absent means "no budget enforcement"
         // — current default behaviour for existing sequences.
@@ -118,6 +121,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'repeatUntil': node.repeatUntil?.millisecondsSinceEpoch,
         'repeatUntilAltitude': node.repeatUntilAltitude,
         'integrationTimeTarget': node.integrationTimeTarget,
+        'maxSafetyIterations': node.maxSafetyIterations,
       },
       ParallelNode() => {'requiredSuccesses': node.requiredSuccesses},
       ConditionalNode() => {
@@ -134,6 +138,18 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
         'triggerThreshold': node.triggerThreshold,
         'hfrThresholdPercent': node.hfrThresholdPercent,
         'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
+        'triggerEveryNFrames': node.triggerEveryNFrames,
+        'focusDriftWindowSize': node.focusDriftWindowSize,
+        'focusDriftMinIncreasingCount': node.focusDriftMinIncreasingCount,
+        'focusDriftMinTotalIncrease': node.focusDriftMinTotalIncrease,
+        'guidingFailedDurationSecs': node.guidingFailedDurationSecs,
+        'cloudMinutesBefore': node.cloudMinutesBefore,
+        'cloudCoverageThresholdPercent': node.cloudCoverageThresholdPercent,
+        'cloudOpeningMinDurationSecs': node.cloudOpeningMinDurationSecs,
+        'cloudCoverMaxPercent': node.cloudCoverMaxPercent,
+        'cloudCoverDurationSecs': node.cloudCoverDurationSecs,
+        'transparencyBelowThreshold': node.transparencyBelowThreshold,
+        'transparencyDurationSecs': node.transparencyDurationSecs,
       },
       MeridianFlipNode() => {
         'triggerMethod': node.triggerMethod.name,

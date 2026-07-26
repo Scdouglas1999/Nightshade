@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -119,5 +121,33 @@ void main() {
   test('empty query resolves to nothing', () async {
     final container = makeContainer();
     expect(await resolve(container, ''), isNull);
+  });
+
+  test('clearing search retires an in-flight catalog result', () async {
+    final stars = Completer<List<Star>>();
+    final container = ProviderContainer(
+      overrides: [
+        loadedStarsProvider.overrideWith((ref) => stars.future),
+        loadedDsosProvider.overrideWith((ref) async => const []),
+      ],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(objectSearchProvider.notifier);
+    notifier.updateFilters(
+      const SearchFilters(typeFilter: SearchObjectTypeFilter.stars),
+    );
+
+    final pending = notifier.search('Sirius');
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(objectSearchProvider).isSearching, isTrue);
+
+    notifier.clear();
+    stars.complete([sirius]);
+    await pending;
+
+    final state = container.read(objectSearchProvider);
+    expect(state.query, isEmpty);
+    expect(state.results, isEmpty);
+    expect(state.isSearching, isFalse);
   });
 }

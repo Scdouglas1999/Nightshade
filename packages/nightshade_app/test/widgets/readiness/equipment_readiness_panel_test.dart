@@ -159,4 +159,25 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('puts Fix actions below row content in the narrow status rail',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_harness(_blockedReport));
+    await tester.pump();
+
+    final titleBottom = tester.getBottomLeft(find.text('Critical devices')).dy;
+    final fixTop = tester
+        .getTopLeft(find.widgetWithText(NightshadeButton, 'Set up equipment'))
+        .dy;
+
+    expect(
+      fixTop,
+      greaterThan(titleBottom),
+      reason: 'the action must not squeeze the readiness title into a sliver',
+    );
+    expect(tester.takeException(), isNull);
+  });
 }

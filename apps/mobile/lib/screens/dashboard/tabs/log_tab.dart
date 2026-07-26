@@ -68,6 +68,19 @@ class _LogTabState extends ConsumerState<LogTab> {
     }
   }
 
+  void _scrollToLatestIfFollowing() {
+    if (!_autoScroll) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_autoScroll ||
+          !_scrollController.hasClients ||
+          !_scrollController.position.hasContentDimensions) {
+        return;
+      }
+      _scrollController.jumpTo(0);
+    });
+  }
+
   void _ensureSubscription(NightshadeBackend backend) {
     if (identical(_subscribedBackend, backend)) return;
     // flush the in-memory ring buffer whenever the
@@ -90,6 +103,7 @@ class _LogTabState extends ConsumerState<LogTab> {
           _events.removeRange(0, _events.length - _maxEntries);
         }
       });
+      _scrollToLatestIfFollowing();
     });
   }
 
@@ -187,7 +201,9 @@ class _LogTabState extends ConsumerState<LogTab> {
                   IconButton(
                     tooltip: 'Clear log',
                     icon: const Icon(LucideIcons.trash2, size: 20),
-                    onPressed: _events.isEmpty ? null : _clear,
+                    onPressed: _events.isEmpty && _serverLogEntries.isEmpty
+                        ? null
+                        : _clear,
                   ),
                 ],
               ),

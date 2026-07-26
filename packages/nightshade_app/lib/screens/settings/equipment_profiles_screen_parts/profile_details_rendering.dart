@@ -63,7 +63,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   label: 'Cancel',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
-                  onPressed: widget.onCancel,
+                  onPressed: _isSaving ? null : widget.onCancel,
                 ),
                 const SizedBox(width: 8),
                 NightshadeButton(
@@ -71,19 +71,8 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   icon: LucideIcons.check,
                   variant: ButtonVariant.primary,
                   size: ButtonSize.small,
-                  onPressed: () async {
-                    try {
-                      await widget.onSave(_buildUpdatedProfile());
-                      if (context.mounted) {
-                        context
-                            .showSuccessSnackBar('Profile saved successfully');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        context.showErrorSnackBar('Failed to save profile: $e');
-                      }
-                    }
-                  },
+                  isLoading: _isSaving,
+                  onPressed: _isSaving ? null : _handleSave,
                 ),
               ] else ...[
                 if (!widget.isActive)
@@ -457,6 +446,8 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                     onPressed: () {
                       _update(() {
                         _filterControllers.add(TextEditingController());
+                        _filterOffsetControllers
+                            .add(TextEditingController(text: '0'));
                       });
                     },
                     tooltip: 'Add filter',
@@ -499,6 +490,10 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                                 _update(() {
                                   _filterControllers[i].dispose();
                                   _filterControllers.removeAt(i);
+                                  if (i < _filterOffsetControllers.length) {
+                                    _filterOffsetControllers[i].dispose();
+                                    _filterOffsetControllers.removeAt(i);
+                                  }
                                 });
                               },
                             )

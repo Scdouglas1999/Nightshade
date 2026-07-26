@@ -109,6 +109,11 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     final readyGraceElapsed = _equipmentReadyGraceElapsed(equipmentReady);
     final dayKey = _astronomicalDayKey(DateTime.now());
     final dismissedDays = ref.watch(_smartNightPromptDismissedDaysProvider);
+    final persistedDismissedKey = ref
+            .watch(appSettingsProvider)
+            .valueOrNull
+            ?.smartNightPromptDismissedDayKey ??
+        '';
 
     final canPlan = equipmentReady &&
         readyGraceElapsed &&
@@ -118,7 +123,8 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     final baseShouldShow = canPlan &&
         autoPromptEnabled &&
         !sequenceActive &&
-        !dismissedDays.contains(dayKey);
+        !dismissedDays.contains(dayKey) &&
+        persistedDismissedKey != dayKey;
 
     if (!baseShouldShow) {
       _animController.value = 0.0;
@@ -283,6 +289,9 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     ref.read(_smartNightPromptDismissedDaysProvider.notifier).update(
           (days) => {...days, dayKey},
         );
+    ref
+        .read(appSettingsProvider.notifier)
+        .setSmartNightPromptDismissedDayKey(dayKey);
   }
 
   bool _equipmentReadyGraceElapsed(bool equipmentReady) {
@@ -364,6 +373,12 @@ bool _sequenceIsActive(SequenceExecutionState state) {
     case SequenceExecutionState.paused:
     case SequenceExecutionState.stopping:
     case SequenceExecutionState.recovering:
+    // A failed stop (hardware possibly still imaging), a pending cleanup, or an
+    // in-flight finalization are all "active" — Smart Night must not prompt to
+    // launch over a run that has not settled.
+    case SequenceExecutionState.stopFailed:
+    case SequenceExecutionState.cleanupFailed:
+    case SequenceExecutionState.finalizing:
       return true;
   }
 }

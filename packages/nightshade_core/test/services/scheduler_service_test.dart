@@ -227,6 +227,39 @@ void main() {
       );
     });
 
+    group('optimizeTargetOrder', () {
+      test(
+        'priority strategy puts higher values first and keeps ties stable',
+        () {
+          TargetHeaderNode target(String id, int priority) => TargetHeaderNode(
+            id: id,
+            name: id,
+            targetName: id,
+            raHours: 5,
+            decDegrees: 20,
+            priority: priority,
+          );
+          final result = scheduler.optimizeTargetOrder(
+            targets: [
+              target('low', 2),
+              target('high-first', 9),
+              target('high-second', 9),
+            ],
+            strategy: OptimizationStrategy.priority,
+            observationTime: DateTime.utc(2026, 1, 1),
+            latitudeDegrees: 40,
+            longitudeDegrees: -74,
+          );
+
+          expect(result.map((target) => target.id), [
+            'high-first',
+            'high-second',
+            'low',
+          ]);
+        },
+      );
+    });
+
     group('calculateSeparation', () {
       test('identical positions have zero separation', () {
         final sep = scheduler.calculateSeparation(

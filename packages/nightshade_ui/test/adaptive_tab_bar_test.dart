@@ -109,4 +109,26 @@ void main() {
     expect(find.text('Session'), findsOneWidget);
     expect(find.text('Calibration'), findsOneWidget);
   });
+
+  testWidgets('labels collapse inside a narrow pane on a wide viewport', (
+    tester,
+  ) async {
+    await _pumpAt(
+      tester,
+      const Size(1000, 800),
+      MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(width: 320, height: 48, child: _host()),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Session'), findsNothing);
+    expect(find.byIcon(Icons.bar_chart), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

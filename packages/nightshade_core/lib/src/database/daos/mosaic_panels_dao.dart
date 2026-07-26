@@ -28,7 +28,9 @@ class MosaicPanelsDao {
 
   static const String _columns =
       'id, project_id, panel_index, center_ra, center_dec, target_id, '
-      'integrated_master_id, captured_count, status';
+      'integrated_master_id, captured_count, status, '
+      // v56 (Collaborative Sky WS2): distributed-capture claim + upload.
+      'assigned_rig_id, assigned_user_id, claim_token, uploaded_master_id';
 
   /// Insert or update a panel keyed on `(project_id, panel_index)`.
   ///
@@ -129,6 +131,50 @@ class MosaicPanelsDao {
     );
   }
 
+  /// Persist a hub panel claim onto a panel (WS2): the hub-issued [claimToken]
+  /// baton and the authoritative [accountId] / [rigId] the panel is assigned to.
+  /// Returns the number of rows changed.
+  Future<int> setClaim(
+    int panelId, {
+    required String claimToken,
+    String? rigId,
+    String? accountId,
+  }) {
+    return _db.customUpdate(
+      'UPDATE mosaic_panels SET claim_token = ?, assigned_rig_id = ?, '
+      'assigned_user_id = ? WHERE id = ?',
+      variables: [
+        Variable<String>(claimToken),
+        Variable<String>(rigId),
+        Variable<String>(accountId),
+        Variable<int>(panelId),
+      ],
+      updateKind: UpdateKind.update,
+    );
+  }
+
+  /// Drop a hub panel claim from a panel (WS2 release): clears the claim baton
+  /// and the assignment it granted, so local state stops advertising a hold the
+  /// hub has already given back to the pool. Returns rows changed.
+  Future<int> clearClaim(int panelId) {
+    return _db.customUpdate(
+      'UPDATE mosaic_panels SET claim_token = NULL, assigned_rig_id = NULL, '
+      'assigned_user_id = NULL WHERE id = ?',
+      variables: [Variable<int>(panelId)],
+      updateKind: UpdateKind.update,
+    );
+  }
+
+  /// Record the local `integrated_masters.id` of the panel master uploaded to
+  /// the hub for this panel (WS2). Returns the number of rows changed.
+  Future<int> setUploaded(int panelId, int uploadedMasterId) {
+    return _db.customUpdate(
+      'UPDATE mosaic_panels SET uploaded_master_id = ? WHERE id = ?',
+      variables: [Variable<int>(uploadedMasterId), Variable<int>(panelId)],
+      updateKind: UpdateKind.update,
+    );
+  }
+
   /// Update a panel's lifecycle [status]. Returns the number of rows changed.
   Future<int> updateStatus(int panelId, MosaicPanelStatus status) {
     return _db.customUpdate(
@@ -198,6 +244,10 @@ class MosaicPanelsDao {
       integratedMasterId: row.readNullable<int>('integrated_master_id'),
       capturedCount: row.read<int>('captured_count'),
       status: MosaicPanelStatus.fromWire(row.read<String>('status')),
+      assignedRigId: row.readNullable<String>('assigned_rig_id'),
+      assignedUserId: row.readNullable<String>('assigned_user_id'),
+      claimToken: row.readNullable<String>('claim_token'),
+      uploadedMasterId: row.readNullable<int>('uploaded_master_id'),
     );
   }
 }

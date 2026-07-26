@@ -10,7 +10,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'clearGoal': 'Clear Goal',
     'closeAnyway': 'Close Anyway',
     'closeNightshadeBody':
-        'A capture session is in progress. Are you sure you want to close the application? The current capture will be aborted.',
+        'Nightshade is controlling active imaging equipment. Closing now can interrupt captures and may leave the mount tracking or the camera cooler running. Stop operations and safe the rig first, or close anyway only if another controller is taking over.',
     'closeNightshadeTitle': 'Close Nightshade?',
     'collapse': 'Collapse',
     'connect': 'Connect',
@@ -21,7 +21,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'dashboardTourTitle': 'Dashboard Tour',
     'disconnectedBanner': 'Error: not connected to server',
     'generalAutoConnect': 'Auto-connect equipment',
-    'generalAutoConnectDesc': 'Connect to last used devices on startup',
+    'generalAutoConnectDesc':
+        'Connects the default startup profile on launch, falling back to the '
+            'last active profile when no default is set',
     'generalAutoSaveSequences': 'Auto-save sequences',
     'generalAutoSaveSequencesDesc': 'Automatically save sequence changes',
     'generalBehavior': 'Behavior',
@@ -41,12 +43,12 @@ final Map<String, Map<String, String>> _localizedValues = {
     'mobileErrorLoadingApp': 'Error Loading App',
     'mobileHowToConnect': 'How to Connect',
     'mobileHowToConnectSteps':
-        '1. Make sure Nightshade is running on your imaging PC (desktop or headless server)\n2. Ensure both devices are on the same network\n3. Tap "Search for Server" or wait for automatic discovery\n4. After connecting, the full Nightshade app opens with the same screens as desktop',
+        '1. Make sure Nightshade is running on your imaging PC (desktop or headless server)\n2. Ensure both devices are on the same network\n3. Discovery starts automatically; if nothing is found, tap "Search for Server" to scan again or enter the address manually\n4. After connecting, the full Nightshade app opens with the same screens as desktop',
     'mobileNotConnected': 'Not Connected',
     'mobileRetry': 'Retry',
     'mobileScanQr': 'Scan QR',
     'mobileSearchingForServer': 'Searching for server...',
-    'mobileServerIpAddress': 'Server IP Address',
+    'mobileServerIpAddress': 'Server address',
     'mobileSkipConnection': 'Skip Connection (View UI Only)',
     // Tailscale connect (setup sheet + connection-screen button).
     'tailscaleConnect': 'Connect over Tailscale',
@@ -82,11 +84,17 @@ final Map<String, Map<String, String>> _localizedValues = {
     'savedServersLoadError': 'Failed to load saved servers: {error}',
     'savedServersAdd': 'Add server',
     'savedServersUnreachable': 'Could not reach {name} at {host}',
+    'savedServersPairingExpired':
+        '{name} is online but rejected this device — pair again',
+    'savedServersIncompatible':
+        '{name} at {host} runs an incompatible Nightshade version',
     'savedServersRelayUnavailable':
         'Relay reconnect is not available right now. Open the app from the connection screen and try again.',
     'savedServersOpenError': 'Failed to open {name}: {error}',
+    'savedServersUpdateError': 'Could not update {name}: {error}',
     'savedServersAddDisabled':
         'Adding new servers from this screen is not enabled in this build.',
+    'savedServersAddError': 'Could not add server: {error}',
     'savedServersAdded': 'Added {name}',
     'savedServersRename': 'Rename',
     'savedServersEditNotes': 'Edit notes',
@@ -129,7 +137,10 @@ final Map<String, Map<String, String>> _localizedValues = {
     'navFraming': 'Framing',
     'navFramingDesc': 'Plan shots',
     'navGuiding': 'Guiding',
-    'navGuidingDesc': 'PHD2 control',
+    // Backend-neutral: this screen drives the built-in multi-star guider as well
+    // as PHD2, so naming it after one backend mislabels it for anyone using the
+    // other — including the default built-in guider.
+    'navGuidingDesc': 'Guide & calibrate',
     'navImaging': 'Imaging',
     'navImagingDesc': 'Capture & focus',
     'navPlanetarium': 'Planetarium',
@@ -140,6 +151,14 @@ final Map<String, Map<String, String>> _localizedValues = {
     'navWeatherDesc': 'Cloud radar',
     'navPlanner': 'Plan Tonight',
     'navPlannerDesc': 'Session optimizer',
+    // Short forms for the phone bottom nav — seven slots at ~60dp each;
+    // the full labels all ellipsized ("Das…", "Equi…", "Plan…").
+    'navDashboardShort': 'Home',
+    'navEquipmentShort': 'Gear',
+    'navImagingShort': 'Imaging',
+    'navSequencerShort': 'Sequence',
+    'navGuidingShort': 'Guiding',
+    'navPlannerShort': 'Plan',
     'navYourSky': 'Your Sky',
     'navYourSkyDesc': 'Personal all-sky atlas',
     'navConstellation': 'Constellation',
@@ -160,6 +179,16 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsDarkLibrary': 'Dark Library',
     'settingsEquipmentProfiles': 'Equipment Profiles',
     'settingsFilePaths': 'File Paths',
+    // Settings sidebar GROUP headers. Distinct from the structural
+    // `kGroupTitles` identifiers, which must stay English.
+    'settingsSearchHint': 'Search settings…',
+    'settingsGroupGeneral': 'General',
+    'settingsGroupEquipment': 'Equipment',
+    'settingsGroupImaging': 'Imaging',
+    'settingsGroupAutomationSafety': 'Automation & Safety',
+    'settingsGroupScience': 'Science',
+    'settingsGroupNotificationsRemote': 'Notifications & Remote',
+    'settingsGroupAdvanced': 'Advanced',
     'settingsGeneral': 'General',
     'settingsHelpTutorials': 'Help & Tutorials',
     'settingsImaging': 'Imaging',
@@ -358,6 +387,8 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Desktop remote access serves the same dashboard locally and on your LAN. Localhost stays frictionless for this machine, while non-local clients must pair before they can control the app.',
     'remoteAccessCopiedUrl': 'Copied {url} to clipboard',
     'remoteAccessInvalidPort': 'Enter a valid port between 1024 and 65535.',
+    'remoteAccessSavePortFailed':
+        'Could not save the port. The previous value was restored.',
     'remoteAccessIssueTitle': 'Remote access needs attention',
     'remoteAccessIssueBody':
         'Nightshade ran into a remote-access problem. Check the connection details below before sharing the dashboard.',
@@ -375,6 +406,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'remoteAccessStartingTitle': 'Starting remote access',
     'remoteAccessStartingBody':
         'Nightshade is bringing the dashboard online. Your local and LAN links will appear here when it is ready.',
+    'remoteAccessHostActiveTitle': 'Remote access is running on your host',
+    'remoteAccessHostActiveBody':
+        'This device is connected through the imaging host\'s remote-access server. The settings above apply to the host; its web dashboard is reachable at the same address this app uses.',
     'remoteAccessDetailsTitle': 'Connection details',
     'remoteAccessDetailsBody':
         'Open this section when you need viewer counts, authentication state, or the last runtime error.',
@@ -414,6 +448,8 @@ final Map<String, Map<String, String>> _localizedValues = {
         'Are you sure you want to permanently delete "{name}"? This action cannot be undone.',
     'pairingDismissError': 'Dismiss',
     'pairingErrorStart': 'Nightshade could not start pairing mode. Try again.',
+    'pairingErrorCancel':
+        'Nightshade could not cancel pairing. The code is still active; try again.',
     'pairingErrorLoad': 'Nightshade could not load your paired devices.',
     'pairingErrorRevoke': 'Nightshade could not revoke access for that device.',
     'pairingErrorDelete': 'Nightshade could not delete that paired device.',
@@ -552,7 +588,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'clearGoal': 'Borrar meta',
     'closeAnyway': 'Cerrar de todos modos',
     'closeNightshadeBody':
-        'Hay una sesi\u00F3n de captura en curso. \u00BFSeguro que deseas cerrar la aplicaci\u00F3n? La captura actual se cancelar\u00E1.',
+        'Nightshade est\u00E1 controlando equipos de imagen activos. Cerrar ahora puede interrumpir capturas y dejar la montura siguiendo o el enfriador de la c\u00E1mara funcionando. Det\u00E9n las operaciones y asegura el equipo primero, o cierra solo si otro controlador tomar\u00E1 el control.',
     'closeNightshadeTitle': '\u00BFCerrar Nightshade?',
     'collapse': 'Contraer',
     'connect': 'Conectar',
@@ -564,7 +600,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'disconnectedBanner': 'Error: sin conexi\u00F3n al servidor',
     'generalAutoConnect': 'Conectar equipo autom\u00E1ticamente',
     'generalAutoConnectDesc':
-        'Conectar los \u00FAltimos dispositivos usados al iniciar',
+        'Conecta el perfil de inicio predeterminado al arrancar; si no hay '
+            'ninguno, usa el \u00FAltimo perfil activo',
     'generalAutoSaveSequences': 'Guardar secuencias autom\u00E1ticamente',
     'generalAutoSaveSequencesDesc':
         'Guardar los cambios de secuencia de forma autom\u00E1tica',
@@ -587,12 +624,12 @@ final Map<String, Map<String, String>> _localizedValues = {
     'mobileErrorLoadingApp': 'Error al cargar la aplicaci\u00F3n',
     'mobileHowToConnect': 'C\u00F3mo conectar',
     'mobileHowToConnectSteps':
-        '1. Aseg\u00FArate de que Nightshade est\u00E9 ejecut\u00E1ndose en tu PC de captura (escritorio o servidor headless)\n2. Verifica que ambos dispositivos est\u00E9n en la misma red\n3. Toca "Buscar servidor" o espera el descubrimiento autom\u00E1tico\n4. Tras conectar, se abre la app completa de Nightshade con las mismas pantallas que en escritorio',
+        '1. Aseg\u00FArate de que Nightshade est\u00E9 ejecut\u00E1ndose en tu PC de captura (escritorio o servidor headless)\n2. Verifica que ambos dispositivos est\u00E9n en la misma red\n3. El descubrimiento comienza autom\u00E1ticamente; si no se encuentra nada, toca "Buscar servidor" para buscar de nuevo o introduce la direcci\u00F3n manualmente\n4. Tras conectar, se abre la app completa de Nightshade con las mismas pantallas que en escritorio',
     'mobileNotConnected': 'Sin conexi\u00F3n',
     'mobileRetry': 'Reintentar',
     'mobileScanQr': 'Escanear QR',
     'mobileSearchingForServer': 'Buscando servidor...',
-    'mobileServerIpAddress': 'Direcci\u00F3n IP del servidor',
+    'mobileServerIpAddress': 'Direcci\u00F3n del servidor',
     'mobileSkipConnection': 'Omitir conexi\u00F3n (solo ver la interfaz)',
     // Conexi\u00F3n por Tailscale.
     'tailscaleConnect': 'Conectar por Tailscale',
@@ -631,11 +668,17 @@ final Map<String, Map<String, String>> _localizedValues = {
         'No se pudieron cargar los servidores guardados: {error}',
     'savedServersAdd': 'Agregar servidor',
     'savedServersUnreachable': 'No se pudo acceder a {name} en {host}',
+    'savedServersPairingExpired':
+        '{name} está en línea pero rechazó este dispositivo — vuelve a emparejar',
+    'savedServersIncompatible':
+        '{name} en {host} usa una versión incompatible de Nightshade',
     'savedServersRelayUnavailable':
         'La reconexión por relay no está disponible ahora. Abre la app desde la pantalla de conexión e inténtalo de nuevo.',
     'savedServersOpenError': 'No se pudo abrir {name}: {error}',
+    'savedServersUpdateError': 'No se pudo actualizar {name}: {error}',
     'savedServersAddDisabled':
         'Agregar servidores desde esta pantalla no est\u00E1 habilitado en esta versi\u00F3n.',
+    'savedServersAddError': 'No se pudo agregar el servidor: {error}',
     'savedServersAdded': '{name} agregado',
     'savedServersRename': 'Renombrar',
     'savedServersEditNotes': 'Editar notas',
@@ -679,7 +722,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'navFraming': 'Encuadre',
     'navFramingDesc': 'Planificar tomas',
     'navGuiding': 'Guiado',
-    'navGuidingDesc': 'Control de PHD2',
+    'navGuidingDesc': 'Guiar y calibrar',
     'navImaging': 'Captura',
     'navImagingDesc': 'Captura y enfoque',
     'navPlanetarium': 'Planetario',
@@ -690,6 +733,13 @@ final Map<String, Map<String, String>> _localizedValues = {
     'navWeatherDesc': 'Radar de nubes',
     'navPlanner': 'Plan Nocturno',
     'navPlannerDesc': 'Optimizador de sesiones',
+    // Formas cortas para la barra inferior del telefono.
+    'navDashboardShort': 'Inicio',
+    'navEquipmentShort': 'Equipo',
+    'navImagingShort': 'Captura',
+    'navSequencerShort': 'Secuencia',
+    'navGuidingShort': 'Guiado',
+    'navPlannerShort': 'Plan',
     'navYourSky': 'Tu Cielo',
     'navYourSkyDesc': 'Atlas personal del cielo',
     'navConstellation': 'Constelación',
@@ -710,6 +760,14 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsDarkLibrary': 'Biblioteca de darks',
     'settingsEquipmentProfiles': 'Perfiles de equipo',
     'settingsFilePaths': 'Rutas de archivo',
+    'settingsSearchHint': 'Buscar ajustes…',
+    'settingsGroupGeneral': 'General',
+    'settingsGroupEquipment': 'Equipo',
+    'settingsGroupImaging': 'Captura',
+    'settingsGroupAutomationSafety': 'Automatización y seguridad',
+    'settingsGroupScience': 'Ciencia',
+    'settingsGroupNotificationsRemote': 'Notificaciones y acceso remoto',
+    'settingsGroupAdvanced': 'Avanzado',
     'settingsGeneral': 'General',
     'settingsHelpTutorials': 'Ayuda y tutoriales',
     'settingsImaging': 'Captura',
@@ -909,6 +967,8 @@ final Map<String, Map<String, String>> _localizedValues = {
         'El acceso remoto de escritorio sirve el mismo panel localmente y en tu LAN. Localhost sigue siendo directo para esta maquina, mientras que los clientes no locales deben emparejarse antes de poder controlar la aplicacion.',
     'remoteAccessCopiedUrl': 'Se copio {url} al portapapeles',
     'remoteAccessInvalidPort': 'Introduce un puerto valido entre 1024 y 65535.',
+    'remoteAccessSavePortFailed':
+        'No se pudo guardar el puerto. Se restauro el valor anterior.',
     'remoteAccessIssueTitle': 'El acceso remoto necesita atencion',
     'remoteAccessIssueBody':
         'Nightshade encontro un problema de acceso remoto. Revisa los detalles de conexion antes de compartir el panel.',
@@ -926,6 +986,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'remoteAccessStartingTitle': 'Iniciando acceso remoto',
     'remoteAccessStartingBody':
         'Nightshade esta poniendo el panel en linea. Los enlaces local y LAN apareceran aqui cuando este listo.',
+    'remoteAccessHostActiveTitle': 'El acceso remoto esta activo en tu host',
+    'remoteAccessHostActiveBody':
+        'Este dispositivo esta conectado a traves del servidor de acceso remoto del host. Los ajustes de arriba aplican al host; su panel web esta disponible en la misma direccion que usa esta app.',
     'remoteAccessDetailsTitle': 'Detalles de conexion',
     'remoteAccessDetailsBody':
         'Abre esta seccion cuando necesites recuento de visores, estado de autenticacion o el ultimo error.',
@@ -967,6 +1030,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'pairingDismissError': 'Cerrar',
     'pairingErrorStart':
         'Nightshade no pudo iniciar el modo de emparejamiento. Intentalo de nuevo.',
+    'pairingErrorCancel':
+        'Nightshade no pudo cancelar el emparejamiento. El codigo sigue activo; intentalo de nuevo.',
     'pairingErrorLoad':
         'Nightshade no pudo cargar tus dispositivos emparejados.',
     'pairingErrorRevoke':

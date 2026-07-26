@@ -7,12 +7,12 @@
 part of '../planner_screen.dart';
 
 /// Which view the "Discover" tab's inner segmented control shows.
-enum DiscoverView { yourSky, constellation }
+enum DiscoverView { yourSky, constellation, collaborative }
 
 /// Maps a router `?view=` query value to a [DiscoverView]. Returns null for an
 /// unrecognised value so the caller can fall back to [DiscoverView.yourSky].
-/// Public so the `/your-sky` and `/constellation` redirects (and tests) share
-/// the same mapping.
+/// Public so the `/your-sky`, `/constellation`, and `/collaborative-sky`
+/// redirects (and tests) share the same mapping.
 DiscoverView? plannerDiscoverViewFromQuery(String? value) {
   if (value == null) return null;
   switch (value.toLowerCase()) {
@@ -23,6 +23,10 @@ DiscoverView? plannerDiscoverViewFromQuery(String? value) {
     case 'constellation':
     case 'swarm':
       return DiscoverView.constellation;
+    case 'collaborative':
+    case 'collaborative-sky':
+    case 'collab':
+      return DiscoverView.collaborative;
   }
   return null;
 }
@@ -103,6 +107,11 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
                   label: Text('Constellation'),
                   icon: Icon(LucideIcons.users),
                 ),
+                ButtonSegment(
+                  value: DiscoverView.collaborative,
+                  label: Text('Collaborate'),
+                  icon: Icon(LucideIcons.radioTower),
+                ),
               ],
               selected: {_view},
               onSelectionChanged: (selection) =>
@@ -129,6 +138,7 @@ class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
             children: const [
               YourSkyView(),
               ConstellationView(),
+              CollaborativeSkyView(),
             ],
           ),
         ),

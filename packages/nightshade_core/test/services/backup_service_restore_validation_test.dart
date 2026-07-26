@@ -102,6 +102,30 @@ void main() {
       expect(targets.single.name, 'M31');
     });
 
+    test('future backup version aborts without wiping live data', () async {
+      await seedLiveData();
+      final backup = await writeBackup(
+        jsonEncode({
+          'version': '3.0',
+          'settings': <String, dynamic>{},
+          'equipmentProfiles': <Object>[],
+          'sequences': <Object>[],
+          'targets': <Object>[],
+        }),
+      );
+
+      final result = await serviceFor(
+        db,
+      ).restoreBackup(filePath: backup.path, replaceExisting: true);
+
+      expect(result.success, isFalse);
+      expect(result.errorMessage, contains('newer than supported'));
+      final profiles = await db.equipmentProfilesDao.getAllProfiles();
+      final targets = await db.targetsDao.getAllTargets();
+      expect(profiles.single.name, 'Live Rig');
+      expect(targets.single.name, 'M31');
+    });
+
     test(
       'wrong-shaped section (targets is an object) aborts without wiping',
       () async {

@@ -85,6 +85,17 @@ class SessionChart extends StatelessWidget {
     // Ensure minimum range to avoid division by zero with single datapoint
     final yRange = max(dataMaxY - dataMinY, 1.0);
     final yPadding = yRange * 0.1;
+    final yInterval = yRange / 4;
+    // Label precision follows the tick interval. At a fixed 1 decimal a narrow
+    // range collapsed neighbouring labels into the same string — an HFR chart
+    // spanning 2.26-2.76 rendered its axis as "2.8, 2.8, 2.5, 2.3, 2.2", with
+    // 2.8 twice, because fl_chart emits both interval ticks and the axis
+    // boundary and those two rounded alike.
+    final yDecimals = yInterval >= 1.0
+        ? 1
+        : yInterval >= 0.1
+            ? 2
+            : 3;
 
     final chartMinY = dataMinY - yPadding;
     final chartMaxY = dataMaxY + yPadding;
@@ -95,6 +106,7 @@ class SessionChart extends StatelessWidget {
       final x = point.timestamp.difference(firstTimestamp).inSeconds.toDouble();
       return FlSpot(x, point.value);
     }).toList();
+    final maxX = spots.last.x == 0 ? 1.0 : spots.last.x;
 
     return NightshadeCard(
       child: Padding(
@@ -142,7 +154,7 @@ class SessionChart extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 30,
-                        interval: spots.last.x / 4,
+                        interval: maxX / 4,
                         getTitlesWidget: (value, meta) {
                           final duration = Duration(seconds: value.toInt());
                           final hours = duration.inHours;
@@ -166,10 +178,10 @@ class SessionChart extends StatelessWidget {
                       sideTitles: SideTitles(
                         showTitles: true,
                         reservedSize: 40,
-                        interval: yRange / 4,
+                        interval: yInterval,
                         getTitlesWidget: (value, meta) {
                           return Text(
-                            value.toStringAsFixed(1),
+                            value.toStringAsFixed(yDecimals),
                             style: TextStyle(
                               color: colors.textSecondary,
                               fontSize: NightshadeTypography.fontSize10,
@@ -184,7 +196,7 @@ class SessionChart extends StatelessWidget {
                     border: Border.all(color: colors.border),
                   ),
                   minX: 0,
-                  maxX: spots.last.x,
+                  maxX: maxX,
                   minY: chartMinY,
                   maxY: chartMaxY,
                   lineBarsData: [

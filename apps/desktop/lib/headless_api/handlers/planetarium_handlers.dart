@@ -189,8 +189,12 @@ class PlanetariumHandlers {
   Future<Response> handleSlewTo(Request request) async {
     _logInfo('[API] POST /api/planetarium/slew-to');
     final payload = await readJsonObject(request);
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    // Range-check like the sibling center-on handler: RA is in hours [0,24],
+    // Dec in degrees [-90,90]. Without bounds an impossible coordinate reaches
+    // mountSlewToCoordinates and the driver either faults (500) or silently
+    // normalizes to the wrong pointing.
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
 
     final backend = container.read(deviceBackendProvider);
 
@@ -214,13 +218,17 @@ class PlanetariumHandlers {
   Future<Response> handleCenterOn(Request request) async {
     _logInfo('[API] POST /api/planetarium/center-on');
     final payload = await readJsonObject(request);
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
-    final maxIterations = optionalInt(payload, 'maxIterations') ?? 5;
-    final toleranceArcsec = optionalDouble(payload, 'toleranceArcsec') ?? 30.0;
-    final exposureTime = optionalDouble(payload, 'exposureTime') ?? 3.0;
-    final binning = optionalInt(payload, 'binning') ?? 2;
-    final gain = optionalInt(payload, 'gain') ?? 100;
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
+    final maxIterations =
+        optionalInt(payload, 'maxIterations', min: 1, max: 20) ?? 5;
+    final toleranceArcsec =
+        optionalDouble(payload, 'toleranceArcsec', min: 0.1, max: 3600) ?? 30.0;
+    final exposureTime =
+        optionalDouble(payload, 'exposureTime', min: 0.01, max: 600) ?? 3.0;
+    final binning = optionalInt(payload, 'binning', min: 1, max: 16) ?? 2;
+    final gain = optionalInt(payload, 'gain', min: 0);
+    final offset = optionalInt(payload, 'offset', min: 0);
     final syncMount = optionalBool(payload, 'syncMount') ?? false;
 
     final centeringService = container.read(centeringServiceProvider);
@@ -232,6 +240,7 @@ class PlanetariumHandlers {
       exposureTime: exposureTime,
       binning: binning,
       gain: gain,
+      offset: offset,
       syncMount: syncMount,
     );
 
@@ -290,8 +299,10 @@ class PlanetariumHandlers {
   Future<Response> handleSyncTo(Request request) async {
     _logInfo('[API] POST /api/planetarium/sync-to');
     final payload = await readJsonObject(request);
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    // Range-check RA (hours [0,24]) / Dec (degrees [-90,90]) — a sync with an
+    // impossible coordinate would corrupt the mount's pointing model.
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
 
     final backend = container.read(deviceBackendProvider);
 
@@ -318,9 +329,9 @@ class PlanetariumHandlers {
   /// Search objects by name across star and DSO catalogs.
   Future<Response> handleCatalogSearch(Request request) async {
     _logInfo('[API] GET /api/planetarium/catalog/search');
-    final query = request.url.queryParameters['query'] ?? '';
-    final limitStr = request.url.queryParameters['limit'] ?? '50';
-    final limit = int.tryParse(limitStr) ?? 50;
+    final params = request.url.queryParameters;
+    final query = (params['query'] ?? '').trim();
+    final limit = optionalQueryInt(params, 'limit', min: 1, max: 500) ?? 50;
 
     if (query.isEmpty) {
       return jsonOk({'results': []});
@@ -358,11 +369,11 @@ class PlanetariumHandlers {
   /// Get objects in a region (cone search).
   Future<Response> handleCatalogRegion(Request request) async {
     _logInfo('[API] GET /api/planetarium/catalog/region');
-    final raStr = request.url.queryParameters['ra'];
-    final decStr = request.url.queryParameters['dec'];
-    final radiusStr = request.url.queryParameters['radius'];
-    final maxMagStr = request.url.queryParameters['maxMagnitude'];
-    final typeFilter = request.url.queryParameters['type'];
+    final params = request.url.queryParameters;
+    final raStr = params['ra'];
+    final decStr = params['dec'];
+    final radiusStr = params['radius'];
+    final typeFilter = params['type'];
 
     if (raStr == null || decStr == null || radiusStr == null) {
       return jsonBadRequest({
@@ -370,13 +381,26 @@ class PlanetariumHandlers {
       });
     }
 
-    final ra = double.tryParse(raStr);
-    final dec = double.tryParse(decStr);
-    final radius = double.tryParse(radiusStr);
-    final maxMagnitude = maxMagStr != null ? double.tryParse(maxMagStr) : null;
-
-    if (ra == null || dec == null || radius == null) {
-      return jsonBadRequest({'error': 'Invalid numeric parameters'});
+    final ra = requireQueryDouble(params, 'ra', min: 0, max: 360);
+    final dec = requireQueryDouble(params, 'dec', min: -90, max: 90);
+    // A zero/negative cone is undefined and radii over a hemisphere only
+    // duplicate the complement. Keep the lower bound strictly positive.
+    final radius = requireQueryDouble(
+      params,
+      'radius',
+      min: 0.000001,
+      max: 180,
+    );
+    final maxMagnitude = optionalQueryDouble(params, 'maxMagnitude');
+    if (typeFilter != null &&
+        typeFilter.isNotEmpty &&
+        typeFilter != 'dso' &&
+        typeFilter != 'star') {
+      throw BadRequestError(
+        field: 'type',
+        expected: 'one of: dso, star',
+        message: 'type must be either dso or star',
+      );
     }
 
     final results = <Map<String, dynamic>>[];
@@ -608,11 +632,11 @@ class PlanetariumHandlers {
   /// GET /api/observing-lists/items?listId= — items in one list.
   Future<Response> handleGetObservingListItems(Request request) async {
     _logInfo('[API] GET /api/observing-lists/items');
-    final listIdStr = request.url.queryParameters['listId'];
-    final listId = int.tryParse(listIdStr ?? '');
-    if (listId == null) {
-      return jsonBadRequest({'error': 'Missing or invalid listId'});
-    }
+    final listId = requireQueryInt(
+      request.url.queryParameters,
+      'listId',
+      min: 1,
+    );
     final items = await _observingListsDao.getItemsForList(listId);
     return jsonOk({'items': items.map((i) => i.toJson()).toList()});
   }
@@ -621,13 +645,11 @@ class PlanetariumHandlers {
   /// ids across all lists, or for one list (drives star-chart list markers).
   Future<Response> handleGetListedCatalogIds(Request request) async {
     _logInfo('[API] GET /api/observing-lists/listed-catalog-ids');
-    final listIdStr = request.url.queryParameters['listId'];
+    final query = request.url.queryParameters;
+    final listIdStr = query['listId'];
     final Set<String> ids;
     if (listIdStr != null) {
-      final listId = int.tryParse(listIdStr);
-      if (listId == null) {
-        return jsonBadRequest({'error': 'Invalid listId'});
-      }
+      final listId = requireQueryInt(query, 'listId', min: 1);
       ids = await _observingListsDao.getCatalogIdsForList(listId);
     } else {
       ids = await _observingListsDao.getAllListedCatalogIds();
@@ -663,11 +685,23 @@ class PlanetariumHandlers {
   Future<Response> handleUpdateObservingList(Request request) async {
     _logInfo('[API] POST /api/observing-lists/update');
     final payload = await readJsonObject(request);
-    final id = requireInt(payload, 'id');
+    final id = requireInt(payload, 'id', min: 1);
+    // Same truthfulness fix as update-notes: a rename against a nonexistent id
+    // used to answer 200 'updated' while changing nothing.
+    if (await _observingListsDao.getListById(id) == null) {
+      return jsonNotFound({
+        'error': 'list_not_found',
+        'message': 'Observing list $id does not exist.',
+        'id': id,
+      });
+    }
+    final setsDescription = payload.containsKey('description');
+    final description = optionalString(payload, 'description');
     await _observingListsDao.updateList(
       id: id,
       name: optionalString(payload, 'name'),
-      description: optionalString(payload, 'description'),
+      description: description,
+      clearDescription: setsDescription && description == null,
     );
     return jsonOk({'status': 'updated'});
   }
@@ -675,10 +709,7 @@ class PlanetariumHandlers {
   /// DELETE /api/observing-lists?id= — delete a list (cascades items).
   Future<Response> handleDeleteObservingList(Request request) async {
     _logInfo('[API] DELETE /api/observing-lists');
-    final id = int.tryParse(request.url.queryParameters['id'] ?? '');
-    if (id == null) {
-      return jsonBadRequest({'error': 'Missing or invalid id'});
-    }
+    final id = requireQueryInt(request.url.queryParameters, 'id', min: 1);
     await _observingListsDao.deleteList(id);
     return jsonOk({'status': 'deleted'});
   }
@@ -687,7 +718,16 @@ class PlanetariumHandlers {
   Future<Response> handleDuplicateObservingList(Request request) async {
     _logInfo('[API] POST /api/observing-lists/duplicate');
     final payload = await readJsonObject(request);
-    final sourceId = requireInt(payload, 'sourceId');
+    final sourceId = requireInt(payload, 'sourceId', min: 1);
+    // The DAO throws StateError('Observing list N not found'), which surfaced
+    // as a 500 — "you asked for a list that isn't there" is a client error.
+    if (await _observingListsDao.getListById(sourceId) == null) {
+      return jsonNotFound({
+        'error': 'list_not_found',
+        'message': 'Observing list $sourceId does not exist.',
+        'sourceId': sourceId,
+      });
+    }
     final id = await _observingListsDao.duplicateList(sourceId);
     return jsonOk({'id': id});
   }
@@ -698,14 +738,19 @@ class PlanetariumHandlers {
     final payload = await readJsonObject(request);
     try {
       final id = await _observingListsDao.addItem(
-        listId: requireInt(payload, 'listId'),
+        listId: requireInt(payload, 'listId', min: 1),
         objectName: requireString(payload, 'objectName'),
         catalogId: optionalString(payload, 'catalogId'),
         objectType: optionalString(payload, 'objectType'),
-        ra: requireDouble(payload, 'ra'),
-        dec: requireDouble(payload, 'dec'),
-        magnitude: optionalDouble(payload, 'magnitude'),
-        sizeArcmin: optionalDouble(payload, 'sizeArcmin'),
+        // Bounded like every other coordinate entry point: these are PERSISTED
+        // and later drive altitude/visibility planning, so an out-of-range
+        // value silently yields wrong plans long after the bad write.
+        ra: requireDouble(payload, 'ra', min: 0, max: 24),
+        dec: requireDouble(payload, 'dec', min: -90, max: 90),
+        // Also persisted: a magnitude of 1e9 or a negative angular size used to
+        // be stored verbatim. target_handlers.dart already bounds sizeArcmin.
+        magnitude: optionalDouble(payload, 'magnitude', min: -30, max: 40),
+        sizeArcmin: optionalDouble(payload, 'sizeArcmin', min: 0),
         notes: optionalString(payload, 'notes'),
       );
       return jsonOk({'id': id});
@@ -719,10 +764,7 @@ class PlanetariumHandlers {
   /// DELETE /api/observing-lists/items?id= — remove an item.
   Future<Response> handleRemoveObservingListItem(Request request) async {
     _logInfo('[API] DELETE /api/observing-lists/items');
-    final id = int.tryParse(request.url.queryParameters['id'] ?? '');
-    if (id == null) {
-      return jsonBadRequest({'error': 'Missing or invalid id'});
-    }
+    final id = requireQueryInt(request.url.queryParameters, 'id', min: 1);
     await _observingListsDao.removeItem(id);
     return jsonOk({'status': 'removed'});
   }
@@ -731,11 +773,20 @@ class PlanetariumHandlers {
   Future<Response> handleUpdateObservingListItemNotes(Request request) async {
     _logInfo('[API] POST /api/observing-lists/items/update-notes');
     final payload = await readJsonObject(request);
-    final itemId = requireInt(payload, 'itemId');
-    await _observingListsDao.updateItemNotes(
+    final itemId = requireInt(payload, 'itemId', min: 1);
+    final written = await _observingListsDao.updateItemNotes(
       itemId,
       optionalString(payload, 'notes'),
     );
+    // Report the truth: this used to answer 'updated' even when no row matched,
+    // so a client that had "saved" a note had no way to learn it hadn't.
+    if (written == 0) {
+      return jsonNotFound({
+        'error': 'item_not_found',
+        'message': 'Observing-list item $itemId does not exist.',
+        'itemId': itemId,
+      });
+    }
     return jsonOk({'status': 'updated'});
   }
 }

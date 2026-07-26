@@ -6,16 +6,14 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Status banner shown at the top of the Plate Solving settings page.
 ///
-/// Three visual states, driven entirely by the supplied [detection]:
-///   * ASTAP detected + catalog found → green check, path + catalog string
-///   * ASTAP detected but no catalog → amber warning, prompts user to set
-///     the catalog dir
-///   * No solver installed → red, with a clickable install link
+/// The primary state follows the user's active [choice]. An installed backup
+/// must not make an explicitly selected, unusable solver look ready.
 class SolverDetectionCard extends StatelessWidget {
   static const String astapDownloadUrl = 'https://www.hnsky.org/astap.htm';
   static const String astrometryDownloadUrl = 'https://astrometry.net/use.html';
 
   final PlateSolverDetection detection;
+  final PlateSolverChoice choice;
 
   /// Optional verify-result info to display alongside the green check.
   /// `null` when the user hasn't yet pressed "Verify".
@@ -26,17 +24,37 @@ class SolverDetectionCard extends StatelessWidget {
   /// binary exists on disk.
   final String? astapVerifyError;
 
+  final PlateSolverInfo? astrometryVerifyInfo;
+  final String? astrometryVerifyError;
+
   const SolverDetectionCard({
     super.key,
     required this.detection,
+    this.choice = PlateSolverChoice.auto,
     this.astapVerifyInfo,
     this.astapVerifyError,
+    this.astrometryVerifyInfo,
+    this.astrometryVerifyError,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = NightshadeColors.of(context);
+
+    if (choice == PlateSolverChoice.astrometry) {
+      return detection.astrometryPath == null
+          ? _buildAstrometryMissing(theme, colors)
+          : _buildAstrometryReady(theme, colors);
+    }
+
+    // Auto prefers ASTAP, but a working Astrometry.net installation is a
+    // completely valid ready state when ASTAP is missing or lacks a catalog.
+    if (choice == PlateSolverChoice.auto &&
+        !detection.astapReady &&
+        detection.astrometryPath != null) {
+      return _buildAstrometryReady(theme, colors, autoFallback: true);
+    }
 
     if (detection.astapPath == null) {
       return _buildNotInstalled(theme, colors);
@@ -45,6 +63,106 @@ class SolverDetectionCard extends StatelessWidget {
       return _buildCatalogMissing(theme, colors);
     }
     return _buildReady(theme, colors);
+  }
+
+  Widget _buildAstrometryReady(
+    ThemeData theme,
+    NightshadeColors colors, {
+    bool autoFallback = false,
+  }) {
+    return _CardShell(
+      borderColor: colors.success,
+      icon: LucideIcons.checkCircle,
+      iconColor: colors.success,
+      title: autoFallback
+          ? 'Astrometry.net ready — Auto fallback active'
+          : 'Astrometry.net selected and ready',
+      body: [
+        Text(
+          detection.astrometryPath!,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.textSecondary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        if (astrometryVerifyInfo != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(LucideIcons.shieldCheck, size: 14, color: colors.success),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${astrometryVerifyInfo!.flavour}: '
+                  '${astrometryVerifyInfo!.versionLine}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.success,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (astrometryVerifyError != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 14, color: colors.error),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  astrometryVerifyError!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (autoFallback) ...[
+          const SizedBox(height: 6),
+          Text(
+            detection.astapPath == null
+                ? 'ASTAP is not installed, so Auto will use Astrometry.net.'
+                : 'ASTAP has no usable catalog, so Auto will use '
+                    'Astrometry.net.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAstrometryMissing(ThemeData theme, NightshadeColors colors) {
+    return _CardShell(
+      borderColor: colors.error,
+      icon: LucideIcons.xCircle,
+      iconColor: colors.error,
+      title: 'Selected Astrometry.net solver is not installed',
+      body: [
+        Text(
+          detection.astapReady
+              ? 'ASTAP is available, but Nightshade will not silently ignore '
+                  'your Astrometry.net selection. Install solve-field or '
+                  'choose ASTAP / Auto below.'
+              : 'Install the solve-field executable or choose another '
+                  'available solver below.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const _LinkText(
+          url: astrometryDownloadUrl,
+          label: 'Install Astrometry.net (Linux/macOS)',
+        ),
+      ],
+    );
   }
 
   Widget _buildReady(ThemeData theme, NightshadeColors colors) {

@@ -12,8 +12,11 @@ import '../framing/framing_screen.dart';
 import '../planetarium/planetarium_screen.dart';
 import '../your_sky/your_sky_screen.dart';
 import '../constellation/constellation_screen.dart';
+import '../collaborative_sky/collaborative_sky_screen.dart';
 import '../../localization/nightshade_localizations.dart';
+import '../../utils/authority_bound_dialog.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
+import '../../widgets/touch_target_floor.dart';
 import 'widgets/progress_tab_content.dart';
 import 'widgets/projects_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
@@ -281,6 +284,8 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     // the left of the (scrollable) tab strip so the two collapse into a single
     // row. Tablet/desktop keep the full title header above the tabs.
     final isPhone = Responsive.isPhone(context);
+    final keyboardCompact =
+        isPhone && MediaQuery.viewInsetsOf(context).bottom > 0;
 
     final tabBar = AdaptiveTabBar(
       tabs: [for (final t in tabs) t.$2],
@@ -304,44 +309,49 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
             // the tabs, which wasted vertical space (the bottom/side nav already
             // names the screen). Fold the title inline to the left of the tab
             // strip: icon-only on a phone, icon + label on tablet/desktop.
-            Container(
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: NightshadeTokens.spaceLg,
-                      right: isPhone
-                          ? NightshadeTokens.spaceSm
-                          : NightshadeTokens.spaceMd,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          LucideIcons.moonStar,
-                          size: 18,
-                          color: colors.primary,
-                        ),
-                        if (!isPhone) ...[
-                          const SizedBox(width: NightshadeTokens.spaceSm),
-                          Text(
-                            context.l10n.text('plannerTitle'),
-                            style: NightshadeTypography.h5.copyWith(
-                              color: colors.textPrimary,
-                            ),
+            // While a phone keyboard is open, the focused search field is the
+            // active navigation context. Temporarily reclaim the tab strip's
+            // height so the controls row still fits in a short landscape
+            // viewport; it returns unchanged when the keyboard closes.
+            if (!keyboardCompact)
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: NightshadeTokens.spaceLg,
+                        right: isPhone
+                            ? NightshadeTokens.spaceSm
+                            : NightshadeTokens.spaceMd,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.moonStar,
+                            size: 18,
+                            color: colors.primary,
                           ),
+                          if (!isPhone) ...[
+                            const SizedBox(width: NightshadeTokens.spaceSm),
+                            Text(
+                              context.l10n.text('plannerTitle'),
+                              style: NightshadeTypography.h5.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  Expanded(child: tabBar),
-                ],
+                    Expanded(child: tabBar),
+                  ],
+                ),
               ),
-            ),
             Expanded(
               child: IndexedStack(
                 index: _currentSubTab,

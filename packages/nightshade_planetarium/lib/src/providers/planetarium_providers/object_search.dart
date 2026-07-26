@@ -301,6 +301,7 @@ final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
 
 class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   final Ref _ref;
+  int _searchGeneration = 0;
 
   ObjectSearchNotifier(this._ref) : super(const ObjectSearchState());
 
@@ -313,6 +314,7 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   }
 
   Future<void> search(String query) async {
+    final generation = ++_searchGeneration;
     if (query.isEmpty) {
       state = ObjectSearchState(filters: state.filters);
       return;
@@ -563,6 +565,7 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
       });
 
       // No hardcoded limit - return all scored results (UI can paginate)
+      if (!_canPublish(generation)) return;
       state = ObjectSearchState(
         query: query,
         results: scored.map((s) => s.object).toList(),
@@ -570,6 +573,7 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
         filters: filters,
       );
     } catch (e) {
+      if (!_canPublish(generation)) return;
       state = ObjectSearchState(
         query: query,
         results: [],
@@ -587,7 +591,9 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   /// without the caller having to inspect search state. Leaves
   /// [state] populated so any open autocomplete reflects the same query.
   Future<CelestialObject?> resolveBest(String query) async {
+    final generation = _searchGeneration + 1;
     await search(query);
+    if (!_canPublish(generation)) return null;
     final results = state.results;
     return results.isEmpty ? null : results.first;
   }
@@ -650,8 +656,12 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   }
 
   void clear() {
+    _searchGeneration++;
     state = ObjectSearchState(filters: state.filters);
   }
+
+  bool _canPublish(int generation) =>
+      mounted && generation == _searchGeneration;
 }
 
 final objectSearchProvider =

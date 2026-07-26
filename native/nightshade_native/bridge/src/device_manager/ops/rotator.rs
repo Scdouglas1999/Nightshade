@@ -370,6 +370,115 @@ impl DeviceManager {
         }
     }
 
+    /// Set the rotator's reverse-direction flag (IRotatorV3 `Reverse`,
+    /// Alpaca `reverse`, INDI `ROTATOR_REVERSE`).
+    pub async fn rotator_set_reverse(
+        &self,
+        device_id: &str,
+        reverse: bool,
+    ) -> Result<(), DeviceOpError> {
+        let driver_type = {
+            let devices = self.devices.read().await;
+            devices.get(device_id).map(|d| d.info.driver_type.clone())
+        };
+
+        match driver_type {
+            Some(DriverType::Alpaca) => {
+                let rotators = self.alpaca_rotators.read().await;
+                if let Some(rotator) = rotators.get(device_id) {
+                    return rotator
+                        .set_reverse(reverse)
+                        .await
+                        .map_err(DeviceOpError::driver);
+                }
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca rotator {} not found", device_id),
+                ))
+            }
+            Some(DriverType::Ascom) => {
+                #[cfg(windows)]
+                {
+                    let rotators = self.ascom_rotators.read().await;
+                    if let Some(rotator) = rotators.get(device_id) {
+                        let rotator_guard = rotator.read().await;
+                        return rotator_guard
+                            .set_reverse(reverse)
+                            .await
+                            .map_err(DeviceOpError::driver);
+                    }
+                    Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("ASCOM rotator {} not found", device_id),
+                    ))
+                }
+                #[cfg(not(windows))]
+                Err(DeviceOpError::unsupported(
+                    "ASCOM is only available on Windows",
+                ))
+            }
+            Some(DriverType::Indi) => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
+                }
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let mut locked = client.write().await;
+                    let element = if reverse {
+                        "INDI_ENABLED"
+                    } else {
+                        "INDI_DISABLED"
+                    };
+                    return locked
+                        .set_switch(&device_name, "ROTATOR_REVERSE", element, true)
+                        .await
+                        .map_err(DeviceOpError::driver);
+                }
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "INDI rotator not connected",
+                ))
+            }
+            Some(DriverType::Native) => {
+                let mut native_rotators = self.native_rotators.write().await;
+                if let Some(rotator) = native_rotators.get_mut(device_id) {
+                    return rotator
+                        .set_reverse(reverse)
+                        .await
+                        .map_err(DeviceOpError::driver);
+                }
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native rotator not connected",
+                ))
+            }
+            Some(DriverType::Simulator) => {
+                let r = crate::api::devices::simulation::get_sim_rotator();
+                let r = r.read().await;
+                if !r.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_rotator(),
+                    ));
+                }
+                if r.status.can_reverse {
+                    // The simulator has no directional behavior to invert;
+                    // accepting keeps sim rigs exercising the same UI path.
+                    Ok(())
+                } else {
+                    Err(DeviceOpError::unsupported(
+                        "Simulator rotator does not support reverse",
+                    ))
+                }
+            }
+            None => Err(DeviceOpError::device_not_found(device_id)),
+        }
+    }
+
     /// Check if rotator is moving
     pub async fn rotator_is_moving(&self, device_id: &str) -> Result<bool, DeviceOpError> {
         let driver_type = {

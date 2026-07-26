@@ -48,12 +48,52 @@ MountStatus _settledMount({bool slewing = false}) {
   );
 }
 
+CapturedImageData _centeringImage([String path = '/tmp/centering.fits']) {
+  return CapturedImageData(
+    width: 16,
+    height: 16,
+    displayData: Uint8List(16 * 16 * 4),
+    histogram: List.filled(256, 0),
+    stats: const ImageStats(mean: 100.0, stdDev: 10.0),
+    capturedAt: DateTime.now(),
+    settings: const ExposureSettings(exposureTime: 3.0, gain: 100, offset: 50),
+    filePath: path,
+  );
+}
+
+PlateSolveResult _solvedAt(double raDegrees, double decDegrees) {
+  return PlateSolveResult(
+    success: true,
+    ra: raDegrees,
+    dec: decDegrees,
+    rotation: 0,
+    pixelScale: 1,
+    fieldWidth: 2,
+    fieldHeight: 1.5,
+    solveTimeSecs: 0,
+    cd11: 0,
+    cd12: 0,
+    cd21: 0,
+    cd22: 0,
+    sipAOrder: 0,
+    sipBOrder: 0,
+    sipACoeffs: Float64List(0),
+    sipBCoeffs: Float64List(0),
+    sipApOrder: 0,
+    sipBpOrder: 0,
+    sipApCoeffs: Float64List(0),
+    sipBpCoeffs: Float64List(0),
+  );
+}
+
 /// Notifier override that pins the backend StateNotifierProvider to a
 /// caller-supplied instance — same trick the meridian-flip E2E test uses.
 class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  void replaceBackend(NightshadeBackend backend) => state = backend;
 }
 
 // Generate mocks for these classes
@@ -65,12 +105,17 @@ void main() {
     late MockPlateSolveService mockPlateSolveService;
     late MockDeviceService mockDeviceService;
     late _PollBackend pollBackend;
+    late _TestBackendNotifier backendNotifier;
 
     setUp(() {
       mockImagingService = MockImagingService();
       mockPlateSolveService = MockPlateSolveService();
       mockDeviceService = MockDeviceService();
       pollBackend = _PollBackend();
+
+      when(
+        mockPlateSolveService.ensureSolverAvailable(),
+      ).thenAnswer((_) async {});
 
       // Default: post-slew polling sees a settled mount on the first tick.
       // Tests that need to exercise the failure-escalation path override
@@ -84,8 +129,11 @@ void main() {
           imagingServiceProvider.overrideWithValue(mockImagingService),
           plateSolveServiceProvider.overrideWithValue(mockPlateSolveService),
           deviceServiceProvider.overrideWithValue(mockDeviceService),
+          centeringSlewPollIntervalProvider.overrideWithValue(
+            const Duration(milliseconds: 1),
+          ),
           backendProvider.overrideWith(
-            (ref) => _TestBackendNotifier(ref, pollBackend),
+            (ref) => backendNotifier = _TestBackendNotifier(ref, pollBackend),
           ),
           // Override equipment states to simulate connected devices
           cameraStateProvider.overrideWith((ref) {
@@ -115,6 +163,61 @@ void main() {
     });
 
     group('centerOnTarget', () {
+      test(
+        'backend switch retires the run before a late solve can slew',
+        () async {
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+          final solve = Completer<PlateSolveResult>();
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) async => _centeringImage());
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer((_) => solve.future);
+
+          final oldService = container.read(centeringServiceProvider);
+          final run = oldService.centerOnTarget(
+            targetRa: 10,
+            targetDec: 45,
+            solverConfig: solverConfig,
+            config: const CenteringConfig(maxIterations: 2, exposureTime: 1),
+          );
+          await untilCalled(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          );
+
+          final replacementBackend = _PollBackend();
+          backendNotifier.replaceBackend(replacementBackend);
+          final replacementService = container.read(centeringServiceProvider);
+          expect(replacementService, isNot(same(oldService)));
+
+          solve.complete(_solvedAt(11 * 15, 40));
+          final result = await run;
+
+          expect(result.success, isFalse);
+          expect(result.errorMessage, contains('Aborted'));
+          verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
+        },
+      );
+
       test('succeeds on first iteration when within tolerance', () async {
         // Arrange
         const targetRa = 10.0; // hours
@@ -209,6 +312,50 @@ void main() {
         // Verify no slewing occurred since we were already centered
         verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
       });
+
+      test(
+        'omitted gain and offset preserve current imaging settings',
+        () async {
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+          container.read(exposureSettingsProvider.notifier).state =
+              const ExposureSettings(exposureTime: 120, gain: 137, offset: 42);
+          ExposureSettings? commandedSettings;
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((invocation) async {
+            commandedSettings =
+                invocation.namedArguments[#settings] as ExposureSettings;
+            return _centeringImage('/tmp/inherit-camera-settings.fits');
+          });
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer((_) async => _solvedAt(150, 45));
+
+          final result = await container
+              .read(centeringServiceProvider)
+              .centerOnTarget(
+                targetRa: 10,
+                targetDec: 45,
+                solverConfig: solverConfig,
+              );
+
+          expect(result.success, isTrue);
+          expect(commandedSettings?.gain, 137);
+          expect(commandedSettings?.offset, 42);
+        },
+      );
 
       // ---- RA-unit regression (full-night audit 2026-06-04) ---------------
       //
@@ -806,33 +953,222 @@ void main() {
         disconnectedContainer.dispose();
       });
 
+      test('missing selected solver fails before taking an exposure', () async {
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '',
+        );
+        when(
+          mockPlateSolveService.ensureSolverAvailable(),
+        ).thenThrow(const SolverNotAvailableError('ASTAP is not configured'));
+
+        final service = container.read(centeringServiceProvider);
+        await expectLater(
+          service.centerOnTarget(
+            targetRa: 10,
+            targetDec: 45,
+            solverConfig: solverConfig,
+          ),
+          throwsA(isA<SolverNotAvailableError>()),
+        );
+
+        verifyNever(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        );
+        expect(service.isRunning, isFalse);
+      });
+
       test(
-        'fails with an overall timeout instead of hanging indefinitely',
+        'timeout cancels the exposure and waits for its owner Future to settle',
         () async {
           const solverConfig = PlateSolverConfig(
             type: PlateSolverType.astap,
             executablePath: '/usr/bin/astap',
           );
 
+          // Signal when the exposure is actually in flight. The pre-capture
+          // pipeline (validation, solver availability, initial-slew status)
+          // takes a machine-dependent number of event-loop turns; a
+          // too-tight overallTimeout can fire BEFORE the capture starts, in
+          // which case there is legitimately no exposure to cancel and the
+          // abort guards return promptly. This test pins the
+          // timeout-DURING-capture contract, so it must first observe the
+          // capture starting.
+          final captureStarted = Completer<void>();
+          final exposureCompleter = Completer<CapturedImageData?>();
           when(
             mockImagingService.captureImage(
               settings: anyNamed('settings'),
               targetName: anyNamed('targetName'),
             ),
-          ).thenAnswer((_) => Completer<CapturedImageData?>().future);
+          ).thenAnswer((_) {
+            if (!captureStarted.isCompleted) captureStarted.complete();
+            return exposureCompleter.future;
+          });
 
           final service = container.read(centeringServiceProvider);
-          final result = await service.centerOnTarget(
+          var terminal = false;
+          final resultFuture = service.centerOnTarget(
             targetRa: 10.0,
             targetDec: 45.0,
             solverConfig: solverConfig,
             config: const CenteringConfig(
-              overallTimeout: Duration(milliseconds: 10),
+              overallTimeout: Duration(milliseconds: 400),
             ),
           );
+          unawaited(resultFuture.whenComplete(() => terminal = true));
+
+          // Capture must be in flight well before the 400ms timeout.
+          await captureStarted.future;
+          // Let the overall timeout fire while the exposure is still pending.
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          expect(terminal, isFalse);
+          expect(service.isRunning, isTrue);
+          verify(mockImagingService.cancelExposure()).called(1);
+
+          // A real ImagingService completes its capture Future in response to
+          // cancelExposure(). Drive that settlement explicitly in this mock.
+          exposureCompleter.complete(null);
+          final result = await resultFuture;
 
           expect(result.success, isFalse);
           expect(result.errorMessage, contains('timed out'));
+          expect(service.isRunning, isFalse);
+        },
+      );
+
+      test('stop while idle does not interrupt unrelated hardware', () async {
+        final service = container.read(centeringServiceProvider);
+
+        await service.stop();
+
+        verifyNever(mockImagingService.cancelExposure());
+        verifyNever(mockDeviceService.abortMountSlew());
+      });
+
+      test(
+        'invalid coordinates and capture configuration fail before hardware',
+        () async {
+          final result = await container
+              .read(centeringServiceProvider)
+              .centerOnTarget(
+                targetRa: 25,
+                targetDec: 45,
+                solverConfig: const PlateSolverConfig(
+                  type: PlateSolverType.astap,
+                  executablePath: '/usr/bin/astap',
+                ),
+                config: const CenteringConfig(exposureTime: -1),
+              );
+
+          expect(result.success, isFalse);
+          expect(result.errorMessage, contains('RA'));
+          verifyNever(mockPlateSolveService.ensureSolverAvailable());
+          verifyNever(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          );
+        },
+      );
+
+      test('abort during plate solve never commands a late slew', () async {
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
+        final solveCompleter = Completer<PlateSolveResult>();
+        when(
+          mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          ),
+        ).thenAnswer((_) async => _centeringImage('/tmp/cancel-solve.fits'));
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) => solveCompleter.future);
+
+        final service = container.read(centeringServiceProvider);
+        final resultFuture = service.centerOnTarget(
+          targetRa: 10,
+          targetDec: 45,
+          solverConfig: solverConfig,
+        );
+        await untilCalled(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        );
+
+        await service.stop();
+        solveCompleter.complete(_solvedAt(150.1, 45));
+        final result = await resultFuture;
+
+        expect(result.success, isFalse);
+        expect(result.errorMessage, contains('Aborted'));
+        verifyNever(mockDeviceService.syncMountToCoordinates(any, any));
+        verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
+      });
+
+      test(
+        'a concurrent centering request is rejected without another capture',
+        () async {
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+          final exposureCompleter = Completer<CapturedImageData?>();
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) => exposureCompleter.future);
+
+          final service = container.read(centeringServiceProvider);
+          final first = service.centerOnTarget(
+            targetRa: 10,
+            targetDec: 45,
+            solverConfig: solverConfig,
+          );
+          await untilCalled(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          );
+
+          final second = await service.centerOnTarget(
+            targetRa: 11,
+            targetDec: 46,
+            solverConfig: solverConfig,
+          );
+          expect(second.success, isFalse);
+          expect(second.errorMessage, contains('already running'));
+          verify(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).called(1);
+
+          await service.stop();
+          exposureCompleter.complete(null);
+          await first;
         },
       );
 
@@ -1085,6 +1421,66 @@ void main() {
         );
       });
 
+      test(
+        'waits for an initial slew to settle before the first exposure',
+        () async {
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+          final settleCompleter = Completer<MountStatus>();
+          var statusCalls = 0;
+          mt.when(() => pollBackend.getMountStatus(mt.any())).thenAnswer((_) {
+            statusCalls++;
+            if (statusCalls == 1) {
+              return Future.value(_settledMount(slewing: true));
+            }
+            if (statusCalls == 2) return settleCompleter.future;
+            return Future.value(_settledMount());
+          });
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) async => _centeringImage('/tmp/initial-slew.fits'));
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer((_) async => _solvedAt(150, 45));
+
+          final resultFuture = container
+              .read(centeringServiceProvider)
+              .centerOnTarget(
+                targetRa: 10,
+                targetDec: 45,
+                solverConfig: solverConfig,
+              );
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          verifyNever(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          );
+
+          settleCompleter.complete(_settledMount());
+          final result = await resultFuture;
+          expect(result.success, isTrue);
+          verify(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).called(1);
+        },
+      );
+
       // ---- Post-slew polling escalation (audit ) ------------------
       //
       // The centering service runs a settle-poll loop after each slew. If the
@@ -1190,6 +1586,47 @@ void main() {
           mockDeviceService.slewMountToCoordinates(any, any),
         ).thenAnswer((_) async => {});
       }
+
+      test(
+        'post-slew poll: a mount that never settles fails explicitly',
+        () async {
+          const targetRa = 10.0;
+          const targetDec = 45.0;
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+          stubTwoIterationPlateSolve(targetRa, targetDec);
+          var statusCalls = 0;
+          mt.when(() => pollBackend.getMountStatus(mt.any())).thenAnswer((
+            _,
+          ) async {
+            statusCalls++;
+            // The initial pre-exposure check is settled. Once the service
+            // commands its correction slew, the mount remains moving for
+            // the full bounded poll window.
+            return _settledMount(slewing: statusCalls > 1);
+          });
+
+          final result = await container
+              .read(centeringServiceProvider)
+              .centerOnTarget(
+                targetRa: targetRa,
+                targetDec: targetDec,
+                solverConfig: solverConfig,
+                config: const CenteringConfig(maxIterations: 2),
+              );
+
+          expect(result.success, isFalse);
+          expect(result.errorMessage, contains('still slewing'));
+          verify(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).called(1);
+        },
+      );
 
       test('post-slew poll: mount answers every tick -> centering proceeds '
           'normally (regression)', () async {

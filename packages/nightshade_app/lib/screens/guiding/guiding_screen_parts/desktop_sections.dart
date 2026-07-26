@@ -71,6 +71,18 @@ mixin _GuidingDesktopSections
     Phd2GuideStats guideStats,
   ) {
     final stateColor = _getStateColor(phd2State);
+    final guiderState = ref.watch(guiderStateProvider);
+    final guiderId = guiderState.deviceId;
+    final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
+    final isBuiltinGuider = guiderId == builtinGuiderDeviceId;
+    final connectedLabel = isBuiltinGuider
+        ? 'Built-in Guider Connected'
+        : isPhd2Guider
+            ? 'PHD2 Connected'
+            : '${guiderState.deviceName ?? 'Guider'} Connected';
+    final disconnectedLabel = isPhd2Guider
+        ? 'PHD2 Disconnected'
+        : '${guiderState.deviceName ?? 'Guider'} Disconnected';
     // Track the same phone-viewport check as the layout swap in
     // guiding_screen.dart so a phone in landscape gets the compact status bar.
     final isMobile = _isPhoneViewport(context);
@@ -105,7 +117,7 @@ mixin _GuidingDesktopSections
                 const SizedBox(width: 10),
                 if (!isMobile)
                   Text(
-                    isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
+                    isConnected ? connectedLabel : disconnectedLabel,
                     style: NightshadeTypography.label
                         .copyWith(color: colors.textPrimary),
                   ),
@@ -160,18 +172,20 @@ mixin _GuidingDesktopSections
               // Show only total RMS on mobile with key
               Container(
                 key: GuidingTutorialKeys.rmsDisplay,
-                child: _buildRmsChip(
-                    'Total', guideStats.rmsTotal, colors.primary, colors,
+                child: _buildRmsChip('Total', guideStats.rmsTotal,
+                    guideStats.pixelScale, colors.primary, colors,
                     bold: true, compact: true),
               ),
             ] else ...[
               // Desktop shows RMS in graph header, not here
-              _buildRmsChip('RA', guideStats.rmsRa, colors.error, colors),
+              _buildRmsChip('RA', guideStats.rmsRa, guideStats.pixelScale,
+                  colors.error, colors),
               const SizedBox(width: 10),
-              _buildRmsChip('Dec', guideStats.rmsDec, colors.info, colors),
+              _buildRmsChip('Dec', guideStats.rmsDec, guideStats.pixelScale,
+                  colors.info, colors),
               const SizedBox(width: 10),
-              _buildRmsChip(
-                  'Total', guideStats.rmsTotal, colors.primary, colors,
+              _buildRmsChip('Total', guideStats.rmsTotal, guideStats.pixelScale,
+                  colors.primary, colors,
                   bold: true),
             ],
             SizedBox(width: isMobile ? 8 : 20),
@@ -197,8 +211,20 @@ mixin _GuidingDesktopSections
             ),
             const SizedBox(width: 8),
           ],
-          // Connect/Disconnect button
-          if (!isConnected)
+          // Connect/Disconnect button. While a connect is in flight the guider
+          // sits in the `connecting` state — show a disabled, spinning
+          // "Connecting…" affordance so a second tap can't launch/socket PHD2
+          // again (connect is not abortable mid-flight, so both actions wait).
+          if (guiderState.connectionState == DeviceConnectionState.connecting)
+            NightshadeButton(
+              key: GuidingTutorialKeys.connectBtn,
+              label: isMobile ? '' : 'Connecting…',
+              icon: NightshadeIcons.connected,
+              size: ButtonSize.small,
+              isLoading: true,
+              onPressed: null,
+            )
+          else if (!isConnected && isPhd2Guider)
             NightshadeButton(
               key: GuidingTutorialKeys.connectBtn,
               label: isMobile ? '' : 'Connect',
@@ -206,14 +232,25 @@ mixin _GuidingDesktopSections
               size: ButtonSize.small,
               onPressed: () => connectPhd2(ref, context: context),
             )
-          else
+          else if (isConnected)
             NightshadeButton(
               key: GuidingTutorialKeys.connectBtn,
               label: isMobile ? '' : 'Disconnect',
               icon: LucideIcons.plugZap,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
-              onPressed: () => disconnectPhd2(ref),
+              onPressed: () => isPhd2Guider
+                  ? disconnectPhd2(ref, context: context)
+                  : _disconnectActiveGuider(),
+            )
+          else
+            NightshadeButton(
+              key: GuidingTutorialKeys.connectBtn,
+              label: isMobile ? '' : 'Equipment',
+              icon: NightshadeIcons.guider,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () => context.go('/equipment'),
             ),
           const SizedBox(width: 8),
           Container(
@@ -224,8 +261,11 @@ mixin _GuidingDesktopSections
             child: IconButton(
               icon: Icon(NightshadeIcons.settings,
                   color: colors.textSecondary, size: 18),
-              onPressed: () => _showConnectionDialog(),
-              tooltip: 'Connection Settings',
+              onPressed: () => isPhd2Guider
+                  ? _showConnectionDialog()
+                  : context.go('/equipment'),
+              tooltip:
+                  isPhd2Guider ? 'PHD2 Connection Settings' : 'Guider Settings',
               constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             ),
           ),
@@ -234,14 +274,24 @@ mixin _GuidingDesktopSections
     );
   }
 
+  /// PHD2 reports guide residuals in pixels (RADistanceRaw/AvgDist). When a
+  /// pixel scale (arcsec/px) is known we present arcseconds; otherwise we show
+  /// the raw pixel value labelled "px" rather than mislabelling it as arcsec.
+  ({double value, String unit}) _rmsReadout(double raw, double pixelScale) {
+    if (pixelScale > 0) return (value: raw * pixelScale, unit: '"');
+    return (value: raw, unit: ' px');
+  }
+
   Widget _buildRmsChip(
     String label,
     double value,
+    double pixelScale,
     Color color,
     NightshadeColors colors, {
     bool bold = false,
     bool compact = false,
   }) {
+    final readout = _rmsReadout(value, pixelScale);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 6 : 8,
@@ -262,7 +312,7 @@ mixin _GuidingDesktopSections
             ),
           ),
           Text(
-            '${value.toStringAsFixed(2)}"',
+            '${readout.value.toStringAsFixed(2)}${readout.unit}',
             style: NightshadeTypography.monoSm.copyWith(
               color: color,
               fontWeight: bold ? FontWeight.bold : FontWeight.w500,
@@ -501,14 +551,14 @@ mixin _GuidingDesktopSections
                         key: GuidingTutorialKeys.rmsDisplay,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildCompactRms(
-                              'RA', stats.rmsRa, colors.error, colors),
+                          _buildCompactRms('RA', stats.rmsRa, stats.pixelScale,
+                              colors.error, colors),
                           const SizedBox(width: 12),
-                          _buildCompactRms(
-                              'Dec', stats.rmsDec, colors.info, colors),
+                          _buildCompactRms('Dec', stats.rmsDec,
+                              stats.pixelScale, colors.info, colors),
                           const SizedBox(width: 12),
-                          _buildCompactRms(
-                              'Total', stats.rmsTotal, colors.primary, colors,
+                          _buildCompactRms('Total', stats.rmsTotal,
+                              stats.pixelScale, colors.primary, colors,
                               bold: true),
                         ],
                       ),
@@ -549,10 +599,12 @@ mixin _GuidingDesktopSections
   Widget _buildCompactRms(
     String label,
     double value,
+    double pixelScale,
     Color color,
     NightshadeColors colors, {
     bool bold = false,
   }) {
+    final readout = _rmsReadout(value, pixelScale);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -564,7 +616,7 @@ mixin _GuidingDesktopSections
         ),
         const SizedBox(width: 4),
         Text(
-          '${value.toStringAsFixed(2)}"',
+          '${readout.value.toStringAsFixed(2)}${readout.unit}',
           style: NightshadeTypography.monoSm.copyWith(
             color: color,
             fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
@@ -577,6 +629,12 @@ mixin _GuidingDesktopSections
   Widget _buildRightPanel(
       NightshadeColors colors, bool isConnected, Phd2State phd2State) {
     final calibrationData = ref.watch(calibrationStateProvider);
+    final guiderId = ref.watch(guiderStateProvider).deviceId;
+    final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final canPersistGuidingSettings = settingsAsync.hasValue &&
+        !settingsAsync.isLoading &&
+        !settingsAsync.hasError;
 
     return Column(
       children: [
@@ -587,46 +645,84 @@ mixin _GuidingDesktopSections
             key: GuidingTutorialKeys.controls,
             state: _mapPhd2State(phd2State),
             isConnected: isConnected,
-            onStartGuiding: () =>
-                ref.read(phd2ControllerProvider).startGuiding(),
+            onStartGuiding: () => ref.read(phd2ControllerProvider).startGuiding(
+                  settlePixels: _settlePixels,
+                  settleTime: _settleTime,
+                  settleTimeout: _settleTimeout,
+                ),
             onStopGuiding: () => ref.read(phd2ControllerProvider).stopGuiding(),
+            onPauseGuiding: isPhd2Guider
+                ? () => ref.read(phd2ControllerProvider).pauseGuiding()
+                : null,
+            onResumeGuiding: isPhd2Guider
+                ? () => ref.read(phd2ControllerProvider).resumeGuiding()
+                : null,
             onLoop: () => ref.read(phd2ControllerProvider).loop(),
             onFindStar: () =>
                 ref.read(lockPositionProvider.notifier).findStar(),
-            onDeselectStar: () => _deselectStar(),
-            onDither: () => ref.read(phd2ControllerProvider).dither(),
+            onDeselectStar: _deselectStar,
+            ditherAmount: _ditherAmount,
+            ditherRaOnly: _ditherRaOnly,
+            onDitherAmountChanged:
+                canPersistGuidingSettings ? _setDitherAmount : null,
+            onDitherRaOnlyChanged:
+                canPersistGuidingSettings ? _setDitherRaOnly : null,
+            onDither: () => ref.read(phd2ControllerProvider).dither(
+                  amount: _ditherAmount,
+                  raOnly: _ditherRaOnly,
+                  settlePixels: _settlePixels,
+                  settleTime: _settleTime,
+                  settleTimeout: _settleTimeout,
+                ),
+            settlePixels: _settlePixels,
+            settleTime: _settleTime,
+            settleTimeout: _settleTimeout,
+            onSettlePixelsChanged:
+                canPersistGuidingSettings ? _setSettlePixels : null,
+            onSettleTimeChanged:
+                canPersistGuidingSettings ? _setSettleTime : null,
+            onSettleTimeoutChanged:
+                canPersistGuidingSettings ? _setSettleTimeout : null,
           ),
         ),
         const SizedBox(height: 12),
         // Calibration panel
         Expanded(
           flex: 2,
-          child: CalibrationPanel(
-            state: calibrationData.isCalibrated
-                ? CalibrationState.calibrated
-                : CalibrationState.notCalibrated,
-            data: CalibrationData(
-              hasCalibration: calibrationData.isCalibrated,
-              raAngle: calibrationData.rotationAngle,
-              decAngle: null, // Not separately available
-              raRate: calibrationData.raRate,
-              decRate: calibrationData.decRate,
-            ),
-            isConnected: isConnected,
-            onClearCalibration: () => _clearCalibration(),
-            onFlipCalibration: () => _flipCalibration(),
-          ),
+          child: isPhd2Guider
+              ? CalibrationPanel(
+                  state: calibrationData.isCalibrated
+                      ? CalibrationState.calibrated
+                      : (phd2State == Phd2State.calibrating
+                          ? CalibrationState.calibrating
+                          : CalibrationState.notCalibrated),
+                  data: CalibrationData(
+                    hasCalibration: calibrationData.isCalibrated,
+                    raAngle: calibrationData.rotationAngle,
+                    decAngle: null, // Not separately available
+                    raRate: calibrationData.raRate,
+                    decRate: calibrationData.decRate,
+                  ),
+                  isConnected: isConnected,
+                  onClearCalibration: () => _clearCalibration(),
+                  onFlipCalibration: () => _flipCalibration(),
+                )
+              : _buildNonPhd2GuiderInfo(colors),
         ),
         const SizedBox(height: 12),
         // Brain settings toggle
         NightshadeButton(
           key: GuidingTutorialKeys.brainBtn,
-          label: _showBrainPanel ? 'Hide Brain Settings' : 'Brain Settings',
-          icon: NightshadeIcons.brain,
+          label: isPhd2Guider
+              ? (_showBrainPanel ? 'Hide Brain Settings' : 'Brain Settings')
+              : 'Guider Settings',
+          icon: isPhd2Guider ? NightshadeIcons.brain : NightshadeIcons.settings,
           variant: ButtonVariant.outline,
-          onPressed: () => setState(() => _showBrainPanel = !_showBrainPanel),
+          onPressed: isPhd2Guider
+              ? () => setState(() => _showBrainPanel = !_showBrainPanel)
+              : () => context.go('/equipment'),
         ),
-        if (_showBrainPanel) ...[
+        if (isPhd2Guider && _showBrainPanel) ...[
           const SizedBox(height: 12),
           Expanded(
             flex: 3,
@@ -637,22 +733,72 @@ mixin _GuidingDesktopSections
     );
   }
 
+  Widget _buildNonPhd2GuiderInfo(NightshadeColors colors) {
+    final isBuiltin = ref.watch(isBuiltinGuiderProvider);
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isBuiltin ? NightshadeIcons.guider : NightshadeIcons.settings,
+              size: 28,
+              color: colors.primary,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isBuiltin ? 'Built-in Guider' : 'External Guider',
+              textAlign: TextAlign.center,
+              style: NightshadeTypography.labelStrong
+                  .copyWith(color: colors.textPrimary),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isBuiltin
+                  ? 'Calibration is managed automatically by Nightshade. '
+                      'Pulse and multi-star settings are available under Equipment.'
+                  : 'This guider does not expose PHD2 calibration or Brain controls. '
+                      'Configure it from Equipment.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            NightshadeButton(
+              label: 'Open Equipment',
+              icon: NightshadeIcons.settings,
+              size: ButtonSize.small,
+              variant: ButtonVariant.outline,
+              onPressed: () => context.go('/equipment'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBrainPanel(NightshadeColors colors) {
     final brainParams = ref.watch(brainParamsProvider);
 
     return brainParams.when(
       data: (params) => BrainSettingsPanel(
+        isEditing: true,
         raParams: params.raParams.entries
             .map((e) => BrainParam(name: e.key, value: e.value))
             .toList(),
         decParams: params.decParams.entries
             .map((e) => BrainParam(name: e.key, value: e.value))
             .toList(),
-        onParamChanged: (axis, name, value) {
-          ref.read(brainParamsProvider.notifier).setParam(axis, name, value);
-        },
-        // setParam() already sends to PHD2, these are for UI only
-        onApply: () {}, // Already applied when param changes
+        onParamChanged: (axis, name, value) =>
+            ref.read(brainParamsProvider.notifier).setParam(axis, name, value),
         onReset: () => ref.read(brainParamsProvider.notifier).fetch(),
       ),
       // Shimmer placeholders match the brain-params field rows so the dialog
@@ -777,6 +923,8 @@ mixin _GuidingDesktopSections
         return colors.info;
       case Phd2State.lostLock:
         return colors.error;
+      case Phd2State.unknown:
+        return colors.warning;
       default:
         return colors.textMuted;
     }
@@ -786,6 +934,8 @@ mixin _GuidingDesktopSections
     switch (state) {
       case Phd2State.stopped:
         return 'Stopped';
+      case Phd2State.selected:
+        return 'Star Selected';
       case Phd2State.looping:
         return 'Looping';
       case Phd2State.calibrating:
@@ -798,7 +948,7 @@ mixin _GuidingDesktopSections
         return 'Settling';
       case Phd2State.lostLock:
         return 'Lost Lock';
-      default:
+      case Phd2State.unknown:
         return 'Unknown';
     }
   }
@@ -806,6 +956,9 @@ mixin _GuidingDesktopSections
   Phd2GuidingState _mapPhd2State(Phd2State state) {
     switch (state) {
       case Phd2State.stopped:
+      // "Selected" is connected + a star chosen but not yet guiding — the same
+      // idle-but-ready surface as Stopped (Start is legal), NOT disconnected.
+      case Phd2State.selected:
         return Phd2GuidingState.stopped;
       case Phd2State.looping:
         return Phd2GuidingState.looping;
@@ -819,8 +972,8 @@ mixin _GuidingDesktopSections
         return Phd2GuidingState.settling;
       case Phd2State.lostLock:
         return Phd2GuidingState.lostLock;
-      default:
-        return Phd2GuidingState.disconnected;
+      case Phd2State.unknown:
+        return Phd2GuidingState.unknown;
     }
   }
 
@@ -828,19 +981,255 @@ mixin _GuidingDesktopSections
     Phd2ConnectionDialog.show(context, ref);
   }
 
-  void _selectStar(double x, double y) {
-    ref.read(lockPositionProvider.notifier).setLockPosition(x, y);
+  Future<void> _disconnectActiveGuider() async {
+    final backend = ref.read(backendProvider);
+    final guiderId = ref.read(guiderStateProvider).deviceId;
+    try {
+      await ref.read(deviceServiceProvider).disconnectGuider();
+      if (!mounted) return;
+      if (!identical(backend, ref.read(backendProvider))) {
+        _showActionError(
+          'The imaging host changed while disconnecting the guider. '
+          'Check Equipment before continuing.',
+        );
+      }
+    } catch (e) {
+      _showActionError(
+        'Failed to disconnect ${guiderId ?? 'the active guider'}: $e',
+      );
+    }
   }
 
-  void _deselectStar() {
-    ref.read(lockPositionProvider.notifier).deselectStar();
+  /// Select the guide star at a tapped image position. The star view invokes
+  /// this fire-and-forget, so the RPC failure is surfaced here — a rejected
+  /// lock-position command would otherwise leave the tap silently doing
+  /// nothing.
+  Future<void> _selectStar(double x, double y) async {
+    try {
+      await ref.read(lockPositionProvider.notifier).setLockPosition(x, y);
+    } catch (e) {
+      _showActionError('Could not select the guide star: $e');
+    }
   }
 
-  void _clearCalibration() {
-    ref.read(calibrationStateProvider.notifier).clearCalibration();
+  /// Deselect the guide star. Returns the controller Future so the awaiting
+  /// caller (GuideControlsPanel's `_runAction`) surfaces a rejected RPC — e.g. a
+  /// mid-flight host change — instead of the failure escaping as an unhandled
+  /// Future. Discarding it here left a Deselect tap silently failing.
+  Future<void> _deselectStar() =>
+      ref.read(lockPositionProvider.notifier).deselectStar();
+
+  /// Surface a guiding action failure inline instead of letting it escape as an
+  /// unhandled Future (calibration ops issue real PHD2 RPCs that can fail).
+  void _showActionError(String message) {
+    if (!mounted) return;
+    final colors = NightshadeColors.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: colors.error),
+    );
   }
 
-  void _flipCalibration() {
-    ref.read(calibrationStateProvider.notifier).flipCalibration();
+  Future<void> _clearCalibration() async {
+    final backend = ref.read(backendProvider);
+    final confirmed = await ConfirmDialog.show(
+      context: context,
+      title: 'Clear Calibration?',
+      message: 'This discards PHD2\'s current calibration. You will need to '
+          'recalibrate before guiding is reliable again.',
+      confirmLabel: 'Clear',
+      isDestructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    if (!identical(backend, ref.read(backendProvider))) {
+      _showActionError(
+        'The connected imaging host changed. Calibration was not cleared.',
+      );
+      return;
+    }
+    try {
+      await ref.read(calibrationStateProvider.notifier).clearCalibration();
+    } catch (e) {
+      _showActionError('Failed to clear calibration: $e');
+    }
+  }
+
+  Future<void> _flipCalibration() async {
+    try {
+      await ref.read(calibrationStateProvider.notifier).flipCalibration();
+    } catch (e) {
+      _showActionError('Failed to flip calibration: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Settle / dither persistence — canonical AppSettings authority (defect 5)
+  //
+  // The screen owns no independent settle/dither store: it seeds its live cache
+  // from the persisted settings once, then writes every edit straight back
+  // through the AppSettings notifier so values persist across navigation AND
+  // full reconstruction, and remote companions share the same canonical sync.
+  // ---------------------------------------------------------------------------
+
+  /// Seed the settle/dither controls from the persisted authority exactly once
+  /// per screen instance. Values are clamped to the control ranges so a
+  /// corrupt/out-of-range stored value can never push a slider off its track.
+  void _hydrateGuidingSettings(AppSettingsState settings) {
+    if (_guidingSettingsHydrated) return;
+    _guidingSettingsHydrated = true;
+    _settlePixels = settings.settleThreshold.clamp(0.5, 5.0).toDouble();
+    _settleTimeout = settings.settleTimeout.toDouble().clamp(30.0, 180.0);
+    _settleTime = settings.settleTime.toDouble().clamp(5.0, 60.0);
+    _ditherAmount = _ditherScaleToPixels(settings.ditherScale).clamp(1.0, 20.0);
+    _ditherRaOnly = settings.ditherRaOnly;
+  }
+
+  void _setSettlePixels(double value) {
+    final clamped = value.clamp(0.5, 5.0).toDouble();
+    final rollback = _settlePixels;
+    setState(() => _settlePixels = clamped);
+    unawaited(_persistSettlePixels(clamped, rollback));
+  }
+
+  Future<void> _persistSettlePixels(double value, double rollback) async {
+    final clamped = value.clamp(0.5, 5.0).toDouble();
+    final current = ref.read(appSettingsProvider).valueOrNull?.settleThreshold;
+    if (current != null && (current - clamped).abs() < 0.0001) return;
+    try {
+      await ref.read(appSettingsProvider.notifier).setSettleThreshold(clamped);
+    } catch (error) {
+      if (!mounted) return;
+      if ((_settlePixels - clamped).abs() < 0.0001) {
+        final authoritative =
+            ref.read(appSettingsProvider).valueOrNull?.settleThreshold;
+        setState(
+            () => _settlePixels = (authoritative ?? rollback).clamp(0.5, 5.0));
+      }
+      _showActionError('Could not save the settle threshold: $error');
+    }
+  }
+
+  void _setSettleTimeout(double value) {
+    final clamped = value.clamp(30.0, 180.0).toDouble();
+    final rollback = _settleTimeout;
+    setState(() => _settleTimeout = clamped);
+    unawaited(_persistSettleTimeout(clamped, rollback));
+  }
+
+  Future<void> _persistSettleTimeout(double value, double rollback) async {
+    final clamped = value.clamp(30.0, 180.0).round();
+    final current = ref.read(appSettingsProvider).valueOrNull?.settleTimeout;
+    if (current == clamped) return;
+    try {
+      await ref.read(appSettingsProvider.notifier).setSettleTimeout(clamped);
+    } catch (error) {
+      if (!mounted) return;
+      if ((_settleTimeout - clamped).abs() < 0.0001) {
+        final authoritative =
+            ref.read(appSettingsProvider).valueOrNull?.settleTimeout;
+        setState(
+          () => _settleTimeout =
+              (authoritative?.toDouble() ?? rollback).clamp(30.0, 180.0),
+        );
+      }
+      _showActionError('Could not save the settle timeout: $error');
+    }
+  }
+
+  void _setSettleTime(double value) {
+    final clamped = value.clamp(5.0, 60.0).toDouble();
+    final rollback = _settleTime;
+    setState(() => _settleTime = clamped);
+    unawaited(_persistSettleTime(clamped, rollback));
+  }
+
+  Future<void> _persistSettleTime(double value, double rollback) async {
+    final clamped = value.clamp(5.0, 60.0).round();
+    final current = ref.read(appSettingsProvider).valueOrNull?.settleTime;
+    if (current == clamped) return;
+    try {
+      await ref.read(appSettingsProvider.notifier).setSettleTime(clamped);
+    } catch (error) {
+      if (!mounted) return;
+      if ((_settleTime - clamped).abs() < 0.0001) {
+        final authoritative =
+            ref.read(appSettingsProvider).valueOrNull?.settleTime;
+        setState(
+          () => _settleTime =
+              (authoritative?.toDouble() ?? rollback).clamp(5.0, 60.0),
+        );
+      }
+      _showActionError('Could not save the settle time: $error');
+    }
+  }
+
+  void _setDitherRaOnly(bool value) {
+    final rollback = _ditherRaOnly;
+    setState(() => _ditherRaOnly = value);
+    unawaited(_persistDitherRaOnly(value, rollback));
+  }
+
+  Future<void> _persistDitherRaOnly(bool value, bool rollback) async {
+    final current = ref.read(appSettingsProvider).valueOrNull?.ditherRaOnly;
+    if (current == value) return;
+    try {
+      await ref.read(appSettingsProvider.notifier).setDitherRaOnly(value);
+    } catch (error) {
+      if (!mounted) return;
+      if (_ditherRaOnly == value) {
+        final authoritative =
+            ref.read(appSettingsProvider).valueOrNull?.ditherRaOnly;
+        setState(() => _ditherRaOnly = authoritative ?? rollback);
+      }
+      _showActionError('Could not save the dither RA-only setting: $error');
+    }
+  }
+
+  void _setDitherAmount(double pixels) {
+    final clamped = pixels.clamp(1.0, 20.0).toDouble();
+    final rollback = _ditherAmount;
+    setState(() => _ditherAmount = clamped);
+    unawaited(_persistDitherScale(clamped, rollback));
+  }
+
+  Future<void> _persistDitherScale(double pixels, double rollback) async {
+    final scale = _pixelsToDitherScale(pixels);
+    final current = ref.read(appSettingsProvider).valueOrNull?.ditherScale;
+    if (current == scale) return;
+    try {
+      await ref.read(appSettingsProvider.notifier).setDitherScale(scale);
+    } catch (error) {
+      if (!mounted) return;
+      if ((_ditherAmount - pixels).abs() < 0.0001) {
+        final authoritative =
+            ref.read(appSettingsProvider).valueOrNull?.ditherScale;
+        setState(
+          () => _ditherAmount = authoritative == null
+              ? rollback
+              : _ditherScaleToPixels(authoritative),
+        );
+      }
+      _showActionError('Could not save the dither amount: $error');
+    }
+  }
+
+  /// Canonical AppSettings stores dither strength as a coarse Small/Medium/Large
+  /// bucket; the slider works in pixels. These two helpers are the single,
+  /// documented bridge between the two representations.
+  static double _ditherScaleToPixels(String scale) {
+    switch (scale) {
+      case 'Small':
+        return 2.0;
+      case 'Large':
+        return 10.0;
+      case 'Medium':
+      default:
+        return 5.0;
+    }
+  }
+
+  static String _pixelsToDitherScale(double pixels) {
+    if (pixels < 3.5) return 'Small';
+    if (pixels < 7.5) return 'Medium';
+    return 'Large';
   }
 }

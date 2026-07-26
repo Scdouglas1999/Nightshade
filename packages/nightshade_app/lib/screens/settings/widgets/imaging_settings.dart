@@ -16,19 +16,11 @@ class ImagingSettings extends ConsumerStatefulWidget {
 
 class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
   final _patternController = TextEditingController();
-  bool _initialized = false;
 
   @override
   void dispose() {
     _patternController.dispose();
     super.dispose();
-  }
-
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _patternController.text = settings.fileNamingPattern;
-      _initialized = true;
-    }
   }
 
   @override
@@ -45,7 +37,7 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
+        final authority = ref.watch(backendProvider);
 
         return SettingsPage(
           title: 'Imaging',
@@ -59,37 +51,12 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
               children: [
                 SettingRow(
                   icon: LucideIcons.file,
-                  title: 'Image format',
-                  subtitle: 'Output file format for captured images',
-                  trailing: SettingsDropdown(
-                    value: settings.imageFormat,
-                    items: const ['FITS', 'XISF', 'TIFF'],
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .setImageFormat(value);
-                      }
-                    },
-                    isMobile: widget.isMobile,
-                  ),
-                  isMobile: widget.isMobile,
-                ),
-                SettingRow(
-                  icon: LucideIcons.binary,
-                  title: 'Bit depth',
-                  subtitle: 'Image bit depth for output files',
-                  trailing: SettingsDropdown(
-                    value: settings.bitDepth,
-                    items: const ['16-bit', '32-bit'],
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .setBitDepth(value);
-                      }
-                    },
-                    isMobile: widget.isMobile,
+                  title: 'Archive format',
+                  subtitle:
+                      'Captured images are saved as lossless 16-bit FITS files',
+                  trailing: Text(
+                    '$kCaptureImageFormat · $kCaptureBitDepth',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   isMobile: widget.isMobile,
                 ),
@@ -100,9 +67,11 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
                       r'Variables: $TARGET, $FILTER, $DATE, $SEQ, $EXPOSURE',
                   trailing: SettingsTextInput(
                     controller: _patternController,
+                    authoritativeValue: settings.fileNamingPattern,
+                    authorityKey: authority,
                     width: widget.isMobile ? 160 : 220,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setFileNamingPattern(value);
                     },

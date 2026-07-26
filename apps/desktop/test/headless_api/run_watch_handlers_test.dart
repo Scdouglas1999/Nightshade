@@ -87,6 +87,32 @@ void main() {
     );
 
     test(
+      'frame-thumbnail rejects malformed and out-of-range image options',
+      () async {
+        for (final query in const [
+          'maxWidth=wide',
+          'maxWidth=0',
+          'maxWidth=20000',
+          'quality=high',
+          'quality=0',
+          'quality=101',
+        ]) {
+          final response = await translateHandlerErrors(
+            handlers.handleFrameThumbnail(
+              Request(
+                'GET',
+                Uri.parse(
+                  'http://localhost/api/run-watch/frame-thumbnail?$query',
+                ),
+              ),
+            ),
+          );
+          expect(response.statusCode, HttpStatus.badRequest, reason: query);
+        }
+      },
+    );
+
+    test(
       'SSE responds with text/event-stream and an initial retry hint',
       () async {
         final response = handlers.handleEventStream(

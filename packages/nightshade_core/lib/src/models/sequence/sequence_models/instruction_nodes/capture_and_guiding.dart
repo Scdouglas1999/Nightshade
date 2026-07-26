@@ -132,6 +132,7 @@ class CenterNode extends SequenceNode {
     double? customDec,
     double? exposureDuration,
     String? filter,
+    bool clearFilter = false,
   }) {
     return CenterNode(
       id: id ?? this.id,
@@ -147,7 +148,7 @@ class CenterNode extends SequenceNode {
       customRa: customRa ?? this.customRa,
       customDec: customDec ?? this.customDec,
       exposureDuration: exposureDuration ?? this.exposureDuration,
-      filter: filter ?? this.filter,
+      filter: clearFilter ? null : (filter ?? this.filter),
     );
   }
 
@@ -271,7 +272,7 @@ class ExposureNode extends SequenceNode {
     this.gain,
     this.offset,
     this.binning = BinningMode.one,
-    this.ditherEvery = 1,
+    this.ditherEvery = 3,
     this.triggers = const [],
     this.adaptiveExposure,
   });
@@ -305,6 +306,11 @@ class ExposureNode extends SequenceNode {
     FrameType? frameType,
     String? filter,
     int? filterIndex,
+    // Passing `filter`/`filterIndex` installs those values; omitting them keeps
+    // the current ones. To CLEAR the filter (switch back to unfiltered/'(None)'),
+    // pass `clearFilter: true` — it wins over `filter`/`filterIndex` and nulls
+    // BOTH, so the editor's "(None)" selection is a single `copyWith` call.
+    bool clearFilter = false,
     int? gain,
     int? offset,
     BinningMode? binning,
@@ -330,8 +336,8 @@ class ExposureNode extends SequenceNode {
       durationSecs: durationSecs ?? this.durationSecs,
       count: count ?? this.count,
       frameType: frameType ?? this.frameType,
-      filter: filter ?? this.filter,
-      filterIndex: filterIndex ?? this.filterIndex,
+      filter: clearFilter ? null : (filter ?? this.filter),
+      filterIndex: clearFilter ? null : (filterIndex ?? this.filterIndex),
       gain: gain ?? this.gain,
       offset: offset ?? this.offset,
       binning: binning ?? this.binning,

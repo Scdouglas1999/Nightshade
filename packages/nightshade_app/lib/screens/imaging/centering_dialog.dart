@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../utils/snackbar_helper.dart';
+import '../../utils/authority_bound_dialog.dart';
 import '../../widgets/plate_solver_required_banner.dart';
 
 part 'centering_dialog/image_canvas.dart';
@@ -41,11 +42,24 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   // catches `SolverNotAvailableError` from `PlateSolveService` rather than
   // letting it surface as a generic snackbar.
   String? _solverMissingMessage;
+  // Inline validation error for the "Solve exposure" field. Set when Start is
+  // pressed with a blank, unparseable, non-finite, or out-of-bounds entry;
+  // cleared when the user edits the field or a run starts. Its presence is
+  // what keeps a bad entry from silently firing a fallback exposure.
+  String? _exposureError;
   late final TextEditingController _exposureController;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
   @override
   void initState() {
     super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        closeAuthorityBoundDialog(context);
+      },
+    );
     final profile = ref.read(activeEquipmentProfileProvider);
     final defaultExposure = profile?.defaultCenteringExposure ?? 5.0;
     _exposureController = TextEditingController(
@@ -55,19 +69,73 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
   @override
   void dispose() {
+    _backendSubscription?.close();
     _exposureController.dispose();
     super.dispose();
   }
 
-  CenteringConfig get _centeringConfig {
-    final exposureTime = double.tryParse(_exposureController.text) ?? 5.0;
+  /// Canonical safe bounds for the "Solve exposure" field, in seconds.
+  ///
+  /// These mirror the headless centering endpoint (`POST /framing/center`,
+  /// which validates `exposureTime` with `min: 0.01, max: 600`) so the same
+  /// value is accepted or rejected whether centering is driven from this
+  /// dialog or over the headless API, and so nothing slips past that the
+  /// underlying `CenteringService` — which requires a finite, positive
+  /// `exposureTime` — would reject anyway. Do not invent tighter/looser limits
+  /// here without changing both call sites in lockstep.
+  static const double _minExposureSeconds = 0.01;
+  static const double _maxExposureSeconds = 600.0;
+
+  /// Centering convergence tolerance in arcseconds. A fixed constant, kept out
+  /// of the (user-editable) exposure field so the live offset bar can reference
+  /// it during a run without reparsing — and never mixed up with the exposure.
+  static const double _toleranceArcsec = 30.0;
+
+  /// Parse the "Solve exposure" field into a finite exposure in seconds inside
+  /// the canonical [`_minExposureSeconds`, `_maxExposureSeconds`] bounds.
+  ///
+  /// Returns null and surfaces an inline [_exposureError] when the entry is
+  /// blank, unparseable, non-finite (NaN/Infinity), or out of range. This
+  /// deliberately does NOT fall back to a default: pressing Start with a bad
+  /// value must fail visibly rather than silently issue a fixed-length exposure
+  /// the user never requested.
+  double? _parseValidExposureSeconds() {
+    final raw = _exposureController.text.trim();
+    if (raw.isEmpty) {
+      _setExposureError('Enter a solve exposure between $_minExposureSeconds '
+          'and ${_maxExposureSeconds.toStringAsFixed(0)} s.');
+      return null;
+    }
+    final parsed = double.tryParse(raw);
+    if (parsed == null || !parsed.isFinite) {
+      _setExposureError('Solve exposure must be a number in seconds.');
+      return null;
+    }
+    if (parsed < _minExposureSeconds || parsed > _maxExposureSeconds) {
+      _setExposureError('Solve exposure must be between $_minExposureSeconds '
+          'and ${_maxExposureSeconds.toStringAsFixed(0)} s.');
+      return null;
+    }
+    return parsed;
+  }
+
+  void _setExposureError(String message) {
+    setState(() => _exposureError = message);
+  }
+
+  /// Build the centering config from an already-validated [exposureTime]. The
+  /// caller is responsible for validating the exposure via
+  /// [_parseValidExposureSeconds] first; this method never substitutes a
+  /// default for a bad value.
+  CenteringConfig _buildCenteringConfig(double exposureTime) {
     final profile = ref.read(activeEquipmentProfileProvider);
     return CenteringConfig(
       maxIterations: 5,
-      toleranceArcsec: 30.0,
-      exposureTime: exposureTime > 0 ? exposureTime : 5.0,
+      toleranceArcsec: _toleranceArcsec,
+      exposureTime: exposureTime,
       binning: profile?.defaultBinX ?? 2,
-      gain: profile?.defaultGain ?? 100,
+      gain: profile?.defaultGain,
+      offset: profile?.defaultOffset,
       syncMount: false,
     );
   }
@@ -400,65 +468,99 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   }
 
   Widget _buildExposureSettings(NightshadeColors colors, ThemeData theme) {
+    final hasError = _exposureError != null;
     return NightshadeCard(
       padding: const EdgeInsets.all(12),
       borderRadius: NightshadeTokens.radiusInline8,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(NightshadeIcons.camera, size: 16, color: colors.textSecondary),
-          const SizedBox(width: 8),
-          Text(
-            'Solve exposure:',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 80,
-            height: 32,
-            child: TextField(
-              controller: _exposureController,
-              enabled: !_isCentering,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-                fontFeatures: [const FontFeature.tabularFigures()],
+          Row(
+            children: [
+              Icon(NightshadeIcons.camera,
+                  size: 16, color: colors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                'Solve exposure:',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                ),
               ),
-              decoration: InputDecoration(
-                isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  borderSide: BorderSide(color: colors.border),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 80,
+                height: 32,
+                child: TextField(
+                  controller: _exposureController,
+                  enabled: !_isCentering,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  textAlign: TextAlign.center,
+                  // Clear a stale validation error the moment the user starts
+                  // fixing the field, so the entry stays live and editable.
+                  onChanged: (_) {
+                    if (_exposureError != null) {
+                      setState(() => _exposureError = null);
+                    }
+                  },
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderSide: BorderSide(
+                          color: hasError ? colors.error : colors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusMd),
+                      borderSide: BorderSide(
+                          color: hasError ? colors.error : colors.accent),
+                    ),
+                    filled: true,
+                    fillColor: colors.surface,
+                  ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  borderSide: BorderSide(color: colors.accent),
-                ),
-                filled: true,
-                fillColor: colors.surface,
               ),
-            ),
+              const SizedBox(width: 4),
+              Text(
+                's',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          Text(
-            's',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: colors.textMuted,
+          if (hasError) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.alertCircle, size: 14, color: colors.error),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _exposureError!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -584,13 +686,11 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: LinearProgressIndicator(
-                      value: (status.currentOffsetArcsec! /
-                                  _centeringConfig.toleranceArcsec)
+                      value: (status.currentOffsetArcsec! / _toleranceArcsec)
                               .clamp(0.0, 2.0) /
                           2.0,
                       backgroundColor: colors.surfaceAlt,
-                      color: status.currentOffsetArcsec! <=
-                              _centeringConfig.toleranceArcsec
+                      color: status.currentOffsetArcsec! <= _toleranceArcsec
                           ? colors.success
                           : colors.accent,
                       minHeight: 6,
@@ -603,8 +703,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     fontFeatures: [const FontFeature.tabularFigures()],
-                    color: status.currentOffsetArcsec! <=
-                            _centeringConfig.toleranceArcsec
+                    color: status.currentOffsetArcsec! <= _toleranceArcsec
                         ? colors.success
                         : colors.textPrimary,
                   ),
@@ -767,6 +866,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   }
 
   Future<void> _startCentering() async {
+    // Double-submit / in-flight guard. `_isCentering` is set synchronously
+    // below before the first `await`, so a second tap that lands before the
+    // button rebuilds away (rapid double-click) is rejected here rather than
+    // kicking off a second centering run — and a second throwaway exposure.
+    if (_isCentering) return;
+
     if (widget.targetRa == null || widget.targetDec == null) {
       if (mounted) {
         context.showErrorSnackBar('No target coordinates specified');
@@ -774,23 +879,36 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       return;
     }
 
+    // Validate the user's typed exposure BEFORE any solver detection, camera
+    // work, or a misleading "running" state. A blank, unparseable, non-finite,
+    // or out-of-bounds entry surfaces an inline error, keeps the typed text
+    // editable, and does no work — it must never silently fall back to a
+    // default and fire an exposure the user did not request.
+    final exposureTime = _parseValidExposureSeconds();
+    if (exposureTime == null) return;
+
     setState(() {
       _isCentering = true;
       _result = null;
       _solverMissingMessage = null;
+      _exposureError = null;
     });
 
     final centeringService = ref.read(centeringServiceProvider);
 
-    // Pre-flight: probe disk for ASTAP / Astrometry.net before spinning up
-    // the centering loop. If neither is reachable, surface the
-    // `PlateSolverRequiredBanner` and bail out — letting CenteringService
-    // discover this later wastes one full exposure and produces a generic
-    // "ASTAP not found" error that doesn't point users at the setup page.
+    // Pre-flight the user's actual selection (including ASTAP's catalog), not
+    // merely whether any solver happens to be installed.
     final solveService = ref.read(plateSolveServiceProvider);
-    final PlateSolverDetection detection;
     try {
-      detection = await solveService.detect();
+      await solveService.ensureSolverAvailable();
+    } on SolverNotAvailableError catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCentering = false;
+          _solverMissingMessage = e.message;
+        });
+      }
+      return;
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -801,24 +919,10 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       return;
     }
 
-    if (!detection.hasAnySolver) {
-      if (mounted) {
-        setState(() {
-          _isCentering = false;
-          _solverMissingMessage =
-              'Centering needs ASTAP (or Astrometry.net) installed to '
-              'compare the captured frame to the target coordinates. '
-              'Configure one to continue.';
-        });
-      }
-      return;
-    }
-
     final appSettings = ref.read(appSettingsProvider).value;
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      executablePath: detection.astapPath ?? detection.astrometryPath ?? '',
-      catalogPath: detection.catalogPath,
+      executablePath: appSettings?.astapPath ?? '',
       timeoutSeconds: appSettings?.plateSolveTimeout ?? 60,
       searchRadius: appSettings?.plateSolveSearchRadius,
     );
@@ -828,7 +932,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         targetRa: widget.targetRa!,
         targetDec: widget.targetDec!,
         solverConfig: solverConfig,
-        config: _centeringConfig,
+        config: _buildCenteringConfig(exposureTime),
         onStatusUpdate: (status) {
           ref.read(centeringStatusProvider.notifier).state = status;
         },

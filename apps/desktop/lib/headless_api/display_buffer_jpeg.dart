@@ -25,6 +25,28 @@ class DisplayBufferJpegEncodeResult {
   final String metaHeaderValue;
 }
 
+/// Return a wire-safe UTC timestamp for camera frames.
+///
+/// Native camera captures are timestamped with `Utc::now().naive_utc()`, so
+/// their ISO-8601 value is UTC but has no `Z` suffix. Dart otherwise interprets
+/// that form as local time, shifting the instant again when a remote client
+/// calls `toUtc()`. Preserve explicit offsets, and treat the native
+/// offset-less form as UTC.
+String capturedImageTimestampUtc(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return value;
+
+  final hasExplicitOffset = RegExp(
+    r'(?:[zZ]|[+-]\d{2}:\d{2})$',
+  ).hasMatch(trimmed);
+  try {
+    final parsed = DateTime.parse(hasExplicitOffset ? trimmed : '${trimmed}Z');
+    return parsed.toUtc().toIso8601String();
+  } on FormatException {
+    return value;
+  }
+}
+
 /// Encode stretched RGBA [CapturedImageResult.displayData] to JPEG.
 ///
 /// Returns `null` when the display buffer size does not match width×height×4.
@@ -67,7 +89,7 @@ DisplayBufferJpegEncodeResult? encodeCapturedImageDisplayBufferToJpeg(
     'histogram': image.histogram,
     'stats': image.stats.toJson(),
     'exposureTime': image.exposureTime,
-    'timestamp': image.timestamp,
+    'timestamp': capturedImageTimestampUtc(image.timestamp),
     'isColor': image.isColor,
   });
 

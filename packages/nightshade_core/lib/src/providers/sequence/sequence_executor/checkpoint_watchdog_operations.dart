@@ -11,7 +11,7 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
         if (_checkpointSaveInFlight) return;
         _checkpointSaveInFlight = true;
         try {
-          final backend = _ref.read(backendProvider);
+          final backend = _backend;
           await backend.saveCheckpoint();
         } catch (e) {
           // Checkpoint write failure must not interrupt the running sequence;

@@ -19,6 +19,7 @@ import '../services/update_service.dart';
 import '../services/lan_push_receiver.dart';
 
 typedef UpdateApplySafetyCheck = Future<void> Function();
+typedef UpdateApplySafetyReader = T Function<T>(ProviderListenable<T> provider);
 
 /// Provider for the update state.
 ///
@@ -47,20 +48,28 @@ bool _isActiveSequenceState(SequenceExecutionState state) {
       state == SequenceExecutionState.recovering;
 }
 
-Future<void> _checkpointIfSessionLoaded(Ref ref) async {
-  final sequenceState = ref.read(sequenceExecutionStateProvider);
+Future<void> _checkpointIfSessionLoaded(UpdateApplySafetyReader read) async {
+  final sequenceState = read(sequenceExecutionStateProvider);
   if (sequenceState == SequenceExecutionState.idle) {
     return;
   }
 
-  await ref.read(sequencerBackendProvider).saveCheckpoint();
+  await read(sequencerBackendProvider).saveCheckpoint();
 }
 
-Future<void> defaultUpdateApplySafetyCheck(Ref ref) async {
-  final sequenceState = ref.read(sequenceExecutionStateProvider);
+/// Run the update-apply safety gate against any Riverpod reader.
+///
+/// Accepting the reader rather than only a widget/provider [Ref] lets the
+/// headless OTA controller use the exact same checks through its root
+/// [ProviderContainer]. This keeps GUI and remotely-triggered updates from
+/// drifting into different hardware-safety behavior.
+Future<void> defaultUpdateApplySafetyCheckWithReader(
+  UpdateApplySafetyReader read,
+) async {
+  final sequenceState = read(sequenceExecutionStateProvider);
   if (_isActiveSequenceState(sequenceState)) {
     try {
-      await ref.read(sequencerBackendProvider).saveCheckpoint();
+      await read(sequencerBackendProvider).saveCheckpoint();
     } catch (e, stackTrace) {
       developer.log(
         'Failed to save checkpoint before refusing update apply: $e',
@@ -76,7 +85,7 @@ Future<void> defaultUpdateApplySafetyCheck(Ref ref) async {
     );
   }
 
-  final cameraState = ref.read(cameraStateProvider);
+  final cameraState = read(cameraStateProvider);
   if (cameraState.connectionState == DeviceConnectionState.connected) {
     if (cameraState.isExposing) {
       throw UpdateException(
@@ -92,7 +101,7 @@ Future<void> defaultUpdateApplySafetyCheck(Ref ref) async {
     }
   }
 
-  final mountState = ref.read(mountStateProvider);
+  final mountState = read(mountStateProvider);
   if (mountState.connectionState == DeviceConnectionState.connected) {
     if (mountState.isSlewing) {
       throw UpdateException(
@@ -107,13 +116,17 @@ Future<void> defaultUpdateApplySafetyCheck(Ref ref) async {
   }
 
   try {
-    await _checkpointIfSessionLoaded(ref);
+    await _checkpointIfSessionLoaded(read);
   } catch (e) {
     throw UpdateException(
       'Cannot apply update because the current session checkpoint '
       'could not be saved: $e',
     );
   }
+}
+
+Future<void> defaultUpdateApplySafetyCheck(Ref ref) {
+  return defaultUpdateApplySafetyCheckWithReader(ref.read);
 }
 
 /// Notifier for managing update state
@@ -167,6 +180,11 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   }
 
   Future<void> _initializeStartupState() async {
+    final skipped = await _updateService.readSkippedVersion();
+    if (skipped != null) {
+      state = state.copyWith(skippedVersion: skipped);
+    }
+
     final pendingStatus = await _updateService.verifyPendingInstall();
     if (pendingStatus.message != null) {
       developer.log(
@@ -235,14 +253,40 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
           return;
         }
 
+        // A different version is being offered; forget any earlier skip so
+        // it does not silently suppress this newer build on the next run.
+        if (state.skippedVersion != null) {
+          unawaited(_updateService.writeSkippedVersion(null));
+        }
+
+        if (result.requiresManualUpgrade) {
+          // Build is below minVersion for OTA: surface the update but route
+          // the user to a manual reinstall instead of the download/apply path.
+          state = state.copyWith(
+            status: UpdateStatus.available,
+            availableUpdate: result.manifest,
+            requiresManualUpgrade: true,
+            skippedVersion: null,
+            errorMessage:
+                'This build is older than the minimum version supported by '
+                'automatic updates. Download the latest full release and '
+                'reinstall Nightshade manually.',
+            lastCheckTime: DateTime.now(),
+          );
+          return;
+        }
+
         state = state.copyWith(
           status: UpdateStatus.available,
           availableUpdate: result.manifest,
+          requiresManualUpgrade: false,
+          skippedVersion: null,
           lastCheckTime: DateTime.now(),
         );
       } else {
         state = state.copyWith(
           status: UpdateStatus.upToDate,
+          requiresManualUpgrade: false,
           lastCheckTime: DateTime.now(),
         );
       }
@@ -257,6 +301,9 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
 
   /// Download and stage the available update
   Future<void> downloadUpdate() async {
+    // Builds below minVersion for OTA must be reinstalled manually; the
+    // download/apply path is intentionally unreachable for them.
+    if (state.requiresManualUpgrade) return;
     if (state.availableUpdate == null) return;
     if (state.status == UpdateStatus.downloading) return;
 
@@ -365,11 +412,14 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   void skipUpdate() {
     if (state.availableUpdate == null) return;
 
+    final version = state.availableUpdate!.version;
     state = state.copyWith(
       status: UpdateStatus.upToDate,
-      skippedVersion: state.availableUpdate!.version,
+      skippedVersion: version,
       availableUpdate: null,
+      requiresManualUpgrade: false,
     );
+    unawaited(_updateService.writeSkippedVersion(version));
   }
 
   /// Clear any staged update

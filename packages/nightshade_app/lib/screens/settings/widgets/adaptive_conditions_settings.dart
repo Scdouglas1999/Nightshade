@@ -36,8 +36,6 @@ class _AdaptiveConditionsSettingsState
     'wind': TextEditingController(),
   };
 
-  bool _hydrated = false;
-
   @override
   void dispose() {
     _thresholdController.dispose();
@@ -46,19 +44,6 @@ class _AdaptiveConditionsSettingsState
       controller.dispose();
     }
     super.dispose();
-  }
-
-  void _hydrate(AppSettingsState settings) {
-    if (_hydrated) return;
-    _hydrated = true;
-    _thresholdController.text =
-        settings.adaptiveSwapDefaultThreshold.toStringAsFixed(0);
-    _hysteresisController.text =
-        settings.adaptiveSwapDefaultHysteresisSecs.toStringAsFixed(0);
-    for (final entry in _weightControllers.entries) {
-      entry.value.text =
-          (settings.conditionsScoreWeights[entry.key] ?? 0).toStringAsFixed(2);
-    }
   }
 
   @override
@@ -75,7 +60,7 @@ class _AdaptiveConditionsSettingsState
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _hydrate(settings);
+        final authority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
         final weightTotal = settings.conditionsScoreWeights.values.fold<double>(
           0,
@@ -117,6 +102,8 @@ class _AdaptiveConditionsSettingsState
                   trailing: SettingsNumberInput(
                     key: const ValueKey('adaptiveSwapThresholdInput'),
                     controller: _thresholdController,
+                    authoritativeValue: settings.adaptiveSwapDefaultThreshold,
+                    authorityKey: authority,
                     suffix: '',
                     min: 0,
                     max: 100,
@@ -137,6 +124,9 @@ class _AdaptiveConditionsSettingsState
                   trailing: SettingsNumberInput(
                     key: const ValueKey('adaptiveSwapHysteresisInput'),
                     controller: _hysteresisController,
+                    authoritativeValue:
+                        settings.adaptiveSwapDefaultHysteresisSecs,
+                    authorityKey: authority,
                     suffix: 's',
                     min: 0,
                     max: 3600,
@@ -167,6 +157,9 @@ class _AdaptiveConditionsSettingsState
                   controller: _weightControllers['transparency']!,
                   inputKey:
                       const ValueKey('adaptiveSwapTransparencyWeightInput'),
+                  authoritativeValue:
+                      settings.conditionsScoreWeights['transparency'] ?? 0,
+                  authorityKey: authority,
                   isMobile: widget.isMobile,
                   onChanged: (value) =>
                       _setWeight(notifier, settings, 'transparency', value),
@@ -178,6 +171,9 @@ class _AdaptiveConditionsSettingsState
                       'Influence of star sharpness and atmospheric steadiness.',
                   controller: _weightControllers['seeing']!,
                   inputKey: const ValueKey('adaptiveSwapSeeingWeightInput'),
+                  authoritativeValue:
+                      settings.conditionsScoreWeights['seeing'] ?? 0,
+                  authorityKey: authority,
                   isMobile: widget.isMobile,
                   onChanged: (value) =>
                       _setWeight(notifier, settings, 'seeing', value),
@@ -188,6 +184,9 @@ class _AdaptiveConditionsSettingsState
                   subtitle: 'Influence of cloud cover and opacity estimates.',
                   controller: _weightControllers['cloud']!,
                   inputKey: const ValueKey('adaptiveSwapCloudWeightInput'),
+                  authoritativeValue:
+                      settings.conditionsScoreWeights['cloud'] ?? 0,
+                  authorityKey: authority,
                   isMobile: widget.isMobile,
                   onChanged: (value) =>
                       _setWeight(notifier, settings, 'cloud', value),
@@ -199,6 +198,9 @@ class _AdaptiveConditionsSettingsState
                       'Influence of wind speed when choosing whether to stay on target.',
                   controller: _weightControllers['wind']!,
                   inputKey: const ValueKey('adaptiveSwapWindWeightInput'),
+                  authoritativeValue:
+                      settings.conditionsScoreWeights['wind'] ?? 0,
+                  authorityKey: authority,
                   isMobile: widget.isMobile,
                   onChanged: (value) =>
                       _setWeight(notifier, settings, 'wind', value),
@@ -234,6 +236,8 @@ class _WeightRow extends StatelessWidget {
   final String subtitle;
   final TextEditingController controller;
   final ValueKey<String> inputKey;
+  final double authoritativeValue;
+  final Object authorityKey;
   final bool isMobile;
   final ValueChanged<double> onChanged;
   final bool isLast;
@@ -245,6 +249,8 @@ class _WeightRow extends StatelessWidget {
     required this.subtitle,
     required this.controller,
     required this.inputKey,
+    required this.authoritativeValue,
+    required this.authorityKey,
     required this.isMobile,
     required this.onChanged,
     this.isLast = false,
@@ -259,6 +265,8 @@ class _WeightRow extends StatelessWidget {
       trailing: SettingsNumberInput(
         key: inputKey,
         controller: controller,
+        authoritativeValue: authoritativeValue,
+        authorityKey: authorityKey,
         suffix: '',
         min: 0,
         max: 10,

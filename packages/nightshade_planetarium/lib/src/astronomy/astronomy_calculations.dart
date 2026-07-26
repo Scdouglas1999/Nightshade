@@ -1086,6 +1086,52 @@ class AstronomyCalculations {
       }
     }
 
+    // When the object is already above the threshold at local noon, the first
+    // crossing in this 24-hour window is a SET and the next RISE occurs near
+    // the end of the window. Returning those two timestamps made
+    // durationAboveHorizon negative and exposed an impossible negative-hours
+    // result through the scheduler API. In that ordering, continue sampling
+    // from the reported rise until its corresponding following set.
+    if (riseTime != null && setTime != null && !setTime.isAfter(riseTime)) {
+      final searchEnd = riseTime.add(const Duration(hours: 24));
+      var previousTime = riseTime;
+      var previousAltitude = _apparentAltitudeOf(
+        previousTime,
+        posAt,
+        latitudeDeg,
+        longitudeDeg,
+      );
+      DateTime? followingSet;
+      for (
+        var t = previousTime.add(step);
+        !t.isAfter(searchEnd);
+        t = t.add(step)
+      ) {
+        final altitude = _apparentAltitudeOf(
+          t,
+          posAt,
+          latitudeDeg,
+          longitudeDeg,
+        );
+        if (previousAltitude >= crossingAlt && altitude < crossingAlt) {
+          followingSet = _refineAltitudeCrossing(
+            start: previousTime,
+            end: t,
+            targetAlt: crossingAlt,
+            positionAt: posAt,
+            latitudeDeg: latitudeDeg,
+            longitudeDeg: longitudeDeg,
+          );
+          break;
+        }
+        previousTime = t;
+        previousAltitude = altitude;
+      }
+      if (followingSet != null) {
+        setTime = followingSet;
+      }
+    }
+
     // Refine the transit by maximising apparent altitude in the interval
     // bracketing the coarse peak sample (ternary search, sub-minute).
     if (transitTime != null) {

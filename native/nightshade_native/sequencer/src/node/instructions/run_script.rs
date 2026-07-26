@@ -23,7 +23,7 @@ impl InstructionNode for RunScriptInstruction {
 
     async fn execute(
         &self,
-        _node_id: &str,
+        node_id: &str,
         node_type: &NodeType,
         context: &mut ExecutionContext,
     ) -> NodeStatus {
@@ -74,7 +74,7 @@ impl InstructionNode for RunScriptInstruction {
             timeout_secs: config.timeout_secs,
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         execute_script(&interpolated, &ctx, context, &frame)
             .await
             .log_and_get_status_with_context("Run Script", &ctx)

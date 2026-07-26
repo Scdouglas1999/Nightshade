@@ -65,24 +65,13 @@ abstract class UpdateManifest with _$UpdateManifest {
   factory UpdateManifest.fromJson(Map<String, dynamic> json) =>
       _$UpdateManifestFromJson(json);
 
-  /// Parse version string to comparable parts
-  List<int> get versionParts =>
-      version.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+  /// Numeric release components of the version, with any prerelease tag
+  /// and build metadata stripped. '2.1.0-beta.1' -> [2, 1, 0].
+  List<int> get versionParts => _coreParts(version);
 
   /// Check if this version is newer than another
-  bool isNewerThan(String otherVersion) {
-    final other = otherVersion
-        .split('.')
-        .map((p) => int.tryParse(p) ?? 0)
-        .toList();
-    final mine = versionParts;
-
-    for (var i = 0; i < mine.length && i < other.length; i++) {
-      if (mine[i] > other[i]) return true;
-      if (mine[i] < other[i]) return false;
-    }
-    return mine.length > other.length;
-  }
+  bool isNewerThan(String otherVersion) =>
+      _compareVersions(version, otherVersion) > 0;
 
   /// Check if this build supersedes [currentVersion]+[currentBuild].
   ///
@@ -93,10 +82,7 @@ abstract class UpdateManifest with _$UpdateManifest {
   /// semver-only contract is intentionally left untouched for callers that
   /// want pure string ordering.
   bool isNewerBuildThan(String currentVersion, int currentBuild) {
-    final cmp = _compareVersions(
-      versionParts,
-      currentVersion.split('.').map((p) => int.tryParse(p) ?? 0).toList(),
-    );
+    final cmp = _compareVersions(version, currentVersion);
     if (cmp != 0) return cmp > 0;
     return buildNumber > currentBuild;
   }
@@ -104,24 +90,67 @@ abstract class UpdateManifest with _$UpdateManifest {
   /// Check if upgrade from a version is allowed
   bool canUpgradeFrom(String fromVersion) {
     if (minVersion == null) return true;
-    final from = fromVersion
-        .split('.')
-        .map((p) => int.tryParse(p) ?? 0)
-        .toList();
-    final min = minVersion!
-        .split('.')
-        .map((p) => int.tryParse(p) ?? 0)
-        .toList();
     // At or above minVersion may upgrade; below it is gated out. Equal is
     // allowed (compare == 0). Shorter component lists are zero-padded so
     // '2.0' < '2.0.5'.
-    return _compareVersions(from, min) >= 0;
+    return _compareVersions(fromVersion, minVersion!) >= 0;
   }
 
-  /// Compare two zero-padded version-component lists. Returns >0 if [a] is
-  /// newer, <0 if older, 0 if equal. The shorter list is treated as
-  /// trailing zeros so '2.0' compares below '2.0.5'.
-  static int _compareVersions(List<int> a, List<int> b) {
+  /// Numeric core components (major.minor.patch...) of a semver string, with
+  /// any prerelease tag and build metadata stripped. '2.1.0-beta.1' ->
+  /// [2, 1, 0].
+  static final RegExp _versionPattern = RegExp(
+    r'^[0-9]+(?:\.[0-9]+)*(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$',
+  );
+
+  static List<int> _coreParts(String version) {
+    if (!_versionPattern.hasMatch(version)) {
+      throw FormatException('Invalid semantic version: "$version"');
+    }
+    return version
+        .split('+')
+        .first
+        .split('-')
+        .first
+        .split('.')
+        .map(int.parse)
+        .toList();
+  }
+
+  /// Dot-separated prerelease identifiers of a semver string, or an empty
+  /// list when there is no prerelease tag. '2.1.0-beta.1' -> ['beta', '1'].
+  static List<String> _prereleaseParts(String version) {
+    final withoutBuild = version.split('+').first;
+    final dash = withoutBuild.indexOf('-');
+    if (dash < 0) return const [];
+    return withoutBuild.substring(dash + 1).split('.');
+  }
+
+  /// Compare two semver strings. Returns >0 if [a] is newer, <0 if older,
+  /// 0 if equal. Numeric core components are compared first (shorter list
+  /// zero-padded so '2.0' < '2.0.5'). When cores are equal, a release with
+  /// no prerelease outranks one carrying a prerelease; two prereleases
+  /// compare identifier by identifier (numerically when both are numbers,
+  /// otherwise lexically), and a longer identifier set outranks a shorter
+  /// one whose leading identifiers are equal.
+  static int _compareVersions(String a, String b) {
+    final coreCmp = _compareCore(_coreParts(a), _coreParts(b));
+    if (coreCmp != 0) return coreCmp;
+
+    final aPre = _prereleaseParts(a);
+    final bPre = _prereleaseParts(b);
+    if (aPre.isEmpty && bPre.isEmpty) return 0;
+    if (aPre.isEmpty) return 1;
+    if (bPre.isEmpty) return -1;
+
+    for (var i = 0; i < aPre.length && i < bPre.length; i++) {
+      final cmp = _comparePrereleaseIdentifier(aPre[i], bPre[i]);
+      if (cmp != 0) return cmp;
+    }
+    return aPre.length.compareTo(bPre.length);
+  }
+
+  static int _compareCore(List<int> a, List<int> b) {
     final length = a.length > b.length ? a.length : b.length;
     for (var i = 0; i < length; i++) {
       final ai = i < a.length ? a[i] : 0;
@@ -129,6 +158,16 @@ abstract class UpdateManifest with _$UpdateManifest {
       if (ai != bi) return ai > bi ? 1 : -1;
     }
     return 0;
+  }
+
+  static int _comparePrereleaseIdentifier(String a, String b) {
+    final an = int.tryParse(a);
+    final bn = int.tryParse(b);
+    if (an != null && bn != null) return an.compareTo(bn);
+    // Semver: numeric identifiers rank below alphanumeric ones.
+    if (an != null) return -1;
+    if (bn != null) return 1;
+    return a.compareTo(b);
   }
 }
 

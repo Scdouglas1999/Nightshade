@@ -21,6 +21,24 @@ part of '../network_backend.dart';
 ///
 /// Mosaic stitching is intentionally NOT part of this surface.
 mixin _NetworkBackendPostSessionOperations on _NetworkBackendTransport {
+  /// Read the host-owned automatic post-session integration preference.
+  Future<bool> getAutoIntegrationEnabled() async {
+    final response = await _get('post-session/settings');
+    final enabled = response['autoIntegrate'];
+    if (enabled is! bool) {
+      throw const ValidationException(
+        message: 'post-session settings returned a non-boolean autoIntegrate',
+        userMessage: 'The host returned invalid post-session settings.',
+      );
+    }
+    return enabled;
+  }
+
+  /// Change the host-owned automatic post-session integration preference.
+  Future<void> setAutoIntegrationEnabled(bool enabled) async {
+    await _post('post-session/settings', {'autoIntegrate': enabled});
+  }
+
   /// Implemented by [_NetworkBackendRemoteOperations]; declared here so this
   /// mixin can await the job without depending on the concrete class.
   Future<RemoteJob> awaitJobCompletion(

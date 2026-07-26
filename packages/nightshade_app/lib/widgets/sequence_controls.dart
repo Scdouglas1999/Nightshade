@@ -22,15 +22,10 @@ class SequenceControls extends ConsumerWidget {
     final successColor = colors.success;
     final errorColor = colors.error;
 
-    // §15: show run controls only while actively running / paused. Idle and
-    // the terminal completed / failed states hide them, matching
-    // MobileSequenceOverlay so the controls and the progress card appear and
-    // disappear together. The end-of-session report dialog is the post-run
-    // surface, so there is no terminal control state to linger here.
-    final isRunning = state == SequenceExecutionState.running;
-    final isPaused = state == SequenceExecutionState.paused;
-    final canControl = isRunning || isPaused;
-    if (!canControl) {
+    // Keep controls reachable in retryable stop/cleanup failure states. This
+    // surface previously disappeared outside running/paused, which could
+    // strand a mobile operator without the Stop retry exposed elsewhere.
+    if (!state.isBusy) {
       return const SizedBox.shrink();
     }
 
@@ -48,14 +43,15 @@ class SequenceControls extends ConsumerWidget {
           // Pause/Resume button
           Expanded(
             child: _ControlButton(
-              icon: isPaused ? Icons.play_arrow : Icons.pause,
-              label: isPaused ? 'Resume' : 'Pause',
-              color: isPaused ? successColor : warningColor,
-              enabled: canControl,
+              icon: state.canResume ? Icons.play_arrow : Icons.pause,
+              label: state.canResume ? 'Resume' : 'Pause',
+              color: state.canResume ? successColor : warningColor,
+              enabled: state.canPause || state.canResume,
               onPressed: () async {
                 final service = ref.read(sequenceActionServiceProvider);
-                final result =
-                    isPaused ? await service.resume() : await service.pause();
+                final result = state.canResume
+                    ? await service.resume()
+                    : await service.pause();
                 if (!context.mounted) return;
                 context.showCommandActionResult(result);
               },
@@ -70,7 +66,7 @@ class SequenceControls extends ConsumerWidget {
               icon: Icons.stop,
               label: 'Stop',
               color: errorColor,
-              enabled: canControl,
+              enabled: state.canStop,
               onPressed: () async {
                 final confirmed = await _confirmStop(context);
                 if (!confirmed || !context.mounted) return;
@@ -90,7 +86,7 @@ class SequenceControls extends ConsumerWidget {
               icon: Icons.skip_next,
               label: 'Skip',
               color: primaryColor,
-              enabled: isRunning,
+              enabled: state.canSkip,
               onPressed: () async {
                 final result =
                     await ref.read(sequenceActionServiceProvider).skip();

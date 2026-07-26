@@ -439,6 +439,7 @@ async fn test_svbony_camera_exposure() {
         bin_y: 1,
         subframe: None,
         readout_mode: None,
+        frame_type: nightshade_native::camera::FrameType::Light,
     };
 
     println!("Starting 0.1s exposure...");
@@ -957,6 +958,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("start exposure");
@@ -968,7 +970,24 @@ mod fake_sdk_contract {
         assert_eq!((image.width, image.height), (32, 24));
         assert_eq!(image.bits_per_pixel, 16);
         assert_eq!(image.data[0], 1000);
+        camera
+            .start_exposure(ExposureParams {
+                duration_secs: 10.0,
+                gain: None,
+                offset: None,
+                bin_x: 1,
+                bin_y: 1,
+                subframe: None,
+                readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
+            })
+            .await
+            .expect("start exposure before abort");
         camera.abort_exposure().await.expect("abort exposure");
+        assert!(matches!(
+            camera.get_status().await.expect("status after abort").state,
+            nightshade_native::camera::CameraState::Idle
+        ));
         camera.disconnect().await.expect("camera disconnect");
 
         let focusers = zwo::discover_focusers().await.expect("focuser discovery");
@@ -993,16 +1012,21 @@ mod fake_sdk_contract {
         focuser.halt().await.expect("focuser halt");
         focuser.disconnect().await.expect("focuser disconnect");
 
+        // Persisted profiles connect by hardware ID before a discovery scan.
+        // The driver must prime the EFW SDK's ID table itself.
+        let mut wheel = zwo::ZwoFilterWheel::new(0);
+        wheel
+            .connect()
+            .await
+            .expect("direct filter wheel connect before discovery");
         let wheels = zwo::discover_filter_wheels()
             .await
-            .expect("filter wheel discovery");
+            .expect("connected filter wheel discovery");
         assert_eq!(wheels.len(), 1);
         assert_eq!(
             wheels[0].sdk_version.as_deref(),
             Some("ZWO EFW SDK vfake-efw-1.0")
         );
-        let mut wheel = zwo::ZwoFilterWheel::new(wheels[0].filterwheel_id);
-        wheel.connect().await.expect("filter wheel connect");
         assert_eq!(wheel.get_filter_count(), 7);
         wheel.move_to_position(3).await.expect("move filter");
         assert_eq!(wheel.get_position().await.expect("moved filter"), 3);
@@ -1051,6 +1075,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("Atik start exposure");
@@ -1130,6 +1155,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("SVBONY start exposure");
@@ -1240,6 +1266,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect_err("undocumented Player One SDK error should propagate");
@@ -1255,6 +1282,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("Player One start exposure");
@@ -1306,6 +1334,7 @@ mod fake_sdk_contract {
                 bin_y: 1,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("Player One planetary start exposure");
@@ -1420,6 +1449,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect_err("QHY SDK exposure failure should propagate");
@@ -1434,6 +1464,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("QHY start exposure");
@@ -1536,6 +1567,7 @@ mod fake_sdk_contract {
                 bin_y: 1,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("ToupTek start exposure");
@@ -1637,6 +1669,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("FLI start exposure");
@@ -1732,6 +1765,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect_err("Moravian begin exposure failure should propagate");
@@ -1746,6 +1780,7 @@ mod fake_sdk_contract {
                 bin_y: 2,
                 subframe: None,
                 readout_mode: None,
+                frame_type: nightshade_native::camera::FrameType::Light,
             })
             .await
             .expect("Moravian start exposure");
@@ -1817,6 +1852,7 @@ mod fake_sdk_contract {
             bin_y: 1,
             subframe: None,
             readout_mode: None,
+            frame_type: nightshade_native::camera::FrameType::Light,
         })
         .await
         .expect_err("Fujifilm release SDK failure should propagate");
@@ -1830,6 +1866,7 @@ mod fake_sdk_contract {
             bin_y: 1,
             subframe: None,
             readout_mode: None,
+            frame_type: nightshade_native::camera::FrameType::Light,
         })
         .await
         .expect("Fujifilm start exposure");
@@ -1976,13 +2013,13 @@ fn write_cstr(buf:&mut [c_char], text:&[u8]){ for slot in buf.iter_mut(){*slot=0
 #![allow(non_snake_case)]
 use std::ffi::{c_char,c_int,c_uchar};
 use std::sync::atomic::{AtomicBool,AtomicI32,Ordering};
-static POSITION:AtomicI32=AtomicI32::new(0); static DIRECTION:AtomicBool=AtomicBool::new(false);
+static POSITION:AtomicI32=AtomicI32::new(0); static DIRECTION:AtomicBool=AtomicBool::new(false); static ENUMERATED:AtomicBool=AtomicBool::new(false);
 #[repr(C)] struct EFWInfo{ id:c_int, name:[c_char;64], slot_num:c_int }
 #[repr(C)] struct EFWSerialNumber{ id:[c_uchar;8] }
 fn write_cstr(buf:&mut [c_char], text:&[u8]){ for slot in buf.iter_mut(){*slot=0;} for i in 0..text.len().min(buf.len().saturating_sub(1)){buf[i]=text[i] as c_char;} }
-#[no_mangle] pub extern "C" fn EFWGetNum()->c_int{1}
+#[no_mangle] pub extern "C" fn EFWGetNum()->c_int{ENUMERATED.store(true,Ordering::SeqCst);1}
 #[no_mangle] pub unsafe extern "C" fn EFWGetID(index:c_int,id:*mut c_int)->c_int{ if id.is_null()||index!=0{return 1;} *id=0; 0}
-#[no_mangle] pub extern "C" fn EFWOpen(id:c_int)->c_int{if id==0{0}else{2}}
+#[no_mangle] pub extern "C" fn EFWOpen(id:c_int)->c_int{if id==0&&ENUMERATED.load(Ordering::SeqCst){0}else{2}}
 #[no_mangle] pub extern "C" fn EFWClose(_id:c_int)->c_int{0}
 #[no_mangle] pub unsafe extern "C" fn EFWGetProperty(id:c_int,info:*mut EFWInfo)->c_int{ if info.is_null()||id!=0{return 2;} let mut value:EFWInfo=std::mem::zeroed(); value.id=id; value.slot_num=7; write_cstr(&mut value.name,b"Nightshade Fake EFW 7x36"); *info=value; 0}
 #[no_mangle] pub unsafe extern "C" fn EFWGetPosition(_id:c_int,position:*mut c_int)->c_int{ if position.is_null(){return 7;} *position=POSITION.load(Ordering::SeqCst); 0}

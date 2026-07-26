@@ -102,6 +102,7 @@ class ConstellationContributionsDao extends DatabaseAccessor<NightshadeDatabase>
     String? contributionId,
     int? contributedFrames,
     double? contributedIntegrationSeconds,
+    String? sessionId,
   }) {
     return _upsert(
       hubKey,
@@ -111,6 +112,7 @@ class ConstellationContributionsDao extends DatabaseAccessor<NightshadeDatabase>
         lastContributedAt: Value(lastContributedAt),
         lastContributedLabel: Value(lastContributedLabel),
         contributionId: Value(contributionId),
+        sessionId: sessionId == null ? const Value.absent() : Value(sessionId),
         contributedFrames: contributedFrames == null
             ? const Value.absent()
             : Value(contributedFrames),

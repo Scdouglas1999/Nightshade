@@ -16,6 +16,17 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildCalibrationRoutes(
   CalibrationHandlers h,
 ) => <HeadlessRoute>[
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/calibration/settings',
+    h.handleGetCalibrationSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/settings',
+    h.handleUpdateCalibrationSettings,
+  ),
+
   // Remote dark-library auto-match for frame calibration. A remote client
   // can't run the matcher locally (the library lives on the host), so it
   // posts the light frame's capture params here and gets back the matched
@@ -47,6 +58,36 @@ List<HeadlessRoute> buildCalibrationRoutes(
     HttpMethod.post,
     '/api/calibration/darks/backfill-sizes',
     h.handleVerifyDarkSizes,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/calibration/darks/settings',
+    h.handleGetDarkSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/darks/settings',
+    h.handleUpdateDarkSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/darks/create-master',
+    h.handleCreateMasterDark,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/darks/clean-orphans',
+    h.handleCleanDarkOrphans,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/darks/clear',
+    h.handleClearDarkLibrary,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/darks/delete-group',
+    h.handleDeleteDarkGroup,
   ),
   HeadlessRoute(HttpMethod.get, '/api/calibration/darks/<id>', h.handleGetDark),
   HeadlessRoute(
@@ -96,6 +137,31 @@ List<HeadlessRoute> buildCalibrationRoutes(
     HttpMethod.post,
     '/api/calibration/defect-maps/apply',
     h.handleApplyDefectMap,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/calibration/defect-maps/status',
+    h.handleGetDefectMapStatus,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/calibration/defect-maps/settings',
+    h.handleGetDefectMapSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/defect-maps/settings',
+    h.handleUpdateDefectMapSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/defect-maps/clear',
+    h.handleClearDefectMap,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/defect-maps/sequencer-apply',
+    h.handleApplyDefectMapToSequencer,
   ),
   HeadlessRoute(
     HttpMethod.get,

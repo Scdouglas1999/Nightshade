@@ -219,6 +219,9 @@ impl TryFrom<LiveStackingConfigApi> for LiveStackConfig {
             bayer_pattern,
             sensor_mode,
             demosaic_algorithm,
+            // Alignment-residual rejection threshold and any other internal
+            // tuning knobs not surfaced in the API keep their tuned defaults.
+            ..LiveStackConfig::default()
         })
     }
 }

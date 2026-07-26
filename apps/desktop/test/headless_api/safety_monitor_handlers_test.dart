@@ -9,6 +9,7 @@ import 'package:nightshade_core/src/backend/disconnected_backend.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
+import 'package:nightshade_core/src/providers/weather_safety_provider.dart';
 import 'package:nightshade_desktop/headless_api/handlers/safety_monitor_handlers.dart';
 import 'package:shelf/shelf.dart';
 
@@ -52,6 +53,31 @@ void main() {
       expect(body['failMode'], 'fail_closed');
       expect(body['autoStopOnUnsafe'], isA<bool>());
       expect(body['checkIntervalSeconds'], isA<int>());
+    });
+
+    test('aggregate safety status keeps severity, actions, and source verdicts '
+        'without a dedicated monitor', () async {
+      final response = await handlers.handleSafetyStatus(
+        Request('GET', Uri.parse('http://localhost/api/safety/status')),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['monitorsConnected'], 0);
+      expect(
+        body['currentAlertLevel'],
+        isIn(const ['clear', 'watch', 'warning', 'critical']),
+      );
+      expect(body['hardwareWeatherSafe'], isA<bool>());
+      expect(body['safetyMonitorSafe'], isA<bool>());
+      expect(body['apiWeatherSafe'], isA<bool>());
+
+      final actions = body['actions'] as Map;
+      expect(actions['shouldPause'], isA<bool>());
+      expect(actions['shouldPark'], isA<bool>());
+      expect(actions['shouldCloseDome'], isA<bool>());
+      expect(actions, contains('reason'));
+      expect(actions, contains('resumeCheckTime'));
     });
 
     test('invalid fail mode returns JSON bad request', () async {
@@ -139,6 +165,37 @@ void main() {
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['status'], 'acknowledged');
       expect(body['snoozeUntil'], isA<String>());
+    });
+
+    test('cancel acknowledgement clears the host snooze', () async {
+      await handlers.handleAcknowledgeUnsafe(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/safety/acknowledge'),
+          body: jsonEncode({'reason': 'temporary override'}),
+        ),
+      );
+      expect(
+        container.read(weatherSafetyProvider).status,
+        WeatherSafetyStatus.snoozed,
+      );
+
+      final response = await handlers.handleCancelAcknowledgement(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/safety/cancel-acknowledgement'),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(
+        container.read(weatherSafetyProvider).status,
+        isNot(WeatherSafetyStatus.snoozed),
+      );
+      expect(
+        await db.settingsDao.getSetting('safety_last_acknowledgement'),
+        isNull,
+      );
     });
   });
 }

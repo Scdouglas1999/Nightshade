@@ -104,11 +104,12 @@ endif()
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
-if(EXISTS "${NATIVE_ASSETS_DIR}")
-  install(DIRECTORY "${NATIVE_ASSETS_DIR}"
-     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-     COMPONENT Runtime)
-endif()
+# The directory is produced by Dart build hooks after CMake configuration.
+# Testing EXISTS here therefore drops assets (notably sqlite3.dll) from a clean
+# build even though they are present by the install phase.
+install(DIRECTORY "${NATIVE_ASSETS_DIR}"
+   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+   COMPONENT Runtime)
 
 if(DEFINED RUST_LIB_TO_USE)
   # Install for release builds

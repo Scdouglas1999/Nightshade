@@ -25,6 +25,34 @@ class CameraPanel extends ConsumerStatefulWidget {
 
 class _CameraPanelState extends ConsumerState<CameraPanel> {
   bool _isCooling = false; // Only for UI loading state
+  bool _isChangingReadoutMode = false;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted && (_isCooling || _isChangingReadoutMode)) {
+          setState(() {
+            _isCooling = false;
+            _isChangingReadoutMode = false;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  bool _isCurrentAuthority(NightshadeBackend authority) =>
+      mounted && identical(ref.read(backendProvider), authority);
 
   @override
   Widget build(BuildContext context) {
@@ -230,31 +258,43 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                           label: _isCooling ? 'Setting...' : 'Cool Down',
                           icon: NightshadeIcons.frost,
                           colors: widget.colors,
-                          isEnabled: isConnected && !_isCooling,
+                          isEnabled: isConnected &&
+                              !_isCooling &&
+                              !cameraState.isWarming,
                           onTap: () async {
+                            if (_isCooling) return;
+                            final authority = ref.read(backendProvider);
+                            final service = ref.read(deviceServiceProvider);
                             setState(() => _isCooling = true);
                             try {
-                              await ref
-                                  .read(deviceServiceProvider)
-                                  .setCameraCooling(
-                                    enabled: true,
-                                    targetTemp: targetTemp,
-                                  );
+                              await service.setCameraCooling(
+                                enabled: true,
+                                targetTemp: targetTemp,
+                              );
 
-                              // Update settings state
-                              ref.read(coolingSettingsProvider.notifier).state =
-                                  coolingSettings.copyWith(
-                                      enabled: true, targetTemp: targetTemp);
-                              // Update camera state
-                              ref
-                                  .read(cameraStateProvider.notifier)
-                                  .setCooling(true);
+                              if (_isCurrentAuthority(authority)) {
+                                // Update settings state
+                                ref
+                                    .read(coolingSettingsProvider.notifier)
+                                    .state = coolingSettings.copyWith(
+                                  enabled: true,
+                                  targetTemp: targetTemp,
+                                );
+                                // Update camera state
+                                ref
+                                    .read(cameraStateProvider.notifier)
+                                    .setCooling(true);
+                              }
                             } catch (e) {
-                              if (!context.mounted) return;
-                              context.showErrorSnackBar(
-                                  'Failed to set cooling: $e');
+                              if (context.mounted &&
+                                  _isCurrentAuthority(authority)) {
+                                context.showErrorSnackBar(
+                                    'Failed to set cooling: $e');
+                              }
                             } finally {
-                              if (mounted) setState(() => _isCooling = false);
+                              if (_isCurrentAuthority(authority)) {
+                                setState(() => _isCooling = false);
+                              }
                             }
                           },
                         ),
@@ -262,28 +302,38 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: SmallButton(
-                          label: 'Warm Up',
+                          label:
+                              cameraState.isWarming ? 'Cancel Warm' : 'Warm Up',
                           icon: LucideIcons.flame,
                           isOutline: true,
                           colors: widget.colors,
-                          isEnabled: isConnected,
+                          isEnabled: isConnected && !_isCooling,
                           onTap: () async {
+                            final service = ref.read(deviceServiceProvider);
+                            if (cameraState.isWarming) {
+                              service.cancelWarmCamera();
+                              return;
+                            }
+                            if (_isCooling) return;
+                            final authority = ref.read(backendProvider);
+                            setState(() => _isCooling = true);
                             try {
-                              await ref
-                                  .read(deviceServiceProvider)
-                                  .setCameraCooling(
-                                    enabled: false,
-                                  );
-
-                              ref.read(coolingSettingsProvider.notifier).state =
-                                  coolingSettings.copyWith(enabled: false);
-                              ref
-                                  .read(cameraStateProvider.notifier)
-                                  .setCooling(false);
+                              // Warm-up is a gradual set-point ramp. Turning
+                              // the cooler off immediately here contradicts
+                              // the label and can cause condensation or
+                              // thermal shock.
+                              await service.warmCamera();
                             } catch (e) {
-                              if (!context.mounted) return;
-                              context.showErrorSnackBar(
-                                  'Failed to turn off cooler: $e');
+                              if (context.mounted &&
+                                  _isCurrentAuthority(authority)) {
+                                context.showErrorSnackBar(
+                                  'Failed to warm up: $e',
+                                );
+                              }
+                            } finally {
+                              if (_isCurrentAuthority(authority)) {
+                                setState(() => _isCooling = false);
+                              }
                             }
                           },
                         ),
@@ -351,41 +401,73 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     builder: (context) {
                       final readoutModes = capabilities!.readoutModes;
                       final selectedIndex = exposureSettings
-                          .resolveReadoutModeIndex(readoutModes.length)
-                          .clamp(0, readoutModes.length - 1);
+                          .resolveReadoutModeIndex(readoutModes.length);
+                      final selectedMode = selectedIndex >= 0 &&
+                              selectedIndex < readoutModes.length
+                          ? readoutModes[selectedIndex]
+                          : null;
                       return DropdownRow(
                         label: 'Read Mode',
                         helpId: FieldHelpId.cameraReadoutMode,
-                        value: readoutModes[selectedIndex],
+                        value: selectedMode,
                         items: readoutModes,
                         colors: widget.colors,
-                        onChanged: isConnected
+                        onChanged: isConnected && !_isChangingReadoutMode
                             ? (value) async {
                                 if (value == null) return;
                                 final idx = readoutModes.indexOf(value);
                                 if (idx < 0) return;
-                                ref
-                                    .read(exposureSettingsProvider.notifier)
-                                    .state = exposureSettings.copyWith(
+                                final settingsNotifier = ref.read(
+                                  exposureSettingsProvider.notifier,
+                                );
+                                final dirtyNotifier = ref.read(
+                                  exposureSettingsUserDirtyProvider.notifier,
+                                );
+                                final previousSettings = settingsNotifier.state;
+                                final previousDirty = dirtyNotifier.state;
+                                final selectedSettings =
+                                    previousSettings.copyWith(
                                   readoutModeIndex: idx,
                                   fastReadout: idx == readoutModes.length - 1,
                                 );
-                                ref
-                                    .read(exposureSettingsUserDirtyProvider
-                                        .notifier)
-                                    .state = true;
                                 final deviceId = cameraState.deviceId;
                                 if (deviceId == null) return;
-                                // Errors are a feature: surface a failed driver
-                                // call rather than silently dropping it.
+                                final authority = ref.read(backendProvider);
+                                final deviceBackend =
+                                    ref.read(deviceBackendProvider);
+                                settingsNotifier.state = selectedSettings;
+                                dirtyNotifier.state = true;
+                                setState(() => _isChangingReadoutMode = true);
                                 try {
-                                  await ref
-                                      .read(deviceBackendProvider)
-                                      .cameraSetReadoutMode(deviceId, idx);
+                                  await deviceBackend.cameraSetReadoutMode(
+                                    deviceId,
+                                    idx,
+                                  );
                                 } catch (e) {
-                                  if (!context.mounted) return;
-                                  context.showErrorSnackBar(
-                                      'Failed to set read mode: $e');
+                                  // Restore the setting only if no other code
+                                  // replaced it while the driver call was in
+                                  // flight. This keeps UI/FITS metadata aligned
+                                  // with the mode the camera actually accepted.
+                                  if (_isCurrentAuthority(authority) &&
+                                      identical(
+                                        settingsNotifier.state,
+                                        selectedSettings,
+                                      )) {
+                                    settingsNotifier.state = previousSettings;
+                                    dirtyNotifier.state = previousDirty;
+                                  }
+                                  if (context.mounted &&
+                                      _isCurrentAuthority(authority)) {
+                                    context.showErrorSnackBar(
+                                      'Failed to set read mode: $e',
+                                    );
+                                  }
+                                } finally {
+                                  if (_isCurrentAuthority(authority)) {
+                                    setState(
+                                      () => _isChangingReadoutMode = false,
+                                    );
+                                  }
                                 }
                               }
                             : null,
@@ -457,134 +539,10 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                 ],
               ),
             ),
-          const SizedBox(height: 20),
-          const DebayeringCard(),
         ],
       ),
     );
     if (!widget.scrollable) return content;
     return SingleChildScrollView(child: content);
-  }
-}
-
-class DebayeringCard extends ConsumerWidget {
-  const DebayeringCard({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.nightshadeColors;
-    final debayerEnabled = ref.watch(debayerEnabledProvider);
-    final bayerPattern = ref.watch(bayerPatternProvider);
-    final debayerAlgorithm = ref.watch(debayerAlgorithmProvider);
-
-    return PanelSection(
-      title: 'Debayering',
-      colors: colors,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Enable Debayering',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                ),
-              ),
-              NightshadeSwitch(
-                value: debayerEnabled,
-                onChanged: (value) {
-                  ref.read(debayerEnabledProvider.notifier).state = value;
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Enable for color cameras to convert raw Bayer data to RGB',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
-                color: colors.textMuted),
-          ),
-          const SizedBox(height: 16),
-
-          // Algorithm selection
-          DropdownRow(
-            label: 'Algorithm',
-            value: debayerAlgorithm.displayName,
-            items: DebayerAlgorithm.values.map((a) => a.displayName).toList(),
-            colors: colors,
-            onChanged: debayerEnabled
-                ? (value) {
-                    if (value != null) {
-                      final algorithm = DebayerAlgorithm.values.firstWhere(
-                        (a) => a.displayName == value,
-                        orElse: () => DebayerAlgorithm.bilinear,
-                      );
-                      ref.read(debayerAlgorithmProvider.notifier).state =
-                          algorithm;
-                    }
-                  }
-                : null,
-          ),
-          const SizedBox(height: 12),
-
-          // Bayer pattern selection
-          DropdownRow(
-            label: 'Pattern',
-            value: bayerPattern.displayName,
-            items: BayerPattern.values.map((p) => p.displayName).toList(),
-            colors: colors,
-            onChanged: debayerEnabled
-                ? (value) {
-                    if (value != null) {
-                      final pattern = BayerPattern.values.firstWhere(
-                        (p) => p.displayName == value,
-                        orElse: () => BayerPattern.rggb,
-                      );
-                      ref.read(bayerPatternProvider.notifier).state = pattern;
-                    }
-                  }
-                : null,
-          ),
-          const SizedBox(height: 12),
-
-          // Auto-detect option
-          Consumer(
-            builder: (context, ref, _) {
-              final autoDetect = ref.watch(autoDetectBayerPatternProvider);
-              return Row(
-                children: [
-                  NightshadeCheckbox(
-                    value: autoDetect,
-                    onChanged: debayerEnabled
-                        ? (v) {
-                            ref
-                                .read(autoDetectBayerPatternProvider.notifier)
-                                .state = v ?? false;
-                          }
-                        : null,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Auto-detect from FITS header',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: debayerEnabled
-                            ? colors.textSecondary
-                            : colors.textMuted,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
   }
 }

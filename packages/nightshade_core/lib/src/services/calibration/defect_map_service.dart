@@ -9,11 +9,10 @@ import '../../providers/backend_provider.dart';
 ///
 /// Wraps the native bridge calls. When running as a remote client (a tablet
 /// talking to a headless appliance) the dark frames and the on-disk defect
-/// map live on the HOST, so [build] and [apply] route over
-/// `/api/calibration/defect-maps/*` instead of the local FFI bridge (whose
-/// view of the host filesystem is empty). All other calls (status / clear /
-/// sequencer push) operate on local FFI state that is meaningless on a remote
-/// client and stay on the bridge.
+/// map live on the HOST, so every stateful operation routes over
+/// `/api/calibration/defect-maps/*` instead of the local FFI bridge. Calling
+/// status, clear, or sequencer-push against a controller's FFI would inspect a
+/// different process and produce a split-brain UI.
 class DefectMapService {
   final Ref _ref;
 
@@ -101,6 +100,19 @@ class DefectMapService {
     required DefectMapKernelSize kernel,
     required bool saveOriginal,
   }) {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.applyDefectMapToSequencer(
+        cameraId: cameraId,
+        width: width,
+        height: height,
+        sensorTemperatureCelsius: sensorTemperatureCelsius,
+        enabled: enabled,
+        method: method,
+        kernel: kernel,
+        saveOriginal: saveOriginal,
+      );
+    }
     return bridge.apiSequencerApplyDefectMap(
       cameraId: cameraId,
       width: width,
@@ -121,6 +133,15 @@ class DefectMapService {
     required int height,
     required double sensorTemperatureCelsius,
   }) {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.clearDefectMap(
+        cameraId: cameraId,
+        width: width,
+        height: height,
+        sensorTemperatureCelsius: sensorTemperatureCelsius,
+      );
+    }
     return bridge.apiDefectMapClear(
       cameraId: cameraId,
       width: width,
@@ -137,6 +158,15 @@ class DefectMapService {
     required int height,
     required double sensorTemperatureCelsius,
   }) async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getDefectMapStatus(
+        cameraId: cameraId,
+        width: width,
+        height: height,
+        sensorTemperatureCelsius: sensorTemperatureCelsius,
+      );
+    }
     final raw = await bridge.apiDefectMapGetStatus(
       cameraId: cameraId,
       width: width,

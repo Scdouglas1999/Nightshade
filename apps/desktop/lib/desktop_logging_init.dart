@@ -69,12 +69,32 @@ Future<DesktopBootPaths> initialiseDesktopLogging() async {
   await Directory(logDir).create(recursive: true);
   await bridge.NativeBridge.init(logDirectory: logDir);
   if (!bridge.NativeBridge.isNativeAvailable) {
+    // Name the CURRENT platform's library and layout. This used to hard-code
+    // the Windows .dll paths, so a Linux or macOS operator hitting a stale /
+    // missing bridge was told to go look in `build\windows\x64\runner\Release`
+    // — a dead end that does not exist on their machine.
+    final (libName, bundleHint) = switch (Platform.operatingSystem) {
+      'windows' => (
+        'nightshade_bridge.dll (plus libraw.dll)',
+        r'build\windows\x64\runner\Release\nightshade_desktop.exe with the DLLs beside it',
+      ),
+      'macos' => (
+        'libnightshade_bridge.dylib',
+        'build/macos/Build/Products/Release/nightshade_desktop.app with the dylib in Frameworks/',
+      ),
+      _ => (
+        'libnightshade_bridge.so',
+        'build/linux/x64/release/bundle/nightshade_desktop with the .so in that bundle\'s lib/ directory',
+      ),
+    };
     throw StateError(
-      'Native bridge failed to initialize (RustLib/DLL). '
-      'Run from build\\windows\\x64\\runner\\Release\\nightshade_desktop.exe '
-      'with nightshade_bridge.dll and libraw.dll beside it, or run '
-      '`flutter_rust_bridge_codegen generate` then `melos run dev` after Rust API changes. '
-      'Check console for "[Bridge] RustLib initialization failed".',
+      'Native bridge failed to initialize: $libName could not be loaded, or it '
+      'is stale relative to this build. Run '
+      '$bundleHint. '
+      'After changing the Rust API run `flutter_rust_bridge_codegen generate`, '
+      'rebuild the bridge, and copy the fresh library into the bundle — a '
+      'bridge library older than the Dart build fails here with no other '
+      'symptom. Check the console for "[Bridge] RustLib initialization failed".',
     );
   }
 

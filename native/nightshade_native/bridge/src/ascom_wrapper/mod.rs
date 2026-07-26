@@ -13,6 +13,7 @@ pub mod focuser;
 pub mod mount;
 pub mod rotator;
 pub mod safetymonitor;
+pub mod sta_worker;
 pub mod switch;
 pub mod weather;
 

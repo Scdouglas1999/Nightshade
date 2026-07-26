@@ -36,10 +36,12 @@ class _CloudCoverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasData = cloudCoverPercent != null;
     final percent = cloudCoverPercent ?? 0.0;
-    final coverColor = _getCloudCoverColor(percent);
-    final label = _getCloudCoverLabel(percent);
-    final icon = _getCloudCoverIcon(percent);
+    final coverColor =
+        hasData ? _getCloudCoverColor(percent) : colors.textMuted;
+    final label = hasData ? _getCloudCoverLabel(percent) : 'Unknown';
+    final icon = hasData ? _getCloudCoverIcon(percent) : NightshadeIcons.cloud;
 
     return NightshadeCard(
       variant: CardVariant.subtle,
@@ -114,7 +116,7 @@ class _CloudCoverCard extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 CircularProgressIndicator(
-                  value: percent / 100,
+                  value: hasData ? percent / 100 : null,
                   strokeWidth: 6,
                   backgroundColor: colors.surfaceAlt,
                   valueColor: AlwaysStoppedAnimation(coverColor),

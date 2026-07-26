@@ -51,8 +51,9 @@
 //! errors are propagated via `Result<_, String>` from the worker channel
 //! at the call-site; the optional-property fallbacks here only run after
 //! the wrapper has already classified the error as "property absent".
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomCamera};
+use nightshade_ascom::AscomCamera;
 use nightshade_native::camera::{
     BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
     ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
@@ -61,8 +62,7 @@ use nightshade_native::traits::{NativeCamera, NativeDevice, NativeError};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
-use std::thread;
+use std::sync::RwLock;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -172,7 +172,17 @@ pub enum CameraConnectionHealth {
 pub struct AscomCameraCapabilities {
     pub max_width: u32,
     pub max_height: u32,
+    /// ADC resolution BUCKET (8/16/32) inferred from `MaxADU`. Precision only —
+    /// never a full-scale divisor. Use [`AscomCameraCapabilities::max_adu`].
     pub bit_depth: u32,
+    /// ASCOM `ICameraV3.MaxADU` verbatim: the largest value the driver can put in
+    /// a pixel. This is the pixel-container full scale and the only field that
+    /// may be used to scale percentages / saturation. It was previously read from
+    /// the driver purely to bucket `bit_depth` and then discarded, which forced
+    /// every downstream consumer to reconstruct it as `2^bit_depth - 1` — wrong in
+    /// both directions (65535 for a driver honestly reporting 4095, and see
+    /// `SensorInfo::max_adu` for the left-justified case).
+    pub max_adu: u32,
     pub has_shutter: bool,
     pub can_set_ccd_temperature: bool,
     pub can_get_cooler_power: bool,
@@ -221,13 +231,12 @@ enum AscomCommand {
     Stop(oneshot::Sender<Result<(), String>>),
 }
 
-/// Wrapper for ASCOM Camera that runs on a dedicated thread to support STA and Send/Sync
+/// Wrapper for ASCOM Camera whose COM object lives on the shared STA worker.
 #[derive(Debug)]
 pub struct AscomCameraWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
     cached_capabilities: RwLock<CameraCapabilities>,
     cached_sensor_info: RwLock<SensorInfo>,
@@ -239,13 +248,10 @@ impl AscomCameraWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                tracing::error!("Failed to init COM on ASCOM thread: {}", e);
-                return;
-            }
-
+        // Build the COM object and its command pump on the process-wide STA
+        // apartment. The per-command match arms below are unchanged from the
+        // legacy per-device worker; only the loop shell and teardown differ.
+        register_device(move || {
             let mut camera: Option<AscomCamera> = None;
 
             // Try to create the camera object immediately
@@ -265,7 +271,34 @@ impl AscomCameraWrapper {
             // `None` = not yet probed; `Some(_)` = cached result.
             let mut cooler_power_cache: Option<bool> = None;
 
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM apartment teardown ordering matters. Release
+                        // the typed `AscomCamera` (whose `IDispatch` Drop runs on
+                        // this STA worker thread) by issuing an explicit
+                        // disconnect here as a last-resort safety net — the COM
+                        // object is then released when this closure is dropped,
+                        // still on this thread. `AscomDeviceConnection::Drop` is
+                        // intentionally a no-op to avoid wrong-thread COM calls,
+                        // so this is the only correct location for the final
+                        // disconnect. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        if let Some(mut cam) = camera.take() {
+                            if let Err(e) = cam.disconnect() {
+                                tracing::warn!(
+                                    "ASCOM camera STA-worker shutdown disconnect failed: {}",
+                                    e
+                                );
+                            }
+                            drop(cam);
+                        }
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomCommand::Connect(reply) => {
                         if let Some(cam) = &mut camera {
@@ -371,14 +404,14 @@ impl AscomCameraWrapper {
                                         "ASCOM camera reported invalid CameraXSize={}",
                                         w
                                     )));
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                                 None => {
                                     let _ =
                                         reply
                                             .send(Err("ASCOM camera CameraXSize property failed"
                                                 .to_string()));
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                             };
                             let height = match sensor_config.height {
@@ -388,14 +421,14 @@ impl AscomCameraWrapper {
                                         "ASCOM camera reported invalid CameraYSize={}",
                                         h
                                     )));
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                                 None => {
                                     let _ =
                                         reply
                                             .send(Err("ASCOM camera CameraYSize property failed"
                                                 .to_string()));
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                             };
 
@@ -409,7 +442,7 @@ impl AscomCameraWrapper {
                                         "ASCOM camera MaxADU property failed: {}",
                                         e
                                     )));
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                             };
                             let bit_depth = if max_adu > 65535 {
@@ -451,6 +484,9 @@ impl AscomCameraWrapper {
                                 max_width: width,
                                 max_height: height,
                                 bit_depth,
+                                // Carry the driver's MaxADU through instead of
+                                // dropping it after the bit-depth bucketing above.
+                                max_adu: u32::try_from(max_adu).unwrap_or(65535),
                                 has_shutter: cam.has_shutter().unwrap_or(false),
                                 can_set_ccd_temperature: cam
                                     .can_set_ccd_temperature()
@@ -513,7 +549,7 @@ impl AscomCameraWrapper {
                                     "Failed to apply exposure parameters: {}",
                                     e
                                 )));
-                                continue;
+                                return PumpOutcome::DidWork;
                             }
                             tracing::info!(
                                 "ASCOM: Calling cam.start_exposure({}, true)",
@@ -591,7 +627,7 @@ impl AscomCameraWrapper {
                                         e
                                     )));
                                     last_exposure_duration = None;
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                             };
                             let height = match cam.camera_y_size() {
@@ -602,7 +638,7 @@ impl AscomCameraWrapper {
                                         e
                                     )));
                                     last_exposure_duration = None;
-                                    continue;
+                                    return PumpOutcome::DidWork;
                                 }
                             };
                             tracing::info!("ASCOM: Camera dimensions: {}x{}", width, height);
@@ -869,31 +905,15 @@ impl AscomCameraWrapper {
                         }
                     }
                 }
-            }
-
-            // Why: COM apartment teardown ordering matters. We must release
-            // the typed `AscomCamera` (whose `IDispatch` Drop runs on this
-            // STA thread) BEFORE `uninit_com()`, otherwise IDispatch::Release
-            // runs after the apartment is gone. We also issue an explicit
-            // disconnect here as a last-resort safety net in case the
-            // wrapper was dropped without calling `disconnect()` first —
-            // `AscomDeviceConnection::Drop` is intentionally a no-op (see
-            // `windows_impl.rs`) to avoid wrong-thread COM calls, so this
-            // is the only correct location to do the final disconnect.
-            if let Some(mut cam) = camera.take() {
-                if let Err(e) = cam.disconnect() {
-                    tracing::warn!("ASCOM camera STA-worker shutdown disconnect failed: {}", e);
-                }
-                drop(cam);
-            }
-            uninit_com();
-        });
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
         Ok(Self {
             id: prog_id.clone(),
             name: prog_id,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
             cached_capabilities: RwLock::new(CameraCapabilities::default()),
             cached_sensor_info: RwLock::new(SensorInfo::default()),
@@ -928,10 +948,14 @@ impl AscomCameraWrapper {
 
     fn map_sensor_info(caps: &AscomCameraCapabilities) -> SensorInfo {
         let bit_depth = caps.bit_depth.max(1);
-        let max_adu = if bit_depth >= 32 {
-            u32::MAX
+        // `SensorInfo::max_adu` is the pixel-container full scale, which for an
+        // ASCOM driver is exactly `MaxADU`. Re-deriving it from the bucketed
+        // bit-depth turned an honest `MaxADU: 4095` into 65535. 0 would mean the
+        // driver reported no usable range; fall back to the 16-bit ceiling.
+        let max_adu = if caps.max_adu == 0 {
+            65535
         } else {
-            ((1u64 << bit_depth) - 1) as u32
+            caps.max_adu
         };
         SensorInfo {
             width: caps.max_width,
@@ -1351,13 +1375,15 @@ impl NativeCamera for AscomCameraWrapper {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+    use std::sync::Arc;
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomCameraWrapper
     where
         F: FnMut(AscomCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -1370,7 +1396,6 @@ mod tests {
             id: "test-camera".to_string(),
             name: "Test Camera".to_string(),
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
             cached_capabilities: std::sync::RwLock::new(CameraCapabilities::default()),
             cached_sensor_info: std::sync::RwLock::new(SensorInfo::default()),

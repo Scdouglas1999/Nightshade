@@ -202,6 +202,7 @@ class _HardwarePresetEditorDialogState
       title: title,
       icon: _isTelescope ? LucideIcons.orbit : LucideIcons.camera,
       width: 560,
+      closeEnabled: !_saving,
       actions: [
         NightshadeButton(
           label: 'Cancel',
@@ -630,6 +631,28 @@ class _HardwarePresetEditorDialogState
           requirePositiveDouble(_focalLength, 'focalLength', 'Focal length');
       final aperture = requirePositiveDouble(_aperture, 'aperture', 'Aperture');
 
+      // A saved preset prefills the equipment profile editor and drives the
+      // planetarium FOV overlay, so it needs the same physical plausibility
+      // bounds a profile has. `> 0` alone accepted 999999999 mm at 0.0001 mm,
+      // i.e. f/9999999990000. Bounds and wording both come from the shared
+      // ProfileValidator/OpticalTrainLimits contract so this surface cannot
+      // drift from the profile editors.
+      if (errors.isEmpty) {
+        final focalBound = ProfileValidator.parseFocalLength(_focalLength.text);
+        if (!focalBound.isValid) errors['focalLength'] = focalBound.error!;
+        final apertureBound = ProfileValidator.parseAperture(_aperture.text);
+        if (!apertureBound.isValid) errors['aperture'] = apertureBound.error!;
+        if (errors.isEmpty) {
+          // Individually in-range values can still describe an impossible
+          // system; the ratio belongs to the pair, so report it on focal length.
+          final trainError = ProfileValidator.validateOpticalTrain(
+            focalLengthMm: focalLength,
+            apertureMm: aperture,
+          );
+          if (trainError != null) errors['focalLength'] = trainError;
+        }
+      }
+
       if (errors.isNotEmpty) {
         setState(() => _errors
           ..clear()
@@ -673,6 +696,17 @@ class _HardwarePresetEditorDialogState
     final offset = requireNonNegativeInt(_offset, 'offset', 'Offset');
     final binX = requirePositiveInt(_binX, 'binX', 'Bin X');
     final binY = requirePositiveInt(_binY, 'binY', 'Bin Y');
+
+    // Pixel size feeds the arcsec/px image scale wherever this preset is
+    // applied, so it carries the same shared bound as a profile's pixel size.
+    if (!errors.containsKey('pixelSize')) {
+      final pixelError = ProfileValidator.validateOpticalTrain(
+        focalLengthMm: 0,
+        apertureMm: 0,
+        pixelSizeMicrons: pixelSize,
+      );
+      if (pixelError != null) errors['pixelSize'] = pixelError;
+    }
 
     double? coolingTemp;
     if (_coolingEnabled) {

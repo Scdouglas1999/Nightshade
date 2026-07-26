@@ -32,16 +32,16 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleGetRadarData(Request request) async {
-    final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
-    final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
-    final forceRefresh = request.url.queryParameters['refresh'] == 'true';
+    final query = request.url.queryParameters;
+    if ((query['lat'] ?? '').isEmpty || (query['lon'] ?? '').isEmpty) {
+      return jsonBadRequest({'error': 'Missing lat/lon query parameters'});
+    }
+    final lat = requireQueryDouble(query, 'lat', min: -90, max: 90);
+    final lon = requireQueryDouble(query, 'lon', min: -180, max: 180);
+    final forceRefresh = optionalQueryBool(query, 'refresh') ?? false;
     _logInfo(
       '[API] GET /api/weather/radar?lat=${_coarseCoord(lat)}&lon=${_coarseCoord(lon)}',
     );
-
-    if (lat == null || lon == null) {
-      return jsonBadRequest({"error": "Missing lat/lon query parameters"});
-    }
 
     final service = container.read(weatherRadarServiceProvider);
     service.initialize();
@@ -73,15 +73,15 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleGetForecast(Request request) async {
-    final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
-    final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
+    final query = request.url.queryParameters;
+    if ((query['lat'] ?? '').isEmpty || (query['lon'] ?? '').isEmpty) {
+      return jsonBadRequest({'error': 'Missing lat/lon query parameters'});
+    }
+    final lat = requireQueryDouble(query, 'lat', min: -90, max: 90);
+    final lon = requireQueryDouble(query, 'lon', min: -180, max: 180);
     _logInfo(
       '[API] GET /api/weather/forecast?lat=${_coarseCoord(lat)}&lon=${_coarseCoord(lon)}',
     );
-
-    if (lat == null || lon == null) {
-      return jsonBadRequest({"error": "Missing lat/lon query parameters"});
-    }
 
     // Back the forecast with the same Open-Meteo hourly cloud feed the desktop
     // planner uses (weekForecastCloudProvider, keyed only on the site so remote
@@ -158,15 +158,15 @@ class WeatherHandlers {
   // ===========================================================================
 
   Future<Response> handleGetCloudCover(Request request) async {
-    final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
-    final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
+    final query = request.url.queryParameters;
+    if ((query['lat'] ?? '').isEmpty || (query['lon'] ?? '').isEmpty) {
+      return jsonBadRequest({'error': 'Missing lat/lon query parameters'});
+    }
+    final lat = requireQueryDouble(query, 'lat', min: -90, max: 90);
+    final lon = requireQueryDouble(query, 'lon', min: -180, max: 180);
     _logInfo(
       '[API] GET /api/weather/cloud-cover?lat=${_coarseCoord(lat)}&lon=${_coarseCoord(lon)}',
     );
-
-    if (lat == null || lon == null) {
-      return jsonBadRequest({"error": "Missing lat/lon query parameters"});
-    }
 
     // Use the same Open-Meteo hourly cloud feed the desktop app uses
     // (weekForecastCloudProvider), then read the sample nearest to "now" — the
@@ -257,20 +257,78 @@ class WeatherHandlers {
     _logInfo('[API] POST /api/weather/settings');
     final payload = await readJsonObject(request);
     final database = container.read(databaseProvider);
+    final preferredProvider = optionalString(payload, 'preferredProvider');
+    if (preferredProvider != null &&
+        !RadarProviderType.values.any(
+          (provider) =>
+              provider.name.toLowerCase() == preferredProvider.toLowerCase(),
+        )) {
+      throw BadRequestError(
+        field: 'preferredProvider',
+        expected: 'radar_provider',
+        message: 'Unknown weather provider',
+      );
+    }
 
     await database.weatherSettingsDao.updateSettings(
-      preferredProvider: optionalString(payload, 'preferredProvider'),
-      refreshIntervalSeconds: optionalInt(payload, 'refreshIntervalSeconds'),
-      triggerDistanceKm: optionalDouble(payload, 'triggerDistanceKm'),
-      leadTimeMinutes: optionalInt(payload, 'leadTimeMinutes'),
-      cloudDensityThreshold: optionalDouble(payload, 'cloudDensityThreshold'),
+      preferredProvider: preferredProvider,
+      refreshIntervalSeconds: optionalInt(
+        payload,
+        'refreshIntervalSeconds',
+        min: 30,
+        max: 3600,
+      ),
+      triggerDistanceKm: optionalDouble(
+        payload,
+        'triggerDistanceKm',
+        min: 1,
+        max: 500,
+      ),
+      leadTimeMinutes: optionalInt(
+        payload,
+        'leadTimeMinutes',
+        min: 1,
+        max: 180,
+      ),
+      cloudDensityThreshold: optionalDouble(
+        payload,
+        'cloudDensityThreshold',
+        min: 0,
+        max: 100,
+      ),
       weatherSafetyEnabled: optionalBool(payload, 'weatherSafetyEnabled'),
-      maxHumidityPercent: optionalDouble(payload, 'maxHumidityPercent'),
-      maxWindSpeedKph: optionalDouble(payload, 'maxWindSpeedKph'),
-      maxCloudCoverPercent: optionalDouble(payload, 'maxCloudCoverPercent'),
+      maxHumidityPercent: optionalDouble(
+        payload,
+        'maxHumidityPercent',
+        min: 0,
+        max: 100,
+      ),
+      maxWindSpeedKph: optionalDouble(
+        payload,
+        'maxWindSpeedKph',
+        min: 0,
+        max: 150,
+      ),
+      maxCloudCoverPercent: optionalDouble(
+        payload,
+        'maxCloudCoverPercent',
+        min: 0,
+        max: 100,
+      ),
       autoParkEnabled: optionalBool(payload, 'autoParkEnabled'),
       autoResumeEnabled: optionalBool(payload, 'autoResumeEnabled'),
     );
+
+    // The safety verdict is runtime policy, not just persisted preferences.
+    // Reload the settings stream and await a fresh evaluation so the response
+    // cannot claim the toggle succeeded while safety/status still exposes the
+    // previous decision.
+    final backend = container.read(backendProvider);
+    if (backend is! DisconnectedBackend) {
+      container.invalidate(weatherSettingsDataProvider);
+      await container.read(weatherSettingsDataProvider.future);
+      await container.read(weatherSafetyProvider.notifier).evaluateNow();
+    }
 
     return jsonOk({"status": "updated"});
   }
@@ -283,15 +341,14 @@ class WeatherHandlers {
     _logInfo('[API] GET /api/weather/safe-imaging');
     final alertService = container.read(weatherAlertServiceProvider);
     final currentAlert = alertService.currentAlert;
-
-    // Safe to image if no alert or alert level is clear
-    final isSafe =
-        currentAlert == null || currentAlert.level == AlertLevel.clear;
+    final safety = container.read(weatherSafetyProvider);
 
     return jsonOk({
-      "safeToImage": isSafe,
-      "alertLevel": currentAlert?.level.name ?? "none",
-      "message": currentAlert?.message ?? "No weather data available",
+      "safeToImage": safety.isSafe,
+      "alertLevel": currentAlert?.level.name ?? safety.currentAlertLevel.name,
+      "message": _safetyMessage(safety, currentAlert),
+      "dataSource": safety.dataSource.name,
+      "lastEvaluation": safety.lastEvaluation?.toIso8601String(),
     });
   }
 
@@ -309,8 +366,7 @@ class WeatherHandlers {
     _logInfo('[API] GET /api/weather/current');
     final alertService = container.read(weatherAlertServiceProvider);
     final currentAlert = alertService.currentAlert;
-    final isSafe =
-        currentAlert == null || currentAlert.level == AlertLevel.clear;
+    final safety = container.read(weatherSafetyProvider);
 
     final weatherState = container.read(weatherStateProvider);
     final hardwareConnected =
@@ -330,9 +386,11 @@ class WeatherHandlers {
     }
 
     return jsonOk({
-      'safeToImage': isSafe,
-      'alertLevel': currentAlert?.level.name ?? 'none',
-      'message': currentAlert?.message ?? 'No weather data available',
+      'safeToImage': safety.isSafe,
+      'alertLevel': currentAlert?.level.name ?? safety.currentAlertLevel.name,
+      'message': _safetyMessage(safety, currentAlert),
+      'dataSource': safety.dataSource.name,
+      'lastEvaluation': safety.lastEvaluation?.toIso8601String(),
       'currentAlert': currentAlert != null ? _alertToJson(currentAlert) : null,
       'hardwareConnected': hardwareConnected,
       'deviceId': weatherState.deviceId,
@@ -341,11 +399,18 @@ class WeatherHandlers {
       'temperature': temperature,
       'humidity': humidity,
       'cloudCover': cloudCover,
+      // Native observing-condition drivers report wind in m/s. Keep the
+      // legacy `windSpeed` field in that unit for wire compatibility, while
+      // publishing explicit-unit fields so new clients cannot accidentally
+      // compare it with the km/h safety threshold.
       'windSpeed': windSpeed,
+      'windSpeedMps': windSpeed,
+      'windSpeedKph': hardwareConnected ? weatherState.windSpeedKph : null,
       'dewPoint': dewPoint,
       'pressure': hardwareConnected ? weatherState.pressure : null,
       'windDirection': hardwareConnected ? weatherState.windDirection : null,
       'skyQuality': hardwareConnected ? weatherState.skyQuality : null,
+      'skyTemperature': hardwareConnected ? weatherState.skyTemperature : null,
       'rainRate': hardwareConnected ? weatherState.rainRate : null,
     });
   }
@@ -366,6 +431,14 @@ class WeatherHandlers {
   // Helpers
   // ===========================================================================
 
+  String _safetyMessage(WeatherSafetyState safety, WeatherAlert? currentAlert) {
+    if (currentAlert != null) return currentAlert.message;
+    if (safety.actions.reason != null) return safety.actions.reason!;
+    if (safety.failModeWarning != null) return safety.failModeWarning!;
+    if (safety.isSafe) return 'Conditions are safe for imaging';
+    return 'Weather safety has not been evaluated';
+  }
+
   Map<String, dynamic> _frameToJson(RadarFrame frame) {
     return {
       'timestamp': frame.timestamp.millisecondsSinceEpoch,
@@ -385,8 +458,16 @@ class WeatherHandlers {
       'level': alert.level.name,
       'message': alert.message,
       'eta': alert.eta?.millisecondsSinceEpoch,
-      'cloudDensityPercent': alert.cloudDensityPercent,
-      'distanceKm': alert.distanceKm,
+      'cloudDensityPercent':
+          alert.cloudDensityPercent.isFinite ? alert.cloudDensityPercent : null,
+      // "No cloud front detected" is represented in memory as an infinite
+      // distance, which is the right sentinel for the threshold comparisons in
+      // WeatherAlertService but has no JSON encoding — emitting it raw made
+      // jsonEncode throw and turned both /api/weather/current and
+      // /api/weather/alerts into a 500 on a *clear* night, i.e. exactly when
+      // the honest answer was "nothing out there". Null is that answer: there
+      // is no front, so there is no distance to it.
+      'distanceKm': alert.distanceKm.isFinite ? alert.distanceKm : null,
       'generatedAt': alert.generatedAt.millisecondsSinceEpoch,
     };
   }

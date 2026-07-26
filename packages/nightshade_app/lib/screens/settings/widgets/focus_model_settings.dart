@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'settings_widgets.dart';
 
@@ -26,6 +29,10 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
   Map<String, dynamic>? _model;
   bool _loading = false;
   String? _error;
+  Object? _clearToken;
+  bool _clearConfirmationOpen = false;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _loadGeneration = 0;
 
   NetworkBackend? get _backend {
     final b = ref.read(backendProvider);
@@ -35,25 +42,57 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _loadGeneration++;
+        setState(() {
+          _model = null;
+          _error = null;
+          _loading = next is NetworkBackend;
+          _clearToken = null;
+          _clearConfirmationOpen = false;
+        });
+        if (next is NetworkBackend) unawaited(_refresh());
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_refresh());
+    });
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
     final backend = _backend;
-    if (backend == null) return;
+    final generation = ++_loadGeneration;
+    if (backend == null) {
+      if (!mounted) return;
+      setState(() {
+        _model = null;
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final model = await backend.getFocusModel();
-      if (!mounted) return;
+      if (!_isCurrentLoad(backend, generation)) return;
       setState(() {
         _model = model;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentLoad(backend, generation)) return;
       setState(() {
         _loading = false;
         _error = '$e';
@@ -61,16 +100,59 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
     }
   }
 
+  bool _isCurrentLoad(NetworkBackend backend, int generation) =>
+      mounted &&
+      generation == _loadGeneration &&
+      identical(ref.read(backendProvider), backend);
+
+  bool _isCurrentClear(NetworkBackend backend, Object token) =>
+      mounted &&
+      identical(_clearToken, token) &&
+      identical(ref.read(backendProvider), backend);
+
   Future<void> _clear() async {
+    if (_loading || _clearToken != null || _clearConfirmationOpen) return;
     final backend = _backend;
     if (backend == null) return;
+    setState(() => _clearConfirmationOpen = true);
+    final bool confirmed;
+    try {
+      confirmed = await ConfirmDialog.show(
+        context: context,
+        title: 'Clear focus model data?',
+        message: 'This deletes every autofocus/temperature data point on the '
+            'rig. The temperature-compensation model must be rebuilt from new '
+            'autofocus runs across a range of temperatures.',
+        confirmLabel: 'Clear',
+        isDestructive: true,
+      );
+    } finally {
+      if (mounted) setState(() => _clearConfirmationOpen = false);
+    }
+    if (!mounted) return;
+    if (!confirmed) return;
+    if (!identical(ref.read(backendProvider), backend)) {
+      context.showErrorSnackBar(
+        'Connected rig changed; focus model data was not cleared',
+      );
+      return;
+    }
+    final token = Object();
+    setState(() => _clearToken = token);
     try {
       await backend.clearFocusModelData();
-      if (mounted) context.showSuccessSnackBar('Focus model data cleared');
+      if (mounted && _isCurrentClear(backend, token)) {
+        context.showSuccessSnackBar('Focus model data cleared');
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Clear failed: $e');
+      if (mounted && _isCurrentClear(backend, token)) {
+        context.showErrorSnackBar('Clear failed: $e');
+      }
     } finally {
-      await _refresh();
+      if (_isCurrentClear(backend, token)) {
+        setState(() => _clearToken = null);
+        await _refresh();
+      }
     }
   }
 
@@ -100,7 +182,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
                       fontSize: NightshadeTypography.fontSize13)),
               const Spacer(),
               NightshadeButton(
-                onPressed: _loading ? null : _refresh,
+                onPressed: (_loading || _clearToken != null) ? null : _refresh,
                 label: 'Refresh',
                 icon: LucideIcons.rotateCw,
                 variant: ButtonVariant.ghost,
@@ -163,11 +245,15 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
                         'Data points: ${model?['dataPointCount'] ?? 0}.'),
           const SizedBox(height: 12),
           NightshadeButton(
-            onPressed: _loading ? null : _clear,
+            onPressed:
+                (_loading || _clearToken != null || _clearConfirmationOpen)
+                    ? null
+                    : _clear,
             label: 'Clear Model Data',
             icon: LucideIcons.trash2,
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
+            isLoading: _clearToken != null,
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),

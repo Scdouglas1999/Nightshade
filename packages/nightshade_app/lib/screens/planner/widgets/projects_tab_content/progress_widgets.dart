@@ -7,14 +7,17 @@ part of '../projects_tab_content.dart';
 class _ActiveProjectProgress extends ConsumerWidget {
   final NightshadeColors colors;
   final Future<void> Function(int projectId, Set<int> attachedIds) onAddTarget;
-  final Future<void> Function(int projectId, int targetId) onRemoveTarget;
+  final Future<void> Function(int projectId, int targetId, String targetName)
+      onRemoveTarget;
   final Future<void> Function(int targetId, String targetName) onEditGoals;
+  final bool mutationsEnabled;
 
   const _ActiveProjectProgress({
     required this.colors,
     required this.onAddTarget,
     required this.onRemoveTarget,
     required this.onEditGoals,
+    required this.mutationsEnabled,
   });
 
   @override
@@ -71,7 +74,9 @@ class _ActiveProjectProgress extends ConsumerWidget {
               percentComplete: progress.totalPercentComplete,
               accruedSeconds: progress.totalAccruedSeconds,
               goalSeconds: progress.totalGoalSeconds,
-              onAddTarget: () => onAddTarget(projectId, attachedIds),
+              onAddTarget: mutationsEnabled
+                  ? () => onAddTarget(projectId, attachedIds)
+                  : null,
             ),
             Expanded(
               child: targets.isEmpty
@@ -84,7 +89,9 @@ class _ActiveProjectProgress extends ConsumerWidget {
                         label: 'Add Target',
                         icon: LucideIcons.plus,
                         size: ButtonSize.small,
-                        onPressed: () => onAddTarget(projectId, attachedIds),
+                        onPressed: mutationsEnabled
+                            ? () => onAddTarget(projectId, attachedIds)
+                            : null,
                       ),
                     )
                   : ListView.separated(
@@ -105,7 +112,10 @@ class _ActiveProjectProgress extends ConsumerWidget {
                           target: t,
                           onEditGoals: () =>
                               onEditGoals(t.targetId, t.targetName),
-                          onRemove: () => onRemoveTarget(projectId, t.targetId),
+                          onRemove: mutationsEnabled
+                              ? () => onRemoveTarget(
+                                  projectId, t.targetId, t.targetName)
+                              : null,
                         );
                       },
                     ),
@@ -125,7 +135,7 @@ class _ProjectSummaryHeader extends StatelessWidget {
   final double percentComplete;
   final double accruedSeconds;
   final double goalSeconds;
-  final VoidCallback onAddTarget;
+  final VoidCallback? onAddTarget;
 
   const _ProjectSummaryHeader({
     required this.colors,
@@ -234,7 +244,7 @@ class _TargetProgressCard extends StatelessWidget {
   final NightshadeColors colors;
   final ProjectTargetProgress target;
   final VoidCallback onEditGoals;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
 
   const _TargetProgressCard({
     super.key,

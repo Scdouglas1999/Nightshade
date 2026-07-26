@@ -29,10 +29,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_diag;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_caps;
 
+import '../../backend/network_backend.dart';
 import '../../models/backend/device_capabilities.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../backend_provider.dart';
 import 'camera_state_provider.dart';
+import 'cover_calibrator_state_provider.dart';
 import 'dome_state_provider.dart';
 import 'filter_wheel_state_provider.dart';
 import 'focuser_state_provider.dart';
@@ -102,20 +104,22 @@ final equipmentRotatorCapabilitiesProvider =
 typedef DomeCapabilityFetcher =
     Future<DomeCapabilities?> Function(String deviceId);
 
-DomeCapabilityFetcher _defaultDomeCapabilityFetcher = (deviceId) async {
-  final caps = await bridge_diag.apiGetDomeCapabilities(deviceId: deviceId);
-  return _fromBridgeDomeCapabilities(caps);
-};
-
 /// Injection point for tests. Restored to the production fetcher by default.
 ///
 /// Tests overwrite this in `setUp` to avoid loading the native FFI shim.
 /// The fetcher returns `null` on "capability unknown" and throws on
 /// catastrophic failure — the same contract as the other backend.getXCapabilities
 /// methods.
-final domeCapabilityFetcherProvider = Provider<DomeCapabilityFetcher>(
-  (_) => _defaultDomeCapabilityFetcher,
-);
+final domeCapabilityFetcherProvider = Provider<DomeCapabilityFetcher>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return backend.getDomeCapabilities;
+  }
+  return (deviceId) async {
+    final caps = await bridge_diag.apiGetDomeCapabilities(deviceId: deviceId);
+    return _fromBridgeDomeCapabilities(caps);
+  };
+});
 
 /// Dome capabilities for [deviceId].
 ///
@@ -127,6 +131,94 @@ final equipmentDomeCapabilitiesProvider =
       final fetcher = ref.watch(domeCapabilityFetcherProvider);
       return fetcher(deviceId);
     });
+
+/// Capability and live-status snapshot for a combined dust-cover/flat-panel
+/// device. A device may implement either half, so presence is explicit.
+class CoverCalibratorCapabilitySnapshot {
+  final bool coverPresent;
+  final bool calibratorPresent;
+  final CoverStatus? coverStatus;
+  final CalibratorStatus? calibratorStatus;
+  final int? brightness;
+  final int maxBrightness;
+
+  const CoverCalibratorCapabilitySnapshot({
+    required this.coverPresent,
+    required this.calibratorPresent,
+    required this.maxBrightness,
+    this.coverStatus,
+    this.calibratorStatus,
+    this.brightness,
+  });
+}
+
+typedef CoverCalibratorCapabilityFetcher =
+    Future<CoverCalibratorCapabilitySnapshot?> Function(String deviceId);
+
+final coverCalibratorCapabilityFetcherProvider =
+    Provider<CoverCalibratorCapabilityFetcher>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return (deviceId) async {
+          final status = await backend.getCoverStatus(deviceId);
+          return CoverCalibratorCapabilitySnapshot(
+            coverPresent: status['hasCover'] == true,
+            calibratorPresent: status['hasCalibrator'] == true,
+            coverStatus: _coverStatusFromWire(status['coverState']),
+            calibratorStatus: _calibratorStatusFromWire(
+              status['calibratorState'],
+            ),
+            brightness: (status['brightness'] as num?)?.toInt(),
+            maxBrightness: (status['maxBrightness'] as num?)?.toInt() ?? 0,
+          );
+        };
+      }
+      return (deviceId) async {
+        final caps = await bridge_diag.apiGetCoverCalibratorCapabilities(
+          deviceId: deviceId,
+        );
+        return CoverCalibratorCapabilitySnapshot(
+          coverPresent: caps.coverPresent,
+          calibratorPresent: caps.calibratorPresent,
+          coverStatus: _coverStatusFromWire(caps.coverState?.name),
+          calibratorStatus: _calibratorStatusFromWire(
+            caps.calibratorState?.name,
+          ),
+          brightness: caps.brightness,
+          maxBrightness: caps.maxBrightness,
+        );
+      };
+    });
+
+final equipmentCoverCalibratorCapabilitiesProvider =
+    FutureProvider.family<CoverCalibratorCapabilitySnapshot?, String>((
+      ref,
+      deviceId,
+    ) async {
+      if (deviceId.isEmpty) return null;
+      final fetcher = ref.watch(coverCalibratorCapabilityFetcherProvider);
+      return fetcher(deviceId);
+    });
+
+CoverStatus? _coverStatusFromWire(Object? value) => switch (value) {
+  'notPresent' => CoverStatus.notPresent,
+  'closed' => CoverStatus.closed,
+  'moving' => CoverStatus.moving,
+  'open' => CoverStatus.open,
+  'unknown' => CoverStatus.unknown,
+  'error' => CoverStatus.error,
+  _ => null,
+};
+
+CalibratorStatus? _calibratorStatusFromWire(Object? value) => switch (value) {
+  'notPresent' => CalibratorStatus.notPresent,
+  'off' => CalibratorStatus.off,
+  'notReady' => CalibratorStatus.notReady,
+  'ready' => CalibratorStatus.ready,
+  'unknown' => CalibratorStatus.unknown,
+  'error' => CalibratorStatus.error,
+  _ => null,
+};
 
 DomeCapabilities _fromBridgeDomeCapabilities(bridge_caps.DomeCapabilities src) {
   return DomeCapabilities(
@@ -241,6 +333,14 @@ final capabilityRefreshOnConnectProvider = Provider<void>((ref) {
     deviceIdOf: (s) => s.deviceId,
     isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
     invalidate: (id) => ref.invalidate(equipmentDomeCapabilitiesProvider(id)),
+  );
+  _listenForConnect<CoverCalibratorState>(
+    ref,
+    coverCalibratorStateProvider,
+    deviceIdOf: (s) => s.deviceId,
+    isConnected: (s) => s.connectionState == DeviceConnectionState.connected,
+    invalidate: (id) =>
+        ref.invalidate(equipmentCoverCalibratorCapabilitiesProvider(id)),
   );
 });
 

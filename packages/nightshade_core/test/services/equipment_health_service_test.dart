@@ -27,6 +27,38 @@ void main() {
       );
     }
 
+    /// A fresh install has no session history and nothing connected, so the
+    /// degradation score has nothing to subtract from 100. Reporting that raw
+    /// 100 rendered a green "100 - Excellent" badge directly above the
+    /// readiness panel telling the same user no camera was connected and they
+    /// could not capture (seen on the desktop equipment screen). Absence of
+    /// evidence must not read as evidence of health.
+    test('is NOT assessed with no history and no devices', () {
+      final report = service.analyze(
+        sessions: const [],
+        deviceHealth: const [],
+      );
+
+      expect(report.assessed, isFalse);
+      expect(report.insights.single.title, 'Not enough data yet');
+    });
+
+    test('is assessed as soon as a device is being watched', () {
+      final report = service.analyze(
+        sessions: const [],
+        deviceHealth: const [
+          DeviceHealthSnapshot(
+            deviceId: 'camera',
+            lastSuccessfulTimestampMs: 0,
+            isHealthy: true,
+            disconnectCountLast24h: 0,
+          ),
+        ],
+      );
+
+      expect(report.assessed, isTrue);
+    });
+
     test('reports healthy baseline when no adverse trend exists', () {
       final report = service.analyze(
         sessions: [

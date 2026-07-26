@@ -152,6 +152,7 @@ class TargetQueueState {
 /// Notifier for managing the target queue
 class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   TargetQueueNotifier() : super(const TargetQueueState());
+  int _idSequence = 0;
 
   /// Add a target to the queue
   void addTarget(
@@ -160,7 +161,7 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     int plannedExposures = 0,
     String? notes,
   }) {
-    final id = '${object.id}_${DateTime.now().millisecondsSinceEpoch}';
+    final id = _newTargetId(object.id);
     final newTarget = QueuedTarget(
       id: id,
       object: object,
@@ -168,14 +169,14 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
       displayName: object.name.isNotEmpty ? object.name : object.id,
       priority: priority ?? state.targets.length + 1,
       addedAt: DateTime.now(),
-      plannedExposures: plannedExposures,
+      plannedExposures: plannedExposures.clamp(0, 0x7FFFFFFF),
       notes: notes,
     );
 
     final updatedTargets = [...state.targets, newTarget];
     updatedTargets.sort((a, b) => a.priority.compareTo(b.priority));
 
-    state = state.copyWith(targets: updatedTargets);
+    state = state.copyWith(targets: _normalizePriorities(updatedTargets));
   }
 
   /// Add a coordinate target (not a catalog object)
@@ -186,28 +187,28 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     int plannedExposures = 0,
     String? notes,
   }) {
-    final id = 'coord_${DateTime.now().millisecondsSinceEpoch}';
+    final id = _newTargetId('coord');
     final newTarget = QueuedTarget(
       id: id,
       coordinates: coordinates,
       displayName: name,
       priority: priority ?? state.targets.length + 1,
       addedAt: DateTime.now(),
-      plannedExposures: plannedExposures,
+      plannedExposures: plannedExposures.clamp(0, 0x7FFFFFFF),
       notes: notes,
     );
 
     final updatedTargets = [...state.targets, newTarget];
     updatedTargets.sort((a, b) => a.priority.compareTo(b.priority));
 
-    state = state.copyWith(targets: updatedTargets);
+    state = state.copyWith(targets: _normalizePriorities(updatedTargets));
   }
 
   /// Remove a target from the queue
   void removeTarget(String targetId) {
-    final updatedTargets = state.targets
-        .where((t) => t.id != targetId)
-        .toList();
+    final updatedTargets = _normalizePriorities(
+      state.targets.where((t) => t.id != targetId).toList(),
+    );
     state = state.copyWith(
       targets: updatedTargets,
       activeTargetId: state.activeTargetId == targetId
@@ -219,15 +220,14 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
   /// Move a target to a new priority position
   void reorderTarget(String targetId, int newPriority) {
-    final updatedTargets = state.targets.map((t) {
-      if (t.id == targetId) {
-        return t.copyWith(priority: newPriority);
-      }
-      return t;
-    }).toList();
-
-    updatedTargets.sort((a, b) => a.priority.compareTo(b.priority));
-    state = state.copyWith(targets: updatedTargets);
+    final ordered = [...state.targets]
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+    final oldIndex = ordered.indexWhere((target) => target.id == targetId);
+    if (oldIndex < 0) return;
+    final target = ordered.removeAt(oldIndex);
+    final newIndex = (newPriority - 1).clamp(0, ordered.length);
+    ordered.insert(newIndex, target);
+    state = state.copyWith(targets: _normalizePriorities(ordered));
   }
 
   /// Set the active target
@@ -236,6 +236,8 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
       state = state.copyWith(clearActiveTarget: true);
       return;
     }
+    if (targetId == state.activeTargetId) return;
+    if (!state.targets.any((target) => target.id == targetId)) return;
 
     // Update previous active target to pending if it wasn't completed
     final updatedTargets = state.targets.map((t) {
@@ -313,12 +315,16 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
   void updateExposureProgress(int completedExposures) {
     if (state.activeTargetId == null) return;
 
+    var reachedPlan = false;
     final updatedTargets = state.targets.map((t) {
       if (t.id == state.activeTargetId) {
-        final completed = completedExposures.clamp(0, t.plannedExposures);
+        final completed = t.plannedExposures > 0
+            ? completedExposures.clamp(0, t.plannedExposures)
+            : completedExposures.clamp(0, 0x7FFFFFFF);
+        reachedPlan = t.plannedExposures > 0 && completed >= t.plannedExposures;
         return t.copyWith(
           completedExposures: completed,
-          status: completed >= t.plannedExposures
+          status: reachedPlan
               ? QueuedTargetStatus.completed
               : QueuedTargetStatus.active,
         );
@@ -327,22 +333,21 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     }).toList();
 
     state = state.copyWith(targets: updatedTargets);
+    if (reachedPlan) completeActiveTarget();
   }
 
   /// Start the imaging session
   void startSession() {
     if (state.targets.isEmpty) return;
 
-    state = state.copyWith(isRunning: true, sessionStartTime: DateTime.now());
-
     // Set first pending target as active
     final firstPending = state.targets.cast<QueuedTarget?>().firstWhere(
       (t) => t?.status == QueuedTargetStatus.pending,
       orElse: () => null,
     );
-    if (firstPending != null) {
-      setActiveTarget(firstPending.id);
-    }
+    if (firstPending == null) return;
+    state = state.copyWith(isRunning: true, sessionStartTime: DateTime.now());
+    setActiveTarget(firstPending.id);
   }
 
   /// Stop/pause the imaging session
@@ -357,10 +362,23 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
 
   /// Clear only completed targets
   void clearCompletedTargets() {
-    final updatedTargets = state.targets
-        .where((t) => t.status != QueuedTargetStatus.completed)
-        .toList();
+    final updatedTargets = _normalizePriorities(
+      state.targets
+          .where((t) => t.status != QueuedTargetStatus.completed)
+          .toList(),
+    );
     state = state.copyWith(targets: updatedTargets);
+  }
+
+  String _newTargetId(String prefix) {
+    return '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${_idSequence++}';
+  }
+
+  List<QueuedTarget> _normalizePriorities(List<QueuedTarget> targets) {
+    return [
+      for (var i = 0; i < targets.length; i++)
+        targets[i].copyWith(priority: i + 1),
+    ];
   }
 
   /// Toggle auto-advance setting

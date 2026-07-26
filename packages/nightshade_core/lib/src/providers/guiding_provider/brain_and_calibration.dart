@@ -16,6 +16,8 @@ final brainParamsProvider =
 class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
   final Ref ref;
   bool _hasFetched = false;
+  int _backendGeneration = 0;
+  int _fetchGeneration = 0;
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   BrainParamsNotifier(this.ref) : super(const AsyncValue.loading()) {
@@ -41,6 +43,14 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
         state = const AsyncValue.loading();
       }
     });
+
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      _backendGeneration++;
+      _fetchGeneration++;
+      _hasFetched = false;
+      state = const AsyncValue.loading();
+    });
   }
 
   /// Fetch all brain parameters from PHD2
@@ -49,11 +59,15 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
     state = const AsyncValue.loading();
 
     final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
+    final fetchGeneration = ++_fetchGeneration;
 
     try {
       // Fetch parameter names for both axes
       final raNames = await backend.phd2GetAlgoParamNames(axis: 'ra');
+      if (!_isCurrentFetch(backend, backendGeneration, fetchGeneration)) return;
       final decNames = await backend.phd2GetAlgoParamNames(axis: 'dec');
+      if (!_isCurrentFetch(backend, backendGeneration, fetchGeneration)) return;
 
       // PHD2 only exposes guide-algorithm parameters once equipment is
       // connected to the profile (a mount/guide-algorithm is configured). If
@@ -71,6 +85,9 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
       final raParams = <String, double>{};
       for (final name in raNames) {
         raParams[name] = await backend.phd2GetAlgoParam(axis: 'ra', name: name);
+        if (!_isCurrentFetch(backend, backendGeneration, fetchGeneration)) {
+          return;
+        }
       }
 
       final decParams = <String, double>{};
@@ -79,9 +96,12 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
           axis: 'dec',
           name: name,
         );
+        if (!_isCurrentFetch(backend, backendGeneration, fetchGeneration)) {
+          return;
+        }
       }
 
-      if (mounted) {
+      if (_isCurrentFetch(backend, backendGeneration, fetchGeneration)) {
         _hasFetched = true;
         state = AsyncValue.data(
           Phd2BrainParams(
@@ -94,18 +114,36 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
       }
     } catch (e, st) {
       _logger.error('Failed to load PHD2 brain params: $e', source: 'PHD2');
-      if (mounted) {
+      if (_isCurrentFetch(backend, backendGeneration, fetchGeneration)) {
         state = AsyncValue.error(e, st);
       }
     }
   }
 
+  bool _isCurrentFetch(
+    NightshadeBackend backend,
+    int backendGeneration,
+    int fetchGeneration,
+  ) =>
+      mounted &&
+      backendGeneration == _backendGeneration &&
+      fetchGeneration == _fetchGeneration &&
+      identical(backend, ref.read(backendProvider));
+
   /// Update a single parameter
   Future<void> setParam(String axis, String name, double value) async {
     final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
 
     try {
       await backend.phd2SetAlgoParam(axis: axis, name: name, value: value);
+
+      if (backendGeneration != _backendGeneration ||
+          !identical(backend, ref.read(backendProvider))) {
+        throw StateError(
+          'The imaging host changed while updating PHD2 brain settings.',
+        );
+      }
 
       // Update local state
       state.whenData((params) {
@@ -139,35 +177,23 @@ final calibrationStateProvider =
 /// Notifier that tracks calibration state
 class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
   final Ref ref;
-  StreamSubscription? _sub;
+  late final _BackendGuidingEventBinding _events;
   bool _hasFetched = false;
+  int _backendGeneration = 0;
+  int _fetchGeneration = 0;
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   CalibrationStateNotifier(this.ref) : super(const Phd2CalibrationData()) {
     _logger.debug('CalibrationStateNotifier: Initializing...', source: 'PHD2');
 
-    final backend = ref.read(backendProvider);
-    _sub = backend.eventStream.listen((event) {
-      if (!mounted) return; // Guard against updates after disposal
-      if (event.category == EventCategory.guiding) {
-        switch (event.eventType) {
-          case 'CalibrationComplete':
-            _logger.info('CalibrationComplete event received', source: 'PHD2');
-            state = state.copyWith(
-              isCalibrated: true,
-              calibratedAt: DateTime.now(),
-            );
-            break;
-          case 'CalibrationFailed':
-            _logger.warning('CalibrationFailed event received', source: 'PHD2');
-            state = state.copyWith(isCalibrated: false);
-            break;
-          case 'CalibrationDataFlipped':
-            // Calibration was flipped (meridian flip)
-            _logger.info('Calibration data flipped', source: 'PHD2');
-            break;
-        }
-      }
+    _events = _BackendGuidingEventBinding(ref, _onBackendEvent);
+    _events.start();
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      _backendGeneration++;
+      _fetchGeneration++;
+      _hasFetched = false;
+      state = const Phd2CalibrationData();
     });
 
     // Fetch calibration data when PHD2 connects
@@ -214,14 +240,37 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
     }
   }
 
+  void _onBackendEvent(NightshadeEvent event) {
+    if (!mounted || event.category != EventCategory.guiding) return;
+    switch (event.eventType) {
+      case 'CalibrationComplete':
+        _logger.info('CalibrationComplete event received', source: 'PHD2');
+        state = state.copyWith(
+          isCalibrated: true,
+          calibratedAt: DateTime.now(),
+        );
+        break;
+      case 'CalibrationFailed':
+        _logger.warning('CalibrationFailed event received', source: 'PHD2');
+        state = state.copyWith(isCalibrated: false);
+        break;
+      case 'CalibrationDataFlipped':
+        _logger.info('Calibration data flipped', source: 'PHD2');
+        break;
+    }
+  }
+
   /// Fetch calibration data from PHD2
   Future<void> refreshCalibrationData() async {
+    final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
+    final fetchGeneration = ++_fetchGeneration;
     try {
-      final backend = ref.read(backendProvider);
       final data = await backend.phd2GetCalibrationData();
+      if (!_isCurrentFetch(backend, backendGeneration, fetchGeneration)) return;
       _hasFetched = true;
 
-      if (mounted) {
+      if (_isCurrentFetch(backend, backendGeneration, fetchGeneration)) {
         state = data;
         _logger.info(
           'Fetched calibration data - calibrated: ${data.isCalibrated}',
@@ -229,26 +278,56 @@ class CalibrationStateNotifier extends StateNotifier<Phd2CalibrationData> {
         );
       }
     } catch (e) {
-      _logger.error('Failed to fetch calibration data: $e', source: 'PHD2');
+      if (_isCurrentFetch(backend, backendGeneration, fetchGeneration)) {
+        _logger.error('Failed to fetch calibration data: $e', source: 'PHD2');
+      }
     }
   }
+
+  bool _isCurrentFetch(
+    NightshadeBackend backend,
+    int backendGeneration,
+    int fetchGeneration,
+  ) =>
+      mounted &&
+      backendGeneration == _backendGeneration &&
+      fetchGeneration == _fetchGeneration &&
+      identical(backend, ref.read(backendProvider));
 
   /// Clear calibration data
   Future<void> clearCalibration({String which = 'both'}) async {
     final backend = ref.read(backendProvider);
+    final generation = _backendGeneration;
     await backend.phd2ClearCalibration(which: which);
+    _ensureBackendUnchanged(backend, generation, 'clearing calibration');
     state = const Phd2CalibrationData(isCalibrated: false);
   }
 
   /// Flip calibration (after meridian flip)
   Future<void> flipCalibration() async {
     final backend = ref.read(backendProvider);
+    final generation = _backendGeneration;
     await backend.phd2FlipCalibration();
+    _ensureBackendUnchanged(backend, generation, 'flipping calibration');
+  }
+
+  void _ensureBackendUnchanged(
+    NightshadeBackend backend,
+    int generation,
+    String action,
+  ) {
+    if (generation == _backendGeneration &&
+        identical(backend, ref.read(backendProvider))) {
+      return;
+    }
+    throw StateError('The imaging host changed while $action.');
   }
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _backendGeneration++;
+    _fetchGeneration++;
+    _events.dispose();
     super.dispose();
   }
 }

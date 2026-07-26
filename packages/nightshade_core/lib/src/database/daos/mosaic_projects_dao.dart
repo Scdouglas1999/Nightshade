@@ -26,7 +26,9 @@ class MosaicProjectsDao {
 
   static const String _columns =
       'id, target_id, name, rows, cols, overlap_pct, position_angle_deg, '
-      'status, output_master_id, created_at, updated_at';
+      'status, output_master_id, created_at, updated_at, '
+      // v56 (Collaborative Sky WS2): publish/role/status.
+      'hub_mosaic_id, collab_role, collab_status';
 
   /// Insert a mosaic project row and return its id. [createdAt]/[updatedAt]
   /// default to "now" (UTC seconds) when omitted.
@@ -87,6 +89,38 @@ class MosaicProjectsDao {
     return rows.map(_map).toList();
   }
 
+  /// Collaborative projects the unattended owner/participant poller still has
+  /// work to drive (WS2): published to a hub (`hub_mosaic_id` set) and not yet
+  /// `complete`. Scopes the poll sweep to the handful of in-flight collaborative
+  /// mosaics rather than every local project. Newest first.
+  Future<List<MosaicProject>> listActiveCollaborative() async {
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_projects '
+          "WHERE hub_mosaic_id IS NOT NULL AND hub_mosaic_id != '' "
+          "AND (collab_status IS NULL OR collab_status != 'complete') "
+          'ORDER BY created_at DESC, id DESC',
+        )
+        .get();
+    return rows.map(_map).toList();
+  }
+
+  /// Fetch the local project linked to [hubMosaicId] (WS2), or null when this
+  /// device has not joined/published that hub mosaic. Used by the join flow to
+  /// reuse an existing local mirror instead of creating a duplicate project.
+  Future<MosaicProject?> getByHubMosaicId(String hubMosaicId) async {
+    if (hubMosaicId.isEmpty) return null;
+    final rows = await _db
+        .customSelect(
+          'SELECT $_columns FROM mosaic_projects WHERE hub_mosaic_id = ? '
+          'ORDER BY id ASC LIMIT 1',
+          variables: [Variable<String>(hubMosaicId)],
+        )
+        .get();
+    if (rows.isEmpty) return null;
+    return _map(rows.first);
+  }
+
   /// Projects with the given lifecycle [status], newest first.
   Future<List<MosaicProject>> listByStatus(MosaicProjectStatus status) async {
     final rows = await _db
@@ -136,6 +170,45 @@ class MosaicProjectsDao {
     );
   }
 
+  /// Record that this project was published to the hub as a collaborative
+  /// mosaic: persist the hub mosaic id, the collaborative [role]
+  /// (`owner`|`participant`), and set `collab_status = 'published'`. Returns the
+  /// number of rows changed.
+  Future<int> setHubMosaic(
+    int id,
+    String hubMosaicId,
+    String role, {
+    DateTime? now,
+  }) {
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    return _db.customUpdate(
+      'UPDATE mosaic_projects SET hub_mosaic_id = ?, collab_role = ?, '
+      "collab_status = 'published', updated_at = ? WHERE id = ?",
+      variables: [
+        Variable<String>(hubMosaicId),
+        Variable<String>(role),
+        Variable<int>(at),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+  }
+
+  /// Update a published project's hub-side collaborative lifecycle
+  /// (`published`|`assembling`|`complete`). Returns the number of rows changed.
+  Future<int> setCollabStatus(int id, String collabStatus, {DateTime? now}) {
+    final at = _toEpochSeconds(now ?? DateTime.now());
+    return _db.customUpdate(
+      'UPDATE mosaic_projects SET collab_status = ?, updated_at = ? WHERE id = ?',
+      variables: [
+        Variable<String>(collabStatus),
+        Variable<int>(at),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+  }
+
   /// Delete a project by id. `mosaic_panels` rows cascade
   /// (`ON DELETE CASCADE`). Returns the number of rows changed.
   Future<int> deleteProject(int id) {
@@ -159,6 +232,9 @@ class MosaicProjectsDao {
       outputMasterId: row.readNullable<int>('output_master_id'),
       createdAt: _fromEpochSeconds(row.read<int>('created_at')),
       updatedAt: _fromEpochSeconds(row.read<int>('updated_at')),
+      hubMosaicId: row.readNullable<String>('hub_mosaic_id'),
+      collabRole: row.readNullable<String>('collab_role'),
+      collabStatus: row.readNullable<String>('collab_status'),
     );
   }
 

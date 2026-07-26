@@ -46,28 +46,67 @@ class _SessionTab extends ConsumerWidget {
       headerSubtitle = l10n.text('analyticsNoSessionInProgress');
     }
 
+    String standaloneMetric(String Function(List<DbCapturedImage>) value) {
+      return imagesAsyncValue.when(
+        data: value,
+        loading: () => 'Loading…',
+        error: (_, __) => 'Unavailable',
+      );
+    }
+
+    List<DbCapturedImage> acceptedLights(List<DbCapturedImage> images) => images
+        .where((image) =>
+            image.isAccepted && image.frameType.toLowerCase() == 'light')
+        .toList(growable: false);
+
     final summaryStats = [
       ResponsiveStat(
         label: l10n.text('analyticsDuration'),
-        value: duration,
+        value: sessionState.isActive ? duration : '—',
       ),
       ResponsiveStat(
         label: l10n.text('analyticsExposures'),
         value: sessionState.isActive
             ? '${sessionState.completedExposures}/${sessionState.totalExposures}'
-            : '---',
+            : isStandaloneMode
+                ? standaloneMetric((images) => '${images.length}')
+                : '—',
       ),
       ResponsiveStat(
         label: l10n.text('analyticsIntegration'),
         value: sessionState.isActive
             ? '${(sessionState.totalIntegrationSecs / 60).toStringAsFixed(1)}m'
-            : '---',
+            : isStandaloneMode
+                ? standaloneMetric((images) {
+                    final seconds = acceptedLights(images).fold<double>(
+                      0,
+                      (sum, image) => image.exposureDuration.isFinite &&
+                              image.exposureDuration > 0
+                          ? sum + image.exposureDuration
+                          : sum,
+                    );
+                    return _formatAnalyticsIntegration(seconds);
+                  })
+                : '—',
       ),
       ResponsiveStat(
         label: l10n.text('analyticsAvgHfr'),
-        value: sessionState.avgHfr != null
-            ? sessionState.avgHfr!.toStringAsFixed(2)
-            : '---',
+        value: sessionState.isActive
+            ? sessionState.avgHfr?.toStringAsFixed(2) ?? '—'
+            : isStandaloneMode
+                ? standaloneMetric((images) {
+                    final hfrs = acceptedLights(images)
+                        .map((image) => image.hfr)
+                        .whereType<double>()
+                        .where((value) => value.isFinite && value >= 0)
+                        .toList(growable: false);
+                    if (hfrs.isEmpty) return 'No data';
+                    final average =
+                        hfrs.fold<double>(0, (sum, value) => sum + value) /
+                            hfrs.length;
+                    return average.toStringAsFixed(2);
+                  })
+                : '—',
       ),
     ];
 
@@ -252,13 +291,77 @@ class _AnalyticsAsyncState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        Text(
+          message,
+          textAlign: compact ? TextAlign.left : TextAlign.center,
+          style: TextStyle(
+            fontSize: compact ? 12 : 14,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        if (detail != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            detail!,
+            textAlign: compact ? TextAlign.left : TextAlign.center,
+            style: TextStyle(
+              fontSize: compact ? 11 : 12,
+              color: colors.textSecondary,
+            ),
+            maxLines: compact ? 2 : 4,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ],
+    );
+
+    if (compact) {
+      return Center(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: NightshadeTokens.borderRadiusLg,
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: onRetry == null ? colors.primary : colors.error,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: text),
+              if (onRetry != null) ...[
+                const SizedBox(width: 8),
+                NightshadeButton(
+                  label: 'Retry',
+                  icon: LucideIcons.refreshCw,
+                  size: ButtonSize.small,
+                  onPressed: onRetry,
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
     return Center(
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.all(compact ? 12 : 20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(compact ? 12 : 16),
+          borderRadius: NightshadeTokens.borderRadiusXl,
           border: Border.all(color: colors.border),
         ),
         child: Column(
@@ -268,35 +371,14 @@ class _AnalyticsAsyncState extends StatelessWidget {
               icon,
               color: onRetry == null ? colors.primary : colors.error,
             ),
-            SizedBox(height: compact ? 8 : 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: compact ? 12 : 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            if (detail != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                detail!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: compact ? 11 : 12,
-                  color: colors.textSecondary,
-                ),
-                maxLines: compact ? 2 : 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            const SizedBox(height: 12),
+            text,
             if (onRetry != null) ...[
-              SizedBox(height: compact ? 8 : 12),
+              const SizedBox(height: 12),
               NightshadeButton(
                 label: 'Retry',
                 icon: LucideIcons.refreshCw,
-                size: compact ? ButtonSize.small : ButtonSize.medium,
+                size: ButtonSize.medium,
                 onPressed: onRetry,
               ),
             ],
@@ -305,6 +387,20 @@ class _AnalyticsAsyncState extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatAnalyticsIntegration(double seconds) {
+  if (!seconds.isFinite || seconds <= 0) return 'No data';
+  final rounded = seconds.round();
+  if (rounded < 60) return '${rounded}s';
+  if (rounded < 3600) {
+    final minutes = rounded ~/ 60;
+    final remainder = rounded % 60;
+    return remainder == 0 ? '${minutes}m' : '${minutes}m ${remainder}s';
+  }
+  final hours = rounded ~/ 3600;
+  final minutes = (rounded % 3600) ~/ 60;
+  return '${hours}h ${minutes}m';
 }
 
 /// Provider for watching session images (Drift rows) on the Analytics screen.
@@ -316,7 +412,11 @@ final dbSessionImagesProvider =
     StreamProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
-    return _pollRemoteSessionImages(backend, sessionId);
+    return _pollRemoteSessionImages(
+      backend,
+      sessionId,
+      interval: ref.watch(analyticsRemoteImagePollIntervalProvider),
+    );
   }
   return ref.watch(imagesDaoProvider).watchImagesForSession(sessionId);
 });
@@ -325,10 +425,19 @@ final dbSessionImagesProvider =
 final standaloneImagesProvider = StreamProvider<List<DbCapturedImage>>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
-    return _pollRemoteStandaloneImages(backend);
+    return _pollRemoteStandaloneImages(
+      backend,
+      interval: ref.watch(analyticsRemoteImagePollIntervalProvider),
+    );
   }
   return ref.watch(imagesDaoProvider).watchStandaloneImages();
 });
+
+/// Remote image catalogs are low-churn and do not need to hammer the host.
+/// Exposed so tests can exercise retry/distinct behavior without waiting 10s.
+final analyticsRemoteImagePollIntervalProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 10),
+);
 
 /// Provider for unique target names derived from sessions
 /// Returns a list of unique session names to use as target filter options

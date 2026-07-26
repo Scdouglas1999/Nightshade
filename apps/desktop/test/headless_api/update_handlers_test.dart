@@ -45,7 +45,9 @@ class _FakeUpdateController implements UpdateController {
   Object? checkError;
   Object? downloadError;
   bool rollbackSupportedReturn = false;
+  bool canAuthenticateUpdatesReturn = true;
   StagedUpdateInfo? stagedInfo;
+  String? serverUrl = 'https://updates.example.com';
 
   @override
   Stream<UpdateEvent> get events => _events.stream;
@@ -69,13 +71,24 @@ class _FakeUpdateController implements UpdateController {
   String get channel => 'stable';
 
   @override
-  String? get updateServerUrl => 'https://updates.example.com';
+  String? get updateServerUrl => serverUrl;
 
   @override
   DateTime? get lastUpdateCheck => DateTime.utc(2026, 5, 24, 12, 0);
 
   @override
   DateTime? get lastUpdateApplied => null;
+
+  @override
+  bool get canAuthenticateUpdates => canAuthenticateUpdatesReturn;
+
+  @override
+  bool get hasActiveOperation =>
+      _status.state == UpdateLifecycleState.checking ||
+      _status.state == UpdateLifecycleState.downloading ||
+      _status.state == UpdateLifecycleState.verifying ||
+      _status.state == UpdateLifecycleState.cancelling ||
+      _status.state == UpdateLifecycleState.installing;
 
   @override
   Future<UpdateCheckOutcome> checkForUpdates({String? channelOverride}) async {
@@ -187,6 +200,25 @@ void main() {
       expect(body['lastUpdateCheck'], isA<String>());
     });
 
+    test(
+      'GET /api/system/version never exposes URL credentials or tokens',
+      () async {
+        controller.serverUrl =
+            'https://user:password@updates.example.com/feed?token=secret#private';
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetVersion(
+            Request('GET', Uri.parse('http://localhost/api/system/version')),
+          ),
+        );
+        final body = jsonDecode(await response.readAsString()) as Map;
+
+        expect(body['updateServerUrl'], 'https://updates.example.com/feed');
+        expect(jsonEncode(body), isNot(contains('password')));
+        expect(jsonEncode(body), isNot(contains('secret')));
+      },
+    );
+
     test('POST /api/system/update/check returns a queued jobId', () async {
       controller.checkOutcome = const UpdateCheckOutcome(
         available: true,
@@ -222,6 +254,37 @@ void main() {
       expect(controller.checkChannels, [null]);
     });
 
+    test(
+      'a second update command is rejected while the first is queued',
+      () async {
+        final first = await handlers.handleCheckForUpdate(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/system/update/check'),
+          ),
+        );
+        expect(first.statusCode, HttpStatus.ok);
+
+        final second = await handlers.handleDownload(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/system/update/download'),
+          ),
+        );
+        expect(second.statusCode, HttpStatus.conflict);
+        final body = jsonDecode(await second.readAsString()) as Map;
+        expect(body['error'], 'update_operation_in_progress');
+        expect(body['jobId'], isNotEmpty);
+
+        final firstBody = jsonDecode(await first.readAsString()) as Map;
+        await _pumpUntil(
+          () =>
+              jobManager.get(firstBody['jobId'] as String)?.state.isTerminal ??
+              false,
+        );
+      },
+    );
+
     test('POST /api/system/update/check honours ?channel= override', () async {
       controller.checkOutcome = const UpdateCheckOutcome(available: false);
 
@@ -244,9 +307,13 @@ void main() {
     });
 
     test('GET /api/system/update/status reflects the current phase', () async {
+      controller.rollbackSupportedReturn = true;
+      controller.canAuthenticateUpdatesReturn = false;
       controller.setStatus(
         UpdateControllerStatus(
           state: UpdateLifecycleState.downloading,
+          availableVersion: '2.7.0',
+          availableBuildNumber: 7,
           progressPct: 0.42,
           message: 'Downloading 2.7.0',
           stagedVersion: null,
@@ -267,6 +334,10 @@ void main() {
       expect(body['state'], 'downloading');
       expect(body['progressPct'], 0.42);
       expect(body['message'], 'Downloading 2.7.0');
+      expect(body['availableVersion'], '2.7.0');
+      expect(body['availableBuildNumber'], 7);
+      expect(body['rollbackAvailable'], isTrue);
+      expect(body['canAuthenticateUpdates'], isFalse);
     });
 
     test(
@@ -491,7 +562,7 @@ void main() {
     late Uri baseUri;
 
     setUp(() async {
-      container = ProviderContainer(
+      container = createHeadlessTestContainer(
         overrides: [
           appVersionProvider.overrideWithValue(
             const AppVersionInfo(version: '2.6.0', buildNumber: 6),

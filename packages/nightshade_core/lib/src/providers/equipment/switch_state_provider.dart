@@ -27,6 +27,7 @@ final switchStateProvider =
 class SwitchStateNotifier extends StateNotifier<SwitchState> {
   final Ref _ref;
   int _retryAttempts = 0;
+  int _connectionRevision = 0;
 
   SwitchStateNotifier(this._ref) : super(const SwitchState());
 
@@ -34,20 +35,25 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
     String deviceId, {
     int maxRetries = kDefaultMaxRetries,
   }) async {
+    final revision = ++_connectionRevision;
     _retryAttempts = 0;
-    await _connectWithRetry(deviceId, maxRetries);
+    _setConnectingState(deviceId, deviceId);
+    await _connectWithRetry(deviceId, maxRetries, revision);
   }
 
-  Future<void> _connectWithRetry(String deviceId, int maxRetries) async {
+  Future<void> _connectWithRetry(
+    String deviceId,
+    int maxRetries,
+    int revision,
+  ) async {
     try {
-      setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectSwitch(deviceId);
-      if (!mounted) return;
+      if (!_isCurrentConnection(deviceId, revision)) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentAttempt(deviceId, revision)) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -58,8 +64,9 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(kDefaultRetryDelay * _retryAttempts);
-        if (!mounted) return;
-        await _connectWithRetry(deviceId, maxRetries);
+        if (!_isCurrentAttempt(deviceId, revision)) return;
+        _setConnectingState(deviceId, deviceId);
+        await _connectWithRetry(deviceId, maxRetries, revision);
       } else {
         state = state.copyWith(
           connectionState: DeviceConnectionState.error,
@@ -81,17 +88,17 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
 
   Future<void> disconnect() async {
     if (state.deviceId == null) return;
-    try {
-      final deviceService = _ref.read(deviceServiceProvider);
-      await deviceService.disconnectSwitch();
-    } catch (_) {
-      // DeviceService logs; notifier always clears connection state.
-    } finally {
-      setDisconnected();
-    }
+    final revision = ++_connectionRevision;
+    final deviceService = _ref.read(deviceServiceProvider);
+    await deviceService.disconnectSwitch();
+    if (mounted && revision == _connectionRevision) setDisconnected();
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    _setConnectingState(deviceId, deviceName);
+  }
+
+  void _setConnectingState(String deviceId, [String? deviceName]) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
@@ -112,6 +119,14 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
     state = SwitchState(autoReconnectEnabled: preservedAutoReconnect);
   }
 
+  bool _isCurrentConnection(String deviceId, int revision) =>
+      mounted && revision == _connectionRevision && state.deviceId == deviceId;
+
+  bool _isCurrentAttempt(String deviceId, int revision) =>
+      mounted &&
+      revision == _connectionRevision &&
+      (state.deviceId == null || state.deviceId == deviceId);
+
   /// Enable or disable auto-reconnection for the switch device.
   void setAutoReconnect(bool enabled) {
     state = state.copyWith(autoReconnectEnabled: enabled);
@@ -128,12 +143,26 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
     required int count,
     List<String>? names,
     List<bool>? states,
+    List<String>? descriptions,
+    List<bool>? isBoolean,
+    List<double>? values,
+    List<double>? minValues,
+    List<double>? maxValues,
+    List<double>? steps,
+    List<bool>? canWrite,
     DateTime? refreshedAt,
   }) {
     state = state.copyWith(
       channelCount: count,
       channelNames: names ?? state.channelNames,
       channelStates: states ?? state.channelStates,
+      channelDescriptions: descriptions ?? state.channelDescriptions,
+      channelIsBoolean: isBoolean ?? state.channelIsBoolean,
+      channelValues: values ?? state.channelValues,
+      channelMinValues: minValues ?? state.channelMinValues,
+      channelMaxValues: maxValues ?? state.channelMaxValues,
+      channelSteps: steps ?? state.channelSteps,
+      channelCanWrite: canWrite ?? state.channelCanWrite,
       lastChannelRefresh: refreshedAt,
     );
   }
@@ -150,7 +179,37 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
     if (index < 0 || index >= current.length) return;
     final next = List<bool>.from(current);
     next[index] = on;
-    state = state.copyWith(channelStates: next);
+    final values = List<double>.from(state.channelValues);
+    if (index < values.length) {
+      final min = index < state.channelMinValues.length
+          ? state.channelMinValues[index]
+          : 0.0;
+      final max = index < state.channelMaxValues.length
+          ? state.channelMaxValues[index]
+          : 1.0;
+      values[index] = on ? max : min;
+    }
+    state = state.copyWith(channelStates: next, channelValues: values);
+  }
+
+  /// Reconcile a numeric/PWM channel after the hardware confirms a write.
+  void setChannelValue(int index, double value) {
+    final current = state.channelValues;
+    if (index < 0 || index >= current.length) return;
+    final values = List<double>.from(current);
+    values[index] = value;
+
+    final states = List<bool>.from(state.channelStates);
+    if (index < states.length) {
+      final min = index < state.channelMinValues.length
+          ? state.channelMinValues[index]
+          : 0.0;
+      final max = index < state.channelMaxValues.length
+          ? state.channelMaxValues[index]
+          : 1.0;
+      states[index] = value > min + ((max - min) / 2);
+    }
+    state = state.copyWith(channelValues: values, channelStates: states);
   }
 
   void setError(Object error) {

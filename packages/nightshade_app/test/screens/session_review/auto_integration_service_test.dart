@@ -15,6 +15,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/session_review/auto_integration_service.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -106,6 +107,26 @@ class _FakeIntegrationService implements PostSessionIntegrationService {
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName} not faked');
+}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _RecordingAutoIntegrationService extends AutoIntegrationService {
+  _RecordingAutoIntegrationService(super.ref);
+
+  final calls = <int>[];
+
+  @override
+  Future<AutoIntegrationResult> maybeRunForSession(int sessionId) async {
+    calls.add(sessionId);
+    return const AutoIntegrationResult(ran: true, message: 'ready');
+  }
 }
 
 void main() {
@@ -313,5 +334,102 @@ void main() {
     expect(accumulate.calls.single.subs, hasLength(2));
     expect(integrate.calls, isEmpty);
     expect(result.message, contains('2 subs'));
+  });
+
+  test('host coordinator runs independently of the sequencer screen', () async {
+    late _RecordingAutoIntegrationService recording;
+    final coordinatorContainer = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, FfiBackend(database: db)),
+        ),
+        autoIntegrationServiceProvider.overrideWith((ref) {
+          recording = _RecordingAutoIntegrationService(ref);
+          return recording;
+        }),
+      ],
+    );
+    addTearDown(coordinatorContainer.dispose);
+
+    coordinatorContainer.read(autoIntegrationCoordinatorProvider);
+    coordinatorContainer
+        .read(sequenceTerminalRunResultProvider.notifier)
+        .state = const SequenceTerminalRunResult(
+      generation: 1,
+      outcome: SequenceExecutionState.completed,
+      runStatus: 'completed',
+      runId: 10,
+      dbSessionId: 20,
+    );
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(recording.calls, [20]);
+    expect(
+      coordinatorContainer.read(autoIntegrationCompletionProvider)?.generation,
+      1,
+    );
+
+    coordinatorContainer
+        .read(sequenceTerminalRunResultProvider.notifier)
+        .state = const SequenceTerminalRunResult(
+      generation: 2,
+      outcome: SequenceExecutionState.idle,
+      runStatus: 'stopped',
+      runId: 11,
+      dbSessionId: 21,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(recording.calls, [20],
+        reason: 'Stopped runs must not auto-integrate');
+  });
+
+  test('remote clients neither process local data nor store the host setting',
+      () async {
+    final backend = _MockNetworkBackend();
+    when(backend.getAutoIntegrationEnabled).thenAnswer((_) async => true);
+    when(
+      () => backend.setAutoIntegrationEnabled(any()),
+    ).thenAnswer((_) async {});
+
+    late _RecordingAutoIntegrationService recording;
+    final remoteContainer = ProviderContainer(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, backend),
+        ),
+        autoIntegrationServiceProvider.overrideWith((ref) {
+          recording = _RecordingAutoIntegrationService(ref);
+          return recording;
+        }),
+      ],
+    );
+    addTearDown(remoteContainer.dispose);
+    remoteContainer.read(autoIntegrationServiceProvider);
+
+    expect(await remoteContainer.read(autoIntegrationEnabledProvider.future),
+        isTrue);
+    await remoteContainer
+        .read(autoIntegrationSettingsActionsProvider)
+        .setEnabled(false);
+    verify(() => backend.setAutoIntegrationEnabled(false)).called(1);
+    expect(
+      await db.settingsDao.getSetting(kAutoIntegrateSettingKey),
+      isNull,
+    );
+
+    remoteContainer.read(autoIntegrationCoordinatorProvider);
+    remoteContainer.read(sequenceTerminalRunResultProvider.notifier).state =
+        const SequenceTerminalRunResult(
+      generation: 1,
+      outcome: SequenceExecutionState.completed,
+      runStatus: 'completed',
+      runId: 1,
+      dbSessionId: 2,
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(recording.calls, isEmpty);
   });
 }

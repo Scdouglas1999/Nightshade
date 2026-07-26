@@ -52,6 +52,45 @@ mixin _NetworkBackendRemoteLogOperations on _NetworkBackendTransport {
     return out;
   }
 
+  /// GET /api/logs — list the host's on-disk log files (name, size,
+  /// mtime, isCurrent) so a paired device can pick one to download.
+  Future<List<RemoteLogFileInfo>> listServerLogFiles() async {
+    final body = await _get('logs');
+    final filesRaw = body['files'];
+    if (filesRaw is! List) {
+      // Malformed payload — surface loudly, matching fetchRecentServerLogs.
+      throw const dart_error.NightshadeError(
+        category: dart_error.BackendErrorCategory.system,
+        message:
+            'GET /api/logs: missing or non-list `files` field in response '
+            'body',
+      );
+    }
+    return [
+      for (final raw in filesRaw)
+        if (raw is Map) RemoteLogFileInfo.fromJson(raw.cast<String, dynamic>()),
+    ];
+  }
+
+  /// GET `/api/logs/files/<name>/download` — stream one full log file to
+  /// [localPath]. [fileName] must be a name returned by
+  /// [listServerLogFiles]; the server rejects anything that is not a
+  /// nightshade log file name.
+  Future<void> downloadServerLogFile(
+    String fileName,
+    String localPath, {
+    void Function(double)? onProgress,
+  }) {
+    if (fileName.trim().isEmpty) {
+      throw ArgumentError.value(fileName, 'fileName', 'must not be empty');
+    }
+    return _downloadToFile(
+      'logs/files/${Uri.encodeComponent(fileName)}/download',
+      localPath,
+      onProgress: onProgress,
+    );
+  }
+
   /// POST /api/logs/clear — delete all non-current log files on the
   /// server. Returns when the server acknowledges; the response body is
   /// the per-file status map which the desktop log viewer surfaces but

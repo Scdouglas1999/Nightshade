@@ -28,6 +28,7 @@ use std::time::Duration;
 struct RecordingOps {
     inner: Arc<NullDeviceOps>,
     exposures: AtomicU32,
+    aborts: AtomicU32,
     saved: Mutex<Vec<(String, Option<String>)>>, // (path, rig_label)
     /// Exposure wall time per frame; small for fast tests.
     exposure_wait: Duration,
@@ -38,6 +39,7 @@ impl RecordingOps {
         Self {
             inner: Arc::new(NullDeviceOps),
             exposures: AtomicU32::new(0),
+            aborts: AtomicU32::new(0),
             saved: Mutex::new(Vec::new()),
             exposure_wait,
         }
@@ -47,6 +49,9 @@ impl RecordingOps {
     }
     fn saved_frames(&self) -> Vec<(String, Option<String>)> {
         self.saved.lock().unwrap().clone()
+    }
+    fn abort_count(&self) -> u32 {
+        self.aborts.load(Ordering::SeqCst)
     }
 }
 
@@ -133,6 +138,7 @@ impl nightshade_sequencer::DeviceOps for RecordingOps {
         self.inner.mount_set_tracking(m, e).await
     }
     async fn camera_abort_exposure(&self, c: &str) -> DeviceResult<()> {
+        self.aborts.fetch_add(1, Ordering::SeqCst);
         self.inner.camera_abort_exposure(c).await
     }
     async fn camera_set_cooler(&self, c: &str, e: bool, t: f64) -> DeviceResult<()> {
@@ -285,6 +291,38 @@ impl nightshade_sequencer::DeviceOps for RecordingOps {
     }
 }
 
+/// A scratch directory that deletes itself when the test ends.
+/// `Drop` rather than a cleanup call at the end of each test: the leak was
+/// worst exactly when a test FAILED, and drop still runs while a panic unwinds.
+struct TempDir(std::path::PathBuf);
+
+impl std::ops::Deref for TempDir {
+    type Target = std::path::Path;
+    fn deref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+// Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+// call sites here rely on.
+impl AsRef<std::path::Path> for TempDir {
+    fn as_ref(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        // Best-effort: a test asserting on a half-removed tree should fail on
+        // its own assertion, not on cleanup.
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn temp_dir() -> TempDir {
+    TempDir(std::env::temp_dir().join(format!("dualrig-test-{}", uuid::Uuid::new_v4())))
+}
+
 fn meta(base: &std::path::Path) -> SecondaryFrameMeta {
     SecondaryFrameMeta {
         session_id: "test-session".to_string(),
@@ -296,7 +334,7 @@ fn meta(base: &std::path::Path) -> SecondaryFrameMeta {
 
 #[tokio::test]
 async fn fixed_frame_count_stops_loop_and_attributes_rig() {
-    let tmp = std::env::temp_dir().join(format!("dualrig-test-{}", uuid::Uuid::new_v4()));
+    let tmp = temp_dir();
     // Keep a typed handle so we can inspect recorded saves, plus a trait-object
     // clone for the loop.
     let recorder = Arc::new(RecordingOps::new(Duration::from_millis(10)));
@@ -342,12 +380,11 @@ async fn fixed_frame_count_stops_loop_and_attributes_rig() {
             "frame name should carry target M31: {path}"
         );
     }
-    let _ = tmp;
 }
 
 #[tokio::test]
 async fn run_until_stopped_terminates_on_stop() {
-    let tmp = std::env::temp_dir().join(format!("dualrig-test-{}", uuid::Uuid::new_v4()));
+    let tmp = temp_dir();
     let ops: Arc<dyn nightshade_sequencer::DeviceOps> =
         Arc::new(RecordingOps::new(Duration::from_millis(10)));
     let barrier = Arc::new(DitherBarrier::new(
@@ -366,13 +403,44 @@ async fn run_until_stopped_terminates_on_stop() {
     );
 
     let handle = rig.stop();
-    let _ = tokio::time::timeout(Duration::from_secs(3), handle).await;
-    let _ = tmp;
+    let stopped = tokio::time::timeout(Duration::from_secs(3), handle)
+        .await
+        .expect("secondary stop timed out")
+        .expect("secondary task panicked");
+    assert!(stopped.is_ok(), "secondary stop failed: {stopped:?}");
+}
+
+#[tokio::test]
+async fn stop_aborts_and_joins_a_long_in_flight_exposure() {
+    let tmp = temp_dir();
+    let recorder = Arc::new(RecordingOps::new(Duration::from_secs(30)));
+    let ops: Arc<dyn nightshade_sequencer::DeviceOps> = recorder.clone();
+    let barrier = Arc::new(DitherBarrier::new(
+        30.0,
+        InFlightDitherPolicy::CompleteIfShort,
+    ));
+
+    let config = SecondaryRigConfig::new("cam-secondary", 30.0);
+    let rig = SecondaryRig::start(config, ops, barrier, meta(&tmp));
+    for _ in 0..100 {
+        if rig.status().exposing {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert!(rig.status().exposing, "test exposure never started");
+
+    let stopped = tokio::time::timeout(Duration::from_secs(1), rig.stop())
+        .await
+        .expect("stop must not wait for the 30-second exposure")
+        .expect("secondary task panicked");
+    assert!(stopped.is_ok(), "secondary stop failed: {stopped:?}");
+    assert_eq!(recorder.abort_count(), 1);
 }
 
 #[tokio::test]
 async fn secondary_blocks_while_dither_pending_then_resumes() {
-    let tmp = std::env::temp_dir().join(format!("dualrig-test-{}", uuid::Uuid::new_v4()));
+    let tmp = temp_dir();
     let ops: Arc<dyn nightshade_sequencer::DeviceOps> =
         Arc::new(RecordingOps::new(Duration::from_millis(10)));
     let barrier = Arc::new(DitherBarrier::new(
@@ -404,5 +472,4 @@ async fn secondary_blocks_while_dither_pending_then_resumes() {
     );
 
     let _ = rig.stop().await;
-    let _ = tmp;
 }

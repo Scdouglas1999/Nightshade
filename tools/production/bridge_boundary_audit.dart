@@ -23,8 +23,7 @@ import 'dart:io';
 /// Output: docs/production-readiness/bridge-boundary.{json,md}
 /// Exit code: 1 when un-whitelisted violations exist (unless
 /// --no-fail-on-violation).
-const _defaultWhitelistPath =
-    'tools/production/bridge_boundary_whitelist.json';
+const _defaultWhitelistPath = 'tools/production/bridge_boundary_whitelist.json';
 const _jsonOutputPath = 'docs/production-readiness/bridge-boundary.json';
 const _markdownOutputPath = 'docs/production-readiness/bridge-boundary.md';
 
@@ -85,10 +84,9 @@ void main(List<String> args) {
         'nightshade_core is the only Dart package that may import '
         'package:nightshade_bridge (docs/architecture.md §1).',
     'allowedPackages': _allowedPackagePrefixes,
-    'whitelistPath': _normalize(whitelistPath).replaceFirst(
-      '${_normalize(root)}/',
-      '',
-    ),
+    'whitelistPath': _normalize(
+      whitelistPath,
+    ).replaceFirst('${_normalize(root)}/', ''),
     'importerCount': importers.length,
     'violationCount': violations.length,
     'whitelistedCount': whitelisted.length,
@@ -98,9 +96,7 @@ void main(List<String> args) {
 
   final jsonOut = File(_resolve(root, _jsonOutputPath));
   jsonOut.parent.createSync(recursive: true);
-  jsonOut.writeAsStringSync(
-    const JsonEncoder.withIndent('  ').convert(report),
-  );
+  jsonOut.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
 
   final mdOut = File(_resolve(root, _markdownOutputPath));
   mdOut.parent.createSync(recursive: true);
@@ -124,8 +120,10 @@ void main(List<String> args) {
     return;
   }
 
-  stderr.writeln('Bridge boundary violations (move behind a nightshade_core '
-      'backend/role seam, or add to the whitelist with a reason):');
+  stderr.writeln(
+    'Bridge boundary violations (move behind a nightshade_core '
+    'backend/role seam, or add to the whitelist with a reason):',
+  );
   for (final v in violations) {
     stderr.writeln('  ${v.file} -> ${v.symbols.join(', ')}');
   }
@@ -150,7 +148,10 @@ List<_Importer> _findBridgeImporters(String root) {
         if (!dir.existsSync()) {
           continue;
         }
-        for (final entity in dir.listSync(recursive: true, followLinks: false)) {
+        for (final entity in dir.listSync(
+          recursive: true,
+          followLinks: false,
+        )) {
           if (entity is! File || !entity.path.endsWith('.dart')) {
             continue;
           }
@@ -163,10 +164,7 @@ List<_Importer> _findBridgeImporters(String root) {
             continue;
           }
           importers.add(
-            _Importer(
-              relativePath: rel,
-              symbols: _extractSymbols(contents),
-            ),
+            _Importer(relativePath: rel, symbols: _extractSymbols(contents)),
           );
         }
       }
@@ -293,9 +291,7 @@ String _renderMarkdown({
       ..writeln('| File | Bridge symbols | Reason |')
       ..writeln('| --- | --- | --- |');
     for (final v in whitelisted) {
-      buffer.writeln(
-        '| `${v.file}` | ${v.symbols.join(', ')} | ${v.reason} |',
-      );
+      buffer.writeln('| `${v.file}` | ${v.symbols.join(', ')} | ${v.reason} |');
     }
   }
 

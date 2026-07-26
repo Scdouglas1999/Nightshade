@@ -172,6 +172,9 @@ void main() {
       expect(failed.error, isNotNull);
       expect(failed.error!['code'], 'job_failed');
       expect(failed.error!['message'].toString(), contains('boom'));
+      expect(failed.error!['details'], {'exceptionType': 'StateError'});
+      expect(failed.error.toString(), isNot(contains('#0')));
+      expect(failed.error.toString(), isNot(contains('job_manager_test.dart')));
       expect(recorder.ofType('JobFailed'), hasLength(1));
       expect(recorder.ofType('JobFailed').first.severity, EventSeverity.error);
     });

@@ -131,6 +131,15 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
         // wrong, the sequence is fighting through it" — same colour as
         // the recovery banner for consistency.
         return widget.colors.error;
+      case SequenceExecutionState.stopFailed:
+        // Native stop failed — hardware may still be imaging. Error colour.
+        return widget.colors.error;
+      case SequenceExecutionState.cleanupFailed:
+        // Hardware stopped; session save failed and needs a retry.
+        return widget.colors.warning;
+      case SequenceExecutionState.finalizing:
+        // Run ended, durable cleanup wrapping up — calm, transient.
+        return widget.colors.info;
     }
   }
 
@@ -150,6 +159,12 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
         return 'Failed';
       case SequenceExecutionState.recovering:
         return 'Recovering';
+      case SequenceExecutionState.stopFailed:
+        return 'Stop failed';
+      case SequenceExecutionState.cleanupFailed:
+        return 'Cleanup failed';
+      case SequenceExecutionState.finalizing:
+        return 'Finalizing';
     }
   }
 }

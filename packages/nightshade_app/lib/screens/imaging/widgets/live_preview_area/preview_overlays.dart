@@ -66,10 +66,10 @@ class _CompassScaleBarOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(annotationSettingsProvider);
-    final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
+    final settings = settingsAsync.valueOrNull;
 
     final solve = plateSolve;
-    if (solve == null) return const SizedBox.shrink();
+    if (solve == null || settings == null) return const SizedBox.shrink();
 
     final showCompass = settings.compassEnabled;
     final showScaleBar = settings.scaleBarEnabled;

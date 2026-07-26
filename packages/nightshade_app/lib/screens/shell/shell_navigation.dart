@@ -25,10 +25,20 @@ class ShellRouteDestination {
   final IconData icon;
   final String Function(NightshadeLocalizations l10n) label;
 
+  /// Optional short form for the ~60dp phone bottom-nav slots; `null` falls
+  /// back to [label]. The full labels ("Planetarium", "Sequencer") all
+  /// ellipsized at seven slots on a 430dp phone.
+  final String Function(NightshadeLocalizations l10n)? shortLabel;
+
+  /// The label the phone bottom nav renders.
+  String bottomNavLabel(NightshadeLocalizations l10n) =>
+      (shortLabel ?? label)(l10n);
+
   const ShellRouteDestination({
     required this.route,
     required this.icon,
     required this.label,
+    this.shortLabel,
   });
 }
 
@@ -110,31 +120,37 @@ abstract final class ShellNavigation {
       route: '/dashboard',
       icon: LucideIcons.layoutDashboard,
       label: _navDashboard,
+      shortLabel: _navDashboardShort,
     ),
     ShellRouteDestination(
       route: '/equipment',
       icon: NightshadeIcons.connected,
       label: _navEquipment,
+      shortLabel: _navEquipmentShort,
     ),
     ShellRouteDestination(
       route: '/imaging',
       icon: NightshadeIcons.camera,
       label: _navImaging,
+      shortLabel: _navImagingShort,
     ),
     ShellRouteDestination(
       route: '/sequencer',
       icon: NightshadeIcons.listOrdered,
       label: _navSequencer,
+      shortLabel: _navSequencerShort,
     ),
     ShellRouteDestination(
       route: '/guiding',
       icon: NightshadeIcons.guider,
       label: _navGuiding,
+      shortLabel: _navGuidingShort,
     ),
     ShellRouteDestination(
       route: '/planner',
       icon: LucideIcons.moonStar,
       label: _navPlanner,
+      shortLabel: _navPlannerShort,
     ),
   ];
 
@@ -181,6 +197,18 @@ abstract final class ShellNavigation {
 
   static String _navDashboard(NightshadeLocalizations l10n) =>
       l10n.text('navDashboard');
+  static String _navDashboardShort(NightshadeLocalizations l10n) =>
+      l10n.text('navDashboardShort');
+  static String _navEquipmentShort(NightshadeLocalizations l10n) =>
+      l10n.text('navEquipmentShort');
+  static String _navImagingShort(NightshadeLocalizations l10n) =>
+      l10n.text('navImagingShort');
+  static String _navSequencerShort(NightshadeLocalizations l10n) =>
+      l10n.text('navSequencerShort');
+  static String _navGuidingShort(NightshadeLocalizations l10n) =>
+      l10n.text('navGuidingShort');
+  static String _navPlannerShort(NightshadeLocalizations l10n) =>
+      l10n.text('navPlannerShort');
   static String _navDashboardDesc(NightshadeLocalizations l10n) =>
       l10n.text('navDashboardDesc');
   static String _navEquipment(NightshadeLocalizations l10n) =>

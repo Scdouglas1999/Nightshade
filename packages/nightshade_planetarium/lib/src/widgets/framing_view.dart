@@ -93,7 +93,6 @@ class _FramingViewState extends ConsumerState<FramingView> {
                   setState(() {
                     _pan += details.delta;
                   });
-                  _updateTargetFromPan();
                 }
               },
               onPanEnd: (_) {
@@ -153,25 +152,6 @@ class _FramingViewState extends ConsumerState<FramingView> {
         Positioned(left: 16, bottom: 16, child: _ScaleIndicator(zoom: _zoom)),
       ],
     );
-  }
-
-  void _updateTargetFromPan() {
-    // Convert pan offset to coordinate offset
-    // This is a simplified calculation - real implementation would
-    // account for spherical geometry
-    if (widget.target == null || widget.onTargetChanged == null) return;
-
-    final degreesPerPixel = 1 / (50 * _zoom);
-    final dRa = -_pan.dx * degreesPerPixel / 15;
-    final dDec = -_pan.dy * degreesPerPixel;
-
-    var newRa = widget.target!.ra + dRa;
-    if (newRa < 0) newRa += 24;
-    if (newRa >= 24) newRa -= 24;
-
-    final newDec = (widget.target!.dec + dDec).clamp(-90.0, 90.0);
-
-    widget.onTargetChanged?.call(CelestialCoordinate(ra: newRa, dec: newDec));
   }
 
   Widget _buildBackground() {

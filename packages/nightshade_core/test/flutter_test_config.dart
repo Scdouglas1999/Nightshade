@@ -29,6 +29,17 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     'nightshade-core-test-',
   );
 
+  // Delete the scratch dir once every test in this file has run. `tearDownAll`
+  // rather than a delete after `testMain()`: `testMain` only *registers* the
+  // tests, so deleting there would pull the directory out from under them. It
+  // also runs when a test fails, which is exactly when this used to leak — the
+  // dirs accumulated one per test isolate and never came back.
+  tearDownAll(() async {
+    if (tempDir.existsSync()) {
+      await tempDir.delete(recursive: true);
+    }
+  });
+
   const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(pathProviderChannel, (call) async {

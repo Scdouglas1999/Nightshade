@@ -204,7 +204,7 @@ echo "Headless smoke OK (exit $SMOKE_RC)"
 # appliance ships Raspberry Pi OS / Debian Bookworm (glibc 2.36), but a build
 # done on a newer host (e.g. Ubuntu 24.04 / glibc 2.39) silently bakes a 2.38+
 # floor into the Rust bridge AND the from-source Flutter plugins
-# (flutter_secure_storage, flutter_webrtc, sqlite3_flutter_libs). Such a bundle
+# (flutter_secure_storage, flutter_webrtc). Such a bundle
 # aborts on boot on Bookworm with "GLIBC_2.38 not found" — invisible here.
 # Fail the build loudly if any bundle binary requires glibc newer than the
 # target floor. Override the floor with NIGHTSHADE_GLIBC_FLOOR (default 2.36 =

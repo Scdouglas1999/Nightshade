@@ -7,7 +7,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../session_review/auto_integration_service.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/sequence_mutator_helper.dart';
 import '../../widgets/animated_tab_bar_view.dart';
@@ -66,6 +65,24 @@ enum SequencerTab {
 
   /// Leading icon used in the strip + collapsed (icon-only) phone mode.
   final IconData icon;
+}
+
+/// Map a sequencer `?tab=` deep link to the canonical tab enum.
+SequencerTab? sequencerTabFromQuery(String? value) {
+  if (value == null) return null;
+  switch (value.toLowerCase()) {
+    case 'builder':
+      return SequencerTab.builder;
+    case 'templates':
+      return SequencerTab.templates;
+    case 'sequences':
+    case 'library':
+      return SequencerTab.sequences;
+    case 'history':
+    case 'runs':
+      return SequencerTab.history;
+  }
+  return null;
 }
 
 /// The tabs inside the desktop toolbox panel, in display order.
@@ -140,7 +157,10 @@ final flatNodePaletteProvider =
 // user-initiated delete must share one policy.
 
 class SequencerScreen extends ConsumerStatefulWidget {
-  const SequencerScreen({super.key});
+  const SequencerScreen({super.key, this.initialTabQuery});
+
+  /// Raw router `?tab=` value. Unknown values preserve the last in-session tab.
+  final String? initialTabQuery;
 
   @override
   ConsumerState<SequencerScreen> createState() => _SequencerScreenState();
@@ -153,8 +173,21 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
   @override
   void initState() {
     super.initState();
-    _tabController =
-        TabController(length: SequencerTab.values.length, vsync: this);
+    final persistedIndex = ref.read(sequencerTabProvider);
+    final safePersistedIndex =
+        persistedIndex >= 0 && persistedIndex < SequencerTab.values.length
+            ? persistedIndex
+            : SequencerTab.builder.index;
+    final initialIndex = sequencerTabFromQuery(widget.initialTabQuery)?.index ??
+        safePersistedIndex;
+    _tabController = TabController(
+      length: SequencerTab.values.length,
+      initialIndex: initialIndex,
+      vsync: this,
+    );
+    if (persistedIndex != initialIndex) {
+      ref.read(sequencerTabProvider.notifier).state = initialIndex;
+    }
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -172,34 +205,32 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       }
     });
 
-    // Auto-open the end-of-session report dialog (Feature A) when the
-    // execution state transitions out of running/paused into one of the
-    // terminal states. We snapshot the bound session id BEFORE the state
-    // notifier may clear it so a freshly-completed session still resolves.
-    ref.listenManual<SequenceExecutionState>(sequenceExecutionStateProvider,
-        (prev, next) {
+    // Auto-open the end-of-session report dialog (Feature A) when a run FULLY
+    // finalizes. We react to the executor's one-shot terminal-run result rather
+    // than to a raw state transition: the result is published exactly once —
+    // AFTER durable cleanup has finished and (correctly) cleared the live run /
+    // session id providers — and carries an immutable SNAPSHOT of those ids, so
+    // the report and its run-scoped Journal resolve against the completed run
+    // instead of racing the just-cleared providers. `listenManual` only fires on
+    // changes, so a fresh screen mount never reopens an already-consumed report.
+    ref.listenManual<SequenceTerminalRunResult?>(
+        sequenceTerminalRunResultProvider, (prev, next) {
       if (!mounted) return;
-      if (prev == null) return;
-      final wasActive = prev == SequenceExecutionState.running ||
-          prev == SequenceExecutionState.paused;
-      final isTerminal = next == SequenceExecutionState.completed ||
-          next == SequenceExecutionState.failed;
-      // Treat "idle after running" as a stop/abort terminal transition so
-      // the report still opens for stopped runs — the executor sets state
-      // to idle on Stop/Stopped events.
-      final stoppedTerminal = wasActive && next == SequenceExecutionState.idle;
-      if (!isTerminal && !stoppedTerminal) return;
-      final sessionId = ref.read(sessionStateProvider).dbSessionId;
+      // Ignore the reset-to-null the next run's start publishes, and any
+      // duplicate of an already-handled generation (belt-and-braces against a
+      // re-publish); each real terminal carries a unique, monotonic generation.
+      if (next == null) return;
+      if (prev != null && prev.generation == next.generation) return;
+      final sessionId = next.dbSessionId;
       if (sessionId == null) return;
-      // Snapshot the run id BEFORE the executor clears its state, so
-      // the post-session prompt and the notes service can attach the
-      // freshly-created note to the run that just ended.
-      final runId = ref.read(currentRunIdProvider);
+      // The completed run's ids, captured at finalization — valid even though
+      // the live currentRunId / session providers have since been cleared.
+      final runId = next.runId;
       // Schedule the open after the current frame so the executor finishes
       // its state-update path before we push a new route.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        SessionReportDialog.show(context, sessionId);
+        SessionReportDialog.show(context, sessionId, runId: runId);
         // Fire the auto-prompt for a journal note
         // when the setting allows it (default true). We use the
         // sequencer screen as the host because (a) it owns the
@@ -209,11 +240,6 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
         // report. The prompt itself is opt-out — "Don't ask again"
         // sets `notes.prompt_after_run = false`.
         _maybeShowNotesAutoPrompt(runId);
-        // "Wake up to a finished image": when the opt-in auto-integrate
-        // setting is enabled, kick the post-session integration in the
-        // background. Fire-and-forget — the service never throws, and the
-        // produced master lands in the Session Review Masters tab.
-        _maybeAutoIntegrate(sessionId);
       });
     });
 
@@ -291,24 +317,6 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
         prefilledBody: body,
         prefilledTitle: 'Run on ${DateTime.now().toLocal()}',
       ),
-    );
-  }
-
-  /// Opt-in post-session auto-integration ("wake up to a finished image").
-  ///
-  /// Runs the batch integration / multi-night accumulation for the completed
-  /// session in the background when the setting is enabled, then toasts the
-  /// result. The service is exception-safe so a failed auto-run is reported,
-  /// never thrown.
-  Future<void> _maybeAutoIntegrate(int sessionId) async {
-    final result = await ref
-        .read(autoIntegrationServiceProvider)
-        .maybeRunForSession(sessionId);
-    if (!result.ran || !mounted) return;
-    NightshadeToastHelper.show(
-      context: context,
-      message: result.message,
-      severity: NightshadeAlertSeverity.success,
     );
   }
 

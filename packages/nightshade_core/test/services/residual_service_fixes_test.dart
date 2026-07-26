@@ -28,6 +28,7 @@ import 'package:nightshade_core/src/models/sequence/sequence_models.dart'
 import 'package:nightshade_core/src/models/science/science_models.dart'
     as science;
 import 'package:nightshade_core/src/providers/backend_provider.dart';
+import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/services/backup_service.dart';
 import 'package:nightshade_core/src/services/catalog_service.dart';
@@ -75,13 +76,16 @@ class _TestFlatWizardService extends FlatWizardService {
   Future<double?> captureTestFrame({
     required String deviceId,
     required double exposureTime,
-    required int gain,
-    required int offset,
+    int? gain,
+    int? offset,
     String? filterName,
     int? filterPosition,
     String? filterWheelDeviceId,
     int binX = 1,
     int binY = 1,
+    FlatCancelToken? cancelToken,
+    Duration abortSettleTimeout = const Duration(seconds: 10),
+    Duration? overallTimeout,
   }) async {
     final sample = _samples[_index];
     _index = (_index + 1).clamp(0, _samples.length - 1);
@@ -265,6 +269,28 @@ void main() {
         expect(result.iterations, 2);
       },
     );
+
+    test('calibrateFilter reports maxIterations on non-convergence', () async {
+      // Same restored capture seam as the rate-tracking solver: each measured
+      // ADU is valid but far off target, so the solver must run the full
+      // budget and report it — not short-circuit at iteration 1.
+      final service = _TestFlatWizardService([5000, 5000, 5000]);
+
+      final result = await service.calibrateFilter(
+        deviceId: 'camera-1',
+        filter: 'L',
+        gain: 100,
+        offset: 50,
+        targetAdu: 20000,
+        tolerance: 5,
+        minExposure: 1,
+        maxExposure: 100,
+        maxIterations: 3,
+      );
+
+      expect(result.success, isFalse);
+      expect(result.iterations, 3);
+    });
 
     test(
       'captureTestFrame forwards supplied gain and offset to the camera',
@@ -514,6 +540,48 @@ void main() {
     );
 
     test(
+      'backup restore rolls back replace when a late table is malformed',
+      () async {
+        final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(database.close);
+        final settingsDao = SettingsDao(database);
+        await settingsDao.setSetting('sentinel', 'keep-me');
+
+        final dir = await Directory.systemTemp.createTemp('ns_atomic_restore_');
+        addTearDown(() => dir.delete(recursive: true));
+        final backupFile = File('${dir.path}/malformed.nsbackup');
+        await backupFile.writeAsString(
+          jsonEncode({
+            'version': BackupService.backupVersion,
+            'createdAt': DateTime.utc(2026, 7, 13).toIso8601String(),
+            'settings': {'replacement': 'new-value'},
+            'equipmentProfiles': <Object?>[],
+            'sequences': <Object?>[],
+            'targets': <Object?>[],
+            // Reached after core tables have already been applied. This used to
+            // be skipped while restore still returned success.
+            'darkLibrary': [42],
+          }),
+        );
+
+        final service = BackupService(
+          database: database,
+          sequenceRepository: SequenceRepository(SequencesDao(database)),
+          logger: LoggingService(),
+        );
+
+        final result = await service.restoreBackup(
+          filePath: backupFile.path,
+          replaceExisting: true,
+        );
+
+        expect(result.success, isFalse);
+        expect(await settingsDao.getSetting('sentinel'), 'keep-me');
+        expect(await settingsDao.getSetting('replacement'), equals(null));
+      },
+    );
+
+    test(
       'profile import tolerates numeric legacy values and float offsets',
       () {
         final data = ProfileExportData.fromJson({
@@ -532,6 +600,134 @@ void main() {
         expect(data.filterFocusOffsets, {'L': 1, 'R': -2});
       },
     );
+
+    // Import is a real entry point for an impossible optical train, not just a
+    // round-trip of our own data: the file is hand-editable and may come from a
+    // build that had no plausibility bounds. Focal length reaches the FITS
+    // FOCALLEN card and the plate-solve field-of-view estimate, so it must be
+    // bounded here too, by the same shared contract the editors use.
+    test('profile import rejects an implausible optical train', () {
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Absurd optics',
+          'focalLength': 999999999.0,
+          'aperture': 0.0001,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Absurd focal length',
+          'focalLength': 999999999.0,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Impossible ratio from in-range fields',
+          'focalLength': 40000.0,
+          'aperture': 2.0,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Absurd stored ratio',
+          'focalLength': 550.0,
+          'aperture': 100.0,
+          'focalRatio': 9999999990000.0,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Absurd legacy telescope optics',
+          'telescopeFocalLength': 999999999.0,
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('profile import accepts real rigs and unspecified optics', () {
+      // Samyang 135 f/2, RASA 11 f/2.2, 1 m professional f/8, and a profile
+      // that simply never filled optics in.
+      const rigs = <List<double>>[
+        [135, 67.5],
+        [620, 279],
+        [8000, 1000],
+        [0, 0],
+      ];
+      for (final rig in rigs) {
+        final data = ProfileExportData.fromJson({
+          'name': 'Rig ${rig[0]}',
+          'focalLength': rig[0],
+          'aperture': rig[1],
+        });
+        expect(data.focalLength, rig[0]);
+        expect(data.aperture, rig[1]);
+      }
+    });
+
+    test('profile import rejects invalid binning and filter schemas', () {
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Broken binning',
+          'defaultBinX': 0,
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => ProfileExportData.fromJson({
+          'name': 'Broken filters',
+          'filterNames': ['L', 42],
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('profile export round-trips the complete portable configuration', () {
+      const model = EquipmentProfileModel(
+        name: 'Remote Rig',
+        cameraId: 'camera-id',
+        cameraName: 'ASI2600MM Pro',
+        mountName: 'EQ6-R Pro',
+        focuserName: 'EAF',
+        filterWheelName: 'EFW',
+        guiderName: 'PHD2',
+        rotatorName: 'Falcon',
+        safetyMonitorName: 'Cloud Watcher',
+        switchName: 'Power Box',
+        telescopeName: 'Esprit 100',
+        telescopeFocalLength: 550,
+        telescopeAperture: 100,
+        focalLength: 413,
+        aperture: 100,
+        defaultCoolingTemp: -10,
+        coolOnConnect: true,
+        defaultCenteringExposure: 4.5,
+        filterNames: ['L', 'R'],
+        filterFocusOffsets: {'L': 0, 'R': 12},
+        meridianFlipOverrides: '{"enabled":true}',
+        profileIcon: 'telescope',
+        profileColor: 0xff336699,
+      );
+
+      final restored = ProfileExportData.fromJson(
+        ProfileExportData.fromModel(model).toJson(),
+      );
+
+      expect(restored.cameraName, model.cameraName);
+      expect(restored.mountName, model.mountName);
+      expect(restored.telescopeName, model.telescopeName);
+      expect(restored.telescopeFocalLength, 550);
+      expect(restored.telescopeAperture, 100);
+      expect(restored.coolOnConnect, isTrue);
+      expect(restored.defaultCenteringExposure, 4.5);
+      expect(restored.meridianFlipOverrides, '{"enabled":true}');
+      expect(restored.profileIcon, 'telescope');
+      expect(restored.profileColor, 0xff336699);
+      expect(restored.filterFocusOffsets, {'L': 0, 'R': 12});
+    });
 
     test('equipment snapshot rejects malformed JSON schema', () {
       expect(
@@ -671,6 +867,7 @@ void main() {
           ra: any(named: 'ra'),
           dec: any(named: 'dec'),
           fovDegrees: any(named: 'fovDegrees'),
+          timeoutSeconds: any(named: 'timeoutSeconds'),
         ),
       ).thenThrow(StateError('backend failed'));
 

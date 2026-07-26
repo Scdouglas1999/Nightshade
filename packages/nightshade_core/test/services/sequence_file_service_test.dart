@@ -10,7 +10,9 @@ class TestFileSelectorPlatform extends FileSelectorPlatform {
   TestFileSelectorPlatform({required this.openPath, required this.savePath});
 
   final String openPath;
-  final String savePath;
+  final String? savePath;
+  String? lastOpenInitialDirectory;
+  String? lastSaveInitialDirectory;
 
   @override
   Future<XFile?> openFile({
@@ -18,6 +20,7 @@ class TestFileSelectorPlatform extends FileSelectorPlatform {
     String? initialDirectory,
     String? confirmButtonText,
   }) async {
+    lastOpenInitialDirectory = initialDirectory;
     return XFile(openPath);
   }
 
@@ -26,12 +29,96 @@ class TestFileSelectorPlatform extends FileSelectorPlatform {
     List<XTypeGroup>? acceptedTypeGroups,
     SaveDialogOptions options = const SaveDialogOptions(),
   }) async {
-    return FileSaveLocation(savePath);
+    lastSaveInitialDirectory = options.initialDirectory;
+    final path = savePath;
+    return path == null ? null : FileSaveLocation(path);
   }
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'legacy node defaults stay enabled and preserve polar model defaults',
+    () {
+      final service = SequenceFileService();
+      final exposure = service.nodeFromMap({
+        'nodeType': 'Exposure',
+        'durationSecs': 60,
+        'count': 1,
+      });
+      final polar = service.nodeFromMap({'nodeType': 'PolarAlignment'});
+
+      expect(exposure.isEnabled, isTrue);
+      expect(polar, isA<PolarAlignmentNode>());
+      expect((polar as PolarAlignmentNode).startFromCurrent, isTrue);
+      expect(polar.isNorth, isTrue);
+    },
+  );
+
+  test(
+    'sequence picker reads the configured directory at dialog-open time',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp('sequence_path_');
+      addTearDown(() async => tempDir.delete(recursive: true));
+      final filePath = path.join(tempDir.path, 'sequence.nseq.json');
+      final originalPlatform = FileSelectorPlatform.instance;
+      final platform = TestFileSelectorPlatform(
+        openPath: filePath,
+        savePath: filePath,
+      );
+      FileSelectorPlatform.instance = platform;
+      addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
+      var configuredDirectory = '/observatory/one';
+      final service = SequenceFileService(
+        defaultDirectoryProvider: () => configuredDirectory,
+      );
+      final sequence = Sequence.create(
+        id: 'path-test',
+        name: 'Path test',
+        rootNodeId: 'root',
+        nodes: {'root': InstructionSetNode(id: 'root', name: 'Root')},
+      );
+
+      await service.exportSequence(sequence, forceExport: true);
+      expect(platform.lastSaveInitialDirectory, '/observatory/one');
+
+      configuredDirectory = '/observatory/two';
+      await service.importSequence();
+      expect(platform.lastOpenInitialDirectory, '/observatory/two');
+    },
+  );
+
+  test(
+    'cancelled export reports no save and does not invoke callback',
+    () async {
+      final originalPlatform = FileSelectorPlatform.instance;
+      FileSelectorPlatform.instance = TestFileSelectorPlatform(
+        openPath: '/unused/sequence.json',
+        savePath: null,
+      );
+      addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
+      var callbackCalls = 0;
+      final service = SequenceFileService(
+        onExportSaved: (_) => callbackCalls++,
+      );
+      final sequence = Sequence.create(
+        id: 'cancelled-export',
+        name: 'Cancelled export',
+        rootNodeId: 'root',
+        nodes: {'root': InstructionSetNode(id: 'root', name: 'Root')},
+      );
+
+      final saved = await service.exportSequence(sequence, forceExport: true);
+
+      // `exportSequence` returns the path written rather than a bool, because
+      // on Android/iOS the caller has to hand that path to the share sheet or
+      // the file stays stranded in the app sandbox. Cancelling still has to
+      // read as "nothing was written".
+      expect(saved, isNull);
+      expect(callbackCalls, 0);
+    },
+  );
 
   test('sequence file export/import preserves nodes', () async {
     final tempDir = await Directory.systemTemp.createTemp(
@@ -58,14 +145,32 @@ void main() {
           targetName: 'M31',
           raHours: 0.712,
           decDegrees: 41.269,
+          mosaicPanel: const MosaicPanelInfo(
+            mosaicName: 'M31 detail',
+            panelIndex: 1,
+            totalPanels: 4,
+            row: 0,
+            column: 0,
+          ),
+          integrationBudget: const IntegrationBudget(totalSecs: 3600),
+          startWhen: const TargetTrigger.altitudeAbove(35),
+          endWhen: const TargetTrigger.timeBefore(1784000000),
+          triggerPollIntervalSecs: 19,
           childIds: const ['exposure-1'],
         ),
         'exposure-1': ExposureNode(
           id: 'exposure-1',
           parentId: 'target-1',
+          comment: 'Use the low-read-noise preset for this block.',
           durationSecs: 60,
           count: 1,
-          frameType: FrameType.light,
+          frameType: FrameType.bias,
+          adaptiveExposure: const AdaptiveExposureConfig(
+            targetSnr: 18,
+            minExposureSecs: 2,
+            maxExposureSecs: 45,
+            enabled: false,
+          ),
         ),
       },
     );
@@ -79,6 +184,22 @@ void main() {
     expect(imported.nodes.length, 2);
     expect(imported.nodes['target-1'], isA<TargetHeaderNode>());
     expect(imported.nodes['exposure-1'], isA<ExposureNode>());
+    final target = imported.nodes['target-1'] as TargetHeaderNode;
+    expect(target.mosaicPanel?.mosaicName, 'M31 detail');
+    expect(target.integrationBudget?.totalSecs, 3600);
+    expect(target.startWhen, const TargetTrigger.altitudeAbove(35));
+    expect(target.endWhen, const TargetTrigger.timeBefore(1784000000));
+    expect(target.triggerPollIntervalSecs, 19);
+    final exposure = imported.nodes['exposure-1'] as ExposureNode;
+    expect(exposure.frameType, FrameType.bias);
+    expect(exposure.adaptiveExposure?.targetSnr, 18);
+    expect(exposure.adaptiveExposure?.minExposureSecs, 2);
+    expect(exposure.adaptiveExposure?.maxExposureSecs, 45);
+    expect(exposure.adaptiveExposure?.enabled, isFalse);
+    expect(
+      imported.nodes['exposure-1']?.comment,
+      'Use the low-read-noise preset for this block.',
+    );
   });
 
   test('dither pattern + grid size survive export/import round trip', () async {
@@ -242,7 +363,7 @@ void main() {
   );
 
   test(
-    'sequence round-trip preserves RecoveryNode focus-drift fields',
+    'sequence round-trip preserves every RecoveryNode control field',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
         'sequence_file_service_recovery_',
@@ -271,9 +392,18 @@ void main() {
         triggerThreshold: 1.25,
         hfrThresholdPercent: 18.5,
         hfrConsecutiveFrames: 4,
+        triggerEveryNFrames: 7,
         focusDriftWindowSize: 12,
         focusDriftMinIncreasingCount: 6,
         focusDriftMinTotalIncrease: 0.75,
+        guidingFailedDurationSecs: 44,
+        cloudMinutesBefore: 14,
+        cloudCoverageThresholdPercent: 61,
+        cloudOpeningMinDurationSecs: 420,
+        cloudCoverMaxPercent: 73,
+        cloudCoverDurationSecs: 88,
+        transparencyBelowThreshold: 0.62,
+        transparencyDurationSecs: 95,
         childIds: const ['exp-1'],
       );
       final root = InstructionSetNode(id: 'root', childIds: const ['recov-1']);
@@ -305,11 +435,20 @@ void main() {
       expect(reloaded.triggerThreshold, 1.25);
       expect(reloaded.hfrThresholdPercent, 18.5);
       expect(reloaded.hfrConsecutiveFrames, 4);
+      expect(reloaded.triggerEveryNFrames, 7);
       // The focus-drift window fields — these were the round-trip
       // gap the audit caught.
       expect(reloaded.focusDriftWindowSize, 12);
       expect(reloaded.focusDriftMinIncreasingCount, 6);
       expect(reloaded.focusDriftMinTotalIncrease, 0.75);
+      expect(reloaded.guidingFailedDurationSecs, 44);
+      expect(reloaded.cloudMinutesBefore, 14);
+      expect(reloaded.cloudCoverageThresholdPercent, 61);
+      expect(reloaded.cloudOpeningMinDurationSecs, 420);
+      expect(reloaded.cloudCoverMaxPercent, 73);
+      expect(reloaded.cloudCoverDurationSecs, 88);
+      expect(reloaded.transparencyBelowThreshold, 0.62);
+      expect(reloaded.transparencyDurationSecs, 95);
     },
   );
 

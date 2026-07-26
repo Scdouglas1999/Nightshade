@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,6 +43,40 @@ class OnboardingOverlay extends ConsumerStatefulWidget {
 
 class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
   final FocusNode _focusNode = FocusNode();
+  _TerminalAction? _terminalAction;
+
+  Future<void> _runTerminalAction(
+    _TerminalAction action,
+    Future<void> Function() operation,
+  ) async {
+    if (_terminalAction != null) return;
+    setState(() => _terminalAction = action);
+    try {
+      await operation();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not save tour progress. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _terminalAction = null);
+    }
+  }
+
+  void _skip() {
+    final notifier = ref.read(onboardingTourProvider.notifier);
+    unawaited(_runTerminalAction(_TerminalAction.skip, notifier.skip));
+  }
+
+  void _complete() {
+    final notifier = ref.read(onboardingTourProvider.notifier);
+    unawaited(_runTerminalAction(_TerminalAction.complete, notifier.complete));
+  }
 
   @override
   void initState() {
@@ -158,15 +194,16 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final notifier = ref.read(onboardingTourProvider.notifier);
+    if (_terminalAction != null) return KeyEventResult.handled;
     if (event.logicalKey == LogicalKeyboardKey.escape) {
-      notifier.skip();
+      _skip();
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
         event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.space) {
       if (notifier.isLastStep) {
-        notifier.complete();
+        _complete();
       } else {
         notifier.next();
       }
@@ -201,7 +238,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       // wedge the app — write skip so the user isn't stuck.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          notifier.skip();
+          _skip();
         }
       });
       return const SizedBox.shrink();
@@ -243,7 +280,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => notifier.skip(),
+                onTap: _terminalAction == null ? _skip : null,
                 child: CustomPaint(
                   painter: OnboardingCutoutPainter(
                     targetRect: targetRect,
@@ -264,20 +301,23 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
               targetRect: targetRect,
               screenSize: screenSize,
               primaryLabel: isWelcome ? 'Show me around' : 'Next',
+              isBusy: _terminalAction != null,
+              isSkipping: _terminalAction == _TerminalAction.skip,
+              isCompleting: _terminalAction == _TerminalAction.complete,
               // Welcome card uses its secondary button for skip and hides
               // the ghost Skip; every other step shows the ghost so the
               // user can opt out at any time.
-              onSkip: isWelcome ? null : () => notifier.skip(),
+              onSkip: isWelcome ? null : _skip,
               onBack: notifier.isFirstStep ? null : () => notifier.back(),
               onNext: showDoneButton ? null : () => notifier.next(),
-              onDone: showDoneButton ? () => notifier.complete() : null,
+              onDone: showDoneButton ? _complete : null,
               secondaryLabel: isWelcome
                   ? "Skip — I know what I'm doing"
                   : isCompletionCard
                       ? 'Show me about defect maps'
                       : null,
               onSecondary: isWelcome
-                  ? () => notifier.skip()
+                  ? _skip
                   : isCompletionCard
                       ? () => notifier.unlockDefectMapStep()
                       : null,
@@ -288,3 +328,5 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
     );
   }
 }
+
+enum _TerminalAction { skip, complete }

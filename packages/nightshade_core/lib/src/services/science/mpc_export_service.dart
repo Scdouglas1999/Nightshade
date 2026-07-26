@@ -407,12 +407,13 @@ class MpcObservationGroup {
   /// All observations in this group, sorted by timestamp
   final List<MovingObjectCandidateRow> observations;
 
-  /// Number of distinct calendar nights (UTC) with observations
+  /// Number of distinct observing nights, keyed noon-to-noon UT so a single
+  /// night that straddles 00:00 UTC counts once rather than as two nights.
   int get nightCount {
     return observations
         .map((c) {
-          final utc = c.timestamp.toUtc();
-          return DateTime.utc(utc.year, utc.month, utc.day);
+          final n = c.timestamp.toUtc().subtract(const Duration(hours: 12));
+          return DateTime.utc(n.year, n.month, n.day);
         })
         .toSet()
         .length;

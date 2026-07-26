@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for the Pillar A ("Your Sky") personal sky-atlas surface.
 ///
@@ -15,6 +16,13 @@ import '../response_helpers.dart';
 /// service the desktop UI uses, so the host stays the single source of truth.
 class AtlasHandlers {
   final ProviderContainer container;
+
+  /// Upper bound for the cutout `outPixels` (square edge). The native co-adder
+  /// allocates three `out_pixels²` f64 accumulation buffers plus two f32
+  /// outputs, with no internal cap. At 4096 this working set is already roughly
+  /// 512 MiB before tile buffers and image encoding; larger values are not a
+  /// safe preview/API contract.
+  static const int _maxCutoutPixels = 4096;
 
   AtlasHandlers(this.container);
 
@@ -35,6 +43,70 @@ class AtlasHandlers {
       'regions': regions.map(_regionToJson).toList(),
       'count': regions.length,
     });
+  }
+
+  // ===========================================================================
+  // POST /api/atlas/regions
+  // ===========================================================================
+
+  Future<Response> handleCreateRegion(Request request) async {
+    _logInfo('[API] POST /api/atlas/regions');
+    final payload = await readJsonObject(request);
+    final name = requireString(payload, 'name', maxLength: 200).trim();
+    if (name.isEmpty) {
+      throw BadRequestError(
+        field: 'name',
+        expected: 'non-empty string',
+        message: 'name cannot be empty',
+      );
+    }
+    final centerRaDeg = requireDouble(payload, 'centerRaDeg', min: 0, max: 360);
+    final centerDecDeg = requireDouble(
+      payload,
+      'centerDecDeg',
+      min: -90,
+      max: 90,
+    );
+    final radiusDeg = requireDouble(payload, 'radiusDeg', max: 180);
+    if (radiusDeg <= 0) {
+      throw BadRequestError(
+        field: 'radiusDeg',
+        expected: 'number in (0, 180]',
+        message: 'radiusDeg must be greater than zero and at most 180',
+      );
+    }
+    final kind = optionalString(payload, 'kind')?.trim() ?? 'custom';
+    if (kind != 'custom' && kind != 'target') {
+      throw BadRequestError(
+        field: 'kind',
+        expected: 'custom or target',
+        message: 'kind must be "custom" or "target"',
+      );
+    }
+    final targetId = optionalInt(payload, 'targetId', min: 1);
+    if (kind == 'target' && targetId == null) {
+      throw BadRequestError(
+        field: 'targetId',
+        expected: 'positive integer for a target region',
+        message: 'targetId is required when kind is "target"',
+      );
+    }
+
+    final id = await _service.ensureRegion(
+      name: name,
+      centerRaDeg: centerRaDeg,
+      centerDecDeg: centerDecDeg,
+      radiusDeg: radiusDeg,
+      kind: kind,
+      targetId: targetId,
+    );
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.atlas,
+      action: HostMutationAction.created,
+      entityId: id.toString(),
+    );
+    return jsonOk({'id': id});
   }
 
   // ===========================================================================
@@ -98,13 +170,35 @@ class AtlasHandlers {
 
   Future<Response> handleGetRegionCutout(Request request, String id) async {
     _logInfo('[API] GET /api/atlas/region/$id/cutout');
+
+    // Validate outPixels BEFORE resolving the region or allocating the co-add.
+    // Absent → 2048. A supplied value must be a positive whole number within the
+    // safe native range; a garbage value must not silently become 2048 and an
+    // unbounded value must not drive a multi-gigabyte allocation. Emitted as the
+    // unified error envelope so it decodes through the same client parser as the
+    // other atlas errors.
+    final qp = request.url.queryParameters;
+    final outPixelsRaw = qp['outPixels'];
+    final int outPixels;
+    if (outPixelsRaw == null || outPixelsRaw.isEmpty) {
+      outPixels = 2048;
+    } else {
+      final parsed = int.tryParse(outPixelsRaw);
+      if (parsed == null || parsed < 1 || parsed > _maxCutoutPixels) {
+        throw BadRequestError(
+          field: 'outPixels',
+          expected: 'integer in 1..$_maxCutoutPixels',
+          message: 'outPixels must be a whole number in 1..$_maxCutoutPixels',
+        );
+      }
+      outPixels = parsed;
+    }
+
     final resolved = await _resolveRegion(id);
     if (resolved.error != null) return resolved.error!;
     final regionId = resolved.regionId!;
     final region = resolved.region!;
 
-    final qp = request.url.queryParameters;
-    final outPixels = int.tryParse(qp['outPixels'] ?? '') ?? 2048;
     final interp = _parseInterp(qp['interp']);
 
     final result = await _service.cutout(

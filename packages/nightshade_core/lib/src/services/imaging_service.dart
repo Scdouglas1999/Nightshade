@@ -27,6 +27,7 @@ import '../backend/nightshade_exception.dart'
         ConnectionException,
         DeviceBusyException,
         ImagingException,
+        NightshadeException,
         ValidationException;
 import 'capture_preview_loader.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
@@ -43,16 +44,33 @@ part 'imaging_service/quality_processing.dart';
 /// Service for managing camera capture operations
 class ImagingService {
   final Ref _ref;
+  final BackendNotifier _backendOwner;
+  final LoggingService _logger;
 
   // Capture state
   bool _isCapturing = false;
   bool _cancelRequested = false;
+  bool _retired = false;
   int _frameNumber = 0;
+
+  // Pending exposure completer so cancelExposure() can interrupt an
+  // in-flight exposure instead of only setting the loop-break flag: resolving
+  // it false sends captureImage down its cancel branch, which aborts the
+  // sensor. Cleared in captureImage's finally.
+  Completer<bool>? _activeExposureCompleter;
+
+  /// Backend/device captured at exposure admission. Abort must target this
+  /// exact camera even if the active host or equipment selection changes while
+  /// the driver call is blocked.
+  NightshadeBackend? _activeCaptureBackend;
+  String? _activeCaptureDeviceId;
+  Future<void>? _activeAbortFuture;
+
   static const _imageDownloadTimeout = Duration(seconds: 60);
 
-  LoggingService get _logger => _ref.read(loggingServiceProvider);
-
-  ImagingService(this._ref);
+  ImagingService(this._ref)
+    : _backendOwner = _ref.read(backendProvider.notifier),
+      _logger = _ref.read(loggingServiceProvider);
 
   /// Start a single exposure capture
   Future<CapturedImageData?> captureImage({
@@ -104,6 +122,10 @@ class ImagingService {
         );
       }
 
+      _activeCaptureBackend = backend;
+      _activeCaptureDeviceId = deviceId;
+      _activeAbortFuture = null;
+
       // Apply readout mode before starting exposure.
       //
       // C6/C9: honour the user's explicit `readoutModeIndex` choice from the
@@ -122,16 +144,14 @@ class ImagingService {
         deviceId,
         settings,
       );
+      if (!_hasBackendAuthority(backend)) return null;
       if (readoutModeIndex != null) {
-        try {
-          await backend.cameraSetReadoutMode(deviceId, readoutModeIndex);
-        } catch (e) {
-          // Log but don't fail - not all cameras support readout mode switching
-          _logger.warning(
-            'Failed to set readout mode (index=$readoutModeIndex): $e',
-            source: 'ImagingService',
-          );
-        }
+        // A reported readout-mode list means the setting is part of the
+        // requested capture configuration. If the driver rejects it, abort the
+        // exposure instead of producing a frame in an unknown mode while the
+        // FITS metadata and UI still claim the user's selection.
+        await backend.cameraSetReadoutMode(deviceId, readoutModeIndex);
+        if (!_hasBackendAuthority(backend)) return null;
       }
 
       // Update state to exposing
@@ -142,6 +162,7 @@ class ImagingService {
       // The exposure call blocks until complete, so events would be missed if
       // we set up the listener after the call returns
       final exposureCompleter = Completer<bool>();
+      _activeExposureCompleter = exposureCompleter;
 
       // Timeout margin: exposure time + 30 seconds for readout/download
       // Long exposures need more margin for sensor readout
@@ -151,6 +172,7 @@ class ImagingService {
 
       // Listen for exposure events and complete when done
       final eventSubscription = backend.eventStream.listen((event) {
+        if (!_hasBackendAuthority(backend)) return;
         if (event.category == EventCategory.imaging) {
           if (event.eventType == 'ExposureProgress') {
             final progress = event.data['progress'] as double? ?? 0.0;
@@ -191,6 +213,9 @@ class ImagingService {
       });
 
       try {
+        if (_cancelRequested) {
+          return null;
+        }
         // Start the real exposure via backend with gain/offset from UI settings
         // This call may block until the exposure completes (depending on backend)
         // Events are published during the exposure, so the listener above catches them
@@ -204,6 +229,7 @@ class ImagingService {
           binX: settings.binningX,
           binY: settings.binningY,
         );
+        if (!_hasBackendAuthority(backend)) return null;
         _logger.debug('cameraStartExposure returned', source: 'ImagingService');
 
         // Wait for exposure completion event OR timeout
@@ -228,14 +254,17 @@ class ImagingService {
             return true;
           },
         );
+        if (!_hasBackendAuthority(backend)) return null;
 
         // Check if cancelled
         if (!completed || _cancelRequested) {
           if (_cancelRequested) {
-            await backend.cameraAbortExposure(deviceId);
+            await _abortActiveExposure();
           }
-          cameraNotifier.setExposing(false);
-          progressNotifier.reset();
+          if (_hasBackendAuthority(backend)) {
+            cameraNotifier.setExposing(false);
+            progressNotifier.reset();
+          }
           return null;
         }
 
@@ -273,6 +302,7 @@ class ImagingService {
                 );
               },
             );
+        if (!_hasBackendAuthority(backend)) return null;
         _logger.debug(
           'cameraGetLastImage returned: ${capturedImage != null ? "${capturedImage.width}x${capturedImage.height}" : "null"}',
           source: 'ImagingService',
@@ -355,6 +385,7 @@ class ImagingService {
           source: 'ImagingService',
         );
         // JPEG/display buffer first; host raw loads in the background when remote.
+        if (!_hasBackendAuthority(backend)) return null;
         _ref
             .read(capturePreviewPublisherProvider)
             .publish(_ref, imageData, deviceId);
@@ -363,7 +394,12 @@ class ImagingService {
           source: 'ImagingService',
         );
 
-        // Now save FITS file and persist to database (non-critical operations)
+        // Persisting the FITS is part of capture success. A preview in memory
+        // is useful for diagnosis, but it is not an astrophotography frame the
+        // user can integrate later. File-write failure therefore fails the
+        // capture and stops loop callers instead of silently losing images.
+        // Database indexing remains best-effort once the FITS is safely on
+        // disk.
         String? savedFilePath;
         String? effectiveFilePath;
         int? dbImageId;
@@ -383,6 +419,7 @@ class ImagingService {
               frameNumber: _frameNumber,
               timestamp: captureTimestamp,
             );
+            if (!_hasBackendAuthority(backend)) return null;
           } else {
             // No output path configured - save to temp directory for annotation/plate solving
             // This ensures live annotation can still work even without a configured save location
@@ -393,6 +430,7 @@ class ImagingService {
             if (!await nightshadeTemp.exists()) {
               await nightshadeTemp.create(recursive: true);
             }
+            if (!_hasBackendAuthority(backend)) return null;
             // Why: temp capture filenames should reflect the operator's
             // chosen clock so two parallel sessions (one local TZ, one
             // observatory TZ) don't collide on the same epoch millis.
@@ -414,6 +452,7 @@ class ImagingService {
           // Call native FITS save API
           // Note: This uses the raw data still in memory on the Rust side
           await _saveFitsFile(
+            backend: backend,
             deviceId: deviceId,
             filePath: savedFilePath,
             width: capturedImage.width,
@@ -424,41 +463,7 @@ class ImagingService {
             targetName: targetName,
             timestamp: captureTimestamp,
           );
-
-          // Insert into database only for permanent saves (not temp files)
-          // When !isTempFile, appSettings is guaranteed non-null (we checked it above)
-          if (!isTempFile && appSettings != null) {
-            dbImageId = await _saveToDatabase(
-              filePath: savedFilePath,
-              capturedImage: capturedImage,
-              exposureSettings: settings,
-              appSettings: appSettings,
-              targetName: targetName,
-              timestamp: captureTimestamp,
-            );
-            // Thumbnail — when the caller tagged the capture
-            // with a producing node id (sequencer-driven path), stamp
-            // the row so the sequence-tree thumbnail strip can pick it
-            // up via `watchImagesByProducingNode`. Best-effort: a
-            // stamp failure must never fail the capture (the FITS is
-            // already on disk; the breadcrumb is purely UI).
-            if (producingNodeId != null && producingNodeId.isNotEmpty) {
-              try {
-                final records = _ref.read(imagingRecordsRepositoryProvider);
-                await records.stampProducingNode(
-                  imageId: dbImageId,
-                  producingNodeId: producingNodeId,
-                  producingRunId: producingRunId,
-                );
-              } catch (e) {
-                _logger.warning(
-                  'Thumbnail: stampProducingNode failed for '
-                  'image $dbImageId (node $producingNodeId): $e',
-                  source: 'ImagingService',
-                );
-              }
-            }
-          }
+          if (!_hasBackendAuthority(backend)) return null;
 
           imageData = imageData.copyWith(filePath: savedFilePath);
           final currentPreview = _ref.read(currentImageProvider);
@@ -468,17 +473,99 @@ class ImagingService {
                 .copyWith(filePath: savedFilePath);
           }
           effectiveFilePath = savedFilePath;
+
+          // Insert into the database only for permanent saves. The FITS has
+          // already been written, so an indexing failure must not misreport
+          // the physical image as lost or discard its usable file path.
+          if (!isTempFile && appSettings != null) {
+            try {
+              dbImageId = await _saveToDatabase(
+                backend: backend,
+                filePath: savedFilePath,
+                capturedImage: capturedImage,
+                exposureSettings: settings,
+                appSettings: appSettings,
+                targetName: targetName,
+                timestamp: captureTimestamp,
+              );
+              if (!_hasBackendAuthority(backend)) return null;
+              // Thumbnail provenance is UI-only and remains best-effort.
+              if (dbImageId != null &&
+                  producingNodeId != null &&
+                  producingNodeId.isNotEmpty) {
+                try {
+                  final records = _ref.read(imagingRecordsRepositoryProvider);
+                  await records.stampProducingNode(
+                    imageId: dbImageId,
+                    producingNodeId: producingNodeId,
+                    producingRunId: producingRunId,
+                  );
+                } catch (e) {
+                  if (!_hasBackendAuthority(backend)) return null;
+                  _logger.warning(
+                    'Thumbnail: stampProducingNode failed for '
+                    'image $dbImageId (node $producingNodeId): $e',
+                    source: 'ImagingService',
+                  );
+                }
+              }
+            } catch (e) {
+              if (!_hasBackendAuthority(backend)) return null;
+              _logger.error(
+                'FITS saved but database indexing failed for '
+                '$savedFilePath: $e',
+                source: 'ImagingService',
+              );
+              try {
+                await _ref
+                    .read(notificationServiceProvider)
+                    .notifyError(
+                      errorTitle: 'Image Indexing Failed',
+                      errorMessage:
+                          'The FITS file was saved to $savedFilePath, but it could '
+                          'not be added to the image library: $e',
+                      source: 'Imaging Service',
+                    );
+              } catch (notificationError) {
+                if (!_hasBackendAuthority(backend)) return null;
+                _logger.warning(
+                  'Failed to send image-indexing notification: '
+                  '$notificationError',
+                  source: 'ImagingService',
+                );
+              }
+              if (!_hasBackendAuthority(backend)) return null;
+            }
+          }
         } catch (e) {
-          // Log error but don't fail the capture - image is already displayed!
+          if (!_hasBackendAuthority(backend)) return null;
           _logger.error('Error saving image: $e', source: 'ImagingService');
 
-          // Notify user of save failure via notification service
-          final notificationService = _ref.read(notificationServiceProvider);
-          await notificationService.notifyError(
-            errorTitle: 'Image Save Failed',
-            errorMessage:
-                'Failed to save FITS file${savedFilePath != null ? ' to $savedFilePath' : ''}: ${e.toString()}',
-            source: 'Imaging Service',
+          try {
+            await _ref
+                .read(notificationServiceProvider)
+                .notifyError(
+                  errorTitle: 'Image Save Failed',
+                  errorMessage:
+                      'Failed to save FITS file${savedFilePath != null ? ' to $savedFilePath' : ''}: $e',
+                  source: 'Imaging Service',
+                );
+          } catch (notificationError) {
+            if (!_hasBackendAuthority(backend)) return null;
+            _logger.warning(
+              'Failed to send image-save notification: $notificationError',
+              source: 'ImagingService',
+            );
+          }
+          if (!_hasBackendAuthority(backend)) return null;
+
+          throw ImagingException(
+            message:
+                'Captured frame could not be saved${savedFilePath != null ? ' to $savedFilePath' : ''}: $e',
+            userMessage:
+                'The captured frame could not be saved. Check the output '
+                'folder and available disk space before retrying.',
+            deviceId: deviceId,
           );
         }
 
@@ -486,8 +573,7 @@ class ImagingService {
 
         // Auto-calibration: apply dark/flat/bias correction if enabled
         // Only calibrate light frames - darks, flats, and biases should not be calibrated
-        if (savedFilePath != null &&
-            savedFilePath.isNotEmpty &&
+        if (savedFilePath.isNotEmpty &&
             !isTempFile &&
             settings.frameType == FrameType.light) {
           try {
@@ -508,6 +594,7 @@ class ImagingService {
                 binY: settings.binningY,
                 sensorTemperature: cameraState.temperature,
               );
+              if (!_hasBackendAuthority(backend)) return null;
               _logger.info(
                 'Calibration complete: dark=${calResult.darkApplied}, '
                 'flat=${calResult.flatApplied}, bias=${calResult.biasApplied} '
@@ -520,6 +607,7 @@ class ImagingService {
                 await _ref
                     .read(imagingRecordsRepositoryProvider)
                     .updateImageFilePath(dbImageId, effectiveFilePath);
+                if (!_hasBackendAuthority(backend)) return null;
               }
 
               imageData = imageData.copyWith(filePath: effectiveFilePath);
@@ -531,6 +619,7 @@ class ImagingService {
               }
             }
           } catch (e) {
+            if (!_hasBackendAuthority(backend)) return null;
             // Calibration failure should not prevent the capture from succeeding.
             // Log and notify the user, but do not lose the uncalibrated image.
             _logger.error(
@@ -544,11 +633,13 @@ class ImagingService {
                   'Failed to calibrate $savedFilePath: ${e.toString()}',
               source: 'Calibration',
             );
+            if (!_hasBackendAuthority(backend)) return null;
           }
         }
 
         final processedFilePath = effectiveFilePath ?? savedFilePath;
-        if (processedFilePath != null && processedFilePath.isNotEmpty) {
+        if (!_hasBackendAuthority(backend)) return null;
+        if (processedFilePath.isNotEmpty) {
           final sessionState = _ref.read(sessionStateProvider);
           // Science processing is informational-only and runs in background.
           unawaited(
@@ -572,7 +663,7 @@ class ImagingService {
                   id:
                       dbImageId?.toString() ??
                       DateTime.now().millisecondsSinceEpoch.toString(),
-                  filePath: processedFilePath ?? '',
+                  filePath: processedFilePath,
                   capturedAt: imageData.capturedAt,
                   settings: settings,
                   stats: imageData.stats,
@@ -594,8 +685,10 @@ class ImagingService {
           source: 'ImagingService',
         );
         _isCapturing = false;
-        cameraNotifier.setExposing(false);
-        progressNotifier.reset();
+        if (_hasBackendAuthority(backend)) {
+          cameraNotifier.setExposing(false);
+          progressNotifier.reset();
+        }
         _logger.debug(
           'State reset, returning imageData from captureImage',
           source: 'ImagingService',
@@ -633,8 +726,16 @@ class ImagingService {
         source: 'ImagingService',
       );
       _isCapturing = false;
-      cameraNotifier.setExposing(false);
-      progressNotifier.reset();
+      _activeExposureCompleter = null;
+      final backend = _activeCaptureBackend;
+      final hasAuthority = backend != null && _hasBackendAuthority(backend);
+      _activeCaptureBackend = null;
+      _activeCaptureDeviceId = null;
+      _activeAbortFuture = null;
+      if (hasAuthority) {
+        cameraNotifier.setExposing(false);
+        progressNotifier.reset();
+      }
       _logger.debug('captureImage complete!', source: 'ImagingService');
     }
   }
@@ -651,8 +752,8 @@ class ImagingService {
   ///
   /// When the mode count is known, [ExposureSettings.resolveReadoutModeIndex]
   /// maps the user's explicit choice (or the legacy `fastReadout` flag) to a
-  /// real index, clamped into `[0, modeCount - 1]` to defend against a stale
-  /// persisted index pointing past a now-shorter list.
+  /// real index. A stale persisted index is rejected: silently clamping it can
+  /// select an unrelated mode after a camera/driver/profile change.
   Future<int?> _resolveReadoutModeIndex(
     String deviceId,
     ExposureSettings settings,
@@ -661,33 +762,35 @@ class ImagingService {
     if (modeCount <= 0) {
       return null;
     }
-    return settings.resolveReadoutModeIndex(modeCount).clamp(0, modeCount - 1);
+    final resolved = settings.resolveReadoutModeIndex(modeCount);
+    if (resolved < 0 || resolved >= modeCount) {
+      throw ValidationException(
+        message:
+            'Readout mode index $resolved is unavailable on camera $deviceId '
+            '(reported modes: $modeCount)',
+        userMessage:
+            'The saved readout mode is no longer available. Select a readout '
+            'mode for this camera and try again.',
+      );
+    }
+    return resolved;
   }
 
   /// The number of readout modes the camera [deviceId] reports, or 0 when
   /// unknown. Reads the cached/awaited [equipmentCameraCapabilitiesProvider]
   /// for the device.
   ///
-  /// A failed or null capability query yields 0 (treated as "unknown" by the
-  /// caller) — never a fabricated count. Errors surface in the log rather than
-  /// silently masquerading as a two-mode camera.
+  /// A null capability result yields 0 (treated as "unsupported/unknown" by the
+  /// caller). Query failures propagate so authentication, transport, and driver
+  /// faults cannot silently skip an explicitly requested capture setting.
   Future<int> _readoutModeCount(String deviceId) async {
     if (deviceId.isEmpty) {
       return 0;
     }
-    try {
-      final caps = await _ref.read(
-        equipmentCameraCapabilitiesProvider(deviceId).future,
-      );
-      return caps?.readoutModes.length ?? 0;
-    } catch (e) {
-      _logger.warning(
-        'Failed to read camera capabilities for readout-mode resolution '
-        '($deviceId): $e — skipping explicit readout-mode set',
-        source: 'ImagingService',
-      );
-      return 0;
-    }
+    final caps = await _ref.read(
+      equipmentCameraCapabilitiesProvider(deviceId).future,
+    );
+    return caps?.readoutModes.length ?? 0;
   }
 
   /// Start looping capture
@@ -722,6 +825,17 @@ class ImagingService {
         consecutiveErrors++;
         onError?.call(e.toString());
 
+        // A non-recoverable structured error (notably a FITS write failure)
+        // must stop immediately. Retrying ten more exposures would only lose
+        // more frames to the same full/unwritable destination.
+        if (e is NightshadeException && !e.isRecoverable) {
+          _logger.error(
+            'Loop capture stopped after non-recoverable error: $e',
+            source: 'ImagingService',
+          );
+          break;
+        }
+
         if (consecutiveErrors >= maxConsecutiveErrors) {
           final msg =
               'Loop capture aborted after $consecutiveErrors consecutive errors. '
@@ -740,6 +854,62 @@ class ImagingService {
   /// Cancel the current exposure
   void cancelExposure() {
     _cancelRequested = true;
+    // Interrupt an in-flight single capture. Setting the flag alone only
+    // breaks a loop between frames; a lone exposure blocks waiting on this
+    // completer, so resolve it false — captureImage's cancel branch then
+    // aborts the sensor exactly once.
+    final completer = _activeExposureCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(false);
+    }
+
+    // cameraStartExposure is blocking on several native drivers and on the
+    // remote host route. Waiting for captureImage to reach its completer branch
+    // would therefore send Abort only after the exposure had already ended.
+    // Dispatch against the backend/device captured at admission immediately.
+    final abort = _abortActiveExposure();
+    unawaited(
+      abort.catchError((Object error, StackTrace stackTrace) {
+        _logger.warning(
+          'Immediate camera abort failed: $error\n$stackTrace',
+          source: 'ImagingService',
+        );
+      }),
+    );
+  }
+
+  /// Retire this service when its backend dependency changes. The old
+  /// instance may still have asynchronous driver work unwinding, but it must
+  /// never publish into the replacement host's provider graph.
+  void retire() {
+    if (_retired) return;
+    _retired = true;
+    _cancelRequested = true;
+
+    final completer = _activeExposureCompleter;
+    if (completer != null && !completer.isCompleted) {
+      completer.complete(false);
+    }
+
+    unawaited(_abortActiveExposure().catchError((_) {}));
+  }
+
+  bool _hasBackendAuthority(NightshadeBackend backend) =>
+      !_retired && _backendOwner.isCurrentBackend(backend);
+
+  Future<void> _abortActiveExposure() {
+    final existing = _activeAbortFuture;
+    if (existing != null) return existing;
+
+    final backend = _activeCaptureBackend;
+    final deviceId = _activeCaptureDeviceId;
+    if (backend == null || deviceId == null) return Future<void>.value();
+
+    final operation = Future<void>.sync(
+      () => backend.cameraAbortExposure(deviceId),
+    );
+    _activeAbortFuture = operation;
+    return operation;
   }
 
   /// Check if currently capturing
@@ -842,6 +1012,24 @@ class ImagingService {
   /// [_patternVariables] is letters-only, so this is sufficient.
   static final RegExp _patternVarRegex = RegExp(r'\$[A-Z]+');
 
+  static final RegExp _unsafePathComponentChars = RegExp(
+    r'[<>:"/\\|?*\x00-\x1F]',
+  );
+
+  /// Make equipment- and target-derived values safe as one filename segment.
+  /// User-entered names are data, never path syntax: a target named `M31/Ha`
+  /// must not create a surprise directory, and `../` must never escape the
+  /// configured output root.
+  static String _sanitizePathComponent(String value) {
+    var sanitized = value.replaceAll(_unsafePathComponentChars, '_').trim();
+    sanitized = sanitized.replaceFirst(RegExp(r'^[. _]+'), '');
+    sanitized = sanitized.replaceAll(RegExp(r'[. ]+$'), '');
+    if (sanitized.isEmpty || sanitized == '.' || sanitized == '..') {
+      return '_';
+    }
+    return sanitized;
+  }
+
   /// Expand `$VARIABLE` tokens in [pattern] using [substitutions].
   ///
   /// Throws an [Exception] if [pattern] references any token that is not in
@@ -882,11 +1070,18 @@ class ImagingService {
     // previous chained-`replaceAll` implementation happened to work because
     // each variable name was a unique substring, but a regex-based pass is
     // robust to future additions.
-    return pattern.replaceAllMapped(_patternVarRegex, (m) {
+    final expanded = pattern.replaceAllMapped(_patternVarRegex, (m) {
       final token = m.group(0)!;
       // Safe: we just validated every token above.
-      return substitutions[token]!;
+      return _sanitizePathComponent(substitutions[token]!);
     });
+    if (expanded.contains(r'$')) {
+      throw ValidationException(
+        message: 'Unrecognized variable syntax in naming pattern "$pattern".',
+        userMessage: 'The naming pattern contains an invalid variable',
+      );
+    }
+    return expanded;
   }
 
   /// Build the absolute file path for a captured image given the resolved
@@ -903,23 +1098,61 @@ class ImagingService {
     required String extension,
     required Map<String, String> substitutions,
   }) {
+    if (pattern.trim().isEmpty ||
+        path.isAbsolute(pattern) ||
+        pattern.startsWith('/') ||
+        pattern.startsWith(r'\')) {
+      throw ValidationException(
+        message: 'Naming pattern must be a non-empty relative path: "$pattern"',
+        userMessage: 'The naming pattern must be a relative path',
+      );
+    }
+    if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(extension)) {
+      throw ValidationException(
+        message: 'Invalid capture file extension: "$extension"',
+        userMessage: 'The capture file extension is invalid',
+      );
+    }
+
     final expanded = expandNamingPattern(pattern, substitutions);
 
     // Split on '/' (the documented pattern separator). The last segment is
     // the filename stem; earlier segments are subdirectories. If the user's
     // pattern contains no '/' the entire pattern is the filename and the
     // capture lands directly in the base directory.
-    final segments = expanded.split('/').where((s) => s.isNotEmpty).toList();
+    final segments = expanded.split('/');
     if (segments.isEmpty) {
       throw ValidationException(
         message: 'Naming pattern expanded to an empty path: "$pattern"',
         userMessage: 'The naming pattern produced an empty file path',
       );
     }
+    for (final segment in segments) {
+      if (segment.isEmpty ||
+          segment == '.' ||
+          segment == '..' ||
+          segment.contains(r'\') ||
+          _unsafePathComponentChars.hasMatch(segment)) {
+        throw ValidationException(
+          message:
+              'Unsafe path segment "$segment" in naming pattern "$pattern"',
+          userMessage: 'The naming pattern contains an unsafe path segment',
+        );
+      }
+    }
     final fileNameStem = segments.removeLast();
     final fileName = '$fileNameStem.$extension';
-
-    return path.joinAll([basePath, ...segments, fileName]);
+    final normalizedBase = path.normalize(path.absolute(basePath));
+    final candidate = path.normalize(
+      path.joinAll([normalizedBase, ...segments, fileName]),
+    );
+    if (!path.isWithin(normalizedBase, candidate)) {
+      throw ValidationException(
+        message: 'Capture path escaped output directory: "$candidate"',
+        userMessage: 'The naming pattern points outside the output folder',
+      );
+    }
+    return candidate;
   }
 
   /// Build the canonical substitution map for `$DATE`, `$TIME`, etc. given
@@ -969,7 +1202,12 @@ class ImagingService {
 
 /// Provider for the imaging service
 final imagingServiceProvider = Provider<ImagingService>((ref) {
-  return ImagingService(ref);
+  // Capture is backend-owned. Rebuild the service when the active host
+  // changes so callers can use service identity as an authority boundary.
+  ref.watch(backendProvider);
+  final service = ImagingService(ref);
+  ref.onDispose(service.retire);
+  return service;
 });
 
 /// Provider for the current displayed image

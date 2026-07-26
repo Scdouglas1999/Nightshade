@@ -101,14 +101,25 @@ class _TipItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(NightshadeIcons.check, size: 12, color: colors.success),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              NightshadeIcons.check,
+              size: 12,
+              color: colors.success,
+            ),
+          ),
           const SizedBox(width: 8),
-          Text(
-            text,
-            style: TextStyle(
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,
-                color: colors.textSecondary),
+                color: colors.textSecondary,
+              ),
+            ),
           ),
         ],
       ),

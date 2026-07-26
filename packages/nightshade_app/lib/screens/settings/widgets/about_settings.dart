@@ -1,27 +1,37 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../utils/snackbar_helper.dart';
 import 'settings_widgets.dart';
 
-class AboutSettings extends StatelessWidget {
+class AboutSettings extends ConsumerWidget {
   final bool isMobile;
 
   const AboutSettings({super.key, this.isMobile = false});
 
-  Future<void> _launchUrl(String url) async {
+  Future<void> _launchUrl(BuildContext context, String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+    var launched = false;
+    try {
+      launched = await canLaunchUrl(uri) && await launchUrl(uri);
+    } catch (_) {
+      launched = false;
+    }
+    if (!launched && context.mounted) {
+      context.showErrorSnackBar('Could not open $url');
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final appVersion = ref.watch(appVersionProvider);
     final logoSize = isMobile ? 64.0 : 80.0;
     final logoIconSize = isMobile ? 32.0 : 40.0;
 
@@ -60,7 +70,7 @@ class AboutSettings extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Version 2.2.0',
+                'Version ${appVersion.version}',
                 style: TextStyle(
                   fontSize: isMobile
                       ? NightshadeTypography.fontSize13
@@ -88,22 +98,22 @@ class AboutSettings extends StatelessWidget {
                         SettingsLinkButton(
                           icon: LucideIcons.github,
                           label: 'GitHub',
-                          onTap: () =>
-                              _launchUrl('https://github.com/nightshade-astro'),
+                          onTap: () => _launchUrl(
+                              context, 'https://github.com/nightshade-astro'),
                           compact: true,
                         ),
                         SettingsLinkButton(
                           icon: LucideIcons.bookOpen,
                           label: 'Docs',
-                          onTap: () =>
-                              _launchUrl('https://nightshade.astro/docs'),
+                          onTap: () => _launchUrl(
+                              context, 'https://nightshade.astro/docs'),
                           compact: true,
                         ),
                         SettingsLinkButton(
                           icon: LucideIcons.messageCircle,
                           label: 'Discord',
-                          onTap: () =>
-                              _launchUrl('https://discord.gg/nightshade'),
+                          onTap: () => _launchUrl(
+                              context, 'https://discord.gg/nightshade'),
                           compact: true,
                         ),
                       ],
@@ -114,22 +124,22 @@ class AboutSettings extends StatelessWidget {
                         SettingsLinkButton(
                           icon: LucideIcons.github,
                           label: 'GitHub',
-                          onTap: () =>
-                              _launchUrl('https://github.com/nightshade-astro'),
+                          onTap: () => _launchUrl(
+                              context, 'https://github.com/nightshade-astro'),
                         ),
                         const SizedBox(width: 12),
                         SettingsLinkButton(
                           icon: LucideIcons.bookOpen,
                           label: 'Documentation',
-                          onTap: () =>
-                              _launchUrl('https://nightshade.astro/docs'),
+                          onTap: () => _launchUrl(
+                              context, 'https://nightshade.astro/docs'),
                         ),
                         const SizedBox(width: 12),
                         SettingsLinkButton(
                           icon: LucideIcons.messageCircle,
                           label: 'Discord',
-                          onTap: () =>
-                              _launchUrl('https://discord.gg/nightshade'),
+                          onTap: () => _launchUrl(
+                              context, 'https://discord.gg/nightshade'),
                         ),
                       ],
                     ),

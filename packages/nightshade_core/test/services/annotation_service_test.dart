@@ -24,11 +24,54 @@ class TestAnnotationSettingsNotifier extends AnnotationSettingsNotifier {
   Future<AnnotationSettings> build() async => const AnnotationSettings();
 }
 
+class FailingAnnotationSettingsNotifier extends AnnotationSettingsNotifier {
+  @override
+  Future<AnnotationSettings> build() async {
+    throw StateError('settings database unavailable');
+  }
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue('');
     registerFallbackValue(0.0);
   });
+
+  test(
+    'annotation pipeline surfaces unavailable settings and does no work',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          annotationSettingsProvider.overrideWith(
+            FailingAnnotationSettingsNotifier.new,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final service = container.read(annotationServiceProvider);
+      final imageData = CapturedImageData(
+        width: 1,
+        height: 1,
+        displayData: Uint8List(4),
+        histogram: List.filled(256, 0),
+        stats: const ImageStats(mean: 0),
+        capturedAt: DateTime.now(),
+        settings: const ExposureSettings(
+          exposureTime: 1,
+          gain: 100,
+          offset: 10,
+        ),
+        filePath: '/tmp/unavailable-settings.fits',
+      );
+
+      await service.processNewImage(imageData);
+
+      final state = container.read(annotationStateProvider);
+      expect(state.status, AnnotationStatus.error);
+      expect(state.errorDetails, contains('settings database unavailable'));
+      expect(container.read(currentAnnotationProvider), isNull);
+    },
+  );
 
   test(
     'annotation pipeline uses annotation catalog when only annotation catalog is installed',
@@ -61,6 +104,7 @@ void main() {
           ra: any(named: 'ra'),
           dec: any(named: 'dec'),
           fovDegrees: any(named: 'fovDegrees'),
+          timeoutSeconds: any(named: 'timeoutSeconds'),
         ),
       ).thenAnswer(
         (_) async => PlateSolveResult(
@@ -192,6 +236,7 @@ void main() {
           ra: any(named: 'ra'),
           dec: any(named: 'dec'),
           fovDegrees: any(named: 'fovDegrees'),
+          timeoutSeconds: any(named: 'timeoutSeconds'),
         ),
       ).thenAnswer(
         (_) async => PlateSolveResult(
@@ -279,6 +324,7 @@ void main() {
           ra: 180.0,
           dec: 30.0,
           fovDegrees: any(named: 'fovDegrees'),
+          timeoutSeconds: any(named: 'timeoutSeconds'),
         ),
       ).called(1);
     },
@@ -337,6 +383,172 @@ void main() {
     },
   );
 
+  test(
+    'a late solve cannot overwrite the newer image annotation state',
+    () async {
+      final mockCatalogManager = MockCatalogManager();
+      when(() => mockCatalogManager.isInitialized).thenReturn(true);
+      when(
+        mockCatalogManager.getDsoCatalogStatus,
+      ).thenAnswer((_) async => CatalogStatus.notInstalled());
+      when(
+        mockCatalogManager.getStarCatalogStatus,
+      ).thenAnswer((_) async => CatalogStatus.notInstalled());
+      when(() => mockCatalogManager.getAnnotationCatalogStatus()).thenAnswer(
+        (_) async => const CatalogStatus(
+          isInstalled: true,
+          installedPath: '/tmp/annotation.csv',
+        ),
+      );
+
+      final backend = MockNightshadeBackend();
+      final firstSolve = Completer<PlateSolveResult>();
+      var solveCalls = 0;
+      when(
+        () => backend.plateSolve(
+          imagePath: any(named: 'imagePath'),
+          ra: any(named: 'ra'),
+          dec: any(named: 'dec'),
+          fovDegrees: any(named: 'fovDegrees'),
+          timeoutSeconds: any(named: 'timeoutSeconds'),
+        ),
+      ).thenAnswer((invocation) {
+        solveCalls++;
+        final imagePath = invocation.namedArguments[#imagePath] as String;
+        if (imagePath == '/tmp/first.fits') return firstSolve.future;
+        return Future.value(_failedSolve('new image failed'));
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => TestBackendNotifier(ref, backend),
+          ),
+          annotationSettingsProvider.overrideWith(
+            TestAnnotationSettingsNotifier.new,
+          ),
+          annotationServiceProvider.overrideWith(
+            (ref) => AnnotationService(ref, catalogManager: mockCatalogManager),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final service = container.read(annotationServiceProvider);
+
+      final first = service.processNewImage(_image('/tmp/first.fits'));
+      while (solveCalls == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      await service.processNewImage(_image('/tmp/second.fits'));
+      final newImageState = container.read(annotationStateProvider);
+      expect(newImageState.status, AnnotationStatus.plateSolveFailed);
+
+      firstSolve.complete(_failedSolve('old image failed'));
+      await first;
+
+      final finalState = container.read(annotationStateProvider);
+      expect(finalState.status, newImageState.status);
+      expect(finalState.errorDetails, newImageState.errorDetails);
+      expect(container.read(currentAnnotationProvider), isNull);
+      expect(solveCalls, 2);
+    },
+  );
+
+  test(
+    'a late progressive SNR search cannot overwrite a newer image state',
+    () async {
+      final catalogManager = MockCatalogManager();
+      when(() => catalogManager.isInitialized).thenReturn(true);
+      when(catalogManager.getDsoCatalogStatus).thenAnswer(
+        (_) async => const CatalogStatus(
+          isInstalled: true,
+          installedPath: '/tmp/dso.csv',
+        ),
+      );
+      when(
+        catalogManager.getStarCatalogStatus,
+      ).thenAnswer((_) async => CatalogStatus.notInstalled());
+      when(
+        catalogManager.getAnnotationCatalogStatus,
+      ).thenAnswer((_) async => CatalogStatus.notInstalled());
+
+      final progressiveSearch = Completer<List<OpenNgcData>>();
+      final progressiveSearchStarted = Completer<void>();
+      var catalogSearches = 0;
+      when(
+        () => catalogManager.searchDsoNearby(
+          ra: any(named: 'ra'),
+          dec: any(named: 'dec'),
+          radiusDegrees: any(named: 'radiusDegrees'),
+          maxMagnitude: any(named: 'maxMagnitude'),
+        ),
+      ).thenAnswer((_) {
+        catalogSearches++;
+        if (catalogSearches == 1) return Future.value([]);
+        if (!progressiveSearchStarted.isCompleted) {
+          progressiveSearchStarted.complete();
+        }
+        return progressiveSearch.future;
+      });
+
+      final backend = MockNightshadeBackend();
+      when(
+        () => backend.plateSolve(
+          imagePath: any(named: 'imagePath'),
+          ra: any(named: 'ra'),
+          dec: any(named: 'dec'),
+          fovDegrees: any(named: 'fovDegrees'),
+          timeoutSeconds: any(named: 'timeoutSeconds'),
+        ),
+      ).thenAnswer((invocation) {
+        final imagePath = invocation.namedArguments[#imagePath] as String;
+        return Future.value(
+          imagePath == '/tmp/first.fits'
+              ? _successfulSolve()
+              : _failedSolve('new image failed'),
+        );
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => TestBackendNotifier(ref, backend),
+          ),
+          annotationSettingsProvider.overrideWith(
+            TestAnnotationSettingsNotifier.new,
+          ),
+          annotationServiceProvider.overrideWith(
+            (ref) => AnnotationService(ref, catalogManager: catalogManager),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final service = container.read(annotationServiceProvider);
+
+      await service.processNewImage(_image('/tmp/first.fits'));
+      expect(
+        container.read(annotationStateProvider).status,
+        AnnotationStatus.complete,
+      );
+
+      final progressive = service.progressiveReAnnotate(10, 17);
+      await progressiveSearchStarted.future;
+
+      container.read(currentAnnotationProvider.notifier).state = null;
+      await service.processNewImage(_image('/tmp/second.fits'));
+      final newImageState = container.read(annotationStateProvider);
+      expect(newImageState.status, AnnotationStatus.plateSolveFailed);
+
+      progressiveSearch.complete([]);
+      await progressive;
+
+      final finalState = container.read(annotationStateProvider);
+      expect(finalState.status, newImageState.status);
+      expect(finalState.errorDetails, newImageState.errorDetails);
+      expect(container.read(currentAnnotationProvider), isNull);
+    },
+  );
+
   test('findObjectsInFov returns an empty list (no throw) when catalogs are '
       'present but match nothing in the frame', () async {
     // A successful-but-empty query is a legitimate result, not a failure. With
@@ -382,6 +594,64 @@ void main() {
     expect(objects, isEmpty);
   });
 }
+
+CapturedImageData _image(String filePath) => CapturedImageData(
+  width: 10,
+  height: 10,
+  displayData: Uint8List(10 * 10 * 4),
+  histogram: List.filled(256, 0),
+  stats: const ImageStats(mean: 10, snr: 5),
+  capturedAt: DateTime.now(),
+  settings: const ExposureSettings(exposureTime: 1, gain: 100, offset: 10),
+  filePath: filePath,
+);
+
+PlateSolveResult _failedSolve(String error) => PlateSolveResult(
+  success: false,
+  ra: 0,
+  dec: 0,
+  pixelScale: 0,
+  rotation: 0,
+  fieldWidth: 0,
+  fieldHeight: 0,
+  solveTimeSecs: 0,
+  error: error,
+  cd11: 0,
+  cd12: 0,
+  cd21: 0,
+  cd22: 0,
+  sipAOrder: 0,
+  sipBOrder: 0,
+  sipACoeffs: Float64List(0),
+  sipBCoeffs: Float64List(0),
+  sipApOrder: 0,
+  sipBpOrder: 0,
+  sipApCoeffs: Float64List(0),
+  sipBpCoeffs: Float64List(0),
+);
+
+PlateSolveResult _successfulSolve() => PlateSolveResult(
+  success: true,
+  ra: 10,
+  dec: 20,
+  pixelScale: 1,
+  rotation: 0,
+  fieldWidth: 1,
+  fieldHeight: 1,
+  solveTimeSecs: 0.1,
+  cd11: 0,
+  cd12: 0,
+  cd21: 0,
+  cd22: 0,
+  sipAOrder: 0,
+  sipBOrder: 0,
+  sipACoeffs: Float64List(0),
+  sipBCoeffs: Float64List(0),
+  sipApOrder: 0,
+  sipBpOrder: 0,
+  sipApCoeffs: Float64List(0),
+  sipBpCoeffs: Float64List(0),
+);
 
 /// An [AnnotationCatalog] whose [searchNearby] throws, standing in for a
 /// corrupt/unreadable catalog so the pipeline's genuine-failure path can be

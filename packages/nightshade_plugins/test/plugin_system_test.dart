@@ -132,6 +132,22 @@ void main() {
       expect(retrieved, same(plugin));
     });
 
+    test('successful lifecycle retry clears the prior error', () async {
+      final plugin = _FailsFirstDisablePlugin();
+      await host.registerPlugin(plugin);
+
+      await expectLater(
+        host.setPluginEnabled(plugin.id, false),
+        throwsA(isA<PluginException>()),
+      );
+      expect(host.pluginInfo.single.error, isNotNull);
+      expect(host.isEnabled(plugin.id), isTrue);
+
+      expect(await host.setPluginEnabled(plugin.id, false), isTrue);
+      expect(host.isEnabled(plugin.id), isFalse);
+      expect(host.pluginInfo.single.error, isNull);
+    });
+
     test('Dispose cleans up all plugins', () async {
       await host.registerPlugin(ExamplePlugin());
       await host.registerPlugin(ExampleUiPlugin());
@@ -225,6 +241,47 @@ void main() {
       expect(await second.getBool('enabled'), isTrue);
     });
 
+    test(
+      'concurrent storage instances merge mutations without lost keys',
+      () async {
+        final tempRoot = await Directory.systemTemp.createTemp(
+          'nightshade_plugin_storage_concurrent_',
+        );
+        addTearDown(() async {
+          if (await tempRoot.exists()) await tempRoot.delete(recursive: true);
+        });
+
+        Future<Directory> baseDir() async => tempRoot;
+        final first = FilePluginStorage(
+          'com.nightshade.concurrent-test',
+          baseDirectoryProvider: baseDir,
+        );
+        final second = FilePluginStorage(
+          'com.nightshade.concurrent-test',
+          baseDirectoryProvider: baseDir,
+        );
+
+        await Future.wait([
+          first.setString('first', 'one'),
+          second.setString('second', 'two'),
+        ]);
+
+        expect(await first.getAll(), {'first': 'one', 'second': 'two'});
+        expect(await second.getAll(), {'first': 'one', 'second': 'two'});
+      },
+    );
+
+    test('unsafe plugin ids are rejected before storage is created', () {
+      expect(
+        () => FilePluginStorage('../outside'),
+        throwsA(isA<PluginException>()),
+      );
+      expect(
+        () => FilePluginStorage('com.example/escape'),
+        throwsA(isA<PluginException>()),
+      );
+    });
+
     test('Sandboxed plugin event bus blocks global subscriptions', () async {
       final factory = PluginContextFactory();
       final context = factory.createContext('com.nightshade.sandbox-test');
@@ -316,6 +373,33 @@ void main() {
   });
 
   group('Plugin sandboxing', () {
+    test(
+      'minimum app version is enforced before lifecycle callbacks',
+      () async {
+        final blocked = _MinVersionPlugin('2.7.0');
+        final oldHost = PluginHost(appVersion: '2.6.9');
+        addTearDown(oldHost.dispose);
+
+        await oldHost.registerPlugin(blocked);
+
+        expect(blocked.loadCalls, 0);
+        expect(oldHost.isLoaded(blocked.id), isTrue);
+        expect(oldHost.isEnabled(blocked.id), isFalse);
+        expect(oldHost.pluginInfo.single.canEnable, isFalse);
+        await expectLater(
+          oldHost.setPluginEnabled(blocked.id, true),
+          throwsA(isA<PluginException>()),
+        );
+
+        final allowed = _MinVersionPlugin('2.7.0');
+        final currentHost = PluginHost(appVersion: 'v2.7.0+6');
+        addTearDown(currentHost.dispose);
+        await currentHost.registerPlugin(allowed);
+        expect(allowed.loadCalls, 1);
+        expect(currentHost.isEnabled(allowed.id), isTrue);
+      },
+    );
+
     test('Plugin onLoad timeout is enforced', () async {
       final host = PluginHost(
         lifecycleTimeout: const Duration(milliseconds: 50),
@@ -359,6 +443,84 @@ class _HangingPlugin implements NightshadePlugin {
   Future<void> onLoad(PluginContext context) async {
     await Future<void>.delayed(const Duration(seconds: 10));
   }
+
+  @override
+  Future<void> onUnload() async {}
+}
+
+class _FailsFirstDisablePlugin implements NightshadePlugin {
+  bool _hasFailed = false;
+
+  @override
+  String get id => 'com.nightshade.fails-first-disable';
+
+  @override
+  String get name => 'Fails First Disable';
+
+  @override
+  String get version => '1.0.0';
+
+  @override
+  String get description => 'Fails the first disable attempt';
+
+  @override
+  String get author => 'test';
+
+  @override
+  String? get minAppVersion => null;
+
+  @override
+  Future<void> onDisable() async {
+    if (!_hasFailed) {
+      _hasFailed = true;
+      throw StateError('first disable failed');
+    }
+  }
+
+  @override
+  Future<void> onEnable() async {}
+
+  @override
+  Future<void> onLoad(PluginContext context) async {}
+
+  @override
+  Future<void> onUnload() async {}
+}
+
+class _MinVersionPlugin implements NightshadePlugin {
+  _MinVersionPlugin(this.requiredVersion);
+
+  final String requiredVersion;
+  int loadCalls = 0;
+
+  @override
+  String get id => 'com.nightshade.min-version-$requiredVersion';
+
+  @override
+  String get name => 'Minimum Version';
+
+  @override
+  String get version => '1.0.0';
+
+  @override
+  String get description => 'Version gate test';
+
+  @override
+  String get author => 'test';
+
+  @override
+  String? get minAppVersion => requiredVersion;
+
+  @override
+  Future<void> onLoad(PluginContext context) async {
+    loadCalls++;
+  }
+
+  @override
+  Future<void> onEnable() async {}
+
+  @override
+  Future<void> onDisable() async {}
 
   @override
   Future<void> onUnload() async {}

@@ -22,6 +22,8 @@ class _DeviceRowItem extends ConsumerStatefulWidget {
 
 class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
   bool _isConnecting = false;
+  bool _isAssigning = false;
+  int _assignGeneration = 0;
 
   bool _isDeviceConnected() {
     switch (widget.deviceType) {
@@ -47,6 +49,22 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
       case DeviceType.rotator:
         final state = ref.read(rotatorStateProvider);
+        return state.connectionState == DeviceConnectionState.connected &&
+            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
+      case DeviceType.dome:
+        final state = ref.read(domeStateProvider);
+        return state.connectionState == DeviceConnectionState.connected &&
+            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
+      case DeviceType.weather:
+        final state = ref.read(weatherStateProvider);
+        return state.connectionState == DeviceConnectionState.connected &&
+            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
+      case DeviceType.safetyMonitor:
+        final state = ref.read(safetyMonitorStateProvider);
+        return state.connectionState == DeviceConnectionState.connected &&
+            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
+      case DeviceType.coverCalibrator:
+        final state = ref.read(coverCalibratorStateProvider);
         return state.connectionState == DeviceConnectionState.connected &&
             _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
       default:
@@ -81,6 +99,24 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
   }
 
   Future<void> _handleAssign(AssignAction action) async {
+    if (_isAssigning) return;
+    final backendOwner = ref.read(backendProvider.notifier);
+    final authority = backendOwner.currentBackend;
+    final profiles = ref.read(sortedProfilesProvider);
+    final profile =
+        profiles.where((profile) => profile.id == action.profileId).firstOrNull;
+    if (profile == null) {
+      if (mounted) {
+        context.showErrorSnackBar(
+          'Cannot assign ${widget.device.displayName}: the selected profile '
+          'no longer exists.',
+        );
+      }
+      return;
+    }
+    final device = widget.device;
+    final generation = ++_assignGeneration;
+    setState(() => _isAssigning = true);
     try {
       final profileService = ref.read(profileServiceProvider);
 
@@ -88,63 +124,94 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
         case DeviceType.camera:
           await profileService.updateProfileDevices(
             action.profileId,
-            cameraId: widget.device.activeDeviceId,
+            cameraId: device.activeDeviceId,
           );
           break;
         case DeviceType.mount:
           await profileService.updateProfileDevices(
             action.profileId,
-            mountId: widget.device.activeDeviceId,
+            mountId: device.activeDeviceId,
           );
           break;
         case DeviceType.focuser:
           await profileService.updateProfileDevices(
             action.profileId,
-            focuserId: widget.device.activeDeviceId,
+            focuserId: device.activeDeviceId,
           );
           break;
         case DeviceType.filterWheel:
           await profileService.updateProfileDevices(
             action.profileId,
-            filterWheelId: widget.device.activeDeviceId,
+            filterWheelId: device.activeDeviceId,
           );
           break;
         case DeviceType.guider:
           await profileService.updateProfileDevices(
             action.profileId,
-            guiderId: widget.device.activeDeviceId,
+            guiderId: device.activeDeviceId,
           );
           break;
         case DeviceType.rotator:
           await profileService.updateProfileDevices(
             action.profileId,
-            rotatorId: widget.device.activeDeviceId,
+            rotatorId: device.activeDeviceId,
           );
           break;
-        default:
-          throw Exception('Unsupported device type: ${action.deviceType}');
+        case DeviceType.dome:
+          await profileService.updateProfileDevices(
+            action.profileId,
+            domeId: device.activeDeviceId,
+          );
+          break;
+        case DeviceType.weather:
+          await profileService.updateProfileDevices(
+            action.profileId,
+            weatherId: device.activeDeviceId,
+          );
+          break;
+        case DeviceType.safetyMonitor:
+          await profileService.updateProfileDevices(
+            action.profileId,
+            safetyMonitorId: device.activeDeviceId,
+          );
+          break;
+        case DeviceType.switch_:
+          await profileService.updateProfileDevices(
+            action.profileId,
+            switchId: device.activeDeviceId,
+          );
+          break;
+        case DeviceType.coverCalibrator:
+          await profileService.updateProfileDevices(
+            action.profileId,
+            coverCalibratorId: device.activeDeviceId,
+          );
+          break;
+      }
+
+      if (!mounted ||
+          generation != _assignGeneration ||
+          !backendOwner.isCurrentBackend(authority)) {
+        return;
       }
 
       // Notify callback if provided - need to convert from UnifiedDevice to DeviceInfo
       if (widget.onAssignDevice != null) {
-        final deviceInfo = widget.device.activeDevice;
+        final deviceInfo = device.activeDevice;
         widget.onAssignDevice!((deviceInfo, action.profileId));
       }
 
-      // Get profile name for the success message
-      final profiles = ref.read(sortedProfilesProvider);
-      final profile = profiles.firstWhere(
-        (p) => p.id == action.profileId,
-        orElse: () => profiles.first,
-      );
-
-      if (mounted) {
-        context.showSuccessSnackBar(
-            'Assigned ${widget.device.displayName} to ${profile.name}');
-      }
+      context.showSuccessSnackBar(
+          'Assigned ${device.displayName} to ${profile.name}');
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          generation == _assignGeneration &&
+          backendOwner.isCurrentBackend(authority)) {
         context.showErrorSnackBar('Failed to assign device: $e');
+      }
+    } finally {
+      if (mounted && generation == _assignGeneration) {
+        setState(() => _isAssigning = false);
       }
     }
   }
@@ -157,7 +224,11 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
       DeviceType.filterWheel => profile.filterWheelId,
       DeviceType.guider => profile.guiderId,
       DeviceType.rotator => profile.rotatorId,
-      _ => null,
+      DeviceType.dome => profile.domeId,
+      DeviceType.weather => profile.weatherId,
+      DeviceType.safetyMonitor => profile.safetyMonitorId,
+      DeviceType.switch_ => profile.switchId,
+      DeviceType.coverCalibrator => profile.coverCalibratorId,
     };
     return currentId == null || currentId.isEmpty ? '(empty)' : '(has device)';
   }
@@ -223,6 +294,11 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (previous == null || identical(previous, next)) return;
+      _assignGeneration++;
+      if (_isAssigning) setState(() => _isAssigning = false);
+    });
     final colors = NightshadeColors.of(context);
 
     // Watch device states to react to connection changes
@@ -232,6 +308,10 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
     ref.watch(filterWheelStateProvider);
     ref.watch(guiderStateProvider);
     ref.watch(rotatorStateProvider);
+    ref.watch(domeStateProvider);
+    ref.watch(weatherStateProvider);
+    ref.watch(safetyMonitorStateProvider);
+    ref.watch(coverCalibratorStateProvider);
 
     final isConnected = _isDeviceConnected();
     final activeBackend = widget.device.activeBackend;
@@ -289,6 +369,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
 
           // Assign dropdown
           PopupMenuButton<AssignAction>(
+            enabled: !_isAssigning,
             onSelected: _handleAssign,
             offset: const Offset(0, 30),
             shape: RoundedRectangleBorder(
@@ -306,18 +387,28 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Assign',
+                    _isAssigning ? 'Assigning' : 'Assign',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Icon(
-                    LucideIcons.chevronDown,
-                    size: 12,
-                    color: colors.textMuted,
-                  ),
+                  if (_isAssigning)
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: colors.primary,
+                      ),
+                    )
+                  else
+                    Icon(
+                      LucideIcons.chevronDown,
+                      size: 12,
+                      color: colors.textMuted,
+                    ),
                 ],
               ),
             ),

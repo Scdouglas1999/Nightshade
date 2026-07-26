@@ -29,11 +29,24 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
 
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
+    if (mounted) setState(() {});
     if (value.length >= 2) {
       _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
         ref.read(objectSearchProvider.notifier).search(value);
       });
+    } else {
+      // A one-character query cannot be searched. Drop the previous query's
+      // results instead of displaying them under unrelated input.
+      ref.read(objectSearchProvider.notifier).clear();
     }
+  }
+
+  void _clearSearch() {
+    _debounceTimer?.cancel();
+    _searchController.clear();
+    ref.read(objectSearchProvider.notifier).clear();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -63,10 +76,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
                       icon: Icon(NightshadeIcons.close,
                           size: 18, color: widget.colors.textMuted),
                       tooltip: 'Clear search',
-                      onPressed: () {
-                        _searchController.clear();
-                        ref.read(objectSearchProvider.notifier).clear();
-                      },
+                      onPressed: _clearSearch,
                     )
                   : null,
               filled: true,

@@ -10,6 +10,11 @@ class WeatherState extends Equatable {
   final double? pressure;
   final double? cloudCover;
   final double? dewPoint;
+
+  /// Wind speed as reported by the native device layer, in metres/second.
+  ///
+  /// Use [windSpeedKph] anywhere the value is compared with Nightshade's
+  /// operator-facing weather thresholds, which are stored in km/h.
   final double? windSpeed;
   final double? windDirection;
   final double? skyQuality;
@@ -41,6 +46,7 @@ class WeatherState extends Equatable {
   });
 
   bool get hasError => lastError != null;
+  double? get windSpeedKph => windSpeed == null ? null : windSpeed! * 3.6;
   WeatherState clearError() => copyWith(clearError: true);
 
   WeatherState copyWith({

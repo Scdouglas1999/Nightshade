@@ -433,6 +433,12 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
       return ('Stopped', {});
     } else if (sequencerEvent is bridge.SequencerEvent_Completed) {
       return ('Completed', {});
+    } else if (sequencerEvent is bridge.SequencerEvent_Failed) {
+      // Terminal failure. Maps to the eventType the executor's
+      // `case 'SequenceFailed'` branch already handles — that branch was
+      // unreachable while the native side flattened this onto the generic
+      // `Error` payload, so failed runs never finalized.
+      return ('SequenceFailed', {'error': sequencerEvent.error});
     } else if (sequencerEvent is bridge.SequencerEvent_NodeStarted) {
       return (
         'NodeStarted',
@@ -483,6 +489,20 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
       );
     } else if (sequencerEvent is bridge.SequencerEvent_Error) {
       return ('Error', {'message': sequencerEvent.message});
+    } else if (sequencerEvent is bridge.SequencerEvent_MeridianFlipOutcome) {
+      return (
+        'MeridianFlipOutcome',
+        {
+          'outcome': sequencerEvent.outcome,
+          'target_name': sequencerEvent.targetName,
+          'new_pier_side': sequencerEvent.newPierSide,
+          'duration_secs': sequencerEvent.durationSecs,
+          'attempts': sequencerEvent.attempts,
+          'failed_steps': sequencerEvent.failedSteps,
+          'error': sequencerEvent.error,
+          'action_taken': sequencerEvent.actionTaken,
+        },
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_TriggerFired) {
       return (
         'TriggerFired',
@@ -785,7 +805,15 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         'ExposureStarted',
         {
           'duration_secs': imagingEvent.durationSecs,
-          'frame_type': imagingEvent.frameType.toString(),
+          // `.name`, not `.toString()`: this is a wire field. `toString()` on a
+          // Dart enum yields "FrameType.light", so every remote subscriber
+          // (mobile companion, web dashboard, another rig) received a value it
+          // could not match against the "light"/"dark"/"flat"/"bias" vocabulary
+          // used everywhere else on the wire. Observed verbatim on the live
+          // rig's /api/run-watch/events stream:
+          //   data: {... "eventType":"ExposureStarted","data":{"duration_secs":2.0,
+          //          "frame_type":"FrameType.light"}}
+          'frame_type': imagingEvent.frameType.name,
         },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureStartedWithFrame) {
@@ -795,7 +823,7 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'duration_secs': imagingEvent.durationSecs,
           'frame': imagingEvent.frameNumber,
           'total': imagingEvent.totalFrames,
-          'frame_type': imagingEvent.frameType.toString(),
+          'frame_type': imagingEvent.frameType.name,
         },
       );
     } else if (imagingEvent is bridge.ImagingEvent_ExposureProgress) {

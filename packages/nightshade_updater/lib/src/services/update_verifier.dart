@@ -7,27 +7,77 @@ import 'package:cryptography/cryptography.dart';
 import 'package:path/path.dart' as path;
 import '../models/update_manifest.dart';
 
+/// A trusted Ed25519 verification key paired with the id used to revoke it.
+///
+/// The id never enters the signed canonical payload — it exists only so the
+/// build/operator can rotate (carry a `next` key alongside the `primary`
+/// during a release window) and revoke (drop a key by id) without a wire
+/// format change. Revocation is keyed on the key that actually verifies,
+/// so a forged manifest-claimed id cannot redirect trust.
+class _TrustedKey {
+  final String keyId;
+  final String base64;
+  const _TrustedKey(this.keyId, this.base64);
+}
+
 /// Service for verifying update package integrity
 class UpdateVerifier {
-  final String _trustedPublicKeyBase64;
+  final List<_TrustedKey> _trustedKeys;
+  final Set<String> _revokedKeyIds;
   final Ed25519 _signatureAlgorithm;
 
   UpdateVerifier({
     String trustedPublicKeyBase64 = const String.fromEnvironment(
       'NIGHTSHADE_UPDATE_PUBLIC_KEY',
     ),
+    String primaryKeyId = const String.fromEnvironment(
+      'NIGHTSHADE_UPDATE_KEY_ID',
+      defaultValue: 'primary',
+    ),
+    String nextTrustedPublicKeyBase64 = const String.fromEnvironment(
+      'NIGHTSHADE_UPDATE_PUBLIC_KEY_NEXT',
+    ),
+    String nextKeyId = const String.fromEnvironment(
+      'NIGHTSHADE_UPDATE_KEY_ID_NEXT',
+      defaultValue: 'next',
+    ),
+    // Runtime-injectable revocation set, merged with the compile-time
+    // NIGHTSHADE_UPDATE_REVOKED_KEY_IDS define so the wiring can later supply
+    // a persisted roster without a rebuild.
+    Set<String> revokedKeyIds = const {},
     Ed25519? signatureAlgorithm,
-  }) : _trustedPublicKeyBase64 = trustedPublicKeyBase64,
-       _signatureAlgorithm = signatureAlgorithm ?? Ed25519();
+  }) : _signatureAlgorithm = signatureAlgorithm ?? Ed25519(),
+       _revokedKeyIds = {..._parseRevokedDefine(), ...revokedKeyIds},
+       _trustedKeys = [
+         if (trustedPublicKeyBase64.isNotEmpty)
+           _TrustedKey(primaryKeyId, trustedPublicKeyBase64),
+         if (nextTrustedPublicKeyBase64.isNotEmpty)
+           _TrustedKey(nextKeyId, nextTrustedPublicKeyBase64),
+       ];
 
-  /// Whether this verifier has a trusted Ed25519 public key compiled in.
+  static Set<String> _parseRevokedDefine() {
+    const raw = String.fromEnvironment('NIGHTSHADE_UPDATE_REVOKED_KEY_IDS');
+    if (raw.isEmpty) {
+      return const {};
+    }
+    return raw
+        .split(',')
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+  }
+
+  /// Whether this verifier has at least one trusted Ed25519 public key that
+  /// is compiled in and not revoked.
   ///
   /// Used by entry points like the LAN push receiver to refuse to start
   /// when no key is available (§7A.7) — without a key, signature
   /// verification cannot run and an attacker on the LAN could push an
   /// unsigned manifest. Returning false here means "this build cannot
-  /// authenticate any update; do not accept update bytes."
-  bool get hasTrustedPublicKey => _trustedPublicKeyBase64.isNotEmpty;
+  /// authenticate any update; do not accept update bytes." Revoking every
+  /// trusted key id deliberately drops this to false (kill switch).
+  bool get hasTrustedPublicKey =>
+      _trustedKeys.any((key) => !_revokedKeyIds.contains(key.keyId));
 
   /// Calculate SHA256 hash of a file
   Future<String> hashFile(File file) async {
@@ -173,17 +223,38 @@ class UpdateVerifier {
     return verifyManifestSignature(manifest);
   }
 
-  Future<bool> verifyManifestSignature(UpdateManifest manifest) async {
-    if (manifest.signature == null ||
-        manifest.signature!.isEmpty ||
-        _trustedPublicKeyBase64.isEmpty) {
-      return false;
-    }
+  Future<bool> verifyManifestSignature(UpdateManifest manifest) async =>
+      await verifyingKeyId(manifest) != null;
 
+  /// Return the id of the trusted, non-revoked key whose signature verifies
+  /// this manifest, or null when none does. Trying every trusted key in turn
+  /// supports rotation overlap (a manifest signed by either the outgoing
+  /// `primary` or the incoming `next` key verifies during the window), while
+  /// revocation is applied to the key that actually verifies — never to an
+  /// id the manifest claims — so a forged id cannot redirect trust.
+  Future<String?> verifyingKeyId(UpdateManifest manifest) async {
+    if (manifest.signature == null || manifest.signature!.isEmpty) {
+      return null;
+    }
+    for (final key in _trustedKeys) {
+      if (_revokedKeyIds.contains(key.keyId)) {
+        continue;
+      }
+      if (await _verifyWithKey(manifest, key.base64)) {
+        return key.keyId;
+      }
+    }
+    return null;
+  }
+
+  Future<bool> _verifyWithKey(
+    UpdateManifest manifest,
+    String publicKeyBase64,
+  ) async {
     try {
-      final payloadBytes = utf8.encode(_canonicalManifestPayload(manifest));
+      final payloadBytes = utf8.encode(canonicalManifestPayload(manifest));
       final publicKey = SimplePublicKey(
-        base64Decode(_trustedPublicKeyBase64),
+        base64Decode(publicKeyBase64),
         type: KeyPairType.ed25519,
       );
       final signature = Signature(
@@ -204,7 +275,13 @@ class UpdateVerifier {
     }
   }
 
-  String _canonicalManifestPayload(UpdateManifest manifest) {
+  /// Canonical byte payload that the vendor signs and this verifier checks.
+  ///
+  /// Exposed as a public static so the dev signing tool and the test suite
+  /// build the exact same bytes instead of hand-copying this map (a live
+  /// drift risk). The output MUST stay byte-identical to what
+  /// `scripts/build_update_package.ps1` signs in production.
+  static String canonicalManifestPayload(UpdateManifest manifest) {
     final sortedFiles = manifest.files.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     final payload = <String, dynamic>{

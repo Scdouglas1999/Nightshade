@@ -36,8 +36,12 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
 
   final List<RemoteSequenceRun> _runs = [];
   int _total = 0;
+  int _nextOffset = 0;
+  int _generation = 0;
   bool _loading = false;
+  bool _exhausted = false;
   Object? _error;
+  NightshadeBackend? _loadedBackend;
 
   @override
   void initState() {
@@ -48,11 +52,13 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
     // from initState would hit the local-only FfiBackend on first cold
     // launch and surface a misleading "fetchSequenceRuns is not
     // implemented" exception.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_loadMore());
+    });
   }
 
   Future<void> _loadMore() async {
-    if (_loading) return;
+    if (!mounted || _loading || _exhausted) return;
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) {
       // Replay is phone-only. Local FFI backend cannot list runs over
@@ -63,6 +69,13 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
       });
       return;
     }
+    if (_loadedBackend != null && !identical(_loadedBackend, backend)) {
+      await _refresh();
+      return;
+    }
+    _loadedBackend = backend;
+    final requestGeneration = _generation;
+    final requestOffset = _nextOffset;
     setState(() {
       _loading = true;
       _error = null;
@@ -70,16 +83,64 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
     try {
       final page = await backend.fetchSequenceRuns(
         limit: _pageSize,
-        offset: _runs.length,
+        offset: requestOffset,
       );
       if (!mounted) return;
+      if (requestGeneration != _generation ||
+          !identical(ref.read(backendProvider), backend)) {
+        if (requestGeneration == _generation) {
+          unawaited(_refresh());
+        }
+        return;
+      }
+      if (page.items.length > _pageSize) {
+        throw StateError(
+          'The server returned ${page.items.length} runs for a '
+          '$_pageSize-row request.',
+        );
+      }
+      if (requestOffset > 0 && page.total != _total) {
+        throw StateError(
+          'Run history changed while loading more results. Refresh the '
+          'history to load a consistent list.',
+        );
+      }
+      final knownIds = _runs.map((run) => run.id).toSet();
+      final newRuns = <RemoteSequenceRun>[];
+      for (final run in page.items) {
+        if (knownIds.add(run.id)) {
+          newRuns.add(run);
+        }
+      }
+      if (requestOffset + page.items.length > page.total) {
+        throw StateError(
+          'The server returned more run rows than its advertised total.',
+        );
+      }
       setState(() {
-        _runs.addAll(page.items);
+        _runs.addAll(newRuns);
+        _nextOffset = requestOffset + page.items.length;
         _total = page.total;
+        final unexpectedlyEmpty =
+            page.items.isEmpty && requestOffset < page.total;
+        _exhausted = !unexpectedlyEmpty && _nextOffset >= page.total;
+        if (unexpectedlyEmpty) {
+          _error = StateError(
+            'The server reported more runs but returned an empty page. '
+            'Retry or refresh the history to try again.',
+          );
+        }
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
+      if (requestGeneration != _generation ||
+          !identical(ref.read(backendProvider), backend)) {
+        if (requestGeneration == _generation) {
+          unawaited(_refresh());
+        }
+        return;
+      }
       setState(() {
         _loading = false;
         _error = e;
@@ -87,8 +148,28 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
     }
   }
 
+  Future<void> _refresh() async {
+    if (!mounted) return;
+    _generation++;
+    setState(() {
+      _runs.clear();
+      _total = 0;
+      _nextOffset = 0;
+      _loading = false;
+      _exhausted = false;
+      _error = null;
+      _loadedBackend = null;
+    });
+    await _loadMore();
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        unawaited(_refresh());
+      }
+    });
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     return Scaffold(
       backgroundColor: colors.background,
@@ -96,6 +177,13 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
         backgroundColor: colors.surface,
         elevation: 0,
         title: const Text('Session History'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh history',
+            onPressed: _loading ? null : () => unawaited(_refresh()),
+            icon: const Icon(LucideIcons.refreshCw),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: colors.border),
@@ -130,7 +218,8 @@ class _SessionPickerScreenState extends ConsumerState<SessionPickerScreen> {
       );
     }
 
-    final showLoadMore = _runs.length < _total;
+    final showLoadMore =
+        _error != null || (!_exhausted && _nextOffset < _total);
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _runs.length + (showLoadMore ? 1 : 0),

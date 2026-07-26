@@ -375,8 +375,8 @@ class _RotationControls extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Drag the FOV outline on the sky view to adjust rotation '
-            'visually. Drag inside the box to nudge the target centre.',
+            'Drag the FOV rotation handle on the sky view to adjust the '
+            'framing angle visually.',
             style: TextStyle(
                 fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted),

@@ -258,11 +258,12 @@ void main() {
         return http.Response('{"error":{"status":"UNREGISTERED"}}', 404);
       });
 
-      await FcmRemotePushDelivery(
+      final delivery = FcmRemotePushDelivery(
         account: account,
         store: store,
         httpClient: client,
-      ).deliver(_frame());
+      );
+      await expectLater(delivery.deliver(_frame()), throwsStateError);
 
       expect(store.removed, ['DEAD']);
     });
@@ -298,11 +299,12 @@ void main() {
           return http.Response('{"error":{"status":"INVALID_ARGUMENT"}}', 400);
         });
 
-        await FcmRemotePushDelivery(
+        final delivery = FcmRemotePushDelivery(
           account: account,
           store: store,
           httpClient: client,
-        ).deliver(_frame());
+        );
+        await expectLater(delivery.deliver(_frame()), throwsStateError);
 
         expect(
           store.removed,
@@ -349,6 +351,52 @@ void main() {
       ).deliver(_frame(eventType: 'weatherUnsafe'));
 
       expect(sends, 0);
+    });
+
+    test('one throwing recipient does not block later recipients', () async {
+      const account = FcmServiceAccount(
+        projectId: 'p',
+        clientEmail: 'svc@p.iam.gserviceaccount.com',
+        privateKeyPem: fcmTestPrivateKeyPem,
+        tokenUri: 'https://oauth2.googleapis.com/token',
+      );
+      final store = _RecordingStore(
+        tokens: [
+          const RegisteredPushToken(
+            deviceId: 'bad',
+            platform: 'fcm',
+            token: 'BAD',
+          ),
+          const RegisteredPushToken(
+            deviceId: 'good',
+            platform: 'fcm',
+            token: 'GOOD',
+          ),
+        ],
+      );
+      final attemptedTokens = <String>[];
+      final client = MockClient((request) async {
+        if (request.url.toString() == account.tokenUri) {
+          return http.Response(
+            jsonEncode({'access_token': 't', 'expires_in': 3600}),
+            200,
+          );
+        }
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final token =
+            (body['message'] as Map<String, dynamic>)['token'] as String;
+        attemptedTokens.add(token);
+        if (token == 'BAD') throw StateError('socket reset');
+        return http.Response('{}', 200);
+      });
+
+      await FcmRemotePushDelivery(
+        account: account,
+        store: store,
+        httpClient: client,
+      ).deliver(_frame());
+
+      expect(attemptedTokens, ['BAD', 'GOOD']);
     });
   });
 
@@ -425,12 +473,13 @@ void main() {
         ],
       );
 
-      await ApnsRemotePushDelivery(
+      final delivery = ApnsRemotePushDelivery(
         config: config(),
         privateKeyPem: apnsTestPrivateKeyPem,
         store: store,
         transport: transport,
-      ).deliver(_frame());
+      );
+      await delivery.deliver(_frame());
 
       expect(store.removed, ['GONE']);
     });
@@ -449,12 +498,13 @@ void main() {
         ],
       );
 
-      await ApnsRemotePushDelivery(
+      final delivery = ApnsRemotePushDelivery(
         config: config(),
         privateKeyPem: apnsTestPrivateKeyPem,
         store: store,
         transport: transport,
-      ).deliver(_frame());
+      );
+      await expectLater(delivery.deliver(_frame()), throwsStateError);
 
       expect(
         store.removed,
@@ -462,6 +512,44 @@ void main() {
         reason: 'a 400 must not prune a live apns token',
       );
     });
+
+    test(
+      'one throwing APNs recipient does not block later recipients',
+      () async {
+        final transport = _FakeApnsTransport(
+          statusFor: (token) {
+            if (token == 'BAD') throw StateError('stream reset');
+            return 200;
+          },
+        );
+        final store = _RecordingStore(
+          tokens: [
+            const RegisteredPushToken(
+              deviceId: 'bad',
+              platform: 'apns',
+              token: 'BAD',
+            ),
+            const RegisteredPushToken(
+              deviceId: 'good',
+              platform: 'apns',
+              token: 'GOOD',
+            ),
+          ],
+        );
+
+        await ApnsRemotePushDelivery(
+          config: config(),
+          privateKeyPem: apnsTestPrivateKeyPem,
+          store: store,
+          transport: transport,
+        ).deliver(_frame());
+
+        expect(transport.requests.map((request) => request.deviceToken), [
+          'BAD',
+          'GOOD',
+        ]);
+      },
+    );
   });
 
   group('MockRemotePushDelivery records (cloudless)', () {

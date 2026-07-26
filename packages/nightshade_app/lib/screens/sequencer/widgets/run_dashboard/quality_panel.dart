@@ -425,17 +425,27 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
   final Ref _ref;
   StreamSubscription<NightshadeEvent>? _subscription;
   ProviderSubscription<DiagnosticsBackend>? _backendSubscription;
+  int _backendGeneration = 0;
 
   void _wireBackendEvents() {
-    void resubscribe(DiagnosticsBackend backend) {
-      _subscription?.cancel();
-      _subscription = backend.eventStream.listen(_onEvent);
+    void resubscribe(DiagnosticsBackend backend, {required bool clear}) {
+      final generation = ++_backendGeneration;
+      final previous = _subscription;
+      if (clear) state = FrameGradeRunSummary.empty;
+      _subscription = backend.eventStream.listen((event) {
+        if (generation != _backendGeneration) return;
+        _onEvent(event);
+      });
+      previous?.cancel();
     }
 
-    resubscribe(_ref.read(diagnosticsBackendProvider));
-    _backendSubscription =
-        _ref.listen<DiagnosticsBackend>(diagnosticsBackendProvider, (_, next) {
-      resubscribe(next);
+    resubscribe(_ref.read(diagnosticsBackendProvider), clear: false);
+    _backendSubscription = _ref.listen<DiagnosticsBackend>(
+        diagnosticsBackendProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      // Per-run totals from host A are meaningless on host B, even when B is
+      // idle and therefore emits no fresh Started event to clear them.
+      resubscribe(next, clear: true);
     });
   }
 
@@ -492,6 +502,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
 
   @override
   void dispose() {
+    _backendGeneration++;
     _subscription?.cancel();
     _backendSubscription?.close();
     super.dispose();
@@ -527,17 +538,25 @@ class _AdaptiveExposureNotifier extends StateNotifier<AdaptiveExposureEvent?> {
   final Ref _ref;
   StreamSubscription<NightshadeEvent>? _subscription;
   ProviderSubscription<DiagnosticsBackend>? _backendSubscription;
+  int _backendGeneration = 0;
 
   void _wireBackendEvents() {
-    void resubscribe(DiagnosticsBackend backend) {
-      _subscription?.cancel();
-      _subscription = backend.eventStream.listen(_onEvent);
+    void resubscribe(DiagnosticsBackend backend, {required bool clear}) {
+      final generation = ++_backendGeneration;
+      final previous = _subscription;
+      if (clear) state = null;
+      _subscription = backend.eventStream.listen((event) {
+        if (generation != _backendGeneration) return;
+        _onEvent(event);
+      });
+      previous?.cancel();
     }
 
-    resubscribe(_ref.read(diagnosticsBackendProvider));
-    _backendSubscription =
-        _ref.listen<DiagnosticsBackend>(diagnosticsBackendProvider, (_, next) {
-      resubscribe(next);
+    resubscribe(_ref.read(diagnosticsBackendProvider), clear: false);
+    _backendSubscription = _ref.listen<DiagnosticsBackend>(
+        diagnosticsBackendProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      resubscribe(next, clear: true);
     });
   }
 
@@ -561,6 +580,7 @@ class _AdaptiveExposureNotifier extends StateNotifier<AdaptiveExposureEvent?> {
 
   @override
   void dispose() {
+    _backendGeneration++;
     _subscription?.cancel();
     _backendSubscription?.close();
     super.dispose();

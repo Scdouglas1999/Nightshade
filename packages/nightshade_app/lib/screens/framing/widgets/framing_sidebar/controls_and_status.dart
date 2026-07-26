@@ -41,7 +41,7 @@ class FramingControlsSection extends ConsumerWidget {
           colors: colors,
           onChanged: hasEquipment
               ? (value) => ref.read(framingProvider.notifier).setRotation(value)
-              : (_) {},
+              : null,
         ),
         const SizedBox(height: 12),
 

@@ -45,11 +45,11 @@ class SessionReplayScreen extends ConsumerStatefulWidget {
 
 class _SessionReplayScreenState extends ConsumerState<SessionReplayScreen> {
   SessionReplayDataSource? _dataSource;
+  NetworkBackend? _dataSourceBackend;
 
-  SessionReplayDataSource _resolveDataSource() {
-    final existing = widget.dataSourceOverride ?? _dataSource;
-    if (existing != null) return existing;
-    final backend = ref.read(backendProvider);
+  SessionReplayDataSource _resolveDataSource(NightshadeBackend backend) {
+    final override = widget.dataSourceOverride;
+    if (override != null) return override;
     if (backend is! NetworkBackend) {
       // The picker screen guards against this before opening the
       // replay screen, so reaching here means a backend swap happened
@@ -61,17 +61,23 @@ class _SessionReplayScreenState extends ConsumerState<SessionReplayScreen> {
         'Session replay requires NetworkBackend; got ${backend.runtimeType}',
       );
     }
+    final existing = _dataSource;
+    if (existing != null && identical(_dataSourceBackend, backend)) {
+      return existing;
+    }
     final ds = NetworkSessionReplayDataSource(backend: backend);
     _dataSource = ds;
+    _dataSourceBackend = backend;
     return ds;
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final backend = ref.watch(backendProvider);
     late final SessionReplayDataSource dataSource;
     try {
-      dataSource = _resolveDataSource();
+      dataSource = _resolveDataSource(backend);
     } catch (e) {
       return Scaffold(
         backgroundColor: colors.background,
@@ -305,6 +311,10 @@ class _PartialBanner extends StatelessWidget {
         'Server has no buffered events for this run. Events from before the last server restart are not stored persistently.',
       'ring_buffer_truncated' =>
         'Event history is partial. The server retains only the most recent 1000 log entries; older events for this run have aged out.',
+      'client_page_limit' =>
+        'Event history is unusually large and exceeds the phone replay limit. The visible timeline is incomplete.',
+      'server_empty_page' =>
+        'The server returned an incomplete event page. Retry the replay to request the missing timeline entries again.',
       _ => 'Event timeline is partial.',
     };
     return Container(

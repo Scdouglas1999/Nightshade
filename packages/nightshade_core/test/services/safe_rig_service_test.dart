@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -10,6 +12,8 @@ class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  void replaceBackend(NightshadeBackend backend) => state = backend;
 }
 
 /// SafeRigService variant that records (and optionally fails) the dome/cover
@@ -18,7 +22,11 @@ class _TestBackendNotifier extends BackendNotifier {
 /// The decision logic (whether/when to call these) is exactly the production
 /// path; only the leaf transport is overridden.
 class _RecordingSafeRig extends SafeRigService {
-  _RecordingSafeRig(super.ref, {this.failDome = false});
+  _RecordingSafeRig(
+    super.ref, {
+    this.failDome = false,
+    Future<void> Function()? stopSecondaryRig,
+  }) : super(stopSecondaryRig: stopSecondaryRig ?? _noopSecondaryRigStop);
 
   final bool failDome;
   final List<String> domeClosedFor = [];
@@ -42,6 +50,8 @@ class _RecordingSafeRig extends SafeRigService {
   }
 }
 
+Future<void> _noopSecondaryRigStop() async {}
+
 void main() {
   setUpAll(registerMocktailFallbackValues);
 
@@ -56,22 +66,60 @@ void main() {
       ).thenAnswer((_) => const Stream.empty());
       when(() => backend.sequencerPause()).thenAnswer((_) async {});
       when(() => backend.mountPark(any())).thenAnswer((_) async {});
+      when(() => backend.cameraAbortExposure(any())).thenAnswer((_) async {});
+      when(
+        () => backend.cameraSetCooling(
+          deviceId: any(named: 'deviceId'),
+          enabled: any(named: 'enabled'),
+          targetTemp: any(named: 'targetTemp'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => backend.getCameraStatus(any())).thenAnswer(
+        (_) async => CameraStatus.fromJson({
+          'connected': true,
+          'canCool': true,
+          'coolerOn': false,
+        }),
+      );
     });
 
     ProviderContainer makeContainer({
+      SequenceExecutionState executionState = SequenceExecutionState.running,
       bool mountConnected = true,
       bool mountParked = false,
       bool domeConnected = false,
       ShutterStatus domeShutter = ShutterStatus.open,
       bool coverConnected = false,
       CoverStatus coverStatus = CoverStatus.open,
+      bool cameraConnected = false,
+      bool cameraExposing = false,
+      bool cameraCooling = false,
+      double? cameraCoolerPower,
+      bool domeCanSetShutter = true,
       SafeRigService Function(Ref)? safeRigBuilder,
+      void Function(_TestBackendNotifier notifier)? captureBackendNotifier,
     }) {
       return ProviderContainer(
         overrides: [
-          backendProvider.overrideWith(
-            (ref) => _TestBackendNotifier(ref, backend),
-          ),
+          backendProvider.overrideWith((ref) {
+            final notifier = _TestBackendNotifier(ref, backend);
+            captureBackendNotifier?.call(notifier);
+            return notifier;
+          }),
+          sequenceExecutionStateProvider.overrideWith((ref) => executionState),
+          cameraStateProvider.overrideWith((ref) {
+            final n = CameraStateNotifier(ref);
+            if (cameraConnected) {
+              n.setConnecting('simulator:test-camera-1', 'Test Camera');
+              n.setConnected();
+              n.setExposing(cameraExposing);
+              n.setCooling(cameraCooling);
+              if (cameraCoolerPower != null) {
+                n.updateTemperature(0, cameraCoolerPower);
+              }
+            }
+            return n;
+          }),
           mountStateProvider.overrideWith((ref) {
             final n = MountStateNotifier(ref);
             if (mountConnected) {
@@ -100,8 +148,18 @@ void main() {
             }
             return n;
           }),
-          if (safeRigBuilder != null)
-            safeRigServiceProvider.overrideWith((ref) => safeRigBuilder(ref)),
+          domeCapabilityFetcherProvider.overrideWithValue(
+            (_) async => DomeCapabilities(canSetShutter: domeCanSetShutter),
+          ),
+          safeRigServiceProvider.overrideWith((ref) {
+            final authority = ref.watch(backendProvider);
+            return safeRigBuilder?.call(ref) ??
+                SafeRigService(
+                  ref,
+                  backend: authority,
+                  stopSecondaryRig: _noopSecondaryRigStop,
+                );
+          }),
         ],
       );
     }
@@ -122,6 +180,88 @@ void main() {
       // Mount notifier state should reflect the park.
       expect(container.read(mountStateProvider).isParked, isTrue);
       expect(container.read(mountStateProvider).isTracking, isFalse);
+    });
+
+    test('quiesces the secondary rig before moving the mount', () async {
+      final order = <String>[];
+      when(() => backend.mountPark(any())).thenAnswer((_) async {
+        order.add('park');
+      });
+      late _RecordingSafeRig recording;
+      final container = makeContainer(
+        safeRigBuilder: (ref) => recording = _RecordingSafeRig(
+          ref,
+          stopSecondaryRig: () async {
+            order.add('secondary');
+          },
+        ),
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(safeRigServiceProvider)
+          .safeTheRig(reason: 'unsafe weather', notify: false);
+
+      expect(recording, isNotNull);
+      expect(order, ['secondary', 'park']);
+      expect(result.secondaryRigQuiesced, isTrue);
+    });
+
+    test('host switch aborts safing before commands can cross rigs', () async {
+      final secondaryStop = Completer<void>();
+      final backendB = MockBackend();
+      late _TestBackendNotifier backendNotifier;
+      final container = makeContainer(
+        captureBackendNotifier: (notifier) => backendNotifier = notifier,
+        safeRigBuilder: (ref) =>
+            SafeRigService(ref, stopSecondaryRig: () => secondaryStop.future),
+      );
+      addTearDown(container.dispose);
+
+      final safing = container
+          .read(safeRigServiceProvider)
+          .safeTheRig(reason: 'unsafe weather', notify: false);
+      await Future<void>.delayed(Duration.zero);
+
+      backendNotifier.replaceBackend(backendB);
+      secondaryStop.complete();
+
+      await expectLater(
+        safing,
+        throwsA(
+          isA<SafeRigException>().having(
+            (error) => error.result.failures,
+            'failures',
+            contains('authority'),
+          ),
+        ),
+      );
+      verifyNever(() => backend.sequencerPause());
+      verifyNever(() => backend.mountPark(any()));
+      verifyNever(() => backendB.sequencerPause());
+      verifyNever(() => backendB.mountPark(any()));
+    });
+
+    test('reports secondary stop failure but still parks', () async {
+      final container = makeContainer(
+        safeRigBuilder: (ref) => _RecordingSafeRig(
+          ref,
+          stopSecondaryRig: () async {
+            throw Exception('secondary camera did not abort');
+          },
+        ),
+      );
+      addTearDown(container.dispose);
+
+      try {
+        await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'unsafe weather', notify: false);
+        fail('expected SafeRigException');
+      } on SafeRigException catch (error) {
+        expect(error.result.failures, contains('secondaryRig'));
+      }
+      verify(() => backend.mountPark('simulator:test-mount-1')).called(1);
     });
 
     test(
@@ -172,6 +312,26 @@ void main() {
       expect(result.mountParked, isFalse);
     });
 
+    test('does not pause when no sequence is running', () async {
+      when(
+        () => backend.sequencerPause(),
+      ).thenThrow(Exception('no sequence running'));
+      final container = makeContainer(
+        executionState: SequenceExecutionState.idle,
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(safeRigServiceProvider)
+          .safeTheRig(reason: 'test', park: true);
+
+      verifyNever(() => backend.sequencerPause());
+      verify(() => backend.mountPark('simulator:test-mount-1')).called(1);
+      expect(result.sequencePaused, isFalse);
+      expect(result.mountParked, isTrue);
+      expect(result.hasFailures, isFalse);
+    });
+
     test('closes dome and cover when requested and open', () async {
       late _RecordingSafeRig recording;
       final container = makeContainer(
@@ -198,6 +358,110 @@ void main() {
       expect(result.coverClosed, isTrue);
       expect(result.hasFailures, isFalse);
     });
+
+    test('terminal safing aborts exposure and disables cooler', () async {
+      final container = makeContainer(
+        cameraConnected: true,
+        cameraExposing: true,
+        cameraCooling: true,
+      );
+      addTearDown(container.dispose);
+
+      final result = await container
+          .read(safeRigServiceProvider)
+          .safeTheRig(
+            reason: 'daemon shutdown',
+            abortExposure: true,
+            disableCooling: true,
+            notify: false,
+          );
+
+      verifyInOrder([
+        () => backend.cameraAbortExposure('simulator:test-camera-1'),
+        () => backend.sequencerPause(),
+        () => backend.mountPark('simulator:test-mount-1'),
+        () => backend.cameraSetCooling(
+          deviceId: 'simulator:test-camera-1',
+          enabled: false,
+        ),
+      ]);
+      expect(result.exposureAborted, isTrue);
+      expect(result.coolerDisabled, isTrue);
+      expect(container.read(cameraStateProvider).isExposing, isFalse);
+      expect(container.read(cameraStateProvider).isCooling, isFalse);
+      expect(result.hasFailures, isFalse);
+    });
+
+    test(
+      'fresh camera status disables a cooler hidden by stale local state',
+      () async {
+        when(() => backend.getCameraStatus(any())).thenAnswer(
+          (_) async => CameraStatus.fromJson({
+            'connected': true,
+            'canCool': true,
+            'coolerOn': true,
+            'coolerPower': 42.0,
+          }),
+        );
+        final container = makeContainer(
+          executionState: SequenceExecutionState.idle,
+          mountConnected: false,
+          cameraConnected: true,
+          cameraCooling: false,
+          cameraCoolerPower: 17,
+        );
+        addTearDown(container.dispose);
+
+        final result = await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(
+              reason: 'daemon shutdown',
+              park: false,
+              disableCooling: true,
+              notify: false,
+            );
+
+        verify(
+          () => backend.cameraSetCooling(
+            deviceId: 'simulator:test-camera-1',
+            enabled: false,
+          ),
+        ).called(1);
+        expect(result.coolerDisabled, isTrue);
+        expect(container.read(cameraStateProvider).isCooling, isFalse);
+        expect(container.read(cameraStateProvider).isWarming, isFalse);
+        expect(container.read(cameraStateProvider).coolerPower, isNull);
+      },
+    );
+
+    test(
+      'fails closed when requested dome shutter control is unsupported',
+      () async {
+        late _RecordingSafeRig recording;
+        final container = makeContainer(
+          domeConnected: true,
+          domeShutter: ShutterStatus.open,
+          domeCanSetShutter: false,
+          safeRigBuilder: (ref) => recording = _RecordingSafeRig(ref),
+        );
+        addTearDown(container.dispose);
+
+        try {
+          await container
+              .read(safeRigServiceProvider)
+              .safeTheRig(
+                reason: 'unsafe weather',
+                closeDome: true,
+                notify: false,
+              );
+          fail('expected SafeRigException');
+        } on SafeRigException catch (error) {
+          expect(error.result.failures, contains('dome'));
+        }
+        expect(recording.domeClosedFor, isEmpty);
+        verify(() => backend.mountPark('simulator:test-mount-1')).called(1);
+      },
+    );
 
     test('does not re-close an already-closed dome', () async {
       late _RecordingSafeRig recording;

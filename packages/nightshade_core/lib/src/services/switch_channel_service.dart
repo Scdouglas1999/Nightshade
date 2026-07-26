@@ -6,6 +6,7 @@ import '../backend/ffi_backend.dart';
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
+import '../providers/backend_provider.dart';
 import '../providers/equipment_provider.dart';
 import 'device_exceptions.dart';
 import 'error_service.dart';
@@ -27,6 +28,12 @@ typedef SwitchBridgeGetStateFn =
 /// Type alias for the switch-bridge boolean write.
 typedef SwitchBridgeSetStateFn =
     Future<void> Function(String deviceId, int switchId, bool state);
+
+/// Type aliases for the complete channel-capability read and analog write.
+typedef SwitchBridgeGetCapabilitiesFn =
+    Future<bridge_api.SwitchCapabilities> Function(String deviceId);
+typedef SwitchBridgeSetValueFn =
+    Future<void> Function(String deviceId, int switchId, double value);
 
 /// Owns the per-channel switch-device refresh + write paths that used to
 /// live inline on `DeviceService`. Extracted as part of the A-10 god-
@@ -58,6 +65,21 @@ class SwitchChannelService {
 
   final Ref _ref;
   final NightshadeBackend _backend;
+  int _refreshGeneration = 0;
+
+  bool _stillOwnsDevice(String deviceId) {
+    try {
+      final current = _ref.read(switchStateProvider);
+      return identical(_ref.read(backendProvider), _backend) &&
+          current.connectionState == DeviceConnectionState.connected &&
+          current.deviceId == deviceId;
+    } on Object {
+      return false;
+    }
+  }
+
+  bool _stillOwnsRefresh(int generation, String deviceId) =>
+      generation == _refreshGeneration && _stillOwnsDevice(deviceId);
 
   // ---- Switch bridge hooks (testable seam) -----------------------------
   // Follow-up: the per-channel switch UI needs to call FFI even
@@ -83,6 +105,16 @@ class SwitchChannelService {
         deviceId: deviceId,
         switchId: switchId,
         state: state,
+      );
+  @visibleForTesting
+  static SwitchBridgeGetCapabilitiesFn switchBridgeGetCapabilities =
+      (deviceId) => bridge_api.apiGetSwitchCapabilities(deviceId: deviceId);
+  @visibleForTesting
+  static SwitchBridgeSetValueFn switchBridgeSetValue =
+      (deviceId, switchId, value) => bridge_api.apiSwitchSetValue(
+        deviceId: deviceId,
+        switchId: switchId,
+        value: value,
       );
 
   /// When true, [refreshChannels] and [setChannel] will call the bridge
@@ -110,6 +142,14 @@ class SwitchChannelService {
           switchId: switchId,
           state: state,
         );
+    switchBridgeGetCapabilities = (deviceId) =>
+        bridge_api.apiGetSwitchCapabilities(deviceId: deviceId);
+    switchBridgeSetValue = (deviceId, switchId, value) =>
+        bridge_api.apiSwitchSetValue(
+          deviceId: deviceId,
+          switchId: switchId,
+          value: value,
+        );
   }
 
   /// Refresh the cached channel snapshot for the currently-connected
@@ -127,14 +167,16 @@ class SwitchChannelService {
   /// no remote REST endpoint for per-channel switch reads yet.
   ///
   /// Errors at the top-level (e.g. `apiSwitchGetMax` throws) are
-  /// surfaced through [ErrorService] so the user sees a toast — silent
-  /// fallbacks would hide a real driver fault for the whole session.
+  /// surfaced through [ErrorService] and rethrown so an explicit refresh
+  /// control can remain retryable instead of reporting a false success.
   Future<void> refreshChannels() async {
+    final generation = ++_refreshGeneration;
     final notifier = _ref.read(switchStateProvider.notifier);
     final state = _ref.read(switchStateProvider);
     final deviceId = state.deviceId;
     if (deviceId == null || deviceId.isEmpty) return;
     if (state.connectionState != DeviceConnectionState.connected) return;
+    if (!_stillOwnsRefresh(generation, deviceId)) return;
 
     final backend = _backend;
     if (backend is! FfiBackend && !switchBridgeBypassBackendCheck) {
@@ -143,7 +185,7 @@ class SwitchChannelService {
       // FFI bridge. Without this branch the per-channel panel stays empty on a
       // remote client even though the rig has a switch device connected.
       if (backend is NetworkBackend) {
-        await _refreshChannelsRemote(backend, deviceId, notifier);
+        await _refreshChannelsRemote(backend, deviceId, notifier, generation);
         return;
       }
       _safeLog(
@@ -158,14 +200,61 @@ class SwitchChannelService {
     }
 
     try {
+      // The capability snapshot is the only local API that distinguishes a
+      // boolean relay from an analog/PWM channel and carries range, step,
+      // description and writeability. Prefer it so the UI does not turn a dew
+      // heater into a misleading on/off switch.
+      try {
+        final capabilities = await switchBridgeGetCapabilities(deviceId);
+        if (!_stillOwnsRefresh(generation, deviceId)) return;
+        final channels = capabilities.switches;
+        notifier.setChannels(
+          count: channels.length,
+          names: [for (final channel in channels) channel.name],
+          states: [
+            for (final channel in channels)
+              channel.isBoolean
+                  ? channel.value > 0.5
+                  : channel.value >
+                        channel.minValue +
+                            ((channel.maxValue - channel.minValue) / 2),
+          ],
+          descriptions: [for (final channel in channels) channel.description],
+          isBoolean: [for (final channel in channels) channel.isBoolean],
+          values: [for (final channel in channels) channel.value],
+          minValues: [for (final channel in channels) channel.minValue],
+          maxValues: [for (final channel in channels) channel.maxValue],
+          steps: [for (final channel in channels) channel.step],
+          canWrite: [for (final channel in channels) channel.canWrite],
+          refreshedAt: DateTime.now(),
+        );
+        return;
+      } catch (error) {
+        if (!_stillOwnsRefresh(generation, deviceId)) return;
+        // Some older drivers cannot produce a complete capabilities object.
+        // Fall back to the boolean API so existing relay control remains
+        // available, but log that the richer metadata was unavailable.
+        _safeLog(
+          (logger) => logger.warning(
+            'Switch capability read failed for $deviceId; falling back to '
+            'boolean channels: $error',
+            source: 'SwitchChannelService',
+          ),
+          'switch-capabilities-fallback',
+        );
+      }
+
       final count = await switchBridgeGetMax(deviceId);
+      if (!_stillOwnsRefresh(generation, deviceId)) return;
       final names = <String>[];
       final states = <bool>[];
       for (var i = 0; i < count; i++) {
         String name;
         try {
           name = await switchBridgeGetName(deviceId, i);
+          if (!_stillOwnsRefresh(generation, deviceId)) return;
         } catch (e) {
+          if (!_stillOwnsRefresh(generation, deviceId)) return;
           // Per-channel label fetch failed — fall back to a generated
           // label so the row still renders. The state below is the
           // load-bearing data; an opaque label is acceptable.
@@ -181,7 +270,13 @@ class SwitchChannelService {
         bool on;
         try {
           on = await switchBridgeGetState(deviceId, i);
+          if (!_stillOwnsRefresh(generation, deviceId)) return;
         } catch (e) {
+          if (!_stillOwnsRefresh(generation, deviceId)) return;
+          // Reading this channel failed — reuse the pre-refresh snapshot
+          // rather than fabricating OFF for a channel that may be powered ON
+          // (a dew heater or flat panel left on would otherwise render OFF and
+          // invite the operator to toggle it the wrong way).
           _safeLog(
             (logger) => logger.warning(
               'Switch channel state fetch failed for $deviceId#$i: $e',
@@ -189,7 +284,7 @@ class SwitchChannelService {
             ),
             'switch-channel-state-fetch',
           );
-          on = false;
+          on = i < state.channelStates.length ? state.channelStates[i] : false;
         }
         names.add(name);
         states.add(on);
@@ -198,9 +293,17 @@ class SwitchChannelService {
         count: count,
         names: names,
         states: states,
+        descriptions: List.filled(count, ''),
+        isBoolean: List.filled(count, true),
+        values: [for (final on in states) on ? 1.0 : 0.0],
+        minValues: List.filled(count, 0.0),
+        maxValues: List.filled(count, 1.0),
+        steps: List.filled(count, 1.0),
+        canWrite: List.filled(count, true),
         refreshedAt: DateTime.now(),
       );
     } catch (e) {
+      if (!_stillOwnsRefresh(generation, deviceId)) return;
       _safeLog(
         (logger) => logger.warning(
           'refreshSwitchChannels failed for $deviceId: $e',
@@ -226,6 +329,7 @@ class SwitchChannelService {
           'switch-refresh-errsvc',
         );
       }
+      rethrow;
     }
   }
 
@@ -236,28 +340,64 @@ class SwitchChannelService {
     NetworkBackend backend,
     String deviceId,
     SwitchStateNotifier notifier,
+    int generation,
   ) async {
     try {
       final status = await backend.getSwitchStatus(deviceId: deviceId);
+      if (!_stillOwnsRefresh(generation, deviceId)) return;
       final raw = status['switches'];
       final switches = raw is List ? raw : const <dynamic>[];
       final names = <String>[];
       final states = <bool>[];
+      final descriptions = <String>[];
+      final isBoolean = <bool>[];
+      final values = <double>[];
+      final minValues = <double>[];
+      final maxValues = <double>[];
+      final steps = <double>[];
+      final canWrite = <bool>[];
       for (final s in switches) {
         if (s is! Map) continue;
+        final booleanChannel = s['type'] == 'boolean';
+        final rawValue = s['value'];
+        final value = rawValue is bool
+            ? (rawValue ? 1.0 : 0.0)
+            : (rawValue is num ? rawValue.toDouble() : 0.0);
+        final min = booleanChannel
+            ? 0.0
+            : ((s['minValue'] as num?)?.toDouble() ?? 0.0);
+        final max = booleanChannel
+            ? 1.0
+            : ((s['maxValue'] as num?)?.toDouble() ?? 1.0);
         names.add((s['name'] as String?) ?? '');
-        final v = s['value'];
-        // Boolean switches report a bool; analog switches report a num —
-        // treat >0.5 as "on" so the boolean channel panel still reflects them.
-        states.add(v == true || (v is num && v > 0.5));
+        descriptions.add((s['description'] as String?) ?? '');
+        isBoolean.add(booleanChannel);
+        values.add(value);
+        minValues.add(min);
+        maxValues.add(max);
+        steps.add(
+          booleanChannel ? 1.0 : ((s['step'] as num?)?.toDouble() ?? 0.0),
+        );
+        canWrite.add(s['canWrite'] != false);
+        states.add(
+          booleanChannel ? value > 0.5 : value > min + ((max - min) / 2),
+        );
       }
       notifier.setChannels(
-        count: switches.length,
+        count: names.length,
         names: names,
         states: states,
+        descriptions: descriptions,
+        isBoolean: isBoolean,
+        values: values,
+        minValues: minValues,
+        maxValues: maxValues,
+        steps: steps,
+        canWrite: canWrite,
         refreshedAt: DateTime.now(),
       );
     } catch (e) {
+      if (!_stillOwnsRefresh(generation, deviceId)) return;
       _safeLog(
         (logger) => logger.warning(
           'refreshSwitchChannels (remote) failed for $deviceId: $e',
@@ -271,6 +411,7 @@ class SwitchChannelService {
         deviceId,
         ErrorSeverity.warning,
       );
+      rethrow;
     }
   }
 
@@ -333,6 +474,19 @@ class SwitchChannelService {
         'Out of range for channelCount=${state.channelCount}',
       );
     }
+    if (channelIndex < state.channelCanWrite.length &&
+        !state.channelCanWrite[channelIndex]) {
+      throw UnsupportedError('Switch channel $channelIndex is read-only.');
+    }
+    if (channelIndex < state.channelIsBoolean.length &&
+        !state.channelIsBoolean[channelIndex]) {
+      throw UnsupportedError(
+        'Switch channel $channelIndex is analog; use setChannelValue.',
+      );
+    }
+    if (!_stillOwnsDevice(deviceId)) {
+      throw StateError('The active switch connection changed.');
+    }
 
     final backend = _backend;
     if (backend is! FfiBackend && !switchBridgeBypassBackendCheck) {
@@ -344,7 +498,9 @@ class SwitchChannelService {
             switchId: channelIndex,
             value: on,
           );
-          notifier.setChannelState(channelIndex, on);
+          if (_stillOwnsDevice(deviceId)) {
+            notifier.setChannelState(channelIndex, on);
+          }
         } catch (e) {
           _safeLog(
             (logger) => logger.warning(
@@ -372,7 +528,9 @@ class SwitchChannelService {
 
     try {
       await switchBridgeSetState(deviceId, channelIndex, on);
-      notifier.setChannelState(channelIndex, on);
+      if (_stillOwnsDevice(deviceId)) {
+        notifier.setChannelState(channelIndex, on);
+      }
     } catch (e) {
       _safeLog(
         (logger) => logger.warning(
@@ -402,6 +560,94 @@ class SwitchChannelService {
           'switch-set-channel-errsvc',
         );
       }
+      rethrow;
+    }
+  }
+
+  /// Set an analog/PWM switch channel to a numeric value.
+  ///
+  /// Values are validated against the driver-advertised range before any
+  /// hardware write. As with boolean channels, cached state changes only after
+  /// the local bridge or remote host confirms success.
+  Future<void> setChannelValue(int channelIndex, double value) async {
+    final notifier = _ref.read(switchStateProvider.notifier);
+    final state = _ref.read(switchStateProvider);
+    final deviceId = state.deviceId;
+    if (deviceId == null ||
+        deviceId.isEmpty ||
+        state.connectionState != DeviceConnectionState.connected) {
+      throw const DeviceNotConnectedException('switch');
+    }
+    if (channelIndex < 0 || channelIndex >= state.channelCount) {
+      throw ArgumentError.value(
+        channelIndex,
+        'channelIndex',
+        'Out of range for channelCount=${state.channelCount}',
+      );
+    }
+    if (!value.isFinite) {
+      throw ArgumentError.value(value, 'value', 'Must be finite');
+    }
+    if (channelIndex < state.channelCanWrite.length &&
+        !state.channelCanWrite[channelIndex]) {
+      throw UnsupportedError('Switch channel $channelIndex is read-only.');
+    }
+    if (channelIndex < state.channelIsBoolean.length &&
+        state.channelIsBoolean[channelIndex]) {
+      throw UnsupportedError(
+        'Switch channel $channelIndex is boolean; use setChannel.',
+      );
+    }
+    final min = channelIndex < state.channelMinValues.length
+        ? state.channelMinValues[channelIndex]
+        : 0.0;
+    final max = channelIndex < state.channelMaxValues.length
+        ? state.channelMaxValues[channelIndex]
+        : 1.0;
+    if (value < min || value > max) {
+      throw ArgumentError.value(
+        value,
+        'value',
+        'Must be between $min and $max',
+      );
+    }
+    if (!_stillOwnsDevice(deviceId)) {
+      throw StateError('The active switch connection changed.');
+    }
+
+    final backend = _backend;
+    try {
+      if (backend is NetworkBackend && !switchBridgeBypassBackendCheck) {
+        await backend.setSwitch(
+          deviceId: deviceId,
+          switchId: channelIndex,
+          value: value,
+        );
+      } else if (backend is FfiBackend || switchBridgeBypassBackendCheck) {
+        await switchBridgeSetValue(deviceId, channelIndex, value);
+      } else {
+        throw UnsupportedError(
+          'setSwitchChannelValue is not supported on the current backend.',
+        );
+      }
+      if (_stillOwnsDevice(deviceId)) {
+        notifier.setChannelValue(channelIndex, value);
+      }
+    } catch (error) {
+      _safeLog(
+        (logger) => logger.warning(
+          'setSwitchChannelValue failed for $deviceId#$channelIndex '
+          'value=$value: $error',
+          source: 'SwitchChannelService',
+        ),
+        'switch-set-channel-value',
+      );
+      _emitDeviceError(
+        'switch_set_value',
+        'Failed to set switch channel $channelIndex to $value: $error',
+        deviceId,
+        ErrorSeverity.error,
+      );
       rethrow;
     }
   }

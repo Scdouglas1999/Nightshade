@@ -1,7 +1,32 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/services/imaging_records_repository.dart';
+
+/// Insert a session row directly, bypassing [SessionsDao.startSession]'s
+/// one-active-session guard.
+///
+/// Two rows with status 'active' can no longer be produced through the front
+/// door: `startSession` refuses while one is live, and that invariant has its
+/// own passing test. The state is still real, though — a process killed
+/// mid-session (a crash, a 3am power cut) leaves its row 'active', and that
+/// residue is exactly what `findIncompleteSessionsForRecovery` exists to offer
+/// back to the operator. Constructing it directly reproduces what actually
+/// happens; calling `startSession` twice reproduces something that never does.
+Future<int> _insertStaleActiveSession(
+  SessionsDao dao, {
+  required String name,
+  int? targetId,
+}) {
+  return dao.createSession(
+    ImagingSessionsCompanion.insert(
+      startTime: DateTime.now(),
+      name: Value(name),
+      targetId: Value(targetId),
+      status: const Value('active'),
+    ),
+  );
+}
 
 void main() {
   late NightshadeDatabase database;
@@ -50,7 +75,13 @@ void main() {
   });
 
   tearDown(() async {
-    await database.close();
+    // A test may deliberately close the DB to force a write failure; a second
+    // close would throw, so guard it.
+    try {
+      await database.close();
+    } catch (_) {
+      // Already closed by the test.
+    }
   });
 
   group('SessionService - Lifecycle Management', () {
@@ -115,6 +146,30 @@ void main() {
       expect(session.avgHfr, equals(2.5));
       expect(session.avgGuidingRms, equals(0.8));
       expect(session.autofocusCount, equals(3));
+    });
+
+    test('endSession retains the active session on a durable-write failure '
+        '(retryable — not cleared in a finally)', () async {
+      final sessionId = await sessionService.startSession(name: 'Test Session');
+      await sessionService.updateSessionProgress(
+        SessionStats(completedExposures: 3, lastUpdated: DateTime.now()),
+      );
+      expect(sessionService.hasActiveSession, isTrue);
+
+      // Force the durable finalize to fail by closing the DB out from under
+      // it. The old implementation cleared identity in a `finally`, leaving
+      // the row stuck 'active' forever with a retry that silently no-ops.
+      await database.close();
+
+      await expectLater(
+        sessionService.endSession(status: 'completed'),
+        throwsA(anything),
+      );
+
+      // Identity retained so a caller (SequenceExecutor's cleanupFailed retry,
+      // or a later endSession) can actually finalize the row.
+      expect(sessionService.hasActiveSession, isTrue);
+      expect(sessionService.currentSessionId, equals(sessionId));
     });
 
     test('abortSession marks session as aborted', () async {
@@ -243,14 +298,19 @@ void main() {
   });
 
   group('SessionService - Recovery', () {
-    test('findIncompleteSessionsForRecovery finds active sessions', () async {
-      // Create active session
-      final activeId = await sessionsDao.startSession(
-        name: 'Active Session',
-        targetId: 1,
-      );
+    test('recovery scan propagates database failures', () async {
+      await database.close();
 
-      // Create completed session
+      await expectLater(
+        sessionService.findIncompleteSessionsForRecovery(),
+        throwsA(anything),
+      );
+    });
+
+    test('findIncompleteSessionsForRecovery finds active sessions', () async {
+      // Finish the completed session BEFORE opening the active one: only one
+      // session may be active at a time, so the order matters even though the
+      // end state does not.
       final completedId = await sessionsDao.startSession(
         name: 'Completed Session',
         targetId: 2,
@@ -260,6 +320,12 @@ void main() {
         successfulExposures: 10,
       );
       await sessionsDao.endSession(completedId, status: 'completed');
+
+      // Create active session
+      final activeId = await sessionsDao.startSession(
+        name: 'Active Session',
+        targetId: 1,
+      );
 
       // Find incomplete sessions
       final incompleteSessions = await sessionService
@@ -327,7 +393,11 @@ void main() {
     test('recoverSession throws when another session is active', () async {
       await sessionService.startSession(name: 'Active Session');
 
-      final oldSessionId = await sessionsDao.startSession(name: 'Old Session');
+      // Residue from an earlier process that died mid-session.
+      final oldSessionId = await _insertStaleActiveSession(
+        sessionsDao,
+        name: 'Old Session',
+      );
 
       expect(
         () => sessionService.recoverSession(oldSessionId),
@@ -478,10 +548,22 @@ void main() {
     });
 
     test('multiple incomplete sessions can be recovered', () async {
-      // Create multiple active sessions (simulating different app instances)
-      await sessionsDao.startSession(name: 'Session 1', targetId: 1);
-      await sessionsDao.startSession(name: 'Session 2', targetId: 2);
-      await sessionsDao.startSession(name: 'Session 3', targetId: 3);
+      // Residue from three processes that each died mid-session.
+      await _insertStaleActiveSession(
+        sessionsDao,
+        name: 'Session 1',
+        targetId: 1,
+      );
+      await _insertStaleActiveSession(
+        sessionsDao,
+        name: 'Session 2',
+        targetId: 2,
+      );
+      await _insertStaleActiveSession(
+        sessionsDao,
+        name: 'Session 3',
+        targetId: 3,
+      );
 
       final incompleteSessions = await sessionService
           .findIncompleteSessionsForRecovery();

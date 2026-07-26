@@ -26,6 +26,58 @@ part of '../settings_provider.dart';
 
 /// Setters for autofocus algorithm and per-filter configuration.
 extension AutofocusSettingsSection on AppSettingsNotifier {
+  FilterAutofocusConfig _validateFilterAutofocusConfig(
+    FilterAutofocusConfig config,
+  ) {
+    final exposure = config.afExposureTime;
+    if (exposure != null &&
+        (!exposure.isFinite || exposure < 0.1 || exposure > 300)) {
+      throw ArgumentError.value(
+        exposure,
+        'afExposureTime',
+        'must be between 0.1 and 300 seconds',
+      );
+    }
+    if (config.binning < 1 || config.binning > 4) {
+      throw ArgumentError.value(
+        config.binning,
+        'binning',
+        'must be between 1 and 4',
+      );
+    }
+    if (config.gain != null && config.gain! < 0) {
+      throw ArgumentError.value(config.gain, 'gain', 'cannot be negative');
+    }
+    if (config.offset != null && config.offset! < 0) {
+      throw ArgumentError.value(config.offset, 'offset', 'cannot be negative');
+    }
+    if (config.afFilterName != null && config.afFilterName!.trim().isEmpty) {
+      throw ArgumentError.value(
+        config.afFilterName,
+        'afFilterName',
+        'cannot be blank',
+      );
+    }
+    return config;
+  }
+
+  Future<void> _mutateFilterAutofocusSettings(
+    void Function(Map<String, FilterAutofocusConfig>) mutation,
+  ) {
+    final operation = _filterAutofocusWriteTail.then((_) async {
+      final currentJson = _currentValueOrNull?.afFilterSettingsJson ?? '{}';
+      final map = AutofocusSettings.parseFilterSettingsJson(currentJson);
+      mutation(map);
+      final newJson = AutofocusSettings.encodeFilterSettingsJson(map);
+      await setAfFilterSettingsJson(newJson);
+    });
+    _filterAutofocusWriteTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
+  }
+
   Future<void> setAfMethod(String value) async {
     await _saveSetting('af_method', value);
     _patchState((s) => s.copyWith(afMethod: value));
@@ -128,20 +180,34 @@ extension AutofocusSettingsSection on AppSettingsNotifier {
   Future<void> setFilterAutofocusConfig(
     String filterName,
     FilterAutofocusConfig config,
-  ) async {
-    final currentJson = _currentValueOrNull?.afFilterSettingsJson ?? '{}';
-    final map = AutofocusSettings.parseFilterSettingsJson(currentJson);
-    map[filterName] = config;
-    final newJson = AutofocusSettings.encodeFilterSettingsJson(map);
-    await setAfFilterSettingsJson(newJson);
+  ) {
+    return updateFilterAutofocusConfig(filterName, (_) => config);
+  }
+
+  /// Atomically update one filter from the latest persisted configuration.
+  /// This is the preferred UI path because separate field editors can commit
+  /// while an earlier remote/database write is still in flight.
+  Future<void> updateFilterAutofocusConfig(
+    String filterName,
+    FilterAutofocusConfig Function(FilterAutofocusConfig current) update,
+  ) {
+    final normalizedName = filterName.trim();
+    if (normalizedName.isEmpty) {
+      return Future<void>.error(
+        ArgumentError.value(filterName, 'filterName', 'cannot be blank'),
+      );
+    }
+    return _mutateFilterAutofocusSettings((map) {
+      final current = map[normalizedName] ?? const FilterAutofocusConfig();
+      map[normalizedName] = _validateFilterAutofocusConfig(update(current));
+    });
   }
 
   /// Remove a filter's autofocus configuration.
-  Future<void> removeFilterAutofocusConfig(String filterName) async {
-    final currentJson = _currentValueOrNull?.afFilterSettingsJson ?? '{}';
-    final map = AutofocusSettings.parseFilterSettingsJson(currentJson);
-    map.remove(filterName);
-    final newJson = AutofocusSettings.encodeFilterSettingsJson(map);
-    await setAfFilterSettingsJson(newJson);
+  Future<void> removeFilterAutofocusConfig(String filterName) {
+    final normalizedName = filterName.trim();
+    return _mutateFilterAutofocusSettings((map) {
+      map.remove(normalizedName);
+    });
   }
 }

@@ -3,10 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
+import '../models/sequence/sequence_models.dart';
 import '../providers/backend_provider.dart';
+import '../providers/equipment/camera_state_provider.dart';
 import '../providers/equipment/cover_calibrator_state_provider.dart';
+import '../providers/equipment/device_capability_provider.dart';
 import '../providers/equipment/dome_state_provider.dart';
 import '../providers/equipment/mount_state_provider.dart';
+import '../providers/secondary_rig_provider.dart';
+import '../providers/sequence_provider.dart';
 import '../providers/ui_notification_provider.dart';
 
 /// Outcome of a single [SafeRigService.safeTheRig] invocation.
@@ -24,6 +29,12 @@ class SafeRigResult {
   /// pause call succeeded).
   final bool sequencePaused;
 
+  /// True when an active camera exposure was aborted successfully.
+  final bool exposureAborted;
+
+  /// True when the independent secondary capture loop acknowledged stop.
+  final bool secondaryRigQuiesced;
+
   /// True when the mount park command was issued successfully.
   final bool mountParked;
 
@@ -37,16 +48,22 @@ class SafeRigResult {
   /// True when the cover close command was issued successfully.
   final bool coverClosed;
 
-  /// Per-step failures, keyed by step name (`pause`, `park`, `dome`,
-  /// `cover`). Empty on full success.
+  /// True when a connected camera cooler was disabled successfully.
+  final bool coolerDisabled;
+
+  /// Per-step failures, keyed by step name (`exposure`, `pause`, `park`,
+  /// `dome`, `cover`, `cooler`). Empty on full success.
   final Map<String, Object> failures;
 
   const SafeRigResult({
     this.sequencePaused = false,
+    this.exposureAborted = false,
+    this.secondaryRigQuiesced = false,
     this.mountParked = false,
     this.mountAlreadySafe = false,
     this.domeClosed = false,
     this.coverClosed = false,
+    this.coolerDisabled = false,
     this.failures = const {},
   });
 
@@ -54,18 +71,24 @@ class SafeRigResult {
 
   SafeRigResult copyWith({
     bool? sequencePaused,
+    bool? exposureAborted,
+    bool? secondaryRigQuiesced,
     bool? mountParked,
     bool? mountAlreadySafe,
     bool? domeClosed,
     bool? coverClosed,
+    bool? coolerDisabled,
     Map<String, Object>? failures,
   }) {
     return SafeRigResult(
       sequencePaused: sequencePaused ?? this.sequencePaused,
+      exposureAborted: exposureAborted ?? this.exposureAborted,
+      secondaryRigQuiesced: secondaryRigQuiesced ?? this.secondaryRigQuiesced,
       mountParked: mountParked ?? this.mountParked,
       mountAlreadySafe: mountAlreadySafe ?? this.mountAlreadySafe,
       domeClosed: domeClosed ?? this.domeClosed,
       coverClosed: coverClosed ?? this.coverClosed,
+      coolerDisabled: coolerDisabled ?? this.coolerDisabled,
       failures: failures ?? this.failures,
     );
   }
@@ -116,18 +139,56 @@ class SafeRigException implements Exception {
 /// providers exactly as [_autoResumeAfterWeatherClear] resolves the mount.
 class SafeRigService {
   final Ref _ref;
+  final NightshadeBackend _backend;
+  final BackendNotifier _backendNotifier;
+  final Future<void> Function() _stopSecondaryRig;
+  bool _retired = false;
 
-  SafeRigService(this._ref);
+  SafeRigService(
+    Ref ref, {
+    NightshadeBackend? backend,
+    required Future<void> Function() stopSecondaryRig,
+  }) : _ref = ref,
+       _backend = backend ?? ref.read(backendProvider),
+       _backendNotifier = ref.read(backendProvider.notifier),
+       _stopSecondaryRig = stopSecondaryRig;
+
+  bool get _hasAuthority =>
+      !_retired && _backendNotifier.isCurrentBackend(_backend);
+
+  void retire() => _retired = true;
+
+  void _ensureAuthority(
+    String reason,
+    SafeRigResult result,
+    Map<String, Object> failures,
+  ) {
+    if (_hasAuthority) return;
+    throw SafeRigException(
+      reason,
+      result.copyWith(
+        failures: Map.unmodifiable({
+          ...failures,
+          'authority': StateError(
+            'The imaging host changed while the rig was being safed. No '
+            'further commands were sent; verify the outgoing rig manually.',
+          ),
+        }),
+      ),
+    );
+  }
 
   /// Safe the rig.
   ///
   /// [reason] is the human-readable trigger ("Weather turned unsafe",
   /// "Disk space critically low", …) used in the critical notification.
   ///
-  /// [park] / [closeDome] / [closeCover] gate the optional physical-protection
-  /// steps; the sequence pause always runs (it is the cheapest, safest first
-  /// move). When [park] is true but no mount is connected, or the mount is
-  /// already parked, the park step is skipped and recorded as
+  /// [abortExposure] / [park] / [closeDome] / [closeCover] /
+  /// [disableCooling] / [quiesceSecondaryRig] gate the optional protection
+  /// steps. The sequence is paused only when it is actually running; an idle
+  /// or already-paused sequencer needs no command. When [park] is true but no
+  /// mount is connected, or the mount is already parked, the park step is
+  /// skipped and recorded as
   /// [SafeRigResult.mountAlreadySafe] — that is success, not a failure.
   ///
   /// [notify] controls whether the CRITICAL UI notification is posted (default
@@ -140,21 +201,68 @@ class SafeRigService {
     bool park = true,
     bool closeDome = false,
     bool closeCover = false,
+    bool abortExposure = false,
+    bool disableCooling = false,
+    bool quiesceSecondaryRig = true,
     bool notify = true,
   }) async {
-    final backend = _ref.read(backendProvider);
     final failures = <String, Object>{};
     var result = const SafeRigResult();
+    _ensureAuthority(reason, result, failures);
 
-    // 1. Pause the running sequence so no further exposure/slew is dispatched
-    //    while we park. Pause preserves the checkpoint (unlike stop), so the
-    //    night can resume once conditions allow.
-    try {
-      await backend.sequencerPause();
-      result = result.copyWith(sequencePaused: true);
-    } catch (e) {
-      failures['pause'] = e;
+    // The secondary rig owns a capture loop outside the primary sequencer.
+    // Stop it first and wait for its native exposure abort to complete before
+    // the primary sequence can be paused or the shared mount can move.
+    if (quiesceSecondaryRig) {
+      try {
+        await _stopSecondaryRig();
+        _ensureAuthority(reason, result, failures);
+        result = result.copyWith(secondaryRigQuiesced: true);
+      } catch (e) {
+        failures['secondaryRig'] = e;
+      }
     }
+    _ensureAuthority(reason, result, failures);
+
+    // A daemon/process shutdown cannot leave a sensor integrating after its
+    // controlling client disappears. Abort before pausing/parking so no live
+    // exposure races the mount move. Weather safing leaves this opt-in false
+    // because a paused run may resume after conditions clear.
+    if (abortExposure) {
+      final camera = _ref.read(cameraStateProvider);
+      final connected =
+          camera.connectionState == DeviceConnectionState.connected &&
+          camera.deviceId != null &&
+          camera.deviceId!.isNotEmpty;
+      if (connected && camera.isExposing) {
+        try {
+          await _backend.cameraAbortExposure(camera.deviceId!);
+          _ensureAuthority(reason, result, failures);
+          _ref.read(cameraStateProvider.notifier).setExposing(false);
+          result = result.copyWith(exposureAborted: true);
+        } catch (e) {
+          failures['exposure'] = e;
+        }
+      }
+    }
+    _ensureAuthority(reason, result, failures);
+
+    // 1. Pause a running sequence so no further exposure/slew is dispatched
+    //    while we park. Do not send an invalid pause command while idle or
+    //    already paused: several backends correctly reject that command, and
+    //    treating the rejection as a safing failure obscures whether the
+    //    hardware protection steps actually succeeded.
+    final executionState = _ref.read(sequenceExecutionStateProvider);
+    if (executionState.canPause) {
+      try {
+        await _backend.sequencerPause();
+        _ensureAuthority(reason, result, failures);
+        result = result.copyWith(sequencePaused: true);
+      } catch (e) {
+        failures['pause'] = e;
+      }
+    }
+    _ensureAuthority(reason, result, failures);
 
     // 2. Park the mount (the safety-critical step).
     if (park) {
@@ -171,7 +279,8 @@ class SafeRigService {
         result = result.copyWith(mountAlreadySafe: true);
       } else {
         try {
-          await backend.mountPark(mount.deviceId!);
+          await _backend.mountPark(mount.deviceId!);
+          _ensureAuthority(reason, result, failures);
           _ref.read(mountStateProvider.notifier).setParked(true);
           _ref.read(mountStateProvider.notifier).setTracking(false);
           result = result.copyWith(mountParked: true);
@@ -180,6 +289,7 @@ class SafeRigService {
         }
       }
     }
+    _ensureAuthority(reason, result, failures);
 
     // 3. Close the dome shutter (physical weather protection).
     if (closeDome) {
@@ -193,13 +303,30 @@ class SafeRigService {
           dome.shutterStatus == ShutterStatus.closing;
       if (connected && !alreadyClosed) {
         try {
-          await closeDomeShutter(backend, dome.deviceId!);
+          final capabilities = await _ref.read(
+            equipmentDomeCapabilitiesProvider(dome.deviceId!).future,
+          );
+          _ensureAuthority(reason, result, failures);
+          if (capabilities == null) {
+            throw StateError(
+              'Dome capabilities are unavailable; shutter closure cannot be '
+              'verified as supported',
+            );
+          }
+          if (!capabilities.canSetShutter) {
+            throw UnsupportedError(
+              'Connected dome does not support shutter control',
+            );
+          }
+          await closeDomeShutter(_backend, dome.deviceId!);
+          _ensureAuthority(reason, result, failures);
           result = result.copyWith(domeClosed: true);
         } catch (e) {
           failures['dome'] = e;
         }
       }
     }
+    _ensureAuthority(reason, result, failures);
 
     // 4. Close the cover (physical weather protection).
     if (closeCover) {
@@ -210,13 +337,73 @@ class SafeRigService {
           cover.deviceId!.isNotEmpty;
       if (connected && cover.hasCover && !cover.isCoverClosed) {
         try {
-          await closeCalibratorCover(backend, cover.deviceId!);
+          await closeCalibratorCover(_backend, cover.deviceId!);
+          _ensureAuthority(reason, result, failures);
           result = result.copyWith(coverClosed: true);
         } catch (e) {
           failures['cover'] = e;
         }
       }
     }
+    _ensureAuthority(reason, result, failures);
+
+    // Driver-side coolers often remain energized after the client exits. For
+    // terminal shutdown paths, explicitly turn cooling off after the rig is
+    // physically protected. A normal weather pause intentionally keeps it on.
+    if (disableCooling) {
+      final camera = _ref.read(cameraStateProvider);
+      final connected =
+          camera.connectionState == DeviceConnectionState.connected &&
+          camera.deviceId != null &&
+          camera.deviceId!.isNotEmpty;
+      var coolerActive =
+          camera.isCooling ||
+          camera.isWarming ||
+          (camera.coolerPower != null && camera.coolerPower! > 0);
+      if (connected) {
+        try {
+          final status = await _backend.getCameraStatus(camera.deviceId!);
+          if (!status.connected) {
+            throw StateError(
+              'Camera status reports disconnected while disabling cooler',
+            );
+          }
+          coolerActive =
+              coolerActive ||
+              status.coolerOn ||
+              (status.coolerPower != null && status.coolerPower! > 0);
+          // A fresh status that explicitly reports no cooling capability and
+          // no active cooler is authoritative: there is nothing to disable.
+          if (!status.canCool && !coolerActive) {
+            coolerActive = false;
+          }
+        } catch (e) {
+          if (!coolerActive) {
+            failures['cooler'] = StateError(
+              'Could not verify whether the connected camera cooler is off: '
+              '$e',
+            );
+          }
+        }
+      }
+      _ensureAuthority(reason, result, failures);
+      if (connected && coolerActive) {
+        try {
+          await _backend.cameraSetCooling(
+            deviceId: camera.deviceId!,
+            enabled: false,
+          );
+          _ensureAuthority(reason, result, failures);
+          final notifier = _ref.read(cameraStateProvider.notifier);
+          notifier.markCoolingDisabled();
+          result = result.copyWith(coolerDisabled: true);
+        } catch (e) {
+          failures['cooler'] = e;
+        }
+      }
+    }
+
+    _ensureAuthority(reason, result, failures);
 
     result = result.copyWith(failures: Map.unmodifiable(failures));
 
@@ -265,12 +452,15 @@ class SafeRigService {
 
     final steps = <String>[];
     if (result.sequencePaused) steps.add('sequence paused');
+    if (result.exposureAborted) steps.add('exposure aborted');
+    if (result.secondaryRigQuiesced) steps.add('secondary rig stopped');
     if (result.mountParked) steps.add('mount parked');
     if (result.mountAlreadySafe && !result.mountParked) {
       steps.add('mount already safe');
     }
     if (result.domeClosed) steps.add('dome closed');
     if (result.coverClosed) steps.add('cover closed');
+    if (result.coolerDisabled) steps.add('cooler disabled');
     final detail = steps.isEmpty ? 'no action needed' : steps.join(', ');
     notifier.showError(
       'CRITICAL: $reason. Rig safed: $detail.',
@@ -282,5 +472,12 @@ class SafeRigService {
 
 /// Provider for the shared safe-the-rig action.
 final safeRigServiceProvider = Provider<SafeRigService>((ref) {
-  return SafeRigService(ref);
+  final backend = ref.watch(backendProvider);
+  final service = SafeRigService(
+    ref,
+    backend: backend,
+    stopSecondaryRig: () => ref.read(secondaryRigControllerProvider).stop(),
+  );
+  ref.onDispose(service.retire);
+  return service;
 });

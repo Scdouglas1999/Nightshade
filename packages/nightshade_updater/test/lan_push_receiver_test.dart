@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -83,6 +84,49 @@ void main() {
     expect(response, contains('invalid secret'));
     expect(receiver.versionInfo['isReceiving'], isFalse);
   });
+
+  test(
+    'preserves a manifest frame coalesced with authentication bytes',
+    () async {
+      final error = Completer<String>();
+      final receiver = LanPushReceiver(
+        currentVersion: '2.0.0',
+        currentBuildNumber: 1,
+        pushSecret: 'secret',
+        serverPort: 0,
+        verifier: await _verifierWithKey(),
+      )..onError = error.complete;
+      await receiver.startServer();
+      addTearDown(receiver.stopServer);
+
+      final client = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        receiver.listeningPort!,
+      );
+      final response = client.map(utf8.decode).join();
+
+      // Send both phases in one write. TCP is allowed to deliver this as one
+      // chunk, and the update phase must see the four bytes left after auth.
+      final invalidManifestLength = ByteData(4)..setInt32(0, 0, Endian.big);
+      client.add(
+        Uint8List.fromList([
+          ..._authFrame('secret'),
+          ...invalidManifestLength.buffer.asUint8List(),
+        ]),
+      );
+      await client.flush();
+
+      expect(
+        await error.future.timeout(const Duration(seconds: 2)),
+        contains('Invalid update manifest length'),
+      );
+      expect(
+        await response.timeout(const Duration(seconds: 2)),
+        contains('"auth":"ok"'),
+      );
+      expect(receiver.versionInfo['isReceiving'], isFalse);
+    },
+  );
 }
 
 Uint8List _authFrame(String secret) {

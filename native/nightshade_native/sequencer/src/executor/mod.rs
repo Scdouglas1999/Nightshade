@@ -50,9 +50,9 @@ use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, RwLock};
+use tokio::sync::{broadcast, mpsc, oneshot, watch, RwLock};
 
-const RECOVERY_NODE_TRIGGER_PREFIX: &str = "recovery_node:";
+pub(crate) const RECOVERY_NODE_TRIGGER_PREFIX: &str = "recovery_node:";
 const DEFAULT_SAFETY_CHECK_INTERVAL_SECS: u64 = 30;
 
 /// Default staleness window for the Dart weather verdict (Subsystem 2 step 3).
@@ -84,14 +84,14 @@ fn effective_weather_verdict_staleness_secs(value: u64) -> u64 {
 /// Decide whether a mount tracking poll represents a genuine *loss* of tracking
 /// (an ON → OFF transition) rather than tracking simply not having started yet.
 ///
-/// B19 root cause: the trigger monitor arms `mount_tracking_expected = true` the
-/// instant it starts — before the sequence has unparked/slewed and actually
-/// begun tracking. A level-triggered `expected && !tracking` test then fired the
-/// `MountTrackingLost` trigger on the very FIRST poll of a not-yet-tracking mount
-/// (e.g. still parked, or a headless mount reporting `Ok(false)`), self-cancelling
-/// the sequence ~1.5 s after start. Because this is a mount trigger, not a
-/// weather one, `safety_fail_mode = FailOpen` could not suppress it — matching the
-/// field report exactly.
+/// B19 root cause: the trigger monitor used to arm `mount_tracking_expected =
+/// true` the instant it started — before the sequence had unparked/slewed and
+/// actually begun tracking. A level-triggered `expected && !tracking` test then
+/// fired the `MountTrackingLost` trigger on the very FIRST poll of a not-yet-
+/// tracking mount (e.g. still parked, or a headless mount reporting `Ok(false)`),
+/// self-cancelling the sequence ~1.5 s after start. Because this is a mount
+/// trigger, not a weather one, `safety_fail_mode = FailOpen` could not suppress
+/// it — matching the field report exactly.
 ///
 /// "Lost" means tracking was observed ON and then went OFF, so we require the
 /// PREVIOUS reading (`previously_tracking`) to have been `Some(true)`. A first
@@ -108,6 +108,36 @@ fn mount_tracking_just_lost(
         && !currently_tracking
         && !already_flagged_lost
         && previously_tracking == Some(true)
+}
+
+/// One mount-tracking poll's verdict for the trigger monitor (B19 device-
+/// readiness gate). `currently_tracking` is the fresh `mount_is_tracking`
+/// reading; the other arguments are the baseline carried in `TriggerState`.
+///
+/// Returns `(expected, just_lost)`:
+///   * `expected` is the new `mount_tracking_expected` baseline. It is armed
+///     LAZILY — set to `true` only once the mount has been OBSERVED actually
+///     tracking, never assumed at monitor start. Until the first `Ok(true)`
+///     reading a not-yet-tracking / still-parked / headless mount keeps it
+///     `false`, so the loss detector stays disarmed and a loaded sequence
+///     cannot self-cancel at startup. The baseline only ever latches up, so a
+///     value restored from a mid-session checkpoint is preserved.
+///   * `just_lost` is whether this poll is a genuine ON → OFF loss, evaluated
+///     against the (possibly freshly armed) `expected` baseline.
+fn mount_tracking_poll_verdict(
+    expected_before: bool,
+    currently_tracking: bool,
+    previously_tracking: Option<bool>,
+    already_flagged_lost: bool,
+) -> (bool, bool) {
+    let expected = expected_before || currently_tracking;
+    let just_lost = mount_tracking_just_lost(
+        expected,
+        currently_tracking,
+        previously_tracking,
+        already_flagged_lost,
+    );
+    (expected, just_lost)
 }
 
 /// How a non-auto-recoverable recovery escalation (an `AttemptOutcome::
@@ -166,6 +196,59 @@ async fn restore_tracking_after_recovery(
         return None;
     }
     let mount_id = mount_id?;
+
+    // Never command tracking on a PARKED mount.
+    //
+    // Observed on the live rig: a MoveRotator failure on a rig with no rotator
+    // drove the recovery ladder, and this resume path then issued
+    // `set tracking = true` on a parked Pegasus NYX-101 — unprompted motion
+    // intent on stowed hardware, from a failure that had nothing to do with the
+    // mount. It was refused (0x80020009) only because the driver happened to
+    // reject it while parked; a mount that accepted would have started sidereal
+    // motion against its park latch.
+    //
+    // A park is also a deliberate safe state — the operator, the weather rule,
+    // or the dawn shutdown put it there — and automatic recovery must not take
+    // a rig out of a safe state on its own initiative.
+    //
+    // Reporting matters as much as the command: the generic failure branch
+    // below shouts "resumed frames may trail until tracking is restored",
+    // which is untrue of a parked mount that is not imaging at all. Say what is
+    // actually the case instead.
+    match device_ops.mount_is_parked(mount_id).await {
+        Ok(true) => {
+            tracing::warn!(
+                "[RECOVERY] Not re-enabling tracking on '{}' {}: the mount is \
+                 parked. Recovery does not un-park a mount on its own.",
+                mount_id,
+                context_label
+            );
+            let message = format!(
+                "Recovery {} but tracking was not re-enabled on {}: the mount \
+                 is parked. Un-park it before resuming imaging.",
+                context_label, mount_id
+            );
+            let _ = event_tx.send(ExecutorEvent::Error {
+                message: message.clone(),
+            });
+            return Some(message);
+        }
+        Ok(false) => {}
+        // Unknown park state: proceed. Refusing to restore tracking because the
+        // park flag could not be read would strand a genuinely tracking-capable
+        // mount untracked, which is the failure this whole function exists to
+        // prevent. The set below reports its own outcome truthfully either way.
+        Err(e) => {
+            tracing::warn!(
+                "[RECOVERY] Could not read park state of '{}' {} ({}); \
+                 attempting to restore tracking anyway.",
+                mount_id,
+                context_label,
+                e
+            );
+        }
+    }
+
     match device_ops.mount_set_tracking(mount_id, true).await {
         Ok(()) => {
             tracing::info!(
@@ -1082,6 +1165,38 @@ pub enum ExecutorEvent {
     Error {
         message: String,
     },
+    /// A meridian flip finished — successfully, degraded (it needed retries),
+    /// aborted, or failed outright.
+    ///
+    /// The flip used to be COMPLETELY invisible to the Dart run vitals: the
+    /// `MeridianFlipEvent` stream is log-only unless a caller wires
+    /// `with_event_channel`, and nothing on the trigger path did. A flip that
+    /// slewed the mount to the other side of the pier therefore left
+    /// `meridianFlips: 0`, and a flip that FAILED its post-flip plate-solve
+    /// recenter left `errorMessages: []` on a run reported as `completed` —
+    /// the worst failure this app can have (silent mis-framing reported as a
+    /// clean night). This event is the wire that carries the verdict.
+    MeridianFlipOutcome {
+        /// `"success"`, `"failed"`, or `"aborted"`.
+        outcome: String,
+        /// Target the flip was performed for, for operator-facing copy.
+        target_name: String,
+        /// Pier side reported after the flip (`East` / `West` / `Unknown`).
+        new_pier_side: String,
+        /// Wall-clock seconds for the whole flip, retries included.
+        duration_secs: f64,
+        /// Attempts made. `1` is a clean flip; higher means the retry ladder
+        /// ran and the flip is DEGRADED even if it ultimately succeeded.
+        attempts: u32,
+        /// One `"<step>: <error>"` per failed attempt, oldest first.
+        failed_steps: Vec<String>,
+        /// Terminal error. `None` on a clean success.
+        error: Option<String>,
+        /// Configured failure action that was executed
+        /// (`"PauseAndAlert"` / `"AbortAndPark"`). `None` unless
+        /// `outcome == "failed"`.
+        action_taken: Option<String>,
+    },
     /// runtime configuration changed mid-sequence (dither pixels,
     /// observer location, or filter focus offsets). Subscribers should
     /// reload any cached values derived from these fields.
@@ -1295,6 +1410,8 @@ fn build_trigger_autofocus_context(
     let longitude = rc_lon.or(trigger_context.longitude);
 
     crate::instructions::InstructionContext {
+        // Trigger-driven recenter is not a sequence node.
+        node_id: String::new(),
         target_ra,
         target_dec,
         // Trigger-initiated recenter does not move the rotator; rotation is a
@@ -1395,6 +1512,8 @@ fn build_trigger_flip_context(
     target_dec_degrees: Option<f64>,
     cancellation_token: Option<Arc<AtomicBool>>,
     trigger_state: Option<Arc<RwLock<TriggerState>>>,
+    autofocus_config: Option<crate::AutofocusConfig>,
+    current_filter: Option<String>,
 ) -> Option<crate::meridian_flip_executor::FlipContext> {
     Some(crate::meridian_flip_executor::FlipContext {
         target_name,
@@ -1406,11 +1525,95 @@ fn build_trigger_flip_context(
         cover_calibrator_id: trigger_context.cover_calibrator_id.clone(),
         cancellation_token,
         trigger_state,
-        autofocus_config: None,
+        autofocus_config: autofocus_config.map(|config| {
+            crate::meridian_flip_executor::PostFlipAutofocusConfig {
+                config,
+                current_filter,
+                filterwheel_id: trigger_context.filterwheel_id.clone(),
+                filter_focus_offsets: trigger_context.filter_focus_offsets.clone(),
+            }
+        }),
         // Trigger-driven flips command the hardware; the dry-run path is the
         // only caller that sets this true.
         simulate: false,
     })
+}
+
+/// Cancel node execution and wait until the active node has finished its
+/// cancellation cleanup. Exposure instructions use that cleanup window to
+/// abort the camera integration, so callers must not move or close hardware
+/// until this function returns.
+async fn cancel_and_wait_for_execution(
+    is_cancelled: &Arc<AtomicBool>,
+    execution_quiesced: &mut watch::Receiver<bool>,
+) {
+    is_cancelled.store(true, Ordering::Release);
+    if execution_quiesced
+        .wait_for(|quiesced| *quiesced)
+        .await
+        .is_err()
+    {
+        tracing::warn!(
+            "Execution quiescence channel closed while preparing ParkAndAbort; \
+             continuing with safe-state shutdown"
+        );
+    }
+}
+
+/// How long the executor will wait for an in-flight trigger recovery action to
+/// finish after the node tree has already completed.
+///
+/// A meridian flip retry ladder is the worst case that has to fit inside this:
+/// the shipped default is 3 retries at 30 s / 60 s / 120 s plus four ~1-minute
+/// flip attempts, so ~10 minutes of real work. 15 minutes leaves headroom for a
+/// slow mount without letting a wedged driver hang the run forever — on expiry
+/// we give up loudly rather than waiting silently.
+const TRIGGER_ACTION_QUIESCE_MAX_SECS: u64 = 15 * 60;
+
+/// RAII latch marking that a trigger recovery action is executing.
+///
+/// The trigger monitor is an inline `async` block inside the terminal
+/// `tokio::select!`, so when the node-tree future resolves first the monitor is
+/// DROPPED wherever it happens to be awaiting. That silently cancelled an
+/// in-progress meridian flip: observed live as
+/// `"[MERIDIAN] Retry 1/4 scheduled in 30 seconds..."` at 20:47:12 followed by
+/// the run reporting `completed` at 20:47:30 and no further meridian log lines
+/// ever — the recovery was abandoned mid-ladder with the mount left wherever
+/// the failed flip had put it.
+///
+/// The flag lets the terminal select! keep polling the monitor until the action
+/// finishes. It is a guard rather than a plain store/clear pair because the
+/// dispatch has many `return terminate_with(...)` early exits that would
+/// otherwise leak the flag set forever and stall every subsequent run.
+struct TriggerActionInFlightGuard<'a> {
+    flag: &'a Arc<AtomicBool>,
+}
+
+impl<'a> TriggerActionInFlightGuard<'a> {
+    fn new(flag: &'a Arc<AtomicBool>) -> Self {
+        flag.store(true, Ordering::Release);
+        Self { flag }
+    }
+}
+
+impl Drop for TriggerActionInFlightGuard<'_> {
+    fn drop(&mut self) {
+        self.flag.store(false, Ordering::Release);
+    }
+}
+
+fn skip_to_node_accepted_event(node_id: NodeId) -> ExecutorEvent {
+    ExecutorEvent::NodeProgress {
+        node_id: node_id.clone(),
+        instruction: "SkipToNode".to_string(),
+        progress_percent: 100.0,
+        detail: format!(
+            "SkipToNode request accepted: jumping to node '{}'. \
+             Current instruction (if any) will finish first.",
+            node_id
+        ),
+        structured_detail: None,
+    }
 }
 
 /// every exit path from the trigger-monitor closure that ends
@@ -1819,6 +2022,11 @@ pub struct SequenceExecutor {
     state: Arc<RwLock<ExecutorState>>,
     progress: Arc<StdRwLock<SequenceProgress>>,
     command_tx: Option<mpsc::Sender<ExecutorCommand>>,
+    /// Completion acknowledgment for the currently spawned executor task.
+    /// `stop()` takes and awaits this receiver so native termination is not
+    /// reported until instruction cancellation cleanup (including camera
+    /// exposure abort) and terminal event emission have finished.
+    run_completion_rx: Option<oneshot::Receiver<()>>,
     event_tx: broadcast::Sender<ExecutorEvent>,
     is_cancelled: Arc<AtomicBool>,
     root_node: Option<Box<dyn Node>>,
@@ -1929,6 +2137,7 @@ impl SequenceExecutor {
             state: Arc::new(RwLock::new(ExecutorState::Idle)),
             progress: Arc::new(StdRwLock::new(SequenceProgress::default())),
             command_tx: None,
+            run_completion_rx: None,
             event_tx,
             is_cancelled: Arc::new(AtomicBool::new(false)),
             root_node: None,
@@ -2029,7 +2238,61 @@ impl SequenceExecutor {
     }
 
     /// Start executing the sequence
+    ///
+    /// A run that has ended leaves the executor parked in a terminal state, and
+    /// nothing else ever put it back to `Idle` — so the SECOND sequence of a
+    /// night was refused with "Cannot start: executor is Completed" and the app
+    /// had to be restarted (losing every device connection) to run anything
+    /// else. Worse, the desktop Start button surfaced nothing at all: pre-flight
+    /// passed, "Start Anyway" was accepted, and no run began.
+    ///
+    /// An explicit start request from a terminal state unambiguously means "run
+    /// it again", so recycle the executor here rather than failing. Non-terminal
+    /// busy states (`Running`, `Paused`, `Stopping`, `Recovering`) are still
+    /// refused: those are genuine conflicts where silently resetting would
+    /// abandon a live run.
     pub async fn start(&mut self) -> Result<(), String> {
+        let state = self.get_state().await;
+        if matches!(
+            state,
+            ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+        ) {
+            tracing::info!(
+                "Start requested while executor was {:?}; recycling to Idle for a fresh run",
+                state
+            );
+            self.reset().await;
+
+            // `reset()` wipes SequenceProgress back to default, which zeroes the
+            // totals that `load_sequence()` seeded moments earlier — the caller
+            // loads the sequence and THEN starts it, so on every run after the
+            // first the recycle threw the denominator away.
+            //
+            // Observed on the live rig across four consecutive runs in one app
+            // launch: run 1 (from a fresh `Idle`) reported
+            // `completedExposures 3 / totalExposures 3, progressPercent 1.0`,
+            // while runs after a terminal state reported
+            // `completedExposures 3 / totalExposures 0, progressPercent 0.0` —
+            // a finished, fully successful run rendering as a 0% progress bar
+            // on both the Run Dashboard and the mobile cockpit.
+            //
+            // Re-seed from the retained sequence (reset deliberately keeps
+            // `self.sequence` so the same tree can be re-run).
+            if let Some(sequence) = self.sequence.as_ref() {
+                let (total_exposures, total_integration, indeterminate) =
+                    self.calculate_totals(sequence);
+                let mut progress = self.progress.write();
+                if indeterminate {
+                    progress.total_exposures = 0;
+                    progress.total_integration_secs = 0.0;
+                    progress.estimated_remaining_secs = None;
+                } else {
+                    progress.total_exposures = total_exposures;
+                    progress.total_integration_secs = total_integration;
+                }
+            }
+        }
+
         let state = self.get_state().await;
         if state != ExecutorState::Idle {
             return Err(format!("Cannot start: executor is {:?}", state));
@@ -2096,8 +2359,47 @@ impl SequenceExecutor {
 
         let (tx, mut rx) = mpsc::channel::<ExecutorCommand>(32);
         self.command_tx = Some(tx);
+        let (run_completion_tx, run_completion_rx) = oneshot::channel();
+        self.run_completion_rx = Some(run_completion_rx);
 
         self.set_state(ExecutorState::Running).await;
+
+        // Per-run trigger hygiene. `TriggerManager` (and its `TriggerState`) are
+        // built once in `SequenceExecutor::new()` and live for the whole process,
+        // so without this every latch set by run N is still set when run N+1
+        // starts. Observed on the live rig: run 1 selected "Filter 2" and left
+        // `autofocus_invalidated` set; run 2 — a different sequence selecting
+        // "Filter 4" — force-fired the HFR trigger one second after start with
+        // the reason `filter changed to Filter 2`.
+        //
+        // Then disarm the standard autofocus-action triggers when this run has
+        // no focuser. A filter or target change invalidates the autofocus state,
+        // which makes the HFR trigger fire unconditionally on the next tick;
+        // with no focuser the executor's Autofocus arm cannot act, and it used
+        // to answer by pausing the run indefinitely (`Execution paused at
+        // boundary, waiting for resume...`) while `/api/sequencer/status` kept
+        // reporting `running`. Reproduced end to end: a two-node sequence
+        // (change filter, then expose) hung forever on the filter node, with no
+        // frames and no terminal event, on a rig whose focuser was simply not
+        // connected.
+        {
+            let manager = self.trigger_manager.write().await;
+            manager.state().write().await.reset_for_new_run();
+        }
+        if self.focuser_id.is_none() {
+            let disarmed = {
+                let mut manager = self.trigger_manager.write().await;
+                manager.disarm_autofocus_triggers()
+            };
+            if !disarmed.is_empty() {
+                tracing::warn!(
+                    "No focuser is configured for this run; disarming autofocus-action \
+                     triggers [{}]. Focus drift will NOT be corrected automatically — \
+                     connect a focuser to re-enable trigger-driven refocus.",
+                    disarmed.join(", ")
+                );
+            }
+        }
 
         // if the runtime config has a user-supplied
         // autofocus-interval cadence, push it into the seeded standard
@@ -2312,6 +2614,11 @@ impl SequenceExecutor {
         let streaming_longitude = self.longitude;
 
         let is_paused = Arc::new(AtomicBool::new(false));
+        // Shared with the recovery driver (incremented when a cycle completes)
+        // and with the node tree, so an instruction can tell "recovery already
+        // finished" from "no driver ever engaged". See
+        // `ExecutionContext::recovery_generation`.
+        let recovery_generation = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let skip_to_next_target = Arc::new(AtomicBool::new(false));
         // Recovery Mode — channel by which the trigger-monitor posts
         // recoverable failures to the dedicated recovery-driver task. The
@@ -2353,6 +2660,8 @@ impl SequenceExecutor {
             .map(|cp| cp.smart_exposure_states.clone());
 
         let is_paused_clone = is_paused.clone();
+        let recovery_generation_clone = recovery_generation.clone();
+        let recovery_driver_generation = recovery_generation.clone();
         let skip_to_next_target_clone = skip_to_next_target.clone();
         let skip_to_node_clone = skip_to_node.clone();
         let resume_notify_clone = resume_notify.clone();
@@ -2436,6 +2745,7 @@ impl SequenceExecutor {
                 let skip_to_node_for_recovery = context.skip_to_node.clone();
                 context.is_cancelled = is_cancelled.clone();
                 context.is_paused = is_paused_clone;
+                context.recovery_generation = recovery_generation_clone;
                 // Dual-rig — pick up the process-wide dither barrier if a
                 // secondary capture loop is armed, so the primary's dither
                 // call sites coordinate with it. `None` (single-rig) makes
@@ -2633,6 +2943,24 @@ impl SequenceExecutor {
                 // so loop bodies emit a fresh NodeStarted each iteration.
                 let started_nodes =
                     Arc::new(StdRwLock::new(std::collections::HashSet::<NodeId>::new()));
+                // Display name per node id, learned from the one-shot
+                // "Executing: <name>" entry message.
+                //
+                // `current_node_id` is rewritten by EVERY progress update but
+                // `current_node_name` was only written on a node's first
+                // Running transition, so the two fields drifted apart and
+                // together named a node that does not exist. Seen on the live
+                // rig: `GET /api/sequencer/status` answered
+                // `"currentNodeId":"391bd28d-…"` (the ROOT container) with
+                // `"currentNodeName":"Expose 2x2s light"` (a leaf) once the run
+                // ended, because the root's own terminal update moved the id and
+                // left the name behind. A client that highlights
+                // `currentNodeId` on its canvas highlights the wrong node. The
+                // pair is identity; keep it atomic.
+                let node_names = Arc::new(StdRwLock::new(std::collections::HashMap::<
+                    NodeId,
+                    String,
+                >::new()));
                 // completed_exposures must be monotonic per node so the global counter
                 // never decreases — e.g. when a loop body restarts, its frame count
                 // must not reset back to zero from the UI's perspective.
@@ -2647,6 +2975,11 @@ impl SequenceExecutor {
                 context.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
                     let mut prog = progress_clone.write();
                     prog.current_node_id = Some(update.node_id.clone());
+                    // Move the name with the id (see `node_names` above). Unknown
+                    // until the node's entry message has been seen, in which case
+                    // we publish None rather than the PREVIOUS node's name — a
+                    // missing name is honest, a stale one is not.
+                    prog.current_node_name = node_names.read().get(&update.node_id).cloned();
                     prog.current_node_status = Some(update.status);
                     // `legacy_message` synthesises the pre-refactor message
                     // shape from the structured fields (or returns the raw
@@ -2681,6 +3014,10 @@ impl SequenceExecutor {
                                 // only; load-bearing identity is the node-id. "Unknown"
                                 // is the documented UI fallback.
                                 .unwrap_or_else(|| "Unknown".to_string());
+                            node_names
+                                .write()
+                                .insert(update.node_id.clone(), node_name.clone());
+                            prog.current_node_name = Some(node_name.clone());
                             tracing::info!(
                                 "[PROGRESS_CB] Emitting NodeStarted: id={}, name={}",
                                 update.node_id,
@@ -2702,12 +3039,22 @@ impl SequenceExecutor {
                         // fresh NodeStarted on its next iteration; otherwise the
                         // UI would never re-flash the node as active when the
                         // loop cycles.
+                        //
+                        // The per-node FRAME counters are deliberately NOT reset
+                        // here: an exposure burst's final update carries both a
+                        // terminal status AND `current_frame`/`total_frames` (see
+                        // `expose.rs`, which repeats the last frame number to
+                        // publish `completed_exposure_secs`). Resetting the
+                        // counter first made the frame block below see last=0 and
+                        // re-advance 0 -> N for a burst it had already counted
+                        // frame-by-frame, so `completed_exposures` counted every
+                        // burst TWICE (verified on the rig: a 3-frame burst
+                        // emitted frames 1,2,3 and then 1,2,3 again). That figure
+                        // is checkpointed, so a resumed run believed it had
+                        // already taken twice the frames it had. The reset now
+                        // happens after the frame block.
                         let mut started = started_nodes.write();
                         started.remove(&update.node_id);
-                        let mut frame_progress = node_frame_progress.write();
-                        frame_progress.remove(&update.node_id);
-                        let mut pending_completion = node_pending_exposure_completion.write();
-                        pending_completion.remove(&update.node_id);
                         tracing::debug!(
                             "[PROGRESS_CB] Cleared node {} from started set (status={:?})",
                             update.node_id,
@@ -2715,17 +3062,31 @@ impl SequenceExecutor {
                         );
                     }
 
+                    let node_reached_terminal_status = matches!(
+                        update.status,
+                        NodeStatus::Success
+                            | NodeStatus::Failure
+                            | NodeStatus::Cancelled
+                            | NodeStatus::Skipped
+                    );
+
                     if let (Some(current), Some(total)) =
                         (update.current_frame, update.total_frames)
                     {
                         let mut exposure_started_event: Option<ExecutorEvent> = None;
-                        let mut exposure_completed_event: Option<ExecutorEvent> = None;
+                        // One ExposureCompleted per frame that finished. A burst
+                        // can advance by more than one frame at a time (smart
+                        // exposure reports per BATCH), and Dart adds one frame +
+                        // one exposure-duration to the run vitals per event, so
+                        // a batch of N must produce N events to be counted.
+                        let mut exposure_completed_events: Vec<ExecutorEvent> = Vec::new();
                         let metadata = exposure_node_metadata.get(&update.node_id).cloned();
 
                         let mut frame_progress = node_frame_progress.write();
                         let mut pending_completion = node_pending_exposure_completion.write();
                         let last = frame_progress.entry(update.node_id.clone()).or_insert(0);
                         if current > *last {
+                            let previous = *last;
                             prog.completed_exposures =
                                 prog.completed_exposures.saturating_add(current - *last);
                             *last = current;
@@ -2737,20 +3098,42 @@ impl SequenceExecutor {
                                     filter,
                                     duration_secs,
                                 });
-                                pending_completion.insert(update.node_id.clone(), current);
-                            } else {
-                                pending_completion.remove(&update.node_id);
+                                // Completion is synthesized from the SAME sighting
+                                // that advances the counter, because every producer
+                                // reports a frame only AFTER it finished
+                                // (`instructions.rs` calls the per-frame callback
+                                // right after `completed_exposures += 1`;
+                                // smart-exposure emits after `frames_just_taken`).
+                                //
+                                // This used to wait for a second sighting of the
+                                // same frame number (`pending_completion`), which no
+                                // producer ever sends: the next per-frame callback
+                                // ADVANCES the number, and the one duplicate that
+                                // does exist — the burst's final lifecycle update —
+                                // carries a terminal status, so the terminal-status
+                                // cleanup a few lines above wipes the pending marker
+                                // before this block runs. The result was that
+                                // ExposureCompleted was NEVER emitted, so the run
+                                // vitals reported framesCaptured=0 and
+                                // integrationSecs=0.0 for runs that really did
+                                // capture and save frames (reproduced on the rig: 3
+                                // FITS files written, vitals still zero).
+                                //
+                                // `completed_exposures` is deliberately left on this
+                                // branch: it feeds checkpoint/resume, which must
+                                // only ever count frames that actually completed.
+                                for frame in (previous + 1)..=current {
+                                    exposure_completed_events.push(
+                                        ExecutorEvent::ExposureCompleted {
+                                            frame,
+                                            total,
+                                            duration_secs,
+                                        },
+                                    );
+                                }
                             }
-                        } else if current == *last
-                            && pending_completion.get(&update.node_id).copied() == Some(current)
-                        {
-                            if let Some((duration_secs, _filter)) = metadata {
-                                exposure_completed_event = Some(ExecutorEvent::ExposureCompleted {
-                                    frame: current,
-                                    total,
-                                    duration_secs,
-                                });
-                            }
+                            // No pending marker is recorded any more, so the
+                            // duplicate final sighting cannot double-count.
                             pending_completion.remove(&update.node_id);
                         }
 
@@ -2760,9 +3143,21 @@ impl SequenceExecutor {
                         if let Some(event) = exposure_started_event {
                             let _ = event_tx_clone.send(event);
                         }
-                        if let Some(event) = exposure_completed_event {
+                        for event in exposure_completed_events {
                             let _ = event_tx_clone.send(event);
                         }
+                    }
+
+                    // Reset the per-node frame counters only AFTER this update's
+                    // frame numbers have been accounted for, so a burst's final
+                    // (terminal + frame-bearing) update cannot re-advance from
+                    // zero. The next loop iteration still starts from a clean
+                    // counter, which is what the reset is for.
+                    if node_reached_terminal_status {
+                        node_frame_progress.write().remove(&update.node_id);
+                        node_pending_exposure_completion
+                            .write()
+                            .remove(&update.node_id);
                     }
 
                     if let Some(exposure_secs) = update.completed_exposure_secs {
@@ -2847,6 +3242,16 @@ impl SequenceExecutor {
                         event_tx_clone.send(ExecutorEvent::ProgressUpdated(Box::new(prog.clone())));
                 }));
 
+                // ParkAndAbort runs inside the trigger monitor while node
+                // execution and the command/checkpoint futures are polled in
+                // parallel. Keep cancellation-aware peers alive until the
+                // safe-state sweep completes; otherwise the outer select!
+                // could drop the trigger monitor after node cleanup but before
+                // park/close.
+                let park_and_abort_in_progress = Arc::new(AtomicBool::new(false));
+                let (execution_quiesced_tx, execution_quiesced_rx) = watch::channel(false);
+                let (park_and_abort_done_tx, park_and_abort_done_rx) = watch::channel(false);
+
                 let is_paused_cmd = is_paused.clone();
                 let skip_to_next_target_cmd = skip_to_next_target.clone();
                 // Trust-patch §7: command-handler-side clone for posting
@@ -2882,7 +3287,12 @@ impl SequenceExecutor {
                                 *state.write().await = ExecutorState::Stopping;
                                 let _ = event_tx
                                     .send(ExecutorEvent::StateChanged(ExecutorState::Stopping));
-                                break;
+                                // Keep the command future alive. Breaking here
+                                // lets this select! branch win and drops the
+                                // node-execution future before its hardware
+                                // cancellation cleanup can abort an exposure.
+                                // The shared cancellation flag makes execution
+                                // finish; that branch owns termination.
                             }
                             ExecutorCommand::Skip => {
                                 tracing::info!("Skip requested - advancing to next target");
@@ -2918,17 +3328,7 @@ impl SequenceExecutor {
                                     node_id
                                 );
                                 *skip_to_node_cmd.write() = Some(node_id.clone());
-                                let _ = event_tx.send(ExecutorEvent::Error {
-                                    // Re-using Error as an info-level UX
-                                    // surface is the existing pattern (see
-                                    // Start handler above); the message
-                                    // text makes the success case clear.
-                                    message: format!(
-                                        "SkipToNode request accepted: jumping to node '{}'. \
-                                         Current instruction (if any) will finish first.",
-                                        node_id
-                                    ),
-                                });
+                                let _ = event_tx.send(skip_to_node_accepted_event(node_id));
                             }
                             ExecutorCommand::UpdateDitherConfig {
                                 pixels,
@@ -3531,18 +3931,58 @@ impl SequenceExecutor {
                 let streaming_smart_exposure_states = context.smart_exposure_states.clone();
 
                 let custom_recovery_context = context.clone();
-                let execution = async { root_node.execute(&mut context).await };
+                // ParkAndAbort is driven by the trigger-monitor future while
+                // the node tree executes in parallel. The two watch channels
+                // form a handshake:
+                //
+                //   cancel -> node cleanup/abort -> quiesced -> park/close -> done
+                //
+                // The execution future remains pending after node cleanup while
+                // a ParkAndAbort sweep is active. This prevents the outer
+                // select! from choosing completed execution and dropping the
+                // trigger monitor halfway through the hardware-safe-state work.
+                let park_and_abort_for_execution = park_and_abort_in_progress.clone();
+                let mut park_and_abort_done_rx = park_and_abort_done_rx;
+                let mut park_and_abort_done_for_checkpoint = park_and_abort_done_rx.clone();
+                let execution = async {
+                    let result = root_node.execute(&mut context).await;
+                    let _ = execution_quiesced_tx.send(true);
+                    if park_and_abort_for_execution.load(Ordering::Acquire) {
+                        let _ = park_and_abort_done_rx.wait_for(|done| *done).await;
+                    }
+                    result
+                };
 
                 let state_clone = state.clone();
                 let event_tx_clone2 = event_tx.clone();
                 let is_cancelled_clone = is_cancelled.clone();
+                let park_and_abort_for_triggers = park_and_abort_in_progress.clone();
+                let mut execution_quiesced_for_triggers = execution_quiesced_rx;
+                let park_and_abort_done_for_triggers = park_and_abort_done_tx;
                 let is_paused_for_triggers = is_paused.clone();
                 let skip_to_next_target_for_triggers = skip_to_next_target.clone();
+                // The trigger monitor needs the progress snapshot so a
+                // trigger-driven pause updates the value
+                // `sequencer_get_status()` actually reads (`progress.state`),
+                // not only the internal executor state.
+                let progress_for_triggers = progress.clone();
+                // Set for the duration of a trigger recovery action (meridian
+                // flip, dither, autofocus, …) so the run cannot resolve while
+                // one is still in flight. Without it the node tree finishing
+                // dropped the whole `trigger_monitor` future mid-await,
+                // silently orphaning an in-progress flip retry ladder.
+                let trigger_action_in_flight = Arc::new(AtomicBool::new(false));
+                let trigger_action_in_flight_for_triggers = trigger_action_in_flight.clone();
+                // Latched when a meridian flip failed outright, so the run's
+                // terminal verdict is a Failure rather than a silent success.
+                let meridian_flip_failed = Arc::new(AtomicBool::new(false));
+                let meridian_flip_failed_for_triggers = meridian_flip_failed.clone();
                 let progress_for_checkpoint = progress.clone();
                 let state_for_checkpoint = state.clone();
                 let is_cancelled_for_checkpoint = is_cancelled.clone();
                 let trigger_manager_for_checkpoint = trigger_manager.clone();
                 let streaming_triggers_enabled = triggers_enabled;
+                let park_and_abort_for_checkpoint = park_and_abort_in_progress.clone();
                 let streaming_checkpoint_task = async move {
                     // reuse the executor's Arc<CheckpointManager> so
                     // info_cache stays consistent. Constructing a second instance
@@ -3561,7 +4001,12 @@ impl SequenceExecutor {
                     loop {
                         interval.tick().await;
 
-                        if is_cancelled_for_checkpoint.load(Ordering::Relaxed) {
+                        if is_cancelled_for_checkpoint.load(Ordering::Acquire) {
+                            if park_and_abort_for_checkpoint.load(Ordering::Acquire) {
+                                let _ = park_and_abort_done_for_checkpoint
+                                    .wait_for(|done| *done)
+                                    .await;
+                            }
                             break;
                         }
 
@@ -4051,6 +4496,11 @@ impl SequenceExecutor {
                             )
                             .await;
 
+                            // Publish completion BEFORE clearing the pause, so an
+                            // instruction that observes the cleared pause can always
+                            // also observe the advanced generation (no window where
+                            // it sees "not paused" with a stale generation).
+                            recovery_driver_generation.fetch_add(1, Ordering::AcqRel);
                             recovery_driver_is_paused.store(false, Ordering::Relaxed);
                             let _ = recovery_driver_event_tx
                                 .send(ExecutorEvent::StateChanged(ExecutorState::Running));
@@ -4224,16 +4674,11 @@ impl SequenceExecutor {
                     // Keeping the monitor focused on trigger evaluation avoids dropping
                     // checkpoint saves when triggers_enabled = false.
 
-                    // The MountTrackingLost / OnTrackingLimitHit triggers need a baseline
-                    // expectation; without setting this flag the "tracking dropped" detector
-                    // would assume tracking is unwanted and never fire. Only matters while a
-                    // mount is configured for the sequence.
-                    if trigger_action_context.mount_id.is_some() {
-                        let manager = trigger_manager.read().await;
-                        let trigger_state = manager.state();
-                        let mut state = trigger_state.write().await;
-                        state.set_mount_tracking_expected(true);
-                    }
+                    // The MountTrackingLost / OnTrackingLimitHit baseline
+                    // (`mount_tracking_expected`) is armed lazily in the poll block
+                    // below — only once the mount is OBSERVED tracking — rather than
+                    // assumed here at startup, so a not-yet-tracking mount cannot
+                    // self-cancel the sequence (B19). See mount_tracking_poll_verdict.
 
                     loop {
                         check_interval.tick().await;
@@ -4602,16 +5047,20 @@ impl SequenceExecutor {
                                 Ok(is_tracking) => {
                                     state.mount_status_query_failed = false;
 
-                                    // Edge-triggered (B19): only a true → false
-                                    // transition is a genuine loss. `state.mount_is_tracking`
+                                    // Lazily arm the "tracking expected" baseline on the
+                                    // first observed Ok(true) and edge-detect a genuine
+                                    // true → false loss against it (B19). `state.mount_is_tracking`
                                     // still holds the PREVIOUS poll's reading here — it is
                                     // updated below, after this check.
-                                    if mount_tracking_just_lost(
-                                        state.mount_tracking_expected,
-                                        *is_tracking,
-                                        state.mount_is_tracking,
-                                        state.mount_tracking_lost,
-                                    ) {
+                                    let (mount_tracking_expected, tracking_just_lost) =
+                                        mount_tracking_poll_verdict(
+                                            state.mount_tracking_expected,
+                                            *is_tracking,
+                                            state.mount_is_tracking,
+                                            state.mount_tracking_lost,
+                                        );
+                                    state.set_mount_tracking_expected(mount_tracking_expected);
+                                    if tracking_just_lost {
                                         tracing::warn!("Mount tracking lost during sequence!");
                                         state.mount_tracking_lost = true;
 
@@ -4852,6 +5301,19 @@ impl SequenceExecutor {
                                 let _ = decision_tx_for_lifecycle.send(stamped);
                             }
 
+                            // Mark the whole action dispatch as in-flight. The
+                            // guard clears on drop so the many `return
+                            // terminate_with(...)` early exits below cannot
+                            // leak the flag. See
+                            // `TriggerActionInFlightGuard` for why this
+                            // exists: the run used to resolve while a meridian
+                            // flip retry ladder was still sleeping, dropping
+                            // the trigger-monitor future and orphaning the
+                            // recovery mid-flight.
+                            let _action_in_flight = TriggerActionInFlightGuard::new(
+                                &trigger_action_in_flight_for_triggers,
+                            );
+
                             match &action {
                                 RecoveryAction::Pause => {
                                     // Recovery Mode — promote
@@ -4937,14 +5399,47 @@ impl SequenceExecutor {
                                     }
                                 }
                                 RecoveryAction::ParkAndAbort => {
-                                    // cancellation must be set before
-                                    // returning, but the actual store now happens
-                                    // in `terminate_with` so this code path cannot
-                                    // forget it on a future refactor.
+                                    // Stop node execution BEFORE moving or
+                                    // closing hardware. In particular, an
+                                    // exposure instruction observes the shared
+                                    // cancellation flag, aborts the camera
+                                    // integration, and only then lets the
+                                    // execution future report quiescence.
+                                    park_and_abort_for_triggers.store(true, Ordering::Release);
+                                    cancel_and_wait_for_execution(
+                                        &is_cancelled_clone,
+                                        &mut execution_quiesced_for_triggers,
+                                    )
+                                    .await;
 
-                                    // Park BEFORE aborting: a bare abort leaves the mount tracking
-                                    // toward the limit. The whole point of ParkAndAbort is to put
-                                    // the rig into a safe state — so we park first, then exit.
+                                    // Guiding is independent device state, not
+                                    // owned by the exposure future. Quiesce it
+                                    // explicitly before parking the mount.
+                                    if let Err(error) = device_ops_for_triggers.guider_stop().await
+                                    {
+                                        // An unguided rig has nothing to stop, so
+                                        // that is not a failure to report. Emitting
+                                        // it raised a CRITICAL "failed to stop
+                                        // guiding" toast next to the real abort
+                                        // reason on every unguided ParkAndAbort —
+                                        // observed live on a weather abort — which
+                                        // buries the cause the operator needs.
+                                        if crate::device_ops::is_no_guider_configured(&error) {
+                                            tracing::debug!(
+                                                "ParkAndAbort: no guider to stop ({})",
+                                                error
+                                            );
+                                        } else {
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: format!(
+                                                    "ParkAndAbort: failed to stop guiding before \
+                                                     parking: {}",
+                                                    error
+                                                ),
+                                            });
+                                        }
+                                    }
+
                                     //
                                     // Trust-patch §8: park retry logic lives in
                                     // `device_ops::try_park_with_retry` so the
@@ -5050,6 +5545,7 @@ impl SequenceExecutor {
                                         });
                                     }
 
+                                    let _ = park_and_abort_done_for_triggers.send(true);
                                     fired_triggers.push((trigger_id, action));
                                     return terminate_with(
                                         &is_cancelled_clone,
@@ -5197,15 +5693,64 @@ impl SequenceExecutor {
                                             }
                                         }
                                         _ => {
-                                            is_paused_for_triggers.store(true, Ordering::Relaxed);
-                                            *state_clone.write().await = ExecutorState::Paused;
-                                            let _ = event_tx_clone2.send(
-                                                ExecutorEvent::StateChanged(ExecutorState::Paused),
+                                            // No camera and/or no focuser: the autofocus
+                                            // action is not merely failing, it is
+                                            // IMPOSSIBLE, and nothing an operator does at
+                                            // the keyboard tonight will make it possible.
+                                            //
+                                            // This arm used to pause the executor
+                                            // indefinitely. Reproduced on the live rig: a
+                                            // two-node sequence (change filter -> expose)
+                                            // on a rig with the camera + wheel connected
+                                            // and no focuser hung on the FILTER node for
+                                            // as long as it was left alone. The filter
+                                            // change invalidated the autofocus state, the
+                                            // always-armed HFR trigger force-fired one
+                                            // second later, this arm latched
+                                            // `is_paused_for_triggers`, and the next node
+                                            // boundary blocked in
+                                            // `node::context` ("Execution paused at
+                                            // boundary, waiting for resume...").
+                                            // `/api/sequencer/status` reported `running`
+                                            // and `progress 0.0` the whole time: no
+                                            // frames, no terminal event, no way for an
+                                            // unattended run to ever notice.
+                                            //
+                                            // A run cannot be held hostage by a recovery
+                                            // it can never perform. Report the real
+                                            // missing device, drop the stale-focus latch
+                                            // so the trigger stops re-forcing on every
+                                            // evaluation tick, and let imaging continue.
+                                            // `start()` disarms these triggers up front
+                                            // when there is no focuser; this arm is the
+                                            // backstop for a device that disappears
+                                            // mid-run.
+                                            let missing = match (
+                                                trigger_action_context.camera_id.as_ref(),
+                                                trigger_action_context.focuser_id.as_ref(),
+                                            ) {
+                                                (None, None) => "no camera and no focuser are",
+                                                (None, Some(_)) => "no camera is",
+                                                _ => "no focuser is",
+                                            };
+                                            tracing::warn!(
+                                                "Autofocus trigger '{}' fired but {} configured; \
+                                                 skipping the refocus and continuing the run",
+                                                trigger_name,
+                                                missing
                                             );
+                                            {
+                                                let mut ts =
+                                                    trigger_state_for_actions.write().await;
+                                                ts.clear_autofocus_invalidation();
+                                            }
                                             let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                            message: "Autofocus trigger requested but camera/focuser is not connected"
-                                                .to_string(),
-                                        });
+                                                message: format!(
+                                                    "Trigger '{trigger_name}' asked for an autofocus but {missing} \
+                                                     configured for this run. The refocus was skipped and imaging \
+                                                     continues — focus is not being corrected automatically."
+                                                ),
+                                            });
                                         }
                                     }
                                 }
@@ -5244,7 +5789,7 @@ impl SequenceExecutor {
                                         "[MERIDIAN] Trigger fired - executing meridian flip"
                                     );
 
-                                    let (target_name, target_ra, target_dec) = {
+                                    let (target_name, target_ra, target_dec, current_filter) = {
                                         let ts = trigger_state_for_actions.read().await;
                                         (
                                             ts.current_target_name
@@ -5257,8 +5802,10 @@ impl SequenceExecutor {
                                                 .unwrap_or_else(|| "Unknown".to_string()),
                                             ts.target_ra.map(|ra| ra / 15.0), // Convert degrees to hours
                                             ts.target_dec,
+                                            ts.current_filter.clone(),
                                         )
                                     };
+                                    let autofocus_config = runtime_config.read().autofocus.clone();
 
                                     if let Some(flip_ctx) = build_trigger_flip_context(
                                         &trigger_action_context,
@@ -5267,6 +5814,8 @@ impl SequenceExecutor {
                                         target_dec,
                                         Some(is_cancelled_clone.clone()),
                                         Some(trigger_state_for_actions.clone()),
+                                        autofocus_config,
+                                        current_filter,
                                     ) {
                                         let mut flip_executor =
                                         crate::meridian_flip_executor::MeridianFlipExecutor::new(
@@ -5274,7 +5823,15 @@ impl SequenceExecutor {
                                             device_ops_for_triggers.clone(),
                                         );
 
-                                        match flip_executor.execute(&flip_ctx).await {
+                                        let flip_result = flip_executor.execute(&flip_ctx).await;
+                                        // Snapshot the attempt telemetry before
+                                        // the match consumes the result — a flip
+                                        // that only succeeded on retry #3 is
+                                        // DEGRADED and the operator must be told.
+                                        let flip_attempts = flip_executor.attempts_made();
+                                        let flip_failed_steps: Vec<String> =
+                                            flip_executor.failed_attempts().to_vec();
+                                        match flip_result {
                                         crate::meridian_flip_executor::FlipResult::Success {
                                             new_pier_side,
                                             duration_secs,
@@ -5282,6 +5839,24 @@ impl SequenceExecutor {
                                             tracing::info!(
                                                 "[MERIDIAN] Flip completed successfully: new pier side {:?}, took {:.1}s",
                                                 new_pier_side, duration_secs
+                                            );
+
+                                            // Carry the verdict to the Dart run
+                                            // vitals. Without this the flip is
+                                            // invisible: `meridianFlips` stays 0
+                                            // however many times the mount swaps
+                                            // sides.
+                                            let _ = event_tx_clone2.send(
+                                                ExecutorEvent::MeridianFlipOutcome {
+                                                    outcome: "success".to_string(),
+                                                    target_name: target_name.clone(),
+                                                    new_pier_side: format!("{:?}", new_pier_side),
+                                                    duration_secs,
+                                                    attempts: flip_attempts,
+                                                    failed_steps: flip_failed_steps.clone(),
+                                                    error: None,
+                                                    action_taken: None,
+                                                },
                                             );
 
                                             let mut ts = trigger_state_for_actions.write().await;
@@ -5297,12 +5872,67 @@ impl SequenceExecutor {
                                                 action_taken
                                             );
 
+                                            // Latch the failure so the run's
+                                            // terminal verdict cannot be a silent
+                                            // `completed` (mirrors how
+                                            // `recovery_gave_up` coerces the
+                                            // result to Failure).
+                                            meridian_flip_failed_for_triggers
+                                                .store(true, Ordering::Release);
+
+                                            let _ = event_tx_clone2.send(
+                                                ExecutorEvent::MeridianFlipOutcome {
+                                                    outcome: "failed".to_string(),
+                                                    target_name: target_name.clone(),
+                                                    new_pier_side: "Unknown".to_string(),
+                                                    duration_secs: 0.0,
+                                                    attempts: flip_attempts,
+                                                    failed_steps: flip_failed_steps.clone(),
+                                                    error: Some(error.clone()),
+                                                    action_taken: Some(format!(
+                                                        "{:?}",
+                                                        action_taken
+                                                    )),
+                                                },
+                                            );
+
                                             match action_taken {
                                                 crate::FlipFailureAction::PauseAndAlert => {
+                                                    // "Pause & Alert" must be
+                                                    // OBSERVABLE. Setting only the
+                                                    // executor state left
+                                                    // `sequencer_get_status()` —
+                                                    // which reads `progress.state`
+                                                    // — reporting "running" long
+                                                    // after the flip had failed and
+                                                    // the run had been paused.
+                                                    // Mirror the operator-pause
+                                                    // path: state + progress +
+                                                    // a reason banner.
+                                                    let pause_message = format!(
+                                                        "Meridian flip for '{}' FAILED after {} \
+                                                         attempt(s): {}. Sequence paused — the \
+                                                         mount may be on the wrong side of the \
+                                                         pier; verify framing before resuming.",
+                                                        target_name, flip_attempts, error
+                                                    );
                                                     is_paused_for_triggers
                                                         .store(true, Ordering::Relaxed);
                                                     *state_clone.write().await =
                                                         ExecutorState::Paused;
+                                                    {
+                                                        let mut prog =
+                                                            progress_for_triggers.write();
+                                                        prog.state = ExecutorState::Paused;
+                                                        prog.message = Some(pause_message);
+                                                    }
+                                                    // No separate `Error` event:
+                                                    // the Critical-severity
+                                                    // `MeridianFlipOutcome` emitted
+                                                    // above IS the verdict, and
+                                                    // emitting both would record the
+                                                    // same failure twice in the run's
+                                                    // errorMessages.
                                                     let _ = event_tx_clone2.send(
                                                         ExecutorEvent::StateChanged(
                                                             ExecutorState::Paused,
@@ -5310,16 +5940,36 @@ impl SequenceExecutor {
                                                     );
                                                 }
                                                 crate::FlipFailureAction::AbortAndPark => {
-                                                    // cancellation
-                                                    // is set inside terminate_with
-                                                    // so this exit cannot drift
-                                                    // out of sync with the
-                                                    // ParkAndAbort path.
-
                                                     // The flip itself failed, so the mount may be
                                                     // anywhere between sides. Park before we exit
                                                     // to avoid leaving it tracking into a limit
                                                     // — matches the ParkAndAbort policy above.
+                                                    // First cancel and drain
+                                                    // the concurrently-running
+                                                    // node tree so a camera
+                                                    // integration cannot remain
+                                                    // active while we park.
+                                                    park_and_abort_for_triggers
+                                                        .store(true, Ordering::Release);
+                                                    cancel_and_wait_for_execution(
+                                                        &is_cancelled_clone,
+                                                        &mut execution_quiesced_for_triggers,
+                                                    )
+                                                    .await;
+                                                    if let Err(error) =
+                                                        device_ops_for_triggers.guider_stop().await
+                                                    {
+                                                        let _ = event_tx_clone2.send(
+                                                            ExecutorEvent::Error {
+                                                                message: format!(
+                                                                    "FlipFailure AbortAndPark: \
+                                                                     failed to stop guiding before \
+                                                                     parking: {}",
+                                                                    error
+                                                                ),
+                                                            },
+                                                        );
+                                                    }
                                                     //
                                                     // Trust-patch §8: use `try_park_with_retry`
                                                     // so a flaky driver gets at least one retry
@@ -5355,6 +6005,8 @@ impl SequenceExecutor {
                                                         }
                                                     }
 
+                                                    let _ =
+                                                        park_and_abort_done_for_triggers.send(true);
                                                     fired_triggers.push((
                                                         trigger_id.clone(),
                                                         RecoveryAction::ParkAndAbort,
@@ -5371,10 +6023,39 @@ impl SequenceExecutor {
                                             reason,
                                         } => {
                                             tracing::warn!("[MERIDIAN] Flip aborted: {}", reason);
+                                            let _ = event_tx_clone2.send(
+                                                ExecutorEvent::MeridianFlipOutcome {
+                                                    outcome: "aborted".to_string(),
+                                                    target_name: target_name.clone(),
+                                                    new_pier_side: "Unknown".to_string(),
+                                                    duration_secs: 0.0,
+                                                    attempts: flip_attempts,
+                                                    failed_steps: flip_failed_steps.clone(),
+                                                    error: Some(reason),
+                                                    action_taken: None,
+                                                },
+                                            );
                                         }
                                     }
                                     } else {
-                                        tracing::error!("[MERIDIAN] Cannot execute flip: mount not connected or target not set");
+                                        // A flip trigger that fires and then
+                                        // cannot run is a safety event, not a
+                                        // log line: the mount is past the
+                                        // meridian and nothing is going to move
+                                        // it. Surface it so the run records
+                                        // WHY no flip happened.
+                                        let message = format!(
+                                            "Meridian flip trigger fired for '{}' but the flip \
+                                             could not be executed: mount not connected or \
+                                             target coordinates not set. The mount is past the \
+                                             meridian and was NOT flipped.",
+                                            target_name
+                                        );
+                                        tracing::error!("[MERIDIAN] {}", message);
+                                        meridian_flip_failed_for_triggers
+                                            .store(true, Ordering::Release);
+                                        let _ =
+                                            event_tx_clone2.send(ExecutorEvent::Error { message });
                                     }
                                 }
                                 RecoveryAction::Dither(dither_config) => {
@@ -5453,14 +6134,40 @@ impl SequenceExecutor {
                                         None,
                                     )
                                     .await;
-                                    if dither_result.status == NodeStatus::Success {
-                                        let mut ts = trigger_state_for_actions.write().await;
-                                        ts.mark_dither_performed();
-                                    } else {
-                                        tracing::warn!(
-                                            "[DITHER] Trigger-initiated dither failed: {:?}",
-                                            dither_result.message
-                                        );
+                                    match classify_dither_result(
+                                        dither_result.status,
+                                        dither_result.message.as_deref(),
+                                    ) {
+                                        DitherTriggerOutcome::Performed => {
+                                            let mut ts = trigger_state_for_actions.write().await;
+                                            ts.mark_dither_performed();
+                                        }
+                                        DitherTriggerOutcome::SkippedNoGuider => {
+                                            // An unguided rig cannot dither, and that is not a
+                                            // failure — the same skippable-no-op treatment the
+                                            // dither NODE, ParkAndAbort and the meridian
+                                            // pause/resume already give this marker.
+                                            //
+                                            // Marking it performed matters as much as the log
+                                            // level: the interval only resets here, so leaving
+                                            // it unmarked kept the trigger permanently due and
+                                            // it re-fired on EVERY exposure. Measured on an
+                                            // unguided dark run, 12 frames produced 12
+                                            // identical WARNs for a condition that cannot
+                                            // change mid-run.
+                                            let mut ts = trigger_state_for_actions.write().await;
+                                            ts.mark_dither_performed();
+                                            tracing::debug!(
+                                                "[DITHER] Trigger '{}' skipped - no guider configured",
+                                                trigger_name
+                                            );
+                                        }
+                                        DitherTriggerOutcome::Failed => {
+                                            tracing::warn!(
+                                                "[DITHER] Trigger-initiated dither failed: {:?}",
+                                                dither_result.message
+                                            );
+                                        }
                                     }
                                 }
                                 RecoveryAction::Recenter => {
@@ -6000,10 +6707,27 @@ impl SequenceExecutor {
                 // monitor to enforce weather / altitude / drift limits. If it exits
                 // for any reason other than normal cancellation, continuing to
                 // expose would leave the rig unmonitored — so we cancel everything.
+                //
+                // Every non-execution branch first cancels and then DRAINS the
+                // execution future. Dropping it here used to bypass the active
+                // instruction's cancellation branch, allowing a camera exposure
+                // to keep integrating after Stop had already been reported as
+                // confirmed.
+                tokio::pin!(execution);
+                // Pinned (not consumed by value) so the quiesce loop below can
+                // keep driving the monitor after this select! resolves. See
+                // `TriggerActionInFlightGuard`.
+                tokio::pin!(trigger_monitor);
                 let result = tokio::select! {
-                    _ = command_handler => NodeStatus::Cancelled,
-                    result = execution => result,
-                    _ = streaming_checkpoint_task => NodeStatus::Cancelled,
+                    _ = command_handler => {
+                        is_cancelled.store(true, Ordering::Release);
+                        (&mut execution).await
+                    },
+                    result = &mut execution => result,
+                    _ = streaming_checkpoint_task => {
+                        is_cancelled.store(true, Ordering::Release);
+                        (&mut execution).await
+                    },
                     // Recovery Mode — the driver task only ever
                     // exits when the recovery_request_tx side is closed
                     // (sequence ending), so a clean exit is a Cancelled
@@ -6011,8 +6735,11 @@ impl SequenceExecutor {
                     // by recv-looping; we keep it in the select! so a
                     // panic here surfaces in the same way as any other
                     // task panic (caught by the supervisor catch_unwind).
-                    _ = recovery_driver => NodeStatus::Cancelled,
-                    _triggers = trigger_monitor => {
+                    _ = recovery_driver => {
+                        is_cancelled.store(true, Ordering::Release);
+                        (&mut execution).await
+                    },
+                    _triggers = &mut trigger_monitor => {
                         if triggers_enabled && !is_cancelled.load(Ordering::Relaxed) {
                             tracing::error!(
                                 "Safety monitoring (trigger monitor) exited unexpectedly! \
@@ -6024,12 +6751,53 @@ impl SequenceExecutor {
                                           The trigger monitor exited unexpectedly."
                                     .to_string(),
                             });
+                            let _ = (&mut execution).await;
                             NodeStatus::Failure
                         } else {
-                            NodeStatus::Cancelled
+                            (&mut execution).await
                         }
                     },
                 };
+
+                // A trigger recovery action may still be running: the node tree
+                // finishing does NOT mean the rig is settled. The canonical
+                // case is a meridian flip whose retry ladder is mid-sleep —
+                // dropping `trigger_monitor` here abandoned the flip with the
+                // mount parked between pier sides and let the run report a
+                // clean `completed`. Keep driving the monitor until the action
+                // resolves so its outcome (success / degraded / failed, plus
+                // any AbortAndPark safing) is actually applied.
+                //
+                // On a cancel/stop the flip polls the same `is_cancelled` token
+                // and unwinds within a couple of hundred milliseconds, so this
+                // wait does not delay an operator Stop.
+                if trigger_action_in_flight.load(Ordering::Acquire) {
+                    tracing::warn!(
+                        "Node tree finished while a trigger recovery action is still \
+                         running; waiting up to {}s for it to complete before ending the run",
+                        TRIGGER_ACTION_QUIESCE_MAX_SECS
+                    );
+                    let deadline = tokio::time::Instant::now()
+                        + std::time::Duration::from_secs(TRIGGER_ACTION_QUIESCE_MAX_SECS);
+                    while trigger_action_in_flight.load(Ordering::Acquire) {
+                        tokio::select! {
+                            _ = &mut trigger_monitor => break,
+                            _ = tokio::time::sleep_until(deadline) => {
+                                let message = format!(
+                                    "A trigger recovery action was still running {}s after the \
+                                     sequence finished and was abandoned. The mount may not be \
+                                     in the state the sequence expected — verify it manually.",
+                                    TRIGGER_ACTION_QUIESCE_MAX_SECS
+                                );
+                                tracing::error!("{}", message);
+                                let _ = event_tx.send(ExecutorEvent::Error { message });
+                                break;
+                            }
+                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+                        }
+                    }
+                    tracing::info!("In-flight trigger recovery action quiesced; ending run");
+                }
 
                 // when recovery exhausted on a real failure it set
                 // `is_cancelled` to unwind the node tree, so the `execution`
@@ -6041,6 +6809,27 @@ impl SequenceExecutor {
                 let result = if recovery_gave_up.load(Ordering::Relaxed)
                     && !matches!(result, NodeStatus::Failure)
                 {
+                    NodeStatus::Failure
+                } else {
+                    result
+                };
+
+                // Same reasoning for a meridian flip that failed outright. The
+                // mount did not end up where the sequence assumed, so every
+                // frame taken after the failed flip is suspect. Reporting
+                // `completed` there is the silent-data-loss case this whole
+                // path exists to prevent — a flip that exhausted its retries
+                // makes the RUN a failure even if the node tree walked to the
+                // end. A flip that merely retried and then succeeded is NOT
+                // coerced; it is recorded as a degraded-but-successful flip.
+                let result = if meridian_flip_failed.load(Ordering::Acquire)
+                    && !matches!(result, NodeStatus::Failure)
+                {
+                    tracing::error!(
+                        "Sequence finished with {:?} but a meridian flip FAILED during the \
+                         run; recording the run as a failure",
+                        result
+                    );
                     NodeStatus::Failure
                 } else {
                     result
@@ -6159,6 +6948,7 @@ impl SequenceExecutor {
                 let _ =
                     supervisor_event_tx.send(ExecutorEvent::StateChanged(ExecutorState::Failed));
             }
+            let _ = run_completion_tx.send(());
         });
 
         Ok(())
@@ -6179,6 +6969,35 @@ pub fn get_executor() -> &'static Arc<RwLock<SequenceExecutor>> {
     EXECUTOR.get_or_init(|| Arc::new(RwLock::new(SequenceExecutor::new())))
 }
 
+/// What a trigger-initiated dither attempt should be recorded as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DitherTriggerOutcome {
+    /// Dither happened; reset the interval.
+    Performed,
+    /// The rig has no guider, so there is nothing to dither. Reset the interval
+    /// anyway — the condition cannot change mid-run, and leaving it unmarked made
+    /// the trigger re-fire on every single exposure.
+    SkippedNoGuider,
+    /// A genuine failure (guide star lost, settle timeout). Keep the interval due
+    /// so the next exposure retries, and warn.
+    Failed,
+}
+
+/// Classify a dither result. Split out from the trigger loop so the three cases
+/// are testable without standing up an executor.
+pub(crate) fn classify_dither_result(
+    status: NodeStatus,
+    message: Option<&str>,
+) -> DitherTriggerOutcome {
+    if status == NodeStatus::Success {
+        return DitherTriggerOutcome::Performed;
+    }
+    if message.is_some_and(crate::device_ops::is_no_guider_configured) {
+        return DitherTriggerOutcome::SkippedNoGuider;
+    }
+    DitherTriggerOutcome::Failed
+}
+
 #[cfg(test)]
 mod scenario_sim_tests;
 
@@ -6186,6 +7005,53 @@ mod scenario_sim_tests;
 mod tests {
     use super::*;
     use crate::SequenceDefinition;
+
+    /// Observed live: an unguided 12-frame dark run logged 12 identical
+    /// "Trigger-initiated dither failed: No active guider configured" WARNs —
+    /// one per exposure — because a failed dither never reset the interval, so
+    /// the trigger stayed permanently due for a condition that cannot change
+    /// mid-run.
+    #[test]
+    fn dither_without_a_guider_is_a_skip_not_a_failure() {
+        assert_eq!(
+            classify_dither_result(
+                NodeStatus::Failure,
+                Some("Dither failed: No active guider configured"),
+            ),
+            DitherTriggerOutcome::SkippedNoGuider,
+        );
+    }
+
+    #[test]
+    fn a_real_dither_failure_still_fails() {
+        for message in [
+            "Dither failed: guide star lost",
+            "Dither failed: settle timed out after 120s",
+            "PHD2 connection refused",
+        ] {
+            assert_eq!(
+                classify_dither_result(NodeStatus::Failure, Some(message)),
+                DitherTriggerOutcome::Failed,
+                "{message} should keep warning and stay due for retry",
+            );
+        }
+    }
+
+    #[test]
+    fn a_failure_with_no_message_still_fails() {
+        assert_eq!(
+            classify_dither_result(NodeStatus::Failure, None),
+            DitherTriggerOutcome::Failed,
+        );
+    }
+
+    #[test]
+    fn a_successful_dither_is_performed() {
+        assert_eq!(
+            classify_dither_result(NodeStatus::Success, None),
+            DitherTriggerOutcome::Performed,
+        );
+    }
 
     #[test]
     fn test_executor_creation() {
@@ -6277,6 +7143,67 @@ mod tests {
         rt.block_on(async {
             assert_eq!(executor.get_state().await, ExecutorState::Idle);
         });
+    }
+
+    /// Regression: a finished run left the executor parked in a terminal state
+    /// and nothing ever returned it to `Idle`, so the second sequence of a night
+    /// was refused with "Cannot start: executor is Completed" — one run per app
+    /// launch, and the desktop Start button showed nothing at all (the native
+    /// refusal was rolled back by an immediate stop).
+    ///
+    /// The assertion is on the error KIND, not on success: `start()` still bails
+    /// out later for want of a loaded sequence, which is exactly what this
+    /// bare executor should report.
+    #[tokio::test]
+    async fn start_recycles_a_terminal_executor_instead_of_refusing() {
+        for terminal in [
+            ExecutorState::Completed,
+            ExecutorState::Failed,
+            ExecutorState::Cancelled,
+        ] {
+            let mut executor = SequenceExecutor::new();
+            executor.set_state(terminal).await;
+
+            let err = executor
+                .start()
+                .await
+                .expect_err("a bare executor has no sequence loaded");
+            assert!(
+                !err.contains("Cannot start"),
+                "start() from {terminal:?} must recycle to Idle, not refuse; got: {err}"
+            );
+            assert_eq!(
+                executor.get_state().await,
+                ExecutorState::Idle,
+                "{terminal:?} must be recycled to Idle by an explicit start"
+            );
+        }
+    }
+
+    /// The flip side: a start must NOT bulldoze a live run. Silently resetting
+    /// here would abandon a sequence that is mid-exposure.
+    #[tokio::test]
+    async fn start_still_refuses_a_busy_executor() {
+        for busy in [
+            ExecutorState::Running,
+            ExecutorState::Paused,
+            ExecutorState::Stopping,
+            ExecutorState::Recovering,
+        ] {
+            let mut executor = SequenceExecutor::new();
+            executor.set_state(busy).await;
+
+            let err = executor.start().await.expect_err("busy must be refused");
+            assert!(
+                err.contains("Cannot start"),
+                "start() during {busy:?} must be refused; got: {err}"
+            );
+            assert_eq!(
+                executor.get_state().await,
+                busy,
+                "a refused start must leave {busy:?} untouched"
+            );
+        }
     }
 
     #[test]
@@ -6606,11 +7533,142 @@ mod tests {
             Some(-5.0),
             None,
             None,
+            None,
+            None,
         )
         .expect("flip context should be created");
 
         assert_eq!(flip_ctx.focuser_id.as_deref(), Some("focuser"));
         assert_eq!(flip_ctx.mount_id, "mount");
+    }
+
+    #[test]
+    fn trigger_flip_context_preserves_real_autofocus_config() {
+        let trigger_context = TriggerActionContext {
+            mount_id: Some("mount".to_string()),
+            filterwheel_id: Some("wheel".to_string()),
+            filter_focus_offsets: HashMap::from([("L".to_string(), 0), ("Ha".to_string(), 180)]),
+            ..TriggerActionContext::default()
+        };
+        let autofocus_config = crate::AutofocusConfig {
+            filter: Some("Ha".to_string()),
+            step_size: 275,
+            exposure_duration: 6.5,
+            backlash_compensation: 180,
+            ..crate::AutofocusConfig::default()
+        };
+
+        let flip_ctx = build_trigger_flip_context(
+            &trigger_context,
+            "M42".to_string(),
+            Some(5.5),
+            Some(-5.0),
+            None,
+            None,
+            Some(autofocus_config),
+            Some("L".to_string()),
+        )
+        .expect("flip context should be created");
+
+        let observed = flip_ctx
+            .autofocus_config
+            .expect("runtime autofocus config must reach the flip executor");
+        assert_eq!(observed.config.filter.as_deref(), Some("Ha"));
+        assert_eq!(observed.config.step_size, 275);
+        assert!((observed.config.exposure_duration - 6.5).abs() < f64::EPSILON);
+        assert_eq!(observed.config.backlash_compensation, 180);
+        assert_eq!(observed.current_filter.as_deref(), Some("L"));
+        assert_eq!(observed.filterwheel_id.as_deref(), Some("wheel"));
+        assert_eq!(observed.filter_focus_offsets.get("Ha"), Some(&180));
+    }
+
+    #[test]
+    fn skip_to_node_acceptance_is_not_an_error_event() {
+        let event = skip_to_node_accepted_event("target-node".to_string());
+
+        assert!(
+            !matches!(event, ExecutorEvent::Error { .. }),
+            "an accepted SkipToNode command must not enter error/recovery UX"
+        );
+        match event {
+            ExecutorEvent::NodeProgress {
+                node_id,
+                instruction,
+                progress_percent,
+                ..
+            } => {
+                assert_eq!(node_id, "target-node");
+                assert_eq!(instruction, "SkipToNode");
+                assert_eq!(progress_percent, 100.0);
+            }
+            other => panic!("expected a non-error skip acknowledgment, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn park_and_abort_cancels_and_quiesces_before_safe_state_work() {
+        let is_cancelled = Arc::new(AtomicBool::new(false));
+        let ordering = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (quiesced_tx, mut quiesced_rx) = watch::channel(false);
+
+        let cancellation_for_instruction = is_cancelled.clone();
+        let ordering_for_instruction = ordering.clone();
+        let instruction = tokio::spawn(async move {
+            while !cancellation_for_instruction.load(Ordering::Acquire) {
+                tokio::task::yield_now().await;
+            }
+            ordering_for_instruction
+                .lock()
+                .unwrap()
+                .push("camera_abort");
+            let _ = quiesced_tx.send(true);
+        });
+
+        cancel_and_wait_for_execution(&is_cancelled, &mut quiesced_rx).await;
+        ordering.lock().unwrap().push("park");
+        instruction.await.unwrap();
+
+        assert!(is_cancelled.load(Ordering::Acquire));
+        assert_eq!(
+            *ordering.lock().unwrap(),
+            vec!["camera_abort", "park"],
+            "camera cancellation cleanup must finish before park/close begins"
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_waits_for_executor_cleanup_acknowledgment() {
+        let mut executor = SequenceExecutor::new();
+        let (command_tx, mut command_rx) = mpsc::channel(1);
+        let (completion_tx, completion_rx) = oneshot::channel();
+        let cleanup_confirmed = Arc::new(AtomicBool::new(false));
+        executor.command_tx = Some(command_tx);
+        executor.run_completion_rx = Some(completion_rx);
+
+        let cancellation = executor.is_cancelled.clone();
+        let cleanup_confirmed_for_task = cleanup_confirmed.clone();
+        let simulated_executor = tokio::spawn(async move {
+            assert!(matches!(
+                command_rx.recv().await,
+                Some(ExecutorCommand::Stop)
+            ));
+            assert!(
+                cancellation.load(Ordering::Acquire),
+                "Stop must signal cancellation before the command is handled"
+            );
+            cleanup_confirmed_for_task.store(true, Ordering::Release);
+            let _ = completion_tx.send(());
+        });
+
+        executor.stop().await.expect("Stop should be confirmed");
+        simulated_executor.await.unwrap();
+
+        assert!(
+            cleanup_confirmed.load(Ordering::Acquire),
+            "stop() must not return before executor cleanup is acknowledged"
+        );
+        assert!(executor.command_tx.is_none());
+        assert!(executor.run_completion_rx.is_none());
     }
 
     /// `terminate_with` must always set the cancellation flag
@@ -6631,6 +7689,76 @@ mod tests {
         assert_eq!(returned.len(), 2);
         assert_eq!(returned[0].0, "trig_a");
         assert_eq!(returned[1].0, "trig_b");
+    }
+
+    /// Regression: the in-flight latch must be set for the whole trigger
+    /// recovery action and cleared on EVERY exit path, including the
+    /// `return terminate_with(...)` early exits that unwind past the guard.
+    ///
+    /// A leaked `true` would make every subsequent run pay the full
+    /// `TRIGGER_ACTION_QUIESCE_MAX_SECS` wait before finishing; a missing
+    /// `true` reopens the original defect (the run resolving while a meridian
+    /// flip retry ladder is still sleeping, orphaning the recovery).
+    #[test]
+    fn trigger_action_in_flight_guard_sets_and_clears_on_every_exit() {
+        let flag = Arc::new(AtomicBool::new(false));
+
+        // Normal scope exit.
+        {
+            let _guard = TriggerActionInFlightGuard::new(&flag);
+            assert!(
+                flag.load(Ordering::Acquire),
+                "guard must latch the flag while the action runs"
+            );
+        }
+        assert!(
+            !flag.load(Ordering::Acquire),
+            "guard must clear the flag on normal scope exit"
+        );
+
+        // Early return out of the guarded scope (mirrors
+        // `return terminate_with(...)` inside the action dispatch).
+        fn early_return(flag: &Arc<AtomicBool>) -> &'static str {
+            let _guard = TriggerActionInFlightGuard::new(flag);
+            return "terminated";
+        }
+        assert_eq!(early_return(&flag), "terminated");
+        assert!(
+            !flag.load(Ordering::Acquire),
+            "guard must clear the flag when the dispatch returns early"
+        );
+
+        // Unwind (a panicking device call must not wedge the latch).
+        let unwound = std::panic::catch_unwind({
+            let flag = flag.clone();
+            move || {
+                let _guard = TriggerActionInFlightGuard::new(&flag);
+                panic!("device blew up mid-action");
+            }
+        });
+        assert!(unwound.is_err(), "the closure was expected to panic");
+        assert!(
+            !flag.load(Ordering::Acquire),
+            "guard must clear the flag while unwinding a panic"
+        );
+    }
+
+    /// Regression: the quiesce budget must comfortably exceed the shipped
+    /// default meridian retry ladder (30 s + 60 s + 120 s of waiting plus four
+    /// flip attempts). If someone shrinks it below the ladder, a perfectly
+    /// normal retry sequence would be abandoned by the timeout instead of
+    /// being awaited — reintroducing the orphaned-retry defect through the
+    /// back door.
+    #[test]
+    fn trigger_action_quiesce_budget_covers_the_default_retry_ladder() {
+        let default_retry_wait_secs: u64 = 30 + 60 + 120;
+        assert!(
+            TRIGGER_ACTION_QUIESCE_MAX_SECS > default_retry_wait_secs * 2,
+            "quiesce budget {}s must leave room for the {}s default retry \
+             ladder plus the flip attempts themselves",
+            TRIGGER_ACTION_QUIESCE_MAX_SECS,
+            default_retry_wait_secs
+        );
     }
 
     /// `update_dither_config` must write through the shared
@@ -7261,6 +8389,52 @@ mod tests {
         );
     }
 
+    /// Recovery must never command tracking on a PARKED mount.
+    ///
+    /// Observed live: a MoveRotator failure on a rig with no rotator drove the
+    /// recovery ladder, and the resume path issued `set tracking = true` on a
+    /// parked NYX-101 — motion intent on stowed hardware, from a failure that
+    /// had nothing to do with the mount. A park is a deliberate safe state and
+    /// automatic recovery must not take a rig out of one unprompted. The
+    /// message must also stop claiming frames "may trail", which is untrue of a
+    /// mount that is parked and not imaging.
+    #[tokio::test]
+    async fn restore_tracking_after_recovery_never_commands_a_parked_mount() {
+        let ops_concrete = std::sync::Arc::new(ReacquireGuiderOps::new(false, true).with_parked());
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let (event_tx, mut rx) = broadcast::channel(16);
+
+        let err = restore_tracking_after_recovery(
+            &ops,
+            Some("mount-1"),
+            true,
+            "after recovery",
+            &event_tx,
+        )
+        .await;
+
+        assert_eq!(
+            ops_concrete.last_tracking_set(),
+            None,
+            "a parked mount must never be commanded to track"
+        );
+        let message = err.expect("the operator must be told tracking was not restored");
+        assert!(
+            message.contains("parked"),
+            "the message must say the mount is parked, got: {message}"
+        );
+        assert!(
+            !message.contains("trail"),
+            "must not claim frames may trail on a parked mount, got: {message}"
+        );
+        match rx.try_recv() {
+            Ok(ExecutorEvent::Error { message }) => {
+                assert!(message.contains("parked"), "got: {message}");
+            }
+            other => panic!("expected a truthful Error event, got {other:?}"),
+        }
+    }
+
     /// When tracking cannot be restored, the failure is LOUD — an error event
     /// is emitted and the message is returned — never a silent resume on a
     /// non-tracking mount.
@@ -7505,6 +8679,8 @@ mod tests {
         /// When true, `mount_set_tracking(true)` returns Err so a test can
         /// exercise the loud-error-on-failure path.
         tracking_set_should_fail: bool,
+        /// When true, `mount_is_parked` reports the mount as parked.
+        parked: bool,
     }
 
     impl ReacquireGuiderOps {
@@ -7516,7 +8692,13 @@ mod tests {
                 relock_after_start,
                 last_tracking_set: std::sync::Arc::new(std::sync::Mutex::new(None)),
                 tracking_set_should_fail: false,
+                parked: false,
             }
+        }
+
+        fn with_parked(mut self) -> Self {
+            self.parked = true;
+            self
         }
 
         fn with_tracking_failure(mut self) -> Self {
@@ -7586,6 +8768,9 @@ mod tests {
             self.inner.mount_is_slewing(id).await
         }
         async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+            if self.parked {
+                return Ok(true);
+            }
             self.inner.mount_is_parked(id).await
         }
         async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {

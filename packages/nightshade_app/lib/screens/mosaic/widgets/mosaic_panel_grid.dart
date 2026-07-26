@@ -21,11 +21,40 @@ class MosaicPanelGrid extends StatelessWidget {
   /// Grid columns (panels per row).
   final int cols;
 
+  /// Collaborative Sky WS2 — when true (the project is published to a hub and a
+  /// collaborative service is wired) each tile renders per-panel distributed
+  /// affordances: 'Claim' on an unclaimed panel and 'Upload' on an
+  /// integrated-but-not-yet-uploaded panel. Off by default so a local-only
+  /// project shows the plain grid.
+  final bool collaborative;
+
+  /// Invoked with a panel's index to take the hub claim baton for it (WS2).
+  final void Function(int panelIndex)? onClaimPanel;
+
+  /// Invoked with a panel's index to upload its integrated master to the hub
+  /// (WS2).
+  final void Function(int panelIndex)? onUploadPanel;
+
+  /// Owner/admin recovery (WS2): invoked with a panel's index to force-release a
+  /// squatting claim or a poisoned upload back to `pending` on the hub. Only
+  /// surfaced on a claimed or uploaded panel; the hub enforces owner/admin
+  /// ownership. Null on a rig that is not the mosaic owner path.
+  final void Function(int panelIndex)? onForceReleasePanel;
+
+  /// Disables the per-panel collaborative buttons while any collaborative
+  /// action is in flight, so a tap cannot stack a second hub call (WS2).
+  final bool collaborativeBusy;
+
   const MosaicPanelGrid({
     super.key,
     required this.panels,
     required this.panelMasters,
     required this.cols,
+    this.collaborative = false,
+    this.onClaimPanel,
+    this.onUploadPanel,
+    this.onForceReleasePanel,
+    this.collaborativeBusy = false,
   });
 
   @override
@@ -61,6 +90,11 @@ class MosaicPanelGrid extends StatelessWidget {
                   master: panel.integratedMasterId == null
                       ? null
                       : panelMasters[panel.integratedMasterId],
+                  collaborative: collaborative,
+                  onClaim: onClaimPanel,
+                  onUpload: onUploadPanel,
+                  onForceRelease: onForceReleasePanel,
+                  collaborativeBusy: collaborativeBusy,
                 ),
               ),
           ],
@@ -76,14 +110,49 @@ class MosaicPanelGrid extends StatelessWidget {
 class _PanelTile extends StatelessWidget {
   final MosaicProjectPanel panel;
   final IntegratedMaster? master;
+  final bool collaborative;
+  final void Function(int panelIndex)? onClaim;
+  final void Function(int panelIndex)? onUpload;
+  final void Function(int panelIndex)? onForceRelease;
+  final bool collaborativeBusy;
 
-  const _PanelTile({required this.panel, this.master});
+  const _PanelTile({
+    required this.panel,
+    this.master,
+    this.collaborative = false,
+    this.onClaim,
+    this.onUpload,
+    this.onForceRelease,
+    this.collaborativeBusy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final preview = master?.previewPngPath;
     final hasThumb = preview != null && _exists(preview);
+
+    // WS2 per-panel distributed affordances. Claim a still-unclaimed panel;
+    // upload an integrated panel whose master has not yet reached the hub. A
+    // claimed-but-not-integrated panel shows neither (it is being captured), and
+    // an already-uploaded panel shows neither (its work is done).
+    final showClaim = collaborative && onClaim != null && !panel.isClaimed;
+    final showUpload = collaborative &&
+        onUpload != null &&
+        panel.isIntegrated &&
+        !panel.isUploaded;
+
+    // WS2 owner/admin recovery: a claimed or already-uploaded panel can be
+    // evicted back to `pending` to break a squatting claim or clear a poisoned
+    // upload. Only meaningful in those two states — a pending panel is already
+    // free. The hub enforces owner/admin ownership on the call itself.
+    final showForceRelease = collaborative &&
+        onForceRelease != null &&
+        (panel.isClaimed || panel.isUploaded);
+
+    // WS2 attribution: once a panel is claimed, show which rig/user owns it so
+    // the distributed capture has visible provenance on the grid.
+    final assignedLabel = collaborative ? panel.assignedLabel : null;
 
     return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
@@ -134,6 +203,79 @@ class _PanelTile extends StatelessWidget {
               ),
             ],
           ),
+          if (assignedLabel != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Row(
+              children: [
+                Icon(
+                  NightshadeIcons.user,
+                  size: NightshadeTokens.iconXs,
+                  color: colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                Expanded(
+                  child: Text(
+                    assignedLabel,
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (showClaim ||
+              showUpload ||
+              (collaborative && panel.isUploaded)) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            if (showClaim)
+              NightshadeButton(
+                label: 'Claim',
+                icon: NightshadeIcons.download,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed:
+                    collaborativeBusy ? null : () => onClaim!(panel.panelIndex),
+              )
+            else if (showUpload)
+              NightshadeButton(
+                label: 'Upload',
+                icon: NightshadeIcons.upload,
+                size: ButtonSize.small,
+                onPressed: collaborativeBusy
+                    ? null
+                    : () => onUpload!(panel.panelIndex),
+              )
+            else if (collaborative && panel.isUploaded)
+              Row(
+                children: [
+                  Icon(
+                    NightshadeIcons.success,
+                    size: NightshadeTokens.iconXs,
+                    color: colors.success,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Text(
+                    'Uploaded',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.success),
+                  ),
+                ],
+              ),
+          ],
+          if (showForceRelease) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            NightshadeButton(
+              label: 'Force release',
+              icon: NightshadeIcons.unlock,
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: collaborativeBusy
+                  ? null
+                  : () => onForceRelease!(panel.panelIndex),
+            ),
+          ],
         ],
       ),
     );

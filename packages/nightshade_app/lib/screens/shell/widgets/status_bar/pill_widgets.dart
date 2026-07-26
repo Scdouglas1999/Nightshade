@@ -8,6 +8,14 @@ class _StatusPillButton extends StatefulWidget {
   final NightshadeColors colors;
   final bool compact;
 
+  /// Narrow-desktop density: keeps the desktop pill's height and its value —
+  /// the part that actually changes — but drops the static label word.
+  ///
+  /// This is not [compact]: that variant is sized for touch (44 px minimum) and
+  /// would overflow the 36 px desktop status bar, and it hides the value, which
+  /// is the only thing on the pill worth reading.
+  final bool dense;
+
   const _StatusPillButton({
     required this.icon,
     required this.label,
@@ -15,6 +23,7 @@ class _StatusPillButton extends StatefulWidget {
     required this.isConnected,
     required this.colors,
     this.compact = false,
+    this.dense = false,
   });
 
   @override
@@ -85,14 +94,20 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                             : widget.colors.textMuted,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        widget.label,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: widget.colors.textSecondary,
+                      // The label is the first thing to go when the bar is
+                      // short of room: it never changes, the icon already
+                      // identifies the device, and the tooltip still spells out
+                      // "Mount: Disconnected" in full.
+                      if (!widget.dense) ...[
+                        Text(
+                          widget.label,
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: widget.colors.textSecondary,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
+                        const SizedBox(width: 6),
+                      ],
                       ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth:

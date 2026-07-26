@@ -56,14 +56,14 @@ Future<void> main() async {
       temp,
       'packages/nightshade_app/lib/screens/stack_result/stack_result_screen.dart',
       "import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;\n"
-      'void build() { bridge.apiAutoStretchImage(); }\n',
+          'void build() { bridge.apiAutoStretchImage(); }\n',
     );
     // A UI file using `show` for a single data type.
     await _writeFile(
       temp,
       'packages/nightshade_app/lib/widgets/guide_health_card.dart',
       "import 'package:nightshade_bridge/nightshade_bridge.dart' show Phd2State;\n"
-      'Phd2State? state;\n',
+          'Phd2State? state;\n',
     );
 
     final failing = await _runAudit(script, temp, allowFailure: true);

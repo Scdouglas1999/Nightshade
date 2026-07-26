@@ -9,6 +9,8 @@ import '../services/weather/weather_radar_service.dart';
 import '../services/weather/cloud_motion_analyzer.dart';
 import '../services/weather/weather_alert_service.dart';
 import '../database/database.dart' as db;
+import '../backend/network_backend.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'settings_provider.dart';
 
@@ -67,15 +69,27 @@ final weatherSettingsStreamProvider = StreamProvider<db.WeatherSettingRow?>((
 ///
 /// Returns the current weather settings model, converting from the database
 /// row type. Returns default settings if database settings are not yet loaded.
-final weatherSettingsProvider = Provider<WeatherSettings>((ref) {
-  final settingsAsync = ref.watch(weatherSettingsStreamProvider);
-  final row = settingsAsync.valueOrNull;
-
-  if (row == null) {
-    return WeatherSettings.defaultSettings;
+final weatherSettingsDataProvider = StreamProvider<WeatherSettings>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return Stream.fromFuture(
+      backend.getWeatherSettings().then(_weatherSettingsFromWire),
+    );
   }
+  final database = ref.watch(databaseProvider);
+  return database.weatherSettingsDao.watchSettings().map(
+    (row) => row == null
+        ? WeatherSettings.defaultSettings
+        : _weatherSettingsFromRow(row),
+  );
+});
 
-  // Convert database row to model
+final weatherSettingsProvider = Provider<WeatherSettings>((ref) {
+  return ref.watch(weatherSettingsDataProvider).valueOrNull ??
+      WeatherSettings.defaultSettings;
+});
+
+WeatherSettings _weatherSettingsFromRow(db.WeatherSettingRow row) {
   return WeatherSettings(
     triggerDistanceKm: row.triggerDistanceKm,
     cloudDensityThreshold: row.cloudDensityThreshold,
@@ -89,6 +103,133 @@ final weatherSettingsProvider = Provider<WeatherSettings>((ref) {
     preferredProvider: _parseProviderType(row.preferredProvider),
     refreshIntervalSeconds: row.refreshIntervalSeconds,
   );
+}
+
+WeatherSettings _weatherSettingsFromWire(Map<String, dynamic> json) {
+  final defaults = WeatherSettings.defaultSettings;
+  double finiteDouble(String key, double fallback) {
+    final value = json[key];
+    return value is num && value.isFinite ? value.toDouble() : fallback;
+  }
+
+  int integer(String key, int fallback) {
+    final value = json[key];
+    return value is int ? value : fallback;
+  }
+
+  bool boolean(String key, bool fallback) {
+    final value = json[key];
+    return value is bool ? value : fallback;
+  }
+
+  return WeatherSettings(
+    triggerDistanceKm: finiteDouble(
+      'triggerDistanceKm',
+      defaults.triggerDistanceKm,
+    ).clamp(1, 500).toDouble(),
+    cloudDensityThreshold: finiteDouble(
+      'cloudDensityThreshold',
+      defaults.cloudDensityThreshold,
+    ).clamp(0, 100).toDouble(),
+    leadTimeMinutes: integer(
+      'leadTimeMinutes',
+      defaults.leadTimeMinutes,
+    ).clamp(1, 180).toInt(),
+    weatherSafetyEnabled: boolean(
+      'weatherSafetyEnabled',
+      defaults.weatherSafetyEnabled,
+    ),
+    maxHumidityPercent: finiteDouble(
+      'maxHumidityPercent',
+      defaults.maxHumidityPercent,
+    ).clamp(0, 100).toDouble(),
+    maxWindSpeedKph: finiteDouble(
+      'maxWindSpeedKph',
+      defaults.maxWindSpeedKph,
+    ).clamp(0, 150).toDouble(),
+    maxCloudCoverPercent: finiteDouble(
+      'maxCloudCoverPercent',
+      defaults.maxCloudCoverPercent,
+    ).clamp(0, 100).toDouble(),
+    autoParkEnabled: boolean('autoParkEnabled', defaults.autoParkEnabled),
+    autoResumeEnabled: boolean('autoResumeEnabled', defaults.autoResumeEnabled),
+    preferredProvider: _parseProviderType(
+      json['preferredProvider'] is String
+          ? json['preferredProvider'] as String
+          : defaults.preferredProvider.name,
+    ),
+    refreshIntervalSeconds: integer(
+      'refreshIntervalSeconds',
+      defaults.refreshIntervalSeconds,
+    ).clamp(30, 3600).toInt(),
+  );
+}
+
+class WeatherSettingsActions {
+  final Ref _ref;
+
+  WeatherSettingsActions(this._ref);
+
+  Future<void> updateSettings({
+    double? triggerDistanceKm,
+    double? cloudDensityThreshold,
+    int? leadTimeMinutes,
+    bool? weatherSafetyEnabled,
+    double? maxHumidityPercent,
+    double? maxWindSpeedKph,
+    double? maxCloudCoverPercent,
+    bool? autoParkEnabled,
+    bool? autoResumeEnabled,
+    RadarProviderType? preferredProvider,
+    int? refreshIntervalSeconds,
+  }) async {
+    final payload = <String, dynamic>{
+      if (triggerDistanceKm != null) 'triggerDistanceKm': triggerDistanceKm,
+      if (cloudDensityThreshold != null)
+        'cloudDensityThreshold': cloudDensityThreshold,
+      if (leadTimeMinutes != null) 'leadTimeMinutes': leadTimeMinutes,
+      if (weatherSafetyEnabled != null)
+        'weatherSafetyEnabled': weatherSafetyEnabled,
+      if (maxHumidityPercent != null) 'maxHumidityPercent': maxHumidityPercent,
+      if (maxWindSpeedKph != null) 'maxWindSpeedKph': maxWindSpeedKph,
+      if (maxCloudCoverPercent != null)
+        'maxCloudCoverPercent': maxCloudCoverPercent,
+      if (autoParkEnabled != null) 'autoParkEnabled': autoParkEnabled,
+      if (autoResumeEnabled != null) 'autoResumeEnabled': autoResumeEnabled,
+      if (preferredProvider != null)
+        'preferredProvider': preferredProvider.name,
+      if (refreshIntervalSeconds != null)
+        'refreshIntervalSeconds': refreshIntervalSeconds,
+    };
+    if (payload.isEmpty) return;
+
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      await backend.updateWeatherSettings(payload);
+      _ref.invalidate(weatherSettingsDataProvider);
+      return;
+    }
+    await _ref
+        .read(databaseProvider)
+        .weatherSettingsDao
+        .updateSettings(
+          triggerDistanceKm: triggerDistanceKm,
+          cloudDensityThreshold: cloudDensityThreshold,
+          leadTimeMinutes: leadTimeMinutes,
+          weatherSafetyEnabled: weatherSafetyEnabled,
+          maxHumidityPercent: maxHumidityPercent,
+          maxWindSpeedKph: maxWindSpeedKph,
+          maxCloudCoverPercent: maxCloudCoverPercent,
+          autoParkEnabled: autoParkEnabled,
+          autoResumeEnabled: autoResumeEnabled,
+          preferredProvider: preferredProvider?.name,
+          refreshIntervalSeconds: refreshIntervalSeconds,
+        );
+  }
+}
+
+final weatherSettingsActionsProvider = Provider<WeatherSettingsActions>((ref) {
+  return WeatherSettingsActions(ref);
 });
 
 /// Parse radar provider type from database string
@@ -273,6 +414,11 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((
   );
 
   if (result.isSuccess) {
+    if (result.frames.isEmpty) {
+      throw StateError(
+        '${result.providerName ?? 'Weather provider'} returned no radar frames',
+      );
+    }
     developer.log('Got ${result.frames.length} frames', name: 'WeatherRadar');
     return result.frames;
   } else {
@@ -281,8 +427,10 @@ final weatherRadarFramesProvider = FutureProvider<List<RadarFrame>>((
       name: 'WeatherRadar',
       level: 900,
     );
-    // Return empty list instead of throwing to avoid breaking the UI
-    return [];
+    // Surface the failure so `framesAsync.hasError` populates the weather
+    // status error and the UI shows an offline state instead of an empty radar
+    // presented as "Clear".
+    throw Exception(result.errorMessage ?? 'Weather radar fetch failed');
   }
 });
 
@@ -373,15 +521,15 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
   final streamAlertAsync = ref.watch(weatherAlertStreamProvider);
 
   // Determine loading state
-  final isLoading = framesAsync.isLoading;
+  final isLoading = framesAsync.isLoading || evaluatedAsync.isLoading;
 
   // Determine error message
   String? errorMessage;
   if (framesAsync.hasError) {
     errorMessage = framesAsync.error.toString();
+  } else if (evaluatedAsync.hasError) {
+    errorMessage = evaluatedAsync.error.toString();
   }
-  // Don't treat evaluation errors as weather errors - they just mean
-  // we can't determine conditions yet (e.g., location not set)
 
   // Use the evaluated alert as the primary source of truth for current level.
   // Fall back to the stream alert if evaluation hasn't completed yet.
@@ -403,6 +551,11 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
   // Get radar frames or empty list
   final radarFrames = framesAsync.valueOrNull ?? [];
 
+  // Freshness comes from the actual radar fetch, not wall-clock now — an
+  // offline session must not read as "Updated just now".
+  final radarService = ref.watch(weatherRadarServiceProvider);
+  final lastFetchedAt = radarService.lastResult?.fetchedAt;
+
   // Build combined status
   return WeatherStatus(
     currentLevel: currentLevel,
@@ -410,7 +563,7 @@ final weatherStatusProvider = Provider<WeatherStatus>((ref) {
     motion: null, // Updated separately by motion analysis
     radarFrames: radarFrames,
     currentFrameIndex: 0,
-    lastUpdate: DateTime.now(),
+    lastUpdate: lastFetchedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
     isLoading: isLoading,
     errorMessage: errorMessage,
   );
@@ -509,7 +662,9 @@ final analyzeCloudMotionProvider = FutureProvider.autoDispose<CloudMotion?>((
 /// conditions and generate an alert. Auto-disposes after use.
 final evaluateWeatherConditionsProvider =
     FutureProvider.autoDispose<WeatherAlert>((ref) async {
-      final weatherSettings = ref.watch(weatherSettingsProvider);
+      final weatherSettings = await ref.watch(
+        weatherSettingsDataProvider.future,
+      );
       final motion = await ref.watch(analyzeCloudMotionProvider.future);
 
       // Get actual cloud cover percentage from Open-Meteo API
@@ -518,7 +673,18 @@ final evaluateWeatherConditionsProvider =
         cloudCoverPercentageProvider.future,
       );
 
-      // Use actual cloud cover if available, otherwise fall back to 0 (clear)
+      // No real weather data at all (offline / APIs blocked): refuse to
+      // fabricate a "Clear" alert. Throwing leaves no currentAlert, so
+      // WeatherSafetyNotifier's fail-closed no-data path governs instead of
+      // treating unknown conditions as safe.
+      if (cloudCoverPercent == null && motion == null) {
+        throw StateError(
+          'No weather data available (cloud cover and motion unknown)',
+        );
+      }
+
+      // Motion data is real radar output, so a null cloud percentage here is a
+      // measured-clear-sky signal rather than a no-data fabrication.
       final currentCloudDensity = cloudCoverPercent ?? 0.0;
 
       final alertService = ref.read(weatherAlertServiceProvider);

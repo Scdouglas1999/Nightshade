@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as p;
 
 /// The finished-master hero for the Morning Report: the stretched preview PNG
 /// (loaded on-disk exactly like [MasterPreviewView]) under a [Stack] of
@@ -37,6 +38,47 @@ class FinishingResultLayer {
     required this.pngPath,
     required this.icon,
   });
+}
+
+/// The conventional sibling preview PNG for a finishing-artifact FITS at
+/// [fitsPath]: the same path with a `.png` extension — what the controller's
+/// finishing actions render beside each `_bgx`/`_decon`/`_starred` FITS.
+String _siblingPng(String fitsPath) {
+  final dir = p.dirname(fitsPath);
+  final stem = p.basenameWithoutExtension(fitsPath);
+  return p.join(dir, '$stem.png');
+}
+
+/// The finishing-result "after" layers for [master] that exist on disk — one
+/// per persisted finishing FITS path (background extraction / deconvolution /
+/// star reduction / colour calibration), pointing at its sibling preview PNG so
+/// [MasterOverlayView] can A/B each pass against the raw master. Empty when no
+/// master / no finishing artifacts have been produced. Shared by the workbench
+/// and narrative session-review heroes.
+List<FinishingResultLayer> finishingLayersForMaster(IntegratedMaster? master) {
+  if (master == null) return const [];
+  bool exists(String path) {
+    try {
+      return File(path).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  final out = <FinishingResultLayer>[];
+  void add(String? fits, String label, IconData icon) {
+    if (fits == null || fits.trim().isEmpty) return;
+    final png = _siblingPng(fits);
+    if (!exists(png)) return;
+    out.add(FinishingResultLayer(label: label, pngPath: png, icon: icon));
+  }
+
+  add(master.backgroundExtractedPath, 'Background extract',
+      NightshadeIcons.grid);
+  add(master.deconvolvedPath, 'Deconvolve', NightshadeIcons.sparkle);
+  add(master.starReducedPath, 'Reduce stars', NightshadeIcons.star);
+  add(master.colorCalibratedPath, 'Color calibrate', NightshadeIcons.star);
+  return out;
 }
 
 class MasterOverlayView extends StatefulWidget {

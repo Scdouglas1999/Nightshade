@@ -1,0 +1,237 @@
+// Widget tests for the Collaborative Sky WS2 surface on the Mosaic project
+// review screen (`MosaicCollaborativeSection` + the per-panel claim/upload
+// affordances on the grid).
+//
+// Pumps the REAL `MosaicProjectScreen` with explicit (temp) path builders,
+// `databaseProvider` overridden to a seeded in-memory DB, and
+// `constellationConfiguredProvider` forced true (a hub is signed in) — the real
+// `collaborativeMosaicServiceProvider` resolves off that DB, so `canCollaborate`
+// is true and the section renders exactly as in production. Each case seeds a
+// different collaborative lifecycle and asserts the right action is offered:
+//
+//   * local-only project     → "Publish to hub" (and the section is present);
+//   * published owner+assembling → "Assemble + publish";
+//   * complete               → "Download finished mosaic";
+//   * published + open panel  → a per-panel "Claim" button on the grid;
+//   * published + claimed panel → a per-panel "Force release" recovery button.
+
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/mosaic/mosaic_project_screen.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+void main() {
+  late NightshadeDatabase db;
+  late MosaicProjectsDao projectsDao;
+  late MosaicPanelsDao panelsDao;
+  late IntegratedMastersDao mastersDao;
+
+  setUp(() {
+    db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    projectsDao = MosaicProjectsDao(db);
+    panelsDao = MosaicPanelsDao(db);
+    mastersDao = IntegratedMastersDao(db);
+  });
+
+  tearDown(() async {
+    await db.close();
+  });
+
+  Future<int> seedProject({int cols = 2}) async {
+    final projectId =
+        await projectsDao.create(name: 'Veil', rows: 1, cols: cols);
+    for (var i = 0; i < cols; i++) {
+      await panelsDao.upsert(
+        projectId: projectId,
+        panelIndex: i,
+        centerRa: 20.0 + i * 0.1,
+        centerDec: 30.0,
+      );
+    }
+    return projectId;
+  }
+
+  Future<void> pumpScreen(WidgetTester tester, int projectId) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          // A hub is configured/signed-in so the collaborative section renders;
+          // canCollaborate now gates on this signal, not just a wired service.
+          constellationConfiguredProvider.overrideWith((ref) async => true),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          debugShowCheckedModeBanner: false,
+          home: MosaicProjectScreen(
+            projectId: projectId,
+            panelOutputPathBuilder: (panel) =>
+                '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
+            stitchOutputDirectory: (project) => '/tmp/mosaic/${project.id}',
+          ),
+        ),
+      ),
+    );
+    // Let the controller's async load resolve (no pumpAndSettle — the busy
+    // progress bar never idles in some states).
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+  }
+
+  Future<void> disposeScreen(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(microseconds: 1));
+  }
+
+  testWidgets('local-only project offers "Publish to hub"', (tester) async {
+    final projectId = await seedProject();
+    await pumpScreen(tester, projectId);
+
+    expect(find.text('Collaborative mosaic'), findsOneWidget);
+    expect(
+      find.widgetWithText(NightshadeButton, 'Publish to hub'),
+      findsOneWidget,
+    );
+    // Not published yet → no assemble / download affordance.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Assemble + publish'),
+      findsNothing,
+    );
+    await disposeScreen(tester);
+  });
+
+  testWidgets('owner + assembling offers "Assemble + publish" (not Publish)',
+      (tester) async {
+    final projectId = await seedProject();
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+    await projectsDao.setCollabStatus(projectId, 'assembling');
+    await pumpScreen(tester, projectId);
+
+    expect(
+      find.widgetWithText(NightshadeButton, 'Assemble + publish'),
+      findsOneWidget,
+    );
+    // Already published → the publish CTA is gone.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Publish to hub'),
+      findsNothing,
+    );
+    await disposeScreen(tester);
+  });
+
+  testWidgets('complete offers "Download finished mosaic"', (tester) async {
+    final projectId = await seedProject();
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    await projectsDao.setCollabStatus(projectId, 'complete');
+    await pumpScreen(tester, projectId);
+
+    expect(
+      find.widgetWithText(NightshadeButton, 'Download finished mosaic'),
+      findsOneWidget,
+    );
+    // A participant is never offered the owner-only assemble action.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Assemble + publish'),
+      findsNothing,
+    );
+    await disposeScreen(tester);
+  });
+
+  testWidgets(
+      'a published mosaic shows a per-panel Claim button on open panels',
+      (tester) async {
+    final projectId = await seedProject();
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    await pumpScreen(tester, projectId);
+
+    // Both panels are unclaimed → each tile offers a Claim button.
+    expect(find.widgetWithText(NightshadeButton, 'Claim'), findsWidgets);
+    await disposeScreen(tester);
+  });
+
+  testWidgets('an integrated, unuploaded panel shows a per-panel Upload button',
+      (tester) async {
+    final projectId = await seedProject(cols: 1);
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+    // Integrate the single panel (link a master) and claim it, so the only
+    // collaborative affordance left for it is Upload.
+    final masterId = await mastersDao.insertMaster(
+      name: 'Panel 0',
+      masterFitsPath: '/tmp/p0.fits',
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+    );
+    final panel = await panelsDao.getByIndex(projectId, 0);
+    await panelsDao.setMaster(panel!.id!, masterId);
+    await panelsDao.setClaim(
+      panel.id!,
+      claimToken: 'baton-0',
+      rigId: 'rig-1',
+      accountId: 'acct-1',
+    );
+    await pumpScreen(tester, projectId);
+
+    expect(find.widgetWithText(NightshadeButton, 'Upload'), findsOneWidget);
+    // Claimed → no Claim button for it.
+    expect(find.widgetWithText(NightshadeButton, 'Claim'), findsNothing);
+    // A claimed panel is evictable → the owner/admin recovery button is offered.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Force release'),
+      findsOneWidget,
+    );
+    await disposeScreen(tester);
+  });
+
+  testWidgets('an unclaimed (pending) panel offers no Force release button',
+      (tester) async {
+    final projectId = await seedProject();
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+    await pumpScreen(tester, projectId);
+
+    // Pending panels are already free → nothing to force-release.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Force release'),
+      findsNothing,
+    );
+    await disposeScreen(tester);
+  });
+
+  testWidgets('no configured hub hides the whole collaborative section',
+      (tester) async {
+    final projectId = await seedProject();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          // Signed out: canCollaborate is false, so the section is not rendered
+          // and the buttons cannot be tapped-then-fail.
+          constellationConfiguredProvider.overrideWith((ref) async => false),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          debugShowCheckedModeBanner: false,
+          home: MosaicProjectScreen(
+            projectId: projectId,
+            panelOutputPathBuilder: (panel) =>
+                '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
+            stitchOutputDirectory: (project) => '/tmp/mosaic/${project.id}',
+          ),
+        ),
+      ),
+    );
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    expect(find.text('Collaborative mosaic'), findsNothing);
+    expect(
+      find.widgetWithText(NightshadeButton, 'Publish to hub'),
+      findsNothing,
+    );
+    await disposeScreen(tester);
+  });
+}

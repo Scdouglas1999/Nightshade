@@ -27,6 +27,8 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  void replace(NightshadeBackend backend) => state = backend;
 }
 
 void main() {
@@ -41,12 +43,20 @@ void main() {
     StreamController<NightshadeEvent> events,
     List<models.AppSettings> writes,
   })
-  buildBackend(models.AppSettings initial) {
+  buildBackend(
+    models.AppSettings initial, {
+    Completer<void>? firstWriteGate,
+    Object? firstWriteError,
+    Object? fetchError,
+  }) {
     final controller = StreamController<NightshadeEvent>.broadcast();
     final backend = _MockNetworkBackend();
     final writes = <models.AppSettings>[];
     when(() => backend.eventStream).thenAnswer((_) => controller.stream);
-    when(() => backend.getSettings()).thenAnswer((_) async => initial);
+    when(() => backend.getSettings()).thenAnswer((_) async {
+      if (fetchError != null) throw fetchError;
+      return initial;
+    });
     when(
       () => backend.updateSettingsWithCommandId(
         any(),
@@ -54,6 +64,12 @@ void main() {
       ),
     ).thenAnswer((invocation) async {
       writes.add(invocation.positionalArguments.first as models.AppSettings);
+      if (writes.length == 1 && firstWriteGate != null) {
+        await firstWriteGate.future;
+      }
+      if (writes.length == 1 && firstWriteError != null) {
+        throw firstWriteError;
+      }
     });
     when(() => backend.updateSettings(any())).thenAnswer((invocation) async {
       writes.add(invocation.positionalArguments.first as models.AppSettings);
@@ -70,6 +86,88 @@ void main() {
       ],
     );
   }
+
+  test(
+    'failed remote fetch remains visibly unavailable, not defaults',
+    () async {
+      final h = buildBackend(
+        const models.AppSettings(),
+        fetchError: StateError('host settings unavailable'),
+      );
+      addTearDown(h.events.close);
+      final container = containerFor(h.backend);
+      addTearDown(container.dispose);
+
+      await expectLater(
+        container.read(appSettingsProvider.future),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(container.read(appSettingsProvider).hasError, isTrue);
+      expect(container.read(appSettingsProvider).valueOrNull, isNull);
+    },
+  );
+
+  test('failed setter futures also publish a visible write failure', () async {
+    final h = buildBackend(
+      const models.AppSettings(),
+      firstWriteError: StateError('host rejected write'),
+    );
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+    await container.read(appSettingsProvider.future);
+
+    final write = container
+        .read(appSettingsProvider.notifier)
+        .setDefaultGain(321);
+    await expectLater(write, throwsA(isA<StateError>()));
+
+    final failure = container.read(appSettingsWriteFailureProvider);
+    expect(failure, isNotNull);
+    expect(failure!.setting, 'default_gain');
+  });
+
+  test('queued writes cannot jump from an old host to a new host', () async {
+    final gate = Completer<void>();
+    final first = buildBackend(
+      const models.AppSettings(defaultGain: 100),
+      firstWriteGate: gate,
+    );
+    final second = buildBackend(const models.AppSettings(defaultGain: 200));
+    addTearDown(first.events.close);
+    addTearDown(second.events.close);
+    late _FixedBackendNotifier backendNotifier;
+    final container = ProviderContainer(
+      overrides: [
+        backendProvider.overrideWith(
+          (ref) => backendNotifier = _FixedBackendNotifier(ref, first.backend),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(appSettingsProvider.future);
+
+    final inFlight = container
+        .read(appSettingsProvider.notifier)
+        .setDefaultGain(150);
+    while (first.writes.isEmpty) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final queued = container
+        .read(appSettingsProvider.notifier)
+        .setDefaultOffset(42);
+    final inFlightFailed = expectLater(inFlight, throwsA(isA<StateError>()));
+    final queuedFailed = expectLater(queued, throwsA(isA<StateError>()));
+
+    backendNotifier.replace(second.backend);
+    await container.read(appSettingsProvider.future);
+    gate.complete();
+
+    await inFlightFailed;
+    await queuedFailed;
+    expect(second.writes, isEmpty);
+  });
 
   test(
     'image grading enable round-trips through the remote wire model',
@@ -197,6 +295,58 @@ void main() {
     expect(h.writes.last.phd2Host, '10.0.0.5');
     expect(h.writes.last.phd2Port, 4401);
     expect(h.writes.last.phd2Path, r'C:\PHD2\phd2.exe');
+  });
+
+  test('overlapping remote writes cannot revert each other', () async {
+    final firstWriteGate = Completer<void>();
+    final h = buildBackend(
+      const models.AppSettings(),
+      firstWriteGate: firstWriteGate,
+    );
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    final notifier = container.read(appSettingsProvider.notifier);
+    final hostWrite = notifier.setPhd2Host('10.0.0.5');
+    await Future<void>.delayed(Duration.zero);
+    final portWrite = notifier.setPhd2Port(4401);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      h.writes,
+      hasLength(1),
+      reason: 'the second full-snapshot POST must wait for the first',
+    );
+    firstWriteGate.complete();
+    await Future.wait([hostWrite, portWrite]);
+
+    expect(h.writes, hasLength(2));
+    expect(h.writes.last.phd2Host, '10.0.0.5');
+    expect(h.writes.last.phd2Port, 4401);
+  });
+
+  test('one failed settings write does not poison later writes', () async {
+    final h = buildBackend(
+      const models.AppSettings(),
+      firstWriteError: StateError('host temporarily unavailable'),
+    );
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    final notifier = container.read(appSettingsProvider.notifier);
+    await expectLater(
+      notifier.setPhd2Host('10.0.0.5'),
+      throwsA(isA<StateError>()),
+    );
+    await notifier.setPhd2Port(4401);
+
+    expect(h.writes, hasLength(2));
+    expect(h.writes.last.phd2Host, isNot('10.0.0.5'));
+    expect(h.writes.last.phd2Port, 4401);
   });
 
   test('notification toggles round-trip', () async {
@@ -336,6 +486,41 @@ void main() {
 
     expect(h.writes.last.smartNightTargetSnr, 42.0);
     expect(h.writes.last.smartNightMaxSessionHours, 6.5);
+  });
+
+  test('smart-night wizard defaults use one complete remote write', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .updateSmartNightWizardDefaults(
+          maxSessionHours: 7.5,
+          afCadenceFrames: 18,
+          integrationBudgetMinsPerTarget: 95,
+          includeFlatsAtEnd: true,
+          useSchedulerForMultiTarget: true,
+          schedulerTargetThreshold: 4,
+          polarAlignmentStaleAfterDays: 21,
+          subExposureFloorSecs: 20,
+          subExposureCeilingSecs: 420,
+          targetSnr: 35,
+          strategy: 'narrowband_hoo',
+          autoSelect: true,
+          autoSelectCount: 3,
+        );
+
+    expect(h.writes, hasLength(1));
+    final saved = h.writes.single;
+    expect(saved.smartNightMaxSessionHours, 7.5);
+    expect(saved.smartNightDefaultAfCadenceFrames, 18);
+    expect(saved.smartNightDefaultIntegrationBudgetMinsPerTarget, 95);
+    expect(saved.smartNightDefaultStrategy, 'narrowband_hoo');
+    expect(saved.smartNightAutoSelect, isTrue);
+    expect(saved.smartNightAutoSelectCount, 3);
   });
 
   test(

@@ -28,12 +28,15 @@ dependencies:
 
   # Database
   drift: ^2.30.0
-  sqlite3_flutter_libs: ^0.5.18
   # Why direct dep: corruption-recovery pre-check (integrity_check.dart) opens
   # the on-disk file synchronously before drift's LazyDatabase resolves so that
   # a corrupt DB file can be rotated to a forensic backup and recreated before
   # the migrator ever sees it. Drift already pulls sqlite3 transitively; we
   # promote it to direct so the import is explicit and pub-bound.
+  # sqlite3 ^3 uses Dart build hooks to bundle a hermetic libsqlite3 (with
+  # -Bsymbolic on Linux so it can coexist with GTK→tinysparql's system copy).
+  # Do not re-add sqlite3_flutter_libs — that plugin embeds a second copy
+  # without symbol isolation and crashes Linux desktop at startup.
   sqlite3: ^3.0.0
   path_provider: ^2.1.2
   path: ^1.8.3

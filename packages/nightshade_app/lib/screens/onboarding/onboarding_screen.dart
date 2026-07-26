@@ -5,7 +5,6 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-import '../../utils/snackbar_helper.dart';
 import 'steps/camera_defaults_step.dart';
 import 'steps/camera_step.dart';
 import 'steps/capture_dir_step.dart';
@@ -16,6 +15,7 @@ import 'steps/guider_step.dart';
 import 'steps/mount_step.dart';
 import 'steps/next_steps_step.dart';
 import 'steps/optical_train_step.dart';
+import 'steps/site_step.dart';
 import 'steps/summary_step.dart';
 import 'steps/welcome_step.dart';
 
@@ -34,6 +34,38 @@ import 'steps/welcome_step.dart';
 /// floor on the reachable area rather than the button's intrinsic content box.
 const Key phonePrimaryActionKey = Key('onboarding.phone.primaryAction');
 
+/// Key on the wizard's inline notice band — the strip that carries validation
+/// warnings and save results. Exposed so tests can assert both that the message
+/// is shown and that it does not intersect the footer.
+const Key onboardingNoticeKey = Key('onboarding.notice');
+
+/// A message the wizard shell needs to tell the user, rendered in the layout
+/// flow directly above the footer.
+///
+/// These used to be [SnackBar]s. A Material snackbar docks to the bottom of the
+/// [Scaffold] — exactly where the wizard footer lives — so it covered Back /
+/// Next / Save profile *and* swallowed taps on them: the wizard said "you must
+/// fix this" while removing the controls needed to act on it. A notice in the
+/// Column cannot overlap the footer at any window size, and it stays put until
+/// the user resolves it instead of expiring after three seconds.
+class _WizardNotice {
+  const _WizardNotice(
+    this.message,
+    this.severity, {
+    this.fromValidation = false,
+  });
+
+  final String message;
+  final NightshadeAlertSeverity severity;
+
+  /// True when this message states why the current step is blocked, as opposed
+  /// to reporting an event that already happened ("Profile created", "Could not
+  /// save profile: …"). Only the former goes stale: it describes a condition
+  /// the user is actively fixing, so it has to be re-derived from the draft on
+  /// every build rather than left on screen as a snapshot of a past click.
+  final bool fromValidation;
+}
+
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -42,17 +74,86 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  bool _saving = false;
+  static const _stepInputCooldown = Duration(milliseconds: 350);
 
-  Future<void> _onNext() async {
+  bool _saving = false;
+  bool _transitioning = false;
+
+  /// The current inline notice, or null when there is nothing to say.
+  _WizardNotice? _notice;
+
+  void _showNotice(
+    String message,
+    NightshadeAlertSeverity severity, {
+    bool fromValidation = false,
+  }) {
+    if (!mounted) return;
+    setState(() => _notice =
+        _WizardNotice(message, severity, fromValidation: fromValidation));
+  }
+
+  void _clearNotice() {
+    if (_notice == null) return;
+    setState(() => _notice = null);
+  }
+
+  /// The notice as it applies to the draft being rendered *now*.
+  ///
+  /// A validation notice names one specific blocking condition. The moment the
+  /// user corrects it the stored message becomes a false statement — the band
+  /// kept insisting "Focal length must be between 1 and 50000 mm." while the
+  /// field read 600 and the step was ready to advance, so the wizard was
+  /// telling the user to fix something already fixed. Re-deriving it here keeps
+  /// the band honest: it disappears when the step validates, and re-words
+  /// itself when a *different* field becomes the blocker.
+  ///
+  /// Non-validation notices (a completed save, a failed save) report events
+  /// rather than conditions, so they are passed through untouched.
+  _WizardNotice? _resolveNotice(OnboardingDraft draft) {
+    final current = _notice;
+    if (current == null || !current.fromValidation) return current;
+    final reason = _validate(draft);
+    if (reason == null) return null;
+    if (reason == current.message) return current;
+    return _WizardNotice(
+      reason,
+      NightshadeAlertSeverity.warning,
+      fromValidation: true,
+    );
+  }
+
+  Future<void> _runTransition(Future<void> Function() action) async {
+    if (_saving || _transitioning) return;
+    setState(() => _transitioning = true);
+    try {
+      await action();
+    } finally {
+      // Keep the button disabled through the visual hand-off to the next step.
+      // Without this short cooldown, the second click of a desktop double-click
+      // lands on the new step's button at the same coordinates and validates or
+      // advances a screen the user never intentionally acted on.
+      await Future<void>.delayed(_stepInputCooldown);
+      if (mounted) setState(() => _transitioning = false);
+    }
+  }
+
+  Future<void> _onNext() => _runTransition(_advance);
+
+  Future<void> _advance() async {
     final draft = ref.read(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
 
+    _clearNotice();
     final validationError = _validate(draft);
     if (validationError != null) {
-      // Surface the requirement via a snackbar — keeps the inline
-      // step body uncluttered while still being obvious.
-      context.showWarningSnackBar(validationError);
+      // Surfaced in the notice band above the footer, never as a snackbar: a
+      // snackbar covers and intercepts the very buttons the user needs to act
+      // on the message.
+      _showNotice(
+        validationError,
+        NightshadeAlertSeverity.warning,
+        fromValidation: true,
+      );
       return;
     }
 
@@ -65,22 +166,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       // Primary action on the terminal step: retire the wizard and land on
       // the dashboard. The secondary "Capture first light" path is handled by
       // [_finishToFirstLight].
-      await _finishTo('/dashboard');
+      await _finishToInternal('/dashboard');
       return;
     }
 
     await notifier.next();
   }
 
-  Future<void> _onBack() async {
+  Future<void> _onBack() => _runTransition(_goBack);
+
+  Future<void> _goBack() async {
+    _clearNotice();
     await ref.read(onboardingDraftProvider.notifier).back();
   }
 
-  Future<void> _onSkipStep() async {
+  Future<void> _onSkipStep() => _runTransition(_skipStep);
+
+  Future<void> _skipStep() async {
     // Optional step: clear any partial selection and move forward.
     final notifier = ref.read(onboardingDraftProvider.notifier);
-    final step = ref.read(onboardingDraftProvider).currentStep;
-    switch (step) {
+    final draft = ref.read(onboardingDraftProvider);
+    _clearNotice();
+    // Skipping is not an escape from an invalid entry — a rejected coordinate
+    // has to be corrected or cleared, otherwise the user leaves believing the
+    // site they typed was either saved or discarded when neither is true.
+    final blocked = _validate(draft);
+    if (blocked != null) {
+      _showNotice(
+        blocked,
+        NightshadeAlertSeverity.warning,
+        fromValidation: true,
+      );
+      return;
+    }
+    switch (draft.currentStep) {
       case OnboardingStep.focuser:
         await notifier.setFocuser(id: '');
         break;
@@ -88,7 +207,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await notifier.setFilterWheel(id: '');
         break;
       case OnboardingStep.guider:
-        await notifier.setGuider(id: '');
+        // A green PHD2 Test (or a native guider pick) already wrote the guider
+        // into the draft; a plain Skip would silently drop it. Confirm before
+        // removing a configured guider — Keep advances with it intact.
+        if ((draft.guiderId ?? '').isNotEmpty) {
+          final remove = await _confirmRemoveGuider();
+          if (!mounted) return;
+          if (remove) await notifier.setGuider(id: '');
+        } else {
+          await notifier.setGuider(id: '');
+        }
         break;
       default:
         break;
@@ -96,10 +224,48 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     await notifier.next();
   }
 
-  Future<void> _onExitWizard() async {
+  /// Confirm dropping an already-configured guider when the user taps "Skip
+  /// this step". Returns true to remove it, false (the default) to keep it.
+  Future<bool> _confirmRemoveGuider() async {
+    final colors = NightshadeColors.of(context);
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text(
+          'Remove guider?',
+          style: TextStyle(color: colors.textPrimary),
+        ),
+        content: Text(
+          'Skipping removes your configured guider. Keep it instead?',
+          style: TextStyle(color: colors.textSecondary),
+        ),
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            label: 'Remove',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            label: 'Keep',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _onExitWizard() => _runTransition(_exitWizard);
+
+  Future<void> _exitWizard() async {
     // "Skip onboarding" from any step: mark dismissed in tutorial_progress
     // and route to the dashboard. The draft is preserved so the user can
     // pick up where they left off via the Equipment screen.
+    _clearNotice();
     await ref.read(onboardingDraftProvider.notifier).skip();
     if (!mounted) return;
     context.go('/dashboard');
@@ -112,18 +278,33 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// complete, wiping the draft, flipping the gate) is deferred until the user
   /// leaves the next-steps step via [finishNextSteps].
   Future<void> _createProfileAndAdvance() async {
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _notice = null;
+    });
     try {
       final notifier = ref.read(onboardingDraftProvider.notifier);
       await notifier.complete();
       await notifier.next();
       if (!mounted) return;
-      context.showSuccessSnackBar('Profile created. Welcome to Nightshade.');
-      setState(() => _saving = false);
+      setState(() {
+        _saving = false;
+        _notice = const _WizardNotice(
+          'Profile created. Welcome to Nightshade.',
+          NightshadeAlertSeverity.success,
+        );
+      });
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('Could not save profile: $e');
-      setState(() => _saving = false);
+      // Inline, not a snackbar: a failure banner that covers "Save profile" is
+      // a dead end — the user is told it failed and cannot retry.
+      setState(() {
+        _saving = false;
+        _notice = _WizardNotice(
+          'Could not save profile: $e',
+          NightshadeAlertSeverity.error,
+        );
+      });
     }
   }
 
@@ -131,16 +312,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// first ([finishNextSteps] is idempotent), then navigates. Used by the
   /// footer "Go to dashboard" / "Capture first light" actions and by the
   /// in-body next-step cards.
-  Future<void> _finishTo(String location) async {
-    setState(() => _saving = true);
+  Future<void> _finishTo(String location) =>
+      _runTransition(() => _finishToInternal(location));
+
+  Future<void> _finishToInternal(String location) async {
+    setState(() {
+      _saving = true;
+      _notice = null;
+    });
     try {
       await ref.read(onboardingDraftProvider.notifier).finishNextSteps();
       if (!mounted) return;
       context.go(location);
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('Could not finish setup: $e');
-      setState(() => _saving = false);
+      setState(() {
+        _saving = false;
+        _notice = _WizardNotice(
+          'Could not finish setup: $e',
+          NightshadeAlertSeverity.error,
+        );
+      });
     }
   }
 
@@ -160,7 +352,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         return null;
       case OnboardingStep.camera:
         if (draft.cameraId == null) {
-          return 'Pick a camera or skip from the side nav if you want to come back later.';
+          return 'Pick a camera to continue, or use "Skip onboarding" to set it up later.';
         }
         return null;
       case OnboardingStep.mount:
@@ -173,19 +365,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       case OnboardingStep.guider:
         return null;
       case OnboardingStep.opticalTrain:
-        if (draft.focalLengthMm == null || draft.focalLengthMm! <= 0) {
-          return 'Focal length is required.';
-        }
-        if (draft.apertureMm == null || draft.apertureMm! <= 0) {
-          return 'Aperture is required.';
-        }
-        if (draft.pixelSizeMicrons == null || draft.pixelSizeMicrons! <= 0) {
-          return 'Pixel size is required.';
-        }
-        if (draft.reducerFactor <= 0) {
-          return 'Reducer factor must be greater than zero.';
-        }
-        return null;
+        // Bounds, not just "> 0": focal length 999999999 with aperture 0.0001
+        // was accepted and rendered f/9999999990000.00, and focal length reaches
+        // the FITS FOCALLEN card, plate-solve field-of-view and image scale.
+        return OpticalTrainLimits.validate(
+          focalLengthMm: draft.focalLengthMm,
+          apertureMm: draft.apertureMm,
+          pixelSizeMicrons: draft.pixelSizeMicrons,
+          reducerFactor: draft.reducerFactor,
+        );
       case OnboardingStep.cameraDefaults:
         // Always valid: the preset (or the camera step's pixel size) pre-fills
         // sensible gain/offset/binning/cooling defaults, and every field is
@@ -197,6 +385,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           return 'Pick a capture folder.';
         }
         return null;
+      case OnboardingStep.site:
+        // Optional in the sense that a blank site is allowed — every
+        // location-driven surface handles "not set". A *rejected* coordinate is
+        // not: advancing past a red out-of-range error used to leave whatever
+        // partial value had already been committed on record as the user's
+        // observing site. The step publishes its own blocking reason because the
+        // in-progress field text never reaches the draft or settings.
+        return ref.read(onboardingSiteEntryErrorProvider);
       case OnboardingStep.summary:
         if ((draft.profileName ?? '').trim().isEmpty) {
           return 'Give your profile a name.';
@@ -215,6 +411,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final theme = Theme.of(context);
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.watch(onboardingDraftProvider.notifier);
+    // The site step's blocking reason lives outside the draft (the in-progress
+    // field text never reaches it), so watch it too — otherwise a corrected
+    // coordinate would leave the site step's notice stranded on screen.
+    ref.watch(onboardingSiteEntryErrorProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -241,6 +441,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final isPhoneDevice = Responsive.isPhone(context);
     return LayoutBuilder(
       builder: (context, constraints) {
+        final busy = _saving || _transitioning;
         final isPhone = isPhoneDevice ||
             constraints.maxWidth < BreakpointTokens.breakpointPhone;
 
@@ -249,13 +450,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 // nothing to go "back" to that wouldn't re-open the create
                 // flow, so Back is suppressed.
                 draft.currentStep == OnboardingStep.nextSteps ||
-                _saving
+                busy
             ? null
             : _onBack;
         final onSkipStep =
-            draft.currentStep.isOptional && !_saving ? _onSkipStep : null;
+            draft.currentStep.isOptional && !busy ? _onSkipStep : null;
         final onFirstLight =
-            draft.currentStep == OnboardingStep.nextSteps && !_saving
+            draft.currentStep == OnboardingStep.nextSteps && !busy
                 ? _finishToFirstLight
                 : null;
 
@@ -304,7 +505,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             children: [
               _Header(
                 currentStep: draft.currentStep,
-                onExit: _saving ? null : _onExitWizard,
+                onExit: (_saving || _transitioning) ? null : _onExitWizard,
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -327,13 +528,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ],
                 ),
               ),
+              // The notice sits between the body and the footer, in the layout
+              // flow: it displaces the footer rather than covering it.
+              _NoticeBand(
+                  notice: _resolveNotice(draft), onDismiss: _clearNotice),
               const SizedBox(height: 16),
               _Footer(
                 currentStep: draft.currentStep,
                 isSaving: _saving,
                 onBack: onBack,
                 onSkipStep: onSkipStep,
-                onNext: _saving ? null : _onNext,
+                onNext: (_saving || _transitioning) ? null : _onNext,
                 onFirstLight: onFirstLight,
               ),
             ],
@@ -374,7 +579,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         children: [
           _PhoneHeader(
             currentStep: draft.currentStep,
-            onExit: _saving ? null : _onExitWizard,
+            onExit: (_saving || _transitioning) ? null : _onExitWizard,
             compact: compact,
           ),
           SizedBox(height: compact ? 8 : 12),
@@ -384,17 +589,59 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               onFinishTo: _finishTo,
             ),
           ),
+          _NoticeBand(notice: _resolveNotice(draft), onDismiss: _clearNotice),
           SizedBox(height: compact ? 8 : 12),
           _PhoneFooter(
             currentStep: draft.currentStep,
             isSaving: _saving,
             onBack: onBack,
             onSkipStep: onSkipStep,
-            onNext: _saving ? null : _onNext,
+            onNext: (_saving || _transitioning) ? null : _onNext,
             onFirstLight: onFirstLight,
             compact: compact,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The wizard's inline message strip, shared by both layouts.
+///
+/// Occupies zero height when there is no notice, so the footer's position is
+/// unchanged in the common case. When a notice is present it takes real space in
+/// the Column above the footer, which is what guarantees the two can never
+/// overlap — the previous snackbar was painted over the footer and also ate its
+/// taps.
+///
+/// Height is capped with an internal scroll so a long message (an exception
+/// string from a failed save) shrinks the step body instead of squeezing the
+/// Column into an overflow.
+class _NoticeBand extends StatelessWidget {
+  const _NoticeBand({required this.notice, required this.onDismiss});
+
+  final _WizardNotice? notice;
+  final VoidCallback onDismiss;
+
+  static const double _maxHeight = 112;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = notice;
+    if (current == null) return const SizedBox.shrink();
+    return Padding(
+      key: onboardingNoticeKey,
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: _maxHeight),
+        child: SingleChildScrollView(
+          child: NightshadeAlert(
+            message: current.message,
+            severity: current.severity,
+            compact: true,
+            onDismiss: onDismiss,
+          ),
+        ),
       ),
     );
   }
@@ -691,6 +938,7 @@ class _StepSidebar extends StatelessWidget {
     OnboardingStep.opticalTrain: 'Optical train',
     OnboardingStep.cameraDefaults: 'Camera defaults',
     OnboardingStep.captureDir: 'Capture folder',
+    OnboardingStep.site: 'Observing site',
     OnboardingStep.summary: 'Review & save',
     OnboardingStep.nextSteps: "What's next",
   };
@@ -706,6 +954,7 @@ class _StepSidebar extends StatelessWidget {
     OnboardingStep.opticalTrain: LucideIcons.ruler,
     OnboardingStep.cameraDefaults: NightshadeIcons.sliders,
     OnboardingStep.captureDir: NightshadeIcons.folder,
+    OnboardingStep.site: LucideIcons.mapPin,
     OnboardingStep.summary: LucideIcons.clipboardCheck,
     OnboardingStep.nextSteps: LucideIcons.rocket,
   };
@@ -830,6 +1079,8 @@ class _StepBody extends StatelessWidget {
         return const OnboardingCameraDefaultsStep();
       case OnboardingStep.captureDir:
         return const OnboardingCaptureDirStep();
+      case OnboardingStep.site:
+        return const OnboardingSiteStep();
       case OnboardingStep.summary:
         return const OnboardingSummaryStep();
       case OnboardingStep.nextSteps:

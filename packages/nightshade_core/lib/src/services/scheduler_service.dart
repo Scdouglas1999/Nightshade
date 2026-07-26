@@ -429,6 +429,9 @@ class SchedulerService {
     }
 
     final sortedTargets = List<TargetHeaderNode>.from(targets);
+    final inputOrder = <String, int>{
+      for (final (index, target) in targets.indexed) target.id: index,
+    };
 
     switch (strategy) {
       case OptimizationStrategy.transitTime:
@@ -490,8 +493,14 @@ class SchedulerService {
         break;
 
       case OptimizationStrategy.priority:
-        // Use user-defined priorities
-        sortedTargets.sort((a, b) => a.priority.compareTo(b.priority));
+        // Higher numeric values are more important throughout the scheduler.
+        // Keep the caller's order for equal priorities so optimization does
+        // not shuffle otherwise-equivalent targets unpredictably.
+        sortedTargets.sort((a, b) {
+          final byPriority = b.priority.compareTo(a.priority);
+          if (byPriority != 0) return byPriority;
+          return inputOrder[a.id]!.compareTo(inputOrder[b.id]!);
+        });
         break;
     }
 

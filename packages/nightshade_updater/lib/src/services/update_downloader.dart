@@ -9,11 +9,15 @@ typedef DownloadProgressCallback =
 /// Token for cancelling downloads
 class CancelToken {
   bool _isCancelled = false;
+  final Completer<void> _cancelled = Completer<void>();
 
   bool get isCancelled => _isCancelled;
+  Future<void> get whenCancelled => _cancelled.future;
 
   void cancel() {
+    if (_isCancelled) return;
     _isCancelled = true;
+    _cancelled.complete();
   }
 }
 
@@ -108,18 +112,25 @@ class UpdateDownloader {
 
     int downloadedBytes = existingBytes;
 
-    try {
-      await for (final chunk in streamedResponse.stream) {
-        // Check for cancellation
-        if (cancelToken?.isCancelled ?? false) {
-          await sink.close();
-          // Delete partial download
-          if (await destination.exists()) {
-            await destination.delete();
-          }
-          throw DownloadCancelledException();
-        }
+    final chunks = StreamIterator<List<int>>(streamedResponse.stream);
+    Future<bool> moveNextOrCancel() {
+      final token = cancelToken;
+      if (token == null) return chunks.moveNext();
+      if (token.isCancelled) {
+        return Future<bool>.error(DownloadCancelledException());
+      }
+      return Future.any<bool>([
+        chunks.moveNext(),
+        token.whenCancelled.then<bool>(
+          (_) => throw DownloadCancelledException(),
+        ),
+      ]);
+    }
 
+    var cancelled = false;
+    try {
+      while (await moveNextOrCancel()) {
+        final chunk = chunks.current;
         sink.add(chunk);
         downloadedBytes += chunk.length;
 
@@ -128,8 +139,21 @@ class UpdateDownloader {
           onProgress(downloadedBytes, totalBytes, progress.clamp(0.0, 1.0));
         }
       }
+    } on DownloadCancelledException {
+      cancelled = true;
+      rethrow;
     } finally {
+      // A hostile or broken server can leave StreamIterator.cancel() waiting
+      // for the stalled read it is meant to cancel. Request cancellation, but
+      // do not let that server-controlled future delay local cleanup or the
+      // caller's cancellation result.
+      unawaited(chunks.cancel());
       await sink.close();
+      // Close the file before deleting it; Windows will reject deletion of an
+      // archive while the IOSink still owns the handle.
+      if (cancelled && await destination.exists()) {
+        await destination.delete();
+      }
     }
 
     return destination;

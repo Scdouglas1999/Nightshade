@@ -424,8 +424,8 @@ impl DeviceManager {
     ///   silent fallbacks would let typoed sim ids appear "connected" without
     ///   any backing state. Errors are a feature.
     /// * Dispatches by `DeviceInfo.device_type`. Device types without a
-    ///   `simulation.rs` singleton (Dome, Weather, SafetyMonitor, Switch,
-    ///   CoverCalibrator, Guider) return `Err` so we never claim "connected"
+    ///   `simulation.rs` singleton (Switch, CoverCalibrator, Guider) return
+    ///   `Err` so we never claim "connected"
     ///   for a simulator backend that doesn't exist. The existing
     ///   ops-level `DriverType::Simulator => Ok(...)` short-circuits in
     ///   `device_manager/ops/*` are a separate, known inconsistency.
@@ -441,7 +441,8 @@ impl DeviceManager {
         }
 
         use crate::api::devices::simulation::{
-            get_sim_camera, get_sim_filterwheel, get_sim_focuser, get_sim_mount, get_sim_rotator,
+            get_sim_camera, get_sim_dome, get_sim_filterwheel, get_sim_focuser, get_sim_mount,
+            get_sim_rotator, get_sim_safety_monitor, get_sim_weather,
         };
 
         match info.device_type {
@@ -464,6 +465,15 @@ impl DeviceManager {
             DeviceType::Rotator => {
                 let mut rot = get_sim_rotator().write().await;
                 rot.status.connected = true;
+            }
+            DeviceType::Dome => {
+                get_sim_dome().write().await.status.connected = true;
+            }
+            DeviceType::Weather => {
+                get_sim_weather().write().await.connected = true;
+            }
+            DeviceType::SafetyMonitor => {
+                get_sim_safety_monitor().write().await.status.connected = true;
             }
             other => {
                 return Err(format!(
@@ -501,7 +511,8 @@ impl DeviceManager {
         }
 
         use crate::api::devices::simulation::{
-            get_sim_camera, get_sim_filterwheel, get_sim_focuser, get_sim_mount, get_sim_rotator,
+            get_sim_camera, get_sim_dome, get_sim_filterwheel, get_sim_focuser, get_sim_mount,
+            get_sim_rotator, get_sim_safety_monitor, get_sim_weather,
         };
 
         match info.device_type {
@@ -524,6 +535,15 @@ impl DeviceManager {
             DeviceType::Rotator => {
                 let mut rot = get_sim_rotator().write().await;
                 rot.status.connected = false;
+            }
+            DeviceType::Dome => {
+                get_sim_dome().write().await.status.connected = false;
+            }
+            DeviceType::Weather => {
+                get_sim_weather().write().await.connected = false;
+            }
+            DeviceType::SafetyMonitor => {
+                get_sim_safety_monitor().write().await.status.connected = false;
             }
             other => {
                 return Err(format!(

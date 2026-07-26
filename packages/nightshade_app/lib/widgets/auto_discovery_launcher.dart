@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -23,34 +25,57 @@ class AutoDiscoveryLauncher extends ConsumerStatefulWidget {
 }
 
 class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
-  bool _hasLaunched = false;
+  bool _consumed = false;
+  ProviderSubscription<NightshadeBackend>? _backendSub;
 
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   @override
   void initState() {
     super.initState();
-    // Schedule discovery after the first frame is fully rendered
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _triggerAutoDiscovery();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _arm());
   }
 
-  Future<void> _triggerAutoDiscovery() async {
-    if (_hasLaunched || !mounted) return;
-    _hasLaunched = true;
+  void _arm() {
+    if (_consumed || !mounted) return;
+    if (_classify(ref.read(backendProvider))) return;
+
+    _backendSub = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) => _classify(next),
+    );
+    _classify(ref.read(backendProvider));
+  }
+
+  bool _classify(NightshadeBackend backend) {
+    if (_consumed || !mounted) return true;
+    if (backend is FfiBackend) {
+      _consumed = true;
+      _stopWaiting();
+      unawaited(_triggerAutoDiscovery(backend));
+      return true;
+    }
+    if (backend is NetworkBackend) {
+      _consumed = true;
+      _stopWaiting();
+      _logger.info(
+        '[AutoDiscovery] Skipped — connected to remote Nightshade host',
+        source: 'AutoDiscoveryLauncher',
+      );
+      return true;
+    }
+    return false;
+  }
+
+  void _stopWaiting() {
+    _backendSub?.close();
+    _backendSub = null;
+  }
+
+  Future<void> _triggerAutoDiscovery(FfiBackend authority) async {
+    if (!mounted) return;
 
     try {
-      // Remote clients control equipment on the host — local discovery is
-      // meaningless and can fail noisily on phones/tablets.
-      if (ref.read(isRemoteModeProvider)) {
-        _logger.info(
-          '[AutoDiscovery] Skipped — connected to remote Nightshade host',
-          source: 'AutoDiscoveryLauncher',
-        );
-        return;
-      }
-
       // Wait for settings to load
       final settings = await ref.read(appSettingsProvider.future);
 
@@ -66,13 +91,23 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
       await Future.delayed(const Duration(milliseconds: 800));
 
       if (!mounted) return;
+      if (!identical(ref.read(backendProvider), authority)) {
+        _logger.info(
+          '[AutoDiscovery] Skipped — backend changed before discovery began',
+          source: 'AutoDiscoveryLauncher',
+        );
+        return;
+      }
 
       _logger.info('[AutoDiscovery] Starting background device discovery...',
           source: 'AutoDiscoveryLauncher');
 
       // Fire-and-forget: Start discovery without awaiting completion
       // This allows the UI to remain responsive while discovery runs
-      _runDiscoveryInBackground();
+      _runDiscoveryInBackground(
+        includeIndi: settings.indiAutoConnect,
+        includeAlpaca: settings.alpacaAutoDiscover,
+      );
     } catch (e) {
       _logger.error('[AutoDiscovery] Error during auto-discovery setup: $e',
           source: 'AutoDiscoveryLauncher', fields: {'error': e.toString()});
@@ -80,7 +115,16 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
     }
   }
 
-  void _runDiscoveryInBackground() {
+  @override
+  void dispose() {
+    _stopWaiting();
+    super.dispose();
+  }
+
+  void _runDiscoveryInBackground({
+    required bool includeIndi,
+    required bool includeAlpaca,
+  }) {
     // Use Future.microtask to ensure this doesn't block the current frame
     Future.microtask(() async {
       try {
@@ -89,7 +133,10 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
         final discoveryNotifier = ref.read(unifiedDiscoveryProvider.notifier);
 
         // Run discovery - this already runs backends in parallel internally
-        await discoveryNotifier.discoverAll();
+        await discoveryNotifier.discoverAll(
+          includeIndi: includeIndi,
+          includeAlpaca: includeAlpaca,
+        );
 
         _logger.info('[AutoDiscovery] Background discovery completed',
             source: 'AutoDiscoveryLauncher');

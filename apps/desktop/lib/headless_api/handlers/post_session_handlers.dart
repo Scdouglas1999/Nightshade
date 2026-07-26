@@ -34,6 +34,8 @@ import '../validation.dart';
 /// Mosaic stitching (`api_stitch_mosaic`) is intentionally NOT exposed here; it
 /// is owned by the separate mosaic surface.
 class PostSessionHandlers {
+  static const _autoIntegrateSettingKey = 'post_session.auto_integrate';
+
   final ProviderContainer container;
 
   /// Long-running ops register as [JobManager] jobs so the action POST returns
@@ -47,6 +49,24 @@ class PostSessionHandlers {
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'PostSessionHandlers');
+
+  /// GET /api/post-session/settings
+  Future<Response> handleGetSettings(Request request) async {
+    final raw = await container
+        .read(settingsDaoProvider)
+        .getSetting(_autoIntegrateSettingKey);
+    return jsonOk({'autoIntegrate': raw == 'true'});
+  }
+
+  /// POST /api/post-session/settings
+  Future<Response> handleUpdateSettings(Request request) async {
+    final body = await readJsonObject(request);
+    final enabled = requireBool(body, 'autoIntegrate');
+    await container
+        .read(settingsDaoProvider)
+        .setSetting(_autoIntegrateSettingKey, enabled.toString());
+    return jsonOk({'autoIntegrate': enabled});
+  }
 
   /// Decode a native JSON envelope to a `Map<String, dynamic>`, the job-result
   /// shape clients decode. Mirrors `BridgePostSessionSeam._decodeObject`.
@@ -69,20 +89,17 @@ class PostSessionHandlers {
       deviceId: null,
       work: (sink, cancellation) async {
         sink.update(null, operation);
-        // The native pipeline is a single FFI call with no cancellation hook;
-        // we still race it against the cancellation signal so a client cancel
-        // unblocks the awaiting caller even though the host keeps computing
-        // until the FFI returns. (Same contract as plate-solve.)
-        final result = await Future.any<Object?>([
-          work(),
-          cancellation.whenCancelled.then((_) => _Cancelled.instance),
-        ]);
-        if (result is _Cancelled) {
+        // The native pipeline has no cancellation hook. Do not transition the
+        // job to cancelled while host CPU work is still running; await its real
+        // exit, then honour the pending cancellation instead of publishing the
+        // discarded result as success.
+        final result = await work();
+        if (cancellation.isCancelled) {
           throw const JobCancelledException(
             'Post-session operation cancellation requested by client',
           );
         }
-        return result as Map<String, Object?>;
+        return result;
       },
     );
     return jsonOk({
@@ -119,9 +136,11 @@ class PostSessionHandlers {
   /// POST /api/post-session/drizzle
   /// Body: the `DrizzleIntegrateArgs` JSON shape
   /// `{ frames: [{ fitsPath, transform, weight }], refW, refH, config, bayer?,
-  /// calibration?, outputFits, coverageFits?, previewPngPath? }` (host paths).
+  /// calibration?, outputFits, coverageFits?, coveragePngPath?,
+  /// previewPngPath? }` (host paths).
   /// Returns `{jobId}`; the job result is
-  /// `{outputPath, coveragePath?, outWidth, outHeight, channels, previewPngPath?}`.
+  /// `{outputPath, coveragePath?, coveragePngPath?, outWidth, outHeight,
+  /// channels, previewPngPath?}`.
   Future<Response> handleDrizzleIntegrate(Request request) async {
     _logInfo('[API] POST /api/post-session/drizzle');
     final args = await readJsonObject(request);
@@ -270,12 +289,4 @@ class PostSessionHandlers {
       return _decodeObject(out);
     });
   }
-}
-
-/// Sentinel marking the cancellation branch of a [Future.any] race against a
-/// long-running post-session op. Library-private (the analogous sentinel in
-/// imaging_handlers is similarly private).
-class _Cancelled {
-  const _Cancelled._();
-  static const _Cancelled instance = _Cancelled._();
 }

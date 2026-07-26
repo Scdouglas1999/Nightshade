@@ -16,6 +16,12 @@ final sequenceExecutionStateProvider = StateProvider<SequenceExecutionState>((
   return SequenceExecutionState.idle;
 });
 
+/// True while a start or checkpoint-resume transaction is still being
+/// admitted. During this window the execution state may legitimately remain
+/// idle while settings and preflight validation are awaited, so backend swaps
+/// must consult this latch as well as [sequenceExecutionStateProvider].
+final sequenceLaunchInFlightProvider = StateProvider<bool>((ref) => false);
+
 /// Current sequence progress
 final sequenceProgressProvider =
     StateNotifierProvider<SequenceProgressNotifier, SequenceProgress>((ref) {
@@ -126,14 +132,61 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     );
   }
 
-  void setTotals(int totalExposures, double totalIntegrationSecs) {
+  /// Set the run's denominators. [totalIntegrationSecs] is optional: pass it
+  /// only when a real value is known, otherwise the existing one is kept.
+  ///
+  /// The native `Progress` event carries a frame count but no integration
+  /// total, and its handler used to pass a literal `0` — clobbering, roughly
+  /// once a second, the real total [SequenceExecutor._acquireAndStartRun] had
+  /// seeded from the sequence at start. Observed on the live rig: a
+  /// `/api/run-watch/snapshot` reading
+  /// `"totalIntegrationSecs": 0.0, "completedIntegrationSecs": 18.0` — a run
+  /// that had done more integration than the zero it claimed to need.
+  void setTotals(int totalExposures, [double? totalIntegrationSecs]) {
     state = state.copyWith(
       totalExposures: totalExposures,
-      totalIntegrationSecs: totalIntegrationSecs,
+      totalIntegrationSecs: totalIntegrationSecs ?? state.totalIntegrationSecs,
+    );
+  }
+
+  /// Signature of the last `ExposureCompleted` already folded into
+  /// [SequenceProgress.completedIntegrationSecs]. See
+  /// [recordCompletedFrameIntegration].
+  String? _lastIntegrationEventKey;
+
+  /// Add one completed frame's shutter time to the run's integration total,
+  /// exactly once per event.
+  ///
+  /// Two independent subscribers handle `ExposureCompleted` on a desktop host —
+  /// the DeviceService-driven pump in this file and [SequenceExecutor]'s own
+  /// handler — and BOTH were doing a read-modify-write
+  /// (`completedIntegrationSecs + durationSecs`). The frame COUNT was already
+  /// made idempotent (both writers assign the event's absolute frame index),
+  /// but the integration total was not, so every frame was counted twice.
+  ///
+  /// Measured on the live rig: a run launch whose frames totalled 9.0 s of
+  /// shutter time (a 1 s light, then 2x2 s + 1x4 s) reported
+  /// `"completedIntegrationSecs": 18.0` in `/api/run-watch/snapshot` — exactly
+  /// double, while the same run's `sequence_runs.stats_json` and the imaging
+  /// session row both correctly recorded 8.0 s for the second run.
+  ///
+  /// [eventKey] must identify the originating event, not the frame: both
+  /// subscribers receive the SAME event object, so its timestamp plus the frame
+  /// index distinguishes "the other subscriber already handled this" from "a
+  /// genuinely new frame".
+  void recordCompletedFrameIntegration({
+    required String eventKey,
+    required double durationSecs,
+  }) {
+    if (_lastIntegrationEventKey == eventKey) return;
+    _lastIntegrationEventKey = eventKey;
+    state = state.copyWith(
+      completedIntegrationSecs: state.completedIntegrationSecs + durationSecs,
     );
   }
 
   void reset() {
+    _lastIntegrationEventKey = null;
     state = const SequenceProgress();
   }
 }
@@ -210,7 +263,7 @@ void applySequencerEventToSequenceProviders(
       final current = (data['current'] as num?)?.toInt() ?? 0;
       final total = (data['total'] as num?)?.toInt() ?? 0;
       progressNotifier.updateProgress(completedExposures: current);
-      progressNotifier.setTotals(total, 0);
+      progressNotifier.setTotals(total);
       break;
 
     case 'TargetChanged':
@@ -253,10 +306,10 @@ void applySequencerEventToSequenceProviders(
       final absoluteFrame =
           (data['frame'] as num?)?.toInt() ??
           currentProgress.completedExposures + 1;
-      progressNotifier.updateProgress(
-        completedExposures: absoluteFrame,
-        completedIntegrationSecs:
-            currentProgress.completedIntegrationSecs + durationSecs,
+      progressNotifier.updateProgress(completedExposures: absoluteFrame);
+      progressNotifier.recordCompletedFrameIntegration(
+        eventKey: '${event.timestamp}:$absoluteFrame',
+        durationSecs: durationSecs,
       );
       // Exposure done — the camera is idle again during download/dither/slew.
       read(cameraStateProvider.notifier).setExposing(false);

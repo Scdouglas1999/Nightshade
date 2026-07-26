@@ -2,10 +2,26 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_core/nightshade_core.dart'
+    show
+        BackendNotifier,
+        DarkGroupKey,
+        NetworkBackend,
+        NightshadeBackend,
+        backendProvider;
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/providers/dark_library_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/services/calibration_service.dart';
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -79,6 +95,189 @@ void main() {
             )
             .get();
         expect(legacy, isEmpty);
+      },
+    );
+
+    test('remote settings read and write the imaging host only', () async {
+      final backend = _MockNetworkBackend();
+      when(backend.getDarkLibrarySettings).thenAnswer(
+        (_) async => {'autoCalibrate': true, 'temperatureTolerance': 1.5},
+      );
+      when(
+        () => backend.updateDarkLibrarySettings(autoCalibrate: false),
+      ).thenAnswer((_) async => {'ok': true});
+      when(
+        () => backend.updateDarkLibrarySettings(temperatureTolerance: 2.0),
+      ).thenAnswer((_) async => {'ok': true});
+      final remote = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(database),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(remote.dispose);
+
+      final settings = await remote.read(darkLibrarySettingsProvider.future);
+      expect(settings.autoCalibrate, isTrue);
+      expect(settings.temperatureTolerance, 1.5);
+
+      final actions = remote.read(darkLibrarySettingsActionsProvider);
+      await actions.setAutoCalibrate(false);
+      await actions.setTemperatureTolerance(2);
+
+      verify(
+        () => backend.updateDarkLibrarySettings(autoCalibrate: false),
+      ).called(1);
+      verify(
+        () => backend.updateDarkLibrarySettings(temperatureTolerance: 2.0),
+      ).called(1);
+    });
+
+    test(
+      'complete calibration settings read and write the imaging host only',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
+        when(backend.getCalibrationSettings).thenAnswer(
+          (_) async => {
+            'autoCalibrate': true,
+            'masterFlatPath': '/host/master_flat.fits',
+            'masterBiasPath': null,
+            'autoDarkFromLibrary': false,
+            'manualDarkPath': '/host/master_dark.fits',
+          },
+        );
+        when(
+          () => backend.updateCalibrationSettings(any()),
+        ).thenAnswer((_) async => const {'status': 'updated'});
+
+        final localFlatBefore = await database.settingsDao.getSetting(
+          'calibration.master_flat_path',
+        );
+        final remote = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(remote.dispose);
+
+        final notifier = remote.read(calibrationSettingsProvider.notifier);
+        expect(notifier.state.isLoading, isTrue);
+        // Programmatic callers are allowed to write before the initial GET
+        // completes. The patch must wait for that snapshot and preserve every
+        // unrelated host field instead of re-applying constructor defaults.
+        await notifier.setMasterBiasPath('/host/new_bias.fits');
+
+        expect(notifier.state.isLoading, isFalse);
+        expect(notifier.state.loadError, null);
+        expect(notifier.state.autoCalibrate, isTrue);
+        expect(notifier.state.masterFlatPath, '/host/master_flat.fits');
+        expect(notifier.state.masterBiasPath, '/host/new_bias.fits');
+        expect(notifier.state.autoDarkFromLibrary, isFalse);
+        expect(notifier.state.manualDarkPath, '/host/master_dark.fits');
+
+        await notifier.setMasterFlatPath('/host/new_flat.fits');
+        await notifier.setAutoDarkFromLibrary(true);
+
+        verify(
+          () => backend.updateCalibrationSettings({
+            'masterBiasPath': '/host/new_bias.fits',
+          }),
+        ).called(1);
+        verify(
+          () => backend.updateCalibrationSettings({
+            'masterFlatPath': '/host/new_flat.fits',
+          }),
+        ).called(1);
+        verify(
+          () =>
+              backend.updateCalibrationSettings({'autoDarkFromLibrary': true}),
+        ).called(1);
+        expect(
+          await database.settingsDao.getSetting('calibration.master_flat_path'),
+          localFlatBefore,
+        );
+      },
+    );
+
+    test(
+      'remote library management actions never mutate the client DAO',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.createDarkLibraryMaster(
+            exposureTime: 60,
+            gain: 100,
+            offset: 10,
+            binX: 1,
+            binY: 1,
+            outputPath: '/host/master.fits',
+            frameType: 'dark',
+          ),
+        ).thenAnswer((_) async => {'id': 8, 'frameCount': 12});
+        when(backend.cleanDarkLibraryOrphans).thenAnswer((_) async => 2);
+        when(
+          () => backend.deleteDark(4, deleteFile: true),
+        ).thenAnswer((_) async {});
+        when(
+          () => backend.clearDarkLibrary(deleteFiles: false),
+        ).thenAnswer((_) async => 5);
+        when(
+          () => backend.deleteDarkLibraryGroup(
+            exposureTime: 60,
+            gain: 100,
+            offset: 10,
+            binX: 1,
+            binY: 1,
+            frameType: 'dark',
+            deleteFiles: true,
+          ),
+        ).thenAnswer((_) async => 3);
+        when(() => backend.listDarks()).thenAnswer((_) async => const []);
+        final remote = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(remote.dispose);
+        final notifier = remote.read(darkLibraryNotifierProvider.notifier);
+
+        await notifier.createMasterDark(
+          exposureTime: 60,
+          gain: 100,
+          offset: 10,
+          binX: 1,
+          binY: 1,
+          outputPath: '/host/master.fits',
+        );
+        await notifier.cleanOrphans();
+        await notifier.deleteEntry(4, deleteFile: true);
+        await notifier.clearLibrary();
+        final removed = await notifier.deleteGroup(
+          const DarkGroupKey(
+            exposureTime: 60,
+            gain: 100,
+            offset: 10,
+            binX: 1,
+            binY: 1,
+            frameType: 'dark',
+          ),
+          deleteFiles: true,
+        );
+
+        expect(removed, 3);
+        expect(await database.darkLibraryDao.getAllEntries(), isEmpty);
+        verify(backend.cleanDarkLibraryOrphans).called(1);
+        verify(() => backend.deleteDark(4, deleteFile: true)).called(1);
+        verify(() => backend.clearDarkLibrary(deleteFiles: false)).called(1);
       },
     );
   });

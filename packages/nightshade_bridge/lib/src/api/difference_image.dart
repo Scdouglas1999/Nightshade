@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `angular_separation_arcsec`, `candidate_json`, `dedup_candidates`, `default_min_coverage`, `default_order`, `describe_atlas_error`, `difference_impl`, `open_atlas`, `parse_interp`, `read_frame`
+// These functions are ignored because they are not marked as `pub`: `angular_separation_arcsec`, `candidate_json`, `crop_basename`, `crop_stamp`, `dedup_candidates`, `default_crop_half`, `default_min_coverage`, `default_order`, `describe_atlas_error`, `difference_impl`, `open_atlas`, `parse_interp`, `read_frame`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CandidateJson`, `DifferenceArgs`, `DifferenceResultJson`, `TileCenterArgs`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`
 

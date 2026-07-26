@@ -21,6 +21,7 @@ import '../services/phd2_status_poll.dart';
 import '../services/sequence_file_service.dart'
     show sequenceFileServiceProvider;
 import 'database_provider.dart';
+import 'backend_provider.dart';
 import 'equipment_provider.dart';
 import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
@@ -50,6 +51,10 @@ Future<void> applyRemoteSyncEvent(
   NightshadeEvent event, {
   NetworkBackend? networkBackend,
 }) async {
+  if (networkBackend != null &&
+      !_isCurrentRemoteBackend(reader, networkBackend)) {
+    return;
+  }
   if (event.eventType == 'BackendReconnected' && networkBackend != null) {
     await hydrateRemoteSessionState(reader, networkBackend);
     return;
@@ -693,10 +698,12 @@ void _applyFramingMutationFromHost(
     return;
   }
 
-  _read(
-    reader,
-    framingProvider.notifier,
-  ).setTargetCoordinates(ra.toDouble(), dec.toDouble(), name: name);
+  _read(reader, framingProvider.notifier).setTargetCoordinates(
+    ra.toDouble(),
+    dec.toDouble(),
+    name: name,
+    fromRemoteSync: true,
+  );
 }
 
 void _applySequencerMutationFromHost(
@@ -828,6 +835,7 @@ Future<void> _hydrateOpenEditorSequence(
     // the live mirror still seeds the canvas on the master's next edit.
     return;
   }
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
   if (payload == null) {
     // No sequence open in the master's editor — leave the slave's canvas as-is
     // (don't clear, mirroring _applySequenceEditorMirror's dirty-safe behavior).
@@ -902,8 +910,13 @@ Future<void> _refreshSequencerStatus(
 /// time. A coalescing flag is sufficient here — a fresh frame event always
 /// triggers another fetch once the prior one resolves, so we never miss the
 /// latest frame, but we never stack redundant network round-trips either.
-bool _remoteFrameFetchInFlight = false;
-bool _remoteFrameFetchPending = false;
+class _RemoteFrameFetchState {
+  bool inFlight = false;
+  NetworkBackend? pendingBackend;
+}
+
+final Expando<_RemoteFrameFetchState> _remoteFrameFetchStates =
+    Expando<_RemoteFrameFetchState>('remoteFrameFetchState');
 
 /// Remote-only: fetch the host's latest frame and publish it into
 /// `currentImageProvider` so the dashboard cockpit "current frame" tile (and
@@ -918,13 +931,16 @@ Future<void> _publishRemoteCurrentFrame(
   Object reader,
   NetworkBackend backend,
 ) async {
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
+  final fetchState = _remoteFrameFetchStates[reader] ??=
+      _RemoteFrameFetchState();
   // Coalesce: if a fetch is already running, mark that another frame arrived
   // and let the current fetch re-run once on completion.
-  if (_remoteFrameFetchInFlight) {
-    _remoteFrameFetchPending = true;
+  if (fetchState.inFlight) {
+    fetchState.pendingBackend = backend;
     return;
   }
-  _remoteFrameFetchInFlight = true;
+  fetchState.inFlight = true;
 
   try {
     // The imaging events do not carry a device id; resolve the connected
@@ -937,6 +953,7 @@ Future<void> _publishRemoteCurrentFrame(
     }
 
     final result = await backend.cameraGetLastImage(deviceId);
+    if (!_isCurrentRemoteBackend(reader, backend)) return;
     if (result == null) {
       // No frame cached host-side yet — leave the tile as-is.
       return;
@@ -975,6 +992,7 @@ Future<void> _publishRemoteCurrentFrame(
     // Publish through the shared publisher: it tags the source from the live
     // backend, schedules the background raw-pixel load, and writes both
     // `currentImageProvider` and `lastImageStatsProvider`.
+    if (!_isCurrentRemoteBackend(reader, backend)) return;
     _read(
       reader,
       capturePreviewPublisherProvider,
@@ -984,10 +1002,12 @@ Future<void> _publishRemoteCurrentFrame(
     // pump or spam logs. The tile simply keeps its previous frame; the next
     // frame event will try again.
   } finally {
-    _remoteFrameFetchInFlight = false;
-    if (_remoteFrameFetchPending) {
-      _remoteFrameFetchPending = false;
-      unawaited(_publishRemoteCurrentFrame(reader, backend));
+    fetchState.inFlight = false;
+    final pendingBackend = fetchState.pendingBackend;
+    fetchState.pendingBackend = null;
+    if (pendingBackend != null &&
+        _isCurrentRemoteBackend(reader, pendingBackend)) {
+      unawaited(_publishRemoteCurrentFrame(reader, pendingBackend));
     }
   }
 }
@@ -1003,7 +1023,7 @@ void _applyFramingTargetChanged(Object reader, NightshadeEvent event) {
   _read(
     reader,
     framingProvider.notifier,
-  ).setTargetCoordinates(ra, dec, name: name);
+  ).setTargetCoordinates(ra, dec, name: name, fromRemoteSync: true);
 }
 
 void _applyDeviceConnectedFromSyncPayload(
@@ -1220,6 +1240,14 @@ T _read<T>(Object reader, ProviderListenable<T> provider) {
   );
 }
 
+bool _isCurrentRemoteBackend(Object reader, NetworkBackend backend) {
+  try {
+    return identical(_read(reader, backendProvider), backend);
+  } catch (_) {
+    return false;
+  }
+}
+
 void _invalidate(Object reader, ProviderOrFamily provider) {
   if (reader is Ref) {
     reader.invalidate(provider);
@@ -1306,6 +1334,7 @@ Future<void> _hydratePhd2GuiderState(
       timeout: const Duration(seconds: 5),
       interval: const Duration(milliseconds: 250),
     );
+    if (!_isCurrentRemoteBackend(reader, backend)) return;
     if (!status.connected) {
       if (isPhd2GuiderDeviceId(priorState.deviceId)) {
         notifier.setDisconnected();
@@ -1344,10 +1373,13 @@ Future<void> hydrateRemoteSessionState(
   Object reader,
   NetworkBackend backend,
 ) async {
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
   final status = await backend.sequencerGetStatus();
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
   _applySequencerStatus(reader, status);
 
   final devices = await backend.getConnectedDevices();
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
   // PHD2 is not always listed in getConnectedDevices(); avoid clearing the
   // guider chip before we re-hydrate from phd2/status.
   _clearLocalDeviceState(reader);
@@ -1359,6 +1391,7 @@ Future<void> hydrateRemoteSessionState(
   // filterwheel/rotator expose a status GET; dome/weather/safetyMonitor/
   // coverCalibrator/switch mirror connection state only (no status endpoint).
   await _hydrateDeviceTelemetry(reader, backend, devices);
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
 
   // G3 (current-frame hero tile): seed the master's last cached frame on
   // connect. The host-local capture publisher never runs on a slave, so without
@@ -1377,8 +1410,10 @@ Future<void> hydrateRemoteSessionState(
   // edit. Fetch the master's currently-open editor sequence in the same payload
   // shape the live mirror emits and feed it through the existing apply path.
   await _hydrateOpenEditorSequence(reader, backend);
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
 
   await _hydratePhd2GuiderState(reader, backend);
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
 
   // Active-profile + populated cards parity at first connect: refetch the
   // profile providers from the (now SQLite-backed) host /api/profiles so the
@@ -1513,6 +1548,7 @@ Future<void> _hydrateDeviceTelemetry(
     fetchFilterWheel(),
     fetchRotator(),
   ]);
+  if (!_isCurrentRemoteBackend(reader, backend)) return;
 
   // Single apply pass — no intervening clear, so cards never blank.
   final camera = cameraStatus;

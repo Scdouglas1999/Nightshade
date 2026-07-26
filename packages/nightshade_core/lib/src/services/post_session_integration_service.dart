@@ -13,6 +13,7 @@ import '../models/imaging/integrated_master.dart';
 import '../models/imaging/integration_curve.dart';
 import '../models/imaging/integration_settings.dart';
 import '../models/calibration/calibration_library_models.dart';
+import '../models/calibration/dark_library_match_tolerances.dart';
 import '../providers/dark_library_provider.dart';
 import 'calibration_library_service.dart';
 import 'color_calibration_service.dart';
@@ -170,18 +171,30 @@ class PostSessionIntegrationService {
     CalibrationLibraryService? calibrationLibrary,
     MasterPlateSolver? plateSolver,
     MasterColorCalibrator? colorCalibrator,
+    DarkLibraryMatchTolerances darkTolerances =
+        DarkLibraryMatchTolerances.defaults,
   }) : _mastersDao = mastersDao,
        _darkLibrary = darkLibrary,
        _flatLibrary = flatLibrary,
        _seam = seam,
        _calibrationLibrary = calibrationLibrary,
        _plateSolver = plateSolver,
-       _colorCalibrator = colorCalibrator;
+       _colorCalibrator = colorCalibrator,
+       _darkTolerances = darkTolerances;
 
   final IntegratedMastersDao _mastersDao;
   final DarkLibraryService _darkLibrary;
   final FlatLibraryService _flatLibrary;
   final PostSessionSeam _seam;
+
+  /// Dark-frame match tolerances, resolved from
+  /// [darkLibraryMatchTolerancesProvider] at the provider boundary so the
+  /// post-session integration matcher agrees with the coverage UI and the live
+  /// calibration path. Previously the legacy [DarkLibraryService] fallback used
+  /// the code defaults (±1.0°C), which could silently disagree with the ±2.0°C
+  /// the rest of the app applies — a dark used during the session might then be
+  /// skipped when integrating the same subs afterward.
+  final DarkLibraryMatchTolerances _darkTolerances;
 
   /// Optional Calibration Library matcher. When wired, un-pinned master
   /// selection routes through [CalibrationLibraryService.match] so the
@@ -260,6 +273,9 @@ class PostSessionIntegrationService {
       final rejectionMapPath = settings.generateRejectionMap
           ? _suffixBeforeExtension(masterFitsPath, '_rejmap')
           : null;
+      final rejectionMapPreviewPath = rejectionMapPath == null
+          ? null
+          : _swapExtension(rejectionMapPath, '.png');
 
       final reference = _chooseReferencePath(groupSubs);
       final exposures = groupSubs
@@ -276,6 +292,8 @@ class PostSessionIntegrationService {
           'masterFitsPath': masterFitsPath,
           if (previewPath != null) 'previewPngPath': previewPath,
           if (rejectionMapPath != null) 'rejectionMapPath': rejectionMapPath,
+          if (rejectionMapPreviewPath != null)
+            'rejectionMapPreviewPath': rejectionMapPreviewPath,
         },
       };
 
@@ -382,6 +400,9 @@ class PostSessionIntegrationService {
     final rejectionMapPath = settings.generateRejectionMap
         ? _suffixBeforeExtension(masterFitsPath, '_rejmap')
         : null;
+    final rejectionMapPreviewPath = rejectionMapPath == null
+        ? null
+        : _swapExtension(rejectionMapPath, '.png');
 
     final reference = _chooseReferencePath(groupSubs);
     final exposures = groupSubs
@@ -398,6 +419,8 @@ class PostSessionIntegrationService {
         'masterFitsPath': masterFitsPath,
         if (previewPath != null) 'previewPngPath': previewPath,
         if (rejectionMapPath != null) 'rejectionMapPath': rejectionMapPath,
+        if (rejectionMapPreviewPath != null)
+          'rejectionMapPreviewPath': rejectionMapPreviewPath,
       },
     };
 
@@ -726,6 +749,7 @@ class PostSessionIntegrationService {
         '_drizzle',
       );
       final coverageFits = _suffixBeforeExtension(outputFits, '_cov');
+      final coveragePng = _swapExtension(coverageFits, '.png');
       // A stretched preview PNG sibling for the drizzled master, so the hero
       // shows the (scaled) drizzled image rather than the standard 1× preview.
       final previewPng = _swapExtension(outputFits, '.png');
@@ -748,6 +772,7 @@ class PostSessionIntegrationService {
         'calibration': calibration.toBridgeJson(),
         'outputFits': outputFits,
         'coverageFits': coverageFits,
+        'coveragePngPath': coveragePng,
         'previewPngPath': previewPng,
       });
 
@@ -763,6 +788,9 @@ class PostSessionIntegrationService {
       final outWidth = (drizzleResult['outWidth'] as num?)?.toInt();
       final outHeight = (drizzleResult['outHeight'] as num?)?.toInt();
       final outChannels = (drizzleResult['channels'] as num?)?.toInt();
+      final drizzleCoverage = drizzleResult['coveragePath'] as String?;
+      final drizzleCoveragePreview =
+          drizzleResult['coveragePngPath'] as String?;
       // The drizzled master's preview, when the native side wrote one; fall back
       // to the standard preview if not (older native lib / write skipped).
       final drizzlePreview = drizzleResult['previewPngPath'] as String?;
@@ -777,6 +805,8 @@ class PostSessionIntegrationService {
         masterId,
         masterFitsPath: outputPath,
         previewPngPath: newPreview,
+        coverageMapPath: drizzleCoverage,
+        coverageMapPreviewPath: drizzleCoveragePreview,
         width: outWidth,
         height: outHeight,
         channels: outChannels,
@@ -789,6 +819,9 @@ class PostSessionIntegrationService {
         masterFitsPath: outputPath,
         previewPath: newPreview,
         rejectionMapPath: result.rejectionMapPath,
+        rejectionMapPreviewPath: result.rejectionMapPreviewPath,
+        coverageMapPath: drizzleCoverage,
+        coverageMapPreviewPath: drizzleCoveragePreview,
         framesIntegrated: result.framesIntegrated,
         framesRejected: result.framesRejected,
         totalIntegrationSec: result.totalIntegrationSec,
@@ -849,6 +882,9 @@ class PostSessionIntegrationService {
       previewPngPath: result.previewPath,
       sidecarPath: null,
       rejectionMapPath: result.rejectionMapPath,
+      rejectionMapPreviewPath: result.rejectionMapPreviewPath,
+      coverageMapPath: result.coverageMapPath,
+      coverageMapPreviewPath: result.coverageMapPreviewPath,
       status: IntegratedMasterStatus.finalized,
       accumulationMode: AccumulationMode.batch,
       channels: result.channels,
@@ -920,6 +956,14 @@ class PostSessionIntegrationService {
           binX: binX,
           binY: binY,
         ),
+        // The automated post-session pipeline can only apply a master that is
+        // already on local disk: a REMOTE candidate's `filePath` is null until
+        // it is downloaded, and pulling a shared master is a consent-gated,
+        // explicit user action (`acceptRemoteMaster`), never a silent
+        // auto-download. Folding remote candidates here would let a remote pick
+        // with a null path win the ranking and then silently disable dark/flat
+        // calibration (its path resolves to null). So match LOCAL-only.
+        includeRemote: false,
       );
       final explicitBias = (biasPath != null && biasPath.trim().isNotEmpty)
           ? biasPath
@@ -945,6 +989,7 @@ class PostSessionIntegrationService {
       binX: binX,
       binY: binY,
       temperature: temperature,
+      tolerances: _darkTolerances,
     );
 
     final flat = await _flatLibrary.findBestMatch(
@@ -1075,6 +1120,7 @@ final postSessionIntegrationServiceProvider = Provider<PostSessionIntegrationSer
     darkLibrary: ref.watch(darkLibraryServiceProvider),
     flatLibrary: ref.watch(flatLibraryServiceProvider),
     seam: ref.watch(postSessionSeamProvider),
+    darkTolerances: ref.watch(darkLibraryMatchTolerancesProvider),
     // Calibration Library Manager: routes un-pinned master selection through
     // the transparent scored matcher so its warnings reach the outcome /
     // morning report.

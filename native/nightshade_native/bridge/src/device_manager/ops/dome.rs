@@ -100,9 +100,20 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.shutter_status = ShutterState::Open;
+                dome.status.at_park = false;
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -182,9 +193,19 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.shutter_status = ShutterState::Closed;
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -225,6 +246,23 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
+                    // INDI domes reject ABS_DOME_POSITION moves while parked, and
+                    // Nightshade exposes no standalone unpark route — domes commonly
+                    // boot parked, so without this a parked INDI dome could never be
+                    // slewed. A slew request implies "move the dome", so unpark first
+                    // when parked. UNPARK failures are non-fatal (driver may not gate
+                    // moves on park state); the subsequent set_number is the source of
+                    // truth for whether the slew succeeded.
+                    let parked = locked
+                        .get_switch(&device_name, "DOME_PARK", "PARK")
+                        .await
+                        .unwrap_or(false);
+                    if parked {
+                        let _ = locked
+                            .set_switch(&device_name, "DOME_PARK", "UNPARK", true)
+                            .await;
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    }
                     return locked
                         .set_number(
                             &device_name,
@@ -287,9 +325,26 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                if !azimuth.is_finite() || !(0.0..360.0).contains(&azimuth) {
+                    return Err(DeviceOpError::invalid_parameter(
+                        "Dome azimuth must be finite and in [0, 360)",
+                    ));
+                }
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.azimuth = azimuth;
+                dome.status.at_home = azimuth == 0.0;
+                dome.status.at_park = false;
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -363,9 +418,16 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let dome = crate::api::devices::simulation::get_sim_dome().read().await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                Ok(dome.status.azimuth)
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -465,9 +527,23 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let dome = crate::api::devices::simulation::get_sim_dome().read().await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                Ok(match dome.status.shutter_status {
+                    ShutterState::Open => 0,
+                    ShutterState::Closed => 1,
+                    ShutterState::Opening => 2,
+                    ShutterState::Closing => 3,
+                    ShutterState::Error => 4,
+                    ShutterState::Unknown => 5,
+                })
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -539,9 +615,21 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.azimuth = 0.0;
+                dome.status.at_home = true;
+                dome.status.at_park = true;
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -614,9 +702,16 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let dome = crate::api::devices::simulation::get_sim_dome().read().await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                Ok(dome.status.slewing)
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -988,9 +1083,16 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let dome = crate::api::devices::simulation::get_sim_dome().read().await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                Ok(dome.status.clone())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -1075,9 +1177,19 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.is_slaved = slaved;
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -1149,9 +1261,21 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.azimuth = 0.0;
+                dome.status.at_home = true;
+                dome.status.at_park = false;
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -1223,9 +1347,24 @@ impl DeviceManager {
                     "Native dome not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"),
-            )),
+            Some(DriverType::Simulator) => {
+                let mut dome = crate::api::devices::simulation::get_sim_dome()
+                    .write()
+                    .await;
+                if !dome.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator dome not connected",
+                    ));
+                }
+                dome.status.slewing = false;
+                dome.status.shutter_status = match dome.status.shutter_status {
+                    ShutterState::Opening => ShutterState::Closed,
+                    ShutterState::Closing => ShutterState::Open,
+                    state => state,
+                };
+                Ok(())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }

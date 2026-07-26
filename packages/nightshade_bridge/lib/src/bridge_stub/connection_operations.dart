@@ -359,12 +359,52 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
   /// Disconnect from a device
   Future<void> disconnectDevice(DeviceType deviceType, String deviceId) async {
     // Handle PHD2 disconnection (supports new format: phd2:host:port or legacy: phd2)
+    var disconnectedByAuthoritativeBackend = false;
     if (_isPhd2DeviceId(deviceId)) {
       await phd2Disconnect();
+      disconnectedByAuthoritativeBackend = true;
+    }
+
+    // Native-backed connects are authoritative in Rust, so their matching
+    // disconnect must cross the same FFI boundary. Previously this method
+    // only deleted the Dart fallback bookkeeping below. The UI and headless
+    // endpoint therefore reported success while `api_get_connected_devices`
+    // still returned every device and the native drivers stayed open.
+    //
+    // Alpaca is the sole device family that may fall back to the direct Dart
+    // client after a native connect attempt fails. For it, a native
+    // "not registered" error is expected and we continue to the direct
+    // client cleanup. Every other native-available path must surface a Rust
+    // disconnect failure instead of claiming success.
+    if (_nativeAvailable && !disconnectedByAuthoritativeBackend) {
+      try {
+        await gen_api.apiDisconnectDevice(
+          deviceType: _toGenDeviceType(deviceType),
+          deviceId: deviceId,
+        );
+        disconnectedByAuthoritativeBackend = true;
+      } catch (error, stackTrace) {
+        if (!deviceId.startsWith('alpaca:')) {
+          developer.log(
+            '[Bridge] Native disconnect failed for $deviceId',
+            name: 'NativeBridge',
+            level: 1000,
+            error: error,
+            stackTrace: stackTrace,
+          );
+          rethrow;
+        }
+        developer.log(
+          '[Bridge] Alpaca device $deviceId was not owned by the native '
+          'backend; using the direct Dart client cleanup.',
+          name: 'NativeBridge',
+          level: 800,
+        );
+      }
     }
 
     // Handle Alpaca device disconnection
-    if (deviceId.startsWith('alpaca:')) {
+    if (!disconnectedByAuthoritativeBackend && deviceId.startsWith('alpaca:')) {
       final client = _alpacaClients[deviceId];
       if (client != null) {
         try {
@@ -383,7 +423,7 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     }
 
     // Handle ASCOM device disconnection
-    if (deviceId.startsWith('ascom:')) {
+    if (!disconnectedByAuthoritativeBackend && deviceId.startsWith('ascom:')) {
       final client = _ascomClients[deviceId];
       if (client != null) {
         try {

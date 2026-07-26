@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -509,6 +510,11 @@ class _StatusIndicator extends StatelessWidget {
           'Complete',
           colors.success
         ),
+      FilterCalibrationStatus.partial => (
+          LucideIcons.alertTriangle,
+          'Partial',
+          colors.warning
+        ),
       FilterCalibrationStatus.failed => (
           LucideIcons.alertCircle,
           'Failed',
@@ -631,14 +637,27 @@ class _VisualizationsSection extends ConsumerWidget {
     // Count visible visualizations
     final visibleCount = [
       state.showAduGraph,
-      state.showExposureTimeline,
-      state.showSkyBrightness && state.mode == FlatWizardMode.skyFlats,
       state.showFilterCards,
     ].where((v) => v).length;
 
     if (visibleCount == 0) {
       return const SizedBox.shrink();
     }
+
+    final currentFilter = state.filterSettings.isNotEmpty &&
+            state.currentFilterIndex < state.filterSettings.length
+        ? state.filterSettings[state.currentFilterIndex]
+        : null;
+    final histogramTarget = currentFilter?.histogramTargetOverride ??
+        state.globalSettings.histogramTarget;
+    final tolerancePercent = currentFilter?.toleranceOverride ??
+        state.globalSettings.tolerancePercent;
+    // Target ADU against the DETECTED full scale so the convergence graph's
+    // target/tolerance bands match what a 12/14/16-bit camera can actually
+    // reach (not a hardcoded 16-bit range).
+    final cameraConfig = ref.watch(flatCameraConfigProvider);
+    final targetAdu = cameraConfig.targetAduFor(histogramTarget);
+    final toleranceAdu = targetAdu * tolerancePercent / 100.0;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -663,23 +682,6 @@ class _VisualizationsSection extends ConsumerWidget {
                 tooltip: 'ADU Graph',
               ),
               _ToggleButton(
-                icon: LucideIcons.barChart3,
-                isActive: state.showExposureTimeline,
-                onTap: () => ref
-                    .read(flatWizardProvider.notifier)
-                    .toggleExposureTimeline(!state.showExposureTimeline),
-                tooltip: 'Exposure Timeline',
-              ),
-              if (state.mode == FlatWizardMode.skyFlats)
-                _ToggleButton(
-                  icon: LucideIcons.sunrise,
-                  isActive: state.showSkyBrightness,
-                  onTap: () => ref
-                      .read(flatWizardProvider.notifier)
-                      .toggleSkyBrightness(!state.showSkyBrightness),
-                  tooltip: 'Sky Brightness',
-                ),
-              _ToggleButton(
                 icon: LucideIcons.layoutGrid,
                 isActive: state.showFilterCards,
                 onTap: () => ref
@@ -697,7 +699,12 @@ class _VisualizationsSection extends ConsumerWidget {
               children: [
                 if (state.showAduGraph)
                   Expanded(
-                      child: _AduConvergenceGraph(history: state.aduHistory)),
+                    child: _AduConvergenceGraph(
+                      history: state.aduHistory,
+                      targetAdu: targetAdu,
+                      toleranceAdu: toleranceAdu,
+                    ),
+                  ),
                 if (state.showFilterCards)
                   Expanded(child: _FilterProgressCards(state: state)),
               ],
@@ -755,8 +762,14 @@ class _ToggleButton extends StatelessWidget {
 
 class _AduConvergenceGraph extends StatelessWidget {
   final List<AduMeasurement> history;
+  final double targetAdu;
+  final double toleranceAdu;
 
-  const _AduConvergenceGraph({required this.history});
+  const _AduConvergenceGraph({
+    required this.history,
+    required this.targetAdu,
+    required this.toleranceAdu,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -776,18 +789,127 @@ class _AduConvergenceGraph extends StatelessWidget {
               style: NightshadeTypography.labelStrongSm
                   .copyWith(color: colors.textSecondary),
             ),
-            const Spacer(),
-            Center(
-              child: Text(
-                history.isEmpty ? 'No data' : '${history.length} measurements',
+            const SizedBox(height: 8),
+            Expanded(
+              child: history.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No data',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    )
+                  : _buildChart(colors),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChart(NightshadeColors colors) {
+    final spots = <FlSpot>[
+      for (int i = 0; i < history.length; i++)
+        FlSpot(i.toDouble(), history[i].adu),
+    ];
+
+    // Scale the axis so both the measured curve and the target band are always
+    // visible, regardless of how far the first attempts overshoot.
+    var minY = history.map((m) => m.adu).reduce(math.min);
+    var maxY = history.map((m) => m.adu).reduce(math.max);
+    minY = math.min(minY, targetAdu - toleranceAdu);
+    maxY = math.max(maxY, targetAdu + toleranceAdu);
+    final pad = math.max(maxY - minY, 1.0) * 0.1;
+    minY -= pad;
+    maxY += pad;
+
+    final maxX = math.max((history.length - 1).toDouble(), 1.0);
+
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: maxX,
+        minY: minY,
+        maxY: maxY,
+        clipData: const FlClipData.all(),
+        gridData: const FlGridData(show: false),
+        titlesData: FlTitlesData(
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 34,
+              interval: (maxY - minY) / 2,
+              getTitlesWidget: (value, meta) => Text(
+                '${(value / 1000).toStringAsFixed(0)}k',
                 style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted,
-                ),
+                    fontSize: NightshadeTypography.fontSize8,
+                    color: colors.textMuted),
               ),
             ),
-            const Spacer(),
+          ),
+        ),
+        borderData: FlBorderData(
+          show: true,
+          border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+        ),
+        rangeAnnotations: RangeAnnotations(
+          horizontalRangeAnnotations: [
+            HorizontalRangeAnnotation(
+              y1: targetAdu - toleranceAdu,
+              y2: targetAdu + toleranceAdu,
+              color: colors.success.withValues(alpha: 0.12),
+            ),
           ],
+        ),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            HorizontalLine(
+              y: targetAdu,
+              color: colors.success.withValues(alpha: 0.7),
+              strokeWidth: 1,
+              dashArray: [4, 3],
+            ),
+          ],
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: false,
+            color: colors.primary,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(
+              show: history.length <= 24,
+              getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(
+                radius: 2.5,
+                color: colors.primary,
+                strokeWidth: 0,
+              ),
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipColor: (_) => colors.surface,
+            getTooltipItems: (touchedSpots) => touchedSpots
+                .map(
+                  (spot) => LineTooltipItem(
+                    'ADU: ${spot.y.toStringAsFixed(0)}',
+                    TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        color: colors.textPrimary),
+                  ),
+                )
+                .toList(),
+          ),
         ),
       ),
     );

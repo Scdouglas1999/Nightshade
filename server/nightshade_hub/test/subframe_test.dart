@@ -56,6 +56,8 @@ void main() {
       if (capturedImageId != null) 'capturedImageId': '$capturedImageId',
       'instrument': 'asi2600:scope600',
       'exposureSeconds': '120',
+      // WS4: the raw-subframe share path now requires a shareable license.
+      'license': 'cc-by',
     };
     return Future.value(
       handler(

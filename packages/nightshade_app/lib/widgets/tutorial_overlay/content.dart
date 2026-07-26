@@ -8,6 +8,10 @@ class _TutorialOverlayContent extends StatefulWidget {
   final bool isLast;
   final Animation<double> ringAnimation;
   final Animation<double> ringOpacityAnimation;
+  final bool isBusy;
+  final bool isAdvancing;
+  final bool isGoingBack;
+  final bool isSkipping;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final VoidCallback onSkip;
@@ -21,6 +25,10 @@ class _TutorialOverlayContent extends StatefulWidget {
     required this.isLast,
     required this.ringAnimation,
     required this.ringOpacityAnimation,
+    required this.isBusy,
+    required this.isAdvancing,
+    required this.isGoingBack,
+    required this.isSkipping,
     required this.onNext,
     required this.onPrevious,
     required this.onSkip,
@@ -64,7 +72,8 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
   void _announceStep() {
     if (widget.step != null && widget.currentIndex != _lastAnnouncedIndex) {
       _lastAnnouncedIndex = widget.currentIndex;
-      SemanticsService.announce(
+      SemanticsService.sendAnnouncement(
+        View.of(context),
         'Step ${widget.currentIndex + 1} of ${widget.totalSteps}: ${widget.step!.title}. ${widget.step!.description}',
         TextDirection.ltr,
       );
@@ -73,6 +82,7 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (widget.isBusy) return KeyEventResult.handled;
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       widget.onSkip();
@@ -200,6 +210,10 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
               totalSteps: widget.totalSteps,
               isFirst: widget.isFirst,
               isLast: widget.isLast,
+              isBusy: widget.isBusy,
+              isAdvancing: widget.isAdvancing,
+              isGoingBack: widget.isGoingBack,
+              isSkipping: widget.isSkipping,
               onNext: widget.onNext,
               onPrevious: widget.onPrevious,
               onSkip: widget.onSkip,

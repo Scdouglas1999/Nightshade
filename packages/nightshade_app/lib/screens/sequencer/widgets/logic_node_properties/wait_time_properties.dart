@@ -34,11 +34,11 @@ class WaitTimeProperties extends ConsumerWidget {
                 ref.read(currentSequenceProvider.notifier).updateNode(
                       node.copyWith(
                           waitForTwilight: TwilightType.astronomical,
-                          waitUntil: null),
+                          clearWaitUntil: true),
                     );
               } else {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(waitForTwilight: null),
+                      node.copyWith(clearWaitForTwilight: true),
                     );
               }
             },

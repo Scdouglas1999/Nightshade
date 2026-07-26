@@ -7,11 +7,14 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
+import '../../../utils/exported_file_reveal.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
+import 'run_dashboard/run_dashboard_providers.dart';
 import 'run_dashboard/sequence_status_visuals.dart';
 import 'equipment_status_widget.dart';
+import 'flat_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
 import 'smart_night_dialog.dart';
 import 'trigger_configuration_dialog.dart';
@@ -21,13 +24,35 @@ part 'sequence_toolbar/actions_and_estimate.dart';
 part 'sequence_toolbar/playback_controls.dart';
 part 'sequence_toolbar/icon_and_status.dart';
 
-class SequenceToolbar extends ConsumerWidget {
+class SequenceToolbar extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
   const SequenceToolbar({super.key, required this.colors});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SequenceToolbar> createState() => _SequenceToolbarState();
+}
+
+class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
+  /// Width of the bar's bottom divider. Named because the bar's own height has
+  /// to account for it — see the `height:` comment in [build].
+  static const double _bottomBorderWidth = 1.0;
+
+  bool _fileActionRunning = false;
+
+  Future<void> _runFileAction(Future<void> Function() action) async {
+    if (_fileActionRunning) return;
+    setState(() => _fileActionRunning = true);
+    try {
+      await action();
+    } finally {
+      if (mounted) setState(() => _fileActionRunning = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final sequence = ref.watch(currentSequenceProvider);
     // Trust-patch §B: every action that *replaces* or *mutates* the
@@ -43,10 +68,6 @@ class SequenceToolbar extends ConsumerWidget {
     final isTablet = Responsive.isTablet(context);
     final actionService = ref.read(sequenceActionServiceProvider);
 
-    final isIdle = executionState == SequenceExecutionState.idle;
-    final isRunning = executionState == SequenceExecutionState.running;
-    final isPaused = executionState == SequenceExecutionState.paused;
-
     Future<void> runSequenceAction(
       Future<CommandActionResult> Function() action,
     ) async {
@@ -56,8 +77,20 @@ class SequenceToolbar extends ConsumerWidget {
     }
 
     return Container(
+      // The phone tier is sized to the touch minimum PLUS the divider it
+      // draws, not to the touch minimum flat.
+      //
+      // `Container` folds `decoration.padding` into the child's padding, and
+      // `BoxDecoration.padding` is the border's own dimensions — so the 1 dp
+      // bottom border below took a dp out of the action row, not out of the
+      // bar. A flat `height: 48` therefore left the row 47 dp, and the
+      // overflow menu's IconButton (which correctly asks for a 48 dp tap
+      // target) was squeezed to 48.0x47.0: one dp under Android's rule, from
+      // a number that looked exactly right at the call site. The tablet and
+      // desktop tiers lose the same dp but start far enough above 48 that
+      // their rows stay legal, so they keep their established heights.
       height: isPhone
-          ? 48
+          ? NightshadeTokens.minTouchTarget + _bottomBorderWidth
           : isTablet
               ? 56
               : 64,
@@ -69,7 +102,9 @@ class SequenceToolbar extends ConsumerWidget {
                   : 20),
       decoration: BoxDecoration(
         color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
+        border: Border(
+          bottom: BorderSide(color: colors.border, width: _bottomBorderWidth),
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -82,6 +117,12 @@ class SequenceToolbar extends ConsumerWidget {
           void openWizard() => showDialog(
                 context: context,
                 builder: (_) => const QuickStartWizardDialog(),
+              );
+
+          void openFlatWizard() => showDialog<void>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => const FlatWizardDialog(),
               );
 
           // Smart Night auto-builder. One-click "Plan Tonight"
@@ -180,10 +221,44 @@ class SequenceToolbar extends ConsumerWidget {
           }
 
           Future<void> openSequenceFile() async {
+            final authority = ref.read(backendProvider);
+            final editorSnapshot = ref.read(currentSequenceProvider);
+
+            bool requireCurrentContext() {
+              if (!context.mounted) return false;
+              if (identical(ref.read(backendProvider), authority)) return true;
+              context.showWarningSnackBar(
+                'The imaging host changed while the file dialog was open. '
+                'Open the sequence again for the current host.',
+              );
+              return false;
+            }
+
+            bool requireUnchangedEditor() {
+              if (ref.read(currentSequenceProvider) == editorSnapshot) {
+                return true;
+              }
+              context.showWarningSnackBar(
+                'The sequence editor changed while the file dialog was open. '
+                'Open the file again if you still want to replace it.',
+              );
+              return false;
+            }
+
             try {
               final fileService = ref.read(sequenceFileServiceProvider);
               final imported = await fileService.importSequence();
               if (imported != null) {
+                if (!requireCurrentContext() || !requireUnchangedEditor()) {
+                  return;
+                }
+                if (!ref.read(canEditSequenceProvider)) {
+                  if (!context.mounted) return;
+                  context.showWarningSnackBar(
+                    'Stop the active sequence before opening another file.',
+                  );
+                  return;
+                }
                 final editor = ref.read(currentSequenceProvider.notifier);
                 try {
                   editor.loadSequence(imported);
@@ -221,6 +296,16 @@ class SequenceToolbar extends ConsumerWidget {
                     ),
                   );
                   if (discard != true) return;
+                  if (!requireCurrentContext() || !requireUnchangedEditor()) {
+                    return;
+                  }
+                  if (!ref.read(canEditSequenceProvider)) {
+                    if (!context.mounted) return;
+                    context.showWarningSnackBar(
+                      'Stop the active sequence before opening another file.',
+                    );
+                    return;
+                  }
                   editor.loadSequence(imported, discardUnsaved: true);
                 }
                 if (context.mounted) {
@@ -231,14 +316,14 @@ class SequenceToolbar extends ConsumerWidget {
             } on SnippetDeserializationException catch (e) {
               // Imported file contained a nodeType the editor does not
               // know about — never silently drop it onto the tree.
-              if (context.mounted) {
+              if (requireCurrentContext() && context.mounted) {
                 context.showErrorSnackBar(
                   'Could not load sequence: ${e.message}',
                   duration: const Duration(seconds: 6),
                 );
               }
             } catch (e) {
-              if (context.mounted) {
+              if (requireCurrentContext() && context.mounted) {
                 context.showErrorSnackBar('Failed to load sequence: $e');
               }
             }
@@ -254,9 +339,14 @@ class SequenceToolbar extends ConsumerWidget {
             }
             final fileService = ref.read(sequenceFileServiceProvider);
             try {
-              await fileService.exportSequence(current);
-              if (context.mounted) {
-                context.showSuccessSnackBar('Sequence "${current.name}" saved');
+              final savedPath = await fileService.exportSequence(current);
+              if (savedPath != null && context.mounted) {
+                await revealExportedFile(
+                  context,
+                  savedPath,
+                  subject: 'Nightshade sequence: ${current.name}',
+                  desktopMessage: 'Sequence "${current.name}" saved',
+                );
               }
             } on SequenceValidationFailedException catch (e) {
               // Trust-patch §B: validation errors deserve a structured
@@ -275,10 +365,17 @@ class SequenceToolbar extends ConsumerWidget {
               if (!forceSave) return;
               if (!context.mounted) return;
               try {
-                await fileService.exportSequence(current, forceExport: true);
-                if (context.mounted) {
-                  context.showSuccessSnackBar(
-                      'Sequence "${current.name}" saved (forced)');
+                final savedPath = await fileService.exportSequence(
+                  current,
+                  forceExport: true,
+                );
+                if (savedPath != null && context.mounted) {
+                  await revealExportedFile(
+                    context,
+                    savedPath,
+                    subject: 'Nightshade sequence: ${current.name}',
+                    desktopMessage: 'Sequence "${current.name}" saved (forced)',
+                  );
                 }
               } catch (err) {
                 if (context.mounted) {
@@ -294,7 +391,8 @@ class SequenceToolbar extends ConsumerWidget {
 
           Future<void> slewToTarget() async {
             if (sequence == null || sequence.targetHeaders.isEmpty) return;
-            final targetGroup = sequence.targetHeaders.first;
+            final targetGroup = ref.read(runDashboardActiveTargetProvider);
+            if (targetGroup == null) return;
             try {
               final deviceService = ref.read(deviceServiceProvider);
               await deviceService.slewMountToCoordinates(
@@ -334,6 +432,13 @@ class SequenceToolbar extends ConsumerWidget {
               onPressed: canEdit ? openWizard : null,
             ),
             _ToolbarAction(
+              icon: LucideIcons.sun,
+              label: sequence == null
+                  ? 'Calibrate Flat Exposures (create or open a sequence first)'
+                  : 'Calibrate Flat Exposures$lockedTooltipSuffix',
+              onPressed: canEdit && sequence != null ? openFlatWizard : null,
+            ),
+            _ToolbarAction(
               icon: LucideIcons.sparkles,
               label: 'Plan Tonight$lockedTooltipSuffix',
               onPressed: canEdit ? openSmartNight : null,
@@ -341,18 +446,29 @@ class SequenceToolbar extends ConsumerWidget {
             _ToolbarAction(
               icon: LucideIcons.folderOpen,
               label: 'Open Sequence$lockedTooltipSuffix',
-              onPressed: canEdit ? openSequenceFile : null,
+              onPressed: canEdit && !_fileActionRunning
+                  ? () => _runFileAction(openSequenceFile)
+                  : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.fileInput,
               label: 'Import from NINA / SGP$lockedTooltipSuffix',
-              onPressed:
-                  canEdit ? () => ImportSequenceFlow.run(context, ref) : null,
+              onPressed: canEdit && !_fileActionRunning
+                  ? () => _runFileAction(
+                        () async {
+                          await ImportSequenceFlow.run(context, ref);
+                        },
+                      )
+                  : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.save,
-              label: 'Save Sequence',
-              onPressed: saveSequenceFile,
+              label: sequence == null
+                  ? 'Save Sequence (create or open a sequence first)'
+                  : 'Save Sequence',
+              onPressed: sequence != null && !_fileActionRunning
+                  ? () => _runFileAction(saveSequenceFile)
+                  : null,
             ),
             const _ToolbarAction.divider(),
             _ToolbarAction(
@@ -407,9 +523,6 @@ class SequenceToolbar extends ConsumerWidget {
               if (!isPhone)
                 _PlaybackControls(
                   colors: colors,
-                  isIdle: isIdle,
-                  isRunning: isRunning,
-                  isPaused: isPaused,
                   executionState: executionState,
                   onStart: () {
                     showDialog(
@@ -425,7 +538,11 @@ class SequenceToolbar extends ConsumerWidget {
                   onResume: () => runSequenceAction(actionService.resume),
                   onStop: () => runSequenceAction(actionService.stop),
                   onSkip: () => runSequenceAction(actionService.skip),
-                  onReset: actionService.reset,
+                  // Awaited end to end so the reset's busy/error feedback flows
+                  // through the same snackbar path as every other action, and a
+                  // stop-failed / cleanup-failed reset surfaces instead of being
+                  // fire-and-forgotten.
+                  onReset: () => runSequenceAction(actionService.reset),
                 ),
               if (!isCompact) ...[
                 for (final a in actions) ...[
@@ -475,8 +592,9 @@ class SequenceToolbar extends ConsumerWidget {
                 Consumer(
                   builder: (context, ref, child) {
                     final settingsAsync = ref.watch(appSettingsProvider);
-                    final isSimulation =
-                        settingsAsync.valueOrNull?.useSimulationMode ?? false;
+                    final isSimulation = effectiveSimulationMode(
+                      settingsAsync.valueOrNull?.useSimulationMode ?? false,
+                    );
                     if (!isSimulation) return const SizedBox.shrink();
 
                     return Padding(

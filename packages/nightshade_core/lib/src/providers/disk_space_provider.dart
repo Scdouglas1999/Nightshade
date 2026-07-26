@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../models/backend/device_capabilities.dart';
 import '../services/disk_space_guard.dart';
 import '../services/disk_space_service.dart';
 import '../services/logging_service.dart';
+import 'backend_provider.dart';
 import 'capability_provider.dart';
 import 'equipment_provider.dart';
 import 'sequence_provider.dart';
@@ -37,6 +39,19 @@ final diskSpaceGuardProvider = Provider<DiskSpaceGuardService>((ref) {
 final captureDirDiskSpaceProvider = StreamProvider.autoDispose<DiskSpaceInfo?>((
   ref,
 ) async* {
+  // Remote host: the capture directory lives on the HOST filesystem — ask
+  // the host over the API. The previous shape ran the local `df` against
+  // the host's path on the CLIENT filesystem, which could only ever fail
+  // ("Disk query failed" on every paired phone/tablet dashboard).
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    yield await backend.getHostCaptureDiskSpace();
+    while (true) {
+      await Future<void>.delayed(const Duration(seconds: 10));
+      yield await backend.getHostCaptureDiskSpace();
+    }
+  }
+
   final settings = await ref.watch(appSettingsProvider.future);
   final path = settings.imageOutputPath;
   if (path.isEmpty) {
@@ -121,8 +136,7 @@ final sequenceDiskProjectionProvider =
 Future<DiskSpaceProjection?> projectCurrentSequence(Ref ref) async {
   final sequence = ref.read(currentSequenceProvider);
   if (sequence == null) return null;
-  final settings = ref.read(appSettingsProvider).valueOrNull;
-  if (settings == null) return null;
+  final settings = await ref.read(appSettingsProvider.future);
   final path = settings.imageOutputPath;
   if (path.isEmpty) return null;
 

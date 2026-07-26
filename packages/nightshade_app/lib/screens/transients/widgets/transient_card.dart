@@ -15,7 +15,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 class TransientCard extends StatefulWidget {
   final TransientAlert alert;
   final TransientAlertState? state;
-  final VoidCallback onQueue;
+  final Future<void> Function() onQueue;
+  final VoidCallback onPlan;
   final VoidCallback onViewInFraming;
   final VoidCallback onOpenScience;
   final VoidCallback onDismiss;
@@ -25,6 +26,7 @@ class TransientCard extends StatefulWidget {
     required this.alert,
     required this.state,
     required this.onQueue,
+    required this.onPlan,
     required this.onViewInFraming,
     required this.onOpenScience,
     required this.onDismiss,
@@ -36,6 +38,17 @@ class TransientCard extends StatefulWidget {
 
 class _TransientCardState extends State<TransientCard> {
   bool _isExpanded = false;
+  bool _isQueueing = false;
+
+  Future<void> _queue() async {
+    if (_isQueueing) return;
+    setState(() => _isQueueing = true);
+    try {
+      await widget.onQueue();
+    } finally {
+      if (mounted) setState(() => _isQueueing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +254,7 @@ class _TransientCardState extends State<TransientCard> {
         icon: NightshadeIcons.science,
         color: colors.info,
         background: colors.surfaceAlt,
-        tooltip: 'Open in Science',
+        tooltip: 'Open Science tab',
         onPressed: widget.onOpenScience,
       ),
       if (!isDismissed && !isObserved) ...[
@@ -287,10 +300,14 @@ class _TransientCardState extends State<TransientCard> {
     bool isObserved,
   ) {
     if (isQueued) {
-      return _statusBadge(
-        colors.warning,
-        NightshadeIcons.clock,
-        'Queued',
+      // Queuing only adds the target to the library; this deep-links to the
+      // scheduler so the user can actually place it on tonight's plan.
+      return NightshadeButton(
+        label: 'Plan it',
+        icon: NightshadeIcons.calendar,
+        size: ButtonSize.small,
+        variant: ButtonVariant.outline,
+        onPressed: widget.onPlan,
       );
     }
     if (isObserved) {
@@ -305,7 +322,8 @@ class _TransientCardState extends State<TransientCard> {
       icon: NightshadeIcons.add,
       size: ButtonSize.small,
       variant: ButtonVariant.primary,
-      onPressed: widget.onQueue,
+      isLoading: _isQueueing,
+      onPressed: _isQueueing ? null : _queue,
     );
   }
 

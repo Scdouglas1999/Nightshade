@@ -217,7 +217,8 @@ impl DeviceManager {
         }
 
         use crate::api::devices::simulation::{
-            get_sim_camera, get_sim_filterwheel, get_sim_focuser, get_sim_mount, get_sim_rotator,
+            get_sim_camera, get_sim_dome, get_sim_filterwheel, get_sim_focuser, get_sim_mount,
+            get_sim_rotator, get_sim_safety_monitor, get_sim_weather,
         };
 
         let connected = match device_type {
@@ -226,6 +227,9 @@ impl DeviceManager {
             DeviceType::Focuser => get_sim_focuser().read().await.status.connected,
             DeviceType::FilterWheel => get_sim_filterwheel().read().await.status.connected,
             DeviceType::Rotator => get_sim_rotator().read().await.status.connected,
+            DeviceType::Dome => get_sim_dome().read().await.status.connected,
+            DeviceType::Weather => get_sim_weather().read().await.connected,
+            DeviceType::SafetyMonitor => get_sim_safety_monitor().read().await.status.connected,
             other => {
                 return Err(format!(
                     "simulator health check: no simulator implementation for device type {:?} (id '{}')",
@@ -759,9 +763,9 @@ mod heartbeat_event_tests {
     use super::{heartbeat_events_for_poll, HeartbeatEventKind};
 
     const THRESHOLD: u32 = 5;
-    // Most existing tests describe an escalating device (camera/mount), where
-    // crossing the threshold disconnects. The non-escalating (focuser/filter
-    // wheel/rotator) behavior is pinned by the dedicated tests below.
+    // Most existing tests describe an escalating device, where crossing the
+    // threshold disconnects. The generic non-escalating policy used by safety
+    // monitor liveness is pinned by the dedicated tests below.
     const ESCALATE: bool = true;
 
     /// (a) The first failing poll of an episode emits exactly one Degraded
@@ -847,7 +851,7 @@ mod heartbeat_event_tests {
     }
 
     // -------------------------------------------------------------------------
-    // Non-escalating device types (focuser / filter wheel / rotator):
+    // Non-escalating heartbeat policy (used by safety-monitor liveness):
     // crossing the threshold must NEVER disconnect. It latches a single
     // Degraded "stale" status and keeps the device connected + monitored.
     // -------------------------------------------------------------------------

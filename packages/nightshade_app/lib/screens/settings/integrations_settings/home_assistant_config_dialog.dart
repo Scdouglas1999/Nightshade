@@ -59,10 +59,9 @@ class _HomeAssistantConfigDialogState
           'Both the base URL and a long-lived access token are required.');
       return;
     }
-    final parsed = Uri.tryParse(baseUrl);
-    if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
-      setState(() => _validationError =
-          'The base URL must be a full URL, e.g. http://homeassistant.local:8123');
+    final urlProblem = homeAssistantBaseUrlProblem(baseUrl);
+    if (urlProblem != null) {
+      setState(() => _validationError = urlProblem);
       return;
     }
     setState(() {
@@ -94,6 +93,7 @@ class _HomeAssistantConfigDialogState
       title: 'Configure Home Assistant',
       icon: LucideIcons.home,
       width: 480,
+      closeEnabled: !_saving,
       actions: [
         NightshadeButton(
           label: 'Cancel',

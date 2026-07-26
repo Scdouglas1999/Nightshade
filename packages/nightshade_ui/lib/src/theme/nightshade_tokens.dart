@@ -310,8 +310,16 @@ abstract final class NightshadeTokens {
   /// instead — do not substitute this value for the custom title bar.
   static const double appBarHeight = 56.0;
 
-  /// Minimum touch target (iOS HIG / Material accessibility).
-  static const double minTouchTarget = 44.0;
+  /// Minimum touch target, in logical pixels.
+  ///
+  /// 48, not 44. This was 44 — the iOS HIG figure — while its doc comment also
+  /// claimed "Material accessibility"; Material's own minimum is 48, so every
+  /// control that correctly reached for this token still failed Android's rule
+  /// by 4dp. Measured on device: a dashboard control at 36x36, guiding chips at
+  /// 46x21, an equipment CTA at 312x7 sitting below the fold on a 360x640
+  /// screen. 48 satisfies both platforms, which is the point of having one
+  /// token.
+  static const double minTouchTarget = 48.0;
 
   // ===========================================================================
   // Shadows & Elevation

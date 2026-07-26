@@ -8,6 +8,8 @@ import 'package:nightshade_desktop/headless_api/auth_policy.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import 'handler_test_helpers.dart';
+
 void main() {
   group('HeadlessApiServer scoped auth middleware', () {
     late ProviderContainer container;
@@ -16,7 +18,7 @@ void main() {
     late Uri baseUri;
 
     setUp(() async {
-      container = ProviderContainer(
+      container = createHeadlessTestContainer(
         overrides: [
           appVersionProvider.overrideWithValue(
             const AppVersionInfo(version: '2.5.0', buildNumber: 5),
@@ -474,6 +476,87 @@ void main() {
       } finally {
         await socket.close();
       }
+    });
+  });
+
+  group('HeadlessApiServer fine-grained auth middleware', () {
+    late ProviderContainer container;
+    late HeadlessApiServer server;
+    late HttpClient client;
+    late Uri baseUri;
+
+    setUp(() async {
+      container = createHeadlessTestContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(
+            const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+          ),
+        ],
+      );
+      server = HeadlessApiServer(
+        port: 0,
+        container: container,
+        bindLocalOnly: true,
+        authToken: 'admin-token',
+        fineGrainedAuthTokens: {
+          // control the camera, only watch the mount.
+          'cam-token': HeadlessAuthGrant.parseSpec(
+            'camera:control,mount:view',
+          )!,
+        },
+        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+        webSocketHeartbeatTimeout: const Duration(milliseconds: 500),
+      );
+      await server.start();
+      client = HttpClient();
+      baseUri = Uri.parse('http://127.0.0.1:${server.actualPort}');
+    });
+
+    tearDown(() async {
+      client.close(force: true);
+      await server.stop();
+      container.dispose();
+    });
+
+    test('camera-scoped token may expose the camera', () async {
+      final response = await _request(
+        client,
+        baseUri,
+        '/api/camera/expose',
+        method: 'POST',
+        token: 'cam-token',
+        body: const {'durationSeconds': 1},
+      );
+      // The grant permits the route; the handler may still 4xx/5xx on the
+      // request body, but it must NOT be a 403 scope rejection.
+      expect(response.statusCode, isNot(HttpStatus.forbidden));
+    });
+
+    test('camera-scoped token may read mount status', () async {
+      final response = await _request(
+        client,
+        baseUri,
+        '/api/mount/status',
+        token: 'cam-token',
+      );
+      expect(response.statusCode, isNot(HttpStatus.forbidden));
+    });
+
+    test('camera-scoped token is forbidden from slewing the mount', () async {
+      final response = await _request(
+        client,
+        baseUri,
+        '/api/mount/slew',
+        method: 'POST',
+        token: 'cam-token',
+        body: const {'ra': 1.0, 'dec': 1.0},
+      );
+      expect(response.statusCode, HttpStatus.forbidden);
+      expect(response.body['requiredResource'], 'mount');
+      expect(response.body['requiredLevel'], 'control');
+      // back-compat coarse fields remain populated.
+      expect(response.body['requiredScope'], 'control');
+      expect(response.body['tokenScope'], 'control');
     });
   });
 }

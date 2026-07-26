@@ -366,6 +366,20 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
     // gives the user a "why didn't my pasted snippet run?" surprise.
     final isEnabled = json['isEnabled'] as bool? ?? true;
 
+    // Canonical path: use the exhaustive sequence-file decoder so a snippet
+    // cannot silently lose fields (or reject node types) that normal sequence
+    // import already supports. The switch below remains as a compatibility
+    // fallback for legacy snippet-only aliases and permissive old payloads.
+    final canonicalJson = Map<String, dynamic>.from(json)
+      ..['isEnabled'] = isEnabled;
+    try {
+      return SequenceFileService().nodeFromMap(canonicalJson);
+    } on FormatException {
+      // Fall through to the legacy compatibility decoder below. Its default
+      // branch still raises SnippetDeserializationException with the snippet
+      // name for genuinely unknown node types.
+    }
+
     switch (nodeType) {
       case 'targetheader':
       case 'targetgroup':

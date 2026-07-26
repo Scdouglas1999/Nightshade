@@ -765,6 +765,25 @@ enum ExposureState {
     Failed,
 }
 
+/// How this camera opens/closes the shutter for a bulb (>30s) exposure.
+///
+/// Discovered once at connect, mirroring the reference driver
+/// (gphoto_driver.cpp:1839-1884): prefer Canon's `eosremoterelease` widget,
+/// else the generic `bulb` PTP toggle (Nikon and Sony bodies that expose it).
+/// The correct per-brand widget MUST be driven — `gp_camera_trigger_capture`
+/// alone does not hold the shutter open on Nikon/Sony, so those long subs
+/// otherwise time out or come back black.
+#[derive(Debug, Clone, PartialEq)]
+enum BulbWidget {
+    /// Canon EOS: a RADIO widget. Bulb opens by selecting the "Press Full"
+    /// choice and closes with "Release"/"Release Full". The exact choice
+    /// strings vary by libgphoto2 version, so they are discovered dynamically.
+    EosRemoteRelease { press: String, release: String },
+    /// Nikon / Sony (and others): a TOGGLE widget named `bulb`. Open = 1 (on),
+    /// close = 0 (off) — set as an INT value, not a string.
+    BulbToggle,
+}
+
 /// gPhoto2 DSLR/Mirrorless Camera implementation
 pub struct GPhoto2Camera {
     /// Camera index from autodetect
@@ -787,7 +806,18 @@ pub struct GPhoto2Camera {
     sensor_width: u32,
     sensor_height: u32,
     pixel_size: f64,
+    /// Sensor ADC precision. Seeded from the model table in
+    /// `detect_sensor_dimensions()` — a pre-first-frame ESTIMATE that guesses
+    /// 14 for every body libgphoto2 supports but this driver has not tabulated
+    /// — and replaced with the decoder's ground truth
+    /// (`nightshade_imaging::CfaImage::bits_per_pixel`) the moment a frame has
+    /// been decoded. See `adopt_decoded_depth`.
     bit_depth: u32,
+    /// Container full scale measured from the most recently decoded frame:
+    /// LibRaw `color.maximum` surfaced as `nightshade_imaging::CfaImage::max_value`.
+    /// `None` until the first frame is decoded, when `resolve_max_adu` falls
+    /// back to the model-table estimate.
+    measured_white_level: Option<u32>,
     is_color: bool,
 
     // Camera capabilities (populated on connect)
@@ -802,6 +832,14 @@ pub struct GPhoto2Camera {
 
     // Available shutter speed values (populated on connect)
     shutter_speed_values: Vec<String>,
+
+    // How to open/close the shutter for bulb exposures (discovered on connect).
+    // None => no internal bulb widget found; fall back to trigger_capture.
+    bulb_widget: Option<BulbWidget>,
+
+    // RAW image-format config to force before capture (widget name, RAW choice),
+    // discovered on connect. None => camera exposes no image-format widget.
+    raw_format: Option<(String, String)>,
 
     // Exposure tracking
     exposure_state: ExposureState,
@@ -856,7 +894,10 @@ impl GPhoto2Camera {
             sensor_width: 0,
             sensor_height: 0,
             pixel_size: 0.0,
-            bit_depth: 14,  // Most DSLRs are 14-bit
+            // Estimate only, refined by `detect_sensor_dimensions()` on connect
+            // and superseded by the decoded frame's real depth.
+            bit_depth: 14,
+            measured_white_level: None,
             is_color: true, // All DSLRs are color
             can_capture: false,
             can_preview: false,
@@ -865,6 +906,8 @@ impl GPhoto2Camera {
             iso_values: Vec::new(),
             current_iso_index: 0,
             shutter_speed_values: Vec::new(),
+            bulb_widget: None,
+            raw_format: None,
             exposure_state: ExposureState::Idle,
             exposure_time: 0.0,
             current_gain: 0,
@@ -1162,6 +1205,14 @@ impl GPhoto2Camera {
             }
         }
 
+        // Discover the bulb widget (Canon eosremoterelease vs generic bulb
+        // toggle) so long exposures actually hold the shutter open per-brand.
+        self.discover_bulb_widget();
+
+        // Discover the RAW image-format choice so we can force RAW before every
+        // capture (we always LibRaw-decode; a JPEG-configured body would fail).
+        self.discover_raw_format();
+
         // Try to detect sensor dimensions from image format or camera model
         // Most DSLRs don't report sensor dims via PTP; we use common values
         self.detect_sensor_dimensions();
@@ -1169,9 +1220,193 @@ impl GPhoto2Camera {
         Ok(())
     }
 
+    /// Return the widget type (`CameraWidgetType` discriminant) for a config
+    /// name, or `None` if the camera has no such widget. Caller must hold
+    /// gphoto2_mutex.
+    fn widget_type(&self, name: &str) -> Option<c_int> {
+        let sdk = GPhoto2Sdk::get()?;
+
+        // SAFETY: caller holds gphoto2_mutex. `gp_camera`/`gp_context` are valid
+        // non-null post-connect. `root` is a stack out-pointer freed on every
+        // exit path. `child` is owned by the widget tree (freed with `root`);
+        // its type is read into a stack int.
+        unsafe {
+            let mut root: *mut CameraWidget = std::ptr::null_mut();
+            let ret = (sdk.camera_get_config)(self.gp_camera, &mut root, self.gp_context);
+            if ret < GP_OK {
+                return None;
+            }
+
+            let c_name = CString::new(name).ok()?;
+            let mut child: *mut CameraWidget = std::ptr::null_mut();
+            let ret = (sdk.widget_get_child_by_name)(root, c_name.as_ptr(), &mut child);
+            if ret < GP_OK {
+                (sdk.widget_free)(root);
+                return None;
+            }
+
+            let mut wtype: c_int = -1;
+            let ret = (sdk.widget_get_type)(child, &mut wtype);
+            (sdk.widget_free)(root);
+            if ret < GP_OK {
+                None
+            } else {
+                Some(wtype)
+            }
+        }
+    }
+
+    /// Set a TOGGLE (on/off) config value. Unlike `set_config_value_str`, this
+    /// writes an INT value, which is what libgphoto2 requires for a
+    /// `GP_WIDGET_TOGGLE` widget such as the Nikon/Sony `bulb` control.
+    /// Caller must hold gphoto2_mutex.
+    fn set_config_value_toggle(&self, name: &str, on: bool) -> Result<(), NativeError> {
+        let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
+
+        // SAFETY: caller holds gphoto2_mutex. `gp_camera`/`gp_context` are valid
+        // non-null post-connect. `root` is a stack out-pointer freed on every
+        // exit path. `value` is a stack int whose address is passed as the
+        // widget value (TOGGLE widgets take `int*`, per libgphoto2). `child` is
+        // owned by the widget tree.
+        unsafe {
+            let mut root: *mut CameraWidget = std::ptr::null_mut();
+            let ret = (sdk.camera_get_config)(self.gp_camera, &mut root, self.gp_context);
+            check_gp_error(ret, "get_config")?;
+
+            let c_name = CString::new(name).map_err(|_| {
+                NativeError::InvalidParameter(format!("Invalid config name: {}", name))
+            })?;
+
+            let mut child: *mut CameraWidget = std::ptr::null_mut();
+            let ret = (sdk.widget_get_child_by_name)(root, c_name.as_ptr(), &mut child);
+            if ret < GP_OK {
+                (sdk.widget_free)(root);
+                return Err(NativeError::SdkError(format!(
+                    "gPhoto2: toggle config '{}' not found on this camera",
+                    name
+                )));
+            }
+
+            let value: c_int = if on { 1 } else { 0 };
+            let ret = (sdk.widget_set_value)(child, &value as *const c_int as *const c_void);
+            if ret < GP_OK {
+                (sdk.widget_free)(root);
+                return Err(NativeError::SdkError(format!(
+                    "gPhoto2: failed to set toggle '{}' to {}: code {}",
+                    name, value, ret
+                )));
+            }
+
+            let ret = (sdk.camera_set_config)(self.gp_camera, root, self.gp_context);
+            (sdk.widget_free)(root);
+            check_gp_error(ret, "set_config")?;
+
+            Ok(())
+        }
+    }
+
+    /// Discover how this body opens/closes a bulb exposure. Prefers Canon's
+    /// `eosremoterelease` (discovering the Press/Release choice strings
+    /// dynamically, since their order varies by libgphoto2 version), else falls
+    /// back to a generic `bulb` toggle widget (Nikon / Sony). Caller must hold
+    /// gphoto2_mutex.
+    fn discover_bulb_widget(&mut self) {
+        // Canon EOS: eosremoterelease RADIO widget.
+        if let Ok(choices) = self.get_config_choices("eosremoterelease") {
+            let (press, release) = pick_eos_bulb_choices(&choices);
+            tracing::info!(
+                "gPhoto2: bulb via eosremoterelease (press='{}', release='{}')",
+                press,
+                release
+            );
+            self.bulb_widget = Some(BulbWidget::EosRemoteRelease { press, release });
+            return;
+        }
+
+        // Nikon / Sony: generic `bulb` TOGGLE widget.
+        if let Some(t) = self.widget_type("bulb") {
+            if t == CameraWidgetType::Toggle as c_int {
+                tracing::info!("gPhoto2: bulb via generic 'bulb' toggle widget");
+                self.bulb_widget = Some(BulbWidget::BulbToggle);
+                return;
+            }
+            // A non-toggle `bulb` widget is unusual; still try to drive it as a
+            // toggle rather than dropping to the trigger-only fallback.
+            tracing::info!(
+                "gPhoto2: 'bulb' widget present with type {} — treating as toggle",
+                t
+            );
+            self.bulb_widget = Some(BulbWidget::BulbToggle);
+            return;
+        }
+
+        tracing::warn!(
+            "gPhoto2: no bulb widget (eosremoterelease/bulb) found; long exposures \
+             will fall back to trigger_capture, which may not hold the shutter open"
+        );
+        self.bulb_widget = None;
+    }
+
+    /// Discover a RAW image-format choice to force before capture. libgphoto2
+    /// exposes this as `imageformat` (Canon/Sony) or `imagequality` (Nikon).
+    /// We prefer a pure-RAW choice, then RAW+JPEG. Caller must hold
+    /// gphoto2_mutex.
+    fn discover_raw_format(&mut self) {
+        for widget in ["imageformat", "imagequality"] {
+            let Ok(choices) = self.get_config_choices(widget) else {
+                continue;
+            };
+            if let Some(choice) = pick_raw_format_choice(&choices) {
+                tracing::info!(
+                    "gPhoto2: will force RAW via {}='{}' before capture",
+                    widget,
+                    choice
+                );
+                self.raw_format = Some((widget.to_string(), choice));
+                return;
+            }
+            tracing::warn!(
+                "gPhoto2: {} widget present but no RAW choice found in {:?}",
+                widget,
+                choices
+            );
+            return;
+        }
+        tracing::warn!(
+            "gPhoto2: no image-format widget found; cannot force RAW (relying on \
+             the camera already being set to RAW)"
+        );
+    }
+
+    /// Force the camera into its RAW image format before capture (best effort;
+    /// a failure is warned, not fatal, since some bodies expose no such
+    /// widget). Caller must hold gphoto2_mutex.
+    fn apply_raw_format(&self) {
+        if let Some((widget, choice)) = &self.raw_format {
+            if let Err(e) = self.set_config_value_str(widget, choice) {
+                tracing::warn!(
+                    "gPhoto2: could not force {}='{}': {}. Capture will use the \
+                     camera's current format.",
+                    widget,
+                    choice,
+                    e
+                );
+            } else {
+                tracing::debug!("gPhoto2: forced {}='{}'", widget, choice);
+            }
+        }
+    }
+
     /// Detect sensor dimensions based on camera model or image quality settings.
     /// Most DSLRs don't expose raw sensor dimensions via PTP, so we use a lookup
     /// of known models. Falls back to reasonable defaults.
+    ///
+    /// The `bit_depth` this sets is a PRE-FIRST-FRAME ESTIMATE, not an
+    /// authority: libgphoto2 supports ~2500 bodies and this table lists ~30, so
+    /// every other body — including the many genuinely 12-bit ones (Canon
+    /// 350D/400D/450D, Nikon D3xxx/D5xxx in 12-bit mode, older Olympus and
+    /// Panasonic) — lands on the 14-bit fallback. `adopt_decoded_depth`
+    /// replaces it with LibRaw's measurement as soon as a frame is decoded.
     fn detect_sensor_dimensions(&mut self) {
         let model_lower = self.model_name.to_lowercase();
 
@@ -1267,6 +1502,40 @@ impl GPhoto2Camera {
         );
     }
 
+    /// Adopt the RAW decoder's ground truth for this body's sample depth.
+    ///
+    /// `bits` is `nightshade_imaging::CfaImage::bits_per_pixel` (derived from
+    /// LibRaw's saturation level) and `white_level` is
+    /// `nightshade_imaging::CfaImage::max_value` — LibRaw `color.maximum`, the
+    /// exact largest value a pixel in the delivered mosaic can take. Both are
+    /// measured from the frame in hand and outrank the model table, which only
+    /// guesses.
+    ///
+    /// Zero/out-of-range inputs are ignored rather than adopted: LibRaw leaves
+    /// `color.maximum` at 0 for a handful of bodies, and a 0 white level would
+    /// otherwise publish an unreachable `max_adu`.
+    fn adopt_decoded_depth(&mut self, bits: u32, white_level: u32) {
+        let previous_max_adu = resolve_max_adu(self.measured_white_level, self.bit_depth);
+
+        if (8..=16).contains(&bits) && bits != self.bit_depth {
+            tracing::info!(
+                "gPhoto2: adopting measured sensor bit depth {} (model-table estimate was {})",
+                bits,
+                self.bit_depth
+            );
+            self.bit_depth = bits;
+        }
+
+        if white_level > 0 && self.measured_white_level != Some(white_level) {
+            tracing::info!(
+                "gPhoto2: adopting measured white level {} as max_adu (was {})",
+                white_level,
+                previous_max_adu
+            );
+            self.measured_white_level = Some(white_level);
+        }
+    }
+
     /// Perform a standard (non-bulb) capture. Blocks until the camera completes the exposure.
     /// Caller must hold gphoto2_mutex.
     fn do_capture(&mut self) -> Result<(), NativeError> {
@@ -1297,88 +1566,136 @@ impl GPhoto2Camera {
         Ok(())
     }
 
-    /// Start a bulb exposure by triggering the shutter.
-    /// Caller must hold gphoto2_mutex.
+    /// Open the shutter for a bulb exposure using the brand-correct widget.
+    ///
+    /// Mirrors the reference driver's bulb-open path
+    /// (gphoto_driver.cpp:1241-1255): set the camera to Bulb shutter, then
+    /// drive the discovered widget — Canon `eosremoterelease` = Press-Full, or
+    /// the Nikon/Sony `bulb` toggle = ON. Critically this does NOT use
+    /// `gp_camera_trigger_capture` for the widget paths: on Nikon/Sony that
+    /// never holds the shutter open, so long subs would time out / come back
+    /// black. Caller must hold gphoto2_mutex.
     fn do_bulb_start(&mut self) -> Result<(), NativeError> {
-        let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
-
-        // Set camera to Bulb shutter speed
+        // Set camera to Bulb shutter speed (needed so the body honours the
+        // held-open shutter). Non-fatal if absent on eosremoterelease bodies.
         if let Err(e) = self.set_config_value_str("shutterspeed", "Bulb") {
-            // Try alternate names
             if let Err(e2) = self.set_config_value_str("shutterspeed", "bulb") {
-                tracing::warn!(
-                    "gPhoto2: Could not set Bulb mode (tried 'Bulb' and 'bulb'): {}, {}",
-                    e,
+                // Only hard-fail when we also have no bulb widget to fall back
+                // on; an EOS body may accept the press without a Bulb preset.
+                if self.bulb_widget.is_none() {
+                    tracing::warn!(
+                        "gPhoto2: Could not set Bulb mode (tried 'Bulb' and 'bulb'): {}, {}",
+                        e,
+                        e2
+                    );
+                    return Err(NativeError::SdkError(
+                        "gPhoto2: Camera does not support Bulb mode for long exposures".to_string(),
+                    ));
+                }
+                tracing::debug!(
+                    "gPhoto2: shutterspeed 'Bulb' not settable ({}); relying on bulb widget",
                     e2
                 );
-                return Err(NativeError::SdkError(
-                    "gPhoto2: Camera does not support Bulb mode for long exposures".to_string(),
-                ));
             }
         }
 
-        // Trigger capture (opens shutter, does not wait for completion)
-        // SAFETY: caller holds gphoto2_mutex. `gp_camera`/`gp_context` are valid
-        // non-null pointers post-connect; `camera_trigger_capture` takes them by-value
-        // and returns a result code we check.
-        unsafe {
-            let ret = (sdk.camera_trigger_capture)(self.gp_camera, self.gp_context);
-            check_gp_error(ret, "trigger_capture (bulb start)")?;
+        match self.bulb_widget.clone() {
+            Some(BulbWidget::EosRemoteRelease { press, .. }) => {
+                // Canon EOS: Press-Full opens (and holds) the shutter.
+                self.set_config_value_str("eosremoterelease", &press)
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "gPhoto2: failed to open Canon bulb shutter (eosremoterelease='{}'): {}",
+                            press, e
+                        ))
+                    })?;
+                tracing::info!("gPhoto2: Bulb open via eosremoterelease='{}'", press);
+            }
+            Some(BulbWidget::BulbToggle) => {
+                // Nikon / Sony: bulb toggle ON holds the shutter open.
+                self.set_config_value_toggle("bulb", true).map_err(|e| {
+                    NativeError::SdkError(format!(
+                        "gPhoto2: failed to open bulb shutter (bulb toggle ON): {}",
+                        e
+                    ))
+                })?;
+                tracing::info!("gPhoto2: Bulb open via 'bulb' toggle = ON");
+            }
+            None => {
+                // Last resort: no internal bulb widget. Trigger a capture; this
+                // does not truly hold the shutter for bulb, but it is the only
+                // option for bodies exposing neither widget.
+                let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
+                // SAFETY: caller holds gphoto2_mutex. `gp_camera`/`gp_context`
+                // are valid non-null post-connect; `camera_trigger_capture`
+                // takes them by-value and returns a checked result code.
+                unsafe {
+                    let ret = (sdk.camera_trigger_capture)(self.gp_camera, self.gp_context);
+                    check_gp_error(ret, "trigger_capture (bulb start fallback)")?;
+                }
+                tracing::warn!(
+                    "gPhoto2: Bulb started via trigger_capture fallback (no bulb widget)"
+                );
+            }
         }
 
-        tracing::info!("gPhoto2: Bulb exposure started");
         Ok(())
     }
 
-    /// Stop a bulb exposure by releasing the shutter via eosremoterelease or bulb toggle.
-    /// Caller must hold gphoto2_mutex.
+    /// Close the shutter, ending the bulb exposure, using the same widget that
+    /// opened it. Mirrors the reference `stop_bulb` (gphoto_driver.cpp:652-664):
+    /// eosremoterelease = Release, or bulb toggle = OFF. Caller must hold
+    /// gphoto2_mutex.
     fn do_bulb_stop(&mut self) -> Result<(), NativeError> {
-        // Canon EOS cameras use eosremoterelease config to control bulb:
-        // "None" -> "Immediate" opens shutter, "Release Full" closes it.
-        // Nikon cameras may use "bulb" toggle config.
-        // We try multiple approaches.
-
-        // Approach 1: Canon EOS remote release
-        if self
-            .set_config_value_str("eosremoterelease", "Release Full")
-            .is_ok()
-        {
-            tracing::info!("gPhoto2: Bulb stopped via eosremoterelease");
-            // Reset to "None" after release
-            let _ = self.set_config_value_str("eosremoterelease", "None");
-            return Ok(());
-        }
-
-        // Approach 2: Nikon bulb toggle
-        if self.set_config_value_str("bulb", "0").is_ok() {
-            tracing::info!("gPhoto2: Bulb stopped via bulb toggle");
-            return Ok(());
-        }
-
-        // Approach 3: Generic - send a second trigger to stop
-        let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
-        // SAFETY: caller holds gphoto2_mutex (per do_bulb_stop's doc-comment).
-        // `gp_camera`/`gp_context` are valid non-null. `event_type`/`event_data` are
-        // stack out-pointers filled by libgphoto2. We do NOT dereference `event_data`
-        // here (it would require a tag-typed cast); only `event_type` is read after.
-        unsafe {
-            // Wait for file-added event which signals the capture completed
-            let mut event_type: c_int = 0;
-            let mut event_data: *mut c_void = std::ptr::null_mut();
-            let ret = (sdk.camera_wait_for_event)(
-                self.gp_camera,
-                2000, // 2 second timeout
-                &mut event_type,
-                &mut event_data,
-                self.gp_context,
-            );
-            if ret >= GP_OK {
-                tracing::info!("gPhoto2: Bulb stop - received event type {}", event_type);
+        match self.bulb_widget.clone() {
+            Some(BulbWidget::EosRemoteRelease { release, .. }) => {
+                self.set_config_value_str("eosremoterelease", &release)
+                    .map_err(|e| {
+                        NativeError::SdkError(format!(
+                            "gPhoto2: failed to close Canon bulb shutter (eosremoterelease='{}'): {}",
+                            release, e
+                        ))
+                    })?;
+                tracing::info!("gPhoto2: Bulb closed via eosremoterelease='{}'", release);
+                // Best-effort: return the widget to its idle "None" choice.
+                let _ = self.set_config_value_str("eosremoterelease", "None");
+                Ok(())
+            }
+            Some(BulbWidget::BulbToggle) => {
+                self.set_config_value_toggle("bulb", false).map_err(|e| {
+                    NativeError::SdkError(format!(
+                        "gPhoto2: failed to close bulb shutter (bulb toggle OFF): {}",
+                        e
+                    ))
+                })?;
+                tracing::info!("gPhoto2: Bulb closed via 'bulb' toggle = OFF");
+                Ok(())
+            }
+            None => {
+                // Trigger-capture fallback: nothing to release. Drain a
+                // file-added event so the subsequent download can proceed.
+                let sdk = GPhoto2Sdk::get().ok_or(NativeError::SdkNotLoaded)?;
+                // SAFETY: caller holds gphoto2_mutex. `gp_camera`/`gp_context`
+                // are valid non-null. `event_type`/`event_data` are stack
+                // out-pointers filled by libgphoto2; we only read `event_type`.
+                unsafe {
+                    let mut event_type: c_int = 0;
+                    let mut event_data: *mut c_void = std::ptr::null_mut();
+                    let ret = (sdk.camera_wait_for_event)(
+                        self.gp_camera,
+                        2000,
+                        &mut event_type,
+                        &mut event_data,
+                        self.gp_context,
+                    );
+                    if ret >= GP_OK {
+                        tracing::info!("gPhoto2: Bulb stop - received event type {}", event_type);
+                    }
+                }
+                tracing::info!("gPhoto2: Bulb exposure stopped (trigger fallback)");
+                Ok(())
             }
         }
-
-        tracing::info!("gPhoto2: Bulb exposure stopped");
-        Ok(())
     }
 
     /// Download the last captured image from the camera as raw bytes.
@@ -1472,68 +1789,94 @@ impl GPhoto2Camera {
         }
     }
 
-    /// Decode raw camera file (CR2, NEF, ARW, etc.) to 16-bit pixel data.
-    /// Uses the raw bytes downloaded from the camera.
-    fn decode_raw_to_image_data(&self, raw_bytes: &[u8]) -> Result<ImageData, NativeError> {
-        // Detect the RAW format from magic bytes to get the correct file extension
-        let extension = nightshade_imaging::raw_format_extension(raw_bytes).unwrap_or("raw");
+    /// Decode a raw camera file (CR2, NEF, ARW, etc.) into the single-channel
+    /// LINEAR Bayer mosaic that the capture pipeline expects.
+    ///
+    /// Uses `read_cfa_mosaic_from_bytes` (unpack + raw2image, NO dcraw_process)
+    /// so the result is the sensor's native linear CFA mosaic — one u16 sample
+    /// per pixel, `data.len() == width*height`, with a valid Bayer pattern —
+    /// NOT a demosaiced/white-balanced/gamma-encoded 3-channel sRGB image.
+    /// Feeding processed RGB into the mono-mosaic contract corrupts every DSLR
+    /// frame (3× oversize, non-linear, double-debayered).
+    fn decode_raw_to_image_data(&mut self, raw_bytes: &[u8]) -> Result<ImageData, NativeError> {
+        // Detect the RAW format from magic bytes. If it is NOT a recognised
+        // RAW (i.e. the body handed us a JPEG because it is in JPEG-only mode),
+        // fail with an actionable message instead of feeding JPEG to LibRaw's
+        // RAW decoder and emitting an opaque "failed to decode" every frame.
+        let Some(extension) = nightshade_imaging::raw_format_extension(raw_bytes) else {
+            return Err(NativeError::SdkError(
+                "gPhoto2: the camera returned a non-RAW file (it appears to be JPEG). \
+                 Set the camera's image quality to RAW (or RAW+JPEG) — astro capture \
+                 requires the linear RAW sensor data."
+                    .to_string(),
+            ));
+        };
 
-        // Use nightshade_imaging's LibRaw wrapper to decode the RAW file
-        let (imaging_data, metadata) =
-            nightshade_imaging::read_raw_from_bytes(raw_bytes, extension, None).map_err(|e| {
+        // Decode to the native linear CFA mosaic (single channel, no demosaic).
+        let (cfa, metadata) = nightshade_imaging::read_cfa_mosaic_from_bytes(raw_bytes, extension)
+            .map_err(|e| {
                 NativeError::SdkError(format!("gPhoto2: Failed to decode RAW image: {}", e))
             })?;
 
+        // Contract guard: the mono mosaic MUST be exactly width*height samples.
+        // A mismatch here means the decode path silently regressed to a
+        // multi-channel buffer — refuse rather than ship corrupt geometry.
+        let expected = (cfa.width as usize) * (cfa.height as usize);
+        if cfa.data.len() != expected {
+            return Err(NativeError::SdkError(format!(
+                "gPhoto2: CFA decode produced {} samples for a {}x{} frame (expected {}) — \
+                 refusing to emit a corrupt frame",
+                cfa.data.len(),
+                cfa.width,
+                cfa.height,
+                expected
+            )));
+        }
+
+        // The decoder knows this body's real numbers; the model table only
+        // guessed. `bits_per_pixel` and `max_value` (LibRaw `color.maximum`)
+        // become this camera's published depth and container ceiling from here
+        // on. The mosaic is RIGHT-JUSTIFIED at its native depth — the decode is
+        // `unpack` + `raw2image` with no `dcraw_process` (imaging/src/raw.rs
+        // :1097-1108, contract in imaging/src/libraw_shim.c:98-102) — so the
+        // white level IS the container full scale and must not be scaled up.
+        self.adopt_decoded_depth(cfa.bits_per_pixel, cfa.max_value);
+
         tracing::info!(
-            "gPhoto2: Decoded RAW image: {}x{}, camera: {} {}",
-            imaging_data.width,
-            imaging_data.height,
+            "gPhoto2: Decoded RAW mosaic: {}x{}, {}-bit, pattern {:?}, camera: {} {}",
+            cfa.width,
+            cfa.height,
+            cfa.bits_per_pixel,
+            cfa.cfa_pattern,
             metadata.camera_make,
             metadata.camera_model,
         );
 
-        // Convert the imaging crate's ImageData (Vec<u8> with PixelType) to
-        // the camera crate's ImageData (Vec<u16>).
-        // LibRaw typically returns U16 pixel data for RAW files.
-        let pixel_data_u16: Vec<u16> =
-            if imaging_data.pixel_type == nightshade_imaging::PixelType::U16 {
-                // Data is already 16-bit, reinterpret bytes as u16 (little-endian)
-                imaging_data
-                    .data
-                    .chunks_exact(2)
-                    .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-                    .collect()
-            } else if imaging_data.pixel_type == nightshade_imaging::PixelType::U8 {
-                // 8-bit data, scale up to 16-bit
-                imaging_data.data.iter().map(|&b| (b as u16) << 8).collect()
-            } else {
-                return Err(NativeError::SdkError(format!(
-                    "gPhoto2: Unexpected pixel type {:?} from LibRaw",
-                    imaging_data.pixel_type
-                )));
-            };
-
-        // Determine bit depth from the decoded data
-        let bit_depth = if imaging_data.pixel_type == nightshade_imaging::PixelType::U16 {
-            self.bit_depth // Use the camera's known bit depth (typically 14)
-        } else {
-            8
-        };
-
-        // Determine Bayer pattern from the color description
-        let bayer_pattern = match metadata.color_desc.as_str() {
-            "RGBG" | "RGGB" => Some(BayerPattern::Rggb),
-            "GRBG" => Some(BayerPattern::Grbg),
-            "GBRG" => Some(BayerPattern::Gbrg),
-            "BGGR" => Some(BayerPattern::Bggr),
-            _ => Some(BayerPattern::Rggb), // Default to RGGB (most common)
+        // Map the detected 2×2 CFA orientation to our BayerPattern. Canon/Nikon/
+        // Sony DSLRs are always Bayer, so a `None` here (LibRaw failed to
+        // classify the CFA) is unexpected — fall back to RGGB (most common) with
+        // a warning so the frame still debayers to colour.
+        let bayer_pattern = match cfa.cfa_pattern {
+            Some(nightshade_imaging::CfaPattern::Rggb) => Some(BayerPattern::Rggb),
+            Some(nightshade_imaging::CfaPattern::Grbg) => Some(BayerPattern::Grbg),
+            Some(nightshade_imaging::CfaPattern::Gbrg) => Some(BayerPattern::Gbrg),
+            Some(nightshade_imaging::CfaPattern::Bggr) => Some(BayerPattern::Bggr),
+            None => {
+                tracing::warn!(
+                    "gPhoto2: LibRaw did not classify the CFA (color_desc='{}'); \
+                     defaulting to RGGB for this DSLR frame",
+                    metadata.color_desc
+                );
+                Some(BayerPattern::Rggb)
+            }
         };
 
         Ok(ImageData {
-            width: imaging_data.width,
-            height: imaging_data.height,
-            data: pixel_data_u16,
-            bits_per_pixel: bit_depth,
+            width: cfa.width,
+            height: cfa.height,
+            data: cfa.data,
+            // Truthful sensor bit depth derived from LibRaw's saturation level.
+            bits_per_pixel: cfa.bits_per_pixel,
             bayer_pattern,
             metadata: ImageMetadata {
                 exposure_time: self.exposure_time,
@@ -1831,6 +2174,11 @@ impl NativeCamera for GPhoto2Camera {
             }
         }
 
+        // Force RAW capture format. We always LibRaw-decode the downloaded
+        // file, so a body left in JPEG / RAW+JPEG must be switched to RAW or
+        // every frame fails to decode. Best-effort (warns if unsupported).
+        self.apply_raw_format();
+
         self.exposure_time = params.duration_secs;
         let use_bulb = params.duration_secs > 30.0;
 
@@ -1855,7 +2203,16 @@ impl NativeCamera for GPhoto2Camera {
         } else {
             // Standard capture: set shutter speed first, then capture
             if let Some(speed_str) = self.find_shutter_speed(params.duration_secs) {
-                if let Err(e) = self.set_config_value_str("shutterspeed", &speed_str) {
+                // Write to whichever shutter widget the body exposes. Some cameras
+                // (notably Nikon) present the setting as "shutterspeed2", and the
+                // read path (get_config_choices) already falls back to it — so the
+                // WRITE must fall back too, otherwise on those bodies set_config
+                // fails, is only warned, and the exposure time silently never
+                // changes (wrong sub-30s subs).
+                let set_res = self
+                    .set_config_value_str("shutterspeed", &speed_str)
+                    .or_else(|_| self.set_config_value_str("shutterspeed2", &speed_str));
+                if let Err(e) = set_res {
                     tracing::warn!(
                         "gPhoto2: Could not set shutter speed to '{}': {}. Camera will use current setting.",
                         speed_str, e
@@ -2110,7 +2467,7 @@ impl NativeCamera for GPhoto2Camera {
             height: self.sensor_height,
             pixel_size_x: self.pixel_size,
             pixel_size_y: self.pixel_size,
-            max_adu: (1u32 << self.bit_depth) - 1,
+            max_adu: resolve_max_adu(self.measured_white_level, self.bit_depth),
             bit_depth: self.bit_depth,
             color: self.is_color,
             bayer_pattern: Some(BayerPattern::Rggb),
@@ -2344,9 +2701,156 @@ fn parse_shutter_speed_to_secs(speed: &str) -> Option<f64> {
     speed.parse().ok()
 }
 
+/// Pick the Canon `eosremoterelease` Press / Release choice strings for bulb.
+///
+/// The choice ORDER varies between libgphoto2 versions, so we match by name
+/// (mirroring gphoto_driver.cpp:1861-1874): Press prefers "Press Full MF",
+/// then any "Press Full" variant; Release prefers plain "Release", then
+/// "Release Full". Falls back to the canonical strings if nothing matches.
+fn pick_eos_bulb_choices(choices: &[String]) -> (String, String) {
+    let mut press: Option<String> = None;
+    let mut release: Option<String> = None;
+
+    for c in choices {
+        // Press: exact "Press Full MF" wins; else first "Press Full" variant.
+        if c == "Press Full MF" {
+            press = Some(c.clone());
+        } else if press.is_none() && c.contains("Press Full") {
+            press = Some(c.clone());
+        }
+
+        // Release: plain "Release" wins; else "Release Full" if nothing yet.
+        if c == "Release" {
+            release = Some(c.clone());
+        } else if release.is_none() && c == "Release Full" {
+            release = Some(c.clone());
+        }
+    }
+
+    (
+        press.unwrap_or_else(|| "Press Full".to_string()),
+        release.unwrap_or_else(|| "Release Full".to_string()),
+    )
+}
+
+/// Pick the best RAW choice from an image-format widget's choices.
+///
+/// Prefers a PURE RAW choice so the downloaded NORMAL file is unambiguously the
+/// RAW; falls back to any RAW-bearing choice (RAW+JPEG). Returns `None` if no
+/// choice mentions RAW. A choice is treated as a RAW+JPEG COMBO if it contains
+/// "+" (Canon "RAW + Large Fine JPEG", Nikon "NEF+Fine", Sony "RAW+JPEG") or an
+/// explicit "jpeg"/"jpg" token — so pure "RAW" / "NEF (Raw)" win over combos.
+fn pick_raw_format_choice(choices: &[String]) -> Option<String> {
+    let is_raw = |c: &str| {
+        let l = c.to_lowercase();
+        l.contains("raw") || l.contains("nef")
+    };
+    let is_combo = |c: &str| {
+        let l = c.to_lowercase();
+        l.contains('+') || l.contains("jpeg") || l.contains("jpg")
+    };
+
+    // Pure RAW first.
+    if let Some(c) = choices.iter().find(|c| is_raw(c) && !is_combo(c)) {
+        return Some(c.clone());
+    }
+    // Then any RAW-bearing choice (e.g. RAW+JPEG).
+    choices.iter().find(|c| is_raw(c)).cloned()
+}
+
+/// Resolve `SensorInfo::max_adu` — the largest value a pixel in the delivered
+/// buffer can actually take — for a DSLR frame, in descending order of
+/// authority:
+///
+/// 1. `measured_white_level`: LibRaw `color.maximum` for the last decoded
+///    frame, surfaced as `nightshade_imaging::CfaImage::max_value`. Exact.
+/// 2. `(1 << bit_depth) - 1` from the model table in
+///    `detect_sensor_dimensions()`, used only before the first frame has been
+///    decoded (and clamped to a sane 8..=16 so a corrupt depth cannot panic
+///    the shift or publish an absurd ceiling).
+///
+/// The DSLR decode path is `libraw_unpack` + `libraw_raw2image` and
+/// deliberately never `libraw_dcraw_process` (imaging/src/raw.rs:1097-1108;
+/// contract comment in imaging/src/libraw_shim.c:98-102), so samples are
+/// RIGHT-JUSTIFIED at the sensor's native depth. `(1 << bits) - 1` is therefore
+/// the correct shape here, and this path must NEVER left-shift the value into a
+/// 16-bit container the way a left-justifying astro-CMOS SDK requires — see the
+/// `SensorInfo` type docs in `crate::camera`.
+fn resolve_max_adu(measured_white_level: Option<u32>, bit_depth: u32) -> u32 {
+    match measured_white_level {
+        Some(white) if white > 0 => white,
+        _ => (1u32 << bit_depth.clamp(8, 16)) - 1,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn eos_bulb_choices_prefer_press_full_mf_and_plain_release() {
+        // Canon 600D-style ordering: plain "Release" is present and must win
+        // over "Release Full"; "Press Full MF" must win over "Press Full".
+        let choices: Vec<String> = [
+            "None",
+            "Press Half",
+            "Press Full",
+            "Press Full MF",
+            "Release Half",
+            "Release Full",
+            "Release",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let (press, release) = pick_eos_bulb_choices(&choices);
+        assert_eq!(press, "Press Full MF");
+        assert_eq!(release, "Release");
+    }
+
+    #[test]
+    fn eos_bulb_choices_fall_back_when_variants_absent() {
+        let choices: Vec<String> = ["None", "Press Full", "Release Full"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let (press, release) = pick_eos_bulb_choices(&choices);
+        assert_eq!(press, "Press Full");
+        assert_eq!(release, "Release Full");
+
+        // Nothing matches -> canonical defaults.
+        let (p, r) = pick_eos_bulb_choices(&["None".to_string()]);
+        assert_eq!(p, "Press Full");
+        assert_eq!(r, "Release Full");
+    }
+
+    #[test]
+    fn raw_format_choice_prefers_pure_raw() {
+        // Canon imageformat.
+        let canon: Vec<String> = ["Large Fine JPEG", "RAW + Large Fine JPEG", "RAW"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(pick_raw_format_choice(&canon).as_deref(), Some("RAW"));
+
+        // Nikon imagequality (NEF).
+        let nikon: Vec<String> = ["JPEG Fine", "NEF+Fine", "NEF (Raw)"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(pick_raw_format_choice(&nikon).as_deref(), Some("NEF (Raw)"));
+
+        // Only RAW+JPEG available -> accept it.
+        let sony: Vec<String> = ["Fine", "RAW+JPEG"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(pick_raw_format_choice(&sony).as_deref(), Some("RAW+JPEG"));
+
+        // No RAW at all -> None.
+        let jpeg_only: Vec<String> = ["Fine", "Normal", "Basic"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(pick_raw_format_choice(&jpeg_only), None);
+    }
 
     #[test]
     fn gphoto2_version_from_array_reads_first_short_version() {
@@ -2357,6 +2861,100 @@ mod tests {
         let parsed = unsafe { gphoto2_version_from_array(versions.as_ptr()) };
 
         assert_eq!(parsed.as_deref(), Some("libgphoto2 v2.5.33"));
+    }
+
+    /// Build a disconnected camera and seed it from the model table, exactly as
+    /// `connect()` does before any frame has been decoded.
+    fn camera_with_model_table(model: &str) -> GPhoto2Camera {
+        let mut camera = GPhoto2Camera::new(0, model, "usb:001,002");
+        camera.detect_sensor_dimensions();
+        camera
+    }
+
+    #[test]
+    fn max_adu_falls_back_to_model_table_before_any_frame_is_decoded() {
+        // Tabulated 12-bit body: the estimate must be the 12-bit ceiling.
+        let rebel_xs = camera_with_model_table("Canon EOS 1000D");
+        let info = rebel_xs.get_sensor_info();
+        assert_eq!(info.bit_depth, 12);
+        assert_eq!(info.max_adu, 4095);
+
+        // Untabulated body: falls back to the table's 14-bit guess. This is the
+        // estimate the decoder is expected to correct on the first frame.
+        let untabulated = camera_with_model_table("Canon EOS 450D");
+        let info = untabulated.get_sensor_info();
+        assert_eq!(info.bit_depth, 14);
+        assert_eq!(info.max_adu, 16383);
+    }
+
+    #[test]
+    fn measured_12bit_white_level_overrides_the_14bit_estimate() {
+        // A body that is NOT in the model table gets the 14-bit guess, but its
+        // frames really top out at 4095. Publishing 16383 would put a 50% flat
+        // target (8191) above anything the sensor can physically reach.
+        let mut camera = camera_with_model_table("Nikon D3200");
+        assert_eq!(camera.get_sensor_info().max_adu, 16383);
+
+        camera.adopt_decoded_depth(12, 4095);
+
+        let info = camera.get_sensor_info();
+        assert_eq!(info.max_adu, 4095, "measured white level must win");
+        assert_ne!(
+            info.max_adu, 16383,
+            "the model-table guess must not survive"
+        );
+        assert_eq!(info.bit_depth, 12);
+    }
+
+    #[test]
+    fn measured_16bit_white_level_is_published_verbatim() {
+        let mut camera = camera_with_model_table("Canon EOS 5D Mark IV");
+        camera.adopt_decoded_depth(16, 65535);
+
+        let info = camera.get_sensor_info();
+        assert_eq!(info.max_adu, 65535);
+        assert_eq!(info.bit_depth, 16);
+    }
+
+    #[test]
+    fn measured_white_level_is_never_container_scaled() {
+        // GUARD: LibRaw hands back a RIGHT-JUSTIFIED mosaic (unpack + raw2image,
+        // never dcraw_process — imaging/src/raw.rs:1097-1108), so a 14-bit frame
+        // saturates at 16383. Left-shifting it into a 16-bit container (16383<<2
+        // = 65532), which is the correct fix for a left-justifying astro-CMOS
+        // SDK, would be a 4x OVERstatement on this path.
+        let mut camera = camera_with_model_table("Canon EOS R6");
+        camera.adopt_decoded_depth(14, 16383);
+
+        let info = camera.get_sensor_info();
+        assert_eq!(info.max_adu, 16383);
+        assert_ne!(info.max_adu, 65532, "this path must not left-justify");
+        assert_eq!(info.bit_depth, 14);
+    }
+
+    #[test]
+    fn resolve_max_adu_ignores_an_unmeasured_white_level() {
+        // LibRaw leaves color.maximum at 0 for a few bodies; a 0 ceiling would
+        // be unreachable, so the bit-depth estimate is used instead.
+        assert_eq!(resolve_max_adu(Some(0), 12), 4095);
+        assert_eq!(resolve_max_adu(None, 14), 16383);
+        assert_eq!(resolve_max_adu(Some(4095), 14), 4095);
+        assert_eq!(resolve_max_adu(None, 16), 65535);
+        // A corrupt depth must neither panic the shift nor publish nonsense.
+        assert_eq!(resolve_max_adu(None, 0), 255);
+        assert_eq!(resolve_max_adu(None, 64), 65535);
+    }
+
+    #[test]
+    fn adopt_decoded_depth_rejects_implausible_measurements() {
+        let mut camera = camera_with_model_table("Canon EOS R6");
+
+        // Out-of-range depth and a zero white level are both ignored, leaving
+        // the model-table estimate in place rather than corrupting it.
+        camera.adopt_decoded_depth(0, 0);
+        let info = camera.get_sensor_info();
+        assert_eq!(info.bit_depth, 14);
+        assert_eq!(info.max_adu, 16383);
     }
 
     #[test]

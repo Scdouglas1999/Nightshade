@@ -278,6 +278,47 @@ void main() {
     expect(find.text(kNextUseSteps.first.title), findsNothing);
   });
 
+  for (final executionState in <SequenceExecutionState>[
+    SequenceExecutionState.running,
+    SequenceExecutionState.paused,
+    SequenceExecutionState.stopping,
+    SequenceExecutionState.recovering,
+    SequenceExecutionState.stopFailed,
+    SequenceExecutionState.cleanupFailed,
+    SequenceExecutionState.finalizing,
+  ]) {
+    testWidgets(
+      'suppressed while sequence state is ${executionState.name}',
+      (tester) async {
+        final database =
+            db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            nextUsePromptProvider.overrideWithValue(kNextUseSteps.first),
+            sequenceExecutionStateProvider.overrideWith(
+              (ref) => executionState,
+            ),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+
+        await tester.pumpWidget(
+          MaterialApp.router(
+            routerConfig: _router(container: container, card: card),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(DashboardGlassCard), findsNothing);
+        expect(find.text(kNextUseSteps.first.title), findsNothing);
+      },
+    );
+  }
+
   testWidgets('dashboard Stack mounts the NextUsePromptCard', (tester) async {
     // Drop the cosmetic RenderFlex overflow at the cramped test surface; any
     // other Flutter error still trips takeException.

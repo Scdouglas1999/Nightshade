@@ -631,6 +631,34 @@ void main() {
       expect(w.end.difference(w.start).inHours, greaterThanOrEqualTo(4));
     });
 
+    test('calculateWindow rejects polar midnight sun as a dark window', () {
+      expect(
+        () => service.calculateWindow(
+          latitudeDeg: 69.65,
+          longitudeDeg: 18.96,
+          now: DateTime(2026, 6, 21, 14),
+        ),
+        throwsA(
+          isA<SmartNightBuildException>().having(
+            (error) => error.message,
+            'message',
+            contains('Sun does not set'),
+          ),
+        ),
+      );
+    });
+
+    test('calculateWindow keeps a conservative window during polar night', () {
+      final window = service.calculateWindow(
+        latitudeDeg: 89.0,
+        longitudeDeg: 0.0,
+        now: DateTime(2026, 12, 21, 14),
+      );
+
+      expect(window.start.hour, 21);
+      expect(window.end.difference(window.start), const Duration(hours: 8));
+    });
+
     test('previewTargetIntegration scales with per-target imaging window', () {
       const exposureContext = SmartNightExposureContext(
         camera: CameraExposureSpec(

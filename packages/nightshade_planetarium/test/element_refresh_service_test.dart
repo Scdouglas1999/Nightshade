@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -101,6 +102,46 @@ void main() {
         isNotEmpty,
         reason: 'stale cache should survive a failed refresh',
       );
+      expect(result.hasRefreshFailures, isTrue);
+      expect(result.asteroidRefreshError, isNotNull);
+      expect(result.cometRefreshError, isNotNull);
+    });
+
+    test(
+      'a one-source failure is visible alongside the successful source',
+      () async {
+        final service = ElementRefreshService(
+          cacheDirectory: tempDir.path,
+          clientFactory: () => MockClient((request) async {
+            if (request.url.toString().contains('Comet')) {
+              return http.Response(halleyComet, 200);
+            }
+            return http.Response('', 503);
+          }),
+          now: () => DateTime.utc(2026, 6, 1),
+        );
+
+        final result = await service.refresh();
+
+        expect(result.asteroids, isEmpty);
+        expect(result.comets, isNotEmpty);
+        expect(result.asteroidRefreshError, contains('503'));
+        expect(result.cometRefreshError, isNull);
+        expect(result.refreshFailureSummary, contains('Asteroids'));
+      },
+    );
+
+    test('network requests have a finite timeout', () async {
+      final service = ElementRefreshService(
+        cacheDirectory: tempDir.path,
+        requestTimeout: const Duration(milliseconds: 1),
+        clientFactory: () => MockClient((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 30));
+          return http.Response(ceresMpcorb, 200);
+        }),
+      );
+
+      await expectLater(service.refresh(), throwsA(isA<Exception>()));
     });
 
     test(
@@ -149,5 +190,198 @@ void main() {
       expect(loaded.schedule, ElementRefreshSchedule.daily);
       expect(loaded.maxAsteroidAbsoluteMag, 9.0);
     });
+  });
+
+  group('ElementRefreshConfig authority', () {
+    String configPath() => '${tempDir.path}/element_refresh_config.json';
+    Future<void> writeConfig(String contents) =>
+        File(configPath()).writeAsString(contents);
+
+    test('missing config file is a legitimate first-run default', () async {
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      final cfg = await service.loadConfig();
+      expect(cfg.schedule, ElementRefreshSchedule.weekly);
+      expect(cfg.asteroidUrl, ElementRefreshConfig.defaultAsteroidUrl);
+      expect(cfg.cometUrl, ElementRefreshConfig.defaultCometUrl);
+    });
+
+    test('corrupt JSON throws instead of masquerading as defaults', () async {
+      await writeConfig('{not valid json');
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      expect(service.loadConfig(), throwsA(isA<FormatException>()));
+    });
+
+    test('non-object JSON throws', () async {
+      await writeConfig('[1, 2, 3]');
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      expect(service.loadConfig(), throwsA(isA<FormatException>()));
+    });
+
+    test('unknown schedule name throws', () async {
+      await writeConfig(jsonEncode({'schedule': 'biweekly'}));
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      expect(service.loadConfig(), throwsA(isA<FormatException>()));
+    });
+
+    test('wrong-typed schedule throws', () async {
+      await writeConfig(jsonEncode({'schedule': 7}));
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      expect(service.loadConfig(), throwsA(isA<FormatException>()));
+    });
+
+    test('empty / non-http / hostless URLs throw', () async {
+      for (final bad in <String>[
+        '',
+        'ftp://example.com/x',
+        'not-a-url',
+        'http://',
+        '/relative/path.txt',
+      ]) {
+        await writeConfig(jsonEncode({'asteroidUrl': bad}));
+        final service = ElementRefreshService(cacheDirectory: tempDir.path);
+        await expectLater(
+          service.loadConfig(),
+          throwsA(isA<FormatException>()),
+          reason: 'URL "$bad" should be rejected',
+        );
+      }
+    });
+
+    test('templated asteroid {year} URL is accepted', () async {
+      await writeConfig(
+        jsonEncode({
+          'asteroidUrl': 'https://example.org/mpc/{year}/bright.txt',
+        }),
+      );
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      final cfg = await service.loadConfig();
+      expect(cfg.asteroidUrl, contains('{year}'));
+    });
+
+    test('unknown or unsupported URL placeholders are rejected', () async {
+      for (final config in [
+        {'asteroidUrl': 'https://example.org/{month}/bright.txt'},
+        {'cometUrl': 'https://example.org/{year}/comets.txt'},
+      ]) {
+        await writeConfig(jsonEncode(config));
+        final service = ElementRefreshService(cacheDirectory: tempDir.path);
+        await expectLater(service.loadConfig(), throwsFormatException);
+      }
+    });
+
+    test('auto retry cooldown suppresses restart hammering', () async {
+      final now = DateTime.utc(2026, 6, 1, 12);
+      final service = ElementRefreshService(
+        cacheDirectory: tempDir.path,
+        now: () => now,
+      );
+
+      expect(service.isAutoRetryDue(null), isTrue);
+      expect(
+        service.isAutoRetryDue(now.subtract(const Duration(minutes: 59))),
+        isFalse,
+      );
+      expect(
+        service.isAutoRetryDue(now.subtract(const Duration(hours: 1))),
+        isTrue,
+      );
+      expect(
+        service.isAutoRetryDue(now.add(const Duration(minutes: 1))),
+        isTrue,
+      );
+    });
+
+    test('wrong-typed magnitude throws', () async {
+      await writeConfig(jsonEncode({'maxAsteroidAbsoluteMag': 'bright'}));
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      expect(service.loadConfig(), throwsA(isA<FormatException>()));
+    });
+
+    test('out-of-range magnitude throws', () async {
+      await writeConfig(jsonEncode({'maxAsteroidAbsoluteMag': 1e9}));
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      expect(service.loadConfig(), throwsA(isA<FormatException>()));
+    });
+
+    test('non-finite magnitude fails validation', () {
+      expect(
+        () => ElementRefreshConfig.validate(
+          const ElementRefreshConfig(maxAsteroidAbsoluteMag: double.infinity),
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('genuinely missing optional keys fall back to defaults', () async {
+      await writeConfig(jsonEncode({'schedule': 'daily'}));
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      final cfg = await service.loadConfig();
+      expect(cfg.schedule, ElementRefreshSchedule.daily);
+      expect(cfg.asteroidUrl, ElementRefreshConfig.defaultAsteroidUrl);
+      expect(cfg.cometUrl, ElementRefreshConfig.defaultCometUrl);
+      expect(
+        cfg.maxAsteroidAbsoluteMag,
+        ElementRefreshConfig.defaultMaxAsteroidAbsoluteMag,
+      );
+    });
+
+    test(
+      'saveConfig rejects an invalid config and preserves the prior file',
+      () async {
+        final service = ElementRefreshService(cacheDirectory: tempDir.path);
+        await service.saveConfig(
+          const ElementRefreshConfig(schedule: ElementRefreshSchedule.daily),
+        );
+
+        // A config with a bad URL must be rejected BEFORE the file is touched.
+        await expectLater(
+          service.saveConfig(
+            const ElementRefreshConfig(asteroidUrl: 'nonsense'),
+          ),
+          throwsA(isA<FormatException>()),
+        );
+
+        final loaded = await service.loadConfig();
+        expect(
+          loaded.schedule,
+          ElementRefreshSchedule.daily,
+          reason: 'prior valid config must survive a rejected save',
+        );
+        expect(File('${configPath()}.tmp').existsSync(), isFalse);
+      },
+    );
+
+    test('successful atomic save leaves no temp file behind', () async {
+      final service = ElementRefreshService(cacheDirectory: tempDir.path);
+      await service.saveConfig(
+        const ElementRefreshConfig(schedule: ElementRefreshSchedule.monthly),
+      );
+      expect(File('${configPath()}.tmp').existsSync(), isFalse);
+      expect(File(configPath()).existsSync(), isTrue);
+      final loaded = await service.loadConfig();
+      expect(loaded.schedule, ElementRefreshSchedule.monthly);
+    });
+
+    test(
+      'loadCached stays offline-safe when the config authority is corrupt',
+      () async {
+        // A valid asteroid cache sitting next to a corrupt config file.
+        await File(
+          '${tempDir.path}/mpc_asteroids.txt',
+        ).writeAsString(ceresMpcorb);
+        await writeConfig('{ broken');
+        final service = ElementRefreshService(cacheDirectory: tempDir.path);
+
+        // loadConfig itself surfaces the corruption...
+        await expectLater(
+          service.loadConfig(),
+          throwsA(isA<FormatException>()),
+        );
+        // ...but cached elements still load using the default parse threshold.
+        final cached = await service.loadCached();
+        expect(cached.asteroids, isNotEmpty);
+        expect(cached.asteroids.first.commonName, 'Ceres');
+      },
+    );
   });
 }

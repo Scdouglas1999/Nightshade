@@ -26,6 +26,19 @@ import 'package:http/http.dart' as http;
 
 import '../src/plugin_api.dart';
 
+/// Returns a user-facing validation error for a Home Assistant base URL.
+String? homeAssistantBaseUrlProblem(String value) {
+  final parsed = Uri.tryParse(value.trim());
+  if (parsed == null || parsed.host.isEmpty) {
+    return 'The base URL must be a full URL, e.g. '
+        'http://homeassistant.local:8123';
+  }
+  if (parsed.scheme != 'http' && parsed.scheme != 'https') {
+    return 'The base URL must use http:// or https://.';
+  }
+  return null;
+}
+
 /// Storage key for the HA base URL (e.g. `http://homeassistant.local:8123`).
 const String _kHaBaseUrlStorageKey = 'home_assistant.baseUrl';
 
@@ -92,6 +105,10 @@ class HomeAssistantPlugin extends SequencePlugin {
       );
     }
     final trimmed = baseUrl.trim();
+    final urlProblem = homeAssistantBaseUrlProblem(trimmed);
+    if (urlProblem != null) {
+      throw PluginException(urlProblem);
+    }
     final normalized = trimmed.endsWith('/')
         ? trimmed.substring(0, trimmed.length - 1)
         : trimmed;

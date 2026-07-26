@@ -91,7 +91,7 @@ class _TimelineBlockState extends State<_TimelineBlock> {
       case TimelineSegmentType.filter:
         return widget.colors.success;
       case TimelineSegmentType.instruction:
-        return widget.colors.surfaceAlt;
+        return widget.colors.textSecondary;
     }
   }
 

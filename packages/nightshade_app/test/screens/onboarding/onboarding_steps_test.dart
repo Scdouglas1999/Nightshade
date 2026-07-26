@@ -15,6 +15,7 @@ import 'package:nightshade_app/screens/onboarding/onboarding_screen.dart';
 import 'package:nightshade_app/screens/onboarding/steps/capture_dir_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/driver_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/optical_train_step.dart';
+import 'package:nightshade_app/screens/onboarding/steps/site_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/summary_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/welcome_step.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -138,6 +139,27 @@ void main() {
   });
 
   group('Optical train step', () {
+    testWidgets('telescope preset does not invalidate untouched camera input',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      await _pumpStep(
+        tester,
+        db: db,
+        step: const OnboardingOpticalTrainStep(),
+      );
+
+      await tester.tap(find.text('Choose from telescope library'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sky-Watcher Esprit 100ED'));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.text('Enter a positive pixel size in microns.'), findsNothing);
+      expect(find.text('Enter a positive focal length in mm.'), findsNothing);
+      expect(find.text('Enter a positive aperture in mm.'), findsNothing);
+    });
+
     testWidgets('validates required fields and renders image scale',
         (tester) async {
       final db = _newDb();
@@ -212,6 +234,272 @@ void main() {
       expect(find.text('Where should we save captures?'), findsOneWidget);
       expect(find.text('No folder selected yet'), findsOneWidget);
       expect(find.text('Browse'), findsOneWidget);
+    });
+  });
+
+  group('Site step', () {
+    // Pump the site step alone. `approximateLocation` stands in for the IP
+    // lookup; the default returns null so no suggestion card appears and the
+    // test never touches the network.
+    Future<ProviderContainer> pumpSiteStep(
+      WidgetTester tester,
+      NightshadeDatabase db, {
+      ApproximateLocationLookup? approximateLocation,
+    }) async {
+      late ProviderContainer container;
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1280, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            onboardingApproximateLocationProvider.overrideWithValue(
+              approximateLocation ?? () async => null,
+            ),
+          ],
+          child: Consumer(builder: (ctx, ref, _) {
+            container = ProviderScope.containerOf(ctx);
+            return MaterialApp(
+              theme: NightshadeTheme.dark,
+              home: const Scaffold(
+                body: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: OnboardingSiteStep(),
+                ),
+              ),
+            );
+          }),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets(
+        'renders coordinate fields and persists a valid coordinate pair',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(tester, db);
+
+      expect(find.text('Where do you observe?'), findsOneWidget);
+      expect(find.text('Latitude'), findsOneWidget);
+      expect(find.text('Longitude'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField).at(0), '40.71');
+      await tester.enterText(find.byType(TextField).at(1), '-74.01');
+      await tester.pumpAndSettle();
+
+      final settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, closeTo(40.71, 0.001));
+      expect(settings.longitude, closeTo(-74.01, 0.001));
+      expect(container.read(onboardingSiteEntryErrorProvider), isNull);
+    });
+
+    // Regression: typing an out-of-range latitude transits the in-range
+    // prefixes "1" and "10". Committing per keystroke persisted those, so a
+    // rejected "100" left 10 degrees North on record as the user's observing
+    // site while the field showed 100 behind a red error. Nothing may persist.
+    testWidgets('rejected latitude persists neither the value nor its prefixes',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(tester, db);
+
+      // enterText replaces the whole field, so drive the digits one at a time
+      // the way a keyboard does.
+      for (final text in ['1', '10', '100']) {
+        await tester.enterText(find.byType(TextField).at(0), text);
+        await tester.pump(const Duration(milliseconds: 60));
+      }
+      await tester.pumpAndSettle();
+
+      expect(find.text('Latitude must be between -90 and 90.'), findsOneWidget);
+      final settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, 0.0,
+          reason: 'no prefix of a rejected latitude may reach settings');
+    });
+
+    // Regression: the shell used to return null for this step unconditionally,
+    // so Next advanced with the red error still on screen. The step now
+    // publishes a blocking reason the shell reads.
+    testWidgets('out-of-range entry publishes a blocking reason for the shell',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(tester, db);
+
+      await tester.enterText(find.byType(TextField).at(1), '400');
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(onboardingSiteEntryErrorProvider),
+        'Longitude must be between -180 and 180.',
+      );
+
+      // Correcting it clears the block and persists.
+      await tester.enterText(find.byType(TextField).at(0), '40.71');
+      await tester.enterText(find.byType(TextField).at(1), '-74.01');
+      await tester.pumpAndSettle();
+      expect(container.read(onboardingSiteEntryErrorProvider), isNull);
+    });
+
+    // A latitude on its own would pair with longitude 0 and place the site on
+    // the Greenwich meridian, so it is blocked rather than half-saved.
+    testWidgets('half a coordinate pair is blocked and not persisted',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(tester, db);
+
+      await tester.enterText(find.byType(TextField).at(0), '40.71');
+      await tester.pumpAndSettle();
+
+      expect(
+        container.read(onboardingSiteEntryErrorProvider),
+        'Enter both latitude and longitude, or clear both to skip this step.',
+      );
+      final settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, 0.0);
+      expect(settings.longitude, 0.0);
+    });
+
+    // The flip side of the revert rule: an out-of-range edit must restore the
+    // site the step opened with rather than wiping it.
+    testWidgets('rejected edit restores an already-saved site', (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(tester, db);
+
+      await tester.enterText(find.byType(TextField).at(0), '45.5');
+      await tester.enterText(find.byType(TextField).at(1), '-73.6');
+      await tester.pumpAndSettle();
+      expect((await container.read(appSettingsProvider.future)).latitude,
+          closeTo(45.5, 0.001));
+
+      // Re-enter the step so 45.5/-73.6 becomes the baseline, then break it.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      final reopened = await pumpSiteStep(tester, db);
+      await tester.enterText(find.byType(TextField).at(0), '999');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Latitude must be between -90 and 90.'), findsOneWidget);
+      final settings = await reopened.read(appSettingsProvider.future);
+      expect(settings.latitude, closeTo(45.5, 0.001),
+          reason: 'a typo must not destroy the site already on record');
+      expect(settings.longitude, closeTo(-73.6, 0.001));
+    });
+
+    testWidgets('clearing both fields returns the site to unset',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(tester, db);
+
+      await tester.enterText(find.byType(TextField).at(0), '40.71');
+      await tester.enterText(find.byType(TextField).at(1), '-74.01');
+      await tester.pumpAndSettle();
+      expect((await container.read(appSettingsProvider.future)).latitude,
+          closeTo(40.71, 0.001));
+
+      await tester.enterText(find.byType(TextField).at(0), '');
+      await tester.enterText(find.byType(TextField).at(1), '');
+      await tester.pumpAndSettle();
+
+      final settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, 0.0);
+      expect(settings.longitude, 0.0);
+      expect(container.read(onboardingSiteEntryErrorProvider), isNull);
+    });
+
+    // Regression: first launch used to persist an IP-geolocation estimate as the
+    // observing site before the user saw it. The estimate is now a suggestion —
+    // visible, labelled with its provenance, and inert until clicked.
+    testWidgets('IP estimate is offered but never persisted on its own',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      final container = await pumpSiteStep(
+        tester,
+        db,
+        approximateLocation: () async =>
+            (39.9817, -75.4072, 'West Chester, PA'),
+      );
+
+      expect(find.text('Approximate location from your IP address'),
+          findsOneWidget);
+      expect(
+          find.textContaining('not where your telescope is'), findsOneWidget);
+
+      var settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, 0.0,
+          reason: 'an unconfirmed estimate must not reach settings');
+      expect(settings.longitude, 0.0);
+
+      await tester.tap(find.text('Use this'));
+      await tester.pumpAndSettle();
+
+      settings = await container.read(appSettingsProvider.future);
+      expect(settings.latitude, closeTo(39.9817, 0.0001));
+      expect(settings.longitude, closeTo(-75.4072, 0.0001));
+    });
+
+    testWidgets('no suggestion is shown when the lookup fails offline',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      await pumpSiteStep(tester, db, approximateLocation: () async => null);
+
+      expect(
+          find.text('Approximate location from your IP address'), findsNothing);
+      expect(find.textContaining('Looking up an approximate'), findsNothing);
+    });
+
+    // The suggestion is a Row of wrapping prose next to a button, which is the
+    // classic horizontal-overflow shape. Render it at phone width and let the
+    // test fail on any RenderFlex overflow.
+    testWidgets('suggestion card lays out without overflow at phone width',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(400, 820);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            onboardingApproximateLocationProvider.overrideWithValue(
+              () async => (39.9817, -75.4072, 'West Chester, Pennsylvania'),
+            ),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const Scaffold(
+              body: Padding(
+                padding: EdgeInsets.all(16),
+                child: OnboardingSiteStep(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Approximate location from your IP address'),
+          findsOneWidget);
+      expect(find.text('Use this'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 

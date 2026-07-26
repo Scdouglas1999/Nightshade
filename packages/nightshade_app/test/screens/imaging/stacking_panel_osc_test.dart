@@ -38,6 +38,7 @@ Future<void> _pumpPanel(
   WidgetTester tester, {
   String? cameraId,
   CameraCapabilities? caps,
+  bool isRemote = false,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(420, 1600);
@@ -47,7 +48,7 @@ Future<void> _pumpPanel(
   });
 
   final overrides = <Override>[
-    isRemoteModeProvider.overrideWithValue(false),
+    isRemoteModeProvider.overrideWithValue(isRemote),
     connectedCameraIdProvider.overrideWithValue(cameraId),
   ];
   if (cameraId != null && caps != null) {
@@ -76,6 +77,18 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('StackingPanel OSC controls', () {
+    testWidgets('remote mode identifies Stack & Share as host-only',
+        (tester) async {
+      await _pumpPanel(tester, isRemote: true);
+
+      final action = find.widgetWithText(
+        NightshadeButton,
+        'Stack & Share on imaging host',
+      );
+      expect(action, findsOneWidget);
+      expect(tester.widget<NightshadeButton>(action).onPressed, isNull);
+    });
+
     testWidgets('Color section renders with the switch OFF by default',
         (tester) async {
       await _pumpPanel(tester);
@@ -214,6 +227,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(container.read(liveStackingProvider).config.bayerPattern, 'BGGR');
+
+      // Switch back to automatic detection. This used to be a no-op because
+      // LiveStackingConfig.copyWith(bayerPattern: null) meant "keep old".
+      await tester.tap(find.text('BGGR'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Auto (detected: RGGB)').last);
+      await tester.pumpAndSettle();
+
+      expect(container.read(liveStackingProvider).config.bayerPattern, isNull);
     });
   });
 

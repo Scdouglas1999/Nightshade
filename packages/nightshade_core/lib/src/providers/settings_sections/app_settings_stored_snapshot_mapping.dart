@@ -69,10 +69,14 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       useSystemTime: _parseBool(allSettings['use_system_time'], true),
 
       // Imaging
-      imageFormat: allSettings['image_format'] ?? 'FITS',
+      imageFormat: _normalizeCaptureImageFormat(
+        allSettings['image_format'] ?? kCaptureImageFormat,
+      ),
       fileNamingPattern:
           allSettings['file_naming_pattern'] ?? r'$TARGET_$FILTER_$DATE_$SEQ',
-      bitDepth: allSettings['bit_depth'] ?? '16-bit',
+      bitDepth: _normalizeCaptureBitDepth(
+        allSettings['bit_depth'] ?? kCaptureBitDepth,
+      ),
 
       // Sequencer
       parkOnUnsafeWeather: _parseBool(
@@ -83,7 +87,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       meridianFlipMinutes: _parseInt(allSettings['meridian_flip_minutes'], 5),
       autoFocusOnFilterChange: _parseBool(
         allSettings['auto_focus_on_filter_change'],
-        true,
+        false,
       ),
       useFilterFocusOffsets: _parseBool(
         allSettings['use_filter_focus_offsets'],
@@ -133,7 +137,10 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       soundEnabled: _parseBool(allSettings['sound_enabled'], true),
 
       // File Paths
-      imageOutputPath: allSettings['image_output_path'] ?? '',
+      imageOutputPath:
+          (allSettings['image_output_path']?.trim().isNotEmpty ?? false)
+          ? allSettings['image_output_path']!
+          : allSettings['default_image_directory'] ?? '',
       sequencesPath: allSettings['sequences_path'] ?? '',
       databasePath: allSettings['database_path'] ?? '',
       logsPath: allSettings['logs_path'] ?? '',
@@ -150,7 +157,9 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       ),
 
       // Sequencer Execution
-      useSimulationMode: _parseBool(allSettings['use_simulation_mode'], false),
+      useSimulationMode: effectiveSimulationMode(
+        _parseBool(allSettings['use_simulation_mode'], false),
+      ),
 
       // Remote Access / Web Server
       webServerEnabled: _parseBool(allSettings['web_server_enabled'], false),
@@ -165,14 +174,16 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       enableMeridianFlip: _parseBool(allSettings['enable_meridian_flip'], true),
 
       // Equipment Settings - Focuser
-      tempCompensation: _parseBool(allSettings['temp_compensation'], true),
+      tempCompensation: _parseBool(allSettings['temp_compensation'], false),
       tempCoefficient: _parseDouble(allSettings['temp_coefficient'], -12.0),
       backlashCompensation: _parseInt(allSettings['backlash_compensation'], 0),
 
       // Equipment Settings - Guider
       ditherScale: allSettings['dither_scale'] ?? 'Medium',
-      settleThreshold: _parseDouble(allSettings['settle_threshold'], 0.5),
-      settleTimeout: _parseInt(allSettings['settle_timeout'], 30),
+      settleThreshold: _parseDouble(allSettings['settle_threshold'], 1.5),
+      settleTimeout: _parseInt(allSettings['settle_timeout'], 60),
+      settleTime: _parseInt(allSettings['settle_time'], 10),
+      ditherRaOnly: _parseBool(allSettings['dither_ra_only'], false),
 
       // Autofocus Settings
       // Observing Environment
@@ -326,9 +337,9 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['adaptive_exposure_per_filter_max_secs'],
       ),
 
-      // Pre-flight checks. Values are clamped to defend
-      // against pathological persisted values (zero / negative days, zero
-      // coverage quorum). The drift threshold has no upper bound — a user
+      // Pre-flight checks. Values are clamped to defend against pathological
+      // persisted values. Zero polar-alignment days is intentional: it
+      // disables that check. The drift threshold has no upper bound — a user
       // who wants the optical-train check silenced can crank it sky-high.
       preflightStrictness: _parsePreflightStrictness(
         allSettings['preflight_strictness'],
@@ -336,7 +347,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       polarAlignmentMaxAgeDays: _parseInt(
         allSettings['polar_alignment_max_age_days'],
         7,
-      ).clamp(1, 365),
+      ).clamp(0, 365),
       darkLibraryMinCoverage: _parseInt(
         allSettings['dark_library_min_coverage'],
         10,
@@ -405,6 +416,8 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['smart_night.auto_select_count'],
         2,
       ),
+      smartNightPromptDismissedDayKey:
+          allSettings['smart_night.prompt_dismissed_day_key'] ?? '',
       // Sequencer editor layout. Stored as the literal string "null" when
       // unset so the loader can distinguish "no stored preference" (use the
       // responsive default) from a real value.
@@ -558,6 +571,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
 
       // File Paths
       'image_output_path': s.imageOutputPath,
+      'default_image_directory': s.imageOutputPath,
       'sequences_path': s.sequencesPath,
       'database_path': s.databasePath,
       'logs_path': s.logsPath,
@@ -594,6 +608,8 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'dither_scale': s.ditherScale,
       'settle_threshold': s.settleThreshold.toString(),
       'settle_timeout': s.settleTimeout.toString(),
+      'settle_time': s.settleTime.toString(),
+      'dither_ra_only': s.ditherRaOnly.toString(),
 
       // Observing Environment
       'bortle_class': s.bortleClass.toString(),
@@ -707,6 +723,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
           .toString(),
       'smart_night.auto_select': s.smartNightAutoSelect.toString(),
       'smart_night.auto_select_count': s.smartNightAutoSelectCount.toString(),
+      'smart_night.prompt_dismissed_day_key': s.smartNightPromptDismissedDayKey,
       // Sequencer editor layout (nullable → literal "null" when unset).
       'sequencer.toolbox_collapsed': optBool(s.sequencerToolboxCollapsed),
       'sequencer.properties_collapsed': optBool(s.sequencerPropertiesCollapsed),

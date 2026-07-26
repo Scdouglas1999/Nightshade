@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../utils/exported_file_reveal.dart';
 import '../analytics_screen.dart'
     show dbSessionImagesProvider, standaloneImagesProvider;
 import 'mpc_export_panel.dart';
@@ -61,6 +62,10 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
   final _ScienceSectionKeys _sectionKeys = _ScienceSectionKeys();
   final ScrollController _scrollController = ScrollController();
 
+  // Captured-image id chosen in the Timeline Scrubber. When null the surface
+  // explorer and insights panels track the latest frame.
+  int? _selectedFrameImageId;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -78,17 +83,75 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     );
   }
 
-  void _openExportHub(BuildContext context) {
+  void _openExportHub(
+    BuildContext context,
+    List<MovingObjectCandidateRow> mpcCandidates,
+  ) {
     showDialog(
       context: context,
-      builder: (_) => const ScienceExportHub(),
+      builder: (_) => ScienceExportHub(mpcCandidates: mpcCandidates),
+    );
+  }
+
+  void _openCalibrationWizard(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const PhotometricCalibrationWizard(),
+    );
+  }
+
+  Widget _pairedCards(bool isNarrow, Widget first, Widget second) {
+    if (isNarrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          first,
+          const SizedBox(height: 12),
+          second,
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: first),
+        const SizedBox(width: 12),
+        Expanded(child: second),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final activeSessionId = _resolveSessionId(ref);
+    final liveSessionId = ref.watch(sessionStateProvider).dbSessionId;
+    final sessionsAsync = ref.watch(allSessionsProvider);
+    if (liveSessionId == null &&
+        (sessionsAsync.isLoading ||
+            sessionsAsync.hasError ||
+            !sessionsAsync.hasValue)) {
+      return _buildSessionIndexState(colors, sessionsAsync);
+    }
+    final allSessions = sessionsAsync.valueOrNull ?? const <ImagingSession>[];
+    final activeSessionId = liveSessionId ?? allSessions.firstOrNull?.id;
+
+    final scienceErrors = <Object>[];
+    var scienceLoading = false;
+    void track<T>(AsyncValue<T> source) {
+      if (source.hasError && source.error != null) {
+        scienceErrors.add(source.error!);
+      }
+      if (source.isLoading || (!source.hasValue && !source.hasError)) {
+        scienceLoading = true;
+      }
+    }
+
+    List<T> resolvedRows<T>(AsyncValue<List<T>> source) {
+      track(source);
+      return source.valueOrNull ?? const [];
+    }
+
+    track(sessionsAsync);
 
     // When no session is available, render the full layout with empty data
     // so the user can see the card layout, info buttons, and structure.
@@ -105,69 +168,69 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
 
     if (activeSessionId != null) {
       final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
+      track(ref.watch(sessionPhotometryProvider(activeSessionId)));
       lightCurve = ref
           .watch(sessionLightCurveProvider((activeSessionId, targetObjectId)));
       transparency =
           ref.watch(sessionTransparencyTrendProvider(activeSessionId));
-      transparencyRows = ref
-              .watch(sessionTransparencySamplesProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      calibrations = ref
-              .watch(sessionFrameCalibrationsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      psfTiles =
-          ref.watch(sessionPsfTilesProvider(activeSessionId)).valueOrNull ??
-              const [];
-      residuals = ref
-              .watch(sessionResidualVectorsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      moving = ref
-              .watch(sessionMovingObjectCandidatesProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      lineRatios = ref
-              .watch(sessionLineRatioProductsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      frameMetrics = ref
-              .watch(sessionFrameQualityMetricsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      tileMetrics =
-          ref.watch(sessionTileMetricsProvider(activeSessionId)).valueOrNull ??
-              const [];
+      transparencyRows = resolvedRows(
+        ref.watch(sessionTransparencySamplesProvider(activeSessionId)),
+      );
+      calibrations = resolvedRows(
+        ref.watch(sessionFrameCalibrationsProvider(activeSessionId)),
+      );
+      psfTiles = resolvedRows(
+        ref.watch(sessionPsfTilesProvider(activeSessionId)),
+      );
+      residuals = resolvedRows(
+        ref.watch(sessionResidualVectorsProvider(activeSessionId)),
+      );
+      moving = resolvedRows(
+        ref.watch(sessionMovingObjectCandidatesProvider(activeSessionId)),
+      );
+      lineRatios = resolvedRows(
+        ref.watch(sessionLineRatioProductsProvider(activeSessionId)),
+      );
+      frameMetrics = resolvedRows(
+        ref.watch(sessionFrameQualityMetricsProvider(activeSessionId)),
+      );
+      tileMetrics = resolvedRows(
+        ref.watch(sessionTileMetricsProvider(activeSessionId)),
+      );
     } else {
       // No session available — show standalone/quick capture science data
       final targetObjectId = ref.watch(activePhotometryTargetObjectIdProvider);
+      track(ref.watch(sessionlessPhotometryProvider));
       lightCurve = ref.watch(sessionlessLightCurveProvider(targetObjectId));
       transparency = ref.watch(sessionlessTransparencyTrendProvider);
-      transparencyRows =
-          ref.watch(sessionlessTransparencySamplesProvider).valueOrNull ??
-              const [];
-      calibrations =
-          ref.watch(sessionlessCalibrationsProvider).valueOrNull ?? const [];
-      psfTiles = ref.watch(sessionlessPsfTilesProvider).valueOrNull ?? const [];
-      residuals =
-          ref.watch(sessionlessResidualVectorsProvider).valueOrNull ?? const [];
-      moving =
-          ref.watch(sessionlessMovingObjectCandidatesProvider).valueOrNull ??
-              const [];
-      lineRatios =
-          ref.watch(sessionlessLineRatioProductsProvider).valueOrNull ??
-              const [];
-      frameMetrics =
-          ref.watch(sessionlessFrameQualityMetricsProvider).valueOrNull ??
-              const [];
-      tileMetrics =
-          ref.watch(sessionlessTileMetricsProvider).valueOrNull ?? const [];
+      transparencyRows = resolvedRows(
+        ref.watch(sessionlessTransparencySamplesProvider),
+      );
+      calibrations = resolvedRows(
+        ref.watch(sessionlessCalibrationsProvider),
+      );
+      psfTiles = resolvedRows(ref.watch(sessionlessPsfTilesProvider));
+      residuals = resolvedRows(
+        ref.watch(sessionlessResidualVectorsProvider),
+      );
+      moving = resolvedRows(
+        ref.watch(sessionlessMovingObjectCandidatesProvider),
+      );
+      lineRatios = resolvedRows(
+        ref.watch(sessionlessLineRatioProductsProvider),
+      );
+      frameMetrics = resolvedRows(
+        ref.watch(sessionlessFrameQualityMetricsProvider),
+      );
+      tileMetrics = resolvedRows(
+        ref.watch(sessionlessTileMetricsProvider),
+      );
     }
 
     final latestPsfTiles = _latestPsfSnapshot(psfTiles);
     final latestResiduals = _latestResidualSnapshot(residuals);
-    final latestTileMetrics = _latestTileMetricSnapshot(tileMetrics);
+    final latestTileMetrics =
+        _tileMetricSnapshotForImage(tileMetrics, _selectedFrameImageId);
     // Memoized via Riverpod so a re-render that doesn't change the underlying
     // PSF/residual snapshots reuses the prior analysis instead of recomputing
     // it on every frame (audit §6.20).
@@ -177,7 +240,6 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     final cameraState = ref.watch(cameraStateProvider);
     final guiderState = ref.watch(guiderStateProvider);
     final mountState = ref.watch(mountStateProvider);
-    final allSessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
     final healthReport = const EquipmentHealthService().analyze(
       sessions: allSessions,
       deviceHealth: [
@@ -208,6 +270,8 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
 
     final latestCal = calibrations.isEmpty ? null : calibrations.last;
     final latestFrameQuality = frameMetrics.isEmpty ? null : frameMetrics.last;
+    final selectedFrameQuality =
+        _frameQualityForImage(frameMetrics, _selectedFrameImageId);
     final latestTransparencyRow =
         transparencyRows.isEmpty ? null : transparencyRows.last;
     final isNarrow = MediaQuery.sizeOf(context).width < 1080;
@@ -215,10 +279,11 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     // Pull the underlying captured-image list so the solve-rate card and the
     // insights engine can report on plate-solve health. Same provider the
     // Session tab uses, so Drift only runs the query once.
-    final imageList = activeSessionId == null
-        ? (ref.watch(standaloneImagesProvider).valueOrNull ?? const [])
-        : (ref.watch(dbSessionImagesProvider(activeSessionId)).valueOrNull ??
-            const []);
+    final imagesAsync = activeSessionId == null
+        ? ref.watch(standaloneImagesProvider)
+        : ref.watch(dbSessionImagesProvider(activeSessionId));
+    track(imagesAsync);
+    final imageList = imagesAsync.valueOrNull ?? const [];
     final lightFrames = imageList
         .where((image) => image.frameType.toLowerCase() == 'light')
         .toList(growable: false);
@@ -226,11 +291,12 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         lightFrames.where((image) => image.isPlateSolved).length;
     final calibratedRowCount = calibrations.where((c) => c.isCalibrated).length;
 
-    final hasTarget =
-        ref.watch(sciencePhotometrySelectionProvider).valueOrNull?.target !=
-            null;
+    final photometrySelectionAsync =
+        ref.watch(sciencePhotometrySelectionProvider);
+    track(photometrySelectionAsync);
+    final hasTarget = photometrySelectionAsync.valueOrNull?.target != null;
     final photometryLive =
-        ref.watch(scienceModeStateProvider).differentialPhotometryActive;
+        photometrySelectionAsync.valueOrNull?.differentialEnabled ?? false;
     final hasPeriodResult = ref.watch(periodAnalysisProvider).result != null;
     final hasExportableData =
         lightCurve.isNotEmpty || moving.isNotEmpty || calibrations.isNotEmpty;
@@ -248,6 +314,14 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         lineRatios.isEmpty &&
         frameMetrics.isEmpty &&
         tileMetrics.isEmpty;
+    if (allEmpty && (scienceLoading || scienceErrors.isNotEmpty)) {
+      return _buildScienceDataState(
+        colors,
+        activeSessionId: activeSessionId,
+        isLoading: scienceLoading,
+        errors: scienceErrors,
+      );
+    }
     if (allEmpty) {
       // P0.2 + P0.3: even when no science products exist yet, show the live
       // pipeline status and the solve-rate card so users can see *why*
@@ -275,9 +349,9 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                 lightCurvePoints: lightCurve.length,
                 hasPeriodResult: hasPeriodResult,
                 hasExportableData: hasExportableData,
-                onJumpToPhotometry: () => _jumpTo(_sectionKeys.ladder),
-                onJumpToFieldQuality: () => _jumpTo(_sectionKeys.ladder),
-                onOpenExport: () => _openExportHub(context),
+                onJumpToPhotometry: () => _openCalibrationWizard(context),
+                onJumpToFieldQuality: () => _openCalibrationWizard(context),
+                onOpenExport: () => _openExportHub(context, const []),
               ),
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
@@ -299,6 +373,15 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
           // is currently running, idle, or failing — instead of inferring
           // from empty cards.
           const ScienceStatusBanner(),
+          if (scienceLoading || scienceErrors.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildScienceDataNotice(
+              colors,
+              activeSessionId: activeSessionId,
+              isLoading: scienceLoading,
+              errors: scienceErrors,
+            ),
+          ],
           const SizedBox(height: 12),
           ScienceLadderCard(
             hasCalibration: calibratedRowCount > 0,
@@ -309,7 +392,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             hasExportableData: hasExportableData,
             onJumpToPhotometry: () => _jumpTo(_sectionKeys.photometry),
             onJumpToFieldQuality: () => _jumpTo(_sectionKeys.fieldQuality),
-            onOpenExport: () => _openExportHub(context),
+            onOpenExport: () => _openExportHub(context, moving),
           ),
           const SizedBox(height: 12),
           ScienceNavRowCard(
@@ -359,11 +442,13 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             ScienceTimelineScrubber(
               colors: colors,
               frameMetrics: frameMetrics,
+              onFrameSelected: (imageId) =>
+                  setState(() => _selectedFrameImageId = imageId),
             ),
             const SizedBox(height: 12),
             ScienceInsightsPanel(
               colors: colors,
-              frameMetrics: latestFrameQuality,
+              frameMetrics: selectedFrameQuality,
               latestCalibration: latestCal,
               latestTransparency: latestTransparencyRow,
               diagnostics: diagnostics,
@@ -392,11 +477,13 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                       ScienceTimelineScrubber(
                         colors: colors,
                         frameMetrics: frameMetrics,
+                        onFrameSelected: (imageId) =>
+                            setState(() => _selectedFrameImageId = imageId),
                       ),
                       const SizedBox(height: 12),
                       ScienceInsightsPanel(
                         colors: colors,
-                        frameMetrics: latestFrameQuality,
+                        frameMetrics: selectedFrameQuality,
                         latestCalibration: latestCal,
                         latestTransparency: latestTransparencyRow,
                         diagnostics: diagnostics,
@@ -437,40 +524,34 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               icon: LucideIcons.lineChart,
             ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: _LightCurveChartCard(
-                  colors: colors,
-                  lightCurve: lightCurve,
-                  hubExportButton: lightCurve.isEmpty
-                      ? null
-                      : const _CardHubExportButton(
-                          tooltip: 'Open export hub (Photometry)',
-                          dataset: ScienceExportDataset.photometry,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _SeriesChartCard(
-                  colors: colors,
-                  title: 'Transparency Trend',
-                  yLabel: '%',
-                  points: transparency
-                      .map((point) => _ChartPoint(
-                          point.timestamp, point.transparencyPercent))
-                      .toList(growable: false),
-                  color: colors.info,
-                  hubExportButton: transparencyRows.isEmpty
-                      ? null
-                      : const _CardHubExportButton(
-                          tooltip: 'Open export hub (Transparency)',
-                          dataset: ScienceExportDataset.transparency,
-                        ),
-                ),
-              ),
-            ],
+          _pairedCards(
+            isNarrow,
+            _LightCurveChartCard(
+              colors: colors,
+              lightCurve: lightCurve,
+              hubExportButton: lightCurve.isEmpty
+                  ? null
+                  : const _CardHubExportButton(
+                      tooltip: 'Open export hub (Photometry)',
+                      dataset: ScienceExportDataset.photometry,
+                    ),
+            ),
+            _SeriesChartCard(
+              colors: colors,
+              title: 'Transparency Trend',
+              yLabel: '%',
+              points: transparency
+                  .map((point) =>
+                      _ChartPoint(point.timestamp, point.transparencyPercent))
+                  .toList(growable: false),
+              color: colors.info,
+              hubExportButton: transparencyRows.isEmpty
+                  ? null
+                  : const _CardHubExportButton(
+                      tooltip: 'Open export hub (Transparency)',
+                      dataset: ScienceExportDataset.transparency,
+                    ),
+            ),
           ),
           if (lightCurve.isNotEmpty && activeSessionId != null)
             Padding(
@@ -481,23 +562,16 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               ),
             ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ZeroPointTrendCard(
-                  colors: colors,
-                  calibrations: calibrations,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SolveRateTrendCard(
-                  colors: colors,
-                  lightFrames: lightFrames,
-                ),
-              ),
-            ],
+          _pairedCards(
+            isNarrow,
+            ZeroPointTrendCard(
+              colors: colors,
+              calibrations: calibrations,
+            ),
+            SolveRateTrendCard(
+              colors: colors,
+              lightFrames: lightFrames,
+            ),
           ),
           const SizedBox(height: 16),
           PeriodAnalysisPanel(
@@ -547,54 +621,40 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: HfrTrendCard(
-                  colors: colors,
-                  lightFrames: lightFrames,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: UniformityTrendCard(
-                  colors: colors,
-                  frameMetrics: frameMetrics,
-                ),
-              ),
-            ],
+          _pairedCards(
+            isNarrow,
+            HfrTrendCard(
+              colors: colors,
+              lightFrames: lightFrames,
+            ),
+            UniformityTrendCard(
+              colors: colors,
+              frameMetrics: frameMetrics,
+            ),
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _PsfHeatmapCard(
-                  colors: colors,
-                  tiles: latestPsfTiles,
-                  hubExportButton: latestPsfTiles.isEmpty
-                      ? null
-                      : const _CardHubExportButton(
-                          tooltip: 'Open export hub (PSF tiles)',
-                          dataset: ScienceExportDataset.psfTiles,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _ResidualCard(
-                  colors: colors,
-                  residuals: latestResiduals,
-                  hubExportButton: latestResiduals.isEmpty
-                      ? null
-                      : const _CardHubExportButton(
-                          tooltip: 'Open export hub (Astrometric residuals)',
-                          dataset: ScienceExportDataset.residuals,
-                        ),
-                ),
-              ),
-            ],
+          _pairedCards(
+            isNarrow,
+            _PsfHeatmapCard(
+              colors: colors,
+              tiles: latestPsfTiles,
+              hubExportButton: latestPsfTiles.isEmpty
+                  ? null
+                  : const _CardHubExportButton(
+                      tooltip: 'Open export hub (PSF tiles)',
+                      dataset: ScienceExportDataset.psfTiles,
+                    ),
+            ),
+            _ResidualCard(
+              colors: colors,
+              residuals: latestResiduals,
+              hubExportButton: latestResiduals.isEmpty
+                  ? null
+                  : const _CardHubExportButton(
+                      tooltip: 'Open export hub (Astrometric residuals)',
+                      dataset: ScienceExportDataset.residuals,
+                    ),
+            ),
           ),
           const SizedBox(height: 16),
           _PhotometricTransformsCard(colors: colors),
@@ -610,31 +670,24 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               icon: LucideIcons.orbit,
             ),
           ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _MovingObjectCard(
-                  colors: colors,
-                  moving: moving,
-                  hubExportButton: moving.isEmpty
-                      ? null
-                      : _CardHubExportButton(
-                          tooltip: 'Open export hub (Moving object candidates)',
-                          dataset: ScienceExportDataset.movingObjects,
-                          mpcCandidates: moving,
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _LineRatioCard(
-                  colors: colors,
-                  sessionId: activeSessionId,
-                  lineRatios: lineRatios,
-                ),
-              ),
-            ],
+          _pairedCards(
+            isNarrow,
+            _MovingObjectCard(
+              colors: colors,
+              moving: moving,
+              hubExportButton: moving.isEmpty
+                  ? null
+                  : _CardHubExportButton(
+                      tooltip: 'Open export hub (Moving object candidates)',
+                      dataset: ScienceExportDataset.movingObjects,
+                      mpcCandidates: moving,
+                    ),
+            ),
+            _LineRatioCard(
+              colors: colors,
+              sessionId: activeSessionId,
+              lineRatios: lineRatios,
+            ),
           ),
           // MPC export panel -- only shown when moving object candidates exist
           if (moving.isNotEmpty) ...[
@@ -646,17 +699,216 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     );
   }
 
-  int? _resolveSessionId(WidgetRef ref) {
-    final activeSession = ref.watch(sessionStateProvider).dbSessionId;
-    if (activeSession != null) {
-      return activeSession;
-    }
+  Widget _buildSessionIndexState(
+    NightshadeColors colors,
+    AsyncValue<List<ImagingSession>> sessionsAsync,
+  ) {
+    final error = sessionsAsync.error;
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+          border: Border.all(
+            color: error == null
+                ? colors.border
+                : colors.error.withValues(alpha: 0.55),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (error == null)
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.primary,
+                ),
+              )
+            else
+              Icon(LucideIcons.alertTriangle, color: colors.error, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    error == null
+                        ? 'Loading imaging sessions...'
+                        : 'Could not load imaging sessions',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      color: error == null ? colors.textPrimary : colors.error,
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '$error',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (error != null) ...[
+              const SizedBox(width: 12),
+              NightshadeButton(
+                label: 'Retry',
+                icon: LucideIcons.refreshCw,
+                size: ButtonSize.small,
+                variant: ButtonVariant.outline,
+                onPressed: () => ref.invalidate(allSessionsProvider),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
-    final sessions = ref.watch(allSessionsProvider).valueOrNull;
-    if (sessions == null || sessions.isEmpty) {
-      return null;
-    }
+  Widget _buildScienceDataState(
+    NightshadeColors colors, {
+    required int? activeSessionId,
+    required bool isLoading,
+    required List<Object> errors,
+  }) {
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const ScienceStatusBanner(),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          _buildScienceDataNotice(
+            colors,
+            activeSessionId: activeSessionId,
+            isLoading: isLoading,
+            errors: errors,
+          ),
+        ],
+      ),
+    );
+  }
 
-    return sessions.first.id;
+  Widget _buildScienceDataNotice(
+    NightshadeColors colors, {
+    required int? activeSessionId,
+    required bool isLoading,
+    required List<Object> errors,
+  }) {
+    final hasError = errors.isNotEmpty;
+    final extraErrorCount = errors.length - 1;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color:
+            hasError ? colors.error.withValues(alpha: 0.08) : colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        border: Border.all(
+          color:
+              hasError ? colors.error.withValues(alpha: 0.55) : colors.border,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasError)
+            Icon(LucideIcons.alertTriangle, color: colors.error, size: 20)
+          else
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasError
+                      ? 'Some science data could not be loaded'
+                      : 'Loading science data...',
+                  style: NightshadeTypography.labelStrong.copyWith(
+                    color: hasError ? colors.error : colors.textPrimary,
+                  ),
+                ),
+                if (hasError) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${errors.first}'
+                    '${extraErrorCount > 0 ? ' (+$extraErrorCount more)' : ''}',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize12,
+                    ),
+                  ),
+                ] else if (isLoading) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Waiting for the current session and frame products.',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (hasError) ...[
+            const SizedBox(width: 12),
+            NightshadeButton(
+              label: 'Retry',
+              icon: LucideIcons.refreshCw,
+              size: ButtonSize.small,
+              variant: ButtonVariant.outline,
+              onPressed: () => _retryScienceData(activeSessionId),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _retryScienceData(int? sessionId) {
+    ref.invalidate(allSessionsProvider);
+    ref.invalidate(sciencePhotometrySelectionProvider);
+    if (sessionId == null) {
+      ref.invalidate(sessionlessPhotometryProvider);
+      ref.invalidate(sessionlessTransparencySamplesProvider);
+      ref.invalidate(sessionlessCalibrationsProvider);
+      ref.invalidate(sessionlessPsfTilesProvider);
+      ref.invalidate(sessionlessResidualVectorsProvider);
+      ref.invalidate(sessionlessMovingObjectCandidatesProvider);
+      ref.invalidate(sessionlessLineRatioProductsProvider);
+      ref.invalidate(sessionlessFrameQualityMetricsProvider);
+      ref.invalidate(sessionlessTileMetricsProvider);
+      ref.invalidate(standaloneImagesProvider);
+      return;
+    }
+    ref.invalidate(sessionPhotometryProvider(sessionId));
+    ref.invalidate(sessionTransparencySamplesProvider(sessionId));
+    ref.invalidate(sessionFrameCalibrationsProvider(sessionId));
+    ref.invalidate(sessionPsfTilesProvider(sessionId));
+    ref.invalidate(sessionResidualVectorsProvider(sessionId));
+    ref.invalidate(sessionMovingObjectCandidatesProvider(sessionId));
+    ref.invalidate(sessionLineRatioProductsProvider(sessionId));
+    ref.invalidate(sessionFrameQualityMetricsProvider(sessionId));
+    ref.invalidate(sessionTileMetricsProvider(sessionId));
+    ref.invalidate(dbSessionImagesProvider(sessionId));
   }
 }

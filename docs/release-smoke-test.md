@@ -18,7 +18,7 @@ does (or download them from the tag's release-workflow run):
 | Artifact | Build |
 | --- | --- |
 | Windows x64 zip | `melos run build:desktop:windows` then stage with `scripts/stage_windows_release.ps1 -Profile Release` |
-| Linux x64 tarball | `melos run build:desktop:linux` (bundle native bridge + libraw + sqlite) |
+| Linux x64 tarball | `melos run build:desktop:linux` (bundle native bridge + libraw + hermetic sqlite native asset) |
 | Android universal APK | `melos run build:mobile:android` (`flutter build apk --release`) |
 
 The artifact you smoke-test must be the **packaged** one (zip/tarball/apk), not
@@ -43,8 +43,8 @@ also try a current rolling-release desktop) **without** the dev toolchain:
 - [ ] Extract `nightshade-<version>-linux-x64.tar.gz`, run `./nightshade`.
 - [ ] App launches — GTK3/libsecret present (document any runtime packages the
       user must install).
-- [ ] Bundled `libnightshade_bridge.so`, `libraw`, and `libsqlite3` load from the
-      bundle, not the system (the self-contained bundle is the point).
+- [ ] Bundled `libnightshade_bridge.so`, `libraw`, and hermetic `libsqlite3.so`
+      (package:sqlite3 native asset) load from the bundle.
 - [ ] Built against the glibc floor — it does **not** fail with
       `GLIBC_2.3x not found` on the Bookworm/Raspberry Pi appliance target.
 

@@ -122,6 +122,11 @@
 ///                                                 the cumulative time at target_snr)
 ///   improvement_curve_json  TEXT                 (serialized IntegrationCurve)
 ///
+/// v57 diagnostic-overlay artifact columns (all nullable):
+///   rejection_map_preview_path TEXT              (stretched rejection PNG)
+///   coverage_map_path          TEXT              (scientific coverage FITS)
+///   coverage_map_preview_path  TEXT              (stretched coverage PNG)
+///
 /// Additive `integrated_master_frames` columns (per-sub science, all nullable):
 ///   snr           REAL
 ///   fwhm          REAL

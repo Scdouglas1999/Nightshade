@@ -47,7 +47,7 @@ impl InstructionNode for ExposeInstruction {
         // shifts the HFR scale so any prior baseline becomes meaningless.
         let previous_binning = context.current_binning;
         context.current_binning = config.binning;
-        let mut ctx = context.to_instruction_context().await;
+        let mut ctx = context.to_instruction_context(node_id).await;
         ctx.current_binning = config.binning;
         if previous_binning != config.binning {
             tracing::warn!(
@@ -281,6 +281,19 @@ impl InstructionNode for ExposeInstruction {
 ///
 /// Returns `None` when neither a `save_to` nor a base `save_path` is set —
 /// the exposure-save code already handles that case by skipping the save.
+/// Stand-in target name for a target-less calibration frame, or `None` for a
+/// light frame (which must not have a target name invented for it).
+fn calibration_target_label(frame_type: &str) -> Option<String> {
+    match frame_type.trim().to_ascii_lowercase().as_str() {
+        "dark" => Some("Dark".to_string()),
+        "bias" => Some("Bias".to_string()),
+        "flat" => Some("Flat".to_string()),
+        "darkflat" => Some("DarkFlat".to_string()),
+        // `snapshot` and `light` are on-sky frames: no substitution.
+        _ => None,
+    }
+}
+
 fn build_save_path_renderer(
     context: &ExecutionContext,
     config: &ExposureConfig,
@@ -304,7 +317,23 @@ fn build_save_path_renderer(
     let exposure_binning = config.binning.as_str().to_string();
     let filter_index = config.filter_index;
     // ExecutionContext is cheaply Clone-able (every field is `Arc`/`Copy`).
-    let ctx_snapshot = context.clone();
+    let mut ctx_snapshot = context.clone();
+    // A calibration frame has no target BY NATURE — the shutter is closed or the
+    // scope is on a flat panel — so `${target.name}` in the default template
+    // could not resolve and the renderer aborted the whole run on frame 1:
+    // "Variable `${target.name}` cannot be resolved: no active target". That made
+    // the natural shape of a darks/bias sequence (no TargetHeader) impossible to
+    // run. Substitute the frame type, so files land as `Dark_...` / `Bias_...`,
+    // which is what an astronomer expects a target-less calibration frame to be
+    // called.
+    //
+    // LIGHT frames still hard-fail here: inventing a target name for science
+    // data would mislabel the data itself, which is worse than refusing.
+    if ctx_snapshot.target_name.is_none() {
+        if let Some(label) = calibration_target_label(&config.frame_type) {
+            ctx_snapshot.target_name = Some(label);
+        }
+    }
 
     Some(Box::new(move |frame: u32, total: u32| {
         let eval = EvaluationFrame {
@@ -695,7 +724,7 @@ async fn check_exposure_triggers(
                     ..AutofocusConfig::default()
                 };
 
-                let inst_ctx = context.to_instruction_context().await;
+                let inst_ctx = context.to_instruction_context(node_id).await;
                 let progress_cb = context.progress_callback.clone();
                 let progress_node_id = node_id.to_string();
                 let total_steps = af_config.steps_out.saturating_mul(2).saturating_add(1);
@@ -1077,5 +1106,34 @@ mod tests {
             }
             other => panic!("unexpected R detail: {:?}", other),
         }
+    }
+}
+
+#[cfg(test)]
+mod calibration_label_tests {
+    use super::calibration_target_label;
+
+    /// Regression: a darks/bias sequence with no TargetHeader used to abort on
+    /// frame 1 with "Variable `${target.name}` cannot be resolved: no active
+    /// target", because the default filename template requires a target that a
+    /// calibration frame cannot have.
+    #[test]
+    fn calibration_frames_get_a_stand_in_target_name() {
+        assert_eq!(calibration_target_label("dark").as_deref(), Some("Dark"));
+        assert_eq!(calibration_target_label("BIAS").as_deref(), Some("Bias"));
+        assert_eq!(calibration_target_label(" flat ").as_deref(), Some("Flat"));
+        assert_eq!(
+            calibration_target_label("darkflat").as_deref(),
+            Some("DarkFlat")
+        );
+    }
+
+    /// On-sky frames must NOT get one: mislabelling science data with an invented
+    /// target is worse than refusing to name the file.
+    #[test]
+    fn on_sky_frames_get_no_substitute() {
+        assert!(calibration_target_label("light").is_none());
+        assert!(calibration_target_label("Light").is_none());
+        assert!(calibration_target_label("snapshot").is_none());
     }
 }

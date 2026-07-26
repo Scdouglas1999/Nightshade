@@ -12,16 +12,15 @@
 //! (alignment mode unknown ⇒ "not safely classifiable as equatorial").
 //! Hard connection errors are still propagated through the worker channel
 //! to the caller as Err(String).
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomMount};
+use nightshade_ascom::AscomMount;
 use nightshade_native::traits::{
     GuideDirection, NativeDevice, NativeError, NativeMount, TrackingRate,
 };
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -79,13 +78,12 @@ enum AscomMountCommand {
     GetSupportedActions(oneshot::Sender<Result<Vec<String>, String>>),
 }
 
-/// Wrapper for ASCOM Mount that runs on a dedicated thread to support STA and Send/Sync
+/// Wrapper for ASCOM Mount whose COM object lives on the shared STA worker.
 #[derive(Debug)]
 pub struct AscomMountWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomMountCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
 }
 
@@ -94,13 +92,11 @@ impl AscomMountWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                tracing::error!("Failed to init COM on ASCOM thread: {}", e);
-                return;
-            }
-
+        // Build the COM object and its command pump on the process-wide STA
+        // apartment. The pump is polled once per worker-loop iteration; the
+        // per-command match arms are unchanged from the legacy per-device
+        // worker — only the loop shell (and COM teardown ordering) differs.
+        register_device(move || {
             let mut mount: Option<AscomMount> = None;
 
             // Try to create the mount object immediately
@@ -109,7 +105,31 @@ impl AscomMountWrapper {
                 Err(e) => tracing::error!("Failed to create ASCOM mount {}: {}", prog_id_clone, e),
             }
 
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — release the typed
+                        // `AscomMount` (which holds an IDispatch) on the STA
+                        // worker thread that owns the apartment. The Drop on
+                        // `AscomDeviceConnection` is intentionally a no-op so
+                        // this is the only correct place to issue the final
+                        // disconnect. The apartment itself persists for the
+                        // process lifetime, so it is NOT uninitialized here.
+                        if let Some(mut m) = mount.take() {
+                            if let Err(e) = m.disconnect() {
+                                tracing::warn!(
+                                    "ASCOM mount STA-worker shutdown disconnect failed: {}",
+                                    e
+                                );
+                            }
+                            drop(m);
+                        }
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomMountCommand::Connect(reply) => {
                         if let Some(m) = &mut mount {
@@ -419,26 +439,15 @@ impl AscomMountWrapper {
                         }
                     }
                 }
-            }
-
-            // Why: COM teardown ordering — release the typed `AscomMount`
-            // (which holds an IDispatch) BEFORE `uninit_com()`. The Drop on
-            // `AscomDeviceConnection` is intentionally a no-op so this is the
-            // only correct location to issue the final disconnect.
-            if let Some(mut m) = mount.take() {
-                if let Err(e) = m.disconnect() {
-                    tracing::warn!("ASCOM mount STA-worker shutdown disconnect failed: {}", e);
-                }
-                drop(m);
-            }
-            uninit_com();
-        });
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
         Ok(Self {
             id: prog_id.clone(),
             name: prog_id,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: std::sync::atomic::AtomicBool::new(false),
         })
     }
@@ -555,9 +564,19 @@ impl NativeDevice for AscomMountWrapper {
     }
 
     async fn disconnect(&mut self) -> Result<(), NativeError> {
-        let stop_result = self.stop().await;
-        if let Err(err) = &stop_result {
-            tracing::warn!("Failed to stop mount before disconnect: {}", err);
+        // Best-effort: halt any in-progress slew before disconnecting. A PARKED
+        // mount cannot be slewing, and some drivers (e.g. PegasusAstro NYX)
+        // raise "Mount is parked" from AbortSlew — that is an expected benign
+        // state, not a failure, so don't alarm the user with a WARN over it.
+        if let Err(err) = self.stop().await {
+            if err.to_string().to_lowercase().contains("parked") {
+                tracing::debug!(
+                    "Skipping slew-abort before disconnect (mount parked): {}",
+                    err
+                );
+            } else {
+                tracing::warn!("Failed to stop mount before disconnect: {}", err);
+            }
         }
         let (tx, rx) = oneshot::channel();
         self.sender
@@ -842,6 +861,7 @@ impl AscomMountWrapper {
 #[cfg(test)]
 pub(crate) mod test_support {
     use super::*;
+    use std::thread;
 
     #[derive(Debug, Clone)]
     pub struct TestMountResponses {
@@ -872,7 +892,7 @@ pub(crate) mod test_support {
 
     pub fn build_test_mount_wrapper(responses: TestMountResponses) -> AscomMountWrapper {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomMountCommand::GetCoordinates(reply) => {
@@ -911,7 +931,6 @@ pub(crate) mod test_support {
             id: "test-mount".to_string(),
             name: "Test Mount".to_string(),
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: std::sync::atomic::AtomicBool::new(false),
         }
     }
@@ -924,14 +943,15 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomMountWrapper
     where
         F: FnMut(AscomMountCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -943,7 +963,6 @@ mod tests {
             id: "test-mount".to_string(),
             name: "Test Mount".to_string(),
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: std::sync::atomic::AtomicBool::new(false),
         }
     }

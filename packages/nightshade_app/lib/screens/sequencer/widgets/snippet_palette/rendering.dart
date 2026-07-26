@@ -49,12 +49,22 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
                   Tooltip(
                     message: 'Import snippet from file…',
                     child: IconButton(
-                      onPressed: _handleImportSnippet,
-                      icon: Icon(
-                        LucideIcons.fileInput,
-                        size: 20,
-                        color: widget.colors.primary,
-                      ),
+                      onPressed: _isSnippetFileActionRunning
+                          ? null
+                          : _handleImportSnippet,
+                      icon: _isSnippetFileActionRunning
+                          ? SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: widget.colors.primary,
+                              ),
+                            )
+                          : Icon(
+                              LucideIcons.fileInput,
+                              size: 20,
+                              color: widget.colors.primary,
+                            ),
                       tooltip: 'Import snippet from file',
                     ),
                   ),
@@ -151,16 +161,26 @@ extension _SnippetPaletteRendering on _SnippetPaletteState {
                     Tooltip(
                       message: 'Import snippet from file…',
                       child: InkWell(
-                        onTap: _handleImportSnippet,
+                        onTap: _isSnippetFileActionRunning
+                            ? null
+                            : _handleImportSnippet,
                         borderRadius: BorderRadius.circular(
                             NightshadeTokens.radiusInline4),
                         child: Padding(
                           padding: const EdgeInsets.all(4),
-                          child: Icon(
-                            LucideIcons.fileInput,
-                            size: 16,
-                            color: widget.colors.textMuted,
-                          ),
+                          child: _isSnippetFileActionRunning
+                              ? SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: widget.colors.primary,
+                                  ),
+                                )
+                              : Icon(
+                                  LucideIcons.fileInput,
+                                  size: 16,
+                                  color: widget.colors.textMuted,
+                                ),
                         ),
                       ),
                     ),

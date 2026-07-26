@@ -50,6 +50,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
   bool _saving = false;
   bool _testing = false;
   bool _pushing = false;
+  bool _browsing = false;
   bool _autoPushEnabled = false;
   bool _s3PathStyle = false;
   // Tracked per provider so the "•••••••• (stored in OS keyring)" placeholder
@@ -80,6 +81,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
   }
 
   SyncService get _service => ref.read(syncServiceProvider);
+  bool get _busy => _saving || _testing || _pushing || _browsing;
 
   Future<void> _load() async {
     try {
@@ -152,13 +154,19 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
     return null;
   }
 
-  Future<bool> _save() async {
+  Future<bool> _save({
+    bool manageBusy = true,
+    bool showSuccess = true,
+    SyncService? through,
+  }) async {
+    if (manageBusy && _busy) return false;
     final validationError = _validationError();
     if (validationError != null) {
       context.showErrorSnackBar(validationError);
       return false;
     }
-    setState(() => _saving = true);
+    if (manageBusy) setState(() => _saving = true);
+    final service = through ?? _service;
     try {
       // The active provider's secret controller is the only credential.
       // Leaving it blank keeps the stored secret (password: null); typing a
@@ -166,7 +174,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
       final secret = _provider == SyncProvider.s3
           ? _s3SecretController.text
           : _passwordController.text;
-      await _service.saveConfig(
+      await service.saveConfig(
         SyncConfig(
           provider: _provider,
           serverUrl: _serverUrlController.text.trim(),
@@ -181,49 +189,75 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
         ),
         password: secret.isEmpty ? null : secret,
       );
-      if (secret.isNotEmpty) {
-        if (_provider == SyncProvider.s3) {
-          _s3SecretController.clear();
-          _hasStoredSecret = true;
-        } else {
-          _passwordController.clear();
-          _hasStoredPassword = true;
+      if (!mounted || !identical(service, _service)) return false;
+      setState(() {
+        if (secret.isNotEmpty) {
+          if (_provider == SyncProvider.s3) {
+            if (_s3SecretController.text == secret) {
+              _s3SecretController.clear();
+            }
+            _hasStoredSecret = true;
+          } else {
+            if (_passwordController.text == secret) {
+              _passwordController.clear();
+            }
+            _hasStoredPassword = true;
+          }
         }
-      }
-      if (!mounted) return false;
-      setState(() => _saving = false);
-      context.showSuccessSnackBar('Sync settings saved');
+      });
+      if (showSuccess) context.showSuccessSnackBar('Sync settings saved');
       return true;
     } catch (e) {
-      if (!mounted) return false;
-      setState(() => _saving = false);
+      if (!mounted || !identical(service, _service)) return false;
       context.showErrorSnackBar('Failed to save sync settings: $e');
       return false;
+    } finally {
+      if (manageBusy && mounted && identical(service, _service)) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   Future<void> _testConnection() async {
-    if (!await _save()) return;
+    if (_busy) return;
+    final service = _service;
     setState(() => _testing = true);
     try {
-      await _service.testConnection();
-      if (!mounted) return;
+      if (!await _save(
+        manageBusy: false,
+        showSuccess: false,
+        through: service,
+      )) {
+        return;
+      }
+      await service.testConnection();
+      if (!mounted || !identical(service, _service)) return;
       context.showSuccessSnackBar('Connection successful');
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !identical(service, _service)) return;
       context.showErrorSnackBar(
           'Connection failed: ${e is SyncTargetException ? e.message : e}');
     } finally {
-      if (mounted) setState(() => _testing = false);
+      if (mounted && identical(service, _service)) {
+        setState(() => _testing = false);
+      }
     }
   }
 
   Future<void> _pushNow() async {
-    if (!await _save()) return;
+    if (_busy) return;
+    final service = _service;
     setState(() => _pushing = true);
     try {
-      final result = await _service.pushNow();
-      if (!mounted) return;
+      if (!await _save(
+        manageBusy: false,
+        showSuccess: false,
+        through: service,
+      )) {
+        return;
+      }
+      final result = await service.pushNow();
+      if (!mounted || !identical(service, _service)) return;
       if (result.success) {
         setState(() {
           _lastPushAt = result.timestamp;
@@ -235,42 +269,59 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
         setState(() => _lastError = result.errorMessage);
         context.showErrorSnackBar('Push failed: ${result.errorMessage ?? '?'}');
       }
+    } catch (e) {
+      if (!mounted || !identical(service, _service)) return;
+      setState(() => _lastError = '$e');
+      context.showErrorSnackBar('Push failed: $e');
     } finally {
-      if (mounted) setState(() => _pushing = false);
+      if (mounted && identical(service, _service)) {
+        setState(() => _pushing = false);
+      }
     }
   }
 
   Future<void> _browseRemote() async {
-    if (!await _save()) return;
-    if (!mounted) return;
-    final selection = await showDialog<(String, SyncBundleInfo)>(
-      context: context,
-      builder: (_) => _RemoteBrowserDialog(service: _service),
-    );
-    if (selection == null || !mounted) return;
-    final (machine, bundle) = selection;
-
-    // Same confirmation flow a local backup restore uses; copy makes the
-    // bundle-based (replace, never merge) semantics explicit.
-    final confirmed = await ConfirmDialog.show(
-      context: context,
-      title: 'Restore Remote Backup?',
-      message: 'This restores "${bundle.file}" from machine "$machine". '
-          'Sync is bundle-based: restoring replaces local configuration '
-          'with the contents of this backup — nothing is merged. '
-          'This action cannot be undone.',
-      confirmLabel: 'Restore',
-      isDestructive: true,
-    );
-    if (!confirmed || !mounted) return;
-
-    setState(() => _pushing = true);
+    if (_busy) return;
+    final service = _service;
+    setState(() => _browsing = true);
     try {
-      final result = await _service.pullAndRestore(
+      if (!await _save(
+        manageBusy: false,
+        showSuccess: false,
+        through: service,
+      )) {
+        return;
+      }
+      if (!mounted || !identical(service, _service)) return;
+      final selection = await showDialog<(String, SyncBundleInfo)>(
+        context: context,
+        builder: (_) => _RemoteBrowserDialog(service: service),
+      );
+      if (selection == null || !mounted || !identical(service, _service)) {
+        return;
+      }
+      final (machine, bundle) = selection;
+
+      // Same confirmation flow a local backup restore uses; copy makes the
+      // bundle-based (replace, never merge) semantics explicit.
+      final confirmed = await ConfirmDialog.show(
+        context: context,
+        title: 'Restore Remote Backup?',
+        message: 'This restores "${bundle.file}" from machine "$machine". '
+            'Sync is bundle-based: restoring replaces local configuration '
+            'with the contents of this backup — nothing is merged. '
+            'This action cannot be undone.',
+        confirmLabel: 'Restore',
+        isDestructive: true,
+      );
+      if (!confirmed || !mounted || !identical(service, _service)) return;
+
+      final result = await service.pullAndRestore(
         machine: machine,
         bundleFile: bundle.file,
+        replaceExisting: true,
       );
-      if (!mounted) return;
+      if (!mounted || !identical(service, _service)) return;
       if (result.success) {
         context.showSuccessSnackBar(
             'Restored ${result.itemsRestored} items from $machine');
@@ -278,8 +329,13 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
         context.showErrorSnackBar(
             'Restore failed: ${result.errorMessage ?? 'unknown error'}');
       }
+    } catch (e) {
+      if (!mounted || !identical(service, _service)) return;
+      context.showErrorSnackBar('Restore failed: $e');
     } finally {
-      if (mounted) setState(() => _pushing = false);
+      if (mounted && identical(service, _service)) {
+        setState(() => _browsing = false);
+      }
     }
   }
 
@@ -341,9 +397,13 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                         child: Text('S3-compatible (AWS, MinIO, Backblaze B2)'),
                       ),
                     ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _provider = value);
-                    },
+                    onChanged: _busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _provider = value);
+                            }
+                          },
                   ),
                   const SizedBox(height: 12),
                   if (_provider == SyncProvider.webdav)
@@ -377,7 +437,9 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                       ),
                     ),
                     value: _autoPushEnabled,
-                    onChanged: (v) => setState(() => _autoPushEnabled = v),
+                    onChanged: _busy
+                        ? null
+                        : (v) => setState(() => _autoPushEnabled = v),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
@@ -389,28 +451,29 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                         icon: LucideIcons.save,
                         variant: ButtonVariant.primary,
                         isLoading: _saving,
-                        onPressed: _saving ? null : _save,
+                        onPressed: _busy ? null : _save,
                       ),
                       NightshadeButton(
                         label: _testing ? 'Testing...' : 'Test Connection',
                         icon: LucideIcons.plugZap,
                         variant: ButtonVariant.outline,
                         isLoading: _testing,
-                        onPressed:
-                            _testing || _pushing ? null : _testConnection,
+                        onPressed: _busy ? null : _testConnection,
                       ),
                       NightshadeButton(
                         label: _pushing ? 'Working...' : 'Push Now',
                         icon: LucideIcons.uploadCloud,
                         variant: ButtonVariant.outline,
                         isLoading: _pushing,
-                        onPressed: _pushing ? null : _pushNow,
+                        onPressed: _busy ? null : _pushNow,
                       ),
                       NightshadeButton(
-                        label: 'Browse Remote Backups',
+                        label:
+                            _browsing ? 'Browsing...' : 'Browse Remote Backups',
                         icon: LucideIcons.folderSearch,
                         variant: ButtonVariant.outline,
-                        onPressed: _pushing ? null : _browseRemote,
+                        isLoading: _browsing,
+                        onPressed: _busy ? null : _browseRemote,
                       ),
                     ],
                   ),
@@ -549,7 +612,7 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
           ),
         ),
         value: _s3PathStyle,
-        onChanged: (v) => setState(() => _s3PathStyle = v),
+        onChanged: _busy ? null : (v) => setState(() => _s3PathStyle = v),
       ),
     ];
   }
@@ -563,12 +626,309 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      enabled: !_busy,
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         border: const OutlineInputBorder(),
         isDense: true,
       ),
+    );
+  }
+}
+
+/// Read-only configuration summary plus Push Now for a remote controller.
+///
+/// Cloud credentials and restores stay on the imaging host. This card uses the
+/// host's dedicated sync endpoints and never constructs a phone-local
+/// [SyncService], which would otherwise report an empty database and upload the
+/// wrong machine's configuration.
+class RemoteCloudSyncCard extends ConsumerStatefulWidget {
+  const RemoteCloudSyncCard({super.key});
+
+  @override
+  ConsumerState<RemoteCloudSyncCard> createState() =>
+      _RemoteCloudSyncCardState();
+}
+
+class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
+  SyncStatus? _status;
+  bool _loading = true;
+  bool _pushing = false;
+  String? _error;
+  int _loadGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _load(authorityChanged: true);
+      },
+    );
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  Future<void> _load({bool authorityChanged = false}) async {
+    final generation = ++_loadGeneration;
+    final backend = ref.read(backendProvider);
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        if (authorityChanged) {
+          _status = null;
+          _pushing = false;
+        }
+      });
+    }
+    try {
+      if (backend is! NetworkBackend) {
+        throw StateError('The imaging host is not connected.');
+      }
+      final status = await backend.getCloudSyncStatus();
+      if (!mounted ||
+          generation != _loadGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
+      setState(() {
+        _status = status;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted ||
+          generation != _loadGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
+      setState(() {
+        _loading = false;
+        _error = 'Could not load cloud sync status from the imaging host.';
+      });
+    }
+  }
+
+  Future<void> _pushNow() async {
+    if (_pushing) return;
+    final backend = ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      setState(() => _error = 'The imaging host is not connected.');
+      return;
+    }
+    setState(() {
+      _pushing = true;
+      _error = null;
+    });
+    try {
+      final result = await backend.pushCloudSyncNow();
+      if (!mounted || !identical(ref.read(backendProvider), backend)) return;
+      if (!result.success) {
+        setState(() {
+          _error = result.errorMessage ??
+              'The imaging host reported that its cloud backup failed.';
+        });
+        return;
+      }
+      context.showSuccessSnackBar(
+        'Host backup pushed to ${result.remotePath ?? 'cloud storage'}',
+      );
+      await _load();
+    } catch (_) {
+      if (!mounted || !identical(ref.read(backendProvider), backend)) return;
+      setState(() {
+        _error = 'The imaging host could not push its cloud backup. Check the '
+            'host sync configuration and try again.';
+      });
+    } finally {
+      if (mounted && identical(ref.read(backendProvider), backend)) {
+        setState(() => _pushing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final status = _status;
+    return Card(
+      color: colors.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.cloud, size: 20, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Backup & Sync (imaging host)',
+                  style: NightshadeTypography.h4.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pushes the imaging host’s configuration bundle. Provider and '
+              'credentials are edited on the desktop host so secrets never '
+              'cross to this controller.',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (_loading)
+              const Center(child: CircularProgressIndicator())
+            else if (_error != null && status == null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_error!, style: TextStyle(color: colors.error)),
+                  const SizedBox(height: 12),
+                  NightshadeButton(
+                    label: 'Retry',
+                    icon: LucideIcons.refreshCw,
+                    variant: ButtonVariant.outline,
+                    onPressed: _load,
+                  ),
+                ],
+              )
+            else if (status != null) ...[
+              _RemoteSyncStatusRow(
+                label: 'Status',
+                value: status.configured ? 'Configured' : 'Not configured',
+                valueColor: status.configured ? colors.success : colors.warning,
+              ),
+              const SizedBox(height: 10),
+              _RemoteSyncStatusRow(
+                label: 'Machine',
+                value: status.machineName.isEmpty ? '—' : status.machineName,
+              ),
+              if (status.serverUrl.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _RemoteSyncStatusRow(
+                  label: 'Destination',
+                  value: status.serverUrl,
+                ),
+              ],
+              const SizedBox(height: 10),
+              _RemoteSyncStatusRow(
+                label: 'Automatic push',
+                value: status.autoPushEnabled ? 'Enabled' : 'Disabled',
+              ),
+              const SizedBox(height: 10),
+              _RemoteSyncStatusRow(
+                label: 'Last push',
+                value: status.lastPushAt == null
+                    ? 'Never'
+                    : DateFormat('MMM d, yyyy HH:mm')
+                        .format(status.lastPushAt!.toLocal()),
+              ),
+              if (status.lastError != null || _error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error ?? 'Last host error: ${status.lastError}',
+                  style: TextStyle(
+                    color: colors.error,
+                    fontSize: NightshadeTypography.fontSize12,
+                  ),
+                ),
+              ],
+              if (!status.configured) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Open Settings → Backup & Sync on the desktop imaging host '
+                  'to choose a provider and enter its credentials.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize12,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  NightshadeButton(
+                    label: _pushing || status.pushInProgress
+                        ? 'Pushing…'
+                        : 'Push Host Backup Now',
+                    icon: LucideIcons.uploadCloud,
+                    variant: ButtonVariant.primary,
+                    isLoading: _pushing || status.pushInProgress,
+                    onPressed:
+                        !status.configured || status.pushInProgress || _pushing
+                            ? null
+                            : _pushNow,
+                  ),
+                  NightshadeButton(
+                    label: 'Refresh',
+                    icon: LucideIcons.refreshCw,
+                    variant: ButtonVariant.outline,
+                    onPressed: _pushing ? null : _load,
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RemoteSyncStatusRow extends StatelessWidget {
+  const _RemoteSyncStatusRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: valueColor ?? colors.textPrimary,
+              fontSize: NightshadeTypography.fontSize12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

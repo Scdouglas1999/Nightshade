@@ -62,7 +62,9 @@ Future<void> main() async {
     );
     final out = await _runTool(toolPath, root, fail: true);
     if (out.exitCode != 0) {
-      failures.add('CASE2: expected exit 0 (no stale finding), got ${out.exitCode}');
+      failures.add(
+        'CASE2: expected exit 0 (no stale finding), got ${out.exitCode}',
+      );
     }
     if (!out.stdout.contains('no stale comments found')) {
       failures.add('CASE2: expected "no stale comments found"');

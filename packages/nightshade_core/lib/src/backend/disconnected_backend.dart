@@ -245,6 +245,8 @@ class DisconnectedBackend
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    int? gain,
+    int? offset,
     String curveFitting = 'Hyperbolic',
     int numberOfAttempts = 1,
     int exposuresPerPoint = 1,
@@ -484,6 +486,7 @@ class DisconnectedBackend
     double? ra,
     double? dec,
     double? fovDegrees,
+    int? timeoutSeconds,
   }) async {
     _throwNotConnected();
   }
@@ -589,6 +592,11 @@ class DisconnectedBackend
     required double settleTimeout,
     required bool raOnly,
   }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateMeridianFlipConfig(String configJson) async {
     _throwNotConnected();
   }
 
@@ -873,6 +881,11 @@ class DisconnectedBackend
 
   @override
   Future<void> rotatorMoveTo(String deviceId, double angle) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> rotatorSetReverse(String deviceId, bool reverse) async {
     _throwNotConnected();
   }
 

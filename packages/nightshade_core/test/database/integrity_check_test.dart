@@ -286,5 +286,17 @@ void main() {
         reason: 'All recovery markers must be cleared on consume.',
       );
     });
+
+    test('two-phase read preserves the marker until acknowledgement', () async {
+      await dbFile.writeAsBytes(Uint8List(4096), flush: true);
+      await runIntegrityCheckAndRecover(dbFile);
+
+      final marker = await readRecoveryMarker(tempDir);
+      expect(marker, isNotNull);
+      expect(await readRecoveryMarker(tempDir), isNotNull);
+
+      await acknowledgeRecoveryMarker(tempDir, marker!);
+      expect(await readRecoveryMarker(tempDir), isNull);
+    });
   });
 }

@@ -37,6 +37,7 @@
 // in addition to the model trend line.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -57,9 +58,9 @@ part 'focus_model_curve_card/filter_offsets.dart';
 /// height so it occupies ~180dp instead of the full 280dp.
 class FocusModelCurveCard extends ConsumerStatefulWidget {
   /// When true, render the compact summary suitable for embedding on the
-  /// camera tab. The compact card is tappable: it routes to the full
-  /// `/focus-model` screen via go_router. The full layout is non-tappable
-  /// because it *is* the destination.
+  /// camera tab. The compact card is tappable: it routes to the focus-model
+  /// section within Settings. The full layout is non-tappable because it is
+  /// already the expanded destination.
   final bool compact;
 
   /// When non-null, tapping the card body invokes this callback instead of
@@ -98,19 +99,6 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
     }
 
     final profileId = activeProfile.id.toString();
-    final focusService = ref.watch(focusModelServiceProvider);
-    // Watching profilesProvider here means new autofocus runs (which mutate
-    // the focus service via DeviceService.runAutofocus -> FocusModelService.
-    // addDataPoint -> saveProfile) trigger a rebuild because we read the
-    // service object every build and call getProfileData. The service does
-    // not itself drive Riverpod re-renders, so we also rebuild on focuser
-    // state and equipment health changes — both of which fire whenever an
-    // autofocus run completes.
-    final profileData = focusService.getProfileData(profileId);
-
-    final model = profileData?.temperatureModel;
-    final dataPoints = profileData?.dataPoints ?? const <FocusHistoryPoint>[];
-
     if (focuserState.connectionState != DeviceConnectionState.connected) {
       return _frame(
         colors,
@@ -122,6 +110,44 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
         ),
       );
     }
+
+    final profileData = ref.watch(focusProfileDataProvider(profileId));
+    return profileData.when(
+      data: (data) => _buildProfileData(
+        context: context,
+        colors: colors,
+        focuserState: focuserState,
+        profileId: profileId,
+        profileData: data,
+      ),
+      loading: () => _frame(
+        colors,
+        child: const EmptyState.compact(
+          icon: LucideIcons.loader,
+          title: 'Loading focus model',
+          body: 'Reading autofocus history from the imaging host…',
+        ),
+      ),
+      error: (_, __) => _frame(
+        colors,
+        child: const EmptyState.compact(
+          icon: LucideIcons.alertTriangle,
+          title: 'Could not load focus model',
+          body: 'Pull down to refresh the Devices tab and try again.',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileData({
+    required BuildContext context,
+    required NightshadeColors colors,
+    required FocuserState focuserState,
+    required String profileId,
+    required ProfileFocusData? profileData,
+  }) {
+    final model = profileData?.temperatureModel;
+    final dataPoints = profileData?.dataPoints ?? const <FocusHistoryPoint>[];
 
     if (dataPoints.isEmpty) {
       return _frame(
@@ -161,6 +187,9 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
             profileId: profileId,
             focuserState: focuserState,
             colors: colors,
+            onChanged: () {
+              if (mounted) setState(() {});
+            },
           ),
           const SizedBox(height: 12),
           _PredictiveAfRow(colors: colors),
@@ -174,25 +203,21 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
 
     if (widget.compact) {
       // Tappable summary preview on the camera tab.
+      final router = GoRouter.maybeOf(context);
+      final onOpenFullScreen = widget.onOpenFullScreen;
       return Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          onTap: () {
-            final cb = widget.onOpenFullScreen;
-            if (cb != null) {
-              cb();
-              return;
-            }
-            // Fallback navigation: go_router /focus-model if such a route
-            // is registered. If not (e.g. embedded in a host app that
-            // doesn't include the focus-model screen) we silently no-op
-            // — the rest of the card is still readable in place.
-            final router = GoRouter.maybeOf(context);
-            if (router != null) {
-              router.go('/focus-model');
-            }
-          },
+          // The old `/focus-model` destination never existed in AppRouter, so
+          // tapping this card on the mobile Devices tab opened an unknown
+          // route. `focus-model` is a supported Settings alias for the merged
+          // Autofocus section. If this package is embedded without a router or
+          // callback, leave the InkWell honestly disabled.
+          onTap: onOpenFullScreen ??
+              (router == null
+                  ? null
+                  : () => router.go('/settings?section=focus-model')),
           child: _frame(colors, child: content),
         ),
       );
@@ -232,11 +257,18 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
           exposureTime: 3.0,
           stepSize: 50,
           stepsOut: 5,
+          useSettingsDefaults: true,
         )
             .then<void>((_) {
           if (messenger.mounted) {
             messenger.showSnackBar(
               const SnackBar(content: Text('Autofocus complete')),
+            );
+          }
+        }).onError<AutofocusCancelledException>((_, __) {
+          if (messenger.mounted) {
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Autofocus cancelled')),
             );
           }
         }).catchError((Object e, StackTrace st) {
@@ -433,8 +465,8 @@ class _ModelStatus extends StatelessWidget {
   }
 }
 
-/// Empty-state body shown when no focus data has been collected. The action
-/// button kicks off an autofocus run.
+/// Empty-state body shown when no focus data has been collected. The expanded
+/// card offers autofocus directly; the compact card opens autofocus settings.
 class _EmptyDataState extends StatelessWidget {
   final bool compact;
   final VoidCallback onRunAutofocus;
@@ -450,7 +482,7 @@ class _EmptyDataState extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'No focus data yet — tap to run autofocus',
+              'No focus data yet — tap for autofocus settings',
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ),

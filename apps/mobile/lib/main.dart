@@ -10,6 +10,7 @@ import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,8 +19,10 @@ import 'screens/dashboard/mobile_dashboard_screen.dart';
 import 'screens/qr_scanner_screen.dart';
 import 'screens/servers/saved_servers_screen.dart';
 import 'services/saved_servers_service.dart';
+import 'services/android_system_ui.dart';
 import 'services/foreground_service.dart';
 import 'services/live_activity_lifecycle_provider.dart';
+import 'services/manual_server_endpoint.dart';
 import 'services/mobile_pairing_service.dart';
 import 'services/watch_complication_lifecycle_provider.dart';
 import 'services/mobile_preferences.dart';
@@ -28,6 +31,8 @@ import 'services/battery_service.dart';
 import 'services/network_service.dart';
 import 'services/notification_service.dart';
 import 'services/push_registration_service.dart';
+import 'services/voice_control_lifecycle_provider.dart';
+import 'services/voice_control_service.dart';
 import 'utils/error_snackbar.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
 import 'widgets/tailscale_setup_sheet.dart';
@@ -36,20 +41,54 @@ part 'main_parts/mobile_connection_state.dart';
 part 'main_parts/mobile_discovery_ops.dart';
 part 'main_parts/mobile_reconnect_ops.dart';
 
+/// Product version of the running build, straight from the package manifest
+/// (`pubspec.yaml` `version:`, which `version.yaml` stamps at release time).
+///
+/// Mirrors `loadDesktopAppVersion()`. The build number is parsed leniently: an
+/// unparseable value yields 0 — an honest "unknown" — rather than inventing a
+/// number, and the user-visible version string is always the real one.
+@visibleForTesting
+Future<AppVersionInfo> loadMobileAppVersion() async {
+  final packageInfo = await PackageInfo.fromPlatform();
+  return AppVersionInfo(
+    version: packageInfo.version,
+    buildNumber: int.tryParse(packageInfo.buildNumber) ?? 0,
+  );
+}
+
+/// Delay before the Nth automatic re-attach attempt after the connection
+/// monitor has declared a session lost (attempt is 0-based).
+///
+/// Ramps 5 s → 10 s → 20 s → 30 s and then holds at 30 s forever. Retrying
+/// without end is the point: losing WiFi for longer than the grace period used
+/// to be terminal — the app dropped to the connection screen and stayed there,
+/// so restoring the network minutes later still left "Please reconnect" on
+/// screen even though a cold start reconnects instantly from the same saved
+/// server. A 30 s idle poll costs far less than a user who wakes to an app
+/// that quit watching their run hours ago.
+@visibleForTesting
+Duration lostSessionRetryDelay(int attempt) {
+  const schedule = <Duration>[
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+    Duration(seconds: 20),
+    Duration(seconds: 30),
+  ];
+  if (attempt < 0) return schedule.first;
+  return attempt < schedule.length ? schedule[attempt] : schedule.last;
+}
+
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
 
-  // respect the user's immersive-mode preference. Default is
-  // leanBack so the system clock and battery indicator remain visible
-  // during long sequences; users who want full-screen can opt in.
+  // Respect the user's immersive-mode preference. Edge-to-edge keeps the
+  // system clock and battery indicator visible by default; users who want
+  // full-screen can opt in.
   if (Platform.isAndroid) {
     final prefs = await SharedPreferences.getInstance();
     final immersiveSticky = MobilePreferences(prefs).androidImmersiveSticky;
-    await SystemChrome.setEnabledSystemUIMode(
-      immersiveSticky ? SystemUiMode.immersiveSticky : SystemUiMode.leanBack,
-      overlays: immersiveSticky ? const [] : SystemUiOverlay.values,
-    );
+    await applyAndroidSystemUiPreference(immersiveSticky);
   }
 
   // Initialize CatalogManager
@@ -159,15 +198,21 @@ void main() async {
     );
   };
 
+  // Real product version, read from the built package the same way the desktop
+  // entry point does. This used to be a hardcoded `2.6.0+6` literal that went
+  // stale by four major versions: the About screen advertised "Version 2.6.0"
+  // on a 6.0.0+24 build, and — per appVersionProvider's own contract — a wrong
+  // version here silently drives the OTA update comparison and the plugin host.
+  final appVersion = await loadMobileAppVersion();
+
   runApp(
     ProviderScope(
       overrides: [
         // appVersionProvider throws by default to surface misconfiguration;
-        // canonical override lives in the entry point. Version mirrors the
-        // desktop entry — single source of truth is version.yaml.
-        appVersionProvider.overrideWithValue(
-          const AppVersionInfo(version: '2.6.0', buildNumber: 6),
-        ),
+        // canonical override lives in the entry point. Single source of truth
+        // is version.yaml, which the build stamps into the package manifest.
+        appVersionProvider.overrideWithValue(appVersion),
+        pluginHostAppVersionOverride(appVersion.version),
         // wire the plugin-node dispatcher so plugin
         // sequence nodes route through the real PluginNodeExecutor.
         pluginNodeDispatcherOverride(),
@@ -262,6 +307,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
         _MobileConnectionState,
         _MobileDiscoveryOps,
         _MobileReconnectOps {
+  StreamSubscription<VoiceControlAction>? _voiceActionSub;
+
   @override
   void initState() {
     super.initState();
@@ -276,6 +323,30 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
     });
     // Automatically discover and connect on startup
     _autoConnect();
+
+    // "Hey Siri, show the last Nightshade image": the voice lifecycle
+    // controller receives this action but owns no router, so the shell
+    // navigates from here. Reading the provider also keeps the inbound
+    // method-channel handler alive.
+    _voiceActionSub = ref
+        .read(voiceControlServiceProvider)
+        .actionStream
+        .listen(_handleVoiceAction);
+  }
+
+  void _handleVoiceAction(VoiceControlAction action) {
+    if (action != VoiceControlAction.openLastImage) return;
+    final router = ref.read(appRouterProvider);
+    if (ref.read(lastImageStatsProvider) == null) {
+      final navContext = router.routerDelegate.navigatorKey.currentContext;
+      if (navContext != null && navContext.mounted) {
+        ScaffoldMessenger.maybeOf(navContext)?.showSnackBar(
+          const SnackBar(content: Text('No captured image yet this session.')),
+        );
+      }
+      return;
+    }
+    router.go('/imaging');
   }
 
   @override
@@ -297,6 +368,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopConnectionMonitor();
+    _voiceActionSub?.cancel();
     _pushRegistration?.dispose();
     _ipController.dispose();
     _accessTokenController.dispose();
@@ -326,6 +398,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
             _error = null;
             _statusMessage = '';
           });
+          return;
+        }
+        // A rig switch from Saved Servers swaps in a fresh NetworkBackend
+        // without routing through _connectToServer, so re-arm the WS monitor
+        // on the new instance. Idempotent — it cancels any prior subscription
+        // first.
+        if (next is NetworkBackend && !identical(previous, next)) {
+          _startConnectionMonitor();
         }
       });
 
@@ -398,6 +478,11 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           MobileNotificationService().setNavigator((location) {
             router.go(location);
           });
+          // A tap that cold-started the app from a terminated state arrives
+          // via getNotificationAppLaunchDetails rather than the tap callback,
+          // so route it once the navigator above exists (guarded internally so
+          // a rebuild can't double-route).
+          unawaited(MobileNotificationService().handleLaunchNotification());
 
           // Check for checkpoint on first connection
           _checkForCheckpoint(context, ref);
@@ -679,7 +764,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                     controller: _ipController,
                     decoration: InputDecoration(
                       labelText: l10n.text('mobileServerIpAddress'),
-                      hintText: '192.168.1.100:8080',
+                      hintText: 'nightshade.local:8080',
                       prefixIcon: const Icon(Icons.computer),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -687,9 +772,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                       filled: true,
                       fillColor: surfaceColor,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    enableSuggestions: false,
                   ),
                   const SizedBox(height: 8),
                   TextField(

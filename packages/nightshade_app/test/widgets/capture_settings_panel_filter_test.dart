@@ -19,11 +19,14 @@
 // deviceServiceProvider with a recording service that captures the dispatched
 // position — a direct, non-flaky check of exactly the wiring this win owns.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/widgets/capture_settings_panel.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../harness/harness.dart';
 
@@ -51,10 +54,16 @@ class _RecordingDeviceService extends DeviceService {
   _RecordingDeviceService(super.ref, super.backend);
 
   final List<int> positions = [];
+  Completer<void>? moveGate;
+  Object? moveError;
 
   @override
   Future<void> setFilterWheelPosition(int position) async {
     positions.add(position);
+    final gate = moveGate;
+    if (gate != null) await gate.future;
+    final error = moveError;
+    if (error != null) throw error;
   }
 }
 
@@ -126,6 +135,66 @@ void main() {
     expect(service.positions, [2],
         reason: 'Selecting the 3rd named slot (G) must command the wheel to '
             'position index 2.');
+  });
+
+  testWidgets(
+      'pending wheel move keeps old metadata and disables capture controls',
+      (tester) async {
+    final service = await _pumpPanel(tester, wheelPosition: 0);
+    service.moveGate = Completer<void>();
+
+    await _selectFilter(tester, currentLabel: 'L', filter: 'G');
+
+    expect(service.positions, [2]);
+    expect(
+      tester
+          .widget<DropdownButton<String>>(
+            find.ancestor(
+              of: find.text('L'),
+              matching: find.byType(DropdownButton<String>),
+            ),
+          )
+          .onChanged,
+      isNull,
+      reason: 'The filter cannot be changed again before hardware settles.',
+    );
+    expect(
+      tester
+          .widget<NightshadeButton>(
+            find.widgetWithText(NightshadeButton, 'Capture'),
+          )
+          .onPressed,
+      isNull,
+      reason: 'Capture must remain unavailable while the selected filter is '
+          'still physically moving.',
+    );
+
+    service.moveGate!.complete();
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+    }
+
+    expect(
+      tester
+          .widgetList<DropdownButton<String>>(
+              find.byType(DropdownButton<String>))
+          .where((dropdown) => dropdown.value == 'G'),
+      hasLength(1),
+      reason: 'Exposure metadata changes only after the move completes.',
+    );
+  });
+
+  testWidgets('failed wheel move retains the previous exposure filter',
+      (tester) async {
+    final service = await _pumpPanel(tester, wheelPosition: 0);
+    service.moveError = StateError('wheel jammed');
+
+    await _selectFilter(tester, currentLabel: 'L', filter: 'G');
+
+    expect(service.positions, [2]);
+    expect(find.text('L'), findsWidgets,
+        reason: 'A failed move must not tag subsequent captures as G.');
+    expect(find.textContaining('Could not change the filter'), findsOneWidget);
   });
 
   testWidgets('position_indicator_shows_current_filter: surfaces At wheel: R',

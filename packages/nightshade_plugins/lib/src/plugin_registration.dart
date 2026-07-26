@@ -152,19 +152,51 @@ final pluginRegistrationProvider = FutureProvider<void>((ref) async {
   final host = ref.watch(pluginHostProvider);
   final store = ref.watch(pluginEnablementStoreProvider);
 
-  for (final descriptor in kUserFacingExamplePlugins) {
+  await registerPluginDescriptors(
+    host: host,
+    store: store,
+    descriptors: kUserFacingExamplePlugins,
+  );
+});
+
+/// Register [descriptors] while keeping healthy live instances intact.
+///
+/// A retained initial-registration failure is explicitly unloaded and rebuilt
+/// so invalidating [pluginRegistrationProvider] is a real Retry. Failures are
+/// collected until every descriptor has been attempted, preventing one broken
+/// integration from silently suppressing all plugins that follow it.
+Future<void> registerPluginDescriptors({
+  required PluginHost host,
+  required PluginEnablementStore store,
+  required Iterable<ExamplePluginDescriptor> descriptors,
+}) async {
+  final failures = <Object>[];
+
+  for (final descriptor in descriptors) {
     // Already registered (e.g. provider re-read after a hot reload or an
     // enabled-set change): leave the live instance untouched. Re-registering
     // would throw, and tearing down + recreating it would discard in-flight
     // plugin state for no benefit.
     if (host.isLoaded(descriptor.id)) {
-      continue;
+      if (!host.registrationFailed(descriptor.id)) continue;
+      await host.unregisterPlugin(descriptor.id);
     }
 
-    final enabled = await store.isEnabled(descriptor.id);
-    await host.registerPlugin(descriptor.create(), enabled: enabled);
+    try {
+      final enabled = await store.isEnabled(descriptor.id);
+      await host.registerPlugin(descriptor.create(), enabled: enabled);
+    } catch (error) {
+      failures.add(error);
+    }
   }
-});
+
+  if (failures.isNotEmpty) {
+    throw PluginException(
+      '${failures.length} plugin registration(s) failed',
+      failures.first,
+    );
+  }
+}
 
 /// Immutable snapshot of when each registered plugin last fired its success
 /// event. Absence of a key means the plugin has not fired since tracking

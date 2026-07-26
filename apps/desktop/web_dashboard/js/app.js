@@ -39,6 +39,8 @@
     focuserStatus: null,
     filterWheelStatus: null,
     filterWheelPositions: null,
+    filterWheelPositionsDeviceId: null,
+    filterWheelPositionsLoading: false,
     rotatorStatus: null,
     readoutModes: [],
     selectedReadoutMode: null,
@@ -177,10 +179,14 @@
     ],
   };
 
-  // §2.10 — if the WS has been silent for this long, fall back to REST polling.
-  const WS_FALLBACK_THRESHOLD_MS = 10000;
-  // Surface a stale-data badge on a panel after this much wall time since
-  // its last successful update.
+  // §2.10 — the server heartbeat cadence is 30 s. Allow one complete interval
+  // plus jitter before declaring a quiet socket stale; a 10 s watchdog entered
+  // REST fallback three times per minute on an otherwise healthy connection
+  // and repeatedly cancelled large raw-preview downloads.
+  const WS_FALLBACK_THRESHOLD_MS = 45000;
+  // Once the WebSocket itself is stale, surface a badge on any panel whose
+  // last successful REST/event update is older than this threshold. A quiet
+  // but healthy socket must not make stable equipment look stale.
   const PANEL_STALE_THRESHOLD_MS = 10000;
   // §2.8 — image-fetch fallback if no exposure_complete event arrives.
   const IMAGE_FALLBACK_GRACE_MS = 30000;
@@ -310,6 +316,20 @@
     document.getElementById('btn-seq-stop').addEventListener('click', handleSeqStop);
     document.getElementById('btn-seq-pause').addEventListener('click', handleSeqPause);
     document.getElementById('btn-seq-resume').addEventListener('click', handleSeqResume);
+    // Run controls start disabled-by-state; the first status poll enables
+    // whichever actions the executor/guider state actually admits.
+    updateSequencerButtons('idle');
+    updateGuidingButtons('disconnected');
+
+    // Auth reveal chip — re-expands the pairing/token bar after it
+    // auto-collapses on successful authentication.
+    const btnAuthReveal = document.getElementById('btn-auth-reveal');
+    if (btnAuthReveal) {
+      btnAuthReveal.addEventListener('click', () => {
+        const bar = document.getElementById('auth-bar');
+        setAuthBarVisible(bar ? bar.classList.contains('hidden') : true);
+      });
+    }
 
     // Guiding controls
     document.getElementById('btn-guide-start').addEventListener('click', handleGuideStart);
@@ -434,6 +454,13 @@
       showToast('Enter a valid http:// or https:// server URL', 'error');
       return;
     }
+    if (!isSameOriginServerUrl(url)) {
+      setConnectionStatus('disconnected');
+      updateConnectProgress(0, 0);
+      showToast(crossOriginServerMessage(url), 'error');
+      addLogEntry('error', crossOriginServerMessage(url));
+      return;
+    }
 
     document.getElementById('server-url').value = url;
 
@@ -490,11 +517,14 @@
         const info = await api.testConnection();
         state.serverInfo = info;
 
-        if (info.authRequired) {
-          document.getElementById('auth-bar').classList.remove('hidden');
-        } else {
-          document.getElementById('auth-bar').classList.add('hidden');
-        }
+        // Show the pairing/token bar only when the server wants auth AND we
+        // do not already hold a credential. Before this, `authRequired` alone
+        // kept the full Device/Pair/Token/Apply bar permanently expanded on
+        // every paired browser — ~40% of a phone viewport spent on controls
+        // the operator needed exactly once.
+        setAuthBarVisible(
+          info.authRequired && !token && !api.hasSessionCookie,
+        );
 
         // A cookie session counts as authentication: tryResumeCookieSession
         // above may have populated api.hasSessionCookie even with no
@@ -517,6 +547,9 @@
         setConnectionStatus('connected');
         updateConnectProgress(0, 0);
         api.setConnectionState(true);
+        // Authenticated and connected — collapse the pairing bar down to the
+        // compact "Auth" chip so panel content gets the viewport back.
+        setAuthBarVisible(false);
 
         // §2.5 long-form: if the user wants to be remembered AND we have a
         // bearer in hand AND we are not already on the cookie path, exchange
@@ -643,8 +676,8 @@
       setPairModalStatus('Server URL is empty.', 'error');
       return;
     }
-    if (!/^\d{6}$/.test(code)) {
-      setPairModalStatus('Enter the 6-digit code shown on the desktop console.', 'error');
+    if (!/^[A-Za-z0-9-]{6,32}$/.test(code)) {
+      setPairModalStatus('Enter the pairing code shown on the desktop console.', 'error');
       return;
     }
 
@@ -757,6 +790,28 @@
     }
   }
 
+  // This page's CSP is `connect-src 'self' ws: wss:` — deliberately, because a
+  // wildcard let a page served from the dashboard origin relay credentials to
+  // any host on the network. The consequence is that the dashboard can only
+  // ever reach the origin that served it, so a Server URL pointing anywhere
+  // else is unreachable by construction. Detect that here: otherwise the fetch
+  // dies inside the 3-attempt backoff and the operator gets ~6s of silence
+  // followed by a 4s "Connection failed: Failed to fetch" toast that names
+  // neither the cause nor the fix.
+  function isSameOriginServerUrl(url) {
+    try {
+      return new URL(url, window.location.href).origin === window.location.origin;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function crossOriginServerMessage(url) {
+    return 'This dashboard can only talk to the server that served it (' +
+      window.location.origin + '). Open ' + url + '/dashboard directly to ' +
+      'control that server.';
+  }
+
   function setConnectionStatus(status) {
     const dot = document.getElementById('status-dot');
     const text = document.getElementById('status-text');
@@ -827,6 +882,11 @@
         btn.disabled = !api.isConnected;
         continue;
       }
+      // The collapse caret is a pure layout affordance, not a device command.
+      // Gating it on the device meant an operator who owns no focuser /
+      // rotator / dome could never fold those panels away — exactly the
+      // panels they most want gone from a dashboard this dense.
+      if (btn.classList.contains('panel-collapse-btn')) continue;
       btn.disabled = !enabled;
       if (tooltip) btn.title = tooltip; else btn.removeAttribute('title');
     }
@@ -995,6 +1055,10 @@
       addLogEntry('system', 'WebSocket disconnected, reconnecting...');
     });
 
+    api.on('ws:activity', () => {
+      state.lastWsMessageAt = Date.now();
+    });
+
     api.on('event', (data) => {
       state.lastWsMessageAt = Date.now();
       handleServerEvent(data);
@@ -1062,8 +1126,8 @@
       addLogEntry('system', 'WebSocket recovered — REST fallback disabled');
     }
 
-    // Per-panel stale indicator: highlight any panel whose last data update
-    // is older than the threshold.
+    // Per-panel stale indicator: highlight old panel data only after the
+    // WebSocket watchdog has also determined that the transport is stale.
     updateStaleIndicator('devices');
     updateStaleIndicator('mount');
     updateStaleIndicator('camera');
@@ -1078,12 +1142,15 @@
     const el = document.getElementById('stale-' + panelKey);
     if (!el) return;
     const last = state.panelLastUpdate[panelKey];
-    if (!last || !api.isConnected) {
+    const now = Date.now();
+    const wsHealthy = state.lastWsMessageAt > 0 &&
+      now - state.lastWsMessageAt <= WS_FALLBACK_THRESHOLD_MS;
+    if (!last || !api.isConnected || wsHealthy) {
       el.classList.remove('visible');
       el.textContent = '';
       return;
     }
-    const ageMs = Date.now() - last;
+    const ageMs = now - last;
     if (ageMs > PANEL_STALE_THRESHOLD_MS) {
       el.classList.add('visible');
       el.textContent = 'Stale: ' + Math.round(ageMs / 1000) + 's since last update';
@@ -1102,8 +1169,14 @@
   // =========================================================================
 
   async function fetchAllStatus() {
+    // Device IDs are prerequisites for every equipment-status request.
+    // Running discovery in the same Promise.all caused a cold dashboard to
+    // skip camera/mount/filter-wheel status whenever those tasks won the race
+    // against fetchDevices(). With a healthy WebSocket there may then be no
+    // event to trigger a later REST refresh, leaving gain/offset at zero and
+    // the last-image panel blank indefinitely.
+    await fetchDevices();
     await Promise.all([
-      fetchDevices(),
       fetchSequencerStatus(),
       fetchGuidingStatus(),
       fetchMountStatusIfConnected(),
@@ -1121,12 +1194,28 @@
       refreshPlanetariumPanel(),
       refreshSettingsPanel(),
     ]);
+    // Hydrate the preview for browsers opened after a capture. Subsequent
+    // frames remain event-driven.
+    await fetchLastImage();
   }
 
   async function fetchDevices() {
     try {
       const result = await api.getConnectedDevices();
       state.connectedDevices = result.devices || [];
+      const previousFilterWheelId = state.filterWheelDeviceId;
+
+      // Rebuild the selection from the authoritative inventory. Keeping an
+      // old id when a device temporarily disappears (notably while startup
+      // auto-connect is still settling hardware) made the dashboard query
+      // status routes for disconnected devices and flood the server log with
+      // avoidable 500s.
+      state.cameraDeviceId = null;
+      state.mountDeviceId = null;
+      state.focuserDeviceId = null;
+      state.filterWheelDeviceId = null;
+      state.rotatorDeviceId = null;
+      state.ops.domeDeviceId = null;
 
       // §2.4 hint: connected-devices may carry discoveryErrors. Surface them
       // once per call in the log to avoid silent driver failures.
@@ -1150,6 +1239,10 @@
           // §2.17 ops — dome is owned by W5-WEB-OPS-PANELS.
           case 'dome': state.ops.domeDeviceId = dev.id; break;
         }
+      }
+      if (state.filterWheelDeviceId !== previousFilterWheelId) {
+        state.filterWheelPositions = null;
+        state.filterWheelPositionsDeviceId = null;
       }
       refreshPanelEnablement();
       // Load auxiliary data that we only know how to fetch once a device is
@@ -1270,12 +1363,23 @@
 
   async function maybeLoadFilterWheelPositions() {
     if (!state.filterWheelDeviceId) return;
+    if (state.filterWheelPositionsLoading) return;
+    if (state.filterWheelPositionsDeviceId === state.filterWheelDeviceId
+        && state.filterWheelPositions) return;
+    const requestedDeviceId = state.filterWheelDeviceId;
+    state.filterWheelPositionsLoading = true;
     try {
-      const result = await api.filterWheelGetPositions(state.filterWheelDeviceId);
+      const result = await api.filterWheelGetPositions(requestedDeviceId);
+      // Ignore a late response from a wheel that disconnected/reconnected
+      // while the request was in flight.
+      if (state.filterWheelDeviceId !== requestedDeviceId) return;
       state.filterWheelPositions = result;
+      state.filterWheelPositionsDeviceId = requestedDeviceId;
       renderFilterWheelPanel();
     } catch (e) {
       addLogEntry('error', 'Filter wheel positions load failed: ' + e.message);
+    } finally {
+      state.filterWheelPositionsLoading = false;
     }
   }
 
@@ -1366,8 +1470,19 @@
       }
       markPanelFresh('guiding');
     } else if (category === 'equipment') {
-      // Equipment connect/disconnect changes the per-panel availability set.
-      fetchDevices();
+      // Only lifecycle events change inventory. PropertyChanged and healthy
+      // heartbeat events can arrive several times per second; refetching the
+      // complete inventory on each one also reloaded filter-wheel metadata,
+      // producing request storms when a stale wheel was failing.
+      const eventType = data.eventType || data.event || '';
+      const payload = data.data || data;
+      const heartbeatDisconnected = eventType === 'HeartbeatStatusChanged'
+        && String(payload.status || '').toLowerCase() === 'disconnected';
+      if (eventType === 'Connecting' || eventType === 'Connected'
+          || eventType === 'Disconnected' || eventType === 'DeviceDiscovered'
+          || eventType === 'DeviceLost' || heartbeatDisconnected) {
+        fetchDevices();
+      }
     } else if (category === 'polarAlignment' || category === 'polar_alignment') {
       // §2.17 W5-WIZARDS — polar alignment progress feed. Three event types
       // come through the polarAlignment category:
@@ -1443,7 +1558,13 @@
     // is friendlier on slow links).
     const offsetRaw = document.getElementById('camera-offset');
     const offset = offsetRaw ? parseInt(offsetRaw.value, 10) : NaN;
-    const subframe = readSubframeFromInputs();
+    let subframe;
+    try {
+      subframe = readSubframeFromInputs();
+    } catch (e) {
+      showToast(e.message, 'error');
+      return;
+    }
 
     try {
       await api.cameraExpose(state.cameraDeviceId, exposureTime, {
@@ -1499,9 +1620,19 @@
   async function handleAbortExpose() {
     if (!state.cameraDeviceId) return;
     try {
-      await api.cameraAbort(state.cameraDeviceId);
+      // The endpoint answers 200 whether or not an exposure was running and
+      // reports which via `wasRunning` (shared stop/abort no-op contract).
+      // Saying "Exposure aborted" unconditionally told the operator the
+      // camera had been stopped when nothing had been running at all.
+      const res = await api.cameraAbort(state.cameraDeviceId);
       cancelPendingImageFetch();
-      addLogEntry('camera', 'Exposure aborted');
+      if (res && res.wasRunning === false) {
+        addLogEntry('camera', 'Abort ignored: no exposure was in progress');
+        showToast('No exposure was in progress');
+      } else {
+        addLogEntry('camera', 'Exposure aborted');
+        showToast('Exposure aborted');
+      }
     } catch (e) {
       showToast('Abort failed: ' + e.message, 'error');
     }
@@ -1835,8 +1966,14 @@
 
   async function handleSeqStop() {
     try {
-      await api.sequencerStop();
-      addLogEntry('sequencer', 'Sequence stopped');
+      // See the camera-abort note: 200 does not mean a run was stopped.
+      const res = await api.sequencerStop();
+      if (res && res.wasRunning === false) {
+        addLogEntry('sequencer', 'Stop ignored: no sequence was running');
+        showToast('No sequence was running');
+      } else {
+        addLogEntry('sequencer', 'Sequence stopped');
+      }
     } catch (e) {
       showToast('Stop failed: ' + e.message, 'error');
     }
@@ -2072,15 +2209,30 @@
   }
 
   function readSubframeFromInputs() {
-    const x = parseInt(document.getElementById('camera-subframe-x').value, 10);
-    const y = parseInt(document.getElementById('camera-subframe-y').value, 10);
-    const w = parseInt(document.getElementById('camera-subframe-w').value, 10);
-    const h = parseInt(document.getElementById('camera-subframe-h').value, 10);
-    // Only return a subframe when all four fields are present and positive.
-    if ([x, y, w, h].every((v) => Number.isFinite(v)) && w > 0 && h > 0) {
-      return { x, y, width: w, height: h };
+    const ids = [
+      'camera-subframe-x',
+      'camera-subframe-y',
+      'camera-subframe-w',
+      'camera-subframe-h',
+    ];
+    const raw = ids.map((id) => document.getElementById(id).value.trim());
+    if (raw.every((value) => value === '')) {
+      return null;
     }
-    return null;
+    if (raw.some((value) => value === '')) {
+      throw new Error(
+        'Enter X, Y, width, and height for a subframe, or clear all four for full frame',
+      );
+    }
+
+    const [x, y, width, height] = raw.map(Number);
+    if (![x, y, width, height].every(Number.isInteger)) {
+      throw new Error('Subframe values must be whole pixels');
+    }
+    if (x < 0 || y < 0 || width < 1 || height < 1) {
+      throw new Error('Subframe X/Y must be non-negative and size must be positive');
+    }
+    return { x, y, width, height };
   }
 
   function renderReadoutModeOptions() {
@@ -2284,8 +2436,34 @@
     }
   }
 
+  /// Same state-gating contract as updateSequencerButtons for the focuser:
+  /// the absolute Move and every relative jog step are inadmissible while the
+  /// focuser is moving, and Halt is inert when it is idle. Autofocus has no
+  /// run-state field in the polled status, so it stays under connection-level
+  /// enablement (refreshPanelEnablement). An unknown `moving` fails open.
+  function updateFocuserButtons(status) {
+    if (!status) return;
+    const set = (id, enabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    };
+    const moving = status.moving ?? status.isMoving;
+    const canMove = moving !== true;
+    set('btn-focuser-move', canMove);
+    set('btn-focuser--1000', canMove);
+    set('btn-focuser--100', canMove);
+    set('btn-focuser--10', canMove);
+    set('btn-focuser--1', canMove);
+    set('btn-focuser-+1', canMove);
+    set('btn-focuser-+10', canMove);
+    set('btn-focuser-+100', canMove);
+    set('btn-focuser-+1000', canMove);
+    set('btn-focuser-halt', moving !== false);
+  }
+
   function renderFocuserPanel() {
     const s = state.focuserStatus;
+    updateFocuserButtons(s);
     const posEl = document.getElementById('focuser-position');
     const tempEl = document.getElementById('focuser-temp');
     const movingEl = document.getElementById('focuser-moving');
@@ -2366,8 +2544,24 @@
     }
   }
 
+  /// Same state-gating contract as updateSequencerButtons for the rotator:
+  /// Slew and Sync-to-image are inadmissible while the rotator is moving, and
+  /// Halt is inert when it is idle. An unknown `moving` fails open.
+  function updateRotatorButtons(status) {
+    if (!status) return;
+    const set = (id, enabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    };
+    const moving = status.moving ?? status.isMoving;
+    set('btn-rotator-move', moving !== true);
+    set('btn-rotator-sync-image', moving !== true);
+    set('btn-rotator-halt', moving !== false);
+  }
+
   function renderRotatorPanel() {
     const s = state.rotatorStatus;
+    updateRotatorButtons(s);
     const skyEl = document.getElementById('rotator-sky-pa');
     const mechEl = document.getElementById('rotator-mech-pa');
     const movingEl = document.getElementById('rotator-moving');
@@ -2779,7 +2973,30 @@
     }
   }
 
+  /// Same state-gating contract as updateSequencerButtons for the camera:
+  /// Expose is inert mid-exposure and Abort is inert when idle, and the cooler
+  /// On/Off pair mirror each other so only the admissible one stays live. A
+  /// connected camera with an unknown field fails open; a disconnected camera
+  /// is already disabled wholesale by refreshPanelEnablement.
+  function updateCameraButtons(status) {
+    if (!status) return;
+    const set = (id, enabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    };
+    const raw = status.state ?? status.cameraState;
+    const s = raw != null ? String(raw).toLowerCase() : '';
+    const known = s !== '';
+    const busy = s === 'exposing' || s === 'waiting' || s === 'reading' || s === 'download';
+    set('btn-expose', !known || !busy);
+    set('btn-abort-expose', !known || busy);
+    const coolerOn = status.coolerOn;
+    set('btn-camera-cooler-on', coolerOn !== true);
+    set('btn-camera-cooler-off', coolerOn !== false);
+  }
+
   function renderCameraStatusInfo() {
+    updateCameraButtons(state.cameraStatus);
     const el = document.getElementById('camera-status-info');
     if (!el) return;
 
@@ -2809,10 +3026,36 @@
   // Rendering: Mount Panel
   // =========================================================================
 
+  /// Same state-gating contract as updateSequencerButtons for the mount: Park
+  /// is inert when parked, Unpark when unparked, Abort Slew when nothing is
+  /// slewing, and every slew (Goto, the d-pad, the tracking toggle) is
+  /// inadmissible while parked. Unknown fields fail open; the emergency STOP is
+  /// left to refreshPanelEnablement, which keeps it live whenever connected.
+  function updateMountButtons(status) {
+    if (!status) return;
+    const set = (id, enabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    };
+    const parked = status.parked ?? status.isParked;
+    const slewing = status.slewing ?? status.isSlewing;
+    const canMove = parked !== true;
+    set('btn-mount-park', parked !== true);
+    set('btn-mount-unpark', parked !== false);
+    set('btn-mount-tracking', canMove);
+    set('btn-mount-goto', canMove);
+    set('btn-mount-n', canMove);
+    set('btn-mount-s', canMove);
+    set('btn-mount-e', canMove);
+    set('btn-mount-w', canMove);
+    set('btn-mount-goto-abort', slewing !== false);
+  }
+
   function renderMountPanel() {
     if (!state.mountStatus) return;
 
     const ms = state.mountStatus;
+    updateMountButtons(ms);
 
     // RA/Dec display
     const raEl = document.getElementById('mount-ra');
@@ -2871,6 +3114,61 @@
   // Rendering: Sequencer Panel
   // =========================================================================
 
+  /// Show/hide the pairing/token bar, keeping the compact "Auth" chip in
+  /// the top bar as the re-entry point whenever the bar is collapsed on an
+  /// auth-requiring server.
+  function setAuthBarVisible(visible) {
+    const bar = document.getElementById('auth-bar');
+    const reveal = document.getElementById('btn-auth-reveal');
+    if (bar) bar.classList.toggle('hidden', !visible);
+    const authRequired = Boolean(state.serverInfo && state.serverInfo.authRequired);
+    if (reveal) {
+      reveal.classList.toggle('hidden', !authRequired);
+      reveal.setAttribute('aria-expanded', visible ? 'true' : 'false');
+      reveal.setAttribute(
+        'aria-label',
+        visible
+          ? 'Hide pairing and token controls'
+          : 'Show pairing and token controls',
+      );
+    }
+  }
+
+  /// Enable exactly the run controls the executor state admits. Before this
+  /// every button was always tappable — at IDLE, Pause/Resume/Stop looked
+  /// live, fired a request, and surfaced an error toast; in the dark on a
+  /// phone that reads as "the rig is broken", not "wrong button".
+  function updateSequencerButtons(stateStr) {
+    const s = String(stateStr || 'idle').toLowerCase().replace(/[_\s]/g, '');
+    const set = (id, enabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    };
+    const running = s === 'running' || s === 'executing';
+    const paused = s === 'paused';
+    const transitional = s === 'stopping' || s === 'finalizing';
+    const recovering = s === 'recovering';
+    const stopRetry = s === 'stopfailed' || s === 'cleanupfailed';
+    set('btn-seq-start', !running && !paused && !transitional && !recovering && !stopRetry);
+    set('btn-seq-pause', running);
+    set('btn-seq-resume', paused);
+    set('btn-seq-stop', running || paused || recovering || stopRetry);
+  }
+
+  // `/api/sequencer/status` reports `progress` as a 0..1 FRACTION — see
+  // `SequencerStatus.progress` ("Overall progress (0.0 to 1.0)") in
+  // packages/nightshade_core/lib/src/models/backend/sequencer_status.dart,
+  // which `sequencer_handlers.dart` passes through verbatim. Every dashboard
+  // readout (text, bar width, aria-valuenow on a 0..100 progressbar, ETA
+  // extrapolation) wants percent, so convert at the single point where the
+  // fraction enters the render path. Without this a finished run rendered
+  // "1%" with an empty bar. `/run-watch` already scales its own feed by 100.
+  function sequencerProgressPercent(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0;
+    return Math.min(100, Math.max(0, n * 100));
+  }
+
   function renderSequencerPanel() {
     const statusEl = document.getElementById('seq-status');
     const nodeEl = document.getElementById('seq-node');
@@ -2886,10 +3184,12 @@
       if (progressBar) progressBar.style.width = '0%';
       if (progressBarContainer) progressBarContainer.setAttribute('aria-valuenow', '0');
       if (progressText) progressText.textContent = '';
+      updateSequencerButtons('idle');
       return;
     }
 
     const s = state.sequencerStatus;
+    updateSequencerButtons(s.state);
 
     if (statusEl) {
       const badgeClass = getSequencerBadgeClass(s.state);
@@ -2899,7 +3199,7 @@
     if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
     if (messageEl) messageEl.textContent = s.message || '';
 
-    const progress = s.progress != null ? s.progress : 0;
+    const progress = sequencerProgressPercent(s.progress);
     if (progressBar) {
       progressBar.style.width = progress + '%';
       if (progress >= 100) progressBar.classList.add('completed');
@@ -2940,6 +3240,7 @@
       if (raRmsEl) raRmsEl.textContent = '--';
       if (decRmsEl) decRmsEl.textContent = '--';
       if (totalRmsEl) totalRmsEl.textContent = '--';
+      updateGuidingButtons('disconnected');
       return;
     }
 
@@ -2951,11 +3252,31 @@
       const badgeClass = isGuiding ? 'badge-running' : 'badge-idle';
       renderBadge(statusEl, guidingState, badgeClass);
     }
+    updateGuidingButtons(g.state || g.appState || 'unknown');
 
     // RMS values
     if (g.rmsRA !== undefined && raRmsEl) raRmsEl.textContent = g.rmsRA.toFixed(2) + '"';
     if (g.rmsDec !== undefined && decRmsEl) decRmsEl.textContent = g.rmsDec.toFixed(2) + '"';
     if (g.rmsTotal !== undefined && totalRmsEl) totalRmsEl.textContent = g.rmsTotal.toFixed(2) + '"';
+  }
+
+  /// Same state-gating contract as updateSequencerButtons: only offer the
+  /// guider actions the current PHD2 state admits, instead of four
+  /// always-live buttons that error-toast when mistapped.
+  function updateGuidingButtons(stateStr) {
+    const s = String(stateStr || 'disconnected').toLowerCase();
+    const set = (id, enabled) => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    };
+    const disconnected = s === 'disconnected' || s === 'unknown';
+    const guiding = s.includes('guid') && !s.includes('stop');
+    const paused = s === 'paused';
+    set('btn-guide-connect', disconnected);
+    set('btn-guide-start', !disconnected && !guiding);
+    set('btn-guide-pause', guiding && !paused);
+    set('btn-guide-stop', guiding || paused);
+    set('btn-guide-dither', guiding && !paused);
   }
 
   function addGuideDataPoint(ra, dec) {
@@ -3473,9 +3794,11 @@
     }
     if (nodeEl) nodeEl.textContent = s.currentNodeName || '--';
 
-    const progress = s.progress != null ? Number(s.progress) : 0;
+    const progress = sequencerProgressPercent(s.progress);
     if (progressBar) {
       progressBar.style.width = progress + '%';
+      if (progress >= 100) progressBar.classList.add('completed');
+      else progressBar.classList.remove('completed');
     }
     if (progressBarContainer) {
       progressBarContainer.setAttribute('aria-valuenow',
@@ -3483,7 +3806,7 @@
     }
     if (progressTextEl) progressTextEl.textContent = progress.toFixed(0) + '%';
 
-    // ETA estimate: extrapolate from elapsed time + progress fraction. Why
+    // ETA estimate: extrapolate from elapsed time + progress percent. Why
     // client-side: the sequencer status doesn't carry an ETA field; the
     // estimate is only valid when progress is monotonically increasing,
     // so we show "--" during the first second of execution.
@@ -3895,9 +4218,7 @@
         + (enabled ? 'enabled' : 'disabled'));
       showToast('Dome slaving ' + (enabled ? 'enabled' : 'disabled'));
     } catch (e) {
-      // The dome/sync handler currently returns 501 (not implemented). Surface
-      // that clearly rather than silently hiding it.
-      showToast('Dome sync not implemented yet: ' + e.message, 'error');
+      showToast('Dome sync failed: ' + e.message, 'error');
       addLogEntry('error', 'Dome sync failed: ' + e.message);
     }
   }
@@ -4323,6 +4644,11 @@
   function advanceWizard(modalId, delta) {
     const total = state.wizardStepCount[modalId];
     if (!total) return;
+    if (modalId === 'framing-modal'
+        && state.wizardStep[modalId] === 0 && delta > 0
+        && !prepareFramingTargetForPreview()) {
+      return;
+    }
     const next = Math.max(0, Math.min(total - 1, state.wizardStep[modalId] + delta));
     if (next === state.wizardStep[modalId]) return;
     state.wizardStep[modalId] = next;
@@ -4359,6 +4685,22 @@
     if (modalId === 'polar-align-modal') {
       const startBtn = document.getElementById('btn-polar-align-start');
       if (startBtn) startBtn.hidden = idx !== total - 1;
+    } else if (modalId === 'framing-modal') {
+      let hasCoordinates = false;
+      try {
+        readFramingCoordinates();
+        hasCoordinates = true;
+      } catch (_) {
+        hasCoordinates = false;
+      }
+      const slew = document.getElementById('btn-framing-slew');
+      const center = document.getElementById('btn-framing-center');
+      const rotate = document.getElementById('btn-framing-rotate');
+      const save = document.getElementById('btn-framing-save');
+      if (slew) slew.disabled = !hasCoordinates || !state.mountDeviceId;
+      if (center) center.disabled = !hasCoordinates || !state.mountDeviceId;
+      if (rotate) rotate.disabled = !hasCoordinates || !state.rotatorDeviceId;
+      if (save) save.disabled = !hasCoordinates;
     }
   }
 
@@ -5144,6 +5486,26 @@
     return { ra, dec, name };
   }
 
+  function prepareFramingTargetForPreview() {
+    setWizardError('framing-modal', '');
+    try {
+      const coordinates = readFramingCoordinates();
+      state.framing.target = {
+        ...(state.framing.target || {}),
+        name: coordinates.name || 'Coordinates',
+        ra: coordinates.ra,
+        dec: coordinates.dec,
+      };
+      return true;
+    } catch (e) {
+      setWizardError(
+        'framing-modal',
+        'Choose a catalog result or enter valid RA and Dec before continuing.',
+      );
+      return false;
+    }
+  }
+
   function renderFramingPreview() {
     const container = document.getElementById('framing-preview');
     if (!container) return;
@@ -5562,7 +5924,7 @@
     //   doesn't have to click Refresh after deep-linking.
     // * #/logs — make sure the SSE stream is running; the panel may
     //   have been paused on a previous visit.
-    if (route === 'gallery') {
+    if (route === 'gallery' && api.isConnected) {
       refreshGalleryFromServer();
     } else if (route === 'logs') {
       ensureLogTailRunning();
@@ -5584,6 +5946,10 @@
     items: [],
     loading: false,
     freshSinceLastView: 0,
+    thumbnailObjectUrls: new Set(),
+    modalPreviewUrl: '',
+    modalLoadGeneration: 0,
+    downloadInFlight: false,
   };
 
   function setupGalleryPanel() {
@@ -5599,6 +5965,16 @@
     if (modal) {
       modal.addEventListener('click', (e) => {
         if (e.target === modal) closeGalleryModal();
+      });
+    }
+    const download = document.getElementById('gallery-modal-download');
+    if (download) {
+      download.addEventListener('click', (e) => {
+        if (!api.usesHeaderAuth) return;
+        e.preventDefault();
+        if (gallery.downloadInFlight) return;
+        const imageId = download.dataset.imageId || '';
+        if (imageId) downloadGalleryOriginal(imageId, download);
       });
     }
     // Listen for ExposureComplete events to surface the "NEW" badge.
@@ -5647,6 +6023,7 @@
   function renderGallery() {
     const grid = document.getElementById('gallery-grid');
     if (!grid) return;
+    revokeGalleryThumbnailUrls();
     if (gallery.items.length === 0) {
       grid.innerHTML = '<div class="empty-state">No captured images yet.</div>';
       return;
@@ -5665,13 +6042,8 @@
         img.className = 'gallery-thumb';
         img.loading = 'lazy';
         img.alt = meta;
-        img.src = api.imageThumbnailUrl(id, { maxWidth: 280, quality: 70 });
-        img.onerror = () => {
-          // Fall back to placeholder if the backend can't render a
-          // thumbnail (e.g. corrupted FITS). Don't hide the card —
-          // the metadata still belongs in the gallery.
-          img.style.display = 'none';
-        };
+        img.onerror = () => markGalleryThumbUnavailable(img);
+        loadGalleryThumbnail(img, id, { maxWidth: 280, quality: 70 });
         card.appendChild(img);
       }
       const label = document.createElement('div');
@@ -5680,6 +6052,51 @@
       card.appendChild(label);
       card.addEventListener('click', () => openGalleryModal(item));
       grid.appendChild(card);
+    }
+  }
+
+  // A thumbnail can legitimately fail: `/api/images/<id>/thumbnail` returns
+  // 404 "Image file not found" whenever the FITS behind a surviving DB row is
+  // gone — moved to external storage that is currently detached, pruned, or
+  // deleted by hand. Both failure paths used to set `display:none` on the
+  // <img>, which collapsed the card's 100px media slot and left a bare
+  // timestamp, so a gallery of unreachable frames rendered as a list of dates
+  // with no hint that anything was missing. Keep the slot and label it.
+  function markGalleryThumbUnavailable(img, reason) {
+    if (!img || !img.parentNode) return;
+    const placeholder = document.createElement('div');
+    placeholder.className = 'gallery-thumb gallery-thumb-missing';
+    placeholder.setAttribute('role', 'img');
+    placeholder.setAttribute('aria-label', 'Preview unavailable');
+    placeholder.textContent = 'Preview unavailable';
+    if (reason) placeholder.title = String(reason);
+    img.parentNode.replaceChild(placeholder, img);
+  }
+
+  function revokeGalleryThumbnailUrls() {
+    for (const url of gallery.thumbnailObjectUrls) {
+      URL.revokeObjectURL(url);
+    }
+    gallery.thumbnailObjectUrls.clear();
+  }
+
+  async function loadGalleryThumbnail(img, imageId, opts) {
+    if (!api.usesHeaderAuth) {
+      img.src = api.imageThumbnailUrl(imageId, opts);
+      return;
+    }
+    try {
+      const result = await api.imageThumbnailBlob(imageId, opts);
+      if (!img.isConnected) return;
+      const url = URL.createObjectURL(result.blob);
+      gallery.thumbnailObjectUrls.add(url);
+      img.src = url;
+    } catch (e) {
+      markGalleryThumbUnavailable(img, e.message);
+      addLogEntry(
+        'error',
+        'Gallery thumbnail ' + imageId + ' failed: ' + e.message,
+      );
     }
   }
 
@@ -5704,29 +6121,106 @@
     return parts.length ? parts.join(' · ') : ('Image #' + (item.id ?? ''));
   }
 
-  function openGalleryModal(item) {
+  async function openGalleryModal(item) {
     const modal = document.getElementById('gallery-modal');
     if (!modal) return;
     const id = String(item.id ?? item.imageId ?? '');
     if (!id) return;
     const meta = document.getElementById('gallery-modal-meta');
     if (meta) meta.textContent = formatGalleryMeta(item);
+    const generation = ++gallery.modalLoadGeneration;
+    if (gallery.modalPreviewUrl) {
+      URL.revokeObjectURL(gallery.modalPreviewUrl);
+      gallery.modalPreviewUrl = '';
+    }
     const img = document.getElementById('gallery-modal-image');
     if (img) {
-      img.src = api.imageThumbnailUrl(id, { maxWidth: 1600, quality: 85 });
       img.alt = 'Preview of ' + formatGalleryMeta(item);
+      img.style.display = '';
+      img.removeAttribute('src');
     }
     const dl = document.getElementById('gallery-modal-download');
-    if (dl) dl.href = api.imageDownloadUrl(id);
+    if (dl) {
+      dl.dataset.imageId = id;
+      dl.href = api.usesHeaderAuth ? '#' : api.imageDownloadUrl(id);
+    }
     modal.removeAttribute('hidden');
     modal.classList.add('visible');
+
+    if (!img) return;
+    if (!api.usesHeaderAuth) {
+      img.src = api.imageThumbnailUrl(id, { maxWidth: 1600, quality: 85 });
+      return;
+    }
+    try {
+      const result = await api.imageThumbnailBlob(id, {
+        maxWidth: 1600,
+        quality: 85,
+      });
+      if (generation !== gallery.modalLoadGeneration ||
+          !modal.classList.contains('visible')) {
+        return;
+      }
+      gallery.modalPreviewUrl = URL.createObjectURL(result.blob);
+      img.src = gallery.modalPreviewUrl;
+    } catch (e) {
+      if (generation !== gallery.modalLoadGeneration) return;
+      img.style.display = 'none';
+      showToast('Preview failed: ' + e.message, 'error');
+    }
   }
 
   function closeGalleryModal() {
     const modal = document.getElementById('gallery-modal');
     if (!modal) return;
+    gallery.modalLoadGeneration += 1;
+    if (gallery.modalPreviewUrl) {
+      URL.revokeObjectURL(gallery.modalPreviewUrl);
+      gallery.modalPreviewUrl = '';
+    }
     modal.classList.remove('visible');
     modal.setAttribute('hidden', '');
+  }
+
+  async function downloadGalleryOriginal(imageId, control) {
+    gallery.downloadInFlight = true;
+    const previousText = control.textContent;
+    control.setAttribute('aria-disabled', 'true');
+    control.textContent = 'Downloading...';
+    try {
+      const result = await api.imageDownloadBlob(imageId);
+      const url = URL.createObjectURL(result.blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = downloadFilename(
+        result.contentDisposition,
+        'nightshade-image-' + imageId + '.fits',
+      );
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (e) {
+      showToast('Download failed: ' + e.message, 'error');
+      addLogEntry('error', 'Image download failed: ' + e.message);
+    } finally {
+      gallery.downloadInFlight = false;
+      control.removeAttribute('aria-disabled');
+      control.textContent = previousText;
+    }
+  }
+
+  function downloadFilename(contentDisposition, fallback) {
+    const encoded = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition || '');
+    if (encoded && encoded[1]) {
+      try {
+        return decodeURIComponent(encoded[1].replace(/^"|"$/g, ''));
+      } catch (_) {
+        return fallback;
+      }
+    }
+    const plain = /filename="?([^";]+)"?/i.exec(contentDisposition || '');
+    return plain && plain[1] ? plain[1] : fallback;
   }
 
   // =========================================================================
@@ -5991,6 +6485,17 @@
     if (!token) {
       if (statusEl) {
         statusEl.textContent = 'Paste a bearer token, or click "Pair this browser".';
+        statusEl.className = 'login-status error';
+      }
+      return;
+    }
+    // Reject an unreachable cross-origin URL while the overlay is still up.
+    // Letting it through dismissed the overlay first and left the operator on
+    // a permanently "Disconnected" dashboard with no way back to this form
+    // short of reloading the page.
+    if (!isSameOriginServerUrl(url)) {
+      if (statusEl) {
+        statusEl.textContent = crossOriginServerMessage(url);
         statusEl.className = 'login-status error';
       }
       return;

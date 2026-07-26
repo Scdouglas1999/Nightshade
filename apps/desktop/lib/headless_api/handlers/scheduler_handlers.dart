@@ -51,6 +51,119 @@ class SchedulerHandlers {
     }
   }
 
+  Future<Map<String, dynamic>> _schedulerState() async {
+    final engine = await container.read(schedulerEngineReadyProvider.future);
+    final decision = await engine.previewDecision(DateTime.now());
+    return {
+      'status': engine.status.toJson(),
+      'decision': decision.toJson(),
+      'config': engine.config.toStorageJson(),
+    };
+  }
+
+  /// GET /api/scheduler/state
+  Future<Response> handleGetState(Request request) async {
+    _logInfo('[API] GET /api/scheduler/state');
+    try {
+      return jsonOk(await _schedulerState());
+    } catch (e) {
+      return jsonInternalServerError({
+        'error': 'Failed to read scheduler state: $e',
+      });
+    }
+  }
+
+  /// POST /api/scheduler/control
+  Future<Response> handleControl(Request request) async {
+    _logInfo('[API] POST /api/scheduler/control');
+    final payload = await readJsonObject(request);
+    final action = requireString(payload, 'action');
+    const validActions = {'start', 'pause', 'resume', 'stop', 'evaluate'};
+    if (!validActions.contains(action)) {
+      throw BadRequestError(
+        field: 'action',
+        expected: 'one_of:start,pause,resume,stop,evaluate',
+        message: 'Unknown scheduler action',
+      );
+    }
+
+    final engine = switch (action) {
+      'pause' || 'stop' => container.read(schedulerEngineProvider),
+      _ => await container.read(schedulerEngineReadyProvider.future),
+    };
+    switch (action) {
+      case 'start':
+        try {
+          await engine.start();
+        } on SchedulerStartException catch (error) {
+          throw BadRequestError(
+            field: 'action',
+            expected: 'scheduler_with_at_least_one_target',
+            message: error.message,
+          );
+        }
+      case 'pause':
+        await engine.pause();
+      case 'resume':
+        await engine.resume();
+      case 'stop':
+        await engine.stop();
+      case 'evaluate':
+        await engine.evaluateNow(reason: 'remote manual re-evaluation');
+    }
+    return jsonOk(await _schedulerState());
+  }
+
+  /// POST /api/scheduler/config
+  Future<Response> handleUpdateConfig(Request request) async {
+    _logInfo('[API] POST /api/scheduler/config');
+    final payload = await readJsonObject(request);
+    final weightsPayload = payload['weights'];
+    if (weightsPayload is! Map) {
+      throw BadRequestError(
+        field: 'weights',
+        expected: 'object',
+        message: 'Scheduler weights must be an object',
+      );
+    }
+    final weights = weightsPayload.cast<String, dynamic>();
+    final config = SchedulerConfig.defaults.copyWith(
+      hysteresisRatio: requireDouble(
+        payload,
+        'hysteresisRatio',
+        min: 1,
+        max: 2,
+      ),
+      minAltitudeDegrees: requireDouble(
+        payload,
+        'minAltitudeDegrees',
+        min: 0,
+        max: 60,
+      ),
+      weights: SchedulerWeights(
+        altitude: requireDouble(weights, 'altitude', min: 0, max: 3),
+        meridian: requireDouble(weights, 'meridian', min: 0, max: 3),
+        moon: requireDouble(weights, 'moon', min: 0, max: 3),
+        timeRemaining: requireDouble(weights, 'timeRemaining', min: 0, max: 3),
+        filterCoverage: requireDouble(
+          weights,
+          'filterCoverage',
+          min: 0,
+          max: 3,
+        ),
+        userPriority: requireDouble(weights, 'userPriority', min: 0, max: 3),
+      ),
+    );
+
+    // Commit durability before changing the live engine. A failed disk write
+    // must not leave the UI and running scheduler on a transient config.
+    await container.read(schedulerConfigStoreProvider).save(config);
+    container.read(schedulerConfigUserDirtyProvider.notifier).state = true;
+    final engine = await container.read(schedulerEngineReadyProvider.future);
+    engine.updateConfig(config);
+    return jsonOk(await _schedulerState());
+  }
+
   // ===========================================================================
   // Calculate Altitude
   // ===========================================================================
@@ -224,26 +337,19 @@ class SchedulerHandlers {
   /// Get rise and set times for object
   Future<Response> handleCalculateRiseSet(Request request) async {
     _logInfo('[API] GET /api/scheduler/rise-set');
+
+    // Validate the coordinates BEFORE the observer-location DB read so a
+    // malformed request fails closed and does no work. RA is in HOURS for this
+    // endpoint (raDeg = raHours * 15), Dec in degrees. A supplied minAltitude
+    // must be finite and physical (-90..90); a malformed value must NOT silently
+    // become 0 and produce a bogus rise/set time.
+    final query = request.url.queryParameters;
+    final raHours = requireQueryDouble(query, 'ra', min: 0, max: 24);
+    final decDegrees = requireQueryDouble(query, 'dec', min: -90, max: 90);
+    final minAltitude =
+        optionalQueryDouble(query, 'minAltitude', min: -90, max: 90) ?? 0.0;
+
     final database = container.read(databaseProvider);
-
-    // Parse query parameters
-    final raParam = request.url.queryParameters['ra'];
-    final decParam = request.url.queryParameters['dec'];
-    final minAltParam = request.url.queryParameters['minAltitude'];
-
-    if (raParam == null || decParam == null) {
-      return jsonBadRequest({
-        'error': 'Missing required parameters: ra and dec',
-      });
-    }
-
-    final raHours = double.tryParse(raParam);
-    final decDegrees = double.tryParse(decParam);
-    if (raHours == null || decDegrees == null) {
-      return jsonBadRequest({'error': 'Invalid ra or dec values'});
-    }
-
-    final minAltitude = double.tryParse(minAltParam ?? '0') ?? 0.0;
 
     // Get observer location
     final latitude = await database.settingsDao.getObserverLatitude();
@@ -293,26 +399,17 @@ class SchedulerHandlers {
   /// Get hours object is above altitude
   Future<Response> handleCalculateHoursAbove(Request request) async {
     _logInfo('[API] GET /api/scheduler/hours-above-horizon');
+
+    // Validate coordinates before the observer-location DB read. RA is in HOURS
+    // (raDeg = raHours * 15), Dec in degrees, minAltitude finite and physical.
+    // A malformed supplied minAltitude must NOT silently become 30.
+    final query = request.url.queryParameters;
+    final raHours = requireQueryDouble(query, 'ra', min: 0, max: 24);
+    final decDegrees = requireQueryDouble(query, 'dec', min: -90, max: 90);
+    final minAltitude =
+        optionalQueryDouble(query, 'minAltitude', min: -90, max: 90) ?? 30.0;
+
     final database = container.read(databaseProvider);
-
-    // Parse query parameters
-    final raParam = request.url.queryParameters['ra'];
-    final decParam = request.url.queryParameters['dec'];
-    final minAltParam = request.url.queryParameters['minAltitude'];
-
-    if (raParam == null || decParam == null) {
-      return jsonBadRequest({
-        'error': 'Missing required parameters: ra and dec',
-      });
-    }
-
-    final raHours = double.tryParse(raParam);
-    final decDegrees = double.tryParse(decParam);
-    if (raHours == null || decDegrees == null) {
-      return jsonBadRequest({'error': 'Invalid ra or dec values'});
-    }
-
-    final minAltitude = double.tryParse(minAltParam ?? '30') ?? 30.0;
 
     // Get observer location
     final latitude = await database.settingsDao.getObserverLatitude();
@@ -479,6 +576,9 @@ class SchedulerHandlers {
     // just stored into the targetVisibility map ourselves — they are not
     // payload casts and cannot leak caller-induced type errors.
     final sortedTargets = List<dynamic>.from(targets);
+    final inputOrder = <int, int>{
+      for (final (index, target) in targets.indexed) target.id as int: index,
+    };
 
     switch (strategyStr.toLowerCase()) {
       case 'transittime':
@@ -554,8 +654,14 @@ class SchedulerHandlers {
         break;
 
       case 'priority':
-        // Use target priority
-        sortedTargets.sort((a, b) => a.priority.compareTo(b.priority));
+        // The target library, project overrides, and dynamic scheduler all
+        // define a higher numeric value as more important. Preserve request
+        // order for ties so equal priorities remain deterministic.
+        sortedTargets.sort((a, b) {
+          final byPriority = b.priority.compareTo(a.priority);
+          if (byPriority != 0) return byPriority;
+          return inputOrder[a.id]!.compareTo(inputOrder[b.id]!);
+        });
         break;
 
       default:

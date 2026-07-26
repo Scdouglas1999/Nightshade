@@ -148,18 +148,17 @@ class _ConstellationSignInSheetState
       );
 
       // Persist the standing credentials + identity so the providers resolve.
-      await settings.setSetting(constellationHubUrlSettingKey, rawUrl);
-      await settings.setSetting(
-        constellationHubTokenSettingKey,
-        account.bearerToken,
-      );
-      await settings.setSetting(constellationDisplayNameSettingKey, name);
-      // Record the hub-issued account id so follow-the-night can tell when the
-      // baton's holder is this user (enables the Release affordance).
-      await settings.setSetting(
-        constellationAccountIdSettingKey,
-        account.accountId,
-      );
+      // These values form one usable account identity. A partial write could
+      // leave the app "configured" with a token but no matching hub/account,
+      // so commit the tuple in one database transaction.
+      await settings.setSettings({
+        constellationHubUrlSettingKey: rawUrl,
+        constellationHubTokenSettingKey: account.bearerToken,
+        constellationDisplayNameSettingKey: name,
+        // Record the hub-issued account id so follow-the-night can tell when
+        // the baton's holder is this user (enables the Release affordance).
+        constellationAccountIdSettingKey: account.accountId,
+      });
 
       if (!mounted) return;
       ref.invalidate(constellationConfiguredProvider);

@@ -5,6 +5,7 @@ class SciencePhotometrySelectionNotifier
   static const _enabledKey = 'science.photometry.differential_active';
   static const _targetKey = 'science.photometry.target_anchor';
   static const _comparisonsKey = 'science.photometry.comparison_anchors';
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<SciencePhotometrySelection> build() async {
@@ -20,87 +21,110 @@ class SciencePhotometrySelectionNotifier
     );
   }
 
-  Future<void> setDifferentialEnabled(bool enabled) async {
-    await _writeScienceSettings(ref, {_enabledKey: enabled.toString()});
-    state = AsyncData(
-      (state.value ?? const SciencePhotometrySelection()).copyWith(
-        differentialEnabled: enabled,
-      ),
-    );
-  }
-
-  Future<void> setTarget(PhotometryAnchor? target) async {
-    final value = target == null ? '' : jsonEncode(target.toJson());
-
-    final current = state.value ?? const SciencePhotometrySelection();
-    final comparisons = current.comparisons
-        .where((entry) => entry.objectId != target?.objectId)
-        .toList(growable: false);
-
-    await _writeScienceSettings(ref, {
-      _targetKey: value,
-      _comparisonsKey: jsonEncode(
-        comparisons.map((entry) => entry.toJson()).toList(),
-      ),
+  Future<void> _serialized(
+    Future<void> Function(SciencePhotometrySelection current) operation,
+  ) {
+    final result = _writeTail.then((_) async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError(
+          'Science photometry selection is not loaded; refusing to '
+          'overwrite it with defaults.',
+        );
+      }
+      await operation(current);
     });
-
-    state = AsyncData(
-      current.copyWith(
-        target: target,
-        clearTarget: target == null,
-        comparisons: comparisons,
-      ),
+    _writeTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
     );
+    return result;
   }
+
+  Future<void> setDifferentialEnabled(bool enabled) =>
+      _serialized((current) async {
+        await _writeScienceSettings(ref, {_enabledKey: enabled.toString()});
+        state = AsyncData(current.copyWith(differentialEnabled: enabled));
+      });
+
+  Future<void> setTarget(PhotometryAnchor? target) =>
+      _serialized((current) async {
+        final value = target == null ? '' : jsonEncode(target.toJson());
+        final comparisons = current.comparisons
+            .where((entry) => entry.objectId != target?.objectId)
+            .toList(growable: false);
+
+        await _writeScienceSettings(ref, {
+          _targetKey: value,
+          _comparisonsKey: jsonEncode(
+            comparisons.map((entry) => entry.toJson()).toList(),
+          ),
+        });
+
+        state = AsyncData(
+          current.copyWith(
+            target: target,
+            clearTarget: target == null,
+            comparisons: comparisons,
+          ),
+        );
+      });
 
   Future<void> toggleComparison(
     PhotometryAnchor anchor, {
     int maxComparisons = 8,
-  }) async {
-    final current = state.value ?? const SciencePhotometrySelection();
-    final mutable = current.comparisons.toList(growable: true);
+  }) {
+    return _serialized((current) async {
+      final mutable = current.comparisons.toList(growable: true);
 
-    final existingIndex = mutable.indexWhere(
-      (entry) => entry.objectId == anchor.objectId,
-    );
-    if (existingIndex >= 0) {
-      mutable.removeAt(existingIndex);
-    } else if (mutable.length < maxComparisons) {
-      mutable.add(anchor);
-    }
+      final existingIndex = mutable.indexWhere(
+        (entry) => entry.objectId == anchor.objectId,
+      );
+      if (existingIndex >= 0) {
+        mutable.removeAt(existingIndex);
+      } else if (mutable.length < maxComparisons) {
+        mutable.add(anchor);
+      }
 
-    final filtered = mutable
-        .where((entry) => entry.objectId != current.target?.objectId)
-        .toList(growable: false);
+      final filtered = mutable
+          .where((entry) => entry.objectId != current.target?.objectId)
+          .toList(growable: false);
 
-    await _writeScienceSettings(ref, {
-      _comparisonsKey: jsonEncode(
-        filtered.map((entry) => entry.toJson()).toList(),
-      ),
+      await _writeScienceSettings(ref, {
+        _comparisonsKey: jsonEncode(
+          filtered.map((entry) => entry.toJson()).toList(),
+        ),
+      });
+      state = AsyncData(current.copyWith(comparisons: filtered));
     });
-    state = AsyncData(current.copyWith(comparisons: filtered));
   }
 
-  Future<void> clearComparisons() async {
+  Future<void> clearComparisons() => _serialized((current) async {
     await _writeScienceSettings(ref, {_comparisonsKey: '[]'});
-    final current = state.value ?? const SciencePhotometrySelection();
     state = AsyncData(current.copyWith(comparisons: const []));
-  }
+  });
 
-  Future<void> clearAll() async {
+  Future<void> clearAll() => _serialized((_) async {
     await _writeScienceSettings(ref, {
       _enabledKey: 'false',
       _targetKey: '',
       _comparisonsKey: '[]',
     });
     state = const AsyncData(SciencePhotometrySelection());
-  }
+  });
 
   bool _parseBool(String? value, bool fallback) {
     if (value == null || value.isEmpty) {
       return fallback;
     }
-    return value.toLowerCase() == 'true';
+    switch (value.toLowerCase()) {
+      case 'true':
+        return true;
+      case 'false':
+        return false;
+      default:
+        throw FormatException('Invalid persisted boolean "$value"');
+    }
   }
 
   PhotometryAnchor? _decodeAnchor(String? raw) {
@@ -115,6 +139,7 @@ class SciencePhotometrySelectionNotifier
       if (decoded is Map) {
         return PhotometryAnchor.fromJson(decoded.cast<String, dynamic>());
       }
+      throw const FormatException('Target anchor must be a JSON object');
     } catch (error, stack) {
       developer.log(
         'SciencePhotometrySelectionNotifier: failed to decode target anchor '
@@ -124,8 +149,11 @@ class SciencePhotometrySelectionNotifier
         error: error,
         stackTrace: stack,
       );
+      Error.throwWithStackTrace(
+        StateError('Persisted photometry target is corrupt: $error'),
+        stack,
+      );
     }
-    return null;
   }
 
   List<PhotometryAnchor> _decodeAnchors(String? raw, {int maxItems = 8}) {
@@ -135,7 +163,7 @@ class SciencePhotometrySelectionNotifier
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! List) {
-        return const [];
+        throw const FormatException('Comparison anchors must be a JSON list');
       }
       final anchors = <PhotometryAnchor>[];
       for (final item in decoded) {
@@ -158,7 +186,10 @@ class SciencePhotometrySelectionNotifier
         error: error,
         stackTrace: stack,
       );
-      return const [];
+      Error.throwWithStackTrace(
+        StateError('Persisted photometry comparisons are corrupt: $error'),
+        stack,
+      );
     }
   }
 }

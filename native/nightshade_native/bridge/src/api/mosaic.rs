@@ -414,14 +414,45 @@ mod tests {
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-    fn temp_path(tag: &str, ext: &str) -> std::path::PathBuf {
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: the leak was worst exactly when a test FAILED, and a
+    /// trailing cleanup never runs while a panic unwinds — drop does.
+    struct TempDir(std::path::PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn temp_dir(tag: &str) -> TempDir {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        std::env::temp_dir().join(format!(
-            "ns_mosaic_ffi_{}_{}_{}.{ext}",
+        let p = std::env::temp_dir().join(format!(
+            "ns_mosaic_ffi_{}_{}_{}",
             tag,
             std::process::id(),
             n
-        ))
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
     }
 
     /// CD-matrix WCS for an axis-aligned tangent plane (no rotation), RA flipping
@@ -442,12 +473,19 @@ mod tests {
 
     /// Write a synthetic single-channel F32 panel master (ramp field) to a FITS
     /// file with its WCS stamped, and return its path.
-    fn write_panel(tag: &str, wcs: &WcsInfo, w: u32, h: u32, base: f32) -> std::path::PathBuf {
+    fn write_panel(
+        dir: &Path,
+        tag: &str,
+        wcs: &WcsInfo,
+        w: u32,
+        h: u32,
+        base: f32,
+    ) -> std::path::PathBuf {
         let data: Vec<f32> = (0..(w * h)).map(|i| base + (i % 997) as f32).collect();
         let image = ImageData::from_f32(w, h, 1, &data);
         let mut header = FitsHeader::new();
         add_wcs_headers(&mut header, wcs);
-        let path = temp_path(tag, "fits");
+        let path = dir.join(format!("{tag}.fits"));
         write_fits(&path, &image, &header).expect("write synthetic panel");
         path
     }
@@ -462,12 +500,13 @@ mod tests {
         let half_w_deg = (w as f64 / 2.0) * (scale / 3600.0) / dec0.to_radians().cos();
         let wcs_a = make_wcs(ra0, dec0, scale, w, h);
         let wcs_b = make_wcs(ra0 - half_w_deg, dec0, scale, w, h);
-        let pa = write_panel("a", &wcs_a, w, h, 100.0);
-        let pb = write_panel("b", &wcs_b, w, h, 100.0);
+        let dir = temp_dir("stitch_two_panels_round_trip");
+        let pa = write_panel(&dir, "a", &wcs_a, w, h, 100.0);
+        let pb = write_panel(&dir, "b", &wcs_b, w, h, 100.0);
 
-        let master_out = temp_path("master", "fits");
-        let coverage_out = temp_path("coverage", "fits");
-        let preview_out = temp_path("preview", "png");
+        let master_out = dir.join("master.fits");
+        let coverage_out = dir.join("coverage.fits");
+        let preview_out = dir.join("preview.png");
 
         let args = serde_json::json!({
             "panels": [ { "fitsPath": pa.to_string_lossy() }, { "fitsPath": pb.to_string_lossy() } ],
@@ -498,10 +537,6 @@ mod tests {
             Some(2),
             "panel count stamped"
         );
-
-        for p in [pa, pb, master_out, coverage_out, preview_out] {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     #[test]
@@ -510,10 +545,11 @@ mod tests {
         let data = vec![1.0f32; 64 * 64];
         let image = ImageData::from_f32(64, 64, 1, &data);
         let header = FitsHeader::new();
-        let path = temp_path("nowcs", "fits");
+        let dir = temp_dir("missing_wcs_errors");
+        let path = dir.join("nowcs.fits");
         write_fits(&path, &image, &header).unwrap();
 
-        let master_out = temp_path("master_nowcs", "fits");
+        let master_out = dir.join("master_nowcs.fits");
         let args = serde_json::json!({
             "panels": [ { "fitsPath": path.to_string_lossy() } ],
             "output": { "mosaicFitsPath": master_out.to_string_lossy() }
@@ -521,7 +557,6 @@ mod tests {
         .to_string();
         let err = api_stitch_mosaic(args).unwrap_err();
         assert!(err.contains("no usable WCS"), "got: {err}");
-        let _ = std::fs::remove_file(path);
     }
 
     #[test]
@@ -535,10 +570,11 @@ mod tests {
         let image = ImageData::from_f32(80, 80, 1, &data);
         let mut header = FitsHeader::new();
         add_wcs_headers(&mut header, &wrong);
-        let path = temp_path("override", "fits");
+        let dir = temp_dir("explicit_wcs_overrides_header");
+        let path = dir.join("override.fits");
         write_fits(&path, &image, &header).unwrap();
 
-        let master_out = temp_path("master_override", "fits");
+        let master_out = dir.join("master_override.fits");
         let args = serde_json::json!({
             "panels": [ {
                 "fitsPath": path.to_string_lossy(),
@@ -561,10 +597,6 @@ mod tests {
             (out_ra - 250.0).abs() < 1.0,
             "out RA {out_ra} should be ~250"
         );
-
-        for p in [path, master_out] {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     #[test]

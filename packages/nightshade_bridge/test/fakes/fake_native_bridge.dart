@@ -40,6 +40,8 @@
 /// Every public method appends a [_RecordedCall] to [recordedCalls] before
 /// returning. Tests can assert call counts, ordering, and argument values.
 
+library;
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -624,8 +626,14 @@ class FakeNativeBridge {
     return _typed<String?>('getPlateSolverPath', defaultValue: null);
   }
 
-  Future<PlateSolveResult> plateSolveBlind(String filePath) async {
-    _record('plateSolveBlind', {'filePath': filePath});
+  Future<PlateSolveResult> plateSolveBlind(
+    String filePath, [
+    int? timeoutSeconds,
+  ]) async {
+    _record('plateSolveBlind', {
+      'filePath': filePath,
+      'timeoutSeconds': timeoutSeconds,
+    });
     _maybeThrow('plateSolveBlind');
     // No sensible permissive default for a solve result — tests must inject.
     return _requiredResponse<PlateSolveResult>('plateSolveBlind');
@@ -635,13 +643,15 @@ class FakeNativeBridge {
     String filePath,
     double hintRa,
     double hintDec,
-    double searchRadius,
-  ) async {
+    double searchRadius, [
+    int? timeoutSeconds,
+  ]) async {
     _record('plateSolveNear', {
       'filePath': filePath,
       'hintRa': hintRa,
       'hintDec': hintDec,
       'searchRadius': searchRadius,
+      'timeoutSeconds': timeoutSeconds,
     });
     _maybeThrow('plateSolveNear');
     return _requiredResponse<PlateSolveResult>('plateSolveNear');

@@ -10,9 +10,23 @@ import 'headless_env.dart';
 class HeadlessAuthConfig {
   final String? token;
   final bool requireAuth;
+
+  /// Explicit opt-in to the legacy fully-open behaviour. When true AND no
+  /// tokens are configured, every endpoint is served without a bearer token
+  /// (the server logs a prominent warning). Default false = FAIL CLOSED: an
+  /// unconfigured server serves only the pairing/dashboard bootstrap surface.
+  ///
+  /// Distinct from [bindLocalOnly]: this governs whether requests are
+  /// *authenticated*, not which interface the socket binds to.
+  final bool allowUnauthenticated;
   final bool bindLocalOnly;
   final int port;
   final Map<String, HeadlessTokenScope> scopedTokens;
+
+  /// Fine-grained tokens, each carrying a per-resource [HeadlessAuthGrant]
+  /// (e.g. "control camera but not mount"). Sourced from
+  /// `NIGHTSHADE_SCOPED_TOKEN` / repeated `--scoped-token=`.
+  final Map<String, HeadlessAuthGrant> fineGrainedTokens;
   final List<String> corsAllowedOrigins;
   final bool pairingPrintCodes;
   final PairingMode pairingMode;
@@ -23,9 +37,11 @@ class HeadlessAuthConfig {
   HeadlessAuthConfig({
     this.token,
     this.requireAuth = false,
+    this.allowUnauthenticated = false,
     this.bindLocalOnly = true,
     this.port = 8080,
     this.scopedTokens = const {},
+    this.fineGrainedTokens = const {},
     this.corsAllowedOrigins = const [],
     this.pairingPrintCodes = false,
     this.pairingMode = PairingMode.lanOpen,
@@ -42,9 +58,13 @@ class HeadlessAuthConfig {
 HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
   String? token;
   var requireAuth = false;
+  // Serve-open escape hatch (authentication), distinct from the LAN-bind flag
+  // below (network exposure). Default off => FAIL CLOSED.
+  var allowUnauthenticated = envFlag('NIGHTSHADE_ALLOW_UNAUTHENTICATED');
   var allowUnauthenticatedLan = envFlag('NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN');
   var port = 8080;
   final scopedTokens = <String, HeadlessTokenScope>{};
+  final fineGrainedTokens = <String, HeadlessAuthGrant>{};
   final corsAllowedOrigins = <String>[];
   var pairingPrintCodes = envFlag('NIGHTSHADE_PAIRING_PRINT_CODES');
   // Default to one-tap LAN pairing; operators can tighten to code-required.
@@ -66,6 +86,15 @@ HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
     'NIGHTSHADE_CONTROL_TOKEN',
     HeadlessTokenScope.control,
   );
+  // Fine-grained tokens: NIGHTSHADE_SCOPED_TOKEN carries one or more
+  // `<token>=<grant-spec>` entries separated by `;`, e.g.
+  // `secretA=camera:control,mount:view;secretB=admin`.
+  final envScoped = Platform.environment['NIGHTSHADE_SCOPED_TOKEN'];
+  if (envScoped != null && envScoped.trim().isNotEmpty) {
+    for (final entry in envScoped.split(';')) {
+      _addFineGrainedToken(fineGrainedTokens, entry);
+    }
+  }
   if (Platform.environment['NIGHTSHADE_PORT'] != null) {
     port = int.tryParse(Platform.environment['NIGHTSHADE_PORT']!) ?? 8080;
   }
@@ -87,6 +116,8 @@ HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
       token = arg.substring('--auth-token='.length);
     } else if (arg == '--require-auth') {
       requireAuth = true;
+    } else if (arg == '--allow-unauthenticated') {
+      allowUnauthenticated = true;
     } else if (arg == '--allow-unauthenticated-lan') {
       allowUnauthenticatedLan = true;
     } else if (arg.startsWith('--view-token=')) {
@@ -100,6 +131,11 @@ HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
         scopedTokens,
         arg.substring('--control-token='.length),
         HeadlessTokenScope.control,
+      );
+    } else if (arg.startsWith('--scoped-token=')) {
+      _addFineGrainedToken(
+        fineGrainedTokens,
+        arg.substring('--scoped-token='.length),
       );
     } else if (arg.startsWith('--port=')) {
       port = int.tryParse(arg.substring('--port='.length)) ?? port;
@@ -131,13 +167,18 @@ HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
   }
 
   final hasAuthentication =
-      token != null || requireAuth || scopedTokens.isNotEmpty;
+      token != null ||
+      requireAuth ||
+      scopedTokens.isNotEmpty ||
+      fineGrainedTokens.isNotEmpty;
   return HeadlessAuthConfig(
     token: token,
     requireAuth: requireAuth,
+    allowUnauthenticated: allowUnauthenticated,
     bindLocalOnly: !hasAuthentication && !allowUnauthenticatedLan,
     port: port,
     scopedTokens: Map.unmodifiable(scopedTokens),
+    fineGrainedTokens: Map.unmodifiable(fineGrainedTokens),
     corsAllowedOrigins: List.unmodifiable(corsAllowedOrigins),
     pairingPrintCodes: pairingPrintCodes,
     pairingMode: pairingMode,
@@ -165,4 +206,25 @@ void _addScopedToken(
     return;
   }
   scopedTokens[normalizedToken] = scope;
+}
+
+/// Parse one `<token>=<grant-spec>` entry and register it. The token is split
+/// on the FIRST `=` so a grant spec containing `:` and `,` survives intact
+/// (e.g. `secret=camera:control,mount:view`). Malformed entries (no `=`, empty
+/// token, or an unparseable spec) are skipped silently — a fail-closed launch
+/// is preferable to crashing the daemon on a typo'd env var.
+void _addFineGrainedToken(
+  Map<String, HeadlessAuthGrant> fineGrainedTokens,
+  String entry,
+) {
+  final trimmed = entry.trim();
+  if (trimmed.isEmpty) return;
+  final eq = trimmed.indexOf('=');
+  if (eq <= 0) return;
+  final token = trimmed.substring(0, eq).trim();
+  final spec = trimmed.substring(eq + 1).trim();
+  if (token.isEmpty || spec.isEmpty) return;
+  final grant = HeadlessAuthGrant.parseSpec(spec);
+  if (grant == null) return;
+  fineGrainedTokens[token] = grant;
 }

@@ -15,7 +15,10 @@ class _ProjectHeaderBar extends StatelessWidget {
   final NightshadeColors colors;
   final List<Project> projects;
   final Project active;
-  final ValueChanged<int> onSelect;
+  final Future<void> Function(int) onSelect;
+  final bool interactionBusy;
+  final bool mutatingProject;
+  final bool planningSmartNight;
   final Future<void> Function() onCreate;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -26,6 +29,9 @@ class _ProjectHeaderBar extends StatelessWidget {
     required this.projects,
     required this.active,
     required this.onSelect,
+    required this.interactionBusy,
+    required this.mutatingProject,
+    required this.planningSmartNight,
     required this.onCreate,
     required this.onEdit,
     required this.onDelete,
@@ -60,11 +66,15 @@ class _ProjectHeaderBar extends StatelessWidget {
                 items: ids,
                 itemLabels: labels,
                 isExpanded: true,
-                onChanged: (raw) {
-                  if (raw == null) return;
-                  final id = int.tryParse(raw);
-                  if (id != null) onSelect(id);
-                },
+                onChanged: interactionBusy || planningSmartNight
+                    ? null
+                    : (raw) {
+                        if (raw == null) return;
+                        final id = int.tryParse(raw);
+                        if (id != null) {
+                          onSelect(id);
+                        }
+                      },
               ),
             ),
           ),
@@ -74,7 +84,7 @@ class _ProjectHeaderBar extends StatelessWidget {
             label: 'Edit project',
             tooltip: 'Edit project',
             size: NightshadeTokens.iconMd,
-            onPressed: onEdit,
+            onPressed: interactionBusy || planningSmartNight ? null : onEdit,
           ),
           AccessibleIconButton(
             icon: LucideIcons.trash2,
@@ -82,7 +92,7 @@ class _ProjectHeaderBar extends StatelessWidget {
             tooltip: 'Delete project',
             color: colors.error,
             size: NightshadeTokens.iconMd,
-            onPressed: onDelete,
+            onPressed: interactionBusy || planningSmartNight ? null : onDelete,
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
@@ -90,7 +100,8 @@ class _ProjectHeaderBar extends StatelessWidget {
             icon: LucideIcons.sparkles,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: onPlanInSmartNight,
+            isLoading: planningSmartNight,
+            onPressed: interactionBusy ? null : onPlanInSmartNight,
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
@@ -98,7 +109,9 @@ class _ProjectHeaderBar extends StatelessWidget {
             icon: LucideIcons.folderPlus,
             variant: ButtonVariant.primary,
             size: ButtonSize.small,
-            onPressed: () => onCreate(),
+            isLoading: mutatingProject,
+            onPressed:
+                interactionBusy || planningSmartNight ? null : () => onCreate(),
           ),
         ],
       ),

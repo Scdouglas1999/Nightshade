@@ -26,6 +26,18 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
   /// vision mode where white thumbs/checkmarks would ruin dark adaptation.
   final bool useDarkOnPrimary;
 
+  /// True only for the red-night set.
+  ///
+  /// Needed because red night is a WAVELENGTH constraint, not just a dark
+  /// palette, and some surfaces pick colours outside this class — notably
+  /// [NightshadeChartColors], whose series are `static const` and therefore
+  /// theme-blind. The dashboard guiding chart drew its Dec series in
+  /// `#6B95B8` (measured on device) while the rest of the UI was red, which is
+  /// exactly the dark-adaptation loss the mode exists to prevent.
+  /// [useDarkOnPrimary] cannot stand in for this: it is also true for light
+  /// and for custom accents that want dark ink.
+  final bool isRedNight;
+
   const NightshadeColors({
     required this.primary,
     required this.accent,
@@ -45,6 +57,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     required this.error,
     required this.info,
     this.useDarkOnPrimary = false,
+    this.isRedNight = false,
   });
 
   /// Foreground color for content on [primary] fills (switches, buttons).
@@ -65,11 +78,22 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     borderHighlight: Color(0xFF3A424E),
     textPrimary: Color(0xFFE8EAED),
     textSecondary: Color(0xFF9AA3AD),
-    textMuted: Color(0xFF6B7380),
+    // WCAG AA: #6B7380 measured 3.57:1 on surfaceAlt and 3.01:1 on
+    // surfaceElevated — under the 4.5:1 floor, and textMuted carries the 9-12px
+    // metric captions and group labels where legibility matters most. #9099A6
+    // clears 4.5:1 on ALL dark surfaces (4.62 overlay → 6.80 background) and
+    // stays dimmer than textSecondary so the three-level hierarchy survives.
+    textMuted: Color(0xFF9099A6),
     success: Color(0xFF3DAA6D),
     warning: Color(0xFFD49A3A),
     error: Color(0xFFD85C5C),
     info: Color(0xFF5B9EC4),
+    // This palette's primary/accent/error/success/warning are all LIGHT tones,
+    // so white label text on a filled button scored 2.94:1 (primary), 2.18:1
+    // (accent) and 3.75:1 (error — the mount STOP and every destructive
+    // button). Dark ink on a light fill is the correct pairing and lifts all
+    // five to 5.23-8.98:1 without touching a single accent hue.
+    useDarkOnPrimary: true,
   );
 
   /// Cool light palette with deeper cyan-blue primary for contrast.
@@ -86,18 +110,36 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     borderHighlight: Color(0xFFC8D0D8),
     textPrimary: Color(0xFF141820),
     textSecondary: Color(0xFF5C6672),
-    textMuted: Color(0xFF8A939E),
-    success: Color(0xFF2F8F57),
-    warning: Color(0xFFB87A1E),
+    // WCAG AA: #8A939E was only 3.11:1 on the white surface (2.75:1 on
+    // surfaceAlt) — the worst offender in any palette. #666E79 clears 4.5:1 on
+    // white (5.16), background (4.76) and surfaceAlt (4.55).
+    textMuted: Color(0xFF666E79),
+    // These two are consumed as small STATUS TEXT on white (e.g. an in-progress
+    // "Downloading…" caption), where #2F8F57 scored 4.05:1 and #B87A1E 3.60:1.
+    // Darkened to 4.94:1 each, hue preserved. error (4.66:1 white-on-fill) and
+    // info already passed, so they are unchanged.
+    success: Color(0xFF2A7F4F),
+    warning: Color(0xFF9A6516),
     error: Color(0xFFC94848),
     info: Color(0xFF2878A8),
   );
 
   /// Create a dark theme with custom accent color
+  /// True when dark ink reads better than white on [fill].
+  ///
+  /// 0.1791 is the WCAG crossover: solve 1.05/(L+0.05) == (L+0.05)/0.05 and a
+  /// fill above it contrasts better with black than with white. A user-chosen
+  /// accent can be any colour, so neither ink is safe as a blanket default —
+  /// white on a light accent measures as low as 1.32:1 (yellow), while dark ink
+  /// on a dark accent is 1.89:1 (navy). Picking per-fill keeps every accent
+  /// legible instead of leaving it to chance.
+  static bool _prefersDarkInk(Color fill) => fill.computeLuminance() > 0.1791;
+
   static NightshadeColors darkWithAccent(Color accentColor) {
     return dark.copyWith(
       primary: accentColor,
       accent: _lightenColor(accentColor, 0.15),
+      useDarkOnPrimary: _prefersDarkInk(accentColor),
     );
   }
 
@@ -106,6 +148,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     return light.copyWith(
       primary: accentColor,
       accent: _lightenColor(accentColor, 0.15),
+      useDarkOnPrimary: _prefersDarkInk(accentColor),
     );
   }
 
@@ -130,14 +173,21 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     surfaceOverlay: Color(0xFF301616),
     border: Color(0xFF2E1414),
     borderHighlight: Color(0xFF3A1A1A),
-    textPrimary: Color(0xFFE57373),
-    textSecondary: Color(0xFFB71C1C),
-    textMuted: Color(0xFF7F1D1D),
+    // The red-only constraint is about WAVELENGTH, not dimness: the old ladder
+    // was unreadable rather than dark-adapted — textMuted #7F1D1D measured
+    // 1.67:1 and textSecondary #B71C1C 2.55:1 against these surfaces (floor
+    // 4.5:1). Raised as a set so all three clear AA (5.35 / 7.46 / 9.86 worst
+    // case) and stay strictly ordered, while keeping red the dominant channel
+    // (red purity actually INCREASES for muted, 0.38 → 0.49).
+    textPrimary: Color(0xFFFFB3B3),
+    textSecondary: Color(0xFFF59191),
+    textMuted: Color(0xFFE86A6A),
     success: Color(0xFFB91C1C),
     warning: Color(0xFFDC2626),
     error: Color(0xFFEF5350),
     info: Color(0xFFE57373),
     useDarkOnPrimary: true,
+    isRedNight: true,
   );
 
   @override
@@ -160,6 +210,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     Color? error,
     Color? info,
     bool? useDarkOnPrimary,
+    bool? isRedNight,
   }) {
     return NightshadeColors(
       primary: primary ?? this.primary,
@@ -180,6 +231,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
       error: error ?? this.error,
       info: info ?? this.info,
       useDarkOnPrimary: useDarkOnPrimary ?? this.useDarkOnPrimary,
+      isRedNight: isRedNight ?? this.isRedNight,
     );
   }
 
@@ -220,6 +272,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
       error: Color.lerp(error, other.error, t)!,
       info: Color.lerp(info, other.info, t)!,
       useDarkOnPrimary: t < 0.5 ? useDarkOnPrimary : other.useDarkOnPrimary,
+      isRedNight: t < 0.5 ? isRedNight : other.isRedNight,
     );
   }
 }

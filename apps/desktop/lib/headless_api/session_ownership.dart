@@ -330,6 +330,7 @@ class SessionOwnershipManager {
 ///   * /api/plate-solve
 ///   * /api/framing/center-on-target, /slew-to-target, /sync, /rotate-to,
 ///     /abort-slew, /park, /unpark
+///   * /api/planetarium/slew-to, /sync-to, /center-on
 ///   * /api/polar-alignment/start, /all-sky/start, /stop
 ///   * /api/cover/open, /close, /brightness, /calibrator-on, /calibrator-off
 ///   * /api/switch/set
@@ -401,6 +402,11 @@ const Set<String> _ownershipRequiredPaths = {
   '/api/framing/abort-slew',
   '/api/framing/park',
   '/api/framing/unpark',
+  // Planetarium mount control (real hardware motion, same as the mount /
+  // framing slew endpoints)
+  '/api/planetarium/slew-to',
+  '/api/planetarium/sync-to',
+  '/api/planetarium/center-on',
   // Polar alignment
   '/api/polar-alignment/start',
   '/api/polar-alignment/all-sky/start',

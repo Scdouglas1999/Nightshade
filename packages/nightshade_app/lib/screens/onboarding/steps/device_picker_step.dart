@@ -148,7 +148,11 @@ class _OnboardingDevicePickerBodyState
 
         // Per-backend status (so the user understands why some lists are
         // empty — e.g. INDI server unreachable).
-        _BackendStatusRow(discovery: discovery, drivers: selectedDrivers),
+        _BackendStatusRow(
+          discovery: discovery,
+          drivers: selectedDrivers,
+          deviceType: widget.deviceType,
+        ),
 
         const SizedBox(height: 12),
 
@@ -185,10 +189,15 @@ class _OnboardingDevicePickerBodyState
 }
 
 class _BackendStatusRow extends StatelessWidget {
-  const _BackendStatusRow({required this.discovery, required this.drivers});
+  const _BackendStatusRow({
+    required this.discovery,
+    required this.drivers,
+    required this.deviceType,
+  });
 
   final UnifiedDiscoveryState discovery;
   final Set<DriverType> drivers;
+  final DeviceType deviceType;
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +235,10 @@ class _BackendStatusRow extends StatelessWidget {
             case DiscoveryStatus.completed:
               icon = LucideIcons.checkCircle2;
               color = colors.success;
-              label = '${driver.shortLabel} (${state.devices.length})';
+              final matchingCount = state.devices
+                  .where((device) => device.deviceType == deviceType)
+                  .length;
+              label = '${driver.shortLabel} ($matchingCount)';
               break;
             case DiscoveryStatus.error:
               icon = NightshadeIcons.warning;
@@ -281,30 +293,45 @@ class _DeviceList extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (devices.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isDiscovering
-                    ? LucideIcons.loader
-                    : NightshadeIcons.searchEmpty,
-                color: colors.textMuted,
-                size: 28,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                isDiscovering
-                    ? 'Scanning for devices...'
-                    : 'No devices found. Make sure your device is connected and powered on, then try Scan again.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colors.textSecondary,
+      // Centred when there is room, scrollable when there is not. As a bare
+      // Center this overflowed its Expanded slot wherever the picker is given a
+      // short fixed height — on the guider step (a 240 px box) the "No devices
+      // found" line painted straight through the "No matching device?" footnote
+      // below it, leaving two sentences overprinted on one line.
+      return LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight:
+                  constraints.maxHeight.isFinite ? constraints.maxHeight : 0,
+            ),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDiscovering
+                          ? LucideIcons.loader
+                          : NightshadeIcons.searchEmpty,
+                      color: colors.textMuted,
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isDiscovering
+                          ? 'Scanning for devices...'
+                          : 'No devices found. Make sure your device is connected and powered on, then try Scan again.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-            ],
+            ),
           ),
         ),
       );
@@ -320,60 +347,108 @@ class _DeviceList extends StatelessWidget {
         // recommended backend) so re-selecting through "Use this device"
         // keeps the same backend the user previously chose.
         final isSelected = device.activeDeviceId == selectedDeviceId;
-        return InkWell(
-          onTap: () => onSelected(device),
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: isSelected
-                ? NightshadeDecorations.selectedSurface(
-                    colors.primary,
-                    borderRadius: NightshadeTokens.borderRadiusLg,
-                    fillAlpha: 0.08,
-                  )
-                : BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: NightshadeTokens.borderRadiusLg,
-                    border: Border.all(color: colors.border),
-                  ),
-            child: Row(
-              children: [
-                Icon(
-                  isSelected
-                      ? LucideIcons.checkCircle2
-                      : NightshadeIcons.circle,
-                  color: isSelected ? colors.primary : colors.textMuted,
-                  size: 18,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        device.displayName,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        device.availableBackends.keys
-                            .map((b) => b.shortLabel)
-                            .join(' / '),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return _DeviceTile(
+          device: device,
+          isSelected: isSelected,
+          onSelected: () => onSelected(device),
         );
       },
+    );
+  }
+}
+
+/// One device row in the picker.
+///
+/// Stateful only to render a focus ring: the row is an [InkWell], so Tab
+/// already reached it and Space already selected it, but InkWell paints its
+/// focus highlight BEHIND the child and this row's opaque surface decoration
+/// hid it completely. A keyboard user tabbing the device list saw nothing move
+/// and had no way to tell which device Space would pick.
+class _DeviceTile extends StatefulWidget {
+  const _DeviceTile({
+    required this.device,
+    required this.isSelected,
+    required this.onSelected,
+  });
+
+  final UnifiedDevice device;
+  final bool isSelected;
+  final VoidCallback onSelected;
+
+  @override
+  State<_DeviceTile> createState() => _DeviceTileState();
+}
+
+class _DeviceTileState extends State<_DeviceTile> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final theme = Theme.of(context);
+    final device = widget.device;
+    final isSelected = widget.isSelected;
+
+    return InkWell(
+      onTap: widget.onSelected,
+      onFocusChange: (value) {
+        if (_focused == value) return;
+        setState(() => _focused = value);
+      },
+      borderRadius: NightshadeTokens.borderRadiusLg,
+      child: Container(
+        foregroundDecoration: _focused
+            ? BoxDecoration(
+                borderRadius: NightshadeTokens.borderRadiusLg,
+                border: Border.all(color: colors.primary, width: 2),
+              )
+            : null,
+        padding: const EdgeInsets.all(12),
+        decoration: isSelected
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: NightshadeTokens.borderRadiusLg,
+                fillAlpha: 0.08,
+              )
+            : BoxDecoration(
+                color: colors.surface,
+                borderRadius: NightshadeTokens.borderRadiusLg,
+                border: Border.all(color: colors.border),
+              ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? LucideIcons.checkCircle2 : NightshadeIcons.circle,
+              color: isSelected ? colors.primary : colors.textMuted,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    device.displayName,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    device.availableBackends.keys
+                        .map((b) => b.shortLabel)
+                        .join(' / '),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

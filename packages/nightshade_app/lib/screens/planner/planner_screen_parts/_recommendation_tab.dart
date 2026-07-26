@@ -63,32 +63,43 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
       );
     }
 
-    return Column(
-      children: [
-        _PlannerControlsBar(
-          colors: colors,
-          controller: _searchController,
-          filters: filtersState,
-          candidatesAsync: candidatesAsync,
-        ),
-        Expanded(
-          // NEVER FLASH: the optimization plan refreshes whenever its inputs
-          // change (location, the 30s state re-hydration, a real target/profile
-          // edit). `when(loading:)` would drop the whole tab to a skeleton on
-          // every one of those, blanking the screen even when the result is
-          // identical. Instead, keep rendering the LAST good plan while a
-          // refresh is in flight (Riverpod retains the previous value across a
-          // reload), and only fall back to the skeleton on the very first load
-          // or the error screen when there is no value to keep showing. The
-          // content updates seamlessly in place when new data actually arrives.
-          child: _whenWithPrevious<SessionOptimizationPlan>(
-            planAsync,
-            data: (plan) => _buildBody(context, colors, plan, candidatesAsync),
-            loading: () => _buildLoadingState(colors),
-            error: (error) => _buildErrorState(context, colors, error),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // A parent Scaffold may consume viewInsets before this subtree sees
+        // them. Use the actual remaining height as the final authority so the
+        // search stays usable even when MediaQuery reports no keyboard.
+        final keyboardCompact = constraints.maxHeight < 120;
+
+        return Column(
+          children: [
+            _PlannerControlsBar(
+              colors: colors,
+              controller: _searchController,
+              filters: filtersState,
+              candidatesAsync: candidatesAsync,
+              keyboardCompact: keyboardCompact,
+            ),
+            Expanded(
+              // NEVER FLASH: the optimization plan refreshes whenever its inputs
+              // change (location, the 30s state re-hydration, a real target/profile
+              // edit). `when(loading:)` would drop the whole tab to a skeleton on
+              // every one of those, blanking the screen even when the result is
+              // identical. Instead, keep rendering the LAST good plan while a
+              // refresh is in flight (Riverpod retains the previous value across a
+              // reload), and only fall back to the skeleton on the very first load
+              // or the error screen when there is no value to keep showing. The
+              // content updates seamlessly in place when new data actually arrives.
+              child: _whenWithPrevious<SessionOptimizationPlan>(
+                planAsync,
+                data: (plan) =>
+                    _buildBody(context, colors, plan, candidatesAsync),
+                loading: () => _buildLoadingState(colors),
+                error: (error) => _buildErrorState(context, colors, error),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

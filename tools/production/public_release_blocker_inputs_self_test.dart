@@ -24,8 +24,8 @@ Future<void> main() async {
       'blocked fixture decision should be NOT_READY',
     );
     _expect(
-      blockedReport['blockerCount'] == 7,
-      'blocked fixture should emit 7 blockers',
+      blockedReport['blockerCount'] == 8,
+      'blocked fixture should emit 8 blockers',
     );
     for (final id in _requiredBlockerIds) {
       final blocker = _blockerById(blockedReport, id);
@@ -74,6 +74,7 @@ Future<void> _writeBlockedFixture(Directory root) async {
   await _writeJson(root, 'docs/production-readiness/public-release-gate.json', {
     'decision': 'NOT_READY',
     'checks': [
+      _gateCheck('windows_bundle', false),
       _gateCheck('release_staging', false),
       _gateCheck('linux_release_build', false),
       _gateCheck('hardware_control_smoke', false),
@@ -225,6 +226,7 @@ void _expect(bool condition, String message) {
 }
 
 const _requiredBlockerIds = [
+  'windows_bundle',
   'release_staging',
   'linux_release_build',
   'hardware_control_smoke',

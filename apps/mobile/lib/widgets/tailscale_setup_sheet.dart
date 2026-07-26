@@ -303,6 +303,8 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
           prefixIcon: LucideIcons.globe2,
           errorText: _hostError,
           keyboardType: TextInputType.url,
+          autocorrect: false,
+          enableSuggestions: false,
           onChanged: (_) {
             if (_hostError != null) setState(() => _hostError = null);
           },
@@ -371,6 +373,8 @@ class _TailscaleSetupSheetState extends State<TailscaleSetupSheet> {
           hint: l10n.text('tailscaleTokenHint'),
           prefixIcon: LucideIcons.key,
           obscureText: !_tokenVisible,
+          autocorrect: false,
+          enableSuggestions: false,
           suffixWidget: IconButton(
             icon: Icon(
               _tokenVisible ? LucideIcons.eyeOff : LucideIcons.eye,

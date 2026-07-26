@@ -7,8 +7,68 @@ import 'package:path_provider/path_provider.dart';
 
 import '../session_review/widgets/master_overlay_view.dart';
 import '../session_review/widgets/master_preview_view.dart';
+import 'mosaic_contribute_sheet.dart';
 import 'mosaic_project_controller.dart';
 import 'widgets/mosaic_panel_grid.dart';
+
+/// Present the WS4 consent sheet (license + anonymity opt-in) and, if the user
+/// confirms, upload either one panel ([panelIndex] set) or every
+/// integrated-but-unuploaded panel under the chosen license/attribution. A
+/// cancelled sheet ships nothing — no panel master leaves the device without an
+/// explicit per-upload opt-in.
+Future<void> _uploadMosaicWithConsent(
+  BuildContext context,
+  MosaicProjectController controller, {
+  int? panelIndex,
+}) async {
+  final choice = await showMosaicContributeSheet(context);
+  if (choice == null) return;
+  if (panelIndex == null) {
+    await controller.uploadAllIntegrated(
+      license: choice.license,
+      attributionConsent: choice.attributionConsent,
+    );
+  } else {
+    await controller.uploadPanelMaster(
+      panelIndex,
+      license: choice.license,
+      attributionConsent: choice.attributionConsent,
+    );
+  }
+}
+
+/// Owner-only destructive recovery: confirm before force-releasing [panelIndex]
+/// back to `pending` on the hub, since it drops the panel's current claim or
+/// uploaded master and cannot be undone.
+Future<void> _confirmForceRelease(
+  BuildContext context,
+  MosaicProjectController controller,
+  int panelIndex,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Force release panel?'),
+      content: Text(
+        'Panel ${panelIndex + 1} will be released back to pending on the hub, '
+        'dropping its current claim or uploaded master. This cannot be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Force release'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true) {
+    await controller.forceReleasePanel(panelIndex);
+  }
+}
 
 /// Resolves the DURABLE per-app base directory for mosaic artifacts —
 /// `<applicationSupport>/nightshade_mosaic`. Panel masters and the stitched
@@ -57,6 +117,20 @@ class MosaicProjectScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    if (ref.watch(backendProvider) is NetworkBackend) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: const SafeArea(
+          child: EmptyState(
+            icon: NightshadeIcons.device,
+            title: 'Open this mosaic project on the imaging host',
+            body: 'Mosaic project records, panel masters, and stitched '
+                'artifacts live on the imaging computer. Remote project '
+                'control is unavailable in this release.',
+          ),
+        ),
+      );
+    }
 
     // Resolve the DURABLE artifacts base before constructing the controller, so
     // panel/stitch FITS never land in (and get swept from) the system temp dir.
@@ -154,6 +228,19 @@ class MosaicProjectScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 MosaicProjectActions(state: state, controller: controller),
+                if (controller.canCollaborate) ...[
+                  const SizedBox(height: NightshadeTokens.spaceLg),
+                  const SectionHeader(
+                    title: 'Collaborative mosaic',
+                    subtitle:
+                        'Split the panels across your club and fuse centrally',
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                  MosaicCollaborativeSection(
+                    state: state,
+                    controller: controller,
+                  ),
+                ],
                 const SizedBox(height: NightshadeTokens.spaceLg),
                 const SectionHeader(
                   title: 'Panels',
@@ -164,6 +251,26 @@ class MosaicProjectScreen extends ConsumerWidget {
                   panels: state.panels,
                   panelMasters: state.panelMasters,
                   cols: project.cols,
+                  // WS2 — surface per-panel claim/upload once the project is a
+                  // published collaborative mosaic and a hub service is wired.
+                  collaborative: controller.canCollaborate && state.isPublished,
+                  collaborativeBusy: state.isBusy,
+                  onClaimPanel: controller.claimPanel,
+                  // WS2 owner/admin recovery: evict a squatting claim or a
+                  // poisoned upload back to pending. Only the owner path gets the
+                  // callback (the grid hides the button when it is null), so a
+                  // non-owner never sees an always-failing destructive action; a
+                  // confirm dialog guards the owner's irreversible release.
+                  onForceReleasePanel: state.project?.collabRole == 'owner'
+                      ? (idx) => _confirmForceRelease(context, controller, idx)
+                      : null,
+                  // WS4: route the per-panel upload through the consent sheet
+                  // rather than calling the service with a silent default.
+                  onUploadPanel: (idx) => _uploadMosaicWithConsent(
+                    context,
+                    controller,
+                    panelIndex: idx,
+                  ),
                 ),
                 if (state.isComplete) ...[
                   const SizedBox(height: NightshadeTokens.spaceXl),
@@ -346,7 +453,9 @@ class MosaicProjectActions extends StatelessWidget {
               ),
             ],
           ),
-          if (state.isBusy) ...[
+          if (state.isStartingCapture ||
+              state.isIntegrating ||
+              state.isStitching) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             NightshadeProgressBar(
               value: 0,
@@ -361,6 +470,221 @@ class MosaicProjectActions extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Collaborative Sky WS2 — the distributed-mosaic lifecycle card on the owner /
+/// participant project view. It surfaces the whole publish → claim → upload →
+/// assemble → download loop by invoking the already-wired
+/// [MosaicProjectController] collaborative actions; it owns no hub logic of its
+/// own.
+///
+/// State machine rendered from the durable project + live `collab_status`:
+///  * not yet published  → "Publish to hub" (becomes claimable work items);
+///  * published          → hub id + role + status, claim-all / upload-all, and
+///    a "Refresh status" poll control;
+///  * owner + assembling  → "Assemble + publish" (pull every panel, stitch,
+///    push the finished mosaic to the swarm);
+///  * complete            → "Download finished mosaic".
+///
+/// Every button binds its enabled/spinner state to the controller's
+/// isPublishing/isClaiming/isUploading/isAssembling/isRefreshing/isDownloading
+/// busy flags; errors land on the screen-level banner via `state.error`.
+class MosaicCollaborativeSection extends StatelessWidget {
+  final MosaicProjectState state;
+  final MosaicProjectController controller;
+
+  const MosaicCollaborativeSection({
+    super.key,
+    required this.state,
+    required this.controller,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final published = state.isPublished;
+    final role = state.project?.collabRole;
+    final collabStatus = state.collabStatus;
+    final isOwner = role == 'owner';
+
+    return NightshadeCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!published) ...[
+            Text(
+              'This mosaic is local-only. Publish its panel grid to the hub so '
+              'your club can claim and capture panels in parallel.',
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeButton(
+                label: 'Publish to hub',
+                icon: NightshadeIcons.upload,
+                isLoading: state.isPublishing,
+                onPressed:
+                    state.isBusy ? null : () => controller.publishToHub(),
+              ),
+            ),
+          ] else ...[
+            _CollabStatusLine(
+              hubMosaicId: state.hubMosaicId ?? '',
+              role: role,
+              collabStatus: collabStatus,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Wrap(
+              spacing: NightshadeTokens.spaceMd,
+              runSpacing: NightshadeTokens.spaceSm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                NightshadeButton(
+                  label: 'Claim all pending',
+                  icon: NightshadeIcons.download,
+                  variant: ButtonVariant.outline,
+                  isLoading: state.isClaiming,
+                  onPressed: (state.isBusy || state.unclaimedPanels.isEmpty)
+                      ? null
+                      : () => controller.claimAllPending(),
+                ),
+                NightshadeButton(
+                  label: 'Upload all integrated',
+                  icon: NightshadeIcons.upload,
+                  variant: ButtonVariant.outline,
+                  isLoading: state.isUploading,
+                  onPressed:
+                      (state.isBusy || state.integratedNotUploaded.isEmpty)
+                          ? null
+                          : () => _uploadMosaicWithConsent(context, controller),
+                ),
+                if (isOwner && collabStatus == 'assembling')
+                  NightshadeButton(
+                    label: 'Assemble + publish',
+                    icon: NightshadeIcons.grid,
+                    isLoading: state.isAssembling,
+                    onPressed: state.isBusy
+                        ? null
+                        : () => controller.assembleFromHub(),
+                  ),
+                if (collabStatus == 'complete')
+                  NightshadeButton(
+                    label: 'Download finished mosaic',
+                    icon: NightshadeIcons.download,
+                    isLoading: state.isDownloading,
+                    onPressed:
+                        state.isBusy ? null : () => controller.downloadOutput(),
+                  ),
+                NightshadeButton(
+                  label: 'Refresh status',
+                  icon: NightshadeIcons.refresh,
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  isLoading: state.isRefreshing,
+                  onPressed:
+                      state.isBusy ? null : () => controller.refreshStatus(),
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              '${state.panelsUploaded} of ${state.panels.length} panels '
+              'uploaded to the hub'
+              '${isOwner ? '' : ' · claim a panel below to contribute'}',
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textMuted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The published-mosaic summary line: hub id, this device's role, and the live
+/// hub-side lifecycle pill.
+class _CollabStatusLine extends StatelessWidget {
+  final String hubMosaicId;
+  final String? role;
+  final String? collabStatus;
+
+  const _CollabStatusLine({
+    required this.hubMosaicId,
+    required this.role,
+    required this.collabStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Row(
+      children: [
+        Icon(
+          role == 'owner' ? NightshadeIcons.star : NightshadeIcons.user,
+          size: NightshadeTokens.iconSm,
+          color: colors.primary,
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        Expanded(
+          child: Text(
+            'Hub mosaic $hubMosaicId · '
+            '${role == 'owner' ? 'Owner' : 'Participant'}',
+            style:
+                NightshadeTypography.bodySm.copyWith(color: colors.textPrimary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        StatusPill(
+          icon: _collabStatusIcon(collabStatus),
+          label: 'Status',
+          value: collabMosaicStatusLabel(collabStatus),
+          status: _collabPillStatus(collabStatus),
+        ),
+      ],
+    );
+  }
+
+  static IconData _collabStatusIcon(String? status) {
+    switch (status) {
+      case 'assembling':
+        return NightshadeIcons.layers;
+      case 'complete':
+        return NightshadeIcons.success;
+      case 'published':
+      default:
+        return NightshadeIcons.share;
+    }
+  }
+
+  static StatusPillStatus _collabPillStatus(String? status) {
+    switch (status) {
+      case 'assembling':
+        return StatusPillStatus.warning;
+      case 'complete':
+        return StatusPillStatus.success;
+      case 'published':
+      default:
+        return StatusPillStatus.active;
+    }
+  }
+}
+
+/// The display label for a hub-side collaborative `collab_status`.
+String collabMosaicStatusLabel(String? status) {
+  switch (status) {
+    case 'assembling':
+      return 'Assembling';
+    case 'complete':
+      return 'Complete';
+    case 'published':
+      return 'Published';
+    default:
+      return status == null || status.isEmpty ? 'Published' : status;
   }
 }
 
@@ -385,7 +709,8 @@ class MosaicStitchedMasterView extends StatelessWidget {
           child: preview != null
               ? MasterOverlayView(
                   previewPngPath: preview,
-                  rejectionMapPngPath: master.rejectionMapPath,
+                  rejectionMapPngPath: master.rejectionMapPreviewPath,
+                  coverageMapPngPath: master.coverageMapPreviewPath,
                 )
               : MasterPreviewView.fromMaster(master),
         ),

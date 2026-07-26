@@ -46,13 +46,15 @@ UpdateManifest _manifest({
   required String fileName,
   required List<int> fileBytes,
   required String declaredSha256,
+  String platform = 'linux',
+  String arch = 'x64',
 }) {
   return UpdateManifest(
     version: '1.1.0',
     buildNumber: 2,
     releaseDate: DateTime.utc(2026, 1, 1),
-    platform: 'linux',
-    arch: 'x64',
+    platform: platform,
+    arch: arch,
     files: {
       fileName: UpdateFileInfo(
         path: fileName,
@@ -81,6 +83,8 @@ void main() {
       currentBuildNumber: 1,
       pushSecret: 'secret',
       verifier: await _verifier(),
+      currentPlatform: 'linux',
+      currentArch: 'x64',
     );
   });
 
@@ -181,6 +185,47 @@ void main() {
       // manifest.json and ready.json are written in the same post-verify
       // block, so a verification failure must leave neither behind.
       expect(await manifestFile().exists(), isFalse);
+      expect(await readyFile().exists(), isFalse);
+    },
+  );
+
+  test(
+    'a package for another host target is never extracted or staged',
+    () async {
+      const fileName = 'payload.txt';
+      final fileBytes = utf8.encode('wrong platform payload');
+      final packageBytes = _zipOf({fileName: fileBytes});
+      final packageFile = File(path.join(staging.path, 'update.zip'));
+      await packageFile.writeAsBytes(packageBytes);
+      final manifest = _manifest(
+        packageBytes: packageBytes,
+        fileName: fileName,
+        fileBytes: fileBytes,
+        declaredSha256: _sha256Hex(fileBytes),
+        platform: 'windows',
+      );
+
+      await expectLater(
+        receiver.extractVerifyAndStage(
+          staging,
+          packageFile,
+          manifest,
+          packageBytes.length,
+        ),
+        throwsA(
+          isA<Exception>().having(
+            (error) => error.toString(),
+            'message',
+            allOf(contains('windows/x64'), contains('linux/x64')),
+          ),
+        ),
+      );
+
+      expect(
+        await Directory(path.join(staging.path, 'extracted')).exists(),
+        isFalse,
+      );
+      expect(await markerFile().exists(), isFalse);
       expect(await readyFile().exists(), isFalse);
     },
   );

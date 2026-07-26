@@ -26,15 +26,16 @@ void main() {
       }
     });
 
-    test('dark theme uses white onPrimary', () {
+    test('dark theme uses dark ink on its light-toned primary', () {
+      // Was pinned to white, which measured only 2.94:1 against the dark
+      // palette's primary #5B9EC4 (and 2.18:1 on accent, 3.75:1 on error) —
+      // below the WCAG AA 4.5:1 floor for button labels. Dark ink on a light
+      // fill is the correct pairing; the accent hues are unchanged.
       final colors = NightshadeTheme.dark.extension<NightshadeColors>()!;
 
-      expect(colors.useDarkOnPrimary, isFalse);
-      expect(colors.onPrimary, const Color(0xFFFFFFFF));
-      expect(
-        NightshadeTheme.dark.colorScheme.onPrimary,
-        const Color(0xFFFFFFFF),
-      );
+      expect(colors.useDarkOnPrimary, isTrue);
+      expect(colors.onPrimary, colors.background);
+      expect(NightshadeTheme.dark.colorScheme.onPrimary, colors.background);
     });
 
     test('light theme uses white onPrimary', () {
@@ -64,8 +65,26 @@ void main() {
 
       expect(colors.primary, accent);
       expect(theme.colorScheme.primary, accent);
-      expect(colors.useDarkOnPrimary, isFalse);
-      expect(colors.onPrimary, const Color(0xFFFFFFFF));
+    });
+
+    test('accent ink is chosen by accent luminance, not hardcoded', () {
+      // A user accent can be any colour, so neither ink is safe as a blanket
+      // default: white on this light emerald is 2.54:1 while dark ink is
+      // 7.72:1, and on a dark navy the ratios invert (10.36:1 vs 1.89:1).
+      const lightAccent = Color(0xFF10B981); // luminance 0.364 -> dark ink
+      const darkAccent = Color(0xFF1E3A8A); // luminance 0.051 -> white
+
+      final lightAccentColors = NightshadeTheme.darkWithAccent(
+        lightAccent,
+      ).extension<NightshadeColors>()!;
+      expect(lightAccentColors.useDarkOnPrimary, isTrue);
+      expect(lightAccentColors.onPrimary, lightAccentColors.background);
+
+      final darkAccentColors = NightshadeTheme.darkWithAccent(
+        darkAccent,
+      ).extension<NightshadeColors>()!;
+      expect(darkAccentColors.useDarkOnPrimary, isFalse);
+      expect(darkAccentColors.onPrimary, const Color(0xFFFFFFFF));
     });
 
     test('copyWith preserves useDarkOnPrimary unless overridden', () {

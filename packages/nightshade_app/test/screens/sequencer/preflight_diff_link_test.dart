@@ -44,6 +44,18 @@ class _FakeDiffService implements SequenceDiffService {
       _result;
 }
 
+class _FakeSequenceRepository implements SequenceRepository {
+  _FakeSequenceRepository(this.sequence);
+
+  final Sequence sequence;
+
+  @override
+  Future<Sequence?> loadSequence(int sequenceId) async => sequence;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 ValidationResult _emptyResult() =>
     ValidationResult(issues: const [], validatedAt: DateTime(2026, 1, 1));
 
@@ -117,14 +129,26 @@ void main() {
       ],
     );
 
-    // The sequence has a databaseId so the dialog's diff-resolution
-    // path doesn't short-circuit on "never persisted". The DAO/repo
-    // calls themselves quietly return null in tests because we don't
-    // override them; the dialog's banner relies only on
-    // sequenceDiffServiceProvider returning a non-empty result.
+    final persistedSequence = _sequence(databaseId: 42);
+    final completedRun = SequenceRun(
+      id: 7,
+      sequenceId: 42,
+      sequenceName: 'Test',
+      startedAt: DateTime.utc(2026, 1, 1),
+      endedAt: DateTime.utc(2026, 1, 1, 1),
+      status: 'completed',
+      statsJson: '{}',
+    );
+
     final container = ProviderContainer(overrides: [
       currentSequenceProvider.overrideWith(
         (ref) => _SeedingNotifier(ref, _sequence(databaseId: 42)),
+      ),
+      sequenceRunsForSequenceProvider.overrideWith(
+        (ref, sequenceId) => Stream.value([completedRun]),
+      ),
+      sequenceRepositoryProvider.overrideWithValue(
+        _FakeSequenceRepository(persistedSequence),
       ),
       sequenceValidatorProvider
           .overrideWith((ref) => _FakeValidator(_emptyResult())),
@@ -137,13 +161,13 @@ void main() {
         .pumpWidget(_wrap(container, const PreFlightValidationDialog()));
     await tester.pumpAndSettle();
 
-    // The banner only renders when the diff-resolution future
-    // succeeds. In a unit test the DAO returns nothing for an
-    // unmocked database, so the banner is best-effort. The dialog's
-    // structural pieces (header, summary card, action row) must
-    // always render even when the banner is suppressed.
     expect(find.text('Pre-Flight Validation'), findsOneWidget,
         reason: 'Header must render regardless of diff state.');
+    expect(
+      find.text('Sequence has changed since last successful run'),
+      findsOneWidget,
+    );
+    expect(find.text('View changes'), findsOneWidget);
     // The summary tile renders one of three statuses depending on what
     // the (real) PreSessionSimulator reports. The validator override
     // returns an empty ValidationResult, but the simulator runs against

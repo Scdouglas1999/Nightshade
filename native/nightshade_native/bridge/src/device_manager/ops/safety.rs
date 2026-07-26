@@ -81,11 +81,18 @@ impl DeviceManager {
                     "Native safety monitor not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
-                    "safety monitor",
-                ),
-            )),
+            Some(DriverType::Simulator) => {
+                let safety = crate::api::devices::simulation::get_sim_safety_monitor()
+                    .read()
+                    .await;
+                if !safety.status.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator safety monitor not connected",
+                    ));
+                }
+                Ok(safety.status.is_safe)
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }

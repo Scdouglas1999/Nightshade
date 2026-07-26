@@ -14,7 +14,10 @@ import 'backend_provider.dart';
 import 'capability_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
+import 'profile_activation_writethrough.dart';
+import '../services/logging_service.dart';
 import '../services/profile_service.dart';
+import '../services/optical_train_limits.dart';
 
 final _log = Logger('ProfilesProvider');
 
@@ -503,11 +506,84 @@ class EquipmentProfileModel {
     );
   }
 
-  /// Calculate f/ratio from focal length and aperture
+  /// Build a fresh INSERTION copy of this profile: no id, inert
+  /// active/default flags, fresh timestamps, and the supplied [name]. Every
+  /// other device id/name, optical, camera-default, filter, meridian-flip and
+  /// customization field is preserved verbatim.
+  ///
+  /// Why not `copyWith`: `copyWith`'s nullable `id ?? this.id` semantics CANNOT
+  /// clear the id — `copyWith(id: null)` silently keeps the source id, which on
+  /// the remote path makes the host UPDATE (rename) the source instead of
+  /// creating a copy, and it also retains `isDefault`. This constructs a genuine
+  /// create with `id == null` (so `toRemoteProfile()` emits an empty id the host
+  /// treats as a create) and `isActive == false` / `isDefault == false`.
+  EquipmentProfileModel toInsertionCopy({required String name}) {
+    return EquipmentProfileModel(
+      // id intentionally omitted -> null -> host/DAO treats this as a CREATE.
+      name: name,
+      description: description,
+      isActive: false,
+      isDefault: false,
+      cameraId: cameraId,
+      mountId: mountId,
+      focuserId: focuserId,
+      filterWheelId: filterWheelId,
+      guiderId: guiderId,
+      rotatorId: rotatorId,
+      domeId: domeId,
+      weatherId: weatherId,
+      safetyMonitorId: safetyMonitorId,
+      switchId: switchId,
+      coverCalibratorId: coverCalibratorId,
+      cameraName: cameraName,
+      mountName: mountName,
+      focuserName: focuserName,
+      filterWheelName: filterWheelName,
+      guiderName: guiderName,
+      rotatorName: rotatorName,
+      safetyMonitorName: safetyMonitorName,
+      switchName: switchName,
+      telescopeName: telescopeName,
+      telescopeFocalLength: telescopeFocalLength,
+      telescopeAperture: telescopeAperture,
+      focalLength: focalLength,
+      aperture: aperture,
+      focalRatio: focalRatio,
+      defaultGain: defaultGain,
+      defaultOffset: defaultOffset,
+      defaultBinX: defaultBinX,
+      defaultBinY: defaultBinY,
+      defaultCoolingTemp: defaultCoolingTemp,
+      coolOnConnect: coolOnConnect,
+      defaultCenteringExposure: defaultCenteringExposure,
+      filterNames: filterNames,
+      filterFocusOffsets: filterFocusOffsets,
+      meridianFlipOverrides: meridianFlipOverrides,
+      profileIcon: profileIcon,
+      profileColor: profileColor,
+      sortOrder: sortOrder,
+      // createdAt/updatedAt omitted -> null -> fresh timestamps on insert.
+    );
+  }
+
+  /// Calculate f/ratio from focal length and aperture, or null when the numbers
+  /// cannot describe a real optical system.
+  ///
+  /// Validation now bounds every path that can WRITE optics, but rows written
+  /// before that — or restored from a backup, which deliberately reproduces
+  /// prior state verbatim — can still hold an implausible pair. Reporting
+  /// `f/9999999990000.00` as a derived fact is the same defect class as the
+  /// original: the app stating something untrue. Every caller already handles
+  /// null (Settings renders a dash), so refusing to compute is strictly better
+  /// than computing nonsense.
   double? get calculatedFocalRatio {
-    if (focalRatio != null) return focalRatio;
-    if (aperture > 0) return focalLength / aperture;
-    return null;
+    final ratio = focalRatio ?? (aperture > 0 ? focalLength / aperture : null);
+    if (ratio == null || !ratio.isFinite) return null;
+    if (ratio < OpticalTrainLimits.minFRatio ||
+        ratio > OpticalTrainLimits.maxFRatio) {
+      return null;
+    }
+    return ratio;
   }
 
   /// Get image scale in arcsec/pixel for a given pixel size
@@ -616,23 +692,41 @@ class EquipmentProfilesState {
 
 /// Notifier for managing equipment profiles
 class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
-  NetworkBackend? get _remoteBackend {
-    final backend = ref.read(backendProvider);
-    return backend is NetworkBackend ? backend : null;
+  ({NetworkBackend backend, BackendNotifier owner})? get _remoteAuthority {
+    final owner = ref.read(backendProvider.notifier);
+    final backend = owner.currentBackend;
+    return backend is NetworkBackend ? (backend: backend, owner: owner) : null;
   }
 
-  Future<int?> _resolveRemoteProfileIdByName(String name) async {
-    final backend = _remoteBackend;
-    if (backend == null) {
-      return null;
+  void _requireRemoteAuthority(NetworkBackend backend, BackendNotifier owner) {
+    if (!owner.isCurrentBackend(backend)) {
+      throw StateError(
+        'The imaging host changed while the profile operation was running.',
+      );
     }
+  }
+
+  Future<int?> _resolveRemoteProfileIdByName(
+    NetworkBackend backend,
+    BackendNotifier owner,
+    String name, {
+    Set<int> excludingIds = const <int>{},
+  }) async {
     final profiles = await backend.getProfiles();
+    _requireRemoteAuthority(backend, owner);
+    final candidates = <int>[];
     for (final profile in profiles) {
       if (profile.name == name) {
-        return int.tryParse(profile.id);
+        final id = int.tryParse(profile.id);
+        if (id != null && id > 0 && !excludingIds.contains(id)) {
+          candidates.add(id);
+        }
       }
     }
-    return null;
+    // A name is not an identity. The compatibility fallback for older hosts
+    // is only safe when exactly one previously unseen row matches; otherwise
+    // fail loudly instead of selecting an arbitrary same-name profile.
+    return candidates.length == 1 ? candidates.single : null;
   }
 
   @override
@@ -664,44 +758,59 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
         );
       } catch (e, stackTrace) {
         _log.warning('Remote equipment profile fetch failed: $e\n$stackTrace');
-        return EquipmentProfilesState(
-          error: 'Could not load equipment profiles from host: $e',
+        Error.throwWithStackTrace(
+          StateError('Could not load equipment profiles from host: $e'),
+          stackTrace,
         );
       }
     }
 
-    // Set up a watch on the database profiles
-    final profilesStream = ref.watch(allProfilesProvider);
-    final activeStream = ref.watch(activeProfileProvider);
+    // Wait for both authoritative database streams. Returning an empty data
+    // state while either stream was loading (or had failed) made an existing
+    // installation look like it had no profiles and could launch first-run
+    // onboarding over a transient database error.
+    final profilesFuture = ref.watch(allProfilesProvider.future);
+    final activeFuture = ref.watch(activeProfileProvider.future);
+    final databaseProfiles = await profilesFuture;
+    final databaseActive = await activeFuture;
 
-    List<EquipmentProfileModel> profiles = [];
-    EquipmentProfileModel? active;
-
-    if (profilesStream.hasValue) {
-      profiles = profilesStream.value!
-          .map((p) => EquipmentProfileModel.fromDatabase(p))
-          .toList();
-    }
-
-    if (activeStream.hasValue && activeStream.value != null) {
-      active = EquipmentProfileModel.fromDatabase(activeStream.value!);
-    }
+    final profiles = databaseProfiles
+        .map((profile) => EquipmentProfileModel.fromDatabase(profile))
+        .toList();
+    final active = databaseActive == null
+        ? null
+        : EquipmentProfileModel.fromDatabase(databaseActive);
 
     return EquipmentProfilesState(profiles: profiles, activeProfile: active);
   }
 
   /// Create a new profile
   Future<int> createProfile({required String name, String? description}) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
+      final current = await future;
+      _requireRemoteAuthority(remote, authority.owner);
+      final existingIds = current.profiles
+          .map((profile) => profile.id)
+          .whereType<int>()
+          .toSet();
       await remote.saveProfile(
         EquipmentProfileModel(
           name: name,
           description: description,
         ).toRemoteProfile(),
       );
-      final id = await _resolveRemoteProfileIdByName(name);
-      if (id == null) {
+      _requireRemoteAuthority(remote, authority.owner);
+      final id =
+          int.tryParse(remote.lastSavedProfileId ?? '') ??
+          await _resolveRemoteProfileIdByName(
+            remote,
+            authority.owner,
+            name,
+            excludingIds: existingIds,
+          );
+      if (id == null || id <= 0) {
         throw StateError(
           'Host saved profile "$name" but id could not be resolved',
         );
@@ -731,12 +840,27 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
   /// `POST /api/profiles` (SQLite-backed since the profiles layer); the host
   /// decides create-vs-update by the parsed id, so a null-id model is accepted
   /// as a remote CREATE. The local (host/desktop) DAO path still requires an id.
-  Future<void> updateProfile(EquipmentProfileModel profile) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+  Future<int> updateProfile(EquipmentProfileModel profile) async {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
       await remote.saveProfile(profile.toRemoteProfile());
+      _requireRemoteAuthority(remote, authority.owner);
+      final savedId =
+          int.tryParse(remote.lastSavedProfileId ?? '') ??
+          profile.id ??
+          await _resolveRemoteProfileIdByName(
+            remote,
+            authority.owner,
+            profile.name,
+          );
+      if (savedId == null || savedId <= 0) {
+        throw StateError(
+          'Host saved profile "${profile.name}" but returned no valid id',
+        );
+      }
       ref.invalidateSelf();
-      return;
+      return savedId;
     }
 
     if (profile.id == null) {
@@ -788,13 +912,16 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 
     await dao.updateProfile(updated);
     ref.invalidateSelf();
+    return profile.id!;
   }
 
   /// Delete a profile
   Future<void> deleteProfile(int profileId) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
       await remote.deleteProfile(profileId.toString());
+      _requireRemoteAuthority(remote, authority.owner);
       ref.invalidateSelf();
       return;
     }
@@ -804,18 +931,61 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     ref.invalidateSelf();
   }
 
-  /// Set a profile as active
-  Future<void> setActiveProfile(int profileId) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+  /// Set a profile as active.
+  ///
+  /// This is the single, remote-aware activation authority. In remote (slave)
+  /// mode it defers to the host's load endpoint exactly once (the host owns
+  /// activation and its own native write-through). In local (desktop /
+  /// Pi-headless) mode it updates SQLite, mirrors the now-active row into the
+  /// native (Rust) executor store via [writeActiveProfileThrough], then
+  /// refreshes provider state — so SQLite/UI and the native sequencer can never
+  /// disagree about which profile is active.
+  ///
+  /// Activation is transactional for every caller: the native executor accepts
+  /// the target before SQLite changes, so an interactive tap cannot leave the
+  /// UI and running sequencer on different profiles.
+  Future<void> setActiveProfile(int profileId) => _activateProfile(profileId);
+
+  /// Startup-facing alias for the same strict transaction used by every
+  /// activation. Kept as a named API because startup callers use the failure as
+  /// a hard gate before connecting equipment.
+  Future<void> setActiveProfileStrict(int profileId) =>
+      _activateProfile(profileId);
+
+  Future<void> _activateProfile(int profileId) async {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
+      // Host owns activation and its own native write-through; a failed host
+      // load already throws, which is exactly the strict behaviour startup
+      // needs on a remote companion. No slave-local SQLite/native write.
       await remote.loadProfile(profileId.toString());
+      _requireRemoteAuthority(remote, authority.owner);
       ref.invalidateSelf();
       return;
     }
 
+    // Resolve every collaborator BEFORE mutating SQLite. build() watches the
+    // profile streams, so a `ref.read` AFTER a SQLite mutation would trip
+    // Riverpod's "dependency changed before rebuild" guard.
     final dao = ref.read(equipmentProfilesDaoProvider);
-    await dao.setActiveProfile(profileId);
-    ref.invalidateSelf();
+    final settingsBackend = ref.read(profileSettingsBackendProvider);
+    final logger = ref.read(loggingServiceProvider);
+
+    // Transactional truth: validate the target, push it into the native
+    // executor store FIRST, and only THEN commit the SQLite active flag —
+    // compensating the native store if the commit fails. This applies equally
+    // to startup and operator-initiated activation.
+    try {
+      await activateProfileStrictTransactional(
+        dao: dao,
+        backend: settingsBackend,
+        logger: logger,
+        profileId: profileId,
+      );
+    } finally {
+      ref.invalidateSelf();
+    }
   }
 
   /// Set or clear the default startup profile.
@@ -823,8 +993,9 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     int? profileId, {
     bool makeActive = true,
   }) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
       if (profileId != null) {
         // Dedicated host endpoint: setDefaultProfile atomically unsets the
         // previous default and makes this row active (makeActive is owned
@@ -837,15 +1008,31 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
         // flag).
         await remote.clearDefaultProfileRemote();
       }
+      _requireRemoteAuthority(remote, authority.owner);
       ref.invalidateSelf();
       return;
     }
 
+    // Resolve collaborators up front (see [setActiveProfile] for why the reads
+    // must precede the SQLite mutation).
     final dao = ref.read(equipmentProfilesDaoProvider);
+    final settingsBackend = ref.read(profileSettingsBackendProvider);
+    final logger = ref.read(loggingServiceProvider);
     if (profileId == null) {
       await dao.clearDefaultProfile();
+    } else if (makeActive) {
+      // The default+active DAO mutation is one transaction, but native must
+      // accept the target first. Reuse the strict activation coordinator with
+      // the default-setting transaction as its commit step.
+      await activateProfileStrictTransactional(
+        dao: dao,
+        backend: settingsBackend,
+        logger: logger,
+        profileId: profileId,
+        commit: () => dao.setDefaultProfile(profileId, makeActive: true),
+      );
     } else {
-      await dao.setDefaultProfile(profileId, makeActive: makeActive);
+      await dao.setDefaultProfile(profileId, makeActive: false);
     }
     ref.invalidateSelf();
   }
@@ -858,11 +1045,13 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
   /// sortOrder because the converter preserves the existing row's value);
   /// locally it writes the DAO directly.
   Future<void> reorderProfiles(List<int> orderedIds) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
       await remote.reorderProfilesRemote(
         orderedIds.map((id) => id.toString()).toList(),
       );
+      _requireRemoteAuthority(remote, authority.owner);
       ref.invalidateSelf();
       return;
     }
@@ -874,9 +1063,11 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 
   /// Duplicate a profile
   Future<int> duplicateProfile(int sourceId, String newName) async {
-    final remote = _remoteBackend;
-    if (remote != null) {
+    final authority = _remoteAuthority;
+    if (authority != null) {
+      final remote = authority.backend;
       final current = await future;
+      _requireRemoteAuthority(remote, authority.owner);
       EquipmentProfileModel? source;
       for (final profile in current.profiles) {
         if (profile.id == sourceId) {
@@ -887,12 +1078,27 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       if (source == null) {
         throw StateError('Profile $sourceId not found on host');
       }
+      // Build a genuine insertion copy: id CLEARED (so the host creates a new
+      // row rather than updating/renaming the source), active/default false, new
+      // name, every other field preserved. `copyWith(id: null)` cannot clear the
+      // id (id ?? this.id) and would send the source id — silently overwriting
+      // the source instead of duplicating it.
       await remote.saveProfile(
-        source
-            .copyWith(id: null, name: newName, isActive: false)
-            .toRemoteProfile(),
+        source.toInsertionCopy(name: newName).toRemoteProfile(),
       );
-      final id = await _resolveRemoteProfileIdByName(newName);
+      _requireRemoteAuthority(remote, authority.owner);
+      final existingIds = current.profiles
+          .map((profile) => profile.id)
+          .whereType<int>()
+          .toSet();
+      final id =
+          int.tryParse(remote.lastSavedProfileId ?? '') ??
+          await _resolveRemoteProfileIdByName(
+            remote,
+            authority.owner,
+            newName,
+            excludingIds: existingIds,
+          );
       if (id == null) {
         throw StateError(
           'Host duplicated profile as "$newName" but id could not be resolved',

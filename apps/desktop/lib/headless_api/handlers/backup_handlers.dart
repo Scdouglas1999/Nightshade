@@ -48,7 +48,7 @@ class BackupHandlers {
   Future<Response> handleListBackups(Request request) async {
     _logInfo('[API] GET /api/backup/list');
     final service = container.read(backupServiceProvider);
-    final backupFiles = await service.listBackups();
+    final backupFiles = await _listContainedBackups(service);
 
     final backups = <Map<String, dynamic>>[];
     for (final file in backupFiles) {
@@ -90,6 +90,18 @@ class BackupHandlers {
     final customPath = optionalString(payload, 'customPath');
     final autoSave = optionalBool(payload, 'autoSave') ?? false;
 
+    // A remote client chooses *whether* to create a backup, never where the
+    // host writes it. Allowing an arbitrary server path here turns an admin API
+    // into an arbitrary JSON-file write primitive. Downloads provide the
+    // client-side destination choice after the host creates the archive in its
+    // managed backup directory.
+    if (customPath != null) {
+      return jsonBadRequest({
+        'error': 'customPath is not supported for remote backup creation',
+        'code': 'host_managed_backup_path',
+      });
+    }
+
     final service = container.read(backupServiceProvider);
 
     final BackupResult result;
@@ -104,7 +116,7 @@ class BackupHandlers {
       final autoSavePath = await _defaultUuidBackupPath(service, tag: 'auto');
       result = await service.createBackup(customPath: autoSavePath);
     } else {
-      final effectivePath = customPath ?? await _defaultUuidBackupPath(service);
+      final effectivePath = await _defaultUuidBackupPath(service);
       result = await service.createBackup(customPath: effectivePath);
     }
 
@@ -136,13 +148,52 @@ class BackupHandlers {
 
   Future<Response> handleRestoreBackup(Request request) async {
     _logInfo('[API] POST /api/backup/restore');
+    final blocked = _restoreBlockedResponse();
+    if (blocked != null) return blocked;
     final payload = await readJsonObject(request);
-    final filePath = requireString(payload, 'filePath');
+    final id = optionalString(payload, 'id');
+    final filePath = optionalString(payload, 'filePath');
     final replaceExisting = optionalBool(payload, 'replaceExisting') ?? false;
 
     final service = container.read(backupServiceProvider);
+
+    // §containment: resolve the restore source to a real file that lives INSIDE
+    // this host's backup directory. A remote client must never be able to make
+    // the host read an arbitrary absolute path off disk as a "backup".
+    //   * Preferred: a stable backup `id`, resolved against listBackups() —
+    //     exactly the same resolution delete/download/metadata already use.
+    //   * Legacy: an absolute `filePath` from an older client, accepted ONLY
+    //     when it canonicalises to a file directly inside the backup directory
+    //     (a `..` segment or an out-of-tree symlink fails closed).
+    final String resolvedPath;
+    if (id != null && id.isNotEmpty) {
+      final backupFiles = await _listContainedBackups(service);
+      final file = backupFiles
+          .where((f) => _idForBackupFile(f) == id)
+          .firstOrNull;
+      if (file == null) {
+        return jsonNotFound({'error': 'Backup not found: $id'});
+      }
+      resolvedPath = file.path;
+    } else if (filePath != null && filePath.isNotEmpty) {
+      final contained = await _resolveContainedBackupFile(service, filePath);
+      if (contained == null) {
+        return jsonBadRequest({
+          'error':
+              'filePath must reference an existing backup inside the backup '
+              'directory',
+        });
+      }
+      resolvedPath = contained.path;
+    } else {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'a backup id (or a contained filePath)',
+      );
+    }
+
     final result = await service.restoreBackup(
-      filePath: filePath,
+      filePath: resolvedPath,
       replaceExisting: replaceExisting,
     );
 
@@ -173,7 +224,7 @@ class BackupHandlers {
   Future<Response> handleDeleteBackup(Request request, String id) async {
     _logInfo('[API] DELETE /api/backup/$id');
     final service = container.read(backupServiceProvider);
-    final backupFiles = await service.listBackups();
+    final backupFiles = await _listContainedBackups(service);
 
     final file = backupFiles
         .where((f) => _idForBackupFile(f) == id)
@@ -195,7 +246,7 @@ class BackupHandlers {
   Future<Response> handleDownloadBackup(Request request, String id) async {
     _logInfo('[API] GET /api/backup/$id/download');
     final service = container.read(backupServiceProvider);
-    final backupFiles = await service.listBackups();
+    final backupFiles = await _listContainedBackups(service);
 
     final file = backupFiles
         .where((f) => _idForBackupFile(f) == id)
@@ -222,7 +273,7 @@ class BackupHandlers {
   Future<Response> handleGetBackupMetadata(Request request, String id) async {
     _logInfo('[API] GET /api/backup/$id/metadata');
     final service = container.read(backupServiceProvider);
-    final backupFiles = await service.listBackups();
+    final backupFiles = await _listContainedBackups(service);
 
     final file = backupFiles
         .where((f) => _idForBackupFile(f) == id)
@@ -275,6 +326,12 @@ class BackupHandlers {
 
   Future<Response> handleUploadRestoreBackup(Request request) async {
     _logInfo('[API] POST /api/backup/upload-restore');
+    final blocked = _restoreBlockedResponse();
+    if (blocked != null) return blocked;
+    // Track the destination at method scope so the catch — the streamed-body
+    // owner — can delete a partially written file if anything after the write
+    // throws unexpectedly.
+    File? destination;
     try {
       final contentLength = int.tryParse(
         request.headers['content-length'] ?? '',
@@ -305,6 +362,7 @@ class BackupHandlers {
       if (file == null) {
         return jsonBadRequest({'error': 'Invalid upload destination'});
       }
+      destination = file;
 
       final uploaded = await _writeUploadBody(request, file);
       if (!uploaded) {
@@ -349,10 +407,21 @@ class BackupHandlers {
       // §2.23: restore from an uploaded file failing means the file we just
       // wrote can't be parsed or applied — that's a server-side failure from
       // the caller's perspective once the upload succeeded.
+      //
+      // The uploaded file is now an orphan: the client still holds its own
+      // copy (it just uploaded it), and a file that cannot be restored has no
+      // value sitting in the backup directory — worse, it would surface as a
+      // phantom "backup" in the next list. Delete it before failing so it
+      // takes explicit ownership of the file it created.
+      final cleanupError = await _deleteIfExists(file);
+      if (cleanupError != null) {
+        _logWarning(
+          'Failed to clean up uploaded backup after restore failure at '
+          '${file.path}: $cleanupError',
+        );
+      }
       // §6a-fixed: emit a structured HandlerFailure rather than the legacy
-      // free-form failure shape. The catch (e) below still returns a generic
-      // `internal_error` because the body partial-file cleanup must run in
-      // the same frame as the error response.
+      // free-form failure shape.
       _logError('[API] Upload restore failed: ${result.errorMessage}');
       throw HandlerFailure(
         code: 'backup_upload_restore_failed',
@@ -360,15 +429,22 @@ class BackupHandlers {
       );
     } on HandlerFailure {
       // Re-throw so errorTranslationMiddleware renders the structured body.
-      // The middleware logs the full detail; we already cleaned up above by
-      // not having a partial-file owner here (the upload completed before
-      // we got the failure from BackupService).
+      // The orphaned upload was already cleaned up at the throw site above.
       rethrow;
     } catch (e) {
       // Keep the explicit try/catch here because this handler streams the
       // request body and owns a partial-file on disk on error. The
       // errorTranslationMiddleware would still log and 500, but we must not
       // leave a half-written file behind.
+      if (destination != null) {
+        final cleanupError = await _deleteIfExists(destination);
+        if (cleanupError != null) {
+          _logWarning(
+            'Failed to clean up partial upload at ${destination.path}: '
+            '$cleanupError',
+          );
+        }
+      }
       _logError('[API] Upload restore backup error: $e');
       return jsonInternalServerError({'error': 'internal_error'});
     }
@@ -427,6 +503,80 @@ class BackupHandlers {
         .replaceAll(':', '-')
         .replaceAll('.', '-');
     return File(p.join(resolvedBackupDir, '${stem}_upload_$timestamp$ext'));
+  }
+
+  /// Resolve [candidatePath] to a real file guaranteed to live directly inside
+  /// this host's backup directory, or null when it escapes (path traversal),
+  /// does not exist, or the backup directory is missing.
+  ///
+  /// Mirrors the symlink canonicalisation used by [_resolveUploadDestination]
+  /// so a `..` segment or a symlink pointing out of the backup directory fails
+  /// closed. Backs the legacy `filePath` restore path in [handleRestoreBackup]:
+  /// older clients still send an absolute server path, and this containment
+  /// check is what keeps that path from being an arbitrary-file-read primitive.
+  Future<File?> _resolveContainedBackupFile(
+    BackupService service,
+    String candidatePath,
+  ) async {
+    final file = File(candidatePath);
+    if (!await file.exists()) return null;
+
+    final backupDir = await service.getBackupDirectory();
+    if (!await backupDir.exists()) return null;
+
+    final resolvedBackupDir = await backupDir.resolveSymbolicLinks();
+    final resolvedFile = await file.resolveSymbolicLinks();
+    final resolvedParent = p.dirname(resolvedFile);
+    final compareBackupDir = Platform.isWindows
+        ? resolvedBackupDir.toLowerCase()
+        : resolvedBackupDir;
+    final compareParent = Platform.isWindows
+        ? resolvedParent.toLowerCase()
+        : resolvedParent;
+    if (compareParent != compareBackupDir) return null;
+    return File(resolvedFile);
+  }
+
+  /// Return only real backup files whose canonical target is directly inside
+  /// the backup directory. This applies the same containment rule to list,
+  /// restore-by-id, delete, metadata, and download; an in-directory symlink to
+  /// an outside file must not become a downloadable "backup".
+  Future<List<File>> _listContainedBackups(BackupService service) async {
+    final backupDir = await service.getBackupDirectory();
+    if (!await backupDir.exists()) return const [];
+    final resolvedBackupDir = await backupDir.resolveSymbolicLinks();
+    final compareBackupDir = Platform.isWindows
+        ? resolvedBackupDir.toLowerCase()
+        : resolvedBackupDir;
+    final contained = <File>[];
+    for (final candidate in await service.listBackups()) {
+      try {
+        final resolvedFile = await candidate.resolveSymbolicLinks();
+        final parent = p.dirname(resolvedFile);
+        final compareParent = Platform.isWindows
+            ? parent.toLowerCase()
+            : parent;
+        if (compareParent == compareBackupDir) {
+          contained.add(File(resolvedFile));
+        }
+      } on FileSystemException catch (error) {
+        _logWarning(
+          'Skipping unreadable backup entry ${candidate.path}: '
+          '${error.message}',
+        );
+      }
+    }
+    return contained;
+  }
+
+  Response? _restoreBlockedResponse() {
+    final execution = container.read(sequenceExecutionStateProvider);
+    final capturing = container.read(sessionStateProvider).isCapturing;
+    if (!execution.isBusy && !capturing) return null;
+    return jsonConflict({
+      'error': 'Stop the active capture or sequence before restoring a backup.',
+      'code': 'imaging_active',
+    });
   }
 
   Future<bool> _writeUploadBody(Request request, File destination) async {

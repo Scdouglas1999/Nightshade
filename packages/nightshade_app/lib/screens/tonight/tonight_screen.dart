@@ -40,9 +40,12 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
         target: target,
       ),
       run: (plan) async {
-        ref.read(currentSequenceProvider.notifier).loadSequence(
+        // Non-destructive hand-off: takeOwnership stashes any unsaved manual
+        // sequence and restores it when the run stops, instead of silently
+        // discarding the operator's draft.
+        ref.read(currentSequenceProvider.notifier).takeOwnership(
               plan.sequence,
-              discardUnsaved: true,
+              ActivePlanOwner.smartNight,
             );
         await ref.read(sequenceExecutorProvider).start();
       },
@@ -60,8 +63,26 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
     final colors = NightshadeColors.of(context);
     final controller = _liveController();
     final targetAsync = ref.watch(oneTapTargetProvider);
-    final morningSessionId = ref.watch(sessionStateProvider).dbSessionId ??
-        ref.watch(allSessionsProvider).valueOrNull?.firstOrNull?.id;
+    final activeSessionId = ref.watch(sessionStateProvider).dbSessionId;
+    final AsyncValue<int?> morningSessionAsync;
+    if (activeSessionId != null) {
+      morningSessionAsync = AsyncData<int?>(activeSessionId);
+    } else {
+      morningSessionAsync = ref
+          .watch(allSessionsProvider)
+          .whenData((sessions) => sessions.firstOrNull?.id);
+    }
+
+    // The one-tap controller is created per screen mount, so after the user
+    // taps "Watch on dashboard" and navigates back a fresh (idle) controller
+    // would re-arm GO over a live run — a second tap then re-picks a target
+    // and re-takes ownership mid-run. Watch the global execution state so the
+    // primary action reflects reality regardless of this controller's phase.
+    // running OR paused both count as active (same rule as sequencer_screen).
+    final executionState = ref.watch(sequenceExecutionStateProvider);
+    final runActive = executionState == SequenceExecutionState.running ||
+        executionState == SequenceExecutionState.paused;
+    final planOwner = ref.watch(activePlanOwnerProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -69,14 +90,26 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) {
+            // Only override GO when a run is live that this controller isn't
+            // itself narrating via [OneTapPhase.running]. Distinguish the copy:
+            // a Smart Night owner is tonight's own plan ("Running tonight"),
+            // anything else is an unrelated sequence.
+            final TonightActiveRun? activeRun =
+                (runActive && controller.state.phase != OneTapPhase.running)
+                    ? (planOwner == ActivePlanOwner.smartNight
+                        ? TonightActiveRun.ours
+                        : TonightActiveRun.other)
+                    : null;
             return TonightBodyView(
               colors: colors,
               state: controller.state,
+              activeRun: activeRun,
               targetAsync: targetAsync,
               onGo: controller.go,
               onReset: controller.reset,
               onRefreshPick: () => ref.invalidate(oneTapTargetProvider),
-              morningSessionId: morningSessionId,
+              morningSessionAsync: morningSessionAsync,
+              onRefreshMorningReport: () => ref.invalidate(allSessionsProvider),
             );
           },
         ),
@@ -85,27 +118,50 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
   }
 }
 
+/// A sequence run that is already live when the screen (re)builds but which
+/// this screen's one-tap controller is not itself tracking as
+/// [OneTapPhase.running] — a fresh controller after the user tapped "Watch on
+/// dashboard" and navigated back, or a run started on another surface. Non-null
+/// forces the primary action's running branch so GO cannot re-arm over it.
+enum TonightActiveRun {
+  /// The live run is the Smart Night / one-tap plan this screen launches, so
+  /// "Running tonight" stays truthful.
+  ours,
+
+  /// A different sequence (manual authoring, autopilot, mosaic) owns the live
+  /// run; the copy says so plainly instead of claiming tonight's plan.
+  other,
+}
+
 /// Stateless body so a golden test (and any future seeded preview) can drive
 /// it with a seeded [OneTapTonightState] + [AsyncValue] without spinning up the
 /// live providers, framing assistant, or executor.
 class TonightBodyView extends StatelessWidget {
   final NightshadeColors colors;
   final OneTapTonightState state;
+
+  /// A live run this screen's controller isn't itself narrating; derived from
+  /// the global execution state so a re-mounted (idle) controller doesn't
+  /// re-arm GO. Passed in (not watched here) to keep this body seedable.
+  final TonightActiveRun? activeRun;
   final AsyncValue<TargetSuggestion?> targetAsync;
   final Future<void> Function() onGo;
   final VoidCallback onReset;
   final VoidCallback onRefreshPick;
-  final int? morningSessionId;
+  final AsyncValue<int?> morningSessionAsync;
+  final VoidCallback onRefreshMorningReport;
 
   const TonightBodyView({
     super.key,
     required this.colors,
     required this.state,
+    required this.activeRun,
     required this.targetAsync,
     required this.onGo,
     required this.onReset,
     required this.onRefreshPick,
-    required this.morningSessionId,
+    required this.morningSessionAsync,
+    required this.onRefreshMorningReport,
   });
 
   @override
@@ -125,6 +181,7 @@ class TonightBodyView extends StatelessWidget {
         _PrimaryAction(
           colors: colors,
           state: state,
+          activeRun: activeRun,
           targetAsync: targetAsync,
           onGo: onGo,
           onReset: onReset,
@@ -137,7 +194,8 @@ class TonightBodyView extends StatelessWidget {
         _MorningPayoff(
           colors: colors,
           running: state.phase == OneTapPhase.running,
-          sessionId: morningSessionId,
+          sessionAsync: morningSessionAsync,
+          onRetry: onRefreshMorningReport,
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
         _AdvancedFooter(colors: colors),
@@ -302,6 +360,7 @@ class _TargetConfirmCard extends StatelessWidget {
 class _PrimaryAction extends StatelessWidget {
   final NightshadeColors colors;
   final OneTapTonightState state;
+  final TonightActiveRun? activeRun;
   final AsyncValue<TargetSuggestion?> targetAsync;
   final Future<void> Function() onGo;
   final VoidCallback onReset;
@@ -309,6 +368,7 @@ class _PrimaryAction extends StatelessWidget {
   const _PrimaryAction({
     required this.colors,
     required this.state,
+    required this.activeRun,
     required this.targetAsync,
     required this.onGo,
     required this.onReset,
@@ -318,7 +378,13 @@ class _PrimaryAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasPick = targetAsync.valueOrNull != null || state.target != null;
 
-    if (state.phase == OneTapPhase.running) {
+    // A run is live — either this chain reached [OneTapPhase.running], or an
+    // external run is active while this (possibly freshly mounted) controller
+    // has not itself started it. Either way GO must not re-arm.
+    if (state.phase == OneTapPhase.running || activeRun != null) {
+      final headline = activeRun == TonightActiveRun.other
+          ? 'A sequence is already running'
+          : 'Running tonight';
       return Column(
         children: [
           Row(
@@ -327,7 +393,7 @@ class _PrimaryAction extends StatelessWidget {
               Icon(LucideIcons.checkCircle2, size: 18, color: colors.success),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
-                'Running tonight',
+                headline,
                 style: NightshadeTypography.bodyMedium.copyWith(
                   color: colors.success,
                   fontWeight: FontWeight.w600,
@@ -395,21 +461,42 @@ class _PrimaryAction extends StatelessWidget {
 class _MorningPayoff extends StatelessWidget {
   final NightshadeColors colors;
   final bool running;
-  final int? sessionId;
+  final AsyncValue<int?> sessionAsync;
+  final VoidCallback onRetry;
 
   const _MorningPayoff({
     required this.colors,
     required this.running,
-    required this.sessionId,
+    required this.sessionAsync,
+    required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (sessionId == null) return const SizedBox.shrink();
+    return sessionAsync.when(
+      loading: () => _MorningPayoffStatus(
+        colors: colors,
+        icon: LucideIcons.loader2,
+        title: 'Loading morning report…',
+      ),
+      error: (error, _) => _MorningPayoffStatus(
+        colors: colors,
+        icon: LucideIcons.alertTriangle,
+        title: 'Morning report unavailable',
+        body: '$error',
+        onRetry: onRetry,
+      ),
+      data: (sessionId) {
+        if (sessionId == null) return const SizedBox.shrink();
+        return _reportCard(context, sessionId);
+      },
+    );
+  }
 
+  Widget _reportCard(BuildContext context, int sessionId) {
     return NightshadeCard(
       variant: CardVariant.subtle,
-      onTap: () => context.go('/session-review?session=$sessionId'),
+      onTap: () => context.push('/session-review?session=$sessionId'),
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Row(
         children: [
@@ -440,6 +527,65 @@ class _MorningPayoff extends StatelessWidget {
             ),
           ),
           Icon(LucideIcons.chevronRight, size: 18, color: colors.textSecondary),
+        ],
+      ),
+    );
+  }
+}
+
+class _MorningPayoffStatus extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String title;
+  final String? body;
+  final VoidCallback? onRetry;
+
+  const _MorningPayoffStatus({
+    required this.colors,
+    required this.icon,
+    required this.title,
+    this.body,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Row(
+        children: [
+          Icon(icon,
+              size: 20, color: onRetry == null ? colors.warning : colors.error),
+          const SizedBox(width: NightshadeTokens.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: NightshadeTypography.bodyMedium.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (body != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    body!,
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Retry report'),
+            ),
         ],
       ),
     );
@@ -563,10 +709,10 @@ class _SkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NightshadeCard(
+    return const NightshadeCard(
       variant: CardVariant.elevated,
-      padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: const Column(
+      padding: EdgeInsets.all(NightshadeTokens.spaceLg),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SkeletonBox(

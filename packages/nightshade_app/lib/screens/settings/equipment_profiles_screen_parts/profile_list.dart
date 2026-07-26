@@ -6,7 +6,8 @@ class _ProfileList extends StatelessWidget {
   final EquipmentProfileModel? activeProfile;
   final ValueChanged<EquipmentProfileModel> onProfileSelected;
   final VoidCallback onCreateProfile;
-  final VoidCallback onImportProfiles;
+  final VoidCallback? onImportProfiles;
+  final bool isImportingProfiles;
   final bool isMobile;
 
   const _ProfileList({
@@ -16,6 +17,7 @@ class _ProfileList extends StatelessWidget {
     required this.onProfileSelected,
     required this.onCreateProfile,
     required this.onImportProfiles,
+    required this.isImportingProfiles,
     this.isMobile = false,
   });
 
@@ -70,9 +72,22 @@ class _ProfileList extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: onImportProfiles,
-                icon: Icon(LucideIcons.download,
-                    color: colors.textSecondary, size: 18),
-                tooltip: 'Import profiles',
+                icon: isImportingProfiles
+                    ? SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colors.primary,
+                        ),
+                      )
+                    : Icon(
+                        LucideIcons.download,
+                        color: colors.textSecondary,
+                        size: 18,
+                      ),
+                tooltip: isImportingProfiles
+                    ? 'Importing profiles…'
+                    : 'Import profiles',
                 style: IconButton.styleFrom(
                   backgroundColor: colors.surfaceAlt,
                   shape: RoundedRectangleBorder(

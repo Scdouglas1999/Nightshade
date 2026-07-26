@@ -62,7 +62,11 @@ pub type PolarAlignImageCallback =
 /// contexts instead of the previous 22-field manual copy.
 #[derive(Clone)]
 pub struct ExecutionContext {
-    /// ID of the node being executed
+    /// ID of the scope this context belongs to — the ROOT node for the main run,
+    /// or the branch/recovery node for contexts derived by `parallel` and
+    /// `recovery`. It is NOT rewritten as execution descends the tree, so it does
+    /// not answer "which node is running now"; instruction code takes its own id
+    /// as an argument (see [`Self::to_instruction_context`]).
     pub node_id: NodeId,
     /// Current target information (propagated from TargetGroup)
     pub target_ra: Option<f64>,
@@ -77,6 +81,18 @@ pub struct ExecutionContext {
     pub is_cancelled: Arc<AtomicBool>,
     /// Pause flag - set by recovery nodes, cleared by executor on resume
     pub is_paused: Arc<AtomicBool>,
+    /// Monotonic count of COMPLETED device-disconnect recovery cycles.
+    ///
+    /// `is_paused` alone cannot tell an instruction whether recovery happened:
+    /// the driver raises it on engage and clears it on success, so a recovery
+    /// that finishes before the failed instruction starts watching is
+    /// indistinguishable from no driver at all. That race failed live runs with
+    /// "[RECOVERY] No recovery driver engaged within 10s" moments after the same
+    /// log said "Loop succeeded after 1 attempt(s); resuming sequence" — the
+    /// FASTER recovery was, the more likely it killed the run. Instructions
+    /// snapshot this before executing and compare afterwards, which is
+    /// edge-durable where a transient level is not.
+    pub recovery_generation: Arc<std::sync::atomic::AtomicU64>,
     /// Skip current target request - set by trigger monitor and consumed by target header.
     pub skip_to_next_target: Arc<AtomicBool>,
     /// TargetScheduler mid-target recompute support. Successful exposure
@@ -524,6 +540,7 @@ impl ExecutionContext {
             current_binning: crate::Binning::One,
             is_cancelled: Arc::new(AtomicBool::new(false)),
             is_paused: Arc::new(AtomicBool::new(false)),
+            recovery_generation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             skip_to_next_target: Arc::new(AtomicBool::new(false)),
             scheduler_completed_exposures: Arc::new(AtomicU64::new(0)),
             scheduler_recompute_cadence: Arc::new(AtomicU32::new(0)),
@@ -1077,9 +1094,18 @@ impl ExecutionContext {
         }
     }
 
-    /// Build an InstructionContext from this ExecutionContext
-    pub async fn to_instruction_context(&self) -> InstructionContext {
+    /// Build an InstructionContext from this ExecutionContext.
+    ///
+    /// `node_id` is the node being executed, which the caller must supply — an
+    /// `ExecutionContext` is run-scoped and its own `node_id` is the ROOT (only
+    /// parallel branches and recovery rewrite it), so it cannot answer "which
+    /// node is running". Instruction nodes get the real id as an argument to
+    /// `InstructionNode::execute`; pass that through. Frame registration in the
+    /// app depends on it (see [`InstructionContext::node_id`]), so a wrong id
+    /// silently mis-attributes captured frames rather than failing loudly.
+    pub async fn to_instruction_context(&self, node_id: &str) -> InstructionContext {
         InstructionContext {
+            node_id: node_id.to_string(),
             target_ra: self.target_ra,
             target_dec: self.target_dec,
             target_rotation: self.target_rotation,
@@ -1224,6 +1250,23 @@ mod tests {
             assert!(sun_dec.is_finite());
             assert!((0.0..24.0).contains(&sun_ra));
         }
+    }
+
+    /// Regression: the instruction context must carry the producing node id.
+    ///
+    /// It used to be absent, so `emit_grade_progress` emitted its
+    /// FrameAccepted / FrameRejected events with an empty `node_id` and the app
+    /// silently dropped every sequencer frame instead of writing a
+    /// `captured_images` row (no gallery entry, no integration total, no
+    /// per-target completion — the frames existed only as files on disk).
+    #[tokio::test]
+    async fn instruction_context_carries_producing_node_id() {
+        // The run-scoped context is rooted at "root"; the instruction context
+        // must report the node the caller names, not the root — mixing those up
+        // is what mis-attributed every captured frame to the root node.
+        let ctx = ExecutionContext::new("root".to_string());
+        let ictx = ctx.to_instruction_context("exposure-node-7").await;
+        assert_eq!(ictx.node_id, "exposure-node-7");
     }
 
     #[test]

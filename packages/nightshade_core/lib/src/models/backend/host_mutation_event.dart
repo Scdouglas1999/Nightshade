@@ -25,6 +25,7 @@ abstract final class HostMutationEntity {
   static const settings = 'settings';
   static const session = 'session';
   static const capturedImage = 'capturedImage';
+  static const atlas = 'atlas';
 }
 
 /// Mutation verbs emitted after successful REST handler completion.

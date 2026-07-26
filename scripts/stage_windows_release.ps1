@@ -125,6 +125,30 @@ Copy-RequiredFile $librawSource $librawDest
 Assert-Dll64Bit $librawDest
 
 # ---------------------------------------------------------------------------
+# Dart native assets (sqlite3 and any future package build-hook outputs)
+# ---------------------------------------------------------------------------
+$nativeAssetsDir = Join-Path $DesktopDir 'build\native_assets\windows'
+if (-not (Test-Path $nativeAssetsDir)) {
+    throw "Dart native-assets directory not found: $nativeAssetsDir"
+}
+
+Write-Host "Copying Dart native assets"
+$nativeAssetDlls = @(Get-ChildItem -Path $nativeAssetsDir -Filter '*.dll' -File)
+if ($nativeAssetDlls.Count -eq 0) {
+    throw "No Dart native-asset DLLs found in: $nativeAssetsDir"
+}
+foreach ($dll in $nativeAssetDlls) {
+    $dest = Join-Path $OutputDir $dll.Name
+    Copy-RequiredFile $dll.FullName $dest
+    Assert-Dll64Bit $dest
+}
+
+$sqliteDest = Join-Path $OutputDir 'sqlite3.dll'
+if (-not (Test-Path $sqliteDest)) {
+    throw "sqlite3.dll was not produced by Dart build hooks"
+}
+
+# ---------------------------------------------------------------------------
 # MSVC runtime (bundled for machines without VS installed)
 # ---------------------------------------------------------------------------
 Write-Host "Copying MSVC runtime DLLs (optional, from System32)"
@@ -169,7 +193,7 @@ else {
 # ---------------------------------------------------------------------------
 # Verify load chain
 # ---------------------------------------------------------------------------
-foreach ($required in @('nightshade_bridge.dll', 'libraw.dll')) {
+foreach ($required in @('nightshade_bridge.dll', 'libraw.dll', 'sqlite3.dll')) {
     $path = Join-Path $OutputDir $required
     if (-not (Test-Path $path)) {
         throw "Staging incomplete: missing $required"

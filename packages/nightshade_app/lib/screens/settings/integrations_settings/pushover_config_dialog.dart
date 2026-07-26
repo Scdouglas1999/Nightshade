@@ -91,6 +91,7 @@ class _PushoverConfigDialogState extends State<_PushoverConfigDialog> {
       title: 'Configure Pushover',
       icon: LucideIcons.bell,
       width: 480,
+      closeEnabled: !_saving,
       actions: [
         NightshadeButton(
           label: 'Cancel',

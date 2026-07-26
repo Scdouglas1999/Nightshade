@@ -432,16 +432,19 @@ class _FramingViewState extends ConsumerState<FramingView> {
 
   Future<void> _resolveAndSelectTarget(String name) async {
     final result = await SimbadResolver.resolve(name);
-    if (result != null && mounted) {
-      final target = FramingTarget(
-        name: result.mainId,
-        catalogId: result.mainId,
-        raHours: result.raHours,
-        decDegrees: result.decDegrees,
-        magnitude: result.magnitude,
-      );
-      _selectTarget(target);
+    if (!mounted) return;
+    if (result == null) {
+      context.showErrorSnackBar('Could not resolve "$name"');
+      return;
     }
+    final target = FramingTarget(
+      name: result.mainId,
+      catalogId: result.mainId,
+      raHours: result.raHours,
+      decDegrees: result.decDegrees,
+      magnitude: result.magnitude,
+    );
+    _selectTarget(target);
   }
 
   void _goToManualCoordinates() {

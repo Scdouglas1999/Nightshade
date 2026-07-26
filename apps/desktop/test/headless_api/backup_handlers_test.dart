@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/backup_handlers.dart';
 import 'package:shelf/shelf.dart';
 
@@ -45,6 +46,20 @@ void main() {
       },
     );
 
+    test('remote create rejects a caller-selected server path', () async {
+      final response = await handlers.handleCreateBackup(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/backup/create'),
+          body: jsonEncode({'customPath': '/tmp/overwrite.nsbackup'}),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['code'], 'host_managed_backup_path');
+    });
+
     test(
       'upload restore oversized content length returns JSON too large',
       () async {
@@ -85,6 +100,40 @@ void main() {
         body['error'],
         'Invalid backup filename. Use a .nsbackup or .json filename.',
       );
+    });
+
+    test('restore is rejected while a sequence is active', () async {
+      container.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+
+      final response = await handlers.handleRestoreBackup(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/backup/restore'),
+          body: jsonEncode({'id': 'backup-id'}),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.conflict);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['code'], 'imaging_active');
+    });
+
+    test('upload restore is rejected during a standalone capture', () async {
+      container.read(sessionStateProvider.notifier).setCapturing(true);
+
+      final response = await handlers.handleUploadRestoreBackup(
+        Request(
+          'POST',
+          Uri.parse(
+            'http://localhost/api/backup/upload-restore?fileName=test.nsbackup',
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.conflict);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['code'], 'imaging_active');
     });
   });
 }

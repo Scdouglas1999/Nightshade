@@ -28,7 +28,7 @@ class CsvColumnMapping {
   /// Optional column index of filter name.
   final int? filterColumn;
 
-  /// Optional column index of priority (lower = more important).
+  /// Optional column index of priority (higher = more important).
   final int? priorityColumn;
 
   /// Optional column index of notes.

@@ -627,8 +627,16 @@ pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, Nigh
         NightshadeError::OperationFailed(format!("Failed to get calibration data: {}", e))
     })?;
 
-    // PHD2 returns null if not calibrated, otherwise returns calibration parameters
-    let is_calibrated = !result.is_null();
+    // PHD2's get_calibration_data returns a JSON object with a `calibrated`
+    // boolean (and, when true, the xAngle/yAngle/xRate/yRate details). It does
+    // NOT return null when the mount is uncalibrated — it returns
+    // {"calibrated": false}. The old `!result.is_null()` was therefore ALWAYS
+    // true on any successful RPC, so the Guiding screen reported the mount as
+    // calibrated even when it wasn't. Read the actual flag.
+    let is_calibrated = result
+        .get("calibrated")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     // Extract calibration parameters if available
     let (ra_angle, dec_angle, ra_rate, dec_rate) = if is_calibrated {

@@ -262,6 +262,18 @@ void main() {
         reason: 'A one-click button must accept the alternate map.',
       );
 
+      final applySwitch = tester.widget<NightshadeSwitch>(
+        find.descendant(
+          of: find.widgetWithText(Row, 'Apply during capture').first,
+          matching: find.byType(NightshadeSwitch),
+        ),
+      );
+      expect(
+        applySwitch.onChanged,
+        isNull,
+        reason: 'A neighbouring map must not enable the current bucket toggle.',
+      );
+
       expect(tester.takeException(), isNull);
     },
   );

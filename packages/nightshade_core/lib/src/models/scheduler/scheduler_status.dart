@@ -60,6 +60,29 @@ class SchedulerWeights extends Equatable {
     );
   }
 
+  /// Serialize to a JSON-safe map for durable storage.
+  Map<String, Object?> toStorageJson() => {
+    'altitude': altitude,
+    'meridian': meridian,
+    'moon': moon,
+    'timeRemaining': timeRemaining,
+    'filterCoverage': filterCoverage,
+    'userPriority': userPriority,
+  };
+
+  /// Rebuild from [toStorageJson], falling back to the default for any missing
+  /// or non-numeric field.
+  factory SchedulerWeights.fromStorageJson(Map<String, dynamic> json) {
+    return SchedulerWeights.defaults.copyWith(
+      altitude: (json['altitude'] as num?)?.toDouble(),
+      meridian: (json['meridian'] as num?)?.toDouble(),
+      moon: (json['moon'] as num?)?.toDouble(),
+      timeRemaining: (json['timeRemaining'] as num?)?.toDouble(),
+      filterCoverage: (json['filterCoverage'] as num?)?.toDouble(),
+      userPriority: (json['userPriority'] as num?)?.toDouble(),
+    );
+  }
+
   @override
   List<Object?> get props => [
     altitude,
@@ -133,6 +156,30 @@ class SchedulerConfig extends Equatable {
     );
   }
 
+  /// Serialize the operator-tunable fields (weights, min altitude, hysteresis)
+  /// for durable storage. Fixed engine tuning (tick interval, moon/sun gates)
+  /// is intentionally omitted so it always tracks the current engine defaults.
+  Map<String, Object?> toStorageJson() => {
+    'hysteresisRatio': hysteresisRatio,
+    'minAltitudeDegrees': minAltitudeDegrees,
+    'weights': weights.toStorageJson(),
+  };
+
+  /// Rebuild from [toStorageJson], layering the stored operator fields over
+  /// [defaults] so unstored fields keep their engine defaults.
+  factory SchedulerConfig.fromStorageJson(Map<String, dynamic> json) {
+    final weightsJson = json['weights'];
+    return SchedulerConfig.defaults.copyWith(
+      hysteresisRatio: (json['hysteresisRatio'] as num?)?.toDouble(),
+      minAltitudeDegrees: (json['minAltitudeDegrees'] as num?)?.toDouble(),
+      weights: weightsJson is Map
+          ? SchedulerWeights.fromStorageJson(
+              weightsJson.cast<String, dynamic>(),
+            )
+          : null,
+    );
+  }
+
   @override
   List<Object?> get props => [
     tickInterval,
@@ -188,6 +235,31 @@ class SchedulerStatus extends Equatable {
     this.nextEvaluationAt,
     this.lastError,
   });
+
+  Map<String, dynamic> toJson() => {
+    'state': state.name,
+    if (currentTargetId != null) 'currentTargetId': currentTargetId,
+    if (currentTargetName != null) 'currentTargetName': currentTargetName,
+    if (nextEvaluationAt != null)
+      'nextEvaluationAt': nextEvaluationAt!.toIso8601String(),
+    if (lastError != null) 'lastError': lastError,
+  };
+
+  factory SchedulerStatus.fromJson(Map<String, dynamic> json) {
+    final stateName = json['state'] as String?;
+    final state = SchedulerState.values.where((value) {
+      return value.name == stateName;
+    }).firstOrNull;
+    return SchedulerStatus(
+      state: state ?? SchedulerState.idle,
+      currentTargetId: (json['currentTargetId'] as num?)?.toInt(),
+      currentTargetName: json['currentTargetName'] as String?,
+      nextEvaluationAt: DateTime.tryParse(
+        json['nextEvaluationAt'] as String? ?? '',
+      ),
+      lastError: json['lastError'] as String?,
+    );
+  }
 
   SchedulerStatus copyWith({
     SchedulerState? state,

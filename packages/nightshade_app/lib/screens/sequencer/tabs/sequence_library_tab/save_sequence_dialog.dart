@@ -17,6 +17,9 @@ class _SaveSequenceDialog extends ConsumerStatefulWidget {
 class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late final NightshadeBackend _authority;
+  late final SequenceRepository _repository;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
   bool _isSaving = false;
 
   @override
@@ -25,12 +28,25 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
     _nameController = TextEditingController(text: widget.sequence.name);
     _descriptionController =
         TextEditingController(text: widget.sequence.description);
+    _authority = ref.read(backendProvider);
+    _repository = ref.read(sequenceRepositoryProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        context.showWarningSnackBar(
+          'The connected host changed. Sequence save cancelled.',
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _backendSubscription?.close();
     super.dispose();
   }
 
@@ -75,7 +91,11 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true ||
+        !mounted ||
+        !identical(ref.read(backendProvider), _authority)) {
+      return;
+    }
 
     await _persist(
       Sequence.create(
@@ -133,25 +153,44 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
   }
 
   Future<void> _persist(Sequence sequenceToSave) async {
+    if (!identical(ref.read(backendProvider), _authority)) {
+      context.showWarningSnackBar(
+        'The connected host changed. Reopen the sequence library.',
+      );
+      return;
+    }
     setState(() => _isSaving = true);
 
     try {
-      final repository = ref.read(sequenceRepositoryProvider);
       final savedId =
-          await repository.saveSequence(sequenceToSave, isTemplate: false);
+          await _repository.saveSequence(sequenceToSave, isTemplate: false);
 
+      Object? versionSnapshotError;
       // Capture a point-in-time version snapshot so the library's version
       // history has a restore point for this save. Re-anchor the saved
       // sequence to its row id first (a brand-new save assigns it here).
-      // Snapshotting is local-only; on a remote host it throws, so it is
-      // skipped silently rather than failing the save.
       try {
-        await repository.snapshotVersionOnSave(
+        await _repository.snapshotVersionOnSave(
           sequenceToSave.copyWith(databaseId: savedId),
         );
-      } on UnsupportedError {
-        // Remote host owns its own version history — nothing to do here.
+      } catch (e) {
+        // The sequence row is already durable. A secondary history failure
+        // must not report the whole save as failed or leave the editor
+        // pointing at its old row.
+        versionSnapshotError = e;
       }
+
+      if (!mounted || !identical(ref.read(backendProvider), _authority)) {
+        return;
+      }
+
+      ref.read(currentSequenceProvider.notifier).applyPersistedSave(
+            expectedSequenceId: widget.sequence.id,
+            databaseId: savedId,
+            name: sequenceToSave.name,
+            description: sequenceToSave.description,
+            isTemplate: false,
+          );
 
       notifySequenceCatalogChanged(
         ref,
@@ -160,16 +199,24 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
         name: sequenceToSave.name,
       );
 
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), _authority)) {
         Navigator.pop(context);
-        context.showSuccessSnackBar('Sequence "${sequenceToSave.name}" saved!');
+        if (versionSnapshotError == null) {
+          context
+              .showSuccessSnackBar('Sequence "${sequenceToSave.name}" saved!');
+        } else {
+          context.showWarningSnackBar(
+            'Sequence saved, but its version-history snapshot failed: '
+            '$versionSnapshotError',
+          );
+        }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), _authority)) {
         context.showErrorSnackBar('Failed to save sequence: $e');
       }
     } finally {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), _authority)) {
         setState(() => _isSaving = false);
       }
     }
@@ -177,7 +224,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    final dialog = Dialog(
       backgroundColor: widget.colors.surface,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
@@ -315,7 +362,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Saving ${widget.sequence.nodes.length} nodes',
+                        'Saving ${countLabel(widget.sequence.nodes.length, 'node')}',
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textSecondary,
@@ -370,5 +417,6 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
         ),
       ),
     );
+    return PopScope(canPop: !_isSaving, child: dialog);
   }
 }

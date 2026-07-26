@@ -8,6 +8,7 @@ import 'package:nightshade_core/src/models/weather/weather_models.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
 import 'package:nightshade_core/src/providers/weather_providers.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
+import 'package:nightshade_core/src/providers/equipment/weather_state_provider.dart';
 import 'package:nightshade_core/src/services/safe_rig_service.dart';
 
 import '../mocks/mock_backend.dart';
@@ -33,7 +34,9 @@ class _FixedBackendNotifier extends BackendNotifier {
 /// enforcement (mount park / dome close / critical notification) into this
 /// push-wiring test. SafeRig enforcement has its own dedicated tests.
 class _NoopSafeRigService extends SafeRigService {
-  _NoopSafeRigService(super.ref);
+  _NoopSafeRigService(super.ref) : super(stopSecondaryRig: _stopSecondaryRig);
+
+  static Future<void> _stopSecondaryRig() async {}
 
   @override
   Future<SafeRigResult> safeTheRig({
@@ -41,6 +44,9 @@ class _NoopSafeRigService extends SafeRigService {
     bool park = true,
     bool closeDome = false,
     bool closeCover = false,
+    bool abortExposure = false,
+    bool disableCooling = false,
+    bool quiesceSecondaryRig = true,
     bool notify = true,
   }) async => const SafeRigResult();
 }
@@ -94,8 +100,10 @@ void main() {
               AppSettingsState(safetyFailMode: failMode),
             ),
           ),
-          weatherSettingsProvider.overrideWithValue(
-            WeatherSettings(weatherSafetyEnabled: safetyEnabled),
+          weatherSettingsDataProvider.overrideWith(
+            (ref) => Stream.value(
+              WeatherSettings(weatherSafetyEnabled: safetyEnabled),
+            ),
           ),
           safeRigServiceProvider.overrideWith(
             (ref) => _NoopSafeRigService(ref),
@@ -242,5 +250,76 @@ void main() {
         () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
       );
     });
+
+    test(
+      'converts hardware wind from m/s before applying km/h limit',
+      () async {
+        final container = buildContainer(safetyEnabled: true);
+        final hardwareWeather = container.read(weatherStateProvider.notifier);
+        hardwareWeather.setConnecting('weather-1');
+        hardwareWeather.setConnected();
+        // Native weather telemetry is m/s: 10 m/s == 36 km/h, above the
+        // default 30 km/h safety threshold.
+        hardwareWeather.updateConditions(windSpeed: 10);
+
+        final safety = container.read(weatherSafetyProvider.notifier);
+        await container.read(appSettingsProvider.future);
+        clearInteractions(backend);
+        safety.forceEvaluation();
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          container.read(weatherSafetyProvider).status,
+          WeatherSafetyStatus.unsafe,
+        );
+        verify(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+        ).called(greaterThanOrEqualTo(1));
+        verifyNever(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+        );
+      },
+    );
+
+    test(
+      'fails closed when authoritative safety settings cannot load',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            appSettingsProvider.overrideWith(
+              () => _FakeAppSettingsNotifier(
+                const AppSettingsState(safetyFailMode: SafetyFailMode.failOpen),
+              ),
+            ),
+            weatherSettingsDataProvider.overrideWith(
+              (ref) => Stream<WeatherSettings>.error(
+                StateError('settings store unavailable'),
+              ),
+            ),
+            safeRigServiceProvider.overrideWith(
+              (ref) => _NoopSafeRigService(ref),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(weatherSafetyProvider.notifier);
+        for (var i = 0; i < 8; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        final state = container.read(weatherSafetyProvider);
+        expect(state.status, WeatherSafetyStatus.unsafe);
+        expect(state.dataSource, SafetyDataSource.unavailable);
+        expect(state.failModeWarning, contains('configuration unavailable'));
+        verify(
+          () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+        ).called(greaterThanOrEqualTo(1));
+      },
+    );
   });
 }

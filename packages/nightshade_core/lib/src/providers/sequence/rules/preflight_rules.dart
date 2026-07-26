@@ -547,6 +547,7 @@ class PolarAlignmentFreshnessRule implements RefAwareSequenceValidator {
     final ref = ctx.ref;
     final settings = ref.read(appSettingsProvider).valueOrNull;
     if (settings == null) return const [];
+    if (settings.polarAlignmentMaxAgeDays <= 0) return const [];
 
     // Only relevant if a mount is required for this run.
     final requiresMount = sequence.nodes.values.any((node) {

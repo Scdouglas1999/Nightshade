@@ -367,7 +367,7 @@ class HomeAssistantDiscoveryService {
     addIfPresent(HaEntityKeys.ambientTemperature, weather.temperature);
     addIfPresent(HaEntityKeys.humidity, weather.humidity, 0);
     addIfPresent(HaEntityKeys.dewPoint, weather.dewPoint);
-    addIfPresent(HaEntityKeys.windSpeed, weather.windSpeed);
+    addIfPresent(HaEntityKeys.windSpeed, weather.windSpeedKph);
     addIfPresent(HaEntityKeys.cloudCover, weather.cloudCover, 0);
     addIfPresent(HaEntityKeys.skyTemperature, weather.skyTemperature);
 

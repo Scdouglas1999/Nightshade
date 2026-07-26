@@ -13,6 +13,52 @@ import 'widgets/element_refresh_card.dart';
 
 part 'catalog_settings_screen/card_builders.dart';
 
+typedef CatalogCsvPicker = Future<XFile?> Function(String confirmButtonText);
+typedef CatalogCsvImporter = Future<bool> Function(
+  String sourcePath,
+  String type,
+);
+typedef AnnotationCatalogCsvImporter = Future<bool> Function(
+  String sourcePath,
+);
+
+Future<XFile?> _pickCatalogCsv(String confirmButtonText) {
+  const csvGroup = XTypeGroup(
+    label: 'CSV files',
+    extensions: ['csv'],
+  );
+  return openFile(
+    acceptedTypeGroups: [csvGroup],
+    confirmButtonText: confirmButtonText,
+  );
+}
+
+final catalogCsvPickerProvider =
+    Provider<CatalogCsvPicker>((ref) => _pickCatalogCsv);
+
+final catalogCsvImporterProvider = Provider<CatalogCsvImporter>((ref) {
+  return (sourcePath, type) => CatalogManager.instance.importCatalog(
+        sourcePath: sourcePath,
+        type: type,
+      );
+});
+
+final annotationCatalogCsvImporterProvider =
+    Provider<AnnotationCatalogCsvImporter>((ref) {
+  return (sourcePath) => CatalogManager.instance.importAnnotationCatalog(
+        sourcePath: sourcePath,
+        package: AnnotationPackage.standard,
+      );
+});
+
+final catalogDeleteActionProvider = Provider<Future<void> Function()>(
+  (ref) => CatalogManager.instance.deleteCatalogs,
+);
+
+final annotationCatalogDeleteActionProvider = Provider<Future<void> Function()>(
+  (ref) => CatalogManager.instance.deleteAnnotationCatalog,
+);
+
 /// Screen for managing astronomical catalog downloads and settings
 class CatalogSettingsScreen extends ConsumerStatefulWidget {
   final bool isMobile;
@@ -40,6 +86,12 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   /// True while one of this screen's own download/import methods is awaiting.
   bool _methodRunning = false;
+  int _importGeneration = 0;
+  int _statusGeneration = 0;
+  bool _deleteConfirmationOpen = false;
+  _CatalogDeleteTarget? _deleteTarget;
+
+  bool get _isDeleting => _deleteTarget != null;
 
   /// Set when the user taps Cancel; polled by the in-flight download.
   bool _cancelRequested = false;
@@ -71,6 +123,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   @override
   void dispose() {
+    _statusGeneration++;
     _progressSub?.cancel();
     super.dispose();
   }
@@ -102,24 +155,27 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     });
     // A completed download changes on-disk state; refresh the badges/chips.
     if (p.isComplete) {
-      _loadCatalogStatus();
+      unawaited(_loadCatalogStatus());
     }
   }
 
   Future<void> _loadCatalogStatus() async {
+    if (!mounted) return;
+    final generation = ++_statusGeneration;
     setState(() => _isLoading = true);
 
     try {
-      final starStatus = await CatalogManager.instance.getStarCatalogStatus();
-      final dsoStatus = await CatalogManager.instance.getDsoCatalogStatus();
-      final annotationStatus =
-          await CatalogManager.instance.getAnnotationCatalogStatus();
+      final statuses = await Future.wait<CatalogStatus>([
+        CatalogManager.instance.getStarCatalogStatus(),
+        CatalogManager.instance.getDsoCatalogStatus(),
+        CatalogManager.instance.getAnnotationCatalogStatus(),
+      ]);
 
-      if (mounted) {
+      if (mounted && generation == _statusGeneration) {
         setState(() {
-          _starStatus = starStatus;
-          _dsoStatus = dsoStatus;
-          _annotationStatus = annotationStatus;
+          _starStatus = statuses[0];
+          _dsoStatus = statuses[1];
+          _annotationStatus = statuses[2];
           _isLoading = false;
         });
         // Keep the shared catalog-state provider (planner empty-state, "needs
@@ -128,7 +184,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
         unawaited(ref.read(catalogStateProvider.notifier).refreshStatus());
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && generation == _statusGeneration) {
         setState(() {
           _isLoading = false;
         });
@@ -138,6 +194,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   }
 
   Future<void> _downloadCatalogs() async {
+    if (_isDownloading) return;
     // The live progress bar is driven by the manager's progress stream
     // (see [_onDownloadProgress]); here we only orchestrate the sequence and
     // surface the final outcome.
@@ -203,66 +260,117 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   @override
   Future<void> _importCatalog(String type) async {
-    const csvGroup = XTypeGroup(
-      label: 'CSV files',
-      extensions: ['csv'],
-    );
+    if (_isDownloading) return;
+    final generation = ++_importGeneration;
+    setState(() {
+      _methodRunning = true;
+      _currentDownload = type == 'stars' ? 'Star catalog' : 'DSO catalog';
+      _downloadStatus = 'Selecting a CSV file...';
+      _downloadProgress = 0;
+      _recomputeDownloading();
+    });
 
-    final result = await openFile(
-      acceptedTypeGroups: [csvGroup],
-      confirmButtonText: 'Select',
-    );
+    try {
+      final result = await ref.read(catalogCsvPickerProvider)('Select');
+      if (result == null || !_isCurrentImport(generation)) return;
 
-    if (result != null) {
       setState(() {
-        _methodRunning = true;
         _downloadStatus = 'Importing catalog...';
-        _recomputeDownloading();
       });
 
-      try {
-        final success = await CatalogManager.instance.importCatalog(
-          sourcePath: result.path,
-          type: type,
-        );
+      final success =
+          await ref.read(catalogCsvImporterProvider)(result.path, type);
+      if (!_isCurrentImport(generation)) return;
 
-        if (success) {
-          await _loadCatalogStatus();
-          if (mounted) {
-            context.showSuccessSnackBar('Catalog imported successfully!');
-          }
-        } else {
-          _showError('Failed to import catalog');
+      if (success) {
+        await _loadCatalogStatus();
+        if (mounted && _isCurrentImport(generation)) {
+          context.showSuccessSnackBar('Catalog imported successfully!');
         }
-      } catch (e) {
+      } else {
+        _showError('Failed to import catalog');
+      }
+    } catch (e) {
+      if (_isCurrentImport(generation)) {
         _showError('Import failed: $e');
-      } finally {
-        if (mounted) {
-          setState(() {
-            _methodRunning = false;
-            _recomputeDownloading();
-          });
-        }
+      }
+    } finally {
+      if (_isCurrentImport(generation)) {
+        setState(() {
+          _methodRunning = false;
+          _recomputeDownloading();
+        });
       }
     }
   }
 
+  bool _isCurrentImport(int generation) {
+    return mounted && generation == _importGeneration;
+  }
+
   Future<void> _deleteCatalogs() async {
-    final confirm = await ConfirmDialog.show(
-      context: context,
+    if (_isDownloading || _deleteConfirmationOpen) return;
+    final confirm = await _confirmDeletion(
       title: 'Delete Catalogs',
-      message: 'Are you sure you want to delete all downloaded catalogs? '
-          'You will need to download them again to use the planetarium features.',
-      confirmLabel: 'Delete',
-      isDestructive: true,
+      message: 'Are you sure you want to delete the downloaded star and '
+          'deep-sky catalogs? You will need to download them again to use '
+          'the affected planetarium features.',
     );
+    if (!confirm || !mounted) return;
+    await _runDeletion(
+      target: _CatalogDeleteTarget.starAndDso,
+      delete: ref.read(catalogDeleteActionProvider),
+      successMessage: 'Star and deep-sky catalogs deleted',
+    );
+  }
 
-    if (confirm) {
-      await CatalogManager.instance.deleteCatalogs();
+  Future<bool> _confirmDeletion({
+    required String title,
+    required String message,
+  }) async {
+    if (_deleteConfirmationOpen) return false;
+    setState(() => _deleteConfirmationOpen = true);
+    try {
+      return await ConfirmDialog.show(
+        context: context,
+        title: title,
+        message: message,
+        confirmLabel: 'Delete',
+        isDestructive: true,
+      );
+    } catch (e) {
+      _showError('Could not open deletion confirmation: $e');
+      return false;
+    } finally {
+      if (mounted) setState(() => _deleteConfirmationOpen = false);
+    }
+  }
+
+  Future<void> _runDeletion({
+    required _CatalogDeleteTarget target,
+    required Future<void> Function() delete,
+    required String successMessage,
+  }) async {
+    if (_isDownloading || _isDeleting) return;
+    setState(() {
+      _deleteTarget = target;
+      _methodRunning = true;
+      _recomputeDownloading();
+    });
+    try {
+      await delete();
+      if (!mounted) return;
       await _loadCatalogStatus();
-
+      if (mounted) context.showInfoSnackBar(successMessage);
+    } catch (e) {
+      _showError('Catalog deletion failed: $e');
+    } finally {
       if (mounted) {
-        context.showInfoSnackBar('Catalogs deleted');
+        setState(() {
+          _deleteTarget = null;
+          _methodRunning = false;
+          _recomputeDownloading();
+        });
       }
     }
   }
@@ -327,7 +435,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
         ],
 
         // Download progress
-        if (_isDownloading) ...[
+        if (_isDownloading && !_isDeleting) ...[
           _buildDownloadProgress(context),
           const SizedBox(height: 32),
         ],
@@ -390,6 +498,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   Widget _buildDownloadProgress(BuildContext context) {
     final colors = context.nightshadeColors;
+    final isNetworkDownload =
+        CatalogManager.instance.activeDownloads.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -413,7 +523,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Downloading: $_currentDownload',
+                  '${isNetworkDownload ? 'Downloading' : 'Importing'}: '
+                  '$_currentDownload',
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w600,
@@ -423,13 +534,12 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
               // Cancellation only applies to a real network download in flight
               // (imports are atomic and finish immediately).
               if (CatalogManager.instance.activeDownloads.isNotEmpty)
-                TextButton.icon(
+                NightshadeButton(
                   onPressed: _cancelRequested ? null : _requestCancelDownload,
-                  icon: const Icon(NightshadeIcons.close, size: 16),
-                  label: Text(_cancelRequested ? 'Cancelling…' : 'Cancel'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: colors.textSecondary,
-                  ),
+                  icon: NightshadeIcons.close,
+                  label: _cancelRequested ? 'Cancelling…' : 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
                 ),
             ],
           ),
@@ -486,9 +596,11 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: _isDownloading
-                  ? 'Downloading...'
-                  : 'Download Selected Package',
+              label: _isDeleting
+                  ? 'Deleting catalogs…'
+                  : _isDownloading
+                      ? 'Downloading...'
+                      : 'Download Selected Package',
               icon: NightshadeIcons.download,
               variant: ButtonVariant.primary,
               onPressed: _isDownloading ? null : _downloadCatalogs,
@@ -626,6 +738,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                       icon: NightshadeIcons.delete,
                       variant: ButtonVariant.destructive,
                       onPressed: _isDownloading ? null : _deleteCatalogs,
+                      isLoading:
+                          _deleteTarget == _CatalogDeleteTarget.starAndDso,
                     ),
                   ],
                 ],
@@ -645,6 +759,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                       icon: NightshadeIcons.delete,
                       variant: ButtonVariant.destructive,
                       onPressed: _isDownloading ? null : _deleteCatalogs,
+                      isLoading:
+                          _deleteTarget == _CatalogDeleteTarget.starAndDso,
                     ),
                 ],
               ),
@@ -835,6 +951,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 icon: NightshadeIcons.delete,
                 variant: ButtonVariant.destructive,
                 onPressed: _isDownloading ? null : _deleteAnnotationCatalog,
+                isLoading: _deleteTarget == _CatalogDeleteTarget.annotation,
               ),
             ),
           ],
@@ -933,6 +1050,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   }
 
   Future<void> _downloadAnnotationCatalog() async {
+    if (_isDownloading) return;
     setState(() {
       _methodRunning = true;
       _cancelRequested = false;
@@ -971,70 +1089,65 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   }
 
   Future<void> _importAnnotationCatalog() async {
-    const csvGroup = XTypeGroup(
-      label: 'CSV files',
-      extensions: ['csv'],
-    );
+    if (_isDownloading) return;
+    final generation = ++_importGeneration;
+    setState(() {
+      _methodRunning = true;
+      _currentDownload = 'GLADE+ galaxy catalog';
+      _downloadStatus = 'Selecting a CSV file...';
+      _downloadProgress = 0;
+      _recomputeDownloading();
+    });
 
-    final result = await openFile(
-      acceptedTypeGroups: [csvGroup],
-      confirmButtonText: 'Import',
-    );
+    try {
+      final result = await ref.read(catalogCsvPickerProvider)('Import');
+      if (result == null || !_isCurrentImport(generation)) return;
 
-    if (result != null) {
       setState(() {
-        _methodRunning = true;
         _downloadStatus = 'Importing annotation catalog...';
-        _recomputeDownloading();
       });
 
-      try {
-        final success = await CatalogManager.instance.importAnnotationCatalog(
-          sourcePath: result.path,
-          package:
-              AnnotationPackage.standard, // Default package for manual imports
-        );
+      final success =
+          await ref.read(annotationCatalogCsvImporterProvider)(result.path);
+      if (!_isCurrentImport(generation)) return;
 
-        if (success) {
-          await _loadCatalogStatus();
-          if (mounted) {
-            context
-                .showSuccessSnackBar('GLADE+ catalog imported successfully!');
-          }
-        } else {
-          _showError('Failed to import annotation catalog');
+      if (success) {
+        await _loadCatalogStatus();
+        if (mounted && _isCurrentImport(generation)) {
+          context.showSuccessSnackBar(
+            'GLADE+ catalog imported successfully!',
+          );
         }
-      } catch (e) {
+      } else {
+        _showError('Failed to import annotation catalog');
+      }
+    } catch (e) {
+      if (_isCurrentImport(generation)) {
         _showError('Import failed: $e');
-      } finally {
-        if (mounted) {
-          setState(() {
-            _methodRunning = false;
-            _recomputeDownloading();
-          });
-        }
+      }
+    } finally {
+      if (_isCurrentImport(generation)) {
+        setState(() {
+          _methodRunning = false;
+          _recomputeDownloading();
+        });
       }
     }
   }
 
   Future<void> _deleteAnnotationCatalog() async {
-    final confirm = await ConfirmDialog.show(
-      context: context,
+    if (_isDownloading || _deleteConfirmationOpen) return;
+    final confirm = await _confirmDeletion(
       title: 'Delete Annotation Catalog',
       message: 'Are you sure you want to delete the annotation catalog? '
           'You will need to download it again to use image annotation features.',
-      confirmLabel: 'Delete',
-      isDestructive: true,
     );
-
-    if (confirm) {
-      await CatalogManager.instance.deleteAnnotationCatalog();
-      await _loadCatalogStatus();
-
-      if (mounted) {
-        context.showInfoSnackBar('Annotation catalog deleted');
-      }
-    }
+    if (!confirm || !mounted) return;
+    await _runDeletion(
+      target: _CatalogDeleteTarget.annotation,
+      delete: ref.read(annotationCatalogDeleteActionProvider),
+      successMessage: 'Annotation catalog deleted',
+    );
   }
 
   @override
@@ -1042,3 +1155,5 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }
+
+enum _CatalogDeleteTarget { starAndDso, annotation }

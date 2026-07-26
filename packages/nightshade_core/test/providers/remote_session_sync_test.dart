@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -56,6 +58,10 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+
+  void switchTo(NightshadeBackend backend) {
+    state = backend;
+  }
 }
 
 void main() {
@@ -64,6 +70,104 @@ void main() {
   });
 
   group('remoteSessionSyncProvider', () {
+    test(
+      'late hydration from an old host cannot overwrite the new host',
+      () async {
+        final hostA = _MockNetworkBackend();
+        final hostB = _MockNetworkBackend();
+        final delayedStatus = Completer<SequencerStatus>();
+        when(hostA.sequencerGetStatus).thenAnswer((_) => delayedStatus.future);
+        when(
+          () => hostA.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+
+        when(hostB.sequencerGetStatus).thenAnswer(
+          (_) async => const SequencerStatus(state: 'Idle', progress: 0),
+        );
+        when(hostB.getConnectedDevices).thenAnswer(
+          (_) async => const [
+            DeviceInfo(
+              id: 'host-b-mount',
+              name: 'Host B Mount',
+              deviceType: DeviceType.mount,
+              driverType: DriverType.simulator,
+              description: '',
+              driverVersion: '1',
+            ),
+          ],
+        );
+        when(() => hostB.getMountStatus('host-b-mount')).thenAnswer(
+          (_) async => const MountStatus(
+            connected: true,
+            tracking: true,
+            slewing: false,
+            parked: false,
+            atHome: false,
+            sideOfPier: PierSide.east,
+            rightAscension: 7,
+            declination: 8,
+            altitude: 45,
+            azimuth: 180,
+            siderealTime: 10,
+            trackingRate: TrackingRate.sidereal,
+            canPark: true,
+            canSlew: true,
+            canSync: true,
+            canPulseGuide: true,
+            canSetTrackingRate: true,
+          ),
+        );
+        when(hostB.getOpenEditorSequence).thenAnswer((_) async => null);
+        when(hostB.phd2GetStatus).thenAnswer(
+          (_) async => const Phd2Status(
+            state: 'Stopped',
+            connected: false,
+            rmsRa: 0,
+            rmsDec: 0,
+            rmsTotal: 0,
+            snr: 0,
+            starMass: 0,
+            avgDistance: 0,
+          ),
+        );
+        when(
+          () => hostB.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        _stubHydrationParityEndpoints(hostB);
+
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, hostA),
+            ),
+            loggingServiceProvider.overrideWithValue(LoggingService()),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.read(remoteSessionSyncProvider);
+        await pumpEventQueue();
+        verify(hostA.sequencerGetStatus).called(1);
+
+        final notifier =
+            container.read(backendProvider.notifier) as _FixedBackendNotifier;
+        notifier.switchTo(hostB);
+        await pumpEventQueue(times: 20);
+        delayedStatus.complete(
+          const SequencerStatus(state: 'Running', progress: 0.5),
+        );
+        await pumpEventQueue(times: 20);
+
+        final mount = container.read(mountStateProvider);
+        expect(mount.deviceId, 'host-b-mount');
+        expect(mount.ra, 7);
+        expect(
+          container.read(sequenceExecutionStateProvider),
+          isNot(SequenceExecutionState.running),
+        );
+        verifyNever(hostA.getConnectedDevices);
+      },
+    );
+
     test('hydrates mount state from host connected devices', () async {
       final backend = _MockNetworkBackend();
 

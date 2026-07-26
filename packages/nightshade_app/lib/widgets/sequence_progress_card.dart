@@ -292,6 +292,15 @@ class SequenceProgressCard extends ConsumerWidget {
         // Recovery shares the error palette so the progress
         // card and the recovery banner agree visually.
         return colors?.error ?? primaryColor;
+      case SequenceExecutionState.stopFailed:
+        // Native stop failed — hardware may still be imaging. Error palette.
+        return colors?.error ?? primaryColor;
+      case SequenceExecutionState.cleanupFailed:
+        // Hardware stopped; session save failed and needs a retry.
+        return colors?.warning ?? primaryColor;
+      case SequenceExecutionState.finalizing:
+        // Run ended, durable cleanup wrapping up — calm, transient.
+        return colors?.info ?? primaryColor;
     }
   }
 
@@ -311,6 +320,12 @@ class SequenceProgressCard extends ConsumerWidget {
         return 'Failed';
       case SequenceExecutionState.recovering:
         return 'Recovering';
+      case SequenceExecutionState.stopFailed:
+        return 'Stop failed';
+      case SequenceExecutionState.cleanupFailed:
+        return 'Cleanup failed';
+      case SequenceExecutionState.finalizing:
+        return 'Finalizing';
     }
   }
 }

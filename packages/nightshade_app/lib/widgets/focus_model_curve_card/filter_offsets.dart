@@ -29,6 +29,12 @@ class _FilterOffsetsStrip extends ConsumerWidget {
         ),
       );
     }
+    if (offsets.error != null) {
+      return Text(
+        offsets.error!,
+        style: TextStyle(fontSize: 11, color: colors.error),
+      );
+    }
     if (offsets.offsets.isEmpty) {
       return Text(
         'No filter offsets yet — collect autofocus data on multiple filters '
@@ -65,86 +71,32 @@ class _FilterOffsetsStrip extends ConsumerWidget {
     String filterName,
     int currentOffset,
   ) async {
-    final controller = TextEditingController(text: currentOffset.toString());
+    final authority = ref.read(backendProvider);
+    final activeProfileId =
+        ref.read(activeEquipmentProfileProvider)?.id.toString();
     final result = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) {
-        final colors = Theme.of(ctx).extension<NightshadeColors>()!;
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 16,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Edit "$filterName" offset',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                keyboardType: const TextInputType.numberWithOptions(
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Offset (steps, relative to reference)',
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: NightshadeButton(
-                      label: 'Cancel',
-                      variant: ButtonVariant.outline,
-                      onPressed: () => Navigator.of(ctx).pop(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: NightshadeButton(
-                      label: 'Set as reference',
-                      variant: ButtonVariant.ghost,
-                      onPressed: () => Navigator.of(ctx).pop(_kSetAsReference),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: NightshadeButton(
-                      label: 'Save',
-                      onPressed: () {
-                        final v = int.tryParse(controller.text.trim());
-                        if (v == null) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                            const SnackBar(
-                              content: Text('Enter a whole-number offset'),
-                            ),
-                          );
-                          return;
-                        }
-                        Navigator.of(ctx).pop(v);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
+      builder: (_) => _FilterOffsetEditorSheet(
+        filterName: filterName,
+        currentOffset: currentOffset,
+      ),
     );
     if (result == null) return;
+    if (!context.mounted) return;
+    final currentProfileId =
+        ref.read(activeEquipmentProfileProvider)?.id.toString();
+    if (!identical(ref.read(backendProvider), authority) ||
+        activeProfileId != profileId ||
+        currentProfileId != profileId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'The imaging host or profile changed. Offset edit cancelled.'),
+        ),
+      );
+      return;
+    }
     if (result == _kSetAsReference) {
       await ref
           .read(filterOffsetProvider.notifier)
@@ -154,6 +106,110 @@ class _FilterOffsetsStrip extends ConsumerWidget {
           .read(filterOffsetProvider.notifier)
           .setFilterOffset(filterName, result);
     }
+  }
+}
+
+class _FilterOffsetEditorSheet extends StatefulWidget {
+  final String filterName;
+  final int currentOffset;
+
+  const _FilterOffsetEditorSheet({
+    required this.filterName,
+    required this.currentOffset,
+  });
+
+  @override
+  State<_FilterOffsetEditorSheet> createState() =>
+      _FilterOffsetEditorSheetState();
+}
+
+class _FilterOffsetEditorSheetState extends State<_FilterOffsetEditorSheet> {
+  late final TextEditingController _controller;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentOffset.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final value = int.tryParse(_controller.text.trim());
+    if (value == null) {
+      setState(() => _error = 'Enter a whole-number offset');
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 16,
+        right: 16,
+        top: 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Edit "${widget.filterName}" offset',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(signed: true),
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            decoration: InputDecoration(
+              labelText: 'Offset (steps, relative to reference)',
+              errorText: _error,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Cancel',
+                  variant: ButtonVariant.outline,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Set as reference',
+                  variant: ButtonVariant.ghost,
+                  onPressed: () => Navigator.of(context).pop(_kSetAsReference),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: NightshadeButton(label: 'Save', onPressed: _save),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 }
 

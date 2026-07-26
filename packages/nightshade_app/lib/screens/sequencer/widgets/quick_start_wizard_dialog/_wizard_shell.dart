@@ -10,41 +10,72 @@ extension _WizardShell on _QuickStartWizardDialogState {
 
   Widget _buildDialog(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardAvailableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.vertical;
+    final keyboardCompact =
+        mediaQuery.viewInsets.bottom > 0 && keyboardAvailableHeight < 480;
+    final dialogInset = keyboardCompact
+        ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+        : const EdgeInsets.symmetric(horizontal: 40, vertical: 24);
+    final baseConstraints = AdaptiveDialogConstraints.hybrid(
+      context,
+      designMaxWidth: 700,
+      designMaxHeight: 700,
+    );
+    final keyboardSafeMaxHeight = math.max(
+      0.0,
+      keyboardAvailableHeight - dialogInset.vertical,
+    );
 
-    return Dialog(
+    final dialog = Dialog(
       backgroundColor: colors.surface,
+      insetPadding: dialogInset,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          context,
-          designMaxWidth: 700,
-          designMaxHeight: 700,
+        constraints: baseConstraints.copyWith(
+          maxHeight: math.min(
+            baseConstraints.maxHeight,
+            keyboardSafeMaxHeight,
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildHeader(colors),
-            _buildStepIndicator(colors),
+            _buildHeader(colors, compact: keyboardCompact),
+            if (!keyboardCompact) _buildStepIndicator(colors),
             Expanded(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: keyboardCompact
+                    ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+                    : const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
                 child: _buildCurrentStep(colors),
               ),
             ),
-            _buildFooter(colors),
+            _buildFooter(colors, compact: keyboardCompact),
           ],
         ),
       ),
     );
+    return PopScope(
+      canPop: _finishingAsTemplate == null,
+      child: dialog,
+    );
   }
 
-  Widget _buildHeader(NightshadeColors colors) {
+  Widget _buildHeader(NightshadeColors colors, {required bool compact}) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(16, 8, 8, 8)
+          : const EdgeInsets.fromLTRB(24, 20, 16, 12),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
@@ -64,21 +95,29 @@ extension _WizardShell on _QuickStartWizardDialogState {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _stepTitle(_currentStep),
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13,
+                if (!compact) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    _stepTitle(_currentStep),
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: NightshadeTypography.fontSize13,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
           IconButton(
             icon: Icon(LucideIcons.x, color: colors.textSecondary, size: 20),
             tooltip: 'Close',
-            onPressed: () => Navigator.of(context).pop(),
+            visualDensity: compact ? VisualDensity.compact : null,
+            constraints: compact
+                ? const BoxConstraints.tightFor(width: 36, height: 36)
+                : null,
+            onPressed: _finishingAsTemplate == null
+                ? () => Navigator.of(context).pop()
+                : null,
           ),
         ],
       ),
@@ -153,59 +192,116 @@ extension _WizardShell on _QuickStartWizardDialogState {
     }
   }
 
-  Widget _buildFooter(NightshadeColors colors) {
+  Widget _buildFooter(NightshadeColors colors, {required bool compact}) {
+    final isReviewStep =
+        _currentStep == _QuickStartWizardDialogState._totalSteps - 1;
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+      padding: compact
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+          : const EdgeInsets.fromLTRB(24, 12, 24, 16),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          if (_currentStep > 0)
-            TextButton.icon(
-              onPressed: () => _update(() => _currentStep--),
-              icon: Icon(LucideIcons.chevronLeft,
-                  size: 16, color: colors.textSecondary),
-              label:
-                  Text('Back', style: TextStyle(color: colors.textSecondary)),
-            )
-          else
-            const SizedBox.shrink(),
-          Row(
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child:
-                    Text('Cancel', style: TextStyle(color: colors.textMuted)),
-              ),
-              const SizedBox(width: 12),
-              if (_currentStep < _QuickStartWizardDialogState._totalSteps - 1)
-                NightshadeButton(
-                  onPressed: _canAdvance()
-                      ? () => _update(() => _currentStep++)
-                      : null,
-                  icon: LucideIcons.chevronRight,
-                  label: 'Next',
-                )
-              else ...[
-                NightshadeButton(
-                  onPressed: _canAdvance() ? _saveAsTemplate : null,
-                  icon: LucideIcons.save,
-                  label: 'Save as Template',
-                  variant: ButtonVariant.outline,
+      child: isReviewStep
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    TextButton.icon(
+                      onPressed: _finishingAsTemplate == null
+                          ? () => _update(() => _currentStep--)
+                          : null,
+                      icon: Icon(
+                        LucideIcons.chevronLeft,
+                        size: 16,
+                        color: colors.textSecondary,
+                      ),
+                      label: Text(
+                        'Back',
+                        style: TextStyle(color: colors.textSecondary),
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: _finishingAsTemplate == null
+                          ? () => Navigator.of(context).pop()
+                          : null,
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: colors.textMuted),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  onPressed: _canAdvance() ? _createSequence : null,
-                  icon: LucideIcons.sparkles,
-                  label: 'Create Sequence',
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      NightshadeButton(
+                        onPressed: _finishingAsTemplate == null && _canAdvance()
+                            ? _saveAsTemplate
+                            : null,
+                        icon: LucideIcons.save,
+                        label: 'Save as Template',
+                        variant: ButtonVariant.outline,
+                        isLoading: _finishingAsTemplate == true,
+                      ),
+                      NightshadeButton(
+                        onPressed: _finishingAsTemplate == null && _canAdvance()
+                            ? _createSequence
+                            : null,
+                        icon: LucideIcons.sparkles,
+                        label: 'Create Sequence',
+                        isLoading: _finishingAsTemplate == false,
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ],
-          ),
-        ],
-      ),
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (_currentStep > 0)
+                  TextButton.icon(
+                    onPressed: () => _update(() => _currentStep--),
+                    icon: Icon(
+                      LucideIcons.chevronLeft,
+                      size: 16,
+                      color: colors.textSecondary,
+                    ),
+                    label: Text(
+                      'Back',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
+                  )
+                else
+                  const SizedBox.shrink(),
+                Row(
+                  children: [
+                    NightshadeButton(
+                      label: 'Cancel',
+                      onPressed: () => Navigator.of(context).pop(),
+                      variant: ButtonVariant.ghost,
+                      size: compact ? ButtonSize.small : ButtonSize.medium,
+                    ),
+                    const SizedBox(width: 12),
+                    NightshadeButton(
+                      onPressed: _canAdvance()
+                          ? () => _update(() => _currentStep++)
+                          : null,
+                      icon: LucideIcons.chevronRight,
+                      label: 'Next',
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 }

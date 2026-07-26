@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../localization/nightshade_localizations.dart';
 import 'catalog_settings_screen.dart';
 import 'equipment_profiles_screen.dart';
+import 'settings_search_index.g.dart';
 import 'integrations_settings.dart';
 import 'backup_screen.dart';
 import 'merged_sections.dart';
@@ -11,7 +12,6 @@ import 'widgets/adaptive_conditions_settings.dart';
 import 'widgets/adaptive_exposure_settings.dart';
 import 'widgets/about_settings.dart';
 import 'widgets/captured_images_settings.dart';
-import 'widgets/focus_model_settings.dart';
 import 'widgets/rig_catalog_settings.dart';
 import 'widgets/update_settings.dart';
 import 'widgets/annotation_settings.dart';
@@ -53,8 +53,14 @@ class SettingsSectionDef {
 
   final IconData icon;
 
-  /// Extra case-insensitive search terms (sub-setting names) so the search box
-  /// finds a section by its contents, not just its title.
+  /// Hand-written synonyms — terms a user might type that appear NOWHERE in the
+  /// section's own text ('dark mode' for Appearance, 'ASCOM' for a page headed
+  /// 'Drivers').
+  ///
+  /// The rendered row titles are NOT listed here; they come from
+  /// [kSettingsSearchTerms], which is generated from the section widgets. This
+  /// list used to be the whole index, and it silently rotted: 243 of 496 setting
+  /// rows could not be found by typing their own visible title.
   final List<String> keywords;
 
   /// Builds the detail pane for this section. [isMobile] is threaded through to
@@ -69,11 +75,15 @@ class SettingsSectionDef {
     this.keywords = const [],
   });
 
-  /// True if [query] (already lower-cased) matches the label or any keyword.
+  /// True if [query] (already lower-cased) matches this section's title, one of
+  /// its hand-written synonyms, or the title of any row it renders.
   bool matches(String query) {
     if (label.toLowerCase().contains(query)) return true;
     for (final keyword in keywords) {
       if (keyword.toLowerCase().contains(query)) return true;
+    }
+    for (final term in kSettingsSearchTerms[key] ?? const <String>[]) {
+      if (term.toLowerCase().contains(query)) return true;
     }
     return false;
   }
@@ -81,7 +91,17 @@ class SettingsSectionDef {
 
 /// A collapsible group of related [SettingsSectionDef]s in the sidebar.
 class SettingsGroupDef {
+  /// Structural identity, always English. Matched against [kGroupTitles] by
+  /// callers that resolve a section's owning group without a [BuildContext], so
+  /// it must NOT follow the locale.
   final String title;
+
+  /// What the user reads. Separate from [title] precisely because that one is an
+  /// identifier: with only the English literal to render, the settings sidebar
+  /// showed translated leaf items under untranslated group headers ("Apariencia"
+  /// and "Ubicación" beneath a header reading "EQUIPMENT").
+  final String displayTitle;
+
   final IconData icon;
   final List<SettingsSectionDef> sections;
 
@@ -89,7 +109,8 @@ class SettingsGroupDef {
     required this.title,
     required this.icon,
     required this.sections,
-  });
+    String? displayTitle,
+  }) : displayTitle = displayTitle ?? title;
 }
 
 /// Resolves localized section labels at build time.
@@ -105,6 +126,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
   return [
     SettingsGroupDef(
       title: 'General',
+      displayTitle: t('settingsGroupGeneral'),
       icon: LucideIcons.settings,
       sections: [
         SettingsSectionDef(
@@ -196,6 +218,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
     ),
     SettingsGroupDef(
       title: 'Equipment',
+      displayTitle: t('settingsGroupEquipment'),
       icon: LucideIcons.boxes,
       sections: [
         SettingsSectionDef(
@@ -269,6 +292,8 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
             'v-curve',
             'temperature compensation',
             'predictive',
+            'focus model',
+            'slope',
             'per-filter',
             'backlash',
           ],
@@ -304,6 +329,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
     ),
     SettingsGroupDef(
       title: 'Imaging',
+      displayTitle: t('settingsGroupImaging'),
       icon: LucideIcons.camera,
       sections: [
         SettingsSectionDef(
@@ -396,6 +422,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
     ),
     SettingsGroupDef(
       title: 'Automation & Safety',
+      displayTitle: t('settingsGroupAutomationSafety'),
       icon: LucideIcons.listOrdered,
       sections: [
         SettingsSectionDef(
@@ -457,6 +484,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
     ),
     SettingsGroupDef(
       title: 'Science',
+      displayTitle: t('settingsGroupScience'),
       icon: LucideIcons.flaskConical,
       sections: [
         SettingsSectionDef(
@@ -503,6 +531,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
     ),
     SettingsGroupDef(
       title: 'Notifications & Remote',
+      displayTitle: t('settingsGroupNotificationsRemote'),
       icon: LucideIcons.bell,
       sections: [
         SettingsSectionDef(
@@ -557,6 +586,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
     ),
     SettingsGroupDef(
       title: 'Advanced',
+      displayTitle: t('settingsGroupAdvanced'),
       icon: LucideIcons.bug,
       sections: [
         SettingsSectionDef(
@@ -633,19 +663,6 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
           build: (isMobile) => CapturedImagesSettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
-          key: 'focus-model',
-          label: 'Focus Model',
-          icon: LucideIcons.thermometer,
-          keywords: const [
-            'focus model',
-            'temperature compensation',
-            'autofocus',
-            'slope',
-            'temp comp',
-          ],
-          build: (isMobile) => FocusModelSettings(isMobile: isMobile),
-        ),
-        SettingsSectionDef(
           key: 'replay-debug',
           label: t('settingsReplayDebug'),
           icon: LucideIcons.bug,
@@ -672,6 +689,7 @@ const Map<String, String> kMergedSectionAliases = {
   'auto-save': 'files-storage',
   // Autofocus = autofocus + predictive-af
   'predictive-af': 'autofocus',
+  'focus-model': 'autofocus',
   // Notifications = notifications + notification-routing
   'notification-routing': 'notifications',
 };
@@ -787,5 +805,13 @@ const List<List<String>> _structuralGroups = [
   ['sequencer', 'preflight', 'weather-safety', 'adaptive-conditions'],
   ['science', 'observation-log', 'observing-lists'],
   ['notifications', 'integrations', 'remote-access'],
-  ['logs', 'replay-debug'],
+  [
+    'logs',
+    'backup',
+    'updates',
+    'rig-catalogs',
+    'captured-images',
+    'focus-model',
+    'replay-debug',
+  ],
 ];

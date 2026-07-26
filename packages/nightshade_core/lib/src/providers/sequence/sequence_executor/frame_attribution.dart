@@ -1,3 +1,4 @@
+import '../../../models/imaging/imaging_models.dart' show FrameType;
 import '../../../models/sequence/sequence_models.dart';
 
 /// Which catalog target a graded frame belongs to and how long it was
@@ -23,8 +24,60 @@ class FrameAttribution {
   /// that rather than paper over it with a fabricated value).
   final double? exposureSecs;
 
-  const FrameAttribution({this.targetId, this.exposureSecs});
+  /// Images-DB `frame_type` string for this frame ('light', 'dark', 'flat',
+  /// 'bias', 'darkflat', 'snapshot'), from the producing [ExposureNode]'s
+  /// configured [FrameType]. Defaults to 'light' — correct for every
+  /// producing node type that has no frame-type knob (SmartExposure plans
+  /// and SciencePhotometry are light-only by construction).
+  final String frameType;
+
+  /// Sensor gain the frame was taken at, from the producing node's config.
+  /// `null` when the node leaves gain to the camera's current value.
+  ///
+  /// Sequencer frames used to record NULL gain/offset while the ad-hoc capture
+  /// path recorded both, so master-dark matching (which keys on gain, offset and
+  /// binning) could not pair a sequenced light with its calibration frames.
+  final int? gain;
+
+  /// Sensor offset the frame was taken at. Same rationale as [gain].
+  final int? offset;
+
+  /// Binning factor actually used. Worth passing explicitly rather than
+  /// leaning on the column default: `captured_images.bin_x/bin_y` are
+  /// `NOT NULL DEFAULT 1`, so omitting them recorded every binned sequencer
+  /// frame as 1x1 — a silently wrong value rather than a missing one.
+  final int binX;
+  final int binY;
+
+  const FrameAttribution({
+    this.targetId,
+    this.exposureSecs,
+    this.frameType = 'light',
+    this.gain,
+    this.offset,
+    this.binX = 1,
+    this.binY = 1,
+  });
 }
+
+/// Square binning factor for [mode] (`BinningMode.two` -> 2).
+int _binningFactor(BinningMode mode) => switch (mode) {
+  BinningMode.one => 1,
+  BinningMode.two => 2,
+  BinningMode.three => 3,
+  BinningMode.four => 4,
+};
+
+/// Images-DB string form of [FrameType] (lowercase, matching
+/// `_frameTypeFromDbString` in imaging_provider.dart).
+String _frameTypeToDbString(FrameType type) => switch (type) {
+  FrameType.light => 'light',
+  FrameType.dark => 'dark',
+  FrameType.flat => 'flat',
+  FrameType.bias => 'bias',
+  FrameType.darkFlat => 'darkflat',
+  FrameType.snapshot => 'snapshot',
+};
 
 /// Resolve the [FrameAttribution] for the frame produced by [nodeId] within
 /// [sequence].
@@ -48,8 +101,18 @@ FrameAttribution resolveFrameAttribution(
 }) {
   final producing = sequence.nodes[nodeId];
   double? exposureSecs;
+  var frameType = 'light';
+  int? gain;
+  int? offset;
+  var binX = 1;
+  var binY = 1;
   if (producing is ExposureNode) {
     exposureSecs = producing.durationSecs;
+    frameType = _frameTypeToDbString(producing.frameType);
+    gain = producing.gain;
+    offset = producing.offset;
+    binX = _binningFactor(producing.binning);
+    binY = binX;
   } else if (producing is SmartExposureNode && currentFilter != null) {
     // SmartExposure rotates per-filter plans; the duration of THIS sub is the
     // plan whose filter is currently exposing. (For adaptive/variable cases
@@ -58,6 +121,13 @@ FrameAttribution resolveFrameAttribution(
     for (final plan in producing.plans) {
       if (plan.filterName.toLowerCase() == currentFilter.toLowerCase()) {
         exposureSecs = plan.durationSecs;
+        // The per-filter plan owns its own gain/offset/binning, so a
+        // SmartExposure frame must be stamped from the matching plan rather
+        // than from the node.
+        gain = plan.gain;
+        offset = plan.offset;
+        binX = _binningFactor(plan.binning);
+        binY = binX;
         break;
       }
     }
@@ -82,5 +152,13 @@ FrameAttribution resolveFrameAttribution(
     cursor = parentByChild[cursor];
   }
 
-  return FrameAttribution(targetId: targetId, exposureSecs: exposureSecs);
+  return FrameAttribution(
+    targetId: targetId,
+    exposureSecs: exposureSecs,
+    frameType: frameType,
+    gain: gain,
+    offset: offset,
+    binX: binX,
+    binY: binY,
+  );
 }

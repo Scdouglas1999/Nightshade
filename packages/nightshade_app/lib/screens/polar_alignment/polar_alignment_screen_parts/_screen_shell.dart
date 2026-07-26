@@ -173,6 +173,17 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     final mountConnected = ref.watch(mountStateProvider
         .select((s) => s.connectionState == DeviceConnectionState.connected));
     final equipmentReady = cameraConnected && mountConnected;
+    final detectionAsync = ref.watch(plateSolverDetectionProvider);
+    final preferenceAsync = ref.watch(plateSolverPreferenceProvider);
+    final solverReady = detectionAsync.valueOrNull != null &&
+        preferenceAsync.valueOrNull != null &&
+        detectionAsync.valueOrNull!
+            .supports(preferenceAsync.valueOrNull!.choice);
+    final readinessResolved = !detectionAsync.isLoading &&
+        !preferenceAsync.isLoading &&
+        !detectionAsync.hasError &&
+        !preferenceAsync.hasError;
+    final canStart = equipmentReady && solverReady;
 
     // Build tooltip message for disabled state
     String? disabledReason;
@@ -182,6 +193,12 @@ extension _ScreenShell on _PolarAlignmentScreenState {
       disabledReason = 'Camera not connected';
     } else if (!mountConnected) {
       disabledReason = 'Mount not connected';
+    } else if (!readinessResolved) {
+      disabledReason = detectionAsync.hasError || preferenceAsync.hasError
+          ? 'Could not check plate solver configuration'
+          : 'Checking plate solver configuration…';
+    } else if (!solverReady) {
+      disabledReason = 'Selected plate solver is not ready';
     }
 
     final status = Row(
@@ -237,7 +254,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
                   label: 'Start Alignment',
                   icon: NightshadeIcons.play,
                   variant: ButtonVariant.primary,
-                  onPressed: equipmentReady ? _startAlignment : null,
+                  onPressed: canStart ? _startAlignment : null,
                 ),
               ),
               stretch: stretch,
@@ -257,6 +274,8 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             ),
           ];
         case PolarAlignPhase.adjusting:
+          final hasMeasurement =
+              state.initialError != null && state.currentError != null;
           return [
             wrapButton(
               NightshadeButton(
@@ -270,11 +289,16 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             ),
             const SizedBox(width: 8),
             wrapButton(
-              NightshadeButton(
-                label: 'Done',
-                icon: NightshadeIcons.check,
-                variant: ButtonVariant.primary,
-                onPressed: _completeAlignment,
+              Tooltip(
+                message: hasMeasurement
+                    ? 'Stop and save this alignment'
+                    : 'Waiting for the first alignment measurement',
+                child: NightshadeButton(
+                  label: 'Done',
+                  icon: NightshadeIcons.check,
+                  variant: ButtonVariant.primary,
+                  onPressed: hasMeasurement ? _completeAlignment : null,
+                ),
               ),
               stretch: stretch,
             ),

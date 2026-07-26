@@ -19,6 +19,7 @@ class SequenceSummaryRow {
   final int id;
   final String name;
   final int estimatedDurationMins;
+  final DateTime createdAt;
   final DateTime updatedAt;
   final String tagsJson;
   final bool isFavorite;
@@ -31,6 +32,7 @@ class SequenceSummaryRow {
     required this.id,
     required this.name,
     required this.estimatedDurationMins,
+    required this.createdAt,
     required this.updatedAt,
     required this.tagsJson,
     required this.isFavorite,
@@ -176,6 +178,7 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
             id: seq.id,
             name: seq.name,
             estimatedDurationMins: seq.estimatedDurationMins,
+            createdAt: seq.createdAt,
             updatedAt: seq.updatedAt,
             tagsJson: seq.tagsJson,
             isFavorite: seq.isFavorite,

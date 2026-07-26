@@ -38,19 +38,26 @@ class StorageCard extends ConsumerWidget {
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),
           diskAsync.when(
-            data: (info) => _buildBody(info, projectionAsync),
+            data: (info) => _buildBody(
+              info,
+              projectionAsync,
+              onRetryProjection: () =>
+                  ref.invalidate(sequenceDiskProjectionProvider),
+            ),
             loading: () => _buildLoading(),
-            error: (e, _) => _buildError(e),
+            error: (e, _) => _buildError(
+              e,
+              onRetry: () => ref.invalidate(captureDirDiskSpaceProvider),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(
-    DiskSpaceInfo? info,
-    AsyncValue<SequenceDiskProjectionSnapshot> projectionAsync,
-  ) {
+  Widget _buildBody(DiskSpaceInfo? info,
+      AsyncValue<SequenceDiskProjectionSnapshot> projectionAsync,
+      {required VoidCallback onRetryProjection}) {
     if (info == null) {
       // imageOutputPath empty — surface as a soft prompt rather than a hard error.
       return Padding(
@@ -125,6 +132,37 @@ class StorageCard extends ConsumerWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+        ] else if (projectionAsync.isLoading) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Calculating sequence storage…',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted,
+            ),
+          ),
+        ] else if (projectionAsync.hasError) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 13, color: colors.error),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Sequence storage estimate unavailable',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: onRetryProjection,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ],
       ],
     );
@@ -146,7 +184,7 @@ class StorageCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildError(Object error) {
+  Widget _buildError(Object error, {required VoidCallback onRetry}) {
     return Row(
       children: [
         Icon(LucideIcons.alertTriangle, size: 14, color: colors.error),
@@ -160,6 +198,7 @@ class StorageCard extends ConsumerWidget {
             maxLines: 2,
           ),
         ),
+        TextButton(onPressed: onRetry, child: const Text('Retry')),
       ],
     );
   }

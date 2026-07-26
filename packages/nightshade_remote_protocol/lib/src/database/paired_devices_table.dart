@@ -29,6 +29,15 @@ class PairedDevices extends Table {
   /// `pairedAt + PairingService._defaultSessionTokenLifetime`.
   DateTimeColumn get expiresAt => dateTime().nullable()();
 
+  /// Canonical authorization grant attached to [sessionToken]. Coarse grants
+  /// are stored as `view`, `control`, or `admin`; fine-grained grants use the
+  /// host API's canonical `resource:level,...` form.
+  ///
+  /// The default deliberately matches the historical pairing grant so rows
+  /// migrated from v3 remain usable without accidentally gaining admin access.
+  TextColumn get authGrantSpec =>
+      text().withDefault(const Constant('control'))();
+
   @override
   Set<Column> get primaryKey => {deviceId};
 }

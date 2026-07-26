@@ -24,6 +24,8 @@ extension Phd2GuidingStateIcon on Phd2GuidingState {
         return LucideIcons.timer;
       case Phd2GuidingState.lostLock:
         return LucideIcons.alertTriangle;
+      case Phd2GuidingState.unknown:
+        return LucideIcons.helpCircle;
     }
   }
 }
@@ -36,21 +38,27 @@ class GuideControlsPanel extends StatefulWidget {
   /// Whether PHD2 is connected
   final bool isConnected;
 
-  /// Callbacks for main controls
-  final VoidCallback? onStartGuiding;
-  final VoidCallback? onStopGuiding;
-  final VoidCallback? onPauseGuiding;
-  final VoidCallback? onResumeGuiding;
-  final VoidCallback? onLoop;
-  final VoidCallback? onFindStar;
-  final VoidCallback? onDeselectStar;
+  /// Callbacks for main controls.
+  ///
+  /// These are async on purpose: each issues a real hardware command. The panel
+  /// awaits them with its own busy/error handling (see [_runAction]) so a tap
+  /// stays busy until the command is accepted or fails, a second tap cannot
+  /// duplicate the native call, and a thrown error is surfaced instead of
+  /// escaping as an unhandled Future.
+  final Future<void> Function()? onStartGuiding;
+  final Future<void> Function()? onStopGuiding;
+  final Future<void> Function()? onPauseGuiding;
+  final Future<void> Function()? onResumeGuiding;
+  final Future<void> Function()? onLoop;
+  final Future<void> Function()? onFindStar;
+  final Future<void> Function()? onDeselectStar;
 
   /// Dither controls
   final double ditherAmount;
   final bool ditherRaOnly;
   final void Function(double)? onDitherAmountChanged;
   final void Function(bool)? onDitherRaOnlyChanged;
-  final VoidCallback? onDither;
+  final Future<void> Function()? onDither;
 
   /// Settle parameters
   final double settlePixels;
@@ -91,6 +99,64 @@ class GuideControlsPanel extends StatefulWidget {
 class _GuideControlsPanelState extends State<GuideControlsPanel> {
   bool _settleExpanded = false;
 
+  /// Two busy lanes mirroring the controller's command gate so a Stop can
+  /// always pre-empt a settling Start (the safe abort direction) while a
+  /// duplicate of either is swallowed. [_positiveInFlight] holds the id of the
+  /// running start/pause/resume/loop/dither/star action; [_stopInFlight] tracks
+  /// the Stop lane independently. The active button shows a spinner; a command
+  /// stays busy until it is accepted or fails, so a double-tap cannot fire a
+  /// second native call.
+  String? _positiveInFlight;
+  bool _stopInFlight = false;
+
+  /// Last command error, surfaced inline (dismissible) instead of escaping as
+  /// an unhandled Future or silently reverting the button to an idle look.
+  String? _errorText;
+
+  bool get _positiveBusy => _positiveInFlight != null || _stopInFlight;
+
+  /// Await [action] with local busy + error handling. Stop rides its own lane
+  /// (can run even while a positive command is in flight); everything else is
+  /// serialised behind the positive lane. No-ops when the action is
+  /// unavailable or the relevant lane is already occupied.
+  Future<void> _runAction(String id, Future<void> Function()? action) async {
+    if (action == null) return;
+    final isStop = id == 'stop';
+    if (isStop) {
+      if (_stopInFlight) return;
+    } else if (_positiveBusy) {
+      return;
+    }
+    setState(() {
+      if (isStop) {
+        _stopInFlight = true;
+      } else {
+        _positiveInFlight = id;
+      }
+      _errorText = null;
+    });
+    try {
+      await action();
+    } catch (e) {
+      if (mounted) setState(() => _errorText = _messageFor(e));
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (isStop) {
+            _stopInFlight = false;
+          } else {
+            _positiveInFlight = null;
+          }
+        });
+      }
+    }
+  }
+
+  String _messageFor(Object error) {
+    if (error is StateError) return error.message;
+    return error.toString().replaceFirst('Exception: ', '');
+  }
+
   Color _getStateColor(NightshadeColors colors) {
     switch (widget.state) {
       case Phd2GuidingState.disconnected:
@@ -108,6 +174,8 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         return colors.info;
       case Phd2GuidingState.lostLock:
         return colors.error;
+      case Phd2GuidingState.unknown:
+        return colors.warning;
     }
   }
 
@@ -131,6 +199,10 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_errorText != null) ...[
+                    _buildErrorBanner(colors, _errorText!),
+                    const SizedBox(height: 16),
+                  ],
                   _buildMainControls(colors),
                   const SizedBox(height: 20),
                   _buildStarSelection(colors),
@@ -207,11 +279,23 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
   }
 
   Widget _buildMainControls(NightshadeColors colors) {
-    final isGuiding = widget.state == Phd2GuidingState.guiding;
-    final isPaused = widget.state == Phd2GuidingState.paused;
-    final isLooping = widget.state == Phd2GuidingState.looping;
-    final isStopped = widget.state == Phd2GuidingState.stopped ||
-        widget.state == Phd2GuidingState.disconnected;
+    // All enable/label decisions flow from the shared capability layer so the
+    // desktop and mobile controls (which share this widget) can never disagree
+    // about what is legal. In particular: paused / calibrating / settling /
+    // lost-lock / unknown are all "busy" phases whose primary action is Stop —
+    // an enabled Start is NEVER offered there.
+    final state = widget.state;
+    final connected = widget.isConnected;
+    final canStart = connected && state.canStart;
+    final canStop = connected && state.canStop;
+
+    // Primary button: Stop whenever the session is live/uncertain, Start only
+    // from a genuinely idle-but-connected state, disabled otherwise.
+    final primaryIsStop = canStop;
+    final String primaryId = primaryIsStop ? 'stop' : 'start';
+    final Future<void> Function()? primaryAction = primaryIsStop
+        ? (canStop ? widget.onStopGuiding : null)
+        : (canStart ? widget.onStartGuiding : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -222,30 +306,26 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           children: [
             Expanded(
               child: _buildControlButton(
-                icon: isGuiding || isLooping
-                    ? LucideIcons.square
-                    : LucideIcons.play,
-                label: isGuiding || isLooping ? 'Stop' : 'Start',
-                color: isGuiding || isLooping ? colors.error : colors.success,
+                id: primaryId,
+                icon: primaryIsStop ? LucideIcons.square : LucideIcons.play,
+                label: primaryIsStop ? 'Stop' : 'Start',
+                color: primaryIsStop ? colors.error : colors.success,
                 colors: colors,
-                onPressed: widget.isConnected
-                    ? (isGuiding || isLooping
-                        ? widget.onStopGuiding
-                        : widget.onStartGuiding)
-                    : null,
+                onPressed: primaryAction,
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _buildControlButton(
-                icon: isPaused ? LucideIcons.play : LucideIcons.pause,
-                label: isPaused ? 'Resume' : 'Pause',
+                id: state.canResume ? 'resume' : 'pause',
+                icon: state.canResume ? LucideIcons.play : LucideIcons.pause,
+                label: state.canResume ? 'Resume' : 'Pause',
                 color: colors.warning,
                 colors: colors,
-                onPressed: isGuiding || isPaused
-                    ? (isPaused
+                onPressed: connected
+                    ? (state.canResume
                         ? widget.onResumeGuiding
-                        : widget.onPauseGuiding)
+                        : (state.canPause ? widget.onPauseGuiding : null))
                     : null,
               ),
             ),
@@ -253,13 +333,44 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         ),
         const SizedBox(height: 10),
         _buildControlButton(
+          id: 'loop',
           icon: LucideIcons.refreshCw,
           label: 'Loop Exposures',
           color: colors.info,
           colors: colors,
-          onPressed: isStopped && widget.isConnected ? widget.onLoop : null,
+          onPressed: connected && state.canLoop ? widget.onLoop : null,
         ),
       ],
+    );
+  }
+
+  Widget _buildErrorBanner(NightshadeColors colors, String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.error.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.error.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.alertTriangle, size: 16, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: colors.error, fontSize: 12),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => setState(() => _errorText = null),
+            behavior: HitTestBehavior.opaque,
+            child: Icon(LucideIcons.x, size: 16, color: colors.error),
+          ),
+        ],
+      ),
     );
   }
 
@@ -273,6 +384,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
           children: [
             Expanded(
               child: _buildControlButton(
+                id: 'findStar',
                 icon: LucideIcons.search,
                 label: 'Auto Select',
                 color: colors.primary,
@@ -283,6 +395,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             const SizedBox(width: 10),
             Expanded(
               child: _buildControlButton(
+                id: 'deselectStar',
                 icon: LucideIcons.x,
                 label: 'Deselect',
                 color: colors.textSecondary,
@@ -390,14 +503,13 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
             const SizedBox(width: 8),
             Flexible(
               child: _buildControlButton(
+                id: 'dither',
                 icon: LucideIcons.shuffle,
                 label: 'Dither Now',
                 color: colors.accent,
                 colors: colors,
                 small: true,
-                onPressed: widget.state == Phd2GuidingState.guiding
-                    ? widget.onDither
-                    : null,
+                onPressed: widget.state.canDither ? widget.onDither : null,
               ),
             ),
           ],
@@ -428,15 +540,19 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                   color: colors.textSecondary,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Settle Settings',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    'Settle Settings',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 AnimatedRotation(
                   turns: _settleExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
@@ -551,20 +667,27 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
   }
 
   Widget _buildControlButton({
+    required String id,
     required IconData icon,
     required String label,
     required Color color,
     required NightshadeColors colors,
-    VoidCallback? onPressed,
+    Future<void> Function()? onPressed,
     bool isOutline = false,
     bool small = false,
   }) {
-    final isDisabled = onPressed == null;
+    // Stop rides its own lane so it stays tappable to abort a settling Start;
+    // every other action is locked while any command is in flight so no second
+    // native call can be issued until the current one settles.
+    final isStop = id == 'stop';
+    final isThisBusy = isStop ? _stopInFlight : _positiveInFlight == id;
+    final laneBusy = isStop ? _stopInFlight : _positiveBusy;
+    final isDisabled = onPressed == null || laneBusy;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onPressed,
+        onTap: isDisabled ? null : () => _runAction(id, onPressed),
         borderRadius: BorderRadius.circular(8),
         child: ConstrainedBox(
           // Ensure minimum 44px touch target height for accessibility
@@ -594,11 +717,21 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: small ? MainAxisSize.min : MainAxisSize.max,
               children: [
-                Icon(
-                  icon,
-                  size: small ? 14 : 16,
-                  color: isDisabled ? colors.textMuted : color,
-                ),
+                if (isThisBusy)
+                  SizedBox(
+                    width: small ? 14 : 16,
+                    height: small ? 14 : 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                  )
+                else
+                  Icon(
+                    icon,
+                    size: small ? 14 : 16,
+                    color: isDisabled ? colors.textMuted : color,
+                  ),
                 SizedBox(width: small ? 6 : 8),
                 Flexible(
                   child: Text(

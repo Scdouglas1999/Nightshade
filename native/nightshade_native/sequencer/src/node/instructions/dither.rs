@@ -26,7 +26,7 @@ impl InstructionNode for DitherInstruction {
             return NodeStatus::Failure;
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let dither_pixels = config.pixels;
         let dither_settle = config.settle_pixels;

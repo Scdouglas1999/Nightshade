@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-29T00:59:55.871749Z",
+  "generatedAt": "2026-07-21T15:04:50.951919Z",
   "sourceChecklist": "docs/production-readiness/public-release-master-checklist.md",
   "totalItemCount": 16,
-  "checkedItemCount": 10,
-  "uncheckedItemCount": 6,
+  "checkedItemCount": 11,
+  "uncheckedItemCount": 5,
   "checkedWithoutEvidenceCount": 0,
   "knownLimitationsReferenced": true,
   "supportedHardwareByPlatformReferenced": true,
@@ -18,15 +18,15 @@
     {
       "section": "Release Branch And Packaging",
       "total": 4,
-      "checked": 3,
-      "unchecked": 1,
+      "checked": 2,
+      "unchecked": 2,
       "checkedWithoutEvidence": 0
     },
     {
       "section": "Hardware And Remote Control",
       "total": 3,
-      "checked": 0,
-      "unchecked": 3,
+      "checked": 2,
+      "unchecked": 1,
       "checkedWithoutEvidence": 0
     },
     {
@@ -54,23 +54,16 @@
       "hasEvidence": true
     },
     {
-      "section": "Hardware And Remote Control",
+      "section": "Release Branch And Packaging",
       "checked": false,
-      "text": "Full hardware/control smoke covers required real or simulator-backed",
-      "lineNumber": 44,
+      "text": "Windows bundle audit passes for a bundle built from the final release",
+      "lineNumber": 32,
       "hasEvidence": true
     },
     {
       "section": "Hardware And Remote Control",
       "checked": false,
       "text": "Second-device LAN/firewall remote access smoke passes from a physical",
-      "lineNumber": 48,
-      "hasEvidence": true
-    },
-    {
-      "section": "Hardware And Remote Control",
-      "checked": false,
-      "text": "Real remote-control actions are proven through dashboard, mobile, or",
       "lineNumber": 52,
       "hasEvidence": true
     },
@@ -78,14 +71,14 @@
       "section": "Final Sign-Off",
       "checked": false,
       "text": "Public release external evidence validator passes for Linux build,",
-      "lineNumber": 76,
+      "lineNumber": 80,
       "hasEvidence": true
     },
     {
       "section": "Final Sign-Off",
       "checked": false,
       "text": "Final ship/no-ship decision records reviewer, date, commit, version,",
-      "lineNumber": 80,
+      "lineNumber": 84,
       "hasEvidence": true
     }
   ]

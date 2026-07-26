@@ -25,7 +25,7 @@ impl InstructionNode for FlatWizardInstruction {
             return NodeStatus::Failure;
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let target_adu = config.target_adu;
 

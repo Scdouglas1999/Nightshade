@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +26,8 @@ class HelpTutorialsSettings extends ConsumerWidget {
       key: SettingsTutorialKeys.help,
       title: 'Help & Tutorials',
       description: 'Guided tours and learning resources',
+      isMobile: isMobile,
+      hideHeader: isMobile,
       children: [
         // Onboarding & First-Light IA (C13): this is the single replay hub
         // for the guided first-run flows. Each flow auto-launches at most
@@ -32,6 +36,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         // setup" are new replay entry points (Flow A previously had none).
         SettingsSection(
           title: 'Guided Flows',
+          isMobile: isMobile,
           children: [
             SettingRow(
               icon: LucideIcons.sparkles,
@@ -39,20 +44,22 @@ class HelpTutorialsSettings extends ConsumerWidget {
               title: 'First Night Walkthrough',
               subtitle: '7-step guided wizard for your first imaging session — '
                   'connect, polar align, focus, frame, guide, sequence.',
-              trailing: NightshadeButton(
+              trailing: _AsyncActionButton(
                 label: 'Start',
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,
                 icon: LucideIcons.play,
+                failureMessage:
+                    'Could not restart the walkthrough. Please try again.',
                 // Re-open the wizard via its dedicated route. We restart
                 // the in-memory step index first so a user who clicks
                 // "Start" gets the welcome step, not their resumed
                 // mid-tutorial position — the explicit Start action means
                 // "show me from the beginning". (Resume is the auto-open
                 // behavior, not what they asked for here.)
-                onPressed: () {
-                  ref.read(firstNightWizardProvider.notifier).restart();
-                  context.go('/tutorial/first-night');
+                onPressed: () async {
+                  await ref.read(firstNightWizardProvider.notifier).restart();
+                  if (context.mounted) context.go('/tutorial/first-night');
                 },
               ),
             ),
@@ -83,11 +90,13 @@ class HelpTutorialsSettings extends ConsumerWidget {
               subtitle:
                   'Walk back through the equipment onboarding wizard to scan '
                   'for gear, pick devices, and rebuild a profile from scratch.',
-              trailing: NightshadeButton(
+              trailing: _AsyncActionButton(
                 label: 'Re-run',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.refreshCw,
+                failureMessage:
+                    'Could not reset equipment setup. Please try again.',
                 // Clear the in-progress draft so the spine starts on the
                 // welcome step rather than resuming a stale half-finished
                 // draft, then route to the onboarding spine. The gate
@@ -110,11 +119,13 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   'Replay the first-launch spotlight tour that highlights '
                   'where Equipment, Sequencer, Scheduler, and Plate Solving '
                   'live in the app.',
-              trailing: NightshadeButton(
+              trailing: _AsyncActionButton(
                 label: 'Re-run',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.refreshCw,
+                failureMessage:
+                    'Could not restart the onboarding tour. Please try again.',
                 // Reset the DAO row + in-memory pointer. The first-launch
                 // tour overlay is replay-only now (no longer on the startup
                 // spine): resetting flips firstLaunchTourStatusProvider back
@@ -138,7 +149,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.archive,
-                onPressed: () => context.go('/diagnostics/dump'),
+                onPressed: () => context.push('/diagnostics/dump'),
               ),
               isLast: true,
             ),
@@ -146,6 +157,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         ),
         SettingsSection(
           title: 'Tutorial Tours',
+          isMobile: isMobile,
           children: [
             // The "Quick Start Tour" (TutorialCategory.firstLight step tour)
             // was removed here: it is superseded by the real, camera-driven
@@ -165,7 +177,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               hasProgress:
                   notifier.hasCategoryProgress(TutorialCategory.equipmentSetup),
               onStart: () =>
-                  notifier.startTutorial(TutorialCategory.equipmentSetup),
+                  notifier.restartTutorial(TutorialCategory.equipmentSetup),
               onResume: () =>
                   notifier.resumeTutorial(TutorialCategory.equipmentSetup),
               onRestart: () =>
@@ -184,7 +196,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               hasProgress:
                   notifier.hasCategoryProgress(TutorialCategory.targetPlanning),
               onStart: () =>
-                  notifier.startTutorial(TutorialCategory.targetPlanning),
+                  notifier.restartTutorial(TutorialCategory.targetPlanning),
               onResume: () =>
                   notifier.resumeTutorial(TutorialCategory.targetPlanning),
               onRestart: () =>
@@ -203,7 +215,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               hasProgress: notifier
                   .hasCategoryProgress(TutorialCategory.automatedImaging),
               onStart: () =>
-                  notifier.startTutorial(TutorialCategory.automatedImaging),
+                  notifier.restartTutorial(TutorialCategory.automatedImaging),
               onResume: () =>
                   notifier.resumeTutorial(TutorialCategory.automatedImaging),
               onRestart: () =>
@@ -222,7 +234,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               hasProgress: notifier
                   .hasCategoryProgress(TutorialCategory.calibrationFrames),
               onStart: () =>
-                  notifier.startTutorial(TutorialCategory.calibrationFrames),
+                  notifier.restartTutorial(TutorialCategory.calibrationFrames),
               onResume: () =>
                   notifier.resumeTutorial(TutorialCategory.calibrationFrames),
               onRestart: () =>
@@ -241,7 +253,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               hasProgress: notifier
                   .hasCategoryProgress(TutorialCategory.advancedFeatures),
               onStart: () =>
-                  notifier.startTutorial(TutorialCategory.advancedFeatures),
+                  notifier.restartTutorial(TutorialCategory.advancedFeatures),
               onResume: () =>
                   notifier.resumeTutorial(TutorialCategory.advancedFeatures),
               onRestart: () =>
@@ -252,6 +264,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         ),
         SettingsSection(
           title: 'Reset Progress',
+          isMobile: isMobile,
           children: [
             SettingRow(
               icon: LucideIcons.refreshCw,
@@ -270,6 +283,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         ),
         SettingsSection(
           title: 'Settings',
+          isMobile: isMobile,
           children: [
             SettingRow(
               icon: LucideIcons.toggleRight,
@@ -278,7 +292,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: tutorialState.tutorialsEnabled,
                 onChanged: (value) {
-                  notifier.setTutorialsEnabled(value);
+                  return notifier.setTutorialsEnabled(value);
                 },
               ),
               isLast: true,
@@ -334,13 +348,15 @@ class HelpTutorialsSettings extends ConsumerWidget {
               size: ButtonSize.small,
               onPressed: () => Navigator.pop(ctx),
             ),
-            NightshadeButton(
+            _AsyncActionButton(
               label: 'Reset',
               variant: ButtonVariant.destructive,
               size: ButtonSize.small,
-              onPressed: () {
-                Navigator.pop(ctx);
-                ref.read(tutorialProvider.notifier).resetProgress();
+              failureMessage:
+                  'Could not reset tutorial progress. Please try again.',
+              onPressed: () async {
+                await ref.read(tutorialProvider.notifier).resetProgress();
+                if (ctx.mounted) Navigator.pop(ctx);
               },
             ),
           ],
@@ -350,7 +366,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
   }
 }
 
-class _TutorialRow extends StatelessWidget {
+class _TutorialRow extends StatefulWidget {
   final IconData icon;
   final String title;
   final TutorialCategory category;
@@ -358,9 +374,9 @@ class _TutorialRow extends StatelessWidget {
   final int totalSteps;
   final bool isCompleted;
   final bool hasProgress;
-  final VoidCallback onStart;
-  final VoidCallback onResume;
-  final VoidCallback onRestart;
+  final FutureOr<void> Function() onStart;
+  final FutureOr<void> Function() onResume;
+  final FutureOr<void> Function() onRestart;
   final bool isLast;
 
   const _TutorialRow({
@@ -377,33 +393,61 @@ class _TutorialRow extends StatelessWidget {
     this.isLast = false,
   });
 
+  @override
+  State<_TutorialRow> createState() => _TutorialRowState();
+}
+
+class _TutorialRowState extends State<_TutorialRow> {
+  bool _isRunning = false;
+
   String get _statusText {
-    if (isCompleted) {
+    if (widget.isCompleted) {
       return 'Completed';
-    } else if (hasProgress) {
-      return '$completedSteps/$totalSteps steps';
+    } else if (widget.hasProgress) {
+      return '${widget.completedSteps}/${widget.totalSteps} steps';
     } else {
       return 'Not started';
     }
   }
 
   String get _buttonText {
-    if (isCompleted) {
+    if (widget.isCompleted) {
       return 'Restart';
-    } else if (hasProgress) {
+    } else if (widget.hasProgress) {
       return 'Resume';
     } else {
       return 'Start';
     }
   }
 
-  VoidCallback get _buttonAction {
-    if (isCompleted) {
-      return onRestart;
-    } else if (hasProgress) {
-      return onResume;
+  FutureOr<void> Function() get _buttonAction {
+    if (widget.isCompleted) {
+      return widget.onRestart;
+    } else if (widget.hasProgress) {
+      return widget.onResume;
     } else {
-      return onStart;
+      return widget.onStart;
+    }
+  }
+
+  Future<void> _runAction() async {
+    if (_isRunning) return;
+    setState(() => _isRunning = true);
+    try {
+      await Future<void>.sync(_buttonAction);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not ${_buttonText.toLowerCase()} '
+              '${widget.title}. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRunning = false);
     }
   }
 
@@ -411,12 +455,12 @@ class _TutorialRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Semantics(
-      label: '$title tutorial, $_statusText',
+      label: '${widget.title} tutorial, $_statusText',
       button: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          border: isLast
+          border: widget.isLast
               ? null
               : Border(
                   bottom:
@@ -429,7 +473,7 @@ class _TutorialRow extends StatelessWidget {
             Container(
               width: 36,
               height: 36,
-              decoration: isCompleted
+              decoration: widget.isCompleted
                   ? NightshadeDecorations.tintedBadge(
                       colors.success,
                       borderRadius:
@@ -441,9 +485,10 @@ class _TutorialRow extends StatelessWidget {
                           BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
               child: Icon(
-                icon,
+                widget.icon,
                 size: 16,
-                color: isCompleted ? colors.success : colors.textSecondary,
+                color:
+                    widget.isCompleted ? colors.success : colors.textSecondary,
               ),
             ),
             const SizedBox(width: 14),
@@ -454,20 +499,20 @@ class _TutorialRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    widget.title,
                     style: NightshadeTypography.label
                         .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      if (isCompleted)
+                      if (widget.isCompleted)
                         Icon(
                           LucideIcons.checkCircle2,
                           size: 12,
                           color: colors.success,
                         )
-                      else if (hasProgress)
+                      else if (widget.hasProgress)
                         Icon(
                           LucideIcons.clock,
                           size: 12,
@@ -484,9 +529,9 @@ class _TutorialRow extends StatelessWidget {
                         _statusText,
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize11,
-                          color: isCompleted
+                          color: widget.isCompleted
                               ? colors.success
-                              : hasProgress
+                              : widget.hasProgress
                                   ? colors.warning
                                   : colors.textMuted,
                         ),
@@ -500,14 +545,69 @@ class _TutorialRow extends StatelessWidget {
             // Action button
             NightshadeButton(
               label: _buttonText,
-              variant:
-                  isCompleted ? ButtonVariant.outline : ButtonVariant.primary,
+              variant: widget.isCompleted
+                  ? ButtonVariant.outline
+                  : ButtonVariant.primary,
               size: ButtonSize.small,
-              onPressed: _buttonAction,
+              isLoading: _isRunning,
+              onPressed: _isRunning ? null : _runAction,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AsyncActionButton extends StatefulWidget {
+  final String label;
+  final IconData? icon;
+  final ButtonVariant variant;
+  final ButtonSize size;
+  final FutureOr<void> Function() onPressed;
+  final String failureMessage;
+
+  const _AsyncActionButton({
+    required this.label,
+    this.icon,
+    required this.variant,
+    required this.size,
+    required this.onPressed,
+    required this.failureMessage,
+  });
+
+  @override
+  State<_AsyncActionButton> createState() => _AsyncActionButtonState();
+}
+
+class _AsyncActionButtonState extends State<_AsyncActionButton> {
+  bool _isRunning = false;
+
+  Future<void> _run() async {
+    if (_isRunning) return;
+    setState(() => _isRunning = true);
+    try {
+      await Future<void>.sync(widget.onPressed);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(widget.failureMessage)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRunning = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeButton(
+      label: widget.label,
+      icon: widget.icon,
+      variant: widget.variant,
+      size: widget.size,
+      isLoading: _isRunning,
+      onPressed: _isRunning ? null : _run,
     );
   }
 }

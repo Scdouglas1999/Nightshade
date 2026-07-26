@@ -63,12 +63,29 @@ class WebServerState {
     this.tailscaleReachable = false,
   });
 
+  /// Path the dashboard SPA is served from.
+  ///
+  /// These URLs are opened in a BROWSER and copied for humans (the Remote
+  /// Access settings cards, the status-bar dashboard button, session sharing),
+  /// so they must land on the dashboard itself. They used to point at the
+  /// origin root, which is not a routed page: the auth middleware answers `/`
+  /// with `401 {"error":"Authentication required"}` as raw JSON, so "Open Local
+  /// Dashboard" — advertised as the way to "confirm the dashboard is working
+  /// before sharing it elsewhere" — showed the operator a bare error document.
+  /// Verified against the running desktop server: `GET /` -> 401,
+  /// `GET /dashboard` -> 200.
+  ///
+  /// The pairing QR is unaffected; it builds a structured host+port payload of
+  /// its own rather than reusing these strings.
+  static const String dashboardPath = '/dashboard';
+
   /// The URL for accessing the web dashboard from the local machine.
-  String get localUrl => 'http://localhost:$actualPort';
+  String get localUrl => 'http://localhost:$actualPort$dashboardPath';
 
   /// The URL for accessing the web dashboard from other devices on the network.
-  String get networkUrl =>
-      !bindLocalOnly && localIp.isNotEmpty ? 'http://$localIp:$actualPort' : '';
+  String get networkUrl => !bindLocalOnly && localIp.isNotEmpty
+      ? 'http://$localIp:$actualPort$dashboardPath'
+      : '';
 
   /// The URL for accessing the web dashboard over the Tailscale tailnet, or
   /// `''` when not reachable that way. An IPv6 tailnet literal is bracketed so
@@ -82,7 +99,7 @@ class WebServerState {
       return '';
     }
     final hostPart = tailscaleIp.contains(':') ? '[$tailscaleIp]' : tailscaleIp;
-    return 'http://$hostPart:$actualPort';
+    return 'http://$hostPart:$actualPort$dashboardPath';
   }
 
   WebServerState copyWith({

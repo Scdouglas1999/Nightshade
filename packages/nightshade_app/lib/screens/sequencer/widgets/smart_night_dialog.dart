@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../services/smart_night_plan_launcher.dart';
+import '../../../utils/authority_bound_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../equipment/dialogs/profile_editor_dialog.dart';
 
@@ -90,6 +91,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   DateTime? _windowStart;
   DateTime? _windowEnd;
   bool _windowInitialised = false;
+  String? _windowError;
 
   /// The computed astronomical-twilight (dark) window, cached on
   /// initialisation so [_validateWindow] can warn when the user narrows their
@@ -102,10 +104,21 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   final Set<int> _selectedTargetIds = <int>{};
   bool _autoSelect = true;
   int _autoSelectCount = 2;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _authorityGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _authorityGeneration++;
+        _countDraftDebounce?.cancel();
+        closeAuthorityBoundDialog(context);
+      },
+    );
     // C11 handoff: when the dialog is opened seeded from an active project,
     // start in hand-pick mode with the project's incomplete targets selected.
     final seed = widget.seedTargetIds;
@@ -119,9 +132,15 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
 
   @override
   void dispose() {
+    _backendSubscription?.close();
     _countDraftDebounce?.cancel();
     super.dispose();
   }
+
+  bool _isCurrentAuthority(NightshadeBackend backend, int generation) =>
+      mounted &&
+      generation == _authorityGeneration &&
+      identical(ref.read(backendProvider), backend);
 
   // ---- Step 4: strategy -------------------------------------------------
   SmartNightStrategy _strategy = SmartNightStrategy.autoLrgb;
@@ -135,6 +154,11 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   /// button's busy/disabled state and guards [_onPrimaryPressed] against
   /// re-entry.
   bool _isBuildingPreview = false;
+
+  /// True while the final plan is being launched (or saved as a template).
+  /// Guards the terminal Start Sequence / Save-as-template actions against a
+  /// double-tap re-entering the launcher before the dialog closes.
+  bool _isStarting = false;
 
   /// Debounce timer for persisting count-tweak drafts. Each +/- tap patches
   /// the plan locally and immediately; the DB draft write is coalesced so a
@@ -152,7 +176,18 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    _ensureSettingsSeeded();
+    final appSettingsAsync = ref.watch(appSettingsProvider);
+    if (appSettingsAsync.hasError) {
+      return _buildSettingsGate(
+        colors: colors,
+        error: appSettingsAsync.error,
+      );
+    }
+    final appSettings = appSettingsAsync.valueOrNull;
+    if (appSettings == null) {
+      return _buildSettingsGate(colors: colors);
+    }
+    _ensureSettingsSeeded(appSettings);
     final dialogSize = AdaptiveDialogConstraints.dialogSize(
       context,
       designWidth: 880,
@@ -187,6 +222,96 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     );
   }
 
+  Widget _buildSettingsGate({
+    required NightshadeColors colors,
+    Object? error,
+  }) {
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 560,
+      designHeight: 300,
+    );
+    return Dialog(
+      backgroundColor: colors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: NightshadeTokens.borderRadiusMd,
+        side: BorderSide(color: colors.border),
+      ),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.sparkles, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Smart Night — Plan Tonight',
+                      style: NightshadeTypography.h4
+                          .copyWith(color: colors.textPrimary),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(LucideIcons.x),
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              const Spacer(),
+              if (error == null) ...[
+                const Center(child: CircularProgressIndicator()),
+                const SizedBox(height: 14),
+                Text(
+                  'Loading Smart Night settings…',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+              ] else ...[
+                Icon(
+                  LucideIcons.alertTriangle,
+                  size: 30,
+                  color: colors.error,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Cannot load Smart Night settings',
+                  textAlign: TextAlign.center,
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '$error',
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: NightshadeButton(
+                    label: 'Retry',
+                    icon: LucideIcons.refreshCw,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () => ref.invalidate(appSettingsProvider),
+                  ),
+                ),
+              ],
+              const Spacer(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // ---------------------------------------------------------------------
   // Header / stepper / footer
   // ---------------------------------------------------------------------
@@ -198,15 +323,18 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       _windowInitialised = true;
       return;
     }
-    final svc = _buildService();
-    final window = svc.calculateWindow(
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-    );
-    _windowStart = window.start;
-    _windowEnd = window.end;
-    _twilightStart = window.start;
-    _twilightEnd = window.end;
+    try {
+      final window = _buildService().calculateWindow(
+        latitudeDeg: location.latitude,
+        longitudeDeg: location.longitude,
+      );
+      _windowStart = window.start;
+      _windowEnd = window.end;
+      _twilightStart = window.start;
+      _twilightEnd = window.end;
+    } on SmartNightBuildException catch (error) {
+      _windowError = error.message;
+    }
     _windowInitialised = true;
   }
 
@@ -218,10 +346,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   ///
   /// We also pre-select the persisted default strategy so step 4 lands
   /// on whatever the user picked last time.
-  void _ensureSettingsSeeded() {
+  void _ensureSettingsSeeded(AppSettingsState app) {
     if (_settingsSeededFromAppSettings) return;
-    final app = ref.read(appSettingsProvider).valueOrNull;
-    if (app == null) return; // try again next build once async loads
     _settingsSeededFromAppSettings = true;
 
     // Translate the persisted minutes/hours into the wizard's native
@@ -244,6 +370,11 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       targetSnr: app.smartNightTargetSnr,
     );
     _strategy = _strategyFromPersistedName(app.smartNightDefaultStrategy);
+    final seed = widget.seedTargetIds;
+    if (seed == null || seed.isEmpty) {
+      _autoSelect = app.smartNightAutoSelect;
+      _autoSelectCount = app.smartNightAutoSelectCount.clamp(1, 10);
+    }
   }
 
   /// Translate the snake_case strategy id stored in app_settings back
@@ -296,27 +427,27 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     // We don't await because the dialog's onChanged callbacks are sync.
     () async {
       try {
-        await notifier
-            .setSmartNightDefaultAfCadenceFrames(_settings.afEveryFrames);
-        await notifier.setSmartNightDefaultIntegrationBudgetMinsPerTarget(
-            (_settings.defaultIntegrationBudgetHours * 60).round());
-        await notifier
-            .setSmartNightIncludeFlatsAtEnd(_settings.includeFlatsAtEnd);
-        await notifier.setSmartNightUseSchedulerForMultiTarget(
-            _settings.useSchedulerForMultiTarget);
-        await notifier.setSmartNightSchedulerTargetThreshold(
-            _settings.schedulerTargetThreshold);
-        await notifier.setSmartNightPolarAlignmentStaleAfterDays(
-            _settings.polarAlignmentStaleAfterDays);
-        await notifier
-            .setSmartNightSubExposureFloorSecs(_settings.subExposureFloorSecs);
-        await notifier.setSmartNightSubExposureCeilingSecs(
-            _settings.subExposureCeilingSecs);
-        await notifier.setSmartNightTargetSnr(_settings.targetSnr);
-        await notifier
-            .setSmartNightDefaultStrategy(_persistedNameForStrategy(_strategy));
-      } catch (_) {
-        // Persistence is a nice-to-have; surfacing this would be noisy.
+        await notifier.updateSmartNightWizardDefaults(
+          maxSessionHours: _settings.maxSessionHours,
+          afCadenceFrames: _settings.afEveryFrames,
+          integrationBudgetMinsPerTarget:
+              (_settings.defaultIntegrationBudgetHours * 60).round(),
+          includeFlatsAtEnd: _settings.includeFlatsAtEnd,
+          useSchedulerForMultiTarget: _settings.useSchedulerForMultiTarget,
+          schedulerTargetThreshold: _settings.schedulerTargetThreshold,
+          polarAlignmentStaleAfterDays: _settings.polarAlignmentStaleAfterDays,
+          subExposureFloorSecs: _settings.subExposureFloorSecs,
+          subExposureCeilingSecs: _settings.subExposureCeilingSecs,
+          targetSnr: _settings.targetSnr,
+          strategy: _persistedNameForStrategy(_strategy),
+          autoSelect: _autoSelect,
+          autoSelectCount: _autoSelectCount,
+        );
+      } catch (error, stack) {
+        ref.read(loggingServiceProvider).warning(
+              'Could not persist Smart Night wizard defaults: $error\n$stack',
+              source: 'SmartNightDialog',
+            );
       }
     }();
   }
@@ -332,7 +463,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     // Guard re-entry: the strategy step kicks off the heavy builder and
     // disables the primary button, but a double-tap could still slip through
     // before the rebuild lands.
-    if (_isBuildingPreview) return;
+    if (_isBuildingPreview || _isStarting) return;
     switch (_step) {
       case 0:
         if (!_validateWindow()) return;
@@ -350,8 +481,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
         if (!_validateStrategy()) return;
         setState(() => _isBuildingPreview = true);
         try {
-          await _buildPreview();
-          if (mounted) setState(() => _step = 4);
+          final completed = await _buildPreview();
+          if (mounted && completed) setState(() => _step = 4);
         } finally {
           if (mounted) setState(() => _isBuildingPreview = false);
         }
@@ -371,8 +502,9 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     final end = _windowEnd;
     if (start == null || end == null) {
       context.showErrorSnackBar(
-        'Cannot determine tonight\'s window — set your latitude / '
-        'longitude in Settings first.',
+        _windowError ??
+            'Cannot determine tonight\'s window — set your latitude / '
+                'longitude in Settings first.',
       );
       return false;
     }
@@ -429,6 +561,24 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   }
 
   bool _validateTargets() {
+    final suggestionsAsync = ref.read(tonightSuggestionsProvider);
+    if (suggestionsAsync.hasError) {
+      context.showErrorSnackBar(
+        'Could not load target suggestions: ${suggestionsAsync.error}',
+      );
+      return false;
+    }
+    final suggestions = suggestionsAsync.valueOrNull;
+    if (suggestions == null) {
+      context.showInfoSnackBar('Target suggestions are still loading.');
+      return false;
+    }
+    if (suggestions.isEmpty) {
+      context.showWarningSnackBar(
+        'No targets meet tonight\'s altitude and score cut-offs.',
+      );
+      return false;
+    }
     if (!_autoSelect && _selectedTargetIds.isEmpty) {
       context.showWarningSnackBar(
         'Pick at least one target, or switch to Auto-pick mode.',
@@ -479,7 +629,12 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     }
   }
 
-  Future<void> _buildPreview() async {
+  /// Returns false only when the dialog's rig authority was invalidated.
+  /// Ordinary build failures return true after populating [_previewError] so
+  /// the Preview step can show its actionable error and Back affordance.
+  Future<bool> _buildPreview() async {
+    final backend = ref.read(backendProvider);
+    final generation = _authorityGeneration;
     setState(() {
       _preview = null;
       _previewError = null;
@@ -487,25 +642,30 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     });
 
     try {
-      final profile = ref.read(activeEquipmentProfileProvider);
+      var profile = ref.read(activeEquipmentProfileProvider);
+      if (profile == null) {
+        final profilesState = await ref.read(equipmentProfilesProvider.future);
+        profile = profilesState.activeProfile;
+      }
       if (profile == null) {
         setState(() => _previewError =
             'No active equipment profile — pick one on Equipment first.');
-        return;
+        return true;
       }
+      final activeProfile = profile;
       final location = ref.read(appObserverLocationProvider);
       if (location == null ||
           (location.latitude == 0.0 && location.longitude == 0.0)) {
         setState(() => _previewError =
             'No observer location set — configure latitude / longitude in '
                 'Settings first.');
-        return;
+        return true;
       }
 
       // Resolve the ranked candidate set; the service does NOT re-rank
       // when given a hand-picked list.
-      final suggestions = ref.read(tonightSuggestionsProvider).valueOrNull;
-      final ranked = suggestions ?? const [];
+      final ranked = await ref.read(tonightSuggestionsProvider.future);
+      if (!_isCurrentAuthority(backend, generation)) return false;
       List<TargetSuggestion> selected;
       if (_autoSelect) {
         selected = ranked.take(_autoSelectCount).toList();
@@ -517,28 +677,29 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
           setState(() => _previewError =
               'No selected targets matched tonight\'s rankings. They may '
                   'be below the altitude / score cut-offs.');
-          return;
+          return true;
         }
       }
       if (selected.isEmpty) {
         setState(() => _previewError =
             'No targets to plan with — saved targets list is empty or '
                 'everything is below the altitude cut-off tonight.');
-        return;
+        return true;
       }
 
       // Build the cross-system context. Weather forecast probability
       // and dark library coverage come from existing providers — we
       // resolve them best-effort and fall back to null when not
       // available.
-      final settings = ref.read(appSettingsProvider).valueOrNull;
-      final bortle = settings?.bortleClass ?? 5;
+      final settings = await ref.read(appSettingsProvider.future);
+      if (!_isCurrentAuthority(backend, generation)) return false;
+      final bortle = settings.bortleClass;
       final cloudCover = ref.read(cloudCoverPercentageProvider).valueOrNull;
       final cloudProb = cloudCover == null ? null : cloudCover / 100.0;
 
       // Polar alignment freshness.
       final lastPolarAlign =
-          ref.read(lastPolarAlignmentProvider(profile.id)).valueOrNull;
+          ref.read(lastPolarAlignmentProvider(activeProfile.id)).valueOrNull;
       int? daysSinceLastPolar;
       if (lastPolarAlign != null) {
         daysSinceLastPolar =
@@ -546,25 +707,28 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       }
 
       final effectiveSettings = _settings.copyWith(
-        hasCoverCalibrator:
-            _settings.hasCoverCalibrator || profile.coverCalibratorId != null,
+        hasCoverCalibrator: _settings.hasCoverCalibrator ||
+            activeProfile.coverCalibratorId != null,
       );
       var exposureContext =
           await ref.read(smartNightExposureContextProvider.future);
+      if (!_isCurrentAuthority(backend, generation)) return false;
       if (_shouldPromptForCameraSpecs(exposureContext)) {
-        if (!mounted) return;
+        if (!mounted || !_isCurrentAuthority(backend, generation)) return false;
         final saved = await showDialog<bool>(
           context: this.context,
           builder: (_) => SmartNightMissingSpecsDialog(
-            cameraName: profile.cameraName,
-            defaultGain: profile.defaultGain,
+            cameraName: activeProfile.cameraName,
+            defaultGain: activeProfile.defaultGain,
             colors: NightshadeColors.dark,
           ),
         );
+        if (!_isCurrentAuthority(backend, generation)) return false;
         if (saved == true) {
           ref.invalidate(smartNightExposureContextProvider);
           exposureContext =
               await ref.read(smartNightExposureContextProvider.future);
+          if (!_isCurrentAuthority(backend, generation)) return false;
         }
       }
 
@@ -577,17 +741,21 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       // profile and are unaffected). Browse the rig's darks via the
       // Calibration Library screen instead.
       final isRemoteBackend = ref.read(backendProvider) is NetworkBackend;
-      final darkLibraryMissing = (exposureContext == null || isRemoteBackend)
-          ? const SmartNightDarkLibraryMissing.empty()
-          : await SmartNightDarkLibraryCoverage(
-              darkLibraryService: ref.read(darkLibraryServiceProvider),
-            ).missing(
-              profile: profile,
-              strategy: _strategy,
-              settings: effectiveSettings,
-              exposureContext: exposureContext,
-              minCoverage: settings?.darkLibraryMinCoverage ?? 10,
-            );
+      final SmartNightDarkLibraryMissing darkLibraryMissing;
+      if (exposureContext == null || isRemoteBackend) {
+        darkLibraryMissing = const SmartNightDarkLibraryMissing.empty();
+      } else {
+        darkLibraryMissing = await SmartNightDarkLibraryCoverage(
+          darkLibraryService: ref.read(darkLibraryServiceProvider),
+        ).missing(
+          profile: activeProfile,
+          strategy: _strategy,
+          settings: effectiveSettings,
+          exposureContext: exposureContext,
+          minCoverage: settings.darkLibraryMinCoverage,
+        );
+        if (!_isCurrentAuthority(backend, generation)) return false;
+      }
 
       final context = SmartNightContext(
         windowStart: _windowStart!,
@@ -600,7 +768,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       );
 
       final plan = _buildService().build(
-        profile: profile,
+        profile: activeProfile,
         latitudeDeg: location.latitude,
         longitudeDeg: location.longitude,
         context: context,
@@ -612,18 +780,24 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       final draft = await SmartNightDraftService(
         settingsDao: ref.read(settingsDaoProvider),
       ).savePending(
-        profileId: profile.id.toString(),
+        profileId: activeProfile.id.toString(),
         astronomicalDay: context.windowStart,
         plan: plan,
       );
+      if (!_isCurrentAuthority(backend, generation)) return false;
       setState(() {
         _preview = plan;
         _previewDraftId = draft.id;
       });
+      return true;
     } on SmartNightBuildException catch (e) {
+      if (!_isCurrentAuthority(backend, generation)) return false;
       setState(() => _previewError = e.message);
+      return true;
     } catch (e) {
+      if (!_isCurrentAuthority(backend, generation)) return false;
       setState(() => _previewError = 'Unexpected error: $e');
+      return true;
     }
   }
 
@@ -788,8 +962,10 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   }
 
   Future<void> _startPlan() async {
+    if (_isStarting) return;
     final plan = _preview;
     if (plan == null) return;
+    setState(() => _isStarting = true);
     try {
       await const SmartNightPlanLauncher().launch(
         read: ref.read,
@@ -801,6 +977,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
         context.showErrorSnackBar('Could not start Smart Night sequence: $e');
       }
       return;
+    } finally {
+      if (mounted) setState(() => _isStarting = false);
     }
     if (!mounted) return;
     Navigator.of(context).pop();
@@ -816,6 +994,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   /// sequence repository, instead of starting it. The Sequence is already
   /// assembled in [plan]; we just flag it as a template and save.
   Future<void> _savePlanAsTemplate(SmartNightPlan plan) async {
+    if (_isStarting) return;
+    setState(() => _isStarting = true);
     try {
       await ref
           .read(sequenceRepositoryProvider)
@@ -825,6 +1005,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
         context.showErrorSnackBar('Could not save template: $e');
       }
       return;
+    } finally {
+      if (mounted) setState(() => _isStarting = false);
     }
     if (!mounted) return;
     Navigator.of(context).pop();

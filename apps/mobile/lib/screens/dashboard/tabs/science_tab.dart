@@ -1,9 +1,14 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../utils/error_snackbar.dart';
 
@@ -64,7 +69,51 @@ class ScienceTab extends ConsumerWidget {
   }
 }
 
-class _QuickActions extends ConsumerWidget {
+class ScienceReportShareFile {
+  final File file;
+  final String mimeType;
+
+  const ScienceReportShareFile({required this.file, required this.mimeType});
+}
+
+/// Stage the report that the mobile share sheet will receive.
+///
+/// Companion mode must ask the host to generate the report because the session
+/// and science DAOs live on that host. Reading the phone's local DAOs can fail
+/// with "session not found" or, if IDs collide, export an unrelated local row.
+/// Local mode retains the Markdown exporter used by desktop.
+Future<ScienceReportShareFile> stageScienceReportForShare({
+  required NightshadeBackend backend,
+  required int sessionId,
+  required Future<File> Function() exportLocalMarkdown,
+  Future<Directory> Function() temporaryDirectory = getTemporaryDirectory,
+}) async {
+  if (backend is NetworkBackend) {
+    final bytes = await backend.generateObservationReport(sessionId);
+    final directory = await temporaryDirectory();
+    final file = File(
+      p.join(directory.path, 'nightshade-science-session-$sessionId.pdf'),
+    );
+    await file.writeAsBytes(bytes, flush: true);
+    return ScienceReportShareFile(file: file, mimeType: 'application/pdf');
+  }
+
+  final file = await exportLocalMarkdown();
+  return ScienceReportShareFile(file: file, mimeType: 'text/markdown');
+}
+
+typedef ScienceReportShare =
+    Future<void> Function(String path, String mimeType, String subject);
+
+final scienceReportShareProvider = Provider<ScienceReportShare>((ref) {
+  return (path, mimeType, subject) async {
+    await Share.shareXFiles([
+      XFile(path, mimeType: mimeType),
+    ], subject: subject);
+  };
+});
+
+class _QuickActions extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final int sessionId;
   final List<DbCapturedImage> lightFrames;
@@ -76,7 +125,71 @@ class _QuickActions extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_QuickActions> createState() => _QuickActionsState();
+}
+
+class _QuickActionsState extends ConsumerState<_QuickActions> {
+  String? _pendingAction;
+
+  Future<void> _gradeFrames() async {
+    if (_pendingAction != null) return;
+    setState(() => _pendingAction = 'grade');
+    try {
+      final rejected = await ImageGraderDialog.show(
+        context,
+        frames: widget.lightFrames,
+        sessionId: widget.sessionId,
+      );
+      if (rejected != null && rejected > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rejected $rejected frame(s)'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pendingAction = null);
+    }
+  }
+
+  Future<void> _exportReport() async {
+    if (_pendingAction != null) return;
+    setState(() => _pendingAction = 'export');
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Preparing science report…'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    try {
+      final exporter = ref.read(scienceReportExporterProvider);
+      final staged = await stageScienceReportForShare(
+        backend: ref.read(backendProvider),
+        sessionId: widget.sessionId,
+        exportLocalMarkdown: () => exporter.exportToDisk(widget.sessionId),
+      );
+      if (!mounted) return;
+      messenger.clearSnackBars();
+      await ref.read(scienceReportShareProvider)(
+        staged.file.path,
+        staged.mimeType,
+        'Nightshade science report — session ${widget.sessionId}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.clearSnackBars();
+      showApiErrorWithPrefix(context, 'Export failed', e);
+    } finally {
+      if (mounted) setState(() => _pendingAction = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = _pendingAction != null;
+    final colors = widget.colors;
     return NightshadeCard(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -92,60 +205,25 @@ class _QuickActions extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             NightshadeButton(
-              label: 'Grade ${lightFrames.length} frames',
+              label: _pendingAction == 'grade'
+                  ? 'Opening grader…'
+                  : 'Grade ${widget.lightFrames.length} frames',
               icon: LucideIcons.sliders,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
-              onPressed: () async {
-                final rejected = await ImageGraderDialog.show(
-                  context,
-                  frames: lightFrames,
-                  sessionId: sessionId,
-                );
-                if (rejected != null && rejected > 0 && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Rejected $rejected frame(s)'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
+              isLoading: _pendingAction == 'grade',
+              onPressed: busy ? null : _gradeFrames,
             ),
             const SizedBox(height: 8),
             NightshadeButton(
-              label: 'Export science report',
+              label: _pendingAction == 'export'
+                  ? 'Preparing report…'
+                  : 'Export science report',
               icon: LucideIcons.fileText,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Generating science report…'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                try {
-                  final file = await ref
-                      .read(scienceReportExporterProvider)
-                      .exportToDisk(sessionId);
-                  if (!context.mounted) return;
-                  messenger.clearSnackBars();
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Saved to ${file.path}'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                } catch (e) {
-                  // [error parsing] — render ServerError as
-                  // "<message> (<code>)" with the right severity tint
-                  // via the shared mobile helper.
-                  if (!context.mounted) return;
-                  showApiErrorWithPrefix(context, 'Export failed', e);
-                }
-              },
+              isLoading: _pendingAction == 'export',
+              onPressed: busy ? null : _exportReport,
             ),
           ],
         ),

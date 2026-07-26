@@ -20,6 +20,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_mobile/screens/dashboard/tabs/log_tab.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -67,6 +68,17 @@ class _StubBackend implements NightshadeBackend {
       'StubBackend($label) caught unexpected ${invocation.memberName}',
     );
   }
+}
+
+class _LogTailBackend extends NetworkBackend {
+  final StreamController<LogEntry> logs =
+      StreamController<LogEntry>.broadcast();
+
+  _LogTailBackend()
+    : super(serverHost: '127.0.0.1', autoConnectWebSocket: false);
+
+  @override
+  Stream<LogEntry> tailServerLogs({String? severityMin}) => logs.stream;
 }
 
 NightshadeEvent _makeEvent(String message) {
@@ -200,5 +212,33 @@ void main() {
     );
 
     await backend.close();
+  });
+
+  testWidgets('Clear remains available for server-only log entries', (
+    tester,
+  ) async {
+    final backend = _LogTailBackend();
+    await _pumpLogTab(tester, backend: backend);
+
+    backend.logs.add(
+      LogEntry(
+        timestamp: DateTime.utc(2026, 7, 13),
+        level: LogLevel.warning,
+        message: 'server-only-entry',
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('server-only-entry'), findsOneWidget);
+
+    final clearButton = find.widgetWithIcon(IconButton, LucideIcons.trash2);
+    final clear = tester.widget<IconButton>(clearButton);
+    expect(clear.onPressed, isNotNull);
+    await tester.tap(clearButton);
+    await tester.pump();
+    expect(find.text('server-only-entry'), findsNothing);
+    expect(find.text('Waiting for server log entries…'), findsOneWidget);
+
+    await backend.logs.close();
   });
 }

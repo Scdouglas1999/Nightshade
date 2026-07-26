@@ -3,28 +3,29 @@
 //!
 //! Extracted from the original monolithic `flat_wizard.rs` so the
 //! `mod.rs` wizard implementation reads as a clean state machine.
-//! Observable behavior matches the pre-refactor implementation
-//! byte-for-byte.
+//! Teardown is fail-closed: a run cannot report success unless the
+//! calibrator is confirmed off and the cover is confirmed closed.
 
 use super::PanelLocation;
 use crate::instructions::InstructionContext;
 use crate::wizard::{wait_for_slew_complete, WizardProgressReporter};
 use crate::FlatWizardConfig;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Poll the cover state until `target_state` is observed, the
-/// cancellation token is set, or `timeout` elapses. State 5 (Error)
-/// short-circuits to an error.
+/// cancellation token is set (when `cancellable`), or `timeout`
+/// elapses. State 5 (Error) short-circuits to an error.
 async fn wait_for_cover_state(
     ctx: &InstructionContext,
     device_id: &str,
     target_state: i32,
     timeout: std::time::Duration,
     poll_ms: u64,
+    cancellable: bool,
 ) -> Result<(), String> {
     let start = std::time::Instant::now();
     loop {
-        if ctx.cancellation_token.load(Ordering::Relaxed) {
+        if cancellable && ctx.cancellation_token.load(Ordering::Relaxed) {
             return Err("Operation cancelled".to_string());
         }
         let state = ctx
@@ -48,10 +49,11 @@ async fn wait_for_cover_state(
     }
 }
 
-/// Poll the calibrator state until ready (state 3) or timeout.
-async fn wait_for_calibrator_ready(
+/// Poll the calibrator state until `target_state` is observed or timeout.
+async fn wait_for_calibrator_state(
     ctx: &InstructionContext,
     device_id: &str,
+    target_state: i32,
     timeout: std::time::Duration,
     poll_ms: u64,
     cancellable: bool,
@@ -66,14 +68,17 @@ async fn wait_for_calibrator_ready(
             .cover_calibrator_get_calibrator_state(device_id)
             .await
             .map_err(|e| format!("Failed to read calibrator state: {}", e))?;
-        if state == 3 {
+        if state == target_state {
             return Ok(());
         }
         if state == 5 {
             return Err("Calibrator reported error state".to_string());
         }
         if start.elapsed() > timeout {
-            return Err("Timeout waiting for calibrator to be ready".to_string());
+            return Err(format!(
+                "Timeout waiting for calibrator to reach state {}",
+                target_state
+            ));
         }
         tokio::time::sleep(std::time::Duration::from_millis(poll_ms)).await;
     }
@@ -84,6 +89,7 @@ pub(super) async fn setup_flat_panel(
     ctx: &InstructionContext,
     brightness: i32,
     progress: &dyn WizardProgressReporter,
+    cleanup_required: &AtomicBool,
 ) -> Result<(), String> {
     let device_id = match ctx.cover_calibrator_id.as_deref() {
         Some(id) => id,
@@ -103,7 +109,18 @@ pub(super) async fn setup_flat_panel(
     if let Err(e) = ctx.device_ops.cover_calibrator_open_cover(device_id).await {
         return Err(format!("Failed to open cover: {}", e));
     }
-    wait_for_cover_state(ctx, device_id, 3, std::time::Duration::from_secs(60), 500).await?;
+    // The open command was accepted, so teardown must run even if
+    // readiness polling or any later setup operation fails.
+    cleanup_required.store(true, Ordering::Relaxed);
+    wait_for_cover_state(
+        ctx,
+        device_id,
+        3,
+        std::time::Duration::from_secs(60),
+        500,
+        true,
+    )
+    .await?;
     tracing::info!("Cover opened");
 
     progress.report(0.25, "Turning on calibrator".to_string());
@@ -115,9 +132,10 @@ pub(super) async fn setup_flat_panel(
     {
         return Err(format!("Failed to turn on calibrator: {}", e));
     }
-    wait_for_calibrator_ready(
+    wait_for_calibrator_state(
         ctx,
         device_id,
+        3,
         std::time::Duration::from_secs(30),
         200,
         true,
@@ -137,33 +155,52 @@ pub(super) async fn cleanup_flat_panel(ctx: &InstructionContext) -> Result<(), S
 
     tracing::info!("Cleaning up flat panel: turning off light and closing cover");
 
+    let mut errors = Vec::new();
+
     if let Err(e) = ctx.device_ops.cover_calibrator_calibrator_off(cc_id).await {
-        tracing::warn!("Failed to turn off calibrator: {}", e);
+        errors.push(format!("failed to turn off calibrator: {}", e));
     }
 
     if let Err(e) = ctx.device_ops.cover_calibrator_close_cover(cc_id).await {
-        tracing::warn!("Failed to close cover: {}", e);
+        errors.push(format!("failed to close cover: {}", e));
     }
 
-    // Wait for cover to close (best-effort; warnings, not errors).
-    let start = std::time::Instant::now();
-    while start.elapsed() < std::time::Duration::from_secs(30) {
-        let state = ctx.device_ops.cover_calibrator_get_cover_state(cc_id).await;
-        let state = match state {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::warn!("Failed to read cover state during cleanup: {}", e);
-                break;
-            }
-        };
-        if state == 1 {
-            tracing::info!("Cover closed");
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    let (calibrator_result, cover_result) = tokio::join!(
+        wait_for_calibrator_state(
+            ctx,
+            cc_id,
+            1,
+            std::time::Duration::from_secs(30),
+            200,
+            false,
+        ),
+        wait_for_cover_state(
+            ctx,
+            cc_id,
+            1,
+            std::time::Duration::from_secs(30),
+            500,
+            false,
+        )
+    );
+
+    if let Err(e) = calibrator_result {
+        errors.push(format!("calibrator did not reach off state: {}", e));
+    } else {
+        tracing::info!("Calibrator off");
     }
 
-    Ok(())
+    if let Err(e) = cover_result {
+        errors.push(format!("cover did not reach closed state: {}", e));
+    } else {
+        tracing::info!("Cover closed");
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }
 
 /// Change flat panel brightness (used by auto-adjust brightness logic).
@@ -184,8 +221,15 @@ pub(super) async fn set_panel_brightness(
 
     // Wait for calibrator to stabilize (10s timeout, non-cancellable to
     // match pre-refactor behavior of `set_panel_brightness`).
-    let _ =
-        wait_for_calibrator_ready(ctx, cc_id, std::time::Duration::from_secs(10), 200, false).await;
+    let _ = wait_for_calibrator_state(
+        ctx,
+        cc_id,
+        3,
+        std::time::Duration::from_secs(10),
+        200,
+        false,
+    )
+    .await;
 
     Ok(())
 }

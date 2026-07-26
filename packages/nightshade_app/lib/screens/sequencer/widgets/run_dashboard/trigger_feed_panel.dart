@@ -138,6 +138,33 @@ class _EventRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // Repeat count for a collapsed run of identical events, so the
+                  // reader can tell "happened once" from "happening over and
+                  // over" without the repeats evicting other events.
+                  if (event.repeatCount > 1) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(
+                          NightshadeTokens.radiusSm,
+                        ),
+                      ),
+                      child: Text(
+                        '×${event.repeatCount}',
+                        style: NightshadeTypography.withTabular(
+                          NightshadeTypography.captionSm.copyWith(
+                            color: color,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(width: 6),
                   Text(
                     formatTimeOfDay(event.time),

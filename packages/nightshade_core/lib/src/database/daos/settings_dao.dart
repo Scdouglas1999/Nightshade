@@ -85,11 +85,23 @@ class SettingsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> setTheme(String theme) => setSetting('theme', theme);
 
   Future<String> getDefaultImageDirectory() async {
-    return await getSetting('default_image_directory') ?? '';
+    return getImageOutputDirectory();
   }
 
   Future<void> setDefaultImageDirectory(String path) =>
-      setSetting('default_image_directory', path);
+      setImageOutputDirectory(path);
+
+  /// Canonical capture output path with a read-through for pre-migration DBs.
+  Future<String> getImageOutputDirectory() async {
+    final current = await getSetting('image_output_path');
+    if (current != null && current.trim().isNotEmpty) return current;
+    return await getSetting('default_image_directory') ?? '';
+  }
+
+  /// Write both keys during the compatibility window so all app versions and
+  /// post-session services agree on where masters and captures belong.
+  Future<void> setImageOutputDirectory(String path) =>
+      setSettings({'image_output_path': path, 'default_image_directory': path});
 
   Future<bool> getAutoConnectEquipment() async {
     final value = await getSetting('auto_connect_equipment');

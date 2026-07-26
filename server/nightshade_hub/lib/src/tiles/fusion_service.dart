@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:uuid/uuid.dart';
 
 import '../auth/account_service.dart';
+import '../collab/attribution_service.dart';
+import '../collab/consent_service.dart';
 import '../db/hub_database.dart';
 import 'tile_builder.dart';
 import 'tile_codec.dart';
@@ -21,6 +23,8 @@ class FusionService {
     required TileStore store,
     required AccountService accounts,
     TileQualityGate? qualityGate,
+    AttributionService? attribution,
+    ConsentService? consent,
     this.expectedTilePixels = 1024,
     this.expectedHealpixOrder = 9,
     this.maxFramesPerContribution = 100000,
@@ -28,13 +32,25 @@ class FusionService {
   }) : _db = db,
        _store = store,
        _accounts = accounts,
-       _qualityGate = qualityGate ?? TileQualityGate();
+       _qualityGate = qualityGate ?? TileQualityGate(),
+       _attribution = attribution,
+       _consent = consent;
 
   final HubDatabase _db;
   final TileStore _store;
   final AccountService _accounts;
   final TileQualityGate _qualityGate;
+
+  /// Optional WS4 collaborators. When present, an accepted contribution folds a
+  /// per-account credit into the tile's [AttributionService] and a retraction
+  /// recomputes it + revokes the matching [ConsentService] record. Nullable so
+  /// the unit tests that drive fusion in isolation construct it unchanged.
+  final AttributionService? _attribution;
+  final ConsentService? _consent;
   final Uuid _uuid = const Uuid();
+
+  /// The attribution artifact ref for a fused tile: `tileId:order`.
+  static String tileArtifactRef(int tileId, int order) => '$tileId:$order';
 
   /// The hub's configured tile raster edge. A contributor's declared
   /// width/height must match this exactly before its untrusted header is
@@ -74,6 +90,9 @@ class FusionService {
     double? medianFwhm,
     String? instrument,
     String? solver,
+    String? license,
+    String? consentId,
+    bool anonymous = false,
   }) {
     final delta = TileAccumulator.deserialize(deltaBytes);
     if (delta.tileId != tileId) {
@@ -185,7 +204,13 @@ class FusionService {
         deltaPath: '',
         instrument: instrument,
         solver: solver,
+        license: license,
+        consentId: consentId,
       );
+      // The delta was rejected and never folded in, and a `rejected` row is not
+      // retractable, so its consent could never otherwise be released — revoke it
+      // now so the tile's live-consent count reflects only accepted shares.
+      _consent?.revoke(consentId);
       _accounts.recordGrade(
         accountId: accountId,
         medianResidual: verdict.deviation,
@@ -225,12 +250,24 @@ class FusionService {
       deltaPath: deltaPath,
       instrument: instrument,
       solver: solver,
+      license: license,
+      consentId: consentId,
     );
     _upsertTileIndex(base);
     _accounts.recordGrade(
       accountId: accountId,
       medianResidual: medianFwhm,
       acceptedFrames: framesDelta,
+    );
+    // Materialize the per-account credit for this fused tile (WS4 attribution).
+    _attribution?.recordAccepted(
+      artifactType: 'tile',
+      artifactRef: tileArtifactRef(tileId, order),
+      accountId: accountId,
+      frames: framesDelta,
+      integrationSeconds: integrationSecondsDelta,
+      license: license,
+      anonymous: anonymous,
     );
 
     return ContributionOutcome(
@@ -270,6 +307,11 @@ class FusionService {
     final order = row['healpix_order'] as int;
     final trustApplied = (row['trust_applied'] as num).toDouble();
     final deltaPath = row['delta_path'] as String;
+    final accountId = row['account_id'] as String;
+    final framesDelta = (row['frames_delta'] as num?)?.toInt() ?? 0;
+    final integrationSecondsDelta =
+        (row['integration_seconds_delta'] as num?)?.toDouble() ?? 0.0;
+    final consentId = row['consent_id'] as String?;
 
     final base = _store.load(tileId, order);
     if (base == null) {
@@ -285,6 +327,18 @@ class FusionService {
       <Object?>['retracted', contributionId],
     );
     _upsertTileIndex(base);
+
+    // WS4: a retracted contribution is no longer consented, and its credit must
+    // come back out of the tile's attribution so the credit list matches the
+    // live co-add exactly.
+    _consent?.revoke(consentId);
+    _attribution?.recompute(
+      artifactType: 'tile',
+      artifactRef: tileArtifactRef(tileId, order),
+      accountId: accountId,
+      frames: framesDelta,
+      integrationSeconds: integrationSecondsDelta,
+    );
 
     return RetractionOutcome(
       retracted: true,
@@ -307,12 +361,15 @@ class FusionService {
     required String deltaPath,
     required String? instrument,
     required String? solver,
+    String? license,
+    String? consentId,
   }) {
     _db.db.execute(
       'INSERT INTO contributions (id, account_id, tile_id, healpix_order, '
       'frames_delta, integration_seconds_delta, median_fwhm, trust_applied, '
-      'status, delta_path, instrument, solver, created_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+      'status, delta_path, instrument, solver, license, consent_id, '
+      'created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
       <Object?>[
         contributionId,
         accountId,
@@ -326,6 +383,8 @@ class FusionService {
         deltaPath,
         instrument,
         solver,
+        license,
+        consentId,
         DateTime.now().toUtc().toIso8601String(),
       ],
     );

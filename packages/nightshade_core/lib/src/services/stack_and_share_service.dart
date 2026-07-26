@@ -3,7 +3,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/backend/device_capabilities.dart';
+import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
 import '../models/calibration/dark_library_match_tolerances.dart';
 import 'stacking_engine_seam.dart';
 import '../models/imaging/stack_and_share_models.dart';
@@ -14,11 +15,21 @@ import '../database/daos/images_dao.dart';
 import '../database/daos/sessions_dao.dart';
 import '../database/daos/stacked_results_dao.dart';
 import '../providers/database_provider.dart';
+import '../providers/backend_provider.dart';
 import 'calibration_service.dart';
 import 'dark_library_service.dart';
 import 'live_stacking_service.dart';
 import 'logging_service.dart';
 import 'stack_light_selector.dart';
+import 'stack_share_export_service.dart';
+
+/// Persists the display preview that makes a completed stack genuinely
+/// reopenable after the in-memory integration buffer is released.
+typedef StackResultPreviewPersister =
+    Future<String> Function({
+      required StackAndShareResult result,
+      required Uint8List rgba,
+    });
 
 /// Thrown when a Stack-and-Share run is requested while the live-stacking
 /// engine singleton is already busy (a live EAA session, a sequencer
@@ -98,15 +109,36 @@ class LiveStackBusyException implements Exception {
 class StackAndShareService {
   StackAndShareService(
     this._ref, {
+    NightshadeBackend? backend,
     StackingEngineSeam engine = const BridgeStackingEngineSeam(),
-  }) : _engine = engine;
+    StackResultPreviewPersister? persistPreview,
+  }) : _backend = backend ?? _ref.read(backendProvider),
+       _backendNotifier = _ref.read(backendProvider.notifier),
+       _logger = _ref.read(loggingServiceProvider),
+       _engine = engine,
+       _persistPreview = persistPreview;
 
   final Ref _ref;
+  final NightshadeBackend _backend;
+  final BackendNotifier _backendNotifier;
+  final LoggingService _logger;
+  bool _retired = false;
+
+  // The native stacking engine is process-wide. This admission lock closes
+  // the gap before the engine reports itself active (selection/calibration can
+  // await for seconds), when two rapid invocations would otherwise both pass
+  // isActive() and then clobber the same singleton.
+  static Object? _processRunOwner;
 
   /// Injectable seam over the native stacker singleton + raw FITS / stretch
   /// bridge calls. Defaults to [BridgeStackingEngineSeam]; tests substitute a
   /// fake so the orchestrator body runs without the Rust dynamic library.
   final StackingEngineSeam _engine;
+
+  /// Production persists a lossless preview for every completed result. Tests
+  /// that exercise only orchestration may omit this seam; persistence-specific
+  /// tests inject it explicitly.
+  final StackResultPreviewPersister? _persistPreview;
 
   /// The integrated, calibrated u16 result of the most recent successful run,
   /// or null if no run has completed (or the last run failed). The provider
@@ -119,13 +151,26 @@ class StackAndShareService {
   StackedRgbaResult? get lastRgbaResult => _lastRgbaResult;
   StackedRgbaResult? _lastRgbaResult;
 
-  LoggingService get _logger => _ref.read(loggingServiceProvider);
   StackLightSelector get _selector => _ref.read(stackLightSelectorProvider);
   CalibrationService get _calibration => _ref.read(calibrationServiceProvider);
   DarkLibraryService get _darkLibrary => _ref.read(darkLibraryServiceProvider);
   ImagesDao get _imagesDao => _ref.read(imagesDaoProvider);
   SessionsDao get _sessionsDao => _ref.read(sessionsDaoProvider);
   StackedResultsDao get _resultsDao => _ref.read(stackedResultsDaoProvider);
+
+  bool get _hasAuthority =>
+      !_retired && _backendNotifier.isCurrentBackend(_backend);
+
+  void retire() => _retired = true;
+
+  void _ensureAuthority() {
+    if (_hasAuthority) return;
+    throw StateError(
+      'The imaging host changed while Stack & Share was running. The outgoing '
+      'run was stopped and its result was discarded; start it again on the '
+      'current host.',
+    );
+  }
 
   /// Run the full Stack-and-Share pipeline for [sessionId] under [config].
   ///
@@ -137,6 +182,18 @@ class StackAndShareService {
     required StackAndShareConfig config,
     void Function(StackAndShareProgress)? onProgress,
   }) async {
+    _ensureAuthority();
+    if (_backend is NetworkBackend) {
+      throw StateError(
+        'Stack & Share runs on the imaging host, not a remote controller.',
+      );
+    }
+    if (_processRunOwner != null) {
+      throw const LiveStackBusyException(
+        'Another Stack-and-Share run is already preparing or stacking',
+      );
+    }
+
     // (1) Guard: never clobber an active live-stacking singleton.
     if (_engine.isActive()) {
       throw const LiveStackBusyException(
@@ -144,24 +201,41 @@ class StackAndShareService {
       );
     }
 
-    void emit(StackAndShareProgress progress) => onProgress?.call(progress);
+    // Capture every provider value used after the first await while this
+    // service's Ref is still current. Authority checks prevent later work from
+    // continuing, but the cleanup path must still be able to reach the exact
+    // old-host DAO and stacker after Riverpod rebuilds this provider.
+    final selector = _selector;
+    final sessionsDao = _sessionsDao;
+    final resultsDao = _resultsDao;
+    final liveStacking = _ref.read(liveStackingServiceProvider);
 
-    // Reset any retained buffers from a previous run; a fresh run only exposes
-    // its own output, never a stale one.
-    _lastRawResult = null;
-    _lastRgbaResult = null;
+    final runOwner = Object();
+    _processRunOwner = runOwner;
+
+    void emit(StackAndShareProgress progress) {
+      _ensureAuthority();
+      onProgress?.call(progress);
+    }
 
     var progress = const StackAndShareProgress(
       phase: StackAndSharePhase.selectingLights,
     );
-    emit(progress);
+    int? incompleteResultId;
 
     try {
+      // Reset any retained buffers from a previous run; a fresh run only
+      // exposes its own output, never a stale one.
+      _lastRawResult = null;
+      _lastRgbaResult = null;
+      emit(progress);
+
       // (2) Selection — which lights, and which is the alignment reference.
-      final selection = await _selector.selectForSession(
+      final selection = await selector.selectForSession(
         sessionId: sessionId,
         config: config,
       );
+      _ensureAuthority();
 
       final referencePath = selection.referencePath;
       if (referencePath == null) {
@@ -185,7 +259,8 @@ class StackAndShareService {
 
       // Resolve the owning session's target id for the persisted provenance
       // record (the selector already resolved the human-readable target name).
-      final session = await _sessionsDao.getSessionById(sessionId);
+      final session = await sessionsDao.getSessionById(sessionId);
+      _ensureAuthority();
       final targetId = session?.targetId;
 
       // Pre-resolve calibration inputs once when calibration is enabled: the
@@ -194,6 +269,7 @@ class StackAndShareService {
       _CalibrationContext? calibration;
       if (config.applyCalibration) {
         calibration = await _buildCalibrationContext();
+        _ensureAuthority();
       }
 
       // Resolve the OSC / colour intent ONCE for the whole run, off the
@@ -205,6 +281,7 @@ class StackAndShareService {
         config: config,
         reference: reference,
       );
+      _ensureAuthority();
 
       // (3)+(4) Feed the reference, then every follower, into the engine.
       var framesProcessed = 0;
@@ -224,6 +301,7 @@ class StackAndShareService {
           );
         },
       );
+      _ensureAuthority();
       framesProcessed = 1; // The reference is always frame #1 in the stack.
       progress = progress.copyWith(
         phase: StackAndSharePhase.stacking,
@@ -251,6 +329,7 @@ class StackAndShareService {
           frame: frame,
           calibration: calibration,
         );
+        _ensureAuthority();
 
         framesProcessed++;
         final stackedCount = result.stats.stackedFrameCount;
@@ -271,9 +350,8 @@ class StackAndShareService {
       }
 
       // (5) Final integrated result + statistics.
-      final stacked = await _ref
-          .read(liveStackingServiceProvider)
-          .getCurrentResult();
+      final stacked = await liveStacking.getCurrentResult();
+      _ensureAuthority();
       final stats = stacked.stats;
       final rawU16 = Uint16List.fromList(stacked.data);
 
@@ -352,8 +430,39 @@ class StackAndShareService {
         stats: stats,
       );
 
-      final id = await _resultsDao.insertResult(result);
-      final persisted = result.copyWith(id: id);
+      final id = await resultsDao.insertResult(result);
+      incompleteResultId = id;
+      _ensureAuthority();
+      var persisted = result.copyWith(id: id);
+
+      // Metadata alone is not a saved result: the raw integration is released
+      // when the auto-disposed provider goes away. Persist a lossless display
+      // preview before declaring the run complete so history survives app
+      // navigation and process restarts. When auto-stretch was disabled for the
+      // run, render an STF only for this viewer preview; the retained raw buffer
+      // and run configuration remain unchanged.
+      final persistPreview = _persistPreview;
+      if (persistPreview != null) {
+        progress = progress
+            .copyWith(phase: StackAndSharePhase.exporting)
+            .clearCurrentFile();
+        emit(progress);
+
+        final previewRgba =
+            _lastRgbaResult?.rgba ??
+            _engine.autoStretch(
+              width: stacked.width,
+              height: stacked.height,
+              data: rawU16,
+              channels: channels,
+            );
+        final previewPath = await persistPreview(
+          result: persisted,
+          rgba: previewRgba,
+        );
+        _ensureAuthority();
+        persisted = persisted.copyWith(exportedImagePath: previewPath);
+      }
 
       emit(
         progress
@@ -363,6 +472,7 @@ class StackAndShareService {
             )
             .clearCurrentFile(),
       );
+      incompleteResultId = null;
 
       _logger.info(
         'Stack-and-Share complete for session $sessionId: '
@@ -377,9 +487,25 @@ class StackAndShareService {
       // (9) Surface the failure: emit a terminal error phase, log, and rethrow.
       _lastRawResult = null;
       _lastRgbaResult = null;
-      emit(
-        progress.copyWith(phase: StackAndSharePhase.error).clearCurrentFile(),
-      );
+      final resultId = incompleteResultId;
+      if (resultId != null) {
+        try {
+          await resultsDao.deleteResult(resultId);
+          incompleteResultId = null;
+        } catch (cleanupError, cleanupStack) {
+          _logger.error(
+            'Failed to remove incomplete stacked result $resultId: '
+            '$cleanupError',
+            source: 'StackAndShareService',
+            fields: {'stackTrace': cleanupStack.toString()},
+          );
+        }
+      }
+      if (_hasAuthority) {
+        emit(
+          progress.copyWith(phase: StackAndSharePhase.error).clearCurrentFile(),
+        );
+      }
       _logger.error(
         'Stack-and-Share failed for session $sessionId: $e',
         source: 'StackAndShareService',
@@ -410,6 +536,9 @@ class StackAndShareService {
           fields: {'stackTrace': stopStack.toString()},
         );
       }
+      if (identical(_processRunOwner, runOwner)) {
+        _processRunOwner = null;
+      }
     }
   }
 
@@ -433,17 +562,20 @@ class StackAndShareService {
         referenceImagePath: frame.filePath,
         config: stackingConfig,
       );
+      _ensureAuthority();
       return;
     }
 
     emitCalibrating(frame.filePath);
     final calibrated = await _loadCalibrated(frame, calibration);
+    _ensureAuthority();
     await _engine.startFromData(
       width: calibrated.width,
       height: calibrated.height,
       data: calibrated.data,
       config: stackingConfig,
     );
+    _ensureAuthority();
   }
 
   /// Add [frame] to the running stack, mirroring the data/file split used by
@@ -458,6 +590,7 @@ class StackAndShareService {
       return service.addFrameFromFile(frame.filePath);
     }
     final calibrated = await _loadCalibrated(frame, calibration);
+    _ensureAuthority();
     return service.addFrameFromData(
       width: calibrated.width,
       height: calibrated.height,
@@ -477,8 +610,10 @@ class StackAndShareService {
     _CalibrationContext context,
   ) async {
     final raw = await _loadRawU16(frame.filePath);
+    _ensureAuthority();
 
     final meta = await _imagesDao.getImageById(frame.imageId);
+    _ensureAuthority();
     Uint16List? darkData;
     if (meta != null && meta.gain != null) {
       final match = await _darkLibrary.findMatchingDark(
@@ -490,8 +625,10 @@ class StackAndShareService {
         temperature: meta.sensorTemp,
         tolerances: context.tolerances,
       );
+      _ensureAuthority();
       if (match != null) {
         darkData = await _loadMatchingPixels(match.filePath, raw.pixelCount);
+        _ensureAuthority();
       }
     }
 
@@ -521,6 +658,7 @@ class StackAndShareService {
         throw FileSystemException('Master flat file not found', flatPath);
       }
       flatData = await _darkLibrary.loadDarkPixels(flatPath);
+      _ensureAuthority();
     }
 
     Uint16List? biasData;
@@ -530,6 +668,7 @@ class StackAndShareService {
         throw FileSystemException('Master bias file not found', biasPath);
       }
       biasData = await _darkLibrary.loadDarkPixels(biasPath);
+      _ensureAuthority();
     }
 
     return _CalibrationContext(
@@ -547,6 +686,7 @@ class StackAndShareService {
     int expectedPixels,
   ) async {
     final pixels = await _darkLibrary.loadDarkPixels(path);
+    _ensureAuthority();
     if (pixels.length != expectedPixels) {
       throw StateError(
         'Calibration frame "$path" has ${pixels.length} pixels but the light '
@@ -582,6 +722,7 @@ class StackAndShareService {
   /// operate on u16); the FITS reader in Rust has already applied BZERO/BSCALE.
   Future<_RawFrame> _loadRawU16(String filePath) async {
     final linear = await _engine.readLinearFrame(filePath);
+    _ensureAuthority();
     final pixelCount = linear.width * linear.height;
     if (linear.linearData.length != pixelCount) {
       throw StateError(
@@ -639,6 +780,7 @@ class StackAndShareService {
     // auto / osc with no explicit override: discover the pattern, preferring
     // the live camera's declared CFA, then the reference frame's FITS geometry.
     final pattern = await _discoverBayerPattern(reference);
+    _ensureAuthority();
 
     if (pattern == null) {
       if (mode == 'osc') {
@@ -667,6 +809,7 @@ class StackAndShareService {
     final cameraId = _ref.read(connectedCameraIdProvider);
     if (cameraId != null && cameraId.isNotEmpty) {
       final caps = await _ref.read(cameraCapabilitiesProvider(cameraId).future);
+      _ensureAuthority();
       final pattern = caps?.bayerPattern?.trim();
       if (caps != null &&
           caps.isColor &&
@@ -678,6 +821,7 @@ class StackAndShareService {
 
     // File path: the reference frame's FITS BAYERPAT geometry (null for mono).
     final linear = await _engine.readLinearFrame(reference.filePath);
+    _ensureAuthority();
     final framePattern = linear.bayerPattern?.trim();
     if (framePattern != null && framePattern.isNotEmpty) {
       return framePattern;
@@ -785,5 +929,15 @@ class _RawFrame {
 /// providers lazily inside the service so it follows the same Drift instance
 /// and backend as the rest of the app, and so test overrides flow through.
 final stackAndShareServiceProvider = Provider<StackAndShareService>((ref) {
-  return StackAndShareService(ref);
+  final backend = ref.watch(backendProvider);
+  final exportService = ref.watch(stackShareExportServiceProvider);
+  final service = StackAndShareService(
+    ref,
+    backend: backend,
+    persistPreview: ({required result, required rgba}) {
+      return exportService.persistViewerPreview(result: result, rgba: rgba);
+    },
+  );
+  ref.onDispose(service.retire);
+  return service;
 });

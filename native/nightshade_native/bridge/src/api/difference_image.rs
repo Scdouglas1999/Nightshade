@@ -471,16 +471,46 @@ mod tests {
     use nightshade_imaging::master_accumulation::AccumulationMode;
     use nightshade_imaging::sky_atlas::{radec_to_tile, tile_wcs, SkyTileAccumulator, TILE_PIXELS};
     use nightshade_imaging::{write_fits, FitsHeader};
+    use std::path::Path;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-    fn temp_dir(tag: &str) -> std::path::PathBuf {
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than a cleanup call at the end of each test: the leak was
+    /// worst exactly when a test FAILED, and drop still runs while a panic
+    /// unwinds.
+    struct TempDir(std::path::PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn temp_dir(tag: &str) -> TempDir {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let p =
             std::env::temp_dir().join(format!("ns_diff_ffi_{}_{}_{}", tag, std::process::id(), n));
         std::fs::create_dir_all(&p).unwrap();
-        p
+        TempDir(p)
     }
 
     fn render_star(buf: &mut [f32], w: usize, cx: f64, cy: f64, flux: f64) {

@@ -83,6 +83,32 @@ class SafetyMonitorHandlers {
   // Safety Status
   // ===========================================================================
 
+  /// Exact aggregate host-safety projection shared by both aggregate response
+  /// shapes. Keeping this in one map prevents the no-dedicated-monitor branch
+  /// from silently dropping weather/API verdicts, severity, or the action
+  /// reason remote operators need to understand an unsafe state.
+  Map<String, dynamic> _aggregateSafetyPayload(WeatherSafetyState safety) {
+    return {
+      'isSafe': safety.isSafe,
+      'safetyStatus': safety.status.name,
+      'currentAlertLevel': safety.currentAlertLevel.name,
+      'dataSource': safety.dataSource.name,
+      'hardwareWeatherSafe': safety.hardwareWeatherSafe,
+      'safetyMonitorSafe': safety.safetyMonitorSafe,
+      'apiWeatherSafe': safety.apiWeatherSafe,
+      'actions': {
+        'shouldPause': safety.actions.shouldPause,
+        'shouldPark': safety.actions.shouldPark,
+        'shouldCloseDome': safety.actions.shouldCloseDome,
+        'reason': safety.actions.reason,
+        'resumeCheckTime': safety.actions.resumeCheckTime?.toIso8601String(),
+      },
+      'failModeWarning': safety.failModeWarning,
+      'lastEvaluation': safety.lastEvaluation?.toIso8601String(),
+      'snoozeUntil': safety.snoozeUntil?.toIso8601String(),
+    };
+  }
+
   /// GET /api/safety/status
   /// Gets the current safety status from all connected safety monitors.
   /// Query params: deviceId=safety_monitor_id (optional - if not provided, returns status from all monitors)
@@ -161,13 +187,10 @@ class SafetyMonitorHandlers {
       // No safety monitors connected - use aggregate weather safety state
       // but report accurately that no monitors are connected
       return jsonOk({
-        "isSafe": weatherSafety.isSafe,
+        ..._aggregateSafetyPayload(weatherSafety),
         "monitorsConnected": 0,
         "monitors": <Map<String, dynamic>>[],
-        "dataSource": weatherSafety.dataSource.name,
-        "safetyStatus": weatherSafety.status.name,
-        "failModeWarning": weatherSafety.failModeWarning,
-        "lastEvaluation": weatherSafety.lastEvaluation?.toIso8601String(),
+        "lastUpdate": DateTime.now().toIso8601String(),
       });
     }
 
@@ -190,16 +213,9 @@ class SafetyMonitorHandlers {
     }).toList();
 
     return jsonOk({
-      "isSafe": weatherSafety.isSafe,
-      "safetyStatus": weatherSafety.status.name,
+      ..._aggregateSafetyPayload(weatherSafety),
       "monitorsConnected": safetyMonitors.length,
       "monitors": monitorStatuses,
-      "dataSource": weatherSafety.dataSource.name,
-      "hardwareWeatherSafe": weatherSafety.hardwareWeatherSafe,
-      "safetyMonitorSafe": weatherSafety.safetyMonitorSafe,
-      "apiWeatherSafe": weatherSafety.apiWeatherSafe,
-      "failModeWarning": weatherSafety.failModeWarning,
-      "lastEvaluation": weatherSafety.lastEvaluation?.toIso8601String(),
       "lastUpdate": DateTime.now().toIso8601String(),
     });
   }
@@ -345,5 +361,12 @@ class SafetyMonitorHandlers {
           .toIso8601String(),
       'warningDelaySeconds': _parseIntSetting(stored, _kWarningDelayKey, 60),
     });
+  }
+
+  Future<Response> handleCancelAcknowledgement(Request request) async {
+    _logInfo('POST /api/safety/cancel-acknowledgement');
+    container.read(weatherSafetyProvider.notifier).cancelSnooze();
+    await container.read(settingsDaoProvider).deleteSetting(_kLastAckKey);
+    return jsonOk({'status': 'cancelled'});
   }
 }

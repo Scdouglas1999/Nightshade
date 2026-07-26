@@ -286,11 +286,23 @@ extension CatalogManagerAnnotationIo on CatalogManager {
   Future<void> _deleteAnnotationCatalog() async {
     final files = [gladePlusCatalog.fileName, 'annotation_metadata.json'];
 
+    final failures = <(String, Object)>[];
     for (final fileName in files) {
       final file = File(path.join(catalogDirectory, fileName));
-      if (await file.exists()) {
+      if (!await file.exists()) continue;
+      try {
         await file.delete();
+      } catch (e) {
+        failures.add((file.path, e));
       }
+    }
+    if (failures.isNotEmpty) {
+      final first = failures.first;
+      throw FileSystemException(
+        'Could not delete ${failures.length} annotation catalog '
+        'file${failures.length == 1 ? '' : 's'}: ${first.$2}',
+        first.$1,
+      );
     }
   }
 

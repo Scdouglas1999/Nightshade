@@ -218,6 +218,7 @@ void main() {
       final frames = await dao.getMatchingFrames(
         exposureTime: 60.0,
         gain: 100,
+        offset: 10,
         binX: 1,
         binY: 1,
       );
@@ -226,5 +227,76 @@ void main() {
       expect(paths, {'/tmp/dark_60.fits', '/tmp/dark_604.fits'});
       expect(paths, isNot(contains('/tmp/dark_61.fits')));
     });
+
+    test(
+      'exact administrative groups include masters but not nearby exposure',
+      () async {
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_60.fits',
+            exposureTime: 60.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            binX: const Value(1),
+            binY: const Value(1),
+          ),
+        );
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/master_60_source.fits',
+            exposureTime: 60.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            binX: const Value(1),
+            binY: const Value(1),
+            masterDarkPath: const Value('/tmp/master_60.fits'),
+          ),
+        );
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_604.fits',
+            exposureTime: 60.4,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            binX: const Value(1),
+            binY: const Value(1),
+          ),
+        );
+        await dao.addEntry(
+          DarkLibraryCompanion.insert(
+            filePath: '/tmp/dark_60_offset20.fits',
+            exposureTime: 60.0,
+            frameType: const Value('dark'),
+            gain: const Value(100),
+            offset: const Value(20),
+            binX: const Value(1),
+            binY: const Value(1),
+          ),
+        );
+
+        final entries = await dao.getEntriesForGroup(
+          const DarkGroupKey(
+            frameType: 'dark',
+            exposureTime: 60.0,
+            gain: 100,
+            offset: 0,
+            binX: 1,
+            binY: 1,
+          ),
+        );
+
+        expect(entries.map((entry) => entry.filePath).toSet(), {
+          '/tmp/dark_60.fits',
+          '/tmp/master_60_source.fits',
+        });
+
+        final groups = await dao.getDistinctGroups();
+        expect(
+          groups.where((group) => group.exposureTime == 60.0),
+          hasLength(2),
+          reason: 'different camera offsets require different master groups',
+        );
+      },
+    );
   });
 }

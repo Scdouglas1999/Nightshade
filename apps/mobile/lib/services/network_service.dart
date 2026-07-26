@@ -315,7 +315,7 @@ class NetworkService {
           _state.copyWith(
             status: NetworkStatus.connected,
             connectedServer: _lastKnownServer,
-            statusMessage: 'Connected to ${_lastKnownServer!.name}',
+            statusMessage: '${_lastKnownServer!.name} reachable',
           ),
         );
       } else {

@@ -313,9 +313,16 @@ fn read_fits_from_reader<R: Read>(reader: &mut R) -> Result<(ImageData, FitsHead
         }
         16 => {
             let raw = read_i16_data(reader, width, height, depth)?;
-            // Convert to u16 with BZERO=32768 for unsigned
-            let adjusted: Vec<u8> = if bzero == 32768.0 {
-                // Common case: unsigned 16-bit stored as signed with BZERO
+            // Convert to u16 with BZERO=32768 for unsigned.
+            // NOTE: the codebase has no signed integer PixelType, so genuinely
+            // signed FITS (BZERO=0) with negative physical samples is clamped to
+            // zero here. That is acceptable in practice — cameras emit unsigned
+            // (BZERO=32768) and calibrated data that can go negative is written
+            // as float (BITPIX -32/-64), which is preserved exactly above.
+            let adjusted: Vec<u8> = if bzero == 32768.0 && bscale == 1.0 {
+                // Fast path: unsigned 16-bit stored as signed with BZERO=32768,
+                // no rescale. Guard on bscale too — a non-unit BSCALE must go
+                // through the general path below or the scaling is dropped.
                 raw.iter()
                     .flat_map(|&v| {
                         let unsigned = (v as i32 + 32768).clamp(0, 65535) as u16;
@@ -404,8 +411,15 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
             ));
         }
 
-        let record = String::from_utf8_lossy(&buffer);
-        let keyword = record[..8].trim();
+        // FITS records are a fixed 80-column ASCII grid. Slice the raw byte
+        // buffer at the fixed columns (always in range) instead of byte-indexing
+        // a lossy UTF-8 string: `String::from_utf8_lossy` maps each non-ASCII
+        // byte to a 3-byte U+FFFD, which can straddle the column-8/10 boundary
+        // and make `record[..8]`/`record[8..10]` panic ("byte index N is not a
+        // char boundary"). A corrupted or partially-downloaded BLOB, or a camera
+        // that emits binary bytes in the header area, must not crash capture.
+        let keyword_cow = String::from_utf8_lossy(&buffer[..8]);
+        let keyword = keyword_cow.trim();
 
         if keyword == "END" {
             break;
@@ -426,14 +440,14 @@ pub(crate) fn read_header<R: Read>(reader: &mut R) -> Result<FitsHeader, FitsErr
         // and their text occupies columns 9..80; route them to dedicated vectors so
         // they are never mistaken for value cards and re-emitted with `=`.
         if keyword == "COMMENT" {
-            let text = record[8..].trim_end().to_string();
+            let text = String::from_utf8_lossy(&buffer[8..]).trim_end().to_string();
             header.comments.push(text);
         } else if keyword == "HISTORY" {
-            let text = record[8..].trim_end().to_string();
+            let text = String::from_utf8_lossy(&buffer[8..]).trim_end().to_string();
             header.history.push(text);
-        } else if record.len() > 10 && &record[8..10] == "= " {
-            let raw_after = &record[10..];
-            let (value_part, comment_part) = split_value_and_comment(raw_after);
+        } else if &buffer[8..10] == b"= " {
+            let raw_after = String::from_utf8_lossy(&buffer[10..]);
+            let (value_part, comment_part) = split_value_and_comment(raw_after.as_ref());
             let value = parse_fits_value(value_part)?;
             let key_owned = keyword.to_string();
             header.keywords.insert(key_owned.clone(), value);
@@ -695,6 +709,12 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
     if image.pixel_type == PixelType::U16 {
         write_value_card(&mut writer, "BZERO", "32768", None)?;
         write_value_card(&mut writer, "BSCALE", "1", None)?;
+    } else if image.pixel_type == PixelType::U32 {
+        // Unsigned 32-bit is stored as signed BITPIX=32 with the standard
+        // BZERO offset (FITS §5.2.5). Without it, u32 values above 2^31-1 wrap
+        // to negative i32 on disk and are clamped to zero when read back.
+        write_value_card(&mut writer, "BZERO", "2147483648", None)?;
+        write_value_card(&mut writer, "BSCALE", "1", None)?;
     }
 
     // Write additional header keywords. SIMPLE/BITPIX/NAXIS*/BZERO/BSCALE/END are
@@ -768,9 +788,12 @@ pub fn write_fits(path: &Path, image: &ImageData, header: &FitsHeader) -> Result
             }
         }
         PixelType::U32 => {
+            // Apply the BZERO=2147483648 offset written above: physical value
+            // v maps to stored signed s = v - 2^31, recovered on read as
+            // s + 2^31. This keeps the full unsigned range representable.
             for chunk in image.data.chunks_exact(4) {
                 let val = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                let signed = val as i32;
+                let signed = (val as i64 - 2_147_483_648) as i32;
                 writer.write_all(&signed.to_be_bytes())?;
             }
         }
@@ -1098,9 +1121,11 @@ impl WcsInfo {
         image_width: u32,
         image_height: u32,
     ) -> Self {
-        // Reference pixel is the image center
-        let crpix1 = image_width as f64 / 2.0;
-        let crpix2 = image_height as f64 / 2.0;
+        // Reference pixel is the image centre in 1-based FITS coordinates:
+        // the centre of an N-pixel axis is (N+1)/2, not N/2 (which is the
+        // boundary between the two central pixels). Matches SipWcs::from_plate_solve.
+        let crpix1 = (image_width as f64 + 1.0) / 2.0;
+        let crpix2 = (image_height as f64 + 1.0) / 2.0;
 
         // Convert pixel scale from arcsec/pixel to deg/pixel
         let scale_deg = pixel_scale / 3600.0;
@@ -1389,7 +1414,11 @@ pub fn validate_image(
 
         if !pixels.is_empty() {
             let all_zero = pixels.iter().all(|&p| p == 0);
-            let all_saturated = pixels.iter().all(|&p| p >= 65530);
+            // 65024 ~= 99.2% of the 12-bit ADC ceiling scaled to 16-bit; see
+            // ImageValidationOptions::saturation_threshold for why 65535/65530
+            // never fires on the 12-/14-bit sensors that dominate astro imaging,
+            // and why real sensors clip a little under the theoretical ceiling.
+            let all_saturated = pixels.iter().all(|&p| p >= 65024);
 
             if all_zero {
                 validation.add_error("Image is all-zero (no data captured)".to_string());
@@ -1427,7 +1456,17 @@ pub struct ImageValidationOptions {
     pub is_bias_frame: bool,
     /// Minimum acceptable max pixel value (default: 100)
     pub min_max_value: u16,
-    /// Saturation threshold (pixels above this are considered saturated, default: 65530)
+    /// Saturation threshold: pixels at/above this are considered saturated.
+    /// Default 65024 = 4064 << 4, i.e. 99.2% of the 12-bit ADC ceiling scaled
+    /// into 16-bit. Most astro CMOS sensors are 12- or 14-bit and their drivers
+    /// left-shift the samples into the 16-bit pixel range, so their theoretical
+    /// saturation is 65520 (12-bit) or 65528/65532 (14-bit), NOT 65535 — a
+    /// 65535/65530 threshold never fires for the majority of cameras.
+    /// Real sensors also clip slightly BELOW the theoretical ceiling: a live
+    /// ASI1600MM-Cool (12-bit) saturates at 65504 (4094 << 4), one ADU short of
+    /// 65520, which a threshold pinned to the exact ceiling would miss — and a
+    /// missed saturation gets misreported as "sensor failure or dead frame".
+    /// 65024 leaves that headroom while still meaning "clipped and unusable".
     pub saturation_threshold: u16,
     /// Maximum acceptable saturation percentage (default: 0.90 = 90%)
     pub max_saturation_percent: f64,
@@ -1440,7 +1479,7 @@ impl Default for ImageValidationOptions {
             expected_height: None,
             is_bias_frame: false,
             min_max_value: 100,
-            saturation_threshold: 65530,
+            saturation_threshold: 65024,
             max_saturation_percent: 0.90,
         }
     }
@@ -1583,14 +1622,38 @@ pub fn validate_image_comprehensive(
                 saturation_percent * 100.0
             );
 
-            // Check 1: All pixels identical (uniform data)
-            // This indicates sensor failure, dead frame, or possibly a bias frame
+            // Check 1: All pixels identical (uniform data). A uniform frame is
+            // one of four distinct conditions — do NOT lump them all under
+            // "sensor failure or dead frame":
+            //   * bias frame          -> legitimate (allowed)
+            //   * all-zero            -> no data captured (Check 2 message)
+            //   * uniform at ceiling  -> fully saturated / over-exposed; Check 5
+            //                            reports it with "reduce exposure/gain".
+            //                            Common in daylight testing and flats and
+            //                            is NOT a hardware fault.
+            //   * uniform mid-value   -> genuinely stuck/dead sensor.
+            // Reporting an over-exposed frame as "sensor failure" (the old
+            // behavior) is an alarming misdiagnosis, and on 12-/14-bit cameras
+            // Check 5 never fired at all because its threshold assumed 16-bit.
             let all_same = min_value == max_value;
             if all_same {
                 if options.is_bias_frame {
                     // Bias frames may legitimately have very uniform data
                     tracing::info!(
                         "[IMAGE_VALIDATION] INFO: Bias frame has uniform pixel value {}",
+                        min_value
+                    );
+                } else if min_value == 0 {
+                    // Uniform black = no data captured (Check 2 handles the
+                    // non-uniform case; report it here for the uniform case).
+                    validation.add_error("Image is all-zero (no data captured)".to_string());
+                    tracing::error!("[IMAGE_VALIDATION] REJECTED: All-zero image");
+                } else if min_value >= options.saturation_threshold {
+                    // Fully saturated / over-exposed: Check 5 adds the accurate
+                    // "completely saturated - reduce exposure time or gain"
+                    // error. Not a dead sensor.
+                    tracing::warn!(
+                        "[IMAGE_VALIDATION] Uniform frame fully saturated at {} (over-exposed, see saturation check)",
                         min_value
                     );
                 } else {
@@ -1605,10 +1668,10 @@ pub fn validate_image_comprehensive(
                 }
             }
 
-            // Check 2: All-zero frame (no data captured)
+            // Check 2: All-zero frame (no data captured) — non-uniform safety
+            // net; the uniform all-zero case is already handled in Check 1.
             let all_zero = max_value == 0;
             if all_zero && !all_same {
-                // Don't double-report
                 validation.add_error("Image is all-zero (no data captured)".to_string());
                 tracing::error!("[IMAGE_VALIDATION] REJECTED: All-zero image");
             }
@@ -1824,6 +1887,73 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
+    /// Build an 80-byte FITS record from a byte slice, right-padded with spaces.
+    fn fits_record(bytes: &[u8]) -> Vec<u8> {
+        let mut r = bytes.to_vec();
+        r.resize(80, b' ');
+        r
+    }
+
+    /// A FITS header whose keyword column contains a non-ASCII byte must not
+    /// panic the parser. `String::from_utf8_lossy` maps each invalid byte to a
+    /// 3-byte U+FFFD, which can straddle the fixed column boundary (byte index
+    /// 8/10) that the header parser slices at — byte-indexing a UTF-8 string off
+    /// a char boundary panics ("byte index N is not a char boundary"). A
+    /// corrupted/partial BLOB or a camera emitting binary in the header area is
+    /// exactly this input, so the parser must return an error, never crash.
+    #[test]
+    fn test_read_fits_non_ascii_header_no_panic() {
+        // "SIMPLE" then 0xFF at column 6 -> U+FFFD occupies output bytes 6..9,
+        // so byte index 8 (the value-indicator column slice) is mid-char.
+        let mut data = fits_record(b"SIMPLE\xff\xff= T");
+        data.extend_from_slice(&fits_record(b"END"));
+        let result = std::panic::catch_unwind(|| read_fits_from_bytes(&data));
+        assert!(
+            result.is_ok(),
+            "parser panicked on a non-ASCII header column instead of erroring"
+        );
+    }
+
+    /// Adversarial sweep: truncations and seeded-random byte streams must always
+    /// produce a Result (Ok or Err), never a panic/abort. Guards the INDI BLOB ->
+    /// FITS path against real-camera header variability and partial downloads.
+    #[test]
+    fn test_read_fits_fuzz_no_panic() {
+        let hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {})); // silence expected-if-broken traces
+                                                // Deterministic LCG so failures reproduce without a rand dep.
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (state >> 33) as u32
+        };
+        let mut panicked_on: Option<Vec<u8>> = None;
+        for _ in 0..2000 {
+            let len = (next() % 6000) as usize;
+            let mut data = vec![0u8; len];
+            for b in data.iter_mut() {
+                *b = (next() & 0xff) as u8;
+            }
+            // Bias some records toward FITS-looking keywords to reach deeper code.
+            if len >= 80 && next() % 2 == 0 {
+                data[..8].copy_from_slice(b"SIMPLE  ");
+            }
+            let probe = data.clone();
+            if std::panic::catch_unwind(|| read_fits_from_bytes(&probe)).is_err() {
+                panicked_on = Some(data);
+                break;
+            }
+        }
+        std::panic::set_hook(hook);
+        assert!(
+            panicked_on.is_none(),
+            "read_fits_from_bytes panicked on adversarial input: {:?}",
+            panicked_on.map(|d| d.len())
+        );
+    }
+
     #[test]
     fn test_calculate_airmass_zenith() {
         let airmass = calculate_airmass(90.0).expect("zenith airmass must succeed");
@@ -1963,6 +2093,101 @@ mod tests {
         assert!(
             !validation.warnings.is_empty(),
             "Should have low signal warning"
+        );
+    }
+
+    #[test]
+    fn test_comprehensive_uniform_saturated_not_dead_frame() {
+        // A frame uniformly at the 14-bit sensor ceiling (16382 << 2 = 65528)
+        // is over-exposed, NOT a dead sensor. It must be rejected as saturated
+        // with "reduce exposure" guidance, never as "sensor failure or dead
+        // frame" (the pre-fix misdiagnosis surfaced live on a real ASI178MM).
+        let image = ImageData::from_u16(64, 64, 1, &vec![65528u16; 64 * 64]);
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
+        assert!(!v.is_valid, "fully saturated frame is invalid");
+        assert!(
+            v.errors
+                .iter()
+                .any(|e| e.to_lowercase().contains("saturated")),
+            "expected a saturation error, got {:?}",
+            v.errors
+        );
+        assert!(
+            !v.errors
+                .iter()
+                .any(|e| e.contains("dead frame") || e.contains("sensor failure")),
+            "saturation must not be misreported as a dead/failed sensor: {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_comprehensive_real_asi1600_saturation_not_dead_frame() {
+        // Captured live from an ASI1600MM-Cool (12-bit): a fully clipped frame
+        // reads 65504 (4094 << 4) — ONE ADU below the theoretical 12-bit ceiling
+        // of 65520. A threshold pinned to the exact ceiling missed it and the
+        // frame came back as "possible sensor failure or dead frame".
+        let image = ImageData::from_u16(64, 64, 1, &vec![65504u16; 64 * 64]);
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
+        assert!(!v.is_valid, "clipped frame is invalid");
+        assert!(
+            v.errors
+                .iter()
+                .any(|e| e.to_lowercase().contains("saturated")),
+            "expected saturation error for real ASI1600 clip value, got {:?}",
+            v.errors
+        );
+        assert!(
+            !v.errors
+                .iter()
+                .any(|e| e.contains("dead frame") || e.contains("sensor failure")),
+            "real-world saturation must not read as a dead sensor: {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_comprehensive_12bit_saturation_detected() {
+        // 12-bit ceiling scaled to 16-bit = 4095 << 4 = 65520. With the old
+        // 65530 threshold this common case (e.g. ASI1600MM) was never flagged.
+        let image = ImageData::from_u16(64, 64, 1, &vec![65520u16; 64 * 64]);
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
+        assert!(!v.is_valid, "12-bit fully saturated frame must be flagged");
+        assert!(
+            v.errors
+                .iter()
+                .any(|e| e.to_lowercase().contains("saturated")),
+            "expected saturation error for 12-bit ceiling, got {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_comprehensive_uniform_midvalue_is_dead_frame() {
+        // A uniform frame at an arbitrary mid value (not 0, not saturated) is a
+        // genuinely stuck/dead sensor and must still be rejected as such.
+        let image = ImageData::from_u16(64, 64, 1, &vec![30000u16; 64 * 64]);
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
+        assert!(!v.is_valid, "stuck-sensor frame is invalid");
+        assert!(
+            v.errors
+                .iter()
+                .any(|e| e.contains("sensor failure") || e.contains("dead frame")),
+            "mid-value uniform frame should read as dead/failed sensor: {:?}",
+            v.errors
+        );
+    }
+
+    #[test]
+    fn test_comprehensive_uniform_zero_is_no_data() {
+        // A uniform all-zero frame is "no data captured", not a dead sensor.
+        let image = ImageData::from_u16(64, 64, 1, &vec![0u16; 64 * 64]);
+        let v = validate_image_comprehensive(&image, ImageValidationOptions::default());
+        assert!(!v.is_valid, "all-zero frame is invalid");
+        assert!(
+            v.errors.iter().any(|e| e.contains("all-zero")),
+            "expected all-zero error: {:?}",
+            v.errors
         );
     }
 
@@ -2443,6 +2668,65 @@ mod tests {
         // and stripped from the header.
         assert!(header_b.get("BSCALE").is_none());
         assert!(header_b.get("BZERO").is_none());
+    }
+
+    #[test]
+    fn test_bzero_32768_honours_nonunit_bscale() {
+        // Regression: the BZERO==32768 fast path must not swallow a non-unit
+        // BSCALE. With BSCALE=2 the physical value is v*2 + 32768, not v + 32768.
+        let cards = [
+            "SIMPLE  =                    T",
+            "BITPIX  =                   16",
+            "NAXIS   =                    2",
+            "NAXIS1  =                    2",
+            "NAXIS2  =                    1",
+            "BZERO   =                32768",
+            "BSCALE  =                    2",
+            "OBJECT  = 'NGC1'",
+        ];
+        // Two i16 BE pixels: 100 (0x0064), 1000 (0x03E8).
+        let data: Vec<u8> = vec![0x00, 0x64, 0x03, 0xE8];
+        let bytes = synth_fits_with_cards(&cards, &data);
+        let (image, _header) = read_fits_from_bytes(&bytes).expect("read");
+        let pix: Vec<u16> = image
+            .data
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        // v*BSCALE + BZERO, NOT v + BZERO (which would give 32868, 33768).
+        assert_eq!(pix, vec![100 * 2 + 32768, 1000 * 2 + 32768]);
+    }
+
+    #[test]
+    fn test_u32_bzero_round_trip_above_2_31() {
+        // Regression: u32 values above 2^31-1 must survive a write/read cycle.
+        // Without the BZERO=2147483648 offset they wrapped to negative i32 on
+        // disk and were clamped to zero on read.
+        let values: Vec<u32> = vec![0, 2_000_000_000, 3_000_000_000, u32::MAX];
+        let data: Vec<u8> = values.iter().flat_map(|&v| v.to_le_bytes()).collect();
+        let image = ImageData {
+            width: 4,
+            height: 1,
+            channels: 1,
+            pixel_type: PixelType::U32,
+            data,
+        };
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_u32_roundtrip_{}.fits",
+            std::process::id()
+        ));
+        write_fits(&path, &image, &FitsHeader::new()).expect("write");
+        let on_disk = std::fs::read(&path).expect("read back");
+        let _ = std::fs::remove_file(&path);
+
+        let (image_b, _header_b) = read_fits_from_bytes(&on_disk).expect("read");
+        assert_eq!(image_b.pixel_type, PixelType::U32);
+        let pix: Vec<u32> = image_b
+            .data
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        assert_eq!(pix, values);
     }
 
     // -------------------- §6.5 header invariants --------------------

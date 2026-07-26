@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -6,6 +7,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../view_controls.dart'
     show ProjectionSelectorButton, QualitySettingsButton;
+import '../mobile_widgets.dart' show CompassCalibrationDialog;
+import '../../providers/device_orientation_provider.dart';
 import '../../../../services/mount_command_service.dart';
 import '../../../../widgets/tutorial_keys/planetarium_keys.dart';
 
@@ -252,6 +255,36 @@ class _ToolsMenu extends ConsumerWidget {
     n.state = !n.state;
   }
 
+  // Gyro sky aiming is a phone-only sensor feature. Mirrors
+  // MobileViewControls._handleGyroscopeToggle: first activation requires the
+  // one-time compass-calibration acknowledgement; turning aiming off also drops
+  // mount sync.
+  void _handleGyroscopeToggle(BuildContext context, WidgetRef ref) {
+    final isEnabled = ref.read(gyroscopeAimingEnabledProvider);
+    if (!isEnabled) {
+      final calibrated = ref.read(compassCalibrationAcknowledgedProvider);
+      if (!calibrated) {
+        _showCalibrationDialog(context, ref);
+        return;
+      }
+    } else {
+      ref.read(gyroscopeMountSyncProvider.notifier).state = false;
+    }
+    ref.read(gyroscopeAimingEnabledProvider.notifier).state = !isEnabled;
+  }
+
+  void _showCalibrationDialog(BuildContext context, WidgetRef ref) {
+    showDialog<bool>(
+      context: context,
+      builder: (context) => const CompassCalibrationDialog(),
+    ).then((result) {
+      if (result == true) {
+        ref.read(compassCalibrationAcknowledgedProvider.notifier).state = true;
+        ref.read(gyroscopeAimingEnabledProvider.notifier).state = true;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final measurement = ref.watch(measurementModeProvider);
@@ -260,6 +293,15 @@ class _ToolsMenu extends ConsumerWidget {
     final compass = ref.watch(showCompassHudProvider);
     final minimap = ref.watch(showMinimapProvider);
     final perfHud = ref.watch(showPerfHudProvider);
+    // Gyro sky aiming (phone-only): the sensors and the calibration dialog
+    // only exist on mobile, so gate the item on platform, not the width-based
+    // `compact` flag.
+    final gyroAiming = ref.watch(gyroscopeAimingEnabledProvider);
+    final gyroMountSync = ref.watch(gyroscopeMountSyncProvider);
+    final mountConnected = ref.watch(mountStateProvider).connectionState ==
+        DeviceConnectionState.connected;
+    final isMobilePlatform = defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android;
 
     PopupMenuItem<String> item(
       String value,
@@ -322,6 +364,12 @@ class _ToolsMenu extends ConsumerWidget {
             case 'compass':
               _toggle(ref, showCompassHudProvider);
               break;
+            case 'gyroAim':
+              _handleGyroscopeToggle(context, ref);
+              break;
+            case 'gyroMountSync':
+              _toggle(ref, gyroscopeMountSyncProvider);
+              break;
             case 'minimap':
               _toggle(ref, showMinimapProvider);
               break;
@@ -350,6 +398,23 @@ class _ToolsMenu extends ConsumerWidget {
                   : 'Equatorial view',
               active: viewState.viewMode == SkyViewMode.horizontal,
             ),
+          if (compact)
+            PopupMenuItem<String>(
+              value: 'projection_host',
+              enabled: false,
+              child: Row(
+                children: [
+                  Icon(NightshadeIcons.globe,
+                      size: 16, color: colors.textSecondary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text('Projection',
+                        style: TextStyle(color: colors.textPrimary)),
+                  ),
+                  ProjectionSelectorButton(colors: colors),
+                ],
+              ),
+            ),
           item(
               'measurement', NightshadeIcons.ruler, 'Measure (separation / PA)',
               active: measurement),
@@ -361,6 +426,12 @@ class _ToolsMenu extends ConsumerWidget {
               active: nightVision),
           item('compass', NightshadeIcons.compass, 'Compass HUD',
               active: compass),
+          if (isMobilePlatform)
+            item('gyroAim', LucideIcons.move3d, 'Gyro sky aiming',
+                active: gyroAiming),
+          if (isMobilePlatform && gyroAiming && mountConnected)
+            item('gyroMountSync', NightshadeIcons.star, 'Sync mount to aim',
+                active: gyroMountSync),
           item('minimap', NightshadeIcons.map, 'Minimap', active: minimap),
           const PopupMenuDivider(),
           // Render quality + export are hosted live so they keep their own

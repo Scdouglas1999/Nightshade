@@ -24,7 +24,8 @@ class DashboardWeatherWidget extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final weatherStatus = ref.watch(weatherStatusProvider);
-    final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final appSettings = settingsAsync.valueOrNull;
 
     final hasLocation = appSettings != null &&
         !(appSettings.latitude == 0.0 && appSettings.longitude == 0.0);
@@ -56,12 +57,16 @@ class DashboardWeatherWidget extends ConsumerWidget {
                   colors: colors,
                   weatherStatus: weatherStatus,
                   hasLocation: hasLocation,
+                  settingsLoading: settingsAsync.isLoading,
+                  settingsError: settingsAsync.hasError,
                 );
               } else if (width < _mediumMaxWidth) {
                 return _MediumLayout(
                   colors: colors,
                   weatherStatus: weatherStatus,
                   hasLocation: hasLocation,
+                  settingsLoading: settingsAsync.isLoading,
+                  settingsError: settingsAsync.hasError,
                   appSettings: appSettings,
                   ref: ref,
                 );
@@ -70,6 +75,8 @@ class DashboardWeatherWidget extends ConsumerWidget {
                   colors: colors,
                   weatherStatus: weatherStatus,
                   hasLocation: hasLocation,
+                  settingsLoading: settingsAsync.isLoading,
+                  settingsError: settingsAsync.hasError,
                   appSettings: appSettings,
                   ref: ref,
                 );
@@ -87,11 +94,15 @@ class _CompactLayout extends StatelessWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
   final bool hasLocation;
+  final bool settingsLoading;
+  final bool settingsError;
 
   const _CompactLayout({
     required this.colors,
     required this.weatherStatus,
     required this.hasLocation,
+    required this.settingsLoading,
+    required this.settingsError,
   });
 
   @override
@@ -103,12 +114,34 @@ class _CompactLayout extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header row
-          _WeatherHeader(colors: colors, level: weatherStatus.currentLevel),
+          _WeatherHeader(
+            colors: colors,
+            level: weatherStatus.currentLevel,
+            isLoading: settingsLoading || weatherStatus.isLoading,
+            isUnavailable: settingsError ||
+                !hasLocation ||
+                weatherStatus.errorMessage != null,
+          ),
 
           const SizedBox(height: 12),
 
           // Status info - compact display
-          if (!hasLocation)
+          if (settingsLoading)
+            _CompactStatus(
+              icon: LucideIcons.loader2,
+              text: 'Loading settings...',
+              colors: colors,
+              iconColor: colors.textMuted,
+            )
+          else if (settingsError)
+            _CompactStatus(
+              icon: LucideIcons.alertCircle,
+              text: 'Settings unavailable',
+              subtext: 'Open Weather to retry',
+              colors: colors,
+              iconColor: colors.error,
+            )
+          else if (!hasLocation)
             _CompactStatus(
               icon: LucideIcons.mapPin,
               text: 'Location not set',
@@ -158,6 +191,8 @@ class _MediumLayout extends StatelessWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
   final bool hasLocation;
+  final bool settingsLoading;
+  final bool settingsError;
   final AppSettingsState? appSettings;
   final WidgetRef ref;
 
@@ -165,6 +200,8 @@ class _MediumLayout extends StatelessWidget {
     required this.colors,
     required this.weatherStatus,
     required this.hasLocation,
+    required this.settingsLoading,
+    required this.settingsError,
     required this.appSettings,
     required this.ref,
   });
@@ -178,7 +215,14 @@ class _MediumLayout extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header row
-          _WeatherHeader(colors: colors, level: weatherStatus.currentLevel),
+          _WeatherHeader(
+            colors: colors,
+            level: weatherStatus.currentLevel,
+            isLoading: settingsLoading || weatherStatus.isLoading,
+            isUnavailable: settingsError ||
+                !hasLocation ||
+                weatherStatus.errorMessage != null,
+          ),
 
           const SizedBox(height: 12),
 
@@ -227,7 +271,22 @@ class _MediumLayout extends StatelessWidget {
   }
 
   Widget _buildStatusContent(BuildContext context) {
-    if (!hasLocation) {
+    if (settingsLoading) {
+      return _CompactStatus(
+        icon: LucideIcons.loader2,
+        text: 'Loading settings...',
+        colors: colors,
+        iconColor: colors.textMuted,
+      );
+    } else if (settingsError) {
+      return _CompactStatus(
+        icon: LucideIcons.alertCircle,
+        text: 'Settings unavailable',
+        subtext: 'Open Weather to retry',
+        colors: colors,
+        iconColor: colors.error,
+      );
+    } else if (!hasLocation) {
       return _CompactStatus(
         icon: LucideIcons.mapPin,
         text: 'Location not set',
@@ -262,6 +321,8 @@ class _ExpandedLayout extends ConsumerWidget {
   final NightshadeColors colors;
   final WeatherStatus weatherStatus;
   final bool hasLocation;
+  final bool settingsLoading;
+  final bool settingsError;
   final AppSettingsState? appSettings;
   final WidgetRef ref;
 
@@ -269,6 +330,8 @@ class _ExpandedLayout extends ConsumerWidget {
     required this.colors,
     required this.weatherStatus,
     required this.hasLocation,
+    required this.settingsLoading,
+    required this.settingsError,
     required this.appSettings,
     required this.ref,
   });
@@ -286,7 +349,14 @@ class _ExpandedLayout extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header row
-          _WeatherHeader(colors: colors, level: weatherStatus.currentLevel),
+          _WeatherHeader(
+            colors: colors,
+            level: weatherStatus.currentLevel,
+            isLoading: settingsLoading || weatherStatus.isLoading,
+            isUnavailable: settingsError ||
+                !hasLocation ||
+                weatherStatus.errorMessage != null,
+          ),
 
           const SizedBox(height: 12),
 
@@ -351,7 +421,22 @@ class _ExpandedLayout extends ConsumerWidget {
   }
 
   Widget _buildStatusContent(BuildContext context) {
-    if (!hasLocation) {
+    if (settingsLoading) {
+      return _CompactStatus(
+        icon: LucideIcons.loader2,
+        text: 'Loading settings...',
+        colors: colors,
+        iconColor: colors.textMuted,
+      );
+    } else if (settingsError) {
+      return _CompactStatus(
+        icon: LucideIcons.alertCircle,
+        text: 'Settings unavailable',
+        subtext: 'Open Weather to retry',
+        colors: colors,
+        iconColor: colors.error,
+      );
+    } else if (!hasLocation) {
       return _CompactStatus(
         icon: LucideIcons.mapPin,
         text: 'Location not set',
@@ -577,13 +662,19 @@ class _AlertBanner extends StatelessWidget {
 class _WeatherHeader extends StatelessWidget {
   final NightshadeColors colors;
   final AlertLevel level;
+  final bool isLoading;
+  final bool isUnavailable;
 
   const _WeatherHeader({
     required this.colors,
     required this.level,
+    this.isLoading = false,
+    this.isUnavailable = false,
   });
 
   Color _getStatusColor() {
+    if (isLoading) return colors.textMuted;
+    if (isUnavailable) return colors.error;
     return switch (level) {
       AlertLevel.clear => colors.success,
       AlertLevel.watch => colors.warning,
@@ -619,7 +710,12 @@ class _WeatherHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        _StatusBadge(colors: colors, level: level),
+        _StatusBadge(
+          colors: colors,
+          level: level,
+          isLoading: isLoading,
+          isUnavailable: isUnavailable,
+        ),
       ],
     );
   }
@@ -628,8 +724,15 @@ class _WeatherHeader extends StatelessWidget {
 class _StatusBadge extends StatelessWidget {
   final NightshadeColors colors;
   final AlertLevel level;
+  final bool isLoading;
+  final bool isUnavailable;
 
-  const _StatusBadge({required this.colors, required this.level});
+  const _StatusBadge({
+    required this.colors,
+    required this.level,
+    required this.isLoading,
+    required this.isUnavailable,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -661,6 +764,20 @@ class _StatusBadge extends StatelessWidget {
   }
 
   (String, Color, Color) _getBadgeStyle() {
+    if (isLoading) {
+      return (
+        'Loading',
+        colors.textMuted.withValues(alpha: 0.15),
+        colors.textMuted,
+      );
+    }
+    if (isUnavailable) {
+      return (
+        'Unknown',
+        colors.error.withValues(alpha: 0.15),
+        colors.error,
+      );
+    }
     return switch (level) {
       AlertLevel.clear => (
           'Clear',

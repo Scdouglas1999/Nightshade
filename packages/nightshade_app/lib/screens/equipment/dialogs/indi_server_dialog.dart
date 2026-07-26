@@ -12,29 +12,34 @@ class IndiServerDialog extends ConsumerStatefulWidget {
 }
 
 class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
-  late TextEditingController _hostController;
-  late TextEditingController _portController;
-  bool _isConnecting = false;
+  late final TextEditingController _hostController;
+  late final TextEditingController _portController;
+
+  // Independent busy flags so a probe and a save can each guard against
+  // double-taps and against each other without either being mistaken for the
+  // other's spinner.
+  bool _isTesting = false;
+  bool _isSaving = false;
+
+  // Tracks whether the async settings hydration has completed and whether the
+  // user has typed into each field. Late hydration must never clobber an edit
+  // the operator made while the load was still in flight.
+  bool _hostEdited = false;
+  bool _portEdited = false;
+
   String? _statusMessage;
-  bool? _connectionSuccess;
+  bool? _statusSuccess;
+  String? _hostError;
+  String? _portError;
 
   @override
   void initState() {
     super.initState();
-    // Initialize with default values, will be updated when settings load
+    // Initialize with default values; persisted settings hydrate in below.
     _hostController = TextEditingController(text: 'localhost');
     _portController = TextEditingController(text: '7624');
 
-    // Load settings asynchronously
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final settings = await ref.read(appSettingsProvider.future);
-      if (mounted) {
-        setState(() {
-          _hostController.text = settings.indiServerHost;
-          _portController.text = settings.indiServerPort.toString();
-        });
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hydrateFromSettings());
   }
 
   @override
@@ -44,61 +49,136 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
     super.dispose();
   }
 
-  Future<void> _testConnection() async {
-    setState(() {
-      _isConnecting = true;
-      _statusMessage = null;
-      _connectionSuccess = null;
-    });
-
-    final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text) ?? 7624;
-
+  /// Load the persisted INDI address, tolerating a failing settings source.
+  Future<void> _hydrateFromSettings() async {
     try {
-      // Try to discover devices on the server using DeviceService
-      final deviceService = ref.read(deviceServiceProvider);
-      final devices = await deviceService.discoverIndiAtAddress(host, port);
-
-      if (mounted) {
-        setState(() {
-          _isConnecting = false;
-          _connectionSuccess = true;
-          _statusMessage = 'Connected! Found ${devices.length} devices.';
-        });
-      }
+      final settings = await ref.read(appSettingsProvider.future);
+      if (!mounted) return;
+      setState(() {
+        // Only adopt persisted values for fields the operator has not touched,
+        // so a slow load never overwrites what they typed in the meantime.
+        if (!_hostEdited) {
+          _hostController.text = settings.indiServerHost;
+        }
+        if (!_portEdited) {
+          _portController.text = settings.indiServerPort.toString();
+        }
+      });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isConnecting = false;
-          _connectionSuccess = false;
-          _statusMessage = 'Connection failed: $e';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _statusSuccess = false;
+        _statusMessage = 'Could not load saved INDI settings: $e';
+      });
     }
   }
 
-  Future<void> _saveAndConnect() async {
+  /// Validate host and port, surfacing per-field errors. Returns the parsed
+  /// values only when both are valid — never silently coerces a malformed port
+  /// to a default.
+  ({String host, int port})? _validatedInputs() {
     final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text) ?? 7624;
+    final portRaw = _portController.text.trim();
 
-    // Persist the INDI server settings
-    final settingsNotifier = ref.read(appSettingsProvider.notifier);
-    await settingsNotifier.setIndiServerHost(host);
-    await settingsNotifier.setIndiServerPort(port);
+    String? hostError;
+    String? portError;
 
-    if (mounted) {
-      Navigator.pop(context, {
-        'host': host,
-        'port': port,
+    if (host.isEmpty) {
+      hostError = 'Enter a host name or IP address.';
+    }
+    final port = int.tryParse(portRaw);
+    if (port == null) {
+      portError = 'Port must be a whole number.';
+    } else if (port < 1 || port > 65535) {
+      portError = 'Port must be between 1 and 65535.';
+    }
+
+    setState(() {
+      _hostError = hostError;
+      _portError = portError;
+    });
+
+    if (hostError != null || portError != null || port == null) {
+      return null;
+    }
+    return (host: host, port: port);
+  }
+
+  Future<void> _testConnection() async {
+    if (_isTesting || _isSaving) return;
+    final inputs = _validatedInputs();
+    if (inputs == null) return;
+
+    setState(() {
+      _isTesting = true;
+      _statusMessage = null;
+      _statusSuccess = null;
+    });
+
+    try {
+      // Real, awaited discovery probe against the entered address.
+      final deviceService = ref.read(deviceServiceProvider);
+      final devices =
+          await deviceService.discoverIndiAtAddress(inputs.host, inputs.port);
+
+      if (!mounted) return;
+      setState(() {
+        _isTesting = false;
+        _statusSuccess = true;
+        final n = devices.length;
+        _statusMessage = 'Connected. Found $n device${n == 1 ? '' : 's'}.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTesting = false;
+        _statusSuccess = false;
+        _statusMessage = 'Connection failed: $e';
       });
     }
+  }
+
+  /// Persist the INDI server address. This only stores configuration — it does
+  /// not open a live INDI session (startup discovery consults it later) — so
+  /// the action is labelled "Save", not "Connect".
+  Future<void> _save() async {
+    if (_isSaving || _isTesting) return;
+    final inputs = _validatedInputs();
+    if (inputs == null) return;
+
+    setState(() {
+      _isSaving = true;
+      _statusMessage = null;
+      _statusSuccess = null;
+    });
+
+    try {
+      final settingsNotifier = ref.read(appSettingsProvider.notifier);
+      await settingsNotifier.setIndiServerHost(inputs.host);
+      await settingsNotifier.setIndiServerPort(inputs.port);
+    } catch (e) {
+      if (!mounted) return;
+      // Keep the dialog open so the operator can retry.
+      setState(() {
+        _isSaving = false;
+        _statusSuccess = false;
+        _statusMessage = 'Could not save INDI settings: $e';
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.pop(context, {
+      'host': inputs.host,
+      'port': inputs.port,
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       backgroundColor: colors.surface,
       title: Row(
         children: [
@@ -146,14 +226,20 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
 
             // Host input
             TextField(
+              key: const ValueKey('indi-host-field'),
               controller: _hostController,
               style: TextStyle(color: colors.textPrimary),
+              onChanged: (_) {
+                _hostEdited = true;
+                if (_hostError != null) setState(() => _hostError = null);
+              },
               decoration: InputDecoration(
                 labelText: 'INDI Server Host',
                 labelStyle: TextStyle(color: colors.textMuted),
                 hintText: 'localhost or IP address',
                 hintStyle:
                     TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                errorText: _hostError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
                 ),
@@ -166,15 +252,21 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
 
             // Port input
             TextField(
+              key: const ValueKey('indi-port-field'),
               controller: _portController,
               style: TextStyle(color: colors.textPrimary),
               keyboardType: TextInputType.number,
+              onChanged: (_) {
+                _portEdited = true;
+                if (_portError != null) setState(() => _portError = null);
+              },
               decoration: InputDecoration(
                 labelText: 'Port',
                 labelStyle: TextStyle(color: colors.textMuted),
                 hintText: '7624 (default)',
                 hintStyle:
                     TextStyle(color: colors.textMuted.withValues(alpha: 0.5)),
+                errorText: _portError,
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: colors.border),
                 ),
@@ -189,11 +281,11 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                onPressed: _testConnection,
+                onPressed: (_isTesting || _isSaving) ? null : _testConnection,
                 icon: NightshadeIcons.refresh,
-                label: _isConnecting ? 'Testing...' : 'Test Connection',
+                label: _isTesting ? 'Testing...' : 'Test Connection',
                 variant: ButtonVariant.outline,
-                isLoading: _isConnecting,
+                isLoading: _isTesting,
               ),
             ),
 
@@ -203,18 +295,18 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: NightshadeDecorations.emphasisSurface(
-                  (_connectionSuccess ?? false) ? colors.success : colors.error,
+                  (_statusSuccess ?? false) ? colors.success : colors.error,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      (_connectionSuccess ?? false)
+                      (_statusSuccess ?? false)
                           ? NightshadeIcons.success
                           : NightshadeIcons.error,
                       size: 16,
-                      color: (_connectionSuccess ?? false)
+                      color: (_statusSuccess ?? false)
                           ? colors.success
                           : colors.error,
                     ),
@@ -237,17 +329,20 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
       ),
       actions: [
         NightshadeButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed:
+              (_isSaving || _isTesting) ? null : () => Navigator.pop(context),
           label: 'Cancel',
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: _saveAndConnect,
-          label: 'Connect',
+          onPressed: (_isSaving || _isTesting) ? null : _save,
+          label: _isSaving ? 'Saving...' : 'Save',
           variant: ButtonVariant.primary,
+          isLoading: _isSaving,
         ),
       ],
     );
+    return PopScope(canPop: !_isTesting && !_isSaving, child: dialog);
   }
 }

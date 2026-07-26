@@ -1,11 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/android_system_ui.dart';
 import '../../../services/mobile_preferences.dart';
+import '../../../services/notification_service.dart';
 
 class SettingsTab extends ConsumerWidget {
   const SettingsTab({super.key});
@@ -29,15 +30,10 @@ class SettingsTab extends ConsumerWidget {
                 value: prefs.androidImmersiveSticky,
                 onChanged: (value) async {
                   await prefs.setAndroidImmersiveSticky(value);
-                  if (Platform.isAndroid) {
-                    await SystemChrome.setEnabledSystemUIMode(
-                      value
-                          ? SystemUiMode.immersiveSticky
-                          : SystemUiMode.leanBack,
-                      overlays: value ? const [] : SystemUiOverlay.values,
-                    );
-                  }
                   ref.invalidate(mobilePreferencesProvider);
+                  if (Platform.isAndroid) {
+                    await applyAndroidSystemUiPreference(value);
+                  }
                 },
                 colors: colors,
               ),
@@ -55,6 +51,8 @@ class SettingsTab extends ConsumerWidget {
                 onChanged: (value) async {
                   await prefs.setNotifySequence(value);
                   ref.invalidate(mobilePreferencesProvider);
+                  MobileNotificationService().enableSequenceNotifications =
+                      value;
                 },
                 colors: colors,
               ),
@@ -157,10 +155,20 @@ class SettingsTab extends ConsumerWidget {
       error: (error, _) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'Could not load settings: $error',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: colors.error),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Could not load settings: $error',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.error),
+              ),
+              const SizedBox(height: 16),
+              NightshadeButton(
+                label: 'Retry',
+                onPressed: () => ref.invalidate(mobilePreferencesProvider),
+              ),
+            ],
           ),
         ),
       ),
@@ -181,11 +189,12 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surface,
+    return Material(
+      color: colors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
+        side: BorderSide(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,11 +217,11 @@ class _Section extends StatelessWidget {
   }
 }
 
-class _SwitchRow extends StatelessWidget {
+class _SwitchRow extends StatefulWidget {
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final Future<void> Function(bool) onChanged;
   final NightshadeColors colors;
   final bool isLast;
 
@@ -226,30 +235,69 @@ class _SwitchRow extends StatelessWidget {
   });
 
   @override
+  State<_SwitchRow> createState() => _SwitchRowState();
+}
+
+class _SwitchRowState extends State<_SwitchRow> {
+  bool _saving = false;
+
+  Future<void> _change(bool value) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onChanged(value);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update ${widget.title}: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: isLast
+        border: widget.isLast
             ? null
             : Border(
-                bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+                bottom: BorderSide(
+                  color: widget.colors.border.withValues(alpha: 0.5),
+                ),
               ),
       ),
       child: SwitchListTile.adaptive(
-        value: value,
-        onChanged: onChanged,
-        activeThumbColor: colors.primary,
-        title: Text(
-          title,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+        value: widget.value,
+        onChanged: _saving ? null : _change,
+        activeThumbColor: widget.colors.primary,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                widget.title,
+                style: TextStyle(
+                  color: widget.colors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (_saving) ...[
+              const SizedBox(width: 8),
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ],
+          ],
         ),
         subtitle: Text(
-          subtitle,
-          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          widget.subtitle,
+          style: TextStyle(color: widget.colors.textSecondary, fontSize: 12),
         ),
       ),
     );

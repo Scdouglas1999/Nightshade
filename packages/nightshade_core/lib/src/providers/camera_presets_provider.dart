@@ -75,6 +75,19 @@ final cameraPresetsSeedOnConnectProvider = Provider<void>((ref) {
 Future<void> _seedFromConnectedCamera(Ref ref, String deviceId) async {
   final backend = ref.read(deviceBackendProvider);
 
+  bool isStillCurrent() {
+    try {
+      final camera = ref.read(cameraStateProvider);
+      return identical(ref.read(deviceBackendProvider), backend) &&
+          camera.connectionState == DeviceConnectionState.connected &&
+          camera.deviceId == deviceId;
+    } catch (_) {
+      // The provider scope was disposed while the convenience seed was in
+      // flight. There is no longer an authority that can accept the result.
+      return false;
+    }
+  }
+
   final CameraRecommendedSettings rec;
   try {
     rec = await backend.cameraGetRecommendedSettings(deviceId);
@@ -83,6 +96,7 @@ Future<void> _seedFromConnectedCamera(Ref ref, String deviceId) async {
     // no-op: the unity_gain preset keeps its published default.
     return;
   }
+  if (!isStillCurrent()) return;
 
   // Pull the gain range so the recommendation is clamped to what the hardware
   // actually accepts. A null/failed capability query leaves the bounds open,
@@ -99,19 +113,27 @@ Future<void> _seedFromConnectedCamera(Ref ref, String deviceId) async {
     // Capability query threw; leave the bounds unknown and let
     // seedFromRecommended fall back to clamping against the value itself.
   }
+  if (!isStillCurrent()) return;
 
   await ref
       .read(cameraPresetsProvider.notifier)
-      .seedFromRecommended(rec, gainMin: gainMin, gainMax: gainMax);
+      .seedFromRecommended(
+        rec,
+        gainMin: gainMin,
+        gainMax: gainMax,
+        authorityGuard: isStillCurrent,
+      );
 }
 
 class CameraPresetsNotifier
     extends StateNotifier<AsyncValue<List<CameraPreset>>> {
   final Ref _ref;
   static const String _storageKey = 'camera_presets';
+  late final Future<void> _loadFuture;
+  Future<void> _mutationTail = Future<void>.value();
 
   CameraPresetsNotifier(this._ref) : super(const AsyncValue.loading()) {
-    _loadPresets();
+    _loadFuture = _loadPresets();
   }
 
   /// Load presets from storage
@@ -167,35 +189,58 @@ class CameraPresetsNotifier
 
   /// Save presets to storage
   Future<void> _savePresets(List<CameraPreset> presets) async {
-    try {
-      final dao = _ref.read(settingsDaoProvider);
-      final jsonList = presets.map((p) => p.toJson()).toList();
-      final jsonString = jsonEncode(jsonList);
-      await dao.setSetting(_storageKey, jsonString);
-    } catch (e, stack) {
-      state = AsyncValue.error(e, stack);
-    }
+    final dao = _ref.read(settingsDaoProvider);
+    final jsonList = presets.map((p) => p.toJson()).toList();
+    final jsonString = jsonEncode(jsonList);
+    await dao.setSetting(_storageKey, jsonString);
+  }
+
+  Future<void> _mutate(
+    FutureOr<List<CameraPreset>?> Function(List<CameraPreset> current) change, {
+    void Function()? afterSave,
+    bool Function()? authorityGuard,
+  }) {
+    final operation = _mutationTail.then((_) async {
+      await _loadFuture;
+      if (authorityGuard != null && !authorityGuard()) return;
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError('Camera presets are unavailable: ${state.error}');
+      }
+      final updated = await change(List<CameraPreset>.unmodifiable(current));
+      if (updated == null) return;
+      if (authorityGuard != null && !authorityGuard()) return;
+      await _savePresets(updated);
+      if (!mounted) return;
+      if (authorityGuard != null && !authorityGuard()) {
+        // Mutations are serialized by [_mutationTail], so restoring the
+        // confirmed list here cannot overwrite a newer user edit. It prevents
+        // a camera that changed during the settings write from poisoning the
+        // next camera's pristine seed check.
+        await _savePresets(current);
+        return;
+      }
+      state = AsyncValue.data(List<CameraPreset>.unmodifiable(updated));
+      afterSave?.call();
+    });
+    _mutationTail = operation.then<void>((_) {}, onError: (_, __) {});
+    return operation;
   }
 
   /// Add a new preset
-  Future<void> addPreset(CameraPreset preset) async {
-    final currentPresets = state.valueOrNull ?? [];
-
-    // Check for duplicate names
+  Future<void> addPreset(CameraPreset preset) => _mutate((currentPresets) {
     if (currentPresets.any(
       (p) => p.name.toLowerCase() == preset.name.toLowerCase(),
     )) {
       throw Exception('A preset with this name already exists');
     }
-
-    final updatedPresets = [...currentPresets, preset];
-    await _savePresets(updatedPresets);
-    state = AsyncValue.data(updatedPresets);
-  }
+    return [...currentPresets, preset];
+  });
 
   /// Update an existing preset
-  Future<void> updatePreset(String id, CameraPreset updatedPreset) async {
-    final currentPresets = state.valueOrNull ?? [];
+  Future<void> updatePreset(String id, CameraPreset updatedPreset) => _mutate((
+    currentPresets,
+  ) {
     final index = currentPresets.indexWhere((p) => p.id == id);
 
     if (index == -1) {
@@ -204,24 +249,21 @@ class CameraPresetsNotifier
 
     final updatedPresets = [...currentPresets];
     updatedPresets[index] = updatedPreset.copyWith(updatedAt: DateTime.now());
-
-    await _savePresets(updatedPresets);
-    state = AsyncValue.data(updatedPresets);
-  }
+    return updatedPresets;
+  });
 
   /// Delete a preset
-  Future<void> deletePreset(String id) async {
-    final currentPresets = state.valueOrNull ?? [];
-    final updatedPresets = currentPresets.where((p) => p.id != id).toList();
-
-    await _savePresets(updatedPresets);
-    state = AsyncValue.data(updatedPresets);
-
-    // Clear selection if deleted preset was selected
-    if (_ref.read(selectedPresetIdProvider) == id) {
-      _ref.read(selectedPresetIdProvider.notifier).state = null;
-    }
-  }
+  Future<void> deletePreset(String id) => _mutate(
+    (currentPresets) {
+      if (!currentPresets.any((preset) => preset.id == id)) return null;
+      return currentPresets.where((preset) => preset.id != id).toList();
+    },
+    afterSave: () {
+      if (_ref.read(selectedPresetIdProvider) == id) {
+        _ref.read(selectedPresetIdProvider.notifier).state = null;
+      }
+    },
+  );
 
   /// Apply a preset (updates exposure settings)
   void applyPreset(String id) {
@@ -269,55 +311,54 @@ class CameraPresetsNotifier
     CameraRecommendedSettings rec, {
     int? gainMin,
     int? gainMax,
-  }) async {
+    bool Function()? authorityGuard,
+  }) {
     final unityGain = rec.unityGain;
     // No recommended unity gain -> keep the honest literal default.
-    if (unityGain == null) return;
+    if (unityGain == null) return Future<void>.value();
 
-    final currentPresets = state.valueOrNull;
-    if (currentPresets == null) return;
+    return _mutate((currentPresets) {
+      final index = currentPresets.indexWhere(
+        (p) => p.id == kUnityGainPresetId,
+      );
+      if (index == -1) return null; // User deleted it; respect that.
 
-    final index = currentPresets.indexWhere((p) => p.id == kUnityGainPresetId);
-    if (index == -1) return; // User deleted the factory preset; respect that.
+      final existing = currentPresets[index];
+      // Only seed while the preset is still the untouched factory default. A
+      // user-renamed or re-tuned preset must not be clobbered.
+      final isPristine =
+          existing.name == 'Unity Gain' &&
+          existing.gain == kDefaultUnityGain &&
+          existing.offset == kDefaultUnityOffset;
+      if (!isPristine) return null;
 
-    final existing = currentPresets[index];
-    // Only seed while the preset is still the untouched factory default. A
-    // user-renamed or re-tuned preset must not be clobbered.
-    final isPristine =
-        existing.name == 'Unity Gain' &&
-        existing.gain == kDefaultUnityGain &&
-        existing.offset == kDefaultUnityOffset;
-    if (!isPristine) return;
+      // Clamp into the camera's accepted range. A null bound is unconstrained,
+      // so clamp against the value itself on that side (a no-op).
+      final int clampedGain = unityGain.clamp(
+        gainMin ?? unityGain,
+        gainMax ?? unityGain,
+      );
+      final seededOffset = rec.defaultOffset ?? kDefaultUnityOffset;
 
-    // Clamp into the camera's accepted range. A null bound is unconstrained,
-    // so clamp against the value itself on that side (a no-op).
-    final int clampedGain = unityGain.clamp(
-      gainMin ?? unityGain,
-      gainMax ?? unityGain,
-    );
-    final seededOffset = rec.defaultOffset ?? kDefaultUnityOffset;
+      // Nothing actually changes — avoid a needless write/state emit.
+      if (clampedGain == existing.gain && seededOffset == existing.offset) {
+        return null;
+      }
 
-    // Nothing actually changes — avoid a needless write/state emit.
-    if (clampedGain == existing.gain && seededOffset == existing.offset) {
-      return;
-    }
+      final updatedPresets = [...currentPresets];
+      updatedPresets[index] = existing.copyWith(
+        gain: clampedGain,
+        offset: seededOffset,
+        updatedAt: DateTime.now(),
+      );
 
-    final updatedPresets = [...currentPresets];
-    updatedPresets[index] = existing.copyWith(
-      gain: clampedGain,
-      offset: seededOffset,
-      updatedAt: DateTime.now(),
-    );
-
-    await _savePresets(updatedPresets);
-    state = AsyncValue.data(updatedPresets);
+      return updatedPresets;
+    }, authorityGuard: authorityGuard);
   }
 
   /// Reset to default presets
-  Future<void> resetToDefaults() async {
-    final defaults = _createDefaultPresets();
-    await _savePresets(defaults);
-    state = AsyncValue.data(defaults);
-    _ref.read(selectedPresetIdProvider.notifier).state = null;
-  }
+  Future<void> resetToDefaults() => _mutate(
+    (_) => _createDefaultPresets(),
+    afterSave: () => _ref.read(selectedPresetIdProvider.notifier).state = null,
+  );
 }

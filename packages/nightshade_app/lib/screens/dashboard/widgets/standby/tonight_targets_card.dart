@@ -54,7 +54,6 @@ class TonightTargetsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final planAsync = ref.watch(_briefingPlanProvider);
     final plan = planAsync.valueOrNull;
-    final loading = planAsync.isLoading;
 
     return DashboardGlassCard(
       colors: colors,
@@ -70,7 +69,7 @@ class TonightTargetsCard extends ConsumerWidget {
           ),
           const SizedBox(height: DashboardCardStyle.headerGap),
           if (plan == null || !plan.hasRecommendation)
-            _emptyBody(context, loading)
+            _emptyBody(context, ref, planAsync)
           else
             _planBody(context, plan),
         ],
@@ -78,8 +77,12 @@ class TonightTargetsCard extends ConsumerWidget {
     );
   }
 
-  Widget _emptyBody(BuildContext context, bool loading) {
-    if (loading) {
+  Widget _emptyBody(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<SessionOptimizationPlan> planAsync,
+  ) {
+    if (planAsync.isLoading) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
@@ -90,13 +93,41 @@ class TonightTargetsCard extends ConsumerWidget {
         ),
       );
     }
+    if (planAsync.hasError) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Couldn’t generate target recommendations. Check the catalog or '
+            'remote connection and try again.',
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.error,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          NightshadeButton(
+            label: 'Retry',
+            icon: LucideIcons.refreshCw,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: () => ref.invalidate(_briefingPlanProvider),
+          ),
+        ],
+      );
+    }
+    final plan = planAsync.valueOrNull;
+    final explanation = plan != null && plan.rationale.isNotEmpty
+        ? plan.rationale.first
+        : 'No suitable targets meet tonight’s planning constraints.';
+    final needsLocation = explanation.toLowerCase().contains('location');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'No target plan yet. Set your observing location to see tonight’s '
-          'best targets ranked for your sky.',
+          explanation,
           style: NightshadeTypography.bodySm.copyWith(
             color: colors.textSecondary,
             height: 1.4,
@@ -106,11 +137,16 @@ class TonightTargetsCard extends ConsumerWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: NightshadeButton(
-            label: 'Set location',
-            icon: LucideIcons.mapPin,
+            label: needsLocation ? 'Set location' : 'Open planner',
+            icon: needsLocation ? LucideIcons.mapPin : LucideIcons.arrowRight,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: () => context.go('/settings'),
+            // Deep-link to the Location section. Plain '/settings' lands on
+            // General and leaves the user hunting for the one field the button
+            // just promised to set.
+            onPressed: () => context.go(
+              needsLocation ? '/settings?section=location' : '/planner',
+            ),
           ),
         ),
       ],

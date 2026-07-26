@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/database.dart' show PhotometricTransformRow;
 import '../models/science/science_models.dart';
 import '../backend/network_backend.dart';
 import '../services/science/photometric_transform_service.dart';
+import '../utils/resilient_poll_stream.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 
@@ -14,7 +17,10 @@ final allPhotometricTransformsProvider =
     StreamProvider<List<PhotometricTransformRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return _pollRemoteTransforms(backend);
+        return _pollRemoteTransforms(
+          backend,
+          interval: ref.watch(remotePhotometricTransformPollIntervalProvider),
+        );
       }
       return ref.watch(scienceDaoProvider).watchAllTransforms();
     });
@@ -25,7 +31,11 @@ final activeProfileTransformsProvider =
       final backend = ref.watch(backendProvider);
       final profileId = ref.watch(activeEquipmentProfileIdProvider);
       if (backend is NetworkBackend) {
-        return _pollRemoteTransforms(backend, profileId: profileId);
+        return _pollRemoteTransforms(
+          backend,
+          profileId: profileId,
+          interval: ref.watch(remotePhotometricTransformPollIntervalProvider),
+        );
       }
       return ref.watch(scienceDaoProvider).watchTransformsForProfile(profileId);
     });
@@ -35,6 +45,12 @@ final activeEquipmentProfileIdProvider = Provider<int?>((ref) {
   final profile = ref.watch(activeProfileProvider).valueOrNull;
   return profile?.id;
 });
+
+/// Host transform catalogs are low-churn. Exposed for deterministic poll
+/// recovery tests without waiting for the production interval.
+final remotePhotometricTransformPollIntervalProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 10),
+);
 
 /// Provides the transform coefficients for a given filter, considering the
 /// active equipment profile.
@@ -77,13 +93,21 @@ final transformForFilterProvider =
 Stream<List<PhotometricTransformRow>> _pollRemoteTransforms(
   NetworkBackend backend, {
   int? profileId,
-}) async* {
-  yield await backend.getPhotometricTransforms(profileId: profileId);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await backend.getPhotometricTransforms(profileId: profileId);
-  }
-}
+  Duration interval = const Duration(seconds: 10),
+}) => resilientDistinctPoll(
+  fetch: () => backend.getPhotometricTransforms(profileId: profileId),
+  unchanged: listEquals,
+  interval: interval,
+  onRetainedError: (error, stackTrace) {
+    developer.log(
+      'Remote photometric-transform poll failed; retaining last value',
+      name: 'PhotometricTransformProvider',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  },
+);
 
 List<TransformStarMatch> _decodeTransformFitData(String? raw) {
   if (raw == null || raw.isEmpty) {

@@ -1,10 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Host endpoints serving the planner/scheduler DATA tables to remote slaves.
 ///
@@ -34,11 +33,8 @@ class PlanningDataHandlers {
 
   ProjectService get _projectService => container.read(projectServiceProvider);
 
-  int? _intParam(Request request, String key) {
-    final raw = request.url.queryParameters[key];
-    if (raw == null) return null;
-    return int.tryParse(raw);
-  }
+  int? _intParam(Request request, String key) =>
+      optionalQueryInt(request.url.queryParameters, key, min: 1);
 
   // ===========================================================================
   // Integration goals
@@ -47,8 +43,8 @@ class PlanningDataHandlers {
   /// GET /api/integration-goals?targetId=
   Future<Response> handleGetIntegrationGoals(Request request) async {
     _logInfo('[API] GET /api/integration-goals');
+    final targetId = _intParam(request, 'targetId');
     try {
-      final targetId = _intParam(request, 'targetId');
       final goals = targetId != null
           ? await _goalService.listForTarget(targetId)
           : await _goalService.listAll();
@@ -61,9 +57,13 @@ class PlanningDataHandlers {
   /// GET /api/integration-goals/captured-count?targetId=&filter=
   Future<Response> handleGetCapturedFrameCount(Request request) async {
     _logInfo('[API] GET /api/integration-goals/captured-count');
-    final targetId = _intParam(request, 'targetId');
-    final filter = request.url.queryParameters['filter'];
-    if (targetId == null || filter == null) {
+    final targetId = requireQueryInt(
+      request.url.queryParameters,
+      'targetId',
+      min: 1,
+    );
+    final filter = request.url.queryParameters['filter']?.trim();
+    if (filter == null || filter.isEmpty) {
       return jsonBadRequest({'error': 'Missing targetId or filter'});
     }
     try {
@@ -80,35 +80,60 @@ class PlanningDataHandlers {
   /// POST /api/integration-goals — upsert.
   Future<Response> handleUpsertIntegrationGoal(Request request) async {
     _logInfo('[API] POST /api/integration-goals');
-    try {
-      final body =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final goal = IntegrationGoal.fromJson(body);
-      final id = await _goalService.upsert(goal);
-      return jsonOk({'id': id});
-    } catch (e) {
-      return jsonInternalServerError({'error': 'Failed to upsert goal: $e'});
+    final body = await readJsonObject(request);
+    // IntegrationGoal.fromJson is documented as a TOLERANT decoder (every field
+    // defaults) because it backs the host->slave mirror. Fed request data
+    // directly it accepted `{"targetId": N}` and persisted a goal the scheduler
+    // then scores with filter "", exposureSeconds 0.0, frameCount 0 and a 1970
+    // timestamp. Validate the fields that make a goal meaningful first.
+    final targetId = requireInt(body, 'targetId', min: 1);
+    requireString(body, 'filter', maxLength: 64);
+    requireDouble(body, 'exposureSeconds', min: 0.000001);
+    requireInt(body, 'frameCount', min: 1);
+    // And pre-check the FK the way analytics_handlers does: without this a
+    // nonexistent targetId surfaced as a 500 that echoed the raw
+    // "SqliteException(787): FOREIGN KEY constraint failed" to the caller.
+    final db = container.read(databaseProvider);
+    if (await db.targetsDao.getTargetById(targetId) == null) {
+      throw BadRequestError(
+        field: 'targetId',
+        expected: 'an existing target id',
+      );
     }
+    final goal = IntegrationGoal.fromJson(body);
+    final id = await _goalService.upsert(goal);
+    return jsonOk({'id': id});
   }
 
   /// DELETE /api/integration-goals?id=|targetId=|all=true
   Future<Response> handleDeleteIntegrationGoal(Request request) async {
     _logInfo('[API] DELETE /api/integration-goals');
+    final query = request.url.queryParameters;
+    final deleteAll = optionalQueryBool(query, 'all') ?? false;
+    final targetId = _intParam(request, 'targetId');
+    final id = _intParam(request, 'id');
+    final selectorCount = [
+      deleteAll,
+      targetId != null,
+      id != null,
+    ].where((selected) => selected).length;
+    if (selectorCount != 1) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'exactly one of id, targetId, or all=true',
+        message: 'Specify exactly one of id, targetId, or all=true',
+      );
+    }
     try {
-      if (request.url.queryParameters['all'] == 'true') {
+      if (deleteAll) {
         await _goalService.deleteAll();
         return jsonOk({'success': true});
       }
-      final targetId = _intParam(request, 'targetId');
       if (targetId != null) {
         await _goalService.deleteForTarget(targetId);
         return jsonOk({'success': true});
       }
-      final id = _intParam(request, 'id');
-      if (id == null) {
-        return jsonBadRequest({'error': 'Missing id, targetId, or all'});
-      }
-      await _goalService.delete(id);
+      await _goalService.delete(id!);
       return jsonOk({'success': true});
     } catch (e) {
       return jsonInternalServerError({'error': 'Failed to delete goal: $e'});
@@ -122,8 +147,8 @@ class PlanningDataHandlers {
   /// GET /api/target-constraints?targetId=
   Future<Response> handleGetTargetConstraints(Request request) async {
     _logInfo('[API] GET /api/target-constraints');
+    final targetId = _intParam(request, 'targetId');
     try {
-      final targetId = _intParam(request, 'targetId');
       final constraints = targetId != null
           ? await _constraintService.listForTarget(targetId)
           : await _constraintService.listAll();
@@ -140,73 +165,78 @@ class PlanningDataHandlers {
   /// POST /api/target-constraints — insert.
   Future<Response> handleInsertTargetConstraint(Request request) async {
     _logInfo('[API] POST /api/target-constraints');
-    try {
-      final body =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final constraint = TargetConstraint.fromJson(body);
-      final id = await _constraintService.insert(constraint);
-      return jsonOk({'id': id});
-    } catch (e) {
-      return jsonInternalServerError({
-        'error': 'Failed to insert constraint: $e',
-      });
+    final body = await readJsonObject(request);
+    _requireValidConstraintKind(body);
+    final constraint = TargetConstraint.fromJson(body);
+    final id = await _constraintService.insert(constraint);
+    return jsonOk({'id': id});
+  }
+
+  /// Validate `kind` before handing the body to `TargetConstraint.fromJson`.
+  /// `fromRow`'s StateError is the right response to a corrupt DB row, but for
+  /// request input it surfaces as a 500 (server fault) when a missing or
+  /// misspelled kind is really a 400 (client error).
+  void _requireValidConstraintKind(Map<String, dynamic> body) {
+    final kindName = body['kind'];
+    final validKinds = TargetConstraintKind.values.map((k) => k.name).toList();
+    if (kindName is! String || !validKinds.contains(kindName)) {
+      throw BadRequestError(
+        field: 'kind',
+        expected: validKinds.join(' | '),
+        message: 'Missing or unknown constraint kind',
+      );
     }
   }
 
   /// POST /api/target-constraints/update — update in place.
   Future<Response> handleUpdateTargetConstraint(Request request) async {
     _logInfo('[API] POST /api/target-constraints/update');
-    try {
-      final body =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final constraint = TargetConstraint.fromJson(body);
-      await _constraintService.update(constraint);
-      return jsonOk({'success': true});
-    } catch (e) {
-      return jsonInternalServerError({
-        'error': 'Failed to update constraint: $e',
-      });
-    }
+    final body = await readJsonObject(request);
+    _requireValidConstraintKind(body);
+    final constraint = TargetConstraint.fromJson(body);
+    await _constraintService.update(constraint);
+    return jsonOk({'success': true});
   }
 
   /// POST /api/target-constraints/set-enabled — toggle.
   Future<Response> handleSetTargetConstraintEnabled(Request request) async {
     _logInfo('[API] POST /api/target-constraints/set-enabled');
-    try {
-      final body =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final id = (body['id'] as num?)?.toInt();
-      final enabled = body['enabled'] as bool?;
-      if (id == null || enabled == null) {
-        return jsonBadRequest({'error': 'Missing id or enabled'});
-      }
-      await _constraintService.setEnabled(id, enabled);
-      return jsonOk({'success': true});
-    } catch (e) {
-      return jsonInternalServerError({
-        'error': 'Failed to set constraint enabled: $e',
-      });
-    }
+    final body = await readJsonObject(request);
+    final id = requireInt(body, 'id');
+    final enabled = requireBool(body, 'enabled');
+    await _constraintService.setEnabled(id, enabled);
+    return jsonOk({'success': true});
   }
 
   /// DELETE /api/target-constraints?id=|targetId=|all=true
   Future<Response> handleDeleteTargetConstraint(Request request) async {
     _logInfo('[API] DELETE /api/target-constraints');
+    final query = request.url.queryParameters;
+    final deleteAll = optionalQueryBool(query, 'all') ?? false;
+    final targetId = _intParam(request, 'targetId');
+    final id = _intParam(request, 'id');
+    final selectorCount = [
+      deleteAll,
+      targetId != null,
+      id != null,
+    ].where((selected) => selected).length;
+    if (selectorCount != 1) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'exactly one of id, targetId, or all=true',
+        message: 'Specify exactly one of id, targetId, or all=true',
+      );
+    }
     try {
-      if (request.url.queryParameters['all'] == 'true') {
+      if (deleteAll) {
         await _constraintService.deleteAll();
         return jsonOk({'success': true});
       }
-      final targetId = _intParam(request, 'targetId');
       if (targetId != null) {
         await _constraintService.deleteForTarget(targetId);
         return jsonOk({'success': true});
       }
-      final id = _intParam(request, 'id');
-      if (id == null) {
-        return jsonBadRequest({'error': 'Missing id, targetId, or all'});
-      }
-      await _constraintService.delete(id);
+      await _constraintService.delete(id!);
       return jsonOk({'success': true});
     } catch (e) {
       return jsonInternalServerError({
@@ -273,10 +303,11 @@ class PlanningDataHandlers {
   /// GET /api/projects/targets?projectId=
   Future<Response> handleGetProjectTargets(Request request) async {
     _logInfo('[API] GET /api/projects/targets');
-    final projectId = _intParam(request, 'projectId');
-    if (projectId == null) {
-      return jsonBadRequest({'error': 'Missing projectId'});
-    }
+    final projectId = requireQueryInt(
+      request.url.queryParameters,
+      'projectId',
+      min: 1,
+    );
     try {
       final targets = await _projectService.listTargets(projectId);
       return jsonOk({'targets': targets.map((t) => t.toJson()).toList()});
@@ -290,10 +321,11 @@ class PlanningDataHandlers {
   /// GET /api/projects/progress?projectId=
   Future<Response> handleGetProjectProgress(Request request) async {
     _logInfo('[API] GET /api/projects/progress');
-    final projectId = _intParam(request, 'projectId');
-    if (projectId == null) {
-      return jsonBadRequest({'error': 'Missing projectId'});
-    }
+    final projectId = requireQueryInt(
+      request.url.queryParameters,
+      'projectId',
+      min: 1,
+    );
     try {
       final progress = await _projectService.buildProgress(projectId);
       return jsonOk(progress.toJson());

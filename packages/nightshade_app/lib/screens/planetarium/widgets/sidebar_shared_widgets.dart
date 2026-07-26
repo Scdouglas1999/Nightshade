@@ -279,7 +279,8 @@ class TargetCard extends StatefulWidget {
   final String name;
   final String catalog;
   final String type;
-  final String altitude;
+  final String? altitude;
+  final String? magnitude;
   final String transit;
   final NightshadeColors colors;
   final VoidCallback? onTap;
@@ -291,7 +292,8 @@ class TargetCard extends StatefulWidget {
     required this.name,
     required this.catalog,
     required this.type,
-    required this.altitude,
+    this.altitude,
+    this.magnitude,
     required this.transit,
     required this.colors,
     this.onTap,
@@ -427,9 +429,14 @@ class _TargetCardState extends State<TargetCard> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    widget.altitude,
-                    style: NightshadeTypography.labelStrong
-                        .copyWith(color: widget.colors.success),
+                    widget.magnitude ?? widget.altitude ?? '-',
+                    style: NightshadeTypography.labelStrong.copyWith(
+                      // Magnitude is a neutral catalog value, not a transit
+                      // altitude — keep it out of the success-green slot.
+                      color: widget.magnitude != null
+                          ? widget.colors.textSecondary
+                          : widget.colors.success,
+                    ),
                   ),
                   Text(
                     widget.transit,

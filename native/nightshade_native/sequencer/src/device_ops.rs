@@ -9,6 +9,21 @@ use std::sync::Arc;
 /// Result type for device operations
 pub type DeviceResult<T> = Result<T, String>;
 
+/// Error text every guider op returns when the rig simply has no guider.
+///
+/// The bridge produces this from `ok_or_else` on the "which guider is active?"
+/// lookup, so it means "nothing to do", not "the operation failed". Callers that
+/// escalate device errors to the operator must special-case it: a rig imaging
+/// unguided is a normal configuration, and reporting it as a failure buries the
+/// real problem under noise.
+pub const NO_GUIDER_CONFIGURED: &str = "No active guider configured";
+
+/// Whether [`DeviceResult`] error text is the benign "this rig has no guider"
+/// marker rather than a real guider failure.
+pub fn is_no_guider_configured(error: &str) -> bool {
+    error.contains(NO_GUIDER_CONFIGURED)
+}
+
 /// Image data returned from camera
 #[derive(Debug, Clone)]
 pub struct ImageData {
@@ -26,6 +41,15 @@ pub struct ImageData {
     pub sensor_type: Option<String>,
     /// Bayer pattern offset (X, Y) - determines actual pattern based on offsets
     pub bayer_offset: Option<(i32, i32)>,
+}
+
+/// Binned-pixel camera ROI used for one exposure.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CameraSubframe {
+    pub start_x: u32,
+    pub start_y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// Plate solve result
@@ -128,6 +152,62 @@ pub trait DeviceOps: Send + Sync {
         bin_x: i32,
         bin_y: i32,
     ) -> DeviceResult<ImageData>;
+
+    /// Start an exposure of a specific frame type and return the image data.
+    ///
+    /// `frame_type` is the sequencer's frame-type string ("Light"/"Dark"/"Flat"/
+    /// "Bias"/"DarkFlat", case-insensitive). It drives mechanical-shutter behavior
+    /// for dark/bias frames on cameras with a shutter (Moravian, FLI, some CCDs):
+    /// dark/bias must be exposed with the shutter CLOSED to exclude light.
+    ///
+    /// The default delegates to `camera_start_exposure`, treating every frame as
+    /// shutter-open — so implementations that don't drive shuttered hardware (test
+    /// doubles, simulators, the guider) need not override it.
+    async fn camera_start_exposure_with_frame_type(
+        &self,
+        camera_id: &str,
+        duration_secs: f64,
+        gain: Option<i32>,
+        offset: Option<i32>,
+        bin_x: i32,
+        bin_y: i32,
+        frame_type: &str,
+    ) -> DeviceResult<ImageData> {
+        let _ = frame_type;
+        self.camera_start_exposure(camera_id, duration_secs, gain, offset, bin_x, bin_y)
+            .await
+    }
+
+    /// Start an exposure with the complete per-frame acquisition contract.
+    ///
+    /// The default keeps existing implementations source-compatible while
+    /// failing closed if a caller asks an implementation that has not opted
+    /// into ROI support to crop a frame.
+    async fn camera_start_exposure_configured(
+        &self,
+        camera_id: &str,
+        duration_secs: f64,
+        gain: Option<i32>,
+        offset: Option<i32>,
+        bin_x: i32,
+        bin_y: i32,
+        subframe: Option<CameraSubframe>,
+        frame_type: &str,
+    ) -> DeviceResult<ImageData> {
+        if subframe.is_some() {
+            return Err("Camera subframes are not supported by this device backend".to_string());
+        }
+        self.camera_start_exposure_with_frame_type(
+            camera_id,
+            duration_secs,
+            gain,
+            offset,
+            bin_x,
+            bin_y,
+            frame_type,
+        )
+        .await
+    }
 
     /// Abort current exposure
     async fn camera_abort_exposure(&self, camera_id: &str) -> DeviceResult<()>;
@@ -1798,5 +1878,27 @@ mod tests {
         assert!(!result.success);
         assert_eq!(result.attempts_made, 1);
         assert_eq!(ops_concrete.attempts(), 1);
+    }
+}
+
+#[cfg(test)]
+mod no_guider_marker_tests {
+    use super::*;
+
+    /// The marker is matched by TEXT across crate boundaries (the bridge builds
+    /// it, the sequencer classifies it), so it is worth pinning: a reworded
+    /// message would silently turn every unguided abort back into a critical
+    /// "failed to stop guiding" alert, and every unguided dither back into a
+    /// fail-closed sequence abort.
+    #[test]
+    fn recognises_the_no_guider_marker_and_nothing_else() {
+        assert!(is_no_guider_configured(NO_GUIDER_CONFIGURED));
+        assert!(is_no_guider_configured(&format!(
+            "Operation failed: {NO_GUIDER_CONFIGURED}"
+        )));
+        // Real guider failures must stay loud.
+        assert!(!is_no_guider_configured("Guide star lost"));
+        assert!(!is_no_guider_configured("PHD2 connection refused"));
+        assert!(!is_no_guider_configured("Settle timed out after 120s"));
     }
 }

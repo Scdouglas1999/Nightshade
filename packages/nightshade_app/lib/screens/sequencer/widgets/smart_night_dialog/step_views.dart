@@ -65,7 +65,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
     // looking button that does nothing — the only real exit is the body's
     // "Back to strategy". Disable Next here so the affordance matches reality.
     final primaryDisabled =
-        _isBuildingPreview || (_step == 4 && _preview == null);
+        _isBuildingPreview || _isStarting || (_step == 4 && _preview == null);
     return Row(
       children: [
         if (_step > 0)
@@ -149,7 +149,12 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           ),
           const SizedBox(height: 16),
           if (start == null || end == null)
-            _MissingLocationCard(colors: colors)
+            _windowError == null
+                ? _MissingLocationCard(colors: colors)
+                : _WindowUnavailableCard(
+                    colors: colors,
+                    message: _windowError!,
+                  )
           else
             Container(
               padding: const EdgeInsets.all(14),
@@ -227,12 +232,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
               onChanged: (v) {
                 _update(() => _settings =
                     _settings.copyWith(maxSessionHours: v.clamp(1.0, 14.0)));
-                // Persist the cap as a top-level setting too so the
-                // setting survives even though the wizard's local
-                // `_settings.maxSessionHours` is non-nullable.
-                ref
-                    .read(appSettingsProvider.notifier)
-                    .setSmartNightMaxSessionHours(v.clamp(1.0, 14.0));
+                _persistSettings();
               },
             ),
           ),
@@ -441,8 +441,12 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                 child: _CompactNumberField(
                   initial: _autoSelectCount.toDouble(),
                   suffix: '',
-                  onChanged: (v) =>
-                      _update(() => _autoSelectCount = v.round().clamp(1, 10)),
+                  onChanged: (v) {
+                    _update(
+                      () => _autoSelectCount = v.round().clamp(1, 10),
+                    );
+                    _persistSettings();
+                  },
                 ),
               ),
               const SizedBox(width: 4),
@@ -458,10 +462,13 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             FilterChip(
               label: const Text('Auto-pick'),
               selected: _autoSelect,
-              onSelected: (v) => _update(() {
-                _autoSelect = v;
-                if (v) _selectedTargetIds.clear();
-              }),
+              onSelected: (v) {
+                _update(() {
+                  _autoSelect = v;
+                  if (v) _selectedTargetIds.clear();
+                });
+                _persistSettings();
+              },
             ),
           ],
         ),
@@ -500,9 +507,23 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(
-              child: Text(
-                'Failed to load suggestions: $e',
-                style: TextStyle(color: colors.error),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Failed to load suggestions: $e',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: colors.error),
+                  ),
+                  const SizedBox(height: 10),
+                  NightshadeButton(
+                    label: 'Retry',
+                    icon: LucideIcons.refreshCw,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () => ref.invalidate(tonightSuggestionsProvider),
+                  ),
+                ],
               ),
             ),
           ),
@@ -612,8 +633,11 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             child: _CompactNumberField(
               initial: _settings.subExposureFloorSecs,
               suffix: 's',
-              onChanged: (v) => _update(() =>
-                  _settings = _settings.copyWith(subExposureFloorSecs: v)),
+              onChanged: (v) {
+                _update(() =>
+                    _settings = _settings.copyWith(subExposureFloorSecs: v));
+                _persistSettings();
+              },
             ),
           ),
           _SettingsRow(
@@ -622,8 +646,11 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             child: _CompactNumberField(
               initial: _settings.subExposureCeilingSecs,
               suffix: 's',
-              onChanged: (v) => _update(() =>
-                  _settings = _settings.copyWith(subExposureCeilingSecs: v)),
+              onChanged: (v) {
+                _update(() =>
+                    _settings = _settings.copyWith(subExposureCeilingSecs: v));
+                _persistSettings();
+              },
             ),
           ),
           _SettingsRow(

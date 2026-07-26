@@ -105,6 +105,40 @@ class StaticFileHandlers {
     return _serveFile(findDashboardDir(), 'index.html', surface: 'dashboard');
   }
 
+  /// `GET /` — send a browser to the dashboard, answer machines in JSON.
+  ///
+  /// Typing the host into a browser used to produce raw JSON:
+  /// `{"error":"Authentication required", ...}` with `content-type:
+  /// application/json` when unauthenticated, and a plain-text `Route not found`
+  /// once authenticated. The site root had no route at all, so an operator who
+  /// did not already know `/dashboard` existed had nothing to go on.
+  ///
+  /// Content negotiation rather than an unconditional redirect: scripts and
+  /// health checks hit `/` too, and a 302 into an HTML SPA is a worse answer for
+  /// them than a JSON pointer.
+  Future<Response> handleRoot(Request request) async {
+    final accept = request.headers['accept'] ?? '';
+    if (accept.contains('text/html')) {
+      return Response.found('/dashboard');
+    }
+    return jsonOk({
+      'service': 'nightshade',
+      'dashboard': dashboardAvailable ? '/dashboard' : null,
+      'api': '/api/info',
+    });
+  }
+
+  /// `GET /favicon.ico` — 204 rather than an auth failure.
+  ///
+  /// Browsers request this unprompted on every page load. It was hitting the
+  /// bearer-token middleware and returning 401, which put an authentication
+  /// failure in the server log and an error in the console for every single page
+  /// view. The SPAs declare their own inline `data:` icon, so there is no file to
+  /// serve here — "nothing here, stop asking" is the honest answer.
+  Future<Response> handleFavicon(Request request) async {
+    return Response(204, headers: {'cache-control': 'public, max-age=86400'});
+  }
+
   /// `GET /dashboard/<path>` — serve any nested asset, blocking
   /// directory traversal at the normalisation step.
   Future<Response> handleDashboardFile(Request request, String path) async {

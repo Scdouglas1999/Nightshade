@@ -157,11 +157,18 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
               final content = await file.readAsString();
               final extension = file.name.split('.').last.toLowerCase();
 
-              int importedCount = 0;
+              final importer = TargetLibraryImporter(
+                ref.read(databaseProvider),
+              );
+              final int importedCount;
               if (extension == 'csv') {
-                importedCount = await _importTargetsFromCsv(content);
+                importedCount = await importer.importCsv(content);
               } else if (extension == 'json') {
-                importedCount = await _importTargetsFromJson(content);
+                importedCount = await importer.importJson(content);
+              } else {
+                throw const TargetLibraryImportException(
+                  'Choose a .csv or .json target file.',
+                );
               }
 
               if (context.mounted) {
@@ -187,110 +194,5 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
       context: context,
       builder: (context) => const _AddTargetDialog(),
     );
-  }
-
-  Future<int> _importTargetsFromCsv(String content) async {
-    final lines = content.split('\n');
-    if (lines.isEmpty) return 0;
-
-    // Skip header if present
-    int startIndex = 0;
-    if (lines[0].toLowerCase().contains('name') ||
-        lines[0].toLowerCase().contains('ra') ||
-        lines[0].toLowerCase().contains('dec')) {
-      startIndex = 1;
-    }
-
-    int imported = 0;
-    final targetsDao = ref.read(targetsDaoProvider);
-
-    for (int i = startIndex; i < lines.length; i++) {
-      final line = lines[i].trim();
-      if (line.isEmpty) continue;
-
-      final parts = line.split(',').map((p) => p.trim()).toList();
-      if (parts.length < 3) continue; // Need at least name, RA, Dec
-
-      try {
-        final name = parts[0];
-        final ra = double.tryParse(parts[1]);
-        final dec = double.tryParse(parts[2]);
-
-        if (ra == null || dec == null) continue;
-
-        await targetsDao.createTarget(
-          TargetsCompanion.insert(
-            name: name,
-            catalogId: parts.length > 3
-                ? Value(parts[3])
-                : const Value.absent(),
-            ra: ra,
-            dec: dec,
-            objectType: parts.length > 4
-                ? Value(parts[4])
-                : const Value.absent(),
-          ),
-        );
-        imported++;
-      } catch (e) {
-        // Skip invalid rows
-        continue;
-      }
-    }
-
-    return imported;
-  }
-
-  Future<int> _importTargetsFromJson(String content) async {
-    try {
-      final json = jsonDecode(content);
-      final List<dynamic> targetsList;
-
-      if (json is List) {
-        targetsList = json;
-      } else if (json is Map && json['targets'] != null) {
-        targetsList = json['targets'] as List<dynamic>;
-      } else {
-        return 0;
-      }
-
-      int imported = 0;
-      final targetsDao = ref.read(targetsDaoProvider);
-
-      for (final targetJson in targetsList) {
-        if (targetJson is! Map<String, dynamic>) continue;
-
-        try {
-          final name = targetJson['name'] as String?;
-          final ra = (targetJson['ra'] as num?)?.toDouble();
-          final dec = (targetJson['dec'] as num?)?.toDouble();
-
-          if (name == null || ra == null || dec == null) continue;
-
-          await targetsDao.createTarget(
-            TargetsCompanion.insert(
-              name: name,
-              catalogId: Value(targetJson['catalogId'] as String?),
-              ra: ra,
-              dec: dec,
-              objectType: Value(targetJson['objectType'] as String?),
-              magnitude: targetJson['magnitude'] != null
-                  ? Value((targetJson['magnitude'] as num).toDouble())
-                  : const Value.absent(),
-              constellation: Value(targetJson['constellation'] as String?),
-              notes: Value(targetJson['notes'] as String?),
-            ),
-          );
-          imported++;
-        } catch (e) {
-          // Skip invalid entries
-          continue;
-        }
-      }
-
-      return imported;
-    } catch (e) {
-      return 0;
-    }
   }
 }

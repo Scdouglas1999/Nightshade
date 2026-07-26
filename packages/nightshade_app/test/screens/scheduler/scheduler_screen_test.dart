@@ -10,6 +10,8 @@
 // currentSchedulerDecisionProvider, plus the integration goals,
 // constraint, and target streams) with deterministic test doubles.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -93,6 +95,13 @@ List<Override> _commonOverrides({
   TargetConstraintService? constraintService,
 }) {
   return [
+    schedulerEngineReadyProvider.overrideWith(
+      (ref) => ref.read(schedulerEngineProvider),
+    ),
+    schedulerPreviewDecisionProvider.overrideWith(
+      (ref) => Completer<SchedulerDecision>().future,
+    ),
+    schedulerAutoReevalProvider.overrideWith((ref) {}),
     allDbTargetsProvider.overrideWith(
       (ref) => const Stream<List<ndb.Target>>.empty(),
     ),

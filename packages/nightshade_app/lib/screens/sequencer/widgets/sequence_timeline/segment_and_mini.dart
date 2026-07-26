@@ -93,7 +93,7 @@ class _MiniTimeline extends StatelessWidget {
       case TimelineSegmentType.filter:
         return colors.success.withValues(alpha: 0.7);
       case TimelineSegmentType.instruction:
-        return colors.surfaceAlt;
+        return colors.textSecondary.withValues(alpha: 0.55);
     }
   }
 }

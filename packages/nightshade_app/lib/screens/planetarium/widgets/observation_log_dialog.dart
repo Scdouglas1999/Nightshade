@@ -4,6 +4,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/snackbar_helper.dart';
+
 /// Dialog for quickly logging an observation from the planetarium view.
 /// Pre-fills object name, coordinates, altitude, current time.
 class ObservationLogDialog extends ConsumerStatefulWidget {
@@ -87,16 +89,25 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
       longitude: location.longitude,
     );
 
-    if (mounted) {
-      Navigator.of(context).pop(id != null);
+    if (!mounted) return;
+
+    if (id == null) {
+      setState(() => _isSaving = false);
+      context.showErrorSnackBar(
+        ref.read(observationLogNotifierProvider).errorMessage ??
+            'Failed to log observation',
+      );
+      return;
     }
+
+    Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       backgroundColor: colors.surface,
       title: Row(
         children: [
@@ -257,7 +268,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
       ),
       actions: [
         NightshadeButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
           label: 'Cancel',
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
@@ -270,6 +281,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
         ),
       ],
     );
+    return PopScope(canPop: !_isSaving, child: dialog);
   }
 
   String _formatTimestamp(DateTime dt) {

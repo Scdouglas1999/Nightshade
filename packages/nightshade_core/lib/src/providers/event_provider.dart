@@ -69,8 +69,17 @@ final nightshadeEventsProvider = StreamProvider<NightshadeEvent>((ref) {
     return nativeStream;
   }
 
+  // Same guard as the NetworkBackend branch above: `HostStateChanged` is a
+  // host-mutation SYNC envelope (applied by host_local_sync_provider), NOT a
+  // telemetry event. Every event on the mutation hub is a HostStateChanged, so
+  // without this filter bridgeEventFromCoreEvent's default arm turned each one
+  // into a `SystemEvent.error` — meaning any local settings write or companion
+  // client mutation flashed a red "System error: HostStateChanged" banner on
+  // the desktop (the embedded server's whole purpose is companion writes, so
+  // this fired constantly).
   final mutationStream = ref
       .watch(hostMutationEventStreamProvider)
+      .where((event) => event.eventType != hostStateChangedEventType)
       .map(bridgeEventFromCoreEvent);
   return _mergeEventStreams(nativeStream, mutationStream);
 });

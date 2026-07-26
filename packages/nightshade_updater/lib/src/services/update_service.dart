@@ -8,7 +8,9 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/update_manifest.dart';
+import 'anti_freeze_store.dart';
 import 'archive_extraction.dart';
+import 'update_compatibility.dart';
 import 'update_downloader.dart';
 import 'update_verifier.dart';
 
@@ -59,9 +61,12 @@ class UpdateService {
   final int _currentBuildNumber;
   final UpdateDownloader _downloader;
   final UpdateVerifier _verifier;
+  final AntiFreezeStore _antiFreezeStore;
   final http.Client _httpClient;
   final Future<Directory> Function() _applicationSupportDirectoryProvider;
   final bool _allowInsecureUpdateSource;
+  final String _currentPlatform;
+  final String _currentArch;
   final _NoticeQueue _noticeQueue = _NoticeQueue();
 
   String? _updateServerUrl;
@@ -73,8 +78,11 @@ class UpdateService {
     required int currentBuildNumber,
     UpdateDownloader? downloader,
     UpdateVerifier? verifier,
+    AntiFreezeStore? antiFreezeStore,
     http.Client? httpClient,
     Future<Directory> Function()? applicationSupportDirectoryProvider,
+    String? currentPlatform,
+    String? currentArch,
     // SEC-001: OTA sources must use https. This default-off escape hatch
     // only exists for trusted local testing (e.g. a loopback mock server)
     // and is sourced from a compile-time define so production builds can
@@ -86,11 +94,35 @@ class UpdateService {
        _currentBuildNumber = currentBuildNumber,
        _downloader = downloader ?? UpdateDownloader(),
        _verifier = verifier ?? UpdateVerifier(),
+       _antiFreezeStore =
+           antiFreezeStore ??
+           AntiFreezeStore(
+             applicationSupportDirectoryProvider ??
+                 getApplicationSupportDirectory,
+           ),
        _httpClient = httpClient ?? http.Client(),
        _applicationSupportDirectoryProvider =
            applicationSupportDirectoryProvider ??
            getApplicationSupportDirectory,
-       _allowInsecureUpdateSource = allowInsecureUpdateSource;
+       _allowInsecureUpdateSource = allowInsecureUpdateSource,
+       _currentPlatform = normalizeUpdatePlatform(
+         currentPlatform ?? Platform.operatingSystem,
+       ),
+       _currentArch = normalizeUpdateArchitecture(
+         currentArch ?? currentUpdateArchitecture(),
+       );
+
+  /// Whether this build can cryptographically authenticate update manifests
+  /// to the vendor key. False when no trusted Ed25519 public key is compiled
+  /// in (or every key id has been revoked): OTA can still surface that an
+  /// update exists, but [downloadAndStage] / [applyUpdate] fail closed. The
+  /// wiring reads this to warn when a server is configured against a build
+  /// that cannot accept downloads.
+  bool get canAuthenticateUpdates => _verifier.hasTrustedPublicKey;
+
+  /// Whether an Abort request can still interrupt the network transfer.
+  /// Verification/extraction deliberately run to a clean terminal state.
+  bool get canCancelDownload => _currentDownloadToken != null;
 
   /// SEC-001: refuse any update source URL that is not https.
   ///
@@ -222,6 +254,13 @@ class UpdateService {
       // Check if newer version available
       final latestVersion = channelInfo.version;
       final manifest = await _fetchManifest(channelInfo.manifestUrl);
+      if (manifest.version != latestVersion) {
+        throw UpdateException(
+          'Update metadata mismatch: channel "$_channel" advertises '
+          '$latestVersion, but its manifest identifies ${manifest.version}.',
+        );
+      }
+      _assertManifestCompatibility(manifest);
 
       // Offer when the semver is strictly newer, or when it matches the
       // current semver but carries a higher build (same-version hotfix).
@@ -252,16 +291,19 @@ class UpdateService {
       );
     } on SocketException catch (e) {
       throw UpdateException('Network error: ${e.message}');
+    } on http.ClientException catch (e) {
+      throw UpdateException('Network error: ${e.message}');
     } on FormatException catch (e) {
       throw UpdateException('Invalid response format: ${e.message}');
+    } on TypeError catch (e) {
+      throw UpdateException('Invalid response format: $e');
     }
   }
 
   /// Fetch manifest from URL (relative or absolute)
   Future<UpdateManifest> _fetchManifest(String manifestUrl) async {
-    final url = manifestUrl.startsWith('http')
-        ? manifestUrl
-        : '$_updateServerUrl$manifestUrl';
+    final baseUri = Uri.parse('$_updateServerUrl/');
+    final url = baseUri.resolve(manifestUrl).toString();
 
     _assertSecureUpdateUrl(url, 'manifest fetch');
     final response = await _httpClient.get(Uri.parse(url));
@@ -274,10 +316,20 @@ class UpdateService {
     );
   }
 
+  void _assertManifestCompatibility(UpdateManifest manifest) {
+    final incompatibility = incompatibleUpdateTargetMessage(
+      manifest,
+      currentPlatform: _currentPlatform,
+      currentArch: _currentArch,
+    );
+    if (incompatibility != null) throw UpdateException(incompatibility);
+  }
+
   /// Download and stage an update
   Future<void> downloadAndStage(
     UpdateManifest manifest, {
     DownloadProgressCallback? onProgress,
+    void Function()? onVerifying,
   }) async {
     // SEC-001: the download must be cryptographically authenticated to the
     // vendor key. If this build has no trusted update public key compiled
@@ -307,16 +359,25 @@ class UpdateService {
     _currentDownloadToken = CancelToken();
 
     // Download the package
-    await _downloader.download(
-      manifest.downloadUrl,
-      packagePath,
-      onProgress: onProgress,
-      expectedSize: manifest.compressedSize,
-      cancelToken: _currentDownloadToken,
-    );
+    try {
+      await _downloader.download(
+        manifest.downloadUrl,
+        packagePath,
+        onProgress: onProgress,
+        expectedSize: manifest.compressedSize,
+        cancelToken: _currentDownloadToken,
+      );
+    } finally {
+      // Once the byte stream ends (success, cancellation, or error), Abort can
+      // no longer affect this token. Never leave a stale token looking active.
+      _currentDownloadToken = null;
+    }
 
-    // Clear cancel token after successful download
-    _currentDownloadToken = null;
+    // Hash/signature verification and extraction are deliberately
+    // non-abortable: cancelling after the bytes are complete could otherwise
+    // leave a partially-promoted staging tree. Tell the controller/UI that the
+    // cancellable network phase has ended.
+    onVerifying?.call();
 
     // Verify package integrity: size and SHA-256 hash
     final packageFile = File(packagePath);
@@ -329,6 +390,11 @@ class UpdateService {
         'The download may be corrupted or tampered with.',
       );
     }
+
+    // Anti-freeze: the signature above proves `releaseDate` is vendor-signed,
+    // so reject a manifest that is older than the newest release this host
+    // already accepted (a rollback/freeze attack) or implausibly future-dated.
+    await _assertManifestNotRolledBack(manifest);
 
     // Extract the package
     final extractDir = Directory(path.join(stagingDir.path, 'extracted'));
@@ -347,6 +413,11 @@ class UpdateService {
     }
 
     await persistStagedManifest(stagingDir, manifest);
+
+    // Advance the anti-freeze watermark only now, after a fully verified
+    // stage: a malicious or future-dated manifest that fails any earlier
+    // gate can never poison the high-water mark.
+    await _antiFreezeStore.advance(_channel, manifest.releaseDate);
 
     // Marker file indicating staging is complete (separate from
     // staged_verified.marker which proves end-to-end verification).
@@ -493,6 +564,12 @@ class UpdateService {
         'with after download (a recomputed hash marker is not sufficient).',
       );
     }
+
+    // Anti-freeze re-check at apply time: a staged tree could have sat on
+    // disk while a newer release was accepted, or been swapped for an older
+    // signed manifest. The signature above is genuine, so the vendor-signed
+    // releaseDate is authoritative — refuse a rollback/freeze here too.
+    await _assertManifestNotRolledBack(manifest);
 
     // Build expected_hashes.json (POSIX-relative path -> sha256 hex)
     // straight from the verified manifest. The Rust updater will
@@ -789,6 +866,82 @@ class UpdateService {
   Future<File> _getPendingInstallFile() async {
     final updatesRoot = await _getUpdatesRootDirectory();
     return File(path.join(updatesRoot.path, 'pending_install.json'));
+  }
+
+  Future<File> _getSkippedVersionFile() async {
+    final updatesRoot = await _getUpdatesRootDirectory();
+    return File(path.join(updatesRoot.path, 'skipped_version.json'));
+  }
+
+  /// Read the persisted "skip this version" choice, or null if none is
+  /// stored. Failure is swallowed so a corrupt/unreadable marker never
+  /// blocks startup.
+  Future<String?> readSkippedVersion() async {
+    try {
+      final file = await _getSkippedVersionFile();
+      if (!await file.exists()) return null;
+      final data =
+          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      final version = data['skippedVersion'];
+      return version is String ? version : null;
+    } catch (e) {
+      developer.log(
+        'Failed to read skipped-version marker: $e',
+        name: 'UpdateService',
+        level: 900,
+      );
+      return null;
+    }
+  }
+
+  /// Persist the "skip this version" choice, or clear it when [version] is
+  /// null. Failure is swallowed so update flow is never blocked by IO.
+  Future<void> writeSkippedVersion(String? version) async {
+    try {
+      final file = await _getSkippedVersionFile();
+      if (version == null) {
+        if (await file.exists()) await file.delete();
+        return;
+      }
+      await file.writeAsString(jsonEncode({'skippedVersion': version}));
+    } catch (e) {
+      developer.log(
+        'Failed to persist skipped-version marker: $e',
+        name: 'UpdateService',
+        level: 900,
+      );
+    }
+  }
+
+  /// Anti-freeze / anti-rollback gate. MUST only be called once the
+  /// manifest's Ed25519 signature has already verified, so `releaseDate` is
+  /// known to be vendor-signed (an attacker cannot backdate it without
+  /// breaking the signature). Rejects:
+  ///   1. a `releaseDate` older than the newest release this host already
+  ///      accepted on this channel (a rollback/freeze attack), and
+  ///   2. a `releaseDate` implausibly far in the future, which a forged
+  ///      high watermark could otherwise use to lock out real updates —
+  ///      bounded to a small clock-skew tolerance.
+  Future<void> _assertManifestNotRolledBack(UpdateManifest manifest) async {
+    final releaseDate = manifest.releaseDate.toUtc();
+    final skewCeiling = DateTime.now().toUtc().add(const Duration(days: 2));
+    if (releaseDate.isAfter(skewCeiling)) {
+      throw UpdateException(
+        'anti-freeze: manifest releaseDate ${releaseDate.toIso8601String()} '
+        'is more than 2 days ahead of this host clock; refusing a '
+        'future-dated update that could poison the rollback watermark.',
+      );
+    }
+
+    final watermark = await _antiFreezeStore.watermark(_channel);
+    if (watermark != null && releaseDate.isBefore(watermark)) {
+      throw UpdateException(
+        'anti-freeze: manifest releaseDate ${releaseDate.toIso8601String()} '
+        'is older than the last accepted release '
+        '${watermark.toIso8601String()} on channel "$_channel"; refusing a '
+        'rollback/freeze.',
+      );
+    }
   }
 
   Future<UpdateManifest?> _readStagedManifest(Directory stagingDir) async {

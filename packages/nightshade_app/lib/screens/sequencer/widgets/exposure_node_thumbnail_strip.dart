@@ -14,6 +14,7 @@ import 'package:nightshade_core/nightshade_core.dart'
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'thumbnail_strip_prefs.dart';
+import '../../../utils/filter_label.dart';
 
 /// Inline frame strip rendered beneath each
 /// ExposureNode in the sequence tree.
@@ -294,7 +295,8 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
   String _tooltip() {
     final t = widget.thumbnail;
     final parts = <String>[];
-    parts.add('${t.filter ?? 'L'} · ${t.exposureDuration.toStringAsFixed(0)}s');
+    parts.add(
+        '${filterLabel(t.filter)} · ${t.exposureDuration.toStringAsFixed(0)}s');
     if (t.hfr != null) parts.add('HFR ${t.hfr!.toStringAsFixed(2)}');
     if (t.eccentricity != null) {
       parts.add('ecc ${t.eccentricity!.toStringAsFixed(2)}');
@@ -372,7 +374,7 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
               child: Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
-                  widget.thumbnail.filter ?? 'L',
+                  filterLabel(widget.thumbnail.filter),
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize9,
                     fontWeight: FontWeight.w600,
@@ -602,7 +604,7 @@ class _FrameMetadata extends StatelessWidget {
     return Wrap(
       runSpacing: 6,
       children: [
-        chip('Filter', thumb.filter ?? '—'),
+        chip('Filter', filterLabel(thumb.filter)),
         chip('Exposure', '${thumb.exposureDuration.toStringAsFixed(1)}s'),
         chip('HFR', thumb.hfr?.toStringAsFixed(2) ?? '—'),
         chip('Eccentricity', thumb.eccentricity?.toStringAsFixed(2) ?? '—'),

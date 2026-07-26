@@ -8,6 +8,7 @@ import '../database/database.dart' as db;
 import '../database/daos/sequence_runs_dao.dart';
 import '../database/daos/sequence_versions_dao.dart';
 import '../database/daos/sequences_dao.dart';
+import '../models/imaging/imaging_models.dart' show FrameType;
 import '../models/notification/notification_categories.dart'
     show NotificationTransportKind;
 import '../models/sequence/sequence_models.dart';
@@ -24,6 +25,42 @@ export 'sequence_summary.dart';
 
 part 'sequence_repository/node_decoder.dart';
 part 'sequence_repository/node_encoder.dart';
+
+/// Exact persisted sequence documents surrounding a recorded run.
+///
+/// Either side may be absent for legacy rows recorded before run snapshots
+/// existed. [previousSnapshotJson] is drawn only from an earlier completed run
+/// of the same sequence.
+class SequenceRunDiffContext {
+  final int? sequenceId;
+  final String? currentSnapshotJson;
+  final String? previousSnapshotJson;
+
+  const SequenceRunDiffContext({
+    required this.sequenceId,
+    required this.currentSnapshotJson,
+    required this.previousSnapshotJson,
+  });
+}
+
+/// Lightweight row for the sequence version-history list.
+///
+/// The full snapshot is deliberately absent: remote libraries can render up
+/// to 20 restore points without downloading 20 complete sequence documents.
+/// [restoreVersion] fetches only the snapshot the operator actually chooses.
+class SequenceVersionSummary {
+  final int id;
+  final int sequenceId;
+  final String? label;
+  final DateTime createdAt;
+
+  const SequenceVersionSummary({
+    required this.id,
+    required this.sequenceId,
+    required this.createdAt,
+    this.label,
+  });
+}
 
 /// Repository for saving and loading sequences from the database
 class SequenceRepository {
@@ -321,16 +358,10 @@ class SequenceRepository {
   /// Load a sequence from the database
   Future<Sequence?> loadSequence(int sequenceId) async {
     if (_isRemote) {
-      final all = [
-        ...await _remote!.listFullSequences(),
-        ...await _remote.listFullTemplates(),
-      ];
-      for (final map in all) {
-        if (map['databaseId'] == sequenceId) {
-          return _sequenceFromRemoteMap(Map<String, dynamic>.from(map));
-        }
-      }
-      return null;
+      final map = await _remote!.getFullSequence(sequenceId);
+      return map == null
+          ? null
+          : _sequenceFromRemoteMap(Map<String, dynamic>.from(map));
     }
 
     final dbSequence = await _dao!.getSequenceById(sequenceId);
@@ -424,31 +455,28 @@ class SequenceRepository {
   /// so the library list renders without hydrating any node tree — the N+1 that
   /// [loadAllSequences] incurs (one full load per row). Newest-modified first.
   ///
-  /// For a remote host this falls back to deriving summaries from the full
-  /// sequence list, because the host read API exposes no dedicated summary
-  /// endpoint; the remote client already pays the full-load cost.
+  /// Remote repositories use the host's dedicated summary endpoint so tags,
+  /// favorites and run roll-ups stay authoritative without transferring every
+  /// full node tree.
   Future<List<SequenceSummary>> loadSequenceSummaries() async {
     if (_isRemote) {
-      final sequences = await loadAllSequences();
+      final summaries = await _remote!.listSequenceSummaries();
       return [
-        for (final sequence in sequences)
+        for (final summary in summaries)
           SequenceSummary(
-            id: sequence.databaseId ?? -1,
-            name: sequence.name,
-            nodeCount: sequence.nodes.length,
-            targetCount: sequence.targetHeaders.length,
-            exposureCount: sequence.nodes.values
-                .where((n) => n is ExposureNode || n is SmartExposureNode)
-                .length,
-            totalIntegrationSecs: sequence.totalIntegrationSecs.round(),
-            primaryTargetName: sequence.targetHeaders.isEmpty
-                ? null
-                : sequence.targetHeaders.first.targetName,
-            lastRunAt: null,
-            runCount: 0,
-            tags: const [],
-            isFavorite: false,
-            modifiedAt: sequence.modifiedAt,
+            id: summary.id,
+            name: summary.name,
+            nodeCount: summary.nodeCount,
+            targetCount: summary.targetCount,
+            exposureCount: summary.exposureCount,
+            totalIntegrationSecs: summary.totalIntegrationSecs,
+            primaryTargetName: summary.primaryTargetName,
+            lastRunAt: summary.lastRunAt,
+            runCount: summary.runCount,
+            tags: summary.tags,
+            isFavorite: summary.isFavorite,
+            createdAt: summary.createdAt,
+            modifiedAt: summary.modifiedAt,
           ),
       ];
     }
@@ -473,6 +501,7 @@ class SequenceRepository {
             runCount: runRollup.runCount,
             tags: SequenceSummary.decodeTags(row.tagsJson),
             isFavorite: row.isFavorite,
+            createdAt: row.createdAt,
             modifiedAt: row.updatedAt,
           );
         }(),
@@ -487,46 +516,92 @@ class SequenceRepository {
   /// immediately before it, so the diff compares the two sequences that
   /// actually executed. Returns `null` when there is no earlier completed run,
   /// when the earlier run predates the snapshot column, or when [beforeRunId]
-  /// is unknown. Local-only — the remote host owns its own run store.
+  /// is unknown. Remote repositories ask the host for this context; they never
+  /// consult the controller's unrelated local run database.
   Future<String?> loadPreviousRunSnapshot(
     int sequenceId, {
     required int beforeRunId,
   }) async {
     if (_isRemote) {
-      throw UnsupportedError(
-        'loadPreviousRunSnapshot is local-only; run history lives on the host.',
-      );
+      final context = await loadRunDiffContext(beforeRunId);
+      if (context.sequenceId != sequenceId) {
+        throw StateError(
+          'Run $beforeRunId belongs to sequence ${context.sequenceId}, '
+          'not sequence $sequenceId.',
+        );
+      }
+      return context.previousSnapshotJson;
     }
     final runsDao = _requireRunsDao('loadPreviousRunSnapshot');
     final before = await runsDao.getRunById(beforeRunId);
+    if (before == null || before.sequenceId != sequenceId) return null;
     return runsDao.previousCompletedRunSnapshot(
       sequenceId,
-      before: before?.startedAt,
+      before: before.startedAt,
     );
+  }
+
+  /// Load the exact current and prior-completed snapshots for [runId].
+  ///
+  /// The combined call matters for remote clients: it keeps the two sides
+  /// host-authoritative and avoids silently comparing an old run to the
+  /// sequence's current, since-edited definition.
+  Future<SequenceRunDiffContext> loadRunDiffContext(int runId) async {
+    if (runId <= 0) {
+      throw ArgumentError.value(runId, 'runId', 'must be positive');
+    }
+    if (_isRemote) {
+      final remote = await _remote!.fetchSequenceRunDiffContext(runId);
+      return SequenceRunDiffContext(
+        sequenceId: remote.sequenceId,
+        currentSnapshotJson: remote.currentSnapshotJson,
+        previousSnapshotJson: remote.previousSnapshotJson,
+      );
+    }
+
+    final runsDao = _requireRunsDao('loadRunDiffContext');
+    final run = await runsDao.getRunById(runId);
+    if (run == null) {
+      throw StateError('Sequence run $runId no longer exists.');
+    }
+    final sequenceId = run.sequenceId;
+    final previousSnapshot = sequenceId == null
+        ? null
+        : await runsDao.previousCompletedRunSnapshot(
+            sequenceId,
+            before: run.startedAt,
+          );
+    return SequenceRunDiffContext(
+      sequenceId: sequenceId,
+      currentSnapshotJson: _nonEmptyRunSnapshot(run.sequenceSnapshotJson),
+      previousSnapshotJson: _nonEmptyRunSnapshot(previousSnapshot),
+    );
+  }
+
+  String? _nonEmptyRunSnapshot(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    return value;
   }
 
   /// Set the library tags for [sequenceId]. Replaces the full tag list.
   Future<void> setTags(int sequenceId, List<String> tags) async {
-    if (_isRemote) {
-      throw UnsupportedError(
-        'setTags is local-only; the host owns its sequence catalog metadata.',
-      );
-    }
     // Normalise: trim, drop blanks, de-duplicate while preserving order.
     final seen = <String>{};
     final cleaned = <String>[
       for (final tag in tags)
         if (tag.trim().isNotEmpty && seen.add(tag.trim())) tag.trim(),
     ];
+    if (_isRemote) {
+      await _remote!.setSequenceTags(sequenceId, cleaned);
+      return;
+    }
     await _dao!.setTagsJson(sequenceId, jsonEncode(cleaned));
   }
 
   /// Toggle the favorite flag for [sequenceId]; returns the new value.
   Future<bool> toggleFavorite(int sequenceId) async {
     if (_isRemote) {
-      throw UnsupportedError(
-        'toggleFavorite is local-only; the host owns its catalog metadata.',
-      );
+      return _remote!.toggleSequenceFavorite(sequenceId);
     }
     final dao = _dao!;
     final existing = await dao.getSequenceById(sequenceId);
@@ -547,14 +622,16 @@ class SequenceRepository {
   /// when the sequence has no `databaseId`. History is capped per sequence by
   /// the DAO ([SequenceVersionsDao.maxVersionsPerSequence]).
   Future<int?> snapshotVersionOnSave(Sequence sequence, {String? label}) async {
-    if (_isRemote) {
-      throw UnsupportedError(
-        'snapshotVersionOnSave is local-only; the host owns its history.',
-      );
-    }
     final sequenceId = sequence.databaseId;
     if (sequenceId == null) return null;
     final fileService = _requireFileService('snapshotVersionOnSave');
+    if (_isRemote) {
+      return _remote!.snapshotSequenceVersion(
+        sequenceId,
+        fileService.sequenceToMap(sequence),
+        label: label,
+      );
+    }
     final versionsDao = _requireVersionsDao('snapshotVersionOnSave');
     final snapshotJson = jsonEncode(fileService.sequenceToMap(sequence));
     return versionsDao.appendVersion(
@@ -565,13 +642,31 @@ class SequenceRepository {
   }
 
   /// List the version history of [sequenceId], newest first.
-  Future<List<db.SequenceVersion>> listVersions(int sequenceId) async {
+  Future<List<SequenceVersionSummary>> listVersions(int sequenceId) async {
     if (_isRemote) {
-      throw UnsupportedError(
-        'listVersions is local-only; the host owns its version history.',
-      );
+      final versions = await _remote!.listSequenceVersions(sequenceId);
+      return [
+        for (final version in versions)
+          SequenceVersionSummary(
+            id: version.id,
+            sequenceId: version.sequenceId,
+            label: version.label,
+            createdAt: version.createdAt,
+          ),
+      ];
     }
-    return _requireVersionsDao('listVersions').listVersions(sequenceId);
+    final versions = await _requireVersionsDao(
+      'listVersions',
+    ).listVersions(sequenceId);
+    return [
+      for (final version in versions)
+        SequenceVersionSummary(
+          id: version.id,
+          sequenceId: version.sequenceId,
+          label: version.label,
+          createdAt: version.createdAt,
+        ),
+    ];
   }
 
   /// Rebuild an editable [Sequence] from the stored version with row id
@@ -582,14 +677,24 @@ class SequenceRepository {
   /// than forking a copy). The caller (editor) loads it into the editor and
   /// saves to persist the restore.
   Future<Sequence?> restoreVersion(int versionId) async {
-    if (_isRemote) {
-      throw UnsupportedError(
-        'restoreVersion is local-only; the host owns its version history.',
-      );
-    }
-    final versionsDao = _requireVersionsDao('restoreVersion');
     final fileService = _requireFileService('restoreVersion');
-    final version = await versionsDao.loadVersion(versionId);
+    final db.SequenceVersion? version;
+    if (_isRemote) {
+      final remote = await _remote!.getSequenceVersion(versionId);
+      version = remote == null
+          ? null
+          : db.SequenceVersion(
+              id: remote.id,
+              sequenceId: remote.sequenceId,
+              snapshotJson: remote.snapshotJson,
+              label: remote.label,
+              createdAt: remote.createdAt,
+            );
+    } else {
+      version = await _requireVersionsDao(
+        'restoreVersion',
+      ).loadVersion(versionId);
+    }
     if (version == null) return null;
     final decoded = jsonDecode(version.snapshotJson);
     if (decoded is! Map<String, dynamic>) {
@@ -702,6 +807,14 @@ class SequenceRepository {
       default:
         return BinningMode.one;
     }
+  }
+
+  FrameType _stringToFrameType(String? value) {
+    if (value == null) return FrameType.light;
+    return FrameType.values.firstWhere(
+      (type) => type.name.toLowerCase() == value.toLowerCase(),
+      orElse: () => FrameType.light,
+    );
   }
 
   String _autofocusMethodToString(AutofocusMethod method) {

@@ -26,7 +26,7 @@ impl InstructionNode for ChangeFilterInstruction {
             return NodeStatus::Failure;
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let filter_name = config.filter_name.clone();
         let filter_index = config.filter_index;

@@ -10,6 +10,33 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
 import 'panel_widgets.dart';
 
+typedef DefectMapLocalDarkPicker = Future<List<String>> Function();
+typedef DefectMapHostDarkPicker = Future<String?> Function(
+  BuildContext context,
+);
+
+Future<List<String>> _pickLocalDarkFrames() async {
+  const typeGroup = XTypeGroup(
+    label: 'Dark frames',
+    extensions: ['fits', 'fit', 'fts', 'xisf'],
+  );
+  final files = await openFiles(acceptedTypeGroups: [typeGroup]);
+  return files.map((file) => file.path).toList(growable: false);
+}
+
+Future<String?> _pickHostDarkDirectory(BuildContext context) {
+  return RemoteDirectoryPickerDialog.show(
+    context,
+    title: 'Select the host folder containing dark frames',
+  );
+}
+
+final defectMapLocalDarkPickerProvider =
+    Provider<DefectMapLocalDarkPicker>((ref) => _pickLocalDarkFrames);
+
+final defectMapHostDarkPickerProvider =
+    Provider<DefectMapHostDarkPicker>((ref) => _pickHostDarkDirectory);
+
 /// Image-calibration controls for the imaging screen.
 ///
 /// Surfaces the per-camera defect map (W6-DEFECT) pipeline:
@@ -87,7 +114,7 @@ class CalibrationSection extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 16),
-          _BuildButton(
+          DefectMapBuildButton(
             colors: colors,
             enabled: controlsEnabled,
             disabledReason: disabledReason,
@@ -469,7 +496,7 @@ class _StatusLine extends StatelessWidget {
   }
 }
 
-class _BuildButton extends ConsumerStatefulWidget {
+class DefectMapBuildButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final bool enabled;
   final String? disabledReason;
@@ -477,7 +504,8 @@ class _BuildButton extends ConsumerStatefulWidget {
   final double? temperatureC;
   final bool isRemoteMode;
 
-  const _BuildButton({
+  const DefectMapBuildButton({
+    super.key,
     required this.colors,
     required this.enabled,
     required this.disabledReason,
@@ -487,10 +515,25 @@ class _BuildButton extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_BuildButton> createState() => _BuildButtonState();
+  ConsumerState<DefectMapBuildButton> createState() =>
+      _DefectMapBuildButtonState();
 }
 
-class _BuildButtonState extends ConsumerState<_BuildButton> {
+class _DefectMapBuildButtonState extends ConsumerState<DefectMapBuildButton> {
+  bool _picking = false;
+  int _operationGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant DefectMapBuildButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cameraId != widget.cameraId ||
+        oldWidget.temperatureC != widget.temperatureC ||
+        oldWidget.isRemoteMode != widget.isRemoteMode) {
+      _operationGeneration++;
+      _picking = false;
+    }
+  }
+
   Future<void> _pickAndBuild() async {
     final cameraId = widget.cameraId;
     final temperatureC = widget.temperatureC;
@@ -500,37 +543,60 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       return;
     }
 
-    if (widget.isRemoteMode) {
-      await _pickHostDirectoryAndBuild(cameraId, temperatureC);
-    } else {
-      await _pickLocalFilesAndBuild(cameraId, temperatureC);
+    final generation = ++_operationGeneration;
+    final authority = ref.read(backendProvider);
+    setState(() => _picking = true);
+    try {
+      if (widget.isRemoteMode) {
+        await _pickHostDirectoryAndBuild(
+          generation,
+          authority,
+          cameraId,
+          temperatureC,
+        );
+      } else {
+        await _pickLocalFilesAndBuild(
+          generation,
+          authority,
+          cameraId,
+          temperatureC,
+        );
+      }
+    } catch (error) {
+      if (!mounted ||
+          generation != _operationGeneration ||
+          !identical(ref.read(backendProvider), authority) ||
+          widget.cameraId != cameraId) {
+        return;
+      }
+      context.showErrorSnackBar('Could not select dark frames: $error');
+    } finally {
+      if (mounted && generation == _operationGeneration) {
+        setState(() => _picking = false);
+      }
     }
   }
 
   /// Local path: pick the dark FITS/XISF files with the OS file picker and
   /// build from their absolute paths.
   Future<void> _pickLocalFilesAndBuild(
+    int generation,
+    NightshadeBackend authority,
     String cameraId,
     double temperatureC,
   ) async {
-    const typeGroup = XTypeGroup(
-      label: 'Dark frames',
-      extensions: ['fits', 'fit', 'fts', 'xisf'],
-    );
-    final files = await openFiles(acceptedTypeGroups: [typeGroup]);
-    if (files.isEmpty) return;
+    final paths = await ref.read(defectMapLocalDarkPickerProvider)();
+    if (paths.isEmpty || !_isCurrent(generation, authority, cameraId)) return;
 
-    if (files.length < DefectMapService.minRequiredDarkFrames) {
+    if (paths.length < DefectMapService.minRequiredDarkFrames) {
       if (!mounted) return;
       context.showWarningSnackBar(
         'Defect detection requires at least '
         '${DefectMapService.minRequiredDarkFrames} dark frames; '
-        'you selected ${files.length}.',
+        'you selected ${paths.length}.',
       );
       return;
     }
-
-    final paths = files.map((f) => f.path).toList(growable: false);
 
     final notifier = ref.read(defectMapNotifierProvider.notifier);
     await notifier.build(
@@ -538,21 +604,22 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       darkFramePaths: paths,
       sensorTemperatureCelsius: temperatureC,
     );
-    _reportResult();
+    if (_isCurrent(generation, authority, cameraId)) _reportResult();
   }
 
   /// Remote path: the host owns the dark frames, so the operator picks a host
   /// directory. The host enumerates the FITS/XISF darks under it and builds
   /// the map there — no frame data crosses the wire.
   Future<void> _pickHostDirectoryAndBuild(
+    int generation,
+    NightshadeBackend authority,
     String cameraId,
     double temperatureC,
   ) async {
-    final directory = await RemoteDirectoryPickerDialog.show(
-      context,
-      title: 'Select the host folder containing dark frames',
-    );
-    if (directory == null) return;
+    final directory = await ref.read(defectMapHostDarkPickerProvider)(context);
+    if (directory == null || !_isCurrent(generation, authority, cameraId)) {
+      return;
+    }
 
     final notifier = ref.read(defectMapNotifierProvider.notifier);
     await notifier.build(
@@ -561,7 +628,7 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       darkFramesDirectory: directory,
       sensorTemperatureCelsius: temperatureC,
     );
-    _reportResult();
+    if (_isCurrent(generation, authority, cameraId)) _reportResult();
   }
 
   void _reportResult() {
@@ -576,15 +643,24 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (_picking && previous != null && !identical(previous, next)) {
+        _operationGeneration++;
+        setState(() => _picking = false);
+      }
+    });
     final uiState = ref.watch(defectMapNotifierProvider);
     final isBuilding = uiState.isBuilding;
-    final buttonEnabled = widget.enabled && !isBuilding && !uiState.isClearing;
+    final buttonEnabled =
+        widget.enabled && !_picking && !isBuilding && !uiState.isClearing;
 
     final button = SmallButton(
-      label: isBuilding
-          ? 'Building defect map...'
-          : 'Build defect map from current darks',
-      icon: isBuilding ? NightshadeIcons.loading : LucideIcons.cog,
+      label: _picking
+          ? 'Selecting dark frames...'
+          : isBuilding
+              ? 'Building defect map...'
+              : 'Build defect map from current darks',
+      icon: _picking || isBuilding ? NightshadeIcons.loading : LucideIcons.cog,
       colors: widget.colors,
       isEnabled: buttonEnabled,
       onTap: buttonEnabled ? _pickAndBuild : null,
@@ -594,6 +670,17 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       message: widget.enabled ? null : widget.disabledReason,
       child: button,
     );
+  }
+
+  bool _isCurrent(
+    int generation,
+    NightshadeBackend authority,
+    String cameraId,
+  ) {
+    return mounted &&
+        generation == _operationGeneration &&
+        identical(ref.read(backendProvider), authority) &&
+        widget.cameraId == cameraId;
   }
 }
 
@@ -621,6 +708,8 @@ class _ApplyToggle extends ConsumerWidget {
     // The toggle reflects the persisted status when we have one; otherwise
     // it defaults to off and the user can flip it once a map is built.
     bool currentValue = false;
+    var toggleEnabled = false;
+    String? mapDisabledReason;
     if (enabled) {
       final statusAsync = ref.watch(defectMapStatusProvider(
         DefectMapQuery(
@@ -630,7 +719,17 @@ class _ApplyToggle extends ConsumerWidget {
           sensorTemperatureCelsius: temperatureC!,
         ),
       ));
-      currentValue = statusAsync.valueOrNull?.applyDuringCapture ?? false;
+      final status = statusAsync.valueOrNull;
+      currentValue = status?.applyDuringCapture ?? false;
+      toggleEnabled = status?.storedOnDisk == true;
+      if (statusAsync.isLoading) {
+        mapDisabledReason = 'Loading defect map status...';
+      } else if (statusAsync.hasError) {
+        mapDisabledReason = 'Could not verify the current defect map.';
+      } else if (!toggleEnabled) {
+        mapDisabledReason =
+            'Build a defect map for this camera and temperature first.';
+      }
     }
 
     final row = Row(
@@ -645,8 +744,8 @@ class _ApplyToggle extends ConsumerWidget {
         ),
         NightshadeSwitch(
           value: currentValue,
-          enabled: enabled,
-          onChanged: enabled
+          enabled: toggleEnabled,
+          onChanged: toggleEnabled
               ? (value) async {
                   final notifier = ref.read(defectMapNotifierProvider.notifier);
                   await notifier.setApplyDuringCapture(
@@ -668,7 +767,8 @@ class _ApplyToggle extends ConsumerWidget {
     );
 
     return _MaybeTooltip(
-      message: enabled ? null : disabledReason,
+      message:
+          toggleEnabled ? null : (enabled ? mapDisabledReason : disabledReason),
       child: row,
     );
   }
@@ -806,40 +906,81 @@ class _CorrectionSettings extends ConsumerWidget {
       sensorHeight > 0 &&
       temperatureC != null;
 
+  Future<void> _runSettingsChange(
+    BuildContext context,
+    Future<void> Function() change,
+  ) async {
+    try {
+      await change();
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not update defect-map settings: $error'),
+          backgroundColor: colors.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _pushIfActive(WidgetRef ref) async {
-    // Push settings to the sequencer only when a defect map is currently
-    // enabled for the connected camera (the auto-apply toggle is on or
-    // the user has flipped the per-camera apply switch). Otherwise the
-    // settings are saved but inactive — they take effect the next time
-    // the user enables apply-during-capture.
+    // Reconcile even when the new setting is OFF. The native sequencer owns a
+    // pre-loaded runtime slot; merely persisting autoApply=false would leave a
+    // previously loaded map active for subsequent frames.
     if (!_canPushToSequencer) return;
-    final autoApply = ref.read(defectMapSettingsProvider).autoApply;
-    // Only re-push when auto-apply is on AND a map exists for the
-    // current bucket. The notifier already validates the map exists
-    // bridge-side and surfaces an error if not.
-    final statusAsync = ref.read(defectMapStatusProvider(
-      DefectMapQuery(
-        cameraId: cameraId!,
-        width: sensorWidth,
-        height: sensorHeight,
-        sensorTemperatureCelsius: temperatureC!,
-      ),
-    ));
-    final mapExists = statusAsync.valueOrNull?.storedOnDisk ?? false;
-    if (!autoApply || !mapExists) return;
     final notifier = ref.read(defectMapNotifierProvider.notifier);
-    await notifier.pushCurrentSettingsToSequencer(
+    await notifier.syncCurrentSettingsToSequencer(
       cameraId: cameraId!,
       width: sensorWidth,
       height: sensorHeight,
       sensorTemperatureCelsius: temperatureC!,
-      enabled: true,
     );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(defectMapSettingsProvider);
+    if (settings.isLoading) {
+      return Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Loading correction settings…',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+      );
+    }
+    final loadError = settings.loadError;
+    if (loadError != null) {
+      return Row(
+        children: [
+          Icon(LucideIcons.alertTriangle, size: 16, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Could not load correction settings from the imaging host.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.error,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => ref.invalidate(defectMapSettingsProvider),
+            child: const Text('Retry'),
+          ),
+        ],
+      );
+    }
     final notifier = ref.read(defectMapSettingsProvider.notifier);
 
     return Column(
@@ -870,65 +1011,53 @@ class _CorrectionSettings extends ConsumerWidget {
             NightshadeSwitch(
               value: settings.autoApply,
               onChanged: (value) async {
-                await notifier.setAutoApply(value);
-                // Toggling auto-apply with a map present should
-                // propagate to the sequencer immediately.
-                await _pushIfActive(ref);
+                await _runSettingsChange(context, () async {
+                  await notifier.setAutoApply(value);
+                  // Toggling auto-apply with a map present should
+                  // propagate to the sequencer immediately.
+                  await _pushIfActive(ref);
+                });
               },
             ),
           ],
         ),
         const SizedBox(height: 6),
-        // Method.
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Replacement method',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textPrimary),
-              ),
-            ),
-            NightshadeDropdown(
-              value: settings.method.label,
-              items: DefectMapMethod.values.map((m) => m.label).toList(),
-              onChanged: (value) async {
-                if (value == null) return;
-                final method = DefectMapMethod.values.firstWhere(
-                  (m) => m.label == value,
-                );
-                await notifier.setMethod(method);
-                await _pushIfActive(ref);
-              },
-            ),
-          ],
+        // Method. The imaging side pane can be narrower than the dropdown's
+        // intrinsic label width, so stack the control below its label locally
+        // instead of letting the row clip offscreen.
+        _ResponsiveDropdownSetting(
+          label: 'Replacement method',
+          colors: colors,
+          value: settings.method.label,
+          items: DefectMapMethod.values.map((m) => m.label).toList(),
+          onChanged: (value) async {
+            if (value == null) return;
+            final method = DefectMapMethod.values.firstWhere(
+              (m) => m.label == value,
+            );
+            await _runSettingsChange(context, () async {
+              await notifier.setMethod(method);
+              await _pushIfActive(ref);
+            });
+          },
         ),
         const SizedBox(height: 6),
         // Kernel.
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Kernel size',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textPrimary),
-              ),
-            ),
-            NightshadeDropdown(
-              value: settings.kernel.label,
-              items: DefectMapKernelSize.values.map((k) => k.label).toList(),
-              onChanged: (value) async {
-                if (value == null) return;
-                final kernel = DefectMapKernelSize.values.firstWhere(
-                  (k) => k.label == value,
-                );
-                await notifier.setKernel(kernel);
-                await _pushIfActive(ref);
-              },
-            ),
-          ],
+        _ResponsiveDropdownSetting(
+          label: 'Kernel size',
+          colors: colors,
+          value: settings.kernel.label,
+          items: DefectMapKernelSize.values.map((k) => k.label).toList(),
+          onChanged: (value) async {
+            if (value == null) return;
+            final kernel = DefectMapKernelSize.values.firstWhere(
+              (k) => k.label == value,
+            );
+            await _runSettingsChange(context, () async {
+              await notifier.setKernel(kernel);
+              await _pushIfActive(ref);
+            });
+          },
         ),
         const SizedBox(height: 6),
         // Save original — when on, the original uncorrected frame is
@@ -946,13 +1075,72 @@ class _CorrectionSettings extends ConsumerWidget {
             NightshadeSwitch(
               value: settings.saveOriginal,
               onChanged: (value) async {
-                await notifier.setSaveOriginal(value);
-                await _pushIfActive(ref);
+                await _runSettingsChange(context, () async {
+                  await notifier.setSaveOriginal(value);
+                  await _pushIfActive(ref);
+                });
               },
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ResponsiveDropdownSetting extends StatelessWidget {
+  const _ResponsiveDropdownSetting({
+    required this.label,
+    required this.colors,
+    required this.value,
+    required this.items,
+    required this.onChanged,
+  });
+
+  final String label;
+  final NightshadeColors colors;
+  final String value;
+  final List<String> items;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final labelWidget = Text(
+      label,
+      style: TextStyle(
+        fontSize: NightshadeTypography.fontSize12,
+        color: colors.textPrimary,
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dropdown = NightshadeDropdown(
+          value: value,
+          items: items,
+          isExpanded: constraints.maxWidth < 360,
+          onChanged: onChanged,
+        );
+
+        if (constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              labelWidget,
+              const SizedBox(height: 6),
+              dropdown,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: labelWidget),
+            const SizedBox(width: 12),
+            dropdown,
+          ],
+        );
+      },
     );
   }
 }

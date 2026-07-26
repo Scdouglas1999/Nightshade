@@ -54,9 +54,9 @@ use tokio::sync::{Mutex, RwLock};
 // Re-use enums from device module to avoid FRB conflicts
 use crate::device::{CalibratorState, CoverState, TrackingRate};
 
-// Import NativeDevice trait for connect/disconnect methods
+// Import native traits for connect/disconnect and live filter-wheel queries.
 #[cfg(windows)]
-use nightshade_native::traits::NativeDevice;
+use nightshade_native::traits::{NativeDevice, NativeFilterWheel};
 
 // =========================================================================
 // Mount Capabilities
@@ -288,6 +288,65 @@ pub struct FocuserCapabilities {
     pub can_reverse: bool,
     /// Current reverse setting
     pub reverse: Option<bool>,
+}
+
+/// Every ASCOM focuser property needed to build a [`FocuserCapabilities`].
+///
+/// Mirrors `nightshade_ascom`'s `FocuserCapabilities` + `FocuserFullStatus`
+/// without naming those Windows-only types, so
+/// [`focuser_capabilities_from_ascom`] stays compilable and unit-testable on
+/// Linux. `None` on any field means the driver's property threw (typically
+/// `PropertyNotImplementedException`).
+#[derive(Debug, Clone, Default)]
+pub struct AscomFocuserReadings {
+    pub max_step: Option<i32>,
+    pub max_increment: Option<i32>,
+    pub step_size: Option<f64>,
+    pub absolute: Option<bool>,
+    pub temp_comp_available: Option<bool>,
+    pub temp_comp: Option<bool>,
+    pub temperature: Option<f64>,
+    pub position: Option<i32>,
+    pub is_moving: Option<bool>,
+}
+
+/// Build the wire-facing focuser capabilities from raw ASCOM property reads.
+///
+/// Extracted from the Windows-only capability probe so the mapping has a
+/// regression test: the probe previously filled everything after
+/// `temp_comp_available` from `Default::default()`, so
+/// `/api/equipment/focuser/capabilities` reported `isMoving: false`,
+/// `position: null`, `temperature: null` and `canHalt: false` regardless of
+/// what the driver said. On the rig that produced three consecutive samples
+/// claiming `isMoving: false` while the focuser was demonstrably travelling
+/// (`/api/equipment/focuser/status` reporting `moving: true` and a position
+/// stepping 46560 -> 44880 -> 43240), and a `canHalt: false` that contradicted
+/// a `POST /api/focuser/halt` which returned 200 and genuinely stopped the move.
+pub fn focuser_capabilities_from_ascom(r: AscomFocuserReadings) -> FocuserCapabilities {
+    FocuserCapabilities {
+        // Why: ASCOM IFocuserV3.MaxStep — when the read returns None the
+        // property threw PropertyNotImplementedException. 0 means "no travel
+        // range advertised", which disables absolute-position UI.
+        max_position: r.max_step.unwrap_or(0),
+        max_increment: r.max_increment.unwrap_or(0), // IFocuserV3.MaxIncrement — same contract as MaxStep
+        step_size: r.step_size,
+        absolute: r.absolute.unwrap_or(false), // IFocuserV3.Absolute — assume relative if omitted (safer UX)
+        temp_comp_available: r.temp_comp_available.unwrap_or(false), // IFocuserV3.TempCompAvailable (optional)
+        temp_comp: r.temp_comp.unwrap_or(false),
+        temperature: r.temperature,
+        position: r.position,
+        is_moving: r.is_moving.unwrap_or(false),
+        // Why true: Halt() is a member of the IFocuserV2/V3 interface that every
+        // ASCOM focuser implements, and ASCOM exposes no `CanHalt` property to
+        // probe. Reporting false disabled the stop control for a focuser whose
+        // Halt demonstrably works. A driver that does not implement Halt raises
+        // its own error at call time — the same contract already used for ASCOM
+        // rotators, which hardcode `can_halt: true` for this reason.
+        can_halt: true,
+        // ASCOM focusers have no Reverse property (that belongs to IRotatorV3).
+        can_reverse: false,
+        reverse: None,
+    }
 }
 
 // =========================================================================
@@ -685,6 +744,148 @@ fn native_calibrator_state_to_capability(
     }
 }
 
+/// Re-read the LIVE readings that share the capability structs, overwriting
+/// whatever the cache is holding for them.
+///
+/// # Why this exists
+///
+/// The capability structs mix two very different kinds of value: static
+/// feature flags (`can_park`, `max_bin_x`, `position_count`) that only change
+/// when hardware is swapped, and live readings (`ccd_temperature`,
+/// `cooler_on`, `current_position`, `is_moving`, `is_safe`) that change every
+/// second. [`CAPABILITY_CACHE_TTL`] is 5 minutes, so the live readings were
+/// being served up to 5 minutes stale — as a confident, unqualified value.
+///
+/// Measured on the live rig against a real ZWO ASI1600MM-Cool and ZWO EFW:
+/// after `POST /api/camera/cooling {"enabled":true,"targetTemp":10}`,
+/// `GET /api/equipment/camera/capabilities` kept reporting
+/// `coolerOn: false, setCcdTemperature: -10, ccdTemperature: 14.8,
+/// coolerPower: 0` for **259 seconds** while `GET /api/camera/cooling`
+/// correctly showed the cooler on, the setpoint at 10 °C, the sensor falling
+/// 14.8 → 10.1 °C and the cooler drawing up to 11 %. It flipped to the truth
+/// at t=275 s, matching the TTL. Identically, the filter wheel reported
+/// `currentPosition: 0` across four consecutive polls while the wheel was
+/// physically at slot 7 and both `/api/filter-wheel/position` and
+/// `/api/equipment/filter-wheel/status` correctly said 7.
+///
+/// The cache is still worth keeping: for ASCOM/Alpaca the *static* probe can
+/// connect and disconnect the driver (see the module header), which is what
+/// must not run on every poll. Re-reading a single live value uses the same
+/// always-live device-manager accessors the `/api/equipment/*/status`
+/// endpoints already poll at 500 ms, so it adds no new access pattern.
+///
+/// Failures leave the cached value untouched: this exists to remove stale
+/// readings, not to introduce a new way for a capability read to fail.
+///
+/// Not covered: [`DeviceCapabilities::Switch`] — refreshing it needs one
+/// round trip per switch, and [`WeatherCapabilities`] has no live fields.
+async fn refresh_volatile_state(device_id: &str, capabilities: &mut DeviceCapabilities) {
+    let mgr = crate::api::get_device_manager();
+    match capabilities {
+        DeviceCapabilities::Camera(caps) => {
+            if let Ok(status) = mgr.camera_get_status(device_id).await {
+                caps.ccd_temperature = status.sensor_temp;
+                caps.set_ccd_temperature = status.target_temp;
+                caps.cooler_power = status.cooler_power;
+                caps.cooler_on = Some(status.cooler_on);
+            }
+        }
+        DeviceCapabilities::FilterWheel(caps) => {
+            if let Ok(position) = mgr.filter_wheel_get_position(device_id).await {
+                // The vendor SDKs report -1 while the wheel is in motion;
+                // publishing that as a slot index would be a different lie.
+                caps.current_position = if position >= 0 { Some(position) } else { None };
+            }
+            if let Ok(is_moving) = mgr.filter_wheel_is_moving(device_id).await {
+                caps.is_moving = is_moving;
+            }
+            if let Ok((_, names)) = mgr.filter_wheel_get_config(device_id).await {
+                if !names.is_empty() {
+                    caps.filter_names = names;
+                }
+            }
+        }
+        DeviceCapabilities::Focuser(caps) => {
+            if let Ok(position) = mgr.focuser_get_position(device_id).await {
+                caps.position = Some(position);
+            }
+            if let Ok(is_moving) = mgr.focuser_is_moving(device_id).await {
+                caps.is_moving = is_moving;
+            }
+            if let Ok(temperature) = mgr.focuser_get_temp(device_id).await {
+                caps.temperature = temperature;
+            }
+        }
+        DeviceCapabilities::Rotator(caps) => {
+            if let Ok(position) = mgr.rotator_get_position(device_id).await {
+                caps.position = Some(position);
+            }
+            if let Ok(is_moving) = mgr.rotator_is_moving(device_id).await {
+                caps.is_moving = is_moving;
+            }
+        }
+        DeviceCapabilities::Mount(caps) => {
+            if let Ok(status) = mgr.mount_get_status(device_id).await {
+                caps.tracking = Some(status.tracking);
+                if let Some(rate) = status.tracking_rate {
+                    caps.tracking_rate = Some(rate);
+                }
+            }
+        }
+        DeviceCapabilities::Dome(caps) => {
+            if let Ok(status) = mgr.dome_get_status(device_id).await {
+                caps.azimuth = Some(status.azimuth);
+                caps.slewing = status.slewing;
+                caps.at_home = status.at_home;
+                caps.at_park = status.at_park;
+                caps.slaved = status.is_slaved;
+                caps.shutter_status = Some(match status.shutter_status {
+                    crate::device::ShutterState::Open => ShutterStatus::Open,
+                    crate::device::ShutterState::Closed => ShutterStatus::Closed,
+                    crate::device::ShutterState::Opening => ShutterStatus::Opening,
+                    crate::device::ShutterState::Closing => ShutterStatus::Closing,
+                    crate::device::ShutterState::Error
+                    | crate::device::ShutterState::Unknown => ShutterStatus::Unknown,
+                });
+            }
+        }
+        DeviceCapabilities::CoverCalibrator(caps) => {
+            if let Ok(status) = mgr.cover_calibrator_get_status(device_id).await {
+                caps.cover_state = Some(status.cover_state);
+                caps.calibrator_state = Some(status.calibrator_state);
+                caps.brightness = Some(status.brightness);
+            }
+        }
+        DeviceCapabilities::SafetyMonitor(caps) => {
+            // A 5-minute-stale `is_safe` is the worst case in this file: it is
+            // the value a run consults before deciding to keep imaging.
+            if let Ok(is_safe) = mgr.safety_is_safe(device_id).await {
+                caps.is_safe = is_safe;
+            }
+        }
+        DeviceCapabilities::Switch(caps) => {
+            // A switch is precisely the thing an operator toggles and then
+            // re-reads — dew heaters, flat panels, power ports — so a value
+            // held for the 5-minute TTL is the same defect as the cooler that
+            // reported `coolerOn: false` while it was running.
+            //
+            // This is the one device class that needs a round trip PER switch;
+            // the enumeration itself (names, descriptions, ranges, writability)
+            // is genuinely static and stays cached, so only the values are
+            // re-read. A switch whose read fails keeps its cached value rather
+            // than reporting a fabricated 0.
+            for switch in caps.switches.iter_mut() {
+                if let Ok(value) = mgr.switch_get_value(device_id, switch.index).await {
+                    switch.value = value;
+                }
+            }
+        }
+        // WeatherCapabilities is entirely static `has_*` feature flags — the
+        // live readings live on the weather status surface, not here.
+        DeviceCapabilities::Weather(_) => {}
+    }
+}
+
 #[cfg(test)]
 pub(crate) async fn invalidate_capability_cache() {
     let mut cache = capability_cache().lock().await;
@@ -705,12 +906,26 @@ pub async fn get_device_capabilities(
     let parsed = parse_device_id_cached(device_id)?;
 
     {
-        let mut cache = capability_cache().lock().await;
-        if let Some(entry) = cache.get(device_id) {
-            if entry.timestamp.elapsed() < CAPABILITY_CACHE_TTL {
-                return Ok(entry.capabilities.clone());
+        let cached = {
+            let mut cache = capability_cache().lock().await;
+            match cache.get(device_id) {
+                Some(entry) if entry.timestamp.elapsed() < CAPABILITY_CACHE_TTL => {
+                    Some(entry.capabilities.clone())
+                }
+                Some(_) => {
+                    cache.remove(device_id);
+                    None
+                }
+                None => None,
             }
-            cache.remove(device_id);
+        };
+        if let Some(mut capabilities) = cached {
+            // The cache exists to avoid re-running the EXPENSIVE static probe
+            // (for ASCOM/Alpaca that probe may connect and disconnect the
+            // driver — see the module header). It must not also freeze the
+            // handful of LIVE readings that share these structs.
+            refresh_volatile_state(device_id, &mut capabilities).await;
+            return Ok(capabilities);
         }
     }
 
@@ -795,6 +1010,20 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
             // property. Drivers that don't implement a capability return 0x400 /
             // NotImplemented; defaulting to `false` means "feature absent" — the
             // intended ASCOM contract for capability discovery.
+            let supported_tracking_rates = telescope
+                .tracking_rates()
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|rate| match rate {
+                    nightshade_alpaca::DriveRate::Sidereal => TrackingRate::Sidereal,
+                    nightshade_alpaca::DriveRate::Lunar => TrackingRate::Lunar,
+                    nightshade_alpaca::DriveRate::Solar => TrackingRate::Solar,
+                    nightshade_alpaca::DriveRate::King => TrackingRate::King,
+                })
+                .collect::<Vec<_>>();
+            let can_set_tracking_rate = !supported_tracking_rates.is_empty();
+
             let caps = MountCapabilities {
                 can_slew: telescope.can_slew().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSlew (optional)
                 can_slew_async: telescope.can_slew_async().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSlewAsync (optional)
@@ -804,6 +1033,11 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 can_set_park: telescope.can_set_park().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSetPark (optional)
                 can_pulse_guide: telescope.can_pulse_guide().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanPulseGuide (optional)
                 can_set_tracking: telescope.can_set_tracking().await.unwrap_or(false), // Why: ASCOM ITelescopeV3.CanSetTracking (optional)
+                // TelescopeRates is the ASCOM/Alpaca contract for which drive
+                // rates may be selected. CanSetTracking only controls the
+                // boolean Tracking property and is not a rate capability.
+                can_set_tracking_rate,
+                supported_tracking_rates,
                 // Why: ASCOM EquatorialSystem enum (0=Other, 1=Topocentric…). Treating an
                 // unreadable value as "0 → not equatorial" is conservative: AltAz-only
                 // mounts return 0 explicitly, so the downstream UI shouldn't enable
@@ -927,6 +1161,10 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 temperature: focuser.temperature().await.ok(),
                 is_moving: focuser.is_moving().await.unwrap_or(false), // Why: IFocuserV3.IsMoving — "not moving" is the safer default; UI re-polls
                 position: focuser.position().await.ok(),
+                // Alpaca IFocuserV3 exposes Halt as a required method and has
+                // no CanHalt property. Reporting the default false contradicts
+                // the working halt operation and disables the UI control.
+                can_halt: true,
                 ..Default::default()
             };
 
@@ -946,14 +1184,35 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
             }
 
-            // Why: ASCOM IFilterWheelV2.Names is mandatory but tolerated. If the
-            // driver fails the names lookup we surface an empty wheel (0 positions)
-            // rather than aborting connection setup; user retries via "rescan".
-            let names = fw.names().await.unwrap_or_default();
-            // Why: IFilterWheelV2.FocusOffsets is mandatory and parallel to Names
-            // but defaults to empty so the auto-focus subsystem skips per-filter
-            // offset compensation rather than panicking on a missing array.
-            let offsets = fw.focus_offsets().await.unwrap_or_default();
+            // A FAILED names lookup must not be reported as "an empty wheel":
+            // `position_count: 0` is indistinguishable from a wheel that really
+            // has no filters, and it makes the scheduler reject every filtered
+            // target ("required filter not in wheel"). Surfacing the error lets
+            // the caller retry (or rescan) against a real diagnosis instead of
+            // acting on a fabricated capability. A SUCCESSFUL-but-empty list is
+            // still passed through untouched — that answer is honest.
+            let names = fw.names().await.map_err(|e| {
+                NightshadeError::connection_failed(
+                    device_id,
+                    format!("Failed to read Alpaca filter wheel names: {e}"),
+                )
+            })?;
+            // FocusOffsets is a softer case: an empty list means "no per-filter
+            // focus compensation", which degrades a feature rather than
+            // fabricating a capability. Keep going, but say so — silently losing
+            // offsets looks identical to a wheel that has none configured.
+            let offsets = match fw.focus_offsets().await {
+                Ok(o) => o,
+                Err(e) => {
+                    tracing::warn!(
+                        "Alpaca filter wheel {}: focus-offset read failed ({}); per-filter \
+                         focus compensation will be skipped for this wheel.",
+                        device_id,
+                        e
+                    );
+                    Vec::new()
+                }
+            };
 
             let caps = FilterWheelCapabilities {
                 position_count: names.len() as i32,
@@ -1171,15 +1430,20 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 safety_description: None, // Alpaca doesn't provide a description
             };
 
-            safety.disconnect().await.ok();
+            if !was_connected {
+                safety.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::SafetyMonitor(caps))
         }
         "switch" => {
             let switch = nightshade_alpaca::AlpacaSwitch::from_server(base_url, device_num);
-            switch
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            let was_connected = switch.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                switch
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Why: ASCOM ISwitchV2.MaxSwitch is mandatory. Defaulting to 0 on
             // read failure means "no channels exposed" — the for-loop below then
@@ -1227,7 +1491,9 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 switches,
             };
 
-            switch.disconnect().await.ok();
+            if !was_connected {
+                switch.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Switch(caps))
         }
         _ => Err(NightshadeError::not_supported(
@@ -1268,22 +1534,36 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         .map_err(|e| NightshadeError::not_supported(device_id, &e))?;
 
     if device_type == AscomCapabilityDeviceType::Camera {
-        // Query camera capabilities
-        let mut wrapper = AscomCameraWrapper::new(prog_id.clone())
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
-
-        // Try to connect and get capabilities
-        wrapper
-            .connect()
-            .await
-            .map_err(|e| NightshadeError::connection_failed(device_id, format!("{:?}", e)))?;
-
-        let ascom_caps = wrapper
-            .get_capabilities()
-            .await
-            .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?;
-
-        let _ = wrapper.disconnect().await; // Best-effort disconnect
+        // A second COM object for the same ProgID is not an independent
+        // capability probe. Many ASCOM local servers share Connected state, so
+        // disconnecting that probe also disconnects (or wedges) the live
+        // camera. Query the DeviceManager's registered wrapper whenever the
+        // camera is already connected.
+        let live_wrapper = {
+            let manager = crate::api::get_device_manager();
+            manager.ascom_cameras.read().await.get(device_id).cloned()
+        };
+        let ascom_caps = if let Some(wrapper) = live_wrapper {
+            wrapper
+                .read()
+                .await
+                .get_capabilities()
+                .await
+                .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?
+        } else {
+            let mut wrapper = AscomCameraWrapper::new(prog_id.clone())
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            wrapper
+                .connect()
+                .await
+                .map_err(|e| NightshadeError::connection_failed(device_id, format!("{:?}", e)))?;
+            let capabilities = wrapper
+                .get_capabilities()
+                .await
+                .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?;
+            let _ = wrapper.disconnect().await;
+            capabilities
+        };
 
         Ok(DeviceCapabilities::Camera(CameraCapabilities {
             max_width: ascom_caps.max_width,
@@ -1312,21 +1592,31 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             ..Default::default()
         }))
     } else if device_type == AscomCapabilityDeviceType::Mount {
-        // Query mount capabilities
-        let mut wrapper = AscomMountWrapper::new(prog_id.clone())
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
-
-        wrapper
-            .connect()
-            .await
-            .map_err(|e| NightshadeError::connection_failed(device_id, format!("{:?}", e)))?;
-
-        let ascom_caps = wrapper
-            .get_capabilities()
-            .await
-            .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?;
-
-        let _ = wrapper.disconnect().await;
+        let live_wrapper = {
+            let manager = crate::api::get_device_manager();
+            manager.ascom_mounts.read().await.get(device_id).cloned()
+        };
+        let ascom_caps = if let Some(wrapper) = live_wrapper {
+            wrapper
+                .read()
+                .await
+                .get_capabilities()
+                .await
+                .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?
+        } else {
+            let mut wrapper = AscomMountWrapper::new(prog_id.clone())
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            wrapper
+                .connect()
+                .await
+                .map_err(|e| NightshadeError::connection_failed(device_id, format!("{:?}", e)))?;
+            let capabilities = wrapper
+                .get_capabilities()
+                .await
+                .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?;
+            let _ = wrapper.disconnect().await;
+            capabilities
+        };
 
         Ok(DeviceCapabilities::Mount(MountCapabilities {
             can_slew: ascom_caps.can_slew,
@@ -1353,40 +1643,120 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             ..Default::default()
         }))
     } else if device_type == AscomCapabilityDeviceType::Focuser {
-        // For focuser, use the ASCOM library directly since we don't have a wrapper yet
-        use nightshade_ascom::{init_com, AscomFocuser};
+        // As with cameras, mounts and filter wheels, prefer the live registered
+        // wrapper. A throwaway COM object for the same ProgID is not an
+        // independent client: ASCOM local servers commonly share `Connected`
+        // state, so a probe that connects or disconnects its own object mutates
+        // the live session. The "we don't have a wrapper yet" comment that used
+        // to justify the throwaway here was stale — `DeviceManager` has held
+        // `ascom_focusers` (populated on connect, see
+        // `device_manager::connection`) for as long as the other typed maps.
+        let live_wrapper = {
+            let manager = crate::api::get_device_manager();
+            manager.ascom_focusers.read().await.get(device_id).cloned()
+        };
+        let readings = if let Some(wrapper) = live_wrapper {
+            wrapper
+                .read()
+                .await
+                .capability_readings()
+                .await
+                .map_err(|e| NightshadeError::hardware_error(device_id, format!("{:?}", e)))?
+        } else {
+            // Nothing registered: this is a pre-connect probe (equipment dialog
+            // inspecting a device the user has not connected), so owning a
+            // short-lived connection is legitimate.
+            use nightshade_ascom::{init_com, AscomFocuser};
 
-        // Initialize COM on this thread if needed
-        let _ = init_com();
+            // Initialize COM on this thread if needed
+            let _ = init_com();
 
-        let mut focuser = AscomFocuser::new(&prog_id)
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
-
-        let should_disconnect = capability_probe_should_own_connection(focuser.is_connected());
-        if should_disconnect {
-            focuser
-                .connect()
+            let mut focuser = AscomFocuser::new(&prog_id)
                 .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
-        }
 
-        let caps = focuser.get_capabilities();
-        if should_disconnect {
-            let _ = focuser.disconnect();
-        }
+            let should_disconnect = capability_probe_should_own_connection(focuser.is_connected());
+            if should_disconnect {
+                focuser
+                    .connect()
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
-        Ok(DeviceCapabilities::Focuser(FocuserCapabilities {
-            // Why: ASCOM IFocuserV3.MaxStep — when wrapper returns None the
-            // property threw PropertyNotImplementedException. 0 means "no
-            // travel range advertised", which disables absolute-position UI.
-            max_position: caps.max_step.unwrap_or(0),
-            max_increment: caps.max_increment.unwrap_or(0), // Why: IFocuserV3.MaxIncrement — same contract as MaxStep above
-            step_size: caps.step_size,
-            absolute: caps.absolute.unwrap_or(false), // Why: IFocuserV3.Absolute — default to relative focuser if driver omits it (safer UX)
-            temp_comp_available: caps.temp_comp_available.unwrap_or(false), // Why: IFocuserV3.TempCompAvailable (optional)
-            ..Default::default()
-        }))
+            let caps = focuser.get_capabilities();
+            // Live state must be read while the probe still owns the connection.
+            // Leaving these at `Default::default()` (the previous behaviour) made
+            // this endpoint report `isMoving: false`, `position: null` and
+            // `temperature: null` even while the focuser was demonstrably moving —
+            // observed on the rig as three consecutive samples reading
+            // `isMoving: false` while `/api/equipment/focuser/status` reported
+            // `moving: true` and a position stepping 46560 -> 44880 -> 43240.
+            let live = focuser.get_full_status();
+            if should_disconnect {
+                let _ = focuser.disconnect();
+            }
+
+            AscomFocuserReadings {
+                max_step: caps.max_step,
+                max_increment: caps.max_increment,
+                step_size: caps.step_size,
+                absolute: caps.absolute,
+                temp_comp_available: caps.temp_comp_available,
+                temp_comp: live.temp_comp,
+                temperature: live.temperature,
+                position: live.position,
+                is_moving: live.is_moving,
+            }
+        };
+
+        Ok(DeviceCapabilities::Focuser(
+            focuser_capabilities_from_ascom(readings),
+        ))
     } else if device_type == AscomCapabilityDeviceType::FilterWheel {
-        // For filter wheel, use the ASCOM library directly
+        // As with cameras and mounts, prefer the live registered wrapper. A
+        // throwaway COM object can share and then tear down the live driver's
+        // connection when its probe disconnects.
+        let live_wrapper = {
+            let manager = crate::api::get_device_manager();
+            manager
+                .ascom_filter_wheels
+                .read()
+                .await
+                .get(device_id)
+                .cloned()
+        };
+        if let Some(wrapper) = live_wrapper {
+            let wrapper = wrapper.read().await;
+            // A FAILED names read must not masquerade as "this wheel has zero
+            // filters". `unwrap_or_default()` here turned any read error into an
+            // empty list and hence `position_count: 0`, which is
+            // indistinguishable from a genuinely empty wheel — the scheduler
+            // then rejects every filtered target ("required filter not in
+            // wheel") and the UI shows no filters. ASCOM `Names` is one of the
+            // reads that intermittently throws 0x80020009 in headless mode, so
+            // surface the failure instead of fabricating a 0-slot wheel.
+            let names = wrapper
+                .get_filter_names()
+                .await
+                .map_err(|e| NightshadeError::connection_failed(device_id, e.to_string()))?;
+            // An EMPTY names list is legitimate (a wheel that exposes no custom
+            // names) — fall back to the driver-reported slot count so the wheel
+            // still advertises its real number of positions.
+            let slot_count = wrapper.get_filter_count();
+            let position = wrapper.get_position().await.ok();
+            return Ok(DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
+                position_count: if names.is_empty() {
+                    slot_count
+                } else {
+                    i32::try_from(names.len()).unwrap_or(i32::MAX)
+                },
+                current_position: position,
+                filter_names: names,
+                focus_offsets: Vec::new(),
+                can_set_focus_offsets: false,
+                ..Default::default()
+            }));
+        }
+
+        // No managed connection exists, so an owned, temporary probe is safe.
         use nightshade_ascom::{init_com, AscomFilterWheel};
 
         let _ = init_com();
@@ -1404,8 +1774,40 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         // PropertyNotImplemented we expose an empty filter list — UI shows a
         // 0-position wheel and the user reconfigures the driver. Better than
         // failing the entire equipment-profile load on one bad accessor.
-        let names = fw.names().unwrap_or_default();
-        let focus_offsets = fw.focus_offsets().unwrap_or_default();
+        //
+        // That resilience is kept deliberately (this is the cold-probe taken
+        // during profile load / first discovery, where aborting is worse), but
+        // the failure is no longer SILENT: a reported 0-position wheel is
+        // indistinguishable from a real empty one, and it makes the scheduler
+        // reject every filtered target ("required filter not in wheel"). The
+        // live-wrapper branch above propagates instead, because that one runs
+        // during normal operation where a retry is the right answer.
+        let names = match fw.names() {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::warn!(
+                    "ASCOM filter wheel {}: Names read failed during capability probe \
+                     ({}); reporting a 0-position wheel so profile load can continue. \
+                     Filtered targets will be rejected until this wheel is re-read \
+                     (rescan) — this is a DRIVER/connection fault, not an empty wheel.",
+                    device_id,
+                    e
+                );
+                Vec::new()
+            }
+        };
+        let focus_offsets = match fw.focus_offsets() {
+            Ok(o) => o,
+            Err(e) => {
+                tracing::warn!(
+                    "ASCOM filter wheel {}: FocusOffsets read failed ({}); per-filter \
+                     focus compensation will be skipped for this wheel.",
+                    device_id,
+                    e
+                );
+                Vec::new()
+            }
+        };
         let position = fw.position().ok();
         if should_disconnect {
             let _ = fw.disconnect();
@@ -1809,6 +2211,11 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
     let has_rotator_props = properties
         .iter()
         .any(|p| p.name == "ABS_ROTATOR_ANGLE" || p.name == "ROTATOR_ANGLE");
+    // Mirrors the dome detection in indi/src/discovery.rs (a dome publishes at
+    // least one of shutter control, azimuth motion, or absolute position).
+    let has_dome_props = properties.iter().any(|p| {
+        p.name == "DOME_SHUTTER" || p.name == "DOME_MOTION" || p.name == "ABS_DOME_POSITION"
+    });
 
     // Build capabilities based on discovered properties
     if has_ccd_props {
@@ -2123,6 +2530,84 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
         };
 
         Ok(DeviceCapabilities::Rotator(caps))
+    } else if has_dome_props {
+        // INDI dome. Capabilities are presence checks over the standard dome
+        // properties (see indi/src/dome.rs for the property/element names the
+        // ops actually drive). A missing property honestly maps to "capability
+        // absent" (false) — no fabricated capability. Before this branch existed,
+        // every INDI dome fell through to the `not_supported` arm below, which
+        // the Dart dome handler surfaced as 501 for open/close/park/home even
+        // though the native ops are fully implemented.
+        let can_set_shutter = properties.iter().any(|p| p.name == "DOME_SHUTTER");
+        let can_set_azimuth = properties.iter().any(|p| p.name == "ABS_DOME_POSITION");
+        // Home and park are both driven via DOME_GOTO (DOME_HOME / DOME_PARK
+        // elements); unpark additionally uses the DOME_PARK switch vector.
+        let has_goto = properties.iter().any(|p| p.name == "DOME_GOTO");
+        let can_find_home = has_goto;
+        let can_park = has_goto || properties.iter().any(|p| p.name == "DOME_PARK");
+        let can_abort = properties.iter().any(|p| p.name == "DOME_ABORT_MOTION");
+        let can_slave = properties.iter().any(|p| p.name == "DOME_AUTOSYNC");
+
+        // Live snapshot values (re-polled by the dome state provider on a timer;
+        // absent/failed reads fall back to safe defaults).
+        let locked_client = client.read().await;
+        let azimuth = locked_client
+            .get_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION")
+            .await;
+        let shutter_open = locked_client
+            .get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
+            .await;
+        let shutter_close = locked_client
+            .get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
+            .await;
+        let shutter_busy = locked_client
+            .is_property_busy(&device_name, "DOME_SHUTTER")
+            .await;
+        let shutter_status = match (shutter_open, shutter_close, shutter_busy) {
+            (Some(true), Some(false), true) => Some(ShutterStatus::Opening),
+            (Some(false), Some(true), true) => Some(ShutterStatus::Closing),
+            (Some(true), Some(false), false) => Some(ShutterStatus::Open),
+            (Some(false), Some(true), false) => Some(ShutterStatus::Closed),
+            _ => None,
+        };
+        let at_home = locked_client
+            .get_switch(&device_name, "DOME_GOTO", "DOME_HOME")
+            .await
+            .unwrap_or(false);
+        let at_park = locked_client
+            .get_switch(&device_name, "DOME_PARK", "PARK")
+            .await
+            .unwrap_or(false)
+            || locked_client
+                .get_switch(&device_name, "DOME_GOTO", "DOME_PARK")
+                .await
+                .unwrap_or(false);
+        let slewing = locked_client
+            .is_property_busy(&device_name, "ABS_DOME_POSITION")
+            .await
+            || shutter_busy;
+        let slaved = locked_client
+            .get_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE")
+            .await
+            .unwrap_or(false);
+        drop(locked_client);
+
+        Ok(DeviceCapabilities::Dome(DomeCapabilities {
+            can_set_azimuth,
+            can_park,
+            can_find_home,
+            can_set_shutter,
+            // INDI has no standard sync-azimuth property (unlike ASCOM SyncToAzimuth).
+            can_sync_azimuth: false,
+            azimuth,
+            slewing,
+            at_home,
+            at_park,
+            shutter_status,
+            can_slave,
+            slaved,
+            can_abort,
+        }))
     } else {
         // Unknown device type - return minimal capabilities
         Err(NightshadeError::not_supported(
@@ -2188,6 +2673,19 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     .flatten()
                     .map_or((None, None), |(min, max)| (Some(min), Some(max)));
 
+                // Same contract as the cooler range: `None` means "this driver
+                // does not publish the limits", never a guessed clamp. Without
+                // these, `exposureMin`/`exposureMax` were always null, so no
+                // client could validate an exposure before submitting it and an
+                // out-of-range request failed deep in the SDK instead of being
+                // refused up front. ZWO publishes them via ASIGetControlCaps.
+                let (exposure_min, exposure_max) = camera
+                    .get_exposure_range()
+                    .await
+                    .ok()
+                    .flatten()
+                    .map_or((None, None), |(min, max)| (Some(min), Some(max)));
+
                 Ok(DeviceCapabilities::Camera(CameraCapabilities {
                     max_width: sensor_info.width,
                     max_height: sensor_info.height,
@@ -2218,6 +2716,8 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     cooler_on: status.as_ref().map(|s| s.cooler_on),
                     cooler_min_temp_c,
                     cooler_max_temp_c,
+                    exposure_min,
+                    exposure_max,
                     ..Default::default()
                 }))
             } else {
@@ -2298,6 +2798,18 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     current_position: position,
                     filter_names: names,
                     is_moving,
+                    // The `NativeFilterWheel` trait requires `set_filter_name`,
+                    // so every native wheel can be renamed. Leaving this at the
+                    // `Default::default()` `false` under-reported a working
+                    // feature: on the live rig a real ZWO EFW advertised
+                    // `canSetFilterNames: false`, yet
+                    // `POST /api/filter-wheel/names` with
+                    // ["L","R","G","B","Ha","OIII","SII","Dark"] returned 200 and
+                    // both `/api/filter-wheel/names` and
+                    // `/api/equipment/filter-wheel/status` served the new labels
+                    // back. Any UI that gates its rename control on this flag
+                    // hides a feature the hardware supports.
+                    can_set_filter_names: true,
                     ..Default::default()
                 }))
             } else {
@@ -2751,6 +3263,90 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
     } else {
         // Default to camera for unknown simulator devices
         DeviceCapabilities::Camera(CameraCapabilities::default())
+    }
+}
+
+#[cfg(test)]
+mod ascom_focuser_capability_tests {
+    use super::{focuser_capabilities_from_ascom, AscomFocuserReadings};
+
+    /// Readings matching the ASCOM Focuser Simulator on the rig, captured while
+    /// it was genuinely travelling.
+    fn moving_focuser() -> AscomFocuserReadings {
+        AscomFocuserReadings {
+            max_step: Some(50000),
+            max_increment: Some(50000),
+            step_size: Some(20.0),
+            absolute: Some(true),
+            temp_comp_available: Some(true),
+            temp_comp: Some(false),
+            temperature: Some(182.43),
+            position: Some(44880),
+            is_moving: Some(true),
+        }
+    }
+
+    #[test]
+    fn live_state_is_reported_not_defaulted() {
+        // Regression: these four came from `Default::default()`, so a moving
+        // focuser reported isMoving false / position null / temperature null.
+        let caps = focuser_capabilities_from_ascom(moving_focuser());
+
+        assert!(caps.is_moving, "a travelling focuser must report is_moving");
+        assert_eq!(caps.position, Some(44880));
+        assert_eq!(caps.temperature, Some(182.43));
+        assert_eq!(caps.max_position, 50000);
+        assert_eq!(caps.step_size, Some(20.0));
+        assert!(caps.absolute);
+        assert!(caps.temp_comp_available);
+        assert!(!caps.temp_comp);
+    }
+
+    #[test]
+    fn halt_is_advertised_for_every_ascom_focuser() {
+        // Halt() is an IFocuserV2/V3 interface member and ASCOM has no CanHalt
+        // property; reporting false disabled the stop control for a focuser
+        // whose Halt was verified working on the rig.
+        assert!(focuser_capabilities_from_ascom(moving_focuser()).can_halt);
+        assert!(
+            focuser_capabilities_from_ascom(AscomFocuserReadings::default()).can_halt,
+            "can_halt must not depend on any property read succeeding"
+        );
+    }
+
+    #[test]
+    fn unreadable_properties_degrade_without_inventing_values() {
+        // Every property threw: report "unknown" rather than a fabricated
+        // number. 0 travel disables absolute-position UI, which is the intended
+        // signal for a driver whose MaxStep is not implemented.
+        let caps = focuser_capabilities_from_ascom(AscomFocuserReadings::default());
+
+        assert_eq!(caps.max_position, 0);
+        assert_eq!(caps.max_increment, 0);
+        assert_eq!(caps.step_size, None);
+        assert_eq!(caps.temperature, None);
+        assert_eq!(caps.position, None);
+        assert!(!caps.is_moving);
+        assert!(!caps.absolute);
+    }
+
+    #[test]
+    fn reverse_stays_unsupported_for_focusers() {
+        // Reverse belongs to IRotatorV3, not IFocuserV3.
+        let caps = focuser_capabilities_from_ascom(moving_focuser());
+        assert!(!caps.can_reverse);
+        assert_eq!(caps.reverse, None);
+    }
+
+    #[test]
+    fn a_settled_focuser_reports_not_moving() {
+        let caps = focuser_capabilities_from_ascom(AscomFocuserReadings {
+            is_moving: Some(false),
+            position: Some(50000),
+            ..moving_focuser()
+        });
+        assert!(!caps.is_moving);
+        assert_eq!(caps.position, Some(50000));
     }
 }
 

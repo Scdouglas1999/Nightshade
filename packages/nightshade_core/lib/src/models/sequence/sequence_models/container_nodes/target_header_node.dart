@@ -10,6 +10,8 @@ class TargetHeaderNode extends SequenceNode {
   final double raHours;
   final double decDegrees;
   final double? rotation;
+
+  /// User priority used by scheduler scoring; higher values are more important.
   final int priority;
   final double? minAltitude;
   final double? maxAltitude;

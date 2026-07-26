@@ -333,172 +333,294 @@ class _CandidateRow extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    // Read through the remote-aware provider so a slave sees the master's
-    // lists; the local DAO is empty on a NetworkBackend.
-    final lists = await ref.read(observingListsProvider.future);
-    if (!context.mounted) return;
-
-    final chosenId = await showDialog<int>(
+    await showDialog<void>(
       context: context,
-      builder: (dCtx) {
-        return AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text(
-            'Add to observing list',
-            style: TextStyle(color: colors.textPrimary),
+      builder: (_) => _CandidateObservingListDialog(
+        suggestion: suggestion,
+        colors: colors,
+      ),
+    );
+  }
+}
+
+/// Host-bound add/create flow for a Planner candidate.
+///
+/// Keeping the mutation inside the dialog means a failed host write does not
+/// dismiss the only place that can explain and retry it. It also prevents a
+/// numeric list ID selected on one remote host from being applied to another
+/// host after the connection changes.
+class _CandidateObservingListDialog extends ConsumerStatefulWidget {
+  final TargetSuggestion suggestion;
+  final NightshadeColors colors;
+
+  const _CandidateObservingListDialog({
+    required this.suggestion,
+    required this.colors,
+  });
+
+  @override
+  ConsumerState<_CandidateObservingListDialog> createState() =>
+      _CandidateObservingListDialogState();
+}
+
+class _CandidateObservingListDialogState
+    extends ConsumerState<_CandidateObservingListDialog> {
+  late final TextEditingController _nameController;
+  late final NightshadeBackend _authority;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  bool _creating = false;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _authority = ref.read(backendProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'The connected host changed. Adding the target was cancelled.',
+            ),
           ),
-          content: SizedBox(
-            width: dialogMaxWidth(dCtx, 320),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (lists.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'No observing lists yet. Create one to start adding targets.',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  )
-                else
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: clampPanelWidth(
-                        MediaQuery.sizeOf(dCtx).height,
-                        fraction: 0.35,
-                        min: 180,
-                        max: 280,
-                      ),
-                    ),
-                    child: ListView(
-                      shrinkWrap: true,
-                      children: [
-                        for (final list in lists)
-                          ListTile(
-                            dense: true,
-                            title: Text(list.name,
-                                style: TextStyle(color: colors.textPrimary)),
-                            onTap: () => Navigator.of(dCtx).pop(list.id),
-                          ),
-                      ],
-                    ),
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  bool get _isCurrentAuthority =>
+      identical(ref.read(backendProvider), _authority);
+
+  Future<void> _addToList(int listId) async {
+    if (_saving || !_isCurrentAuthority) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final id = await ref.read(observingListNotifierProvider.notifier).addItem(
+          listId: listId,
+          objectName: widget.suggestion.targetName,
+          catalogId: widget.suggestion.catalogId,
+          objectType: widget.suggestion.objectType,
+          ra: widget.suggestion.raHours,
+          dec: widget.suggestion.decDegrees,
+          magnitude: widget.suggestion.magnitude,
+          sizeArcmin: widget.suggestion.sizeArcmin,
+        );
+    if (!mounted || !_isCurrentAuthority) return;
+
+    if (id == null) {
+      setState(() {
+        _saving = false;
+        _error = ref.read(observingListNotifierProvider).errorMessage ??
+            'Could not add the target to this list';
+      });
+      return;
+    }
+
+    _showSuccessAndClose(
+      'Added ${widget.suggestion.targetName} to the list',
+    );
+  }
+
+  Future<void> _createAndAdd() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'Enter a list name');
+      return;
+    }
+    if (_saving || !_isCurrentAuthority) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final id = await ref
+        .read(observingListNotifierProvider.notifier)
+        .createListWithItem(
+          name: name,
+          objectName: widget.suggestion.targetName,
+          catalogId: widget.suggestion.catalogId,
+          objectType: widget.suggestion.objectType,
+          ra: widget.suggestion.raHours,
+          dec: widget.suggestion.decDegrees,
+          magnitude: widget.suggestion.magnitude,
+          sizeArcmin: widget.suggestion.sizeArcmin,
+        );
+    if (!mounted || !_isCurrentAuthority) return;
+
+    if (id == null) {
+      setState(() {
+        _saving = false;
+        _error = ref.read(observingListNotifierProvider).errorMessage ??
+            'Could not create the list and add this target';
+      });
+      return;
+    }
+
+    _showSuccessAndClose(
+      'Created "$name" and added ${widget.suggestion.targetName}',
+    );
+  }
+
+  void _showSuccessAndClose(String message) {
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: widget.colors.success,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final listsAsync = ref.watch(observingListsProvider);
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        backgroundColor: widget.colors.surface,
+        title: Text(
+          'Add to observing list',
+          style: TextStyle(color: widget.colors.textPrimary),
+        ),
+        content: SizedBox(
+          width: dialogMaxWidth(context, 340),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              listsAsync.when(
+                loading: () => const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(NightshadeTokens.spaceMd),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
+                ),
+                error: (error, _) => Text(
+                  'Could not load observing lists: $error',
+                  style: TextStyle(color: widget.colors.error),
+                ),
+                data: (lists) => lists.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          'No observing lists yet. Create one to add this target.',
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize12,
+                            color: widget.colors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: clampPanelWidth(
+                            MediaQuery.sizeOf(context).height,
+                            fraction: 0.35,
+                            min: 120,
+                            max: 280,
+                          ),
+                        ),
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: [
+                            for (final list in lists)
+                              ListTile(
+                                dense: true,
+                                enabled: !_saving,
+                                title: Text(
+                                  list.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: widget.colors.textPrimary,
+                                  ),
+                                ),
+                                onTap:
+                                    _saving ? null : () => _addToList(list.id),
+                              ),
+                          ],
+                        ),
+                      ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              if (_creating) ...[
+                TextField(
+                  controller: _nameController,
+                  autofocus: true,
+                  enabled: !_saving,
+                  textInputAction: TextInputAction.done,
+                  decoration: InputDecoration(
+                    labelText: 'New list name',
+                    errorText: _error == 'Enter a list name' ? _error : null,
+                  ),
+                  onChanged: (_) {
+                    if (_error == 'Enter a list name') {
+                      setState(() => _error = null);
+                    }
+                  },
+                  onSubmitted: (_) {
+                    if (!_saving) _createAndAdd();
+                  },
+                ),
                 const SizedBox(height: NightshadeTokens.spaceSm),
+                NightshadeButton(
+                  label: _saving ? 'Creating…' : 'Create and add',
+                  icon: LucideIcons.plus,
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                  onPressed: _saving ? null : _createAndAdd,
+                ),
+              ] else
                 NightshadeButton(
                   label: 'Create new list…',
                   icon: LucideIcons.plus,
                   variant: ButtonVariant.outline,
                   size: ButtonSize.small,
-                  onPressed: () async {
-                    Navigator.of(dCtx).pop();
-                    final newId = await _createListAndAdd(context, ref);
-                    if (!context.mounted || newId == null) return;
-                  },
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                            _creating = true;
+                            _error = null;
+                          }),
+                ),
+              if (_error != null && _error != 'Enter a list name') ...[
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                Text(
+                  _error!,
+                  style: TextStyle(
+                    color: widget.colors.error,
+                    fontSize: NightshadeTypography.fontSize12,
+                  ),
                 ),
               ],
-            ),
+            ],
           ),
-          actions: [
-            NightshadeButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dCtx).pop(),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (chosenId == null) return;
-    if (!context.mounted) return;
-    final id = await ref.read(observingListNotifierProvider.notifier).addItem(
-          listId: chosenId,
-          objectName: suggestion.targetName,
-          catalogId: suggestion.catalogId,
-          objectType: suggestion.objectType,
-          ra: suggestion.raHours,
-          dec: suggestion.decDegrees,
-          magnitude: suggestion.magnitude,
-          sizeArcmin: suggestion.sizeArcmin,
-        );
-    if (!context.mounted) return;
-    final colorsLocal = NightshadeColors.of(context);
-    final notifierState = ref.read(observingListNotifierProvider);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          id == null
-              ? (notifierState.errorMessage ?? 'Failed to add to list')
-              : 'Added ${suggestion.targetName} to the list',
         ),
-        backgroundColor: id == null ? colorsLocal.error : colorsLocal.success,
+        actions: [
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          ),
+        ],
       ),
     );
-  }
-
-  Future<int?> _createListAndAdd(BuildContext context, WidgetRef ref) async {
-    final nameController = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dCtx) {
-        return AlertDialog(
-          backgroundColor: colors.surface,
-          title: Text('New list', style: TextStyle(color: colors.textPrimary)),
-          content: TextField(
-            controller: nameController,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: 'List name'),
-          ),
-          actions: [
-            NightshadeButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dCtx).pop(),
-            ),
-            NightshadeButton(
-              label: 'Create',
-              variant: ButtonVariant.primary,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.of(dCtx).pop(nameController.text),
-            ),
-          ],
-        );
-      },
-    );
-    if (name == null || name.trim().isEmpty) return null;
-    final newId = await ref
-        .read(observingListNotifierProvider.notifier)
-        .createList(name: name.trim());
-    if (newId == null) return null;
-    if (!context.mounted) return null;
-    final id = await ref.read(observingListNotifierProvider.notifier).addItem(
-          listId: newId,
-          objectName: suggestion.targetName,
-          catalogId: suggestion.catalogId,
-          objectType: suggestion.objectType,
-          ra: suggestion.raHours,
-          dec: suggestion.decDegrees,
-          magnitude: suggestion.magnitude,
-          sizeArcmin: suggestion.sizeArcmin,
-        );
-    if (!context.mounted) return null;
-    final colorsLocal = NightshadeColors.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          id == null
-              ? 'Created list but failed to add target'
-              : 'Created "$name" and added ${suggestion.targetName}',
-        ),
-        backgroundColor: id == null ? colorsLocal.error : colorsLocal.success,
-      ),
-    );
-    return id;
   }
 }
 

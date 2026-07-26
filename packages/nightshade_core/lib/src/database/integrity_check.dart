@@ -215,37 +215,24 @@ class DatabaseRecoveryMarker {
   final String? backupPath;
   final DateTime recoveredAtUtc;
   final String? reason;
+  final List<String> observedMarkerPaths;
 
   const DatabaseRecoveryMarker({
     required this.markerPath,
     required this.backupPath,
     required this.recoveredAtUtc,
     required this.reason,
+    this.observedMarkerPaths = const [],
   });
 }
 
-/// Look for `.recovered-on-*.txt` markers in [dbDirectory], return the
-/// newest one, and unlink every marker in the directory so the dialog is
-/// truly one-shot. Older markers are deleted too because they describe past
-/// recoveries the user has already been notified about.
-Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
+/// Reads the newest recovery marker without deleting it. The UI uses this
+/// two-phase path so a crash, app shutdown, or Navigator replacement before
+/// the warning is actually dismissed cannot silently consume the warning.
+Future<DatabaseRecoveryMarker?> readRecoveryMarker(
   Directory dbDirectory,
 ) async {
-  if (!await dbDirectory.exists()) {
-    return null;
-  }
-
-  final entries = await dbDirectory
-      .list()
-      .where(
-        (e) =>
-            e is File &&
-            p.basename(e.path).startsWith(_recoveryMarkerPrefix) &&
-            p.basename(e.path).endsWith('.txt'),
-      )
-      .cast<File>()
-      .toList();
-
+  final entries = await _recoveryMarkerFiles(dbDirectory);
   if (entries.isEmpty) {
     return null;
   }
@@ -267,23 +254,6 @@ Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
 
   final backupPathFromMarker = await _findMostRecentBackup(dbDirectory);
 
-  // Delete every marker — including the one we just read — so the dialog
-  // is one-shot. Why we don't just delete the newest: if recovery happened
-  // multiple times across multiple launches without the UI seeing any of
-  // them (e.g. headless boot), we still only want one dialog on the next
-  // GUI launch.
-  for (final marker in entries) {
-    try {
-      await marker.delete();
-    } on FileSystemException {
-      // Why best-effort here: if the marker file cannot be deleted (e.g.
-      // permission denied because the user is running with reduced
-      // privileges), the UX is degraded (dialog could repeat) but the
-      // database itself is fine. We surface the path in the report below
-      // so support can still locate it.
-    }
-  }
-
   final recoveredAt =
       DateTime.tryParse(fields['recovered_at_utc'] ?? '') ??
       newest.statSync().modified.toUtc();
@@ -293,7 +263,53 @@ Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
     backupPath: backupPathFromMarker,
     recoveredAtUtc: recoveredAt,
     reason: fields['reason'],
+    observedMarkerPaths: entries.map((entry) => entry.path).toList(),
   );
+}
+
+/// Deletes exactly the recovery markers observed by [readRecoveryMarker].
+/// A marker created after the read is deliberately left for the next launch.
+Future<void> acknowledgeRecoveryMarker(
+  Directory dbDirectory,
+  DatabaseRecoveryMarker marker,
+) async {
+  final observed = marker.observedMarkerPaths.isEmpty
+      ? <String>{marker.markerPath}
+      : marker.observedMarkerPaths.toSet();
+  for (final entry in await _recoveryMarkerFiles(dbDirectory)) {
+    if (!observed.contains(entry.path)) continue;
+    try {
+      await entry.delete();
+    } on FileSystemException {
+      // Best effort: an undeletable marker can repeat the warning, but the
+      // recovered database remains usable and no notification is lost.
+    }
+  }
+}
+
+/// Backwards-compatible one-shot read used by non-UI callers.
+Future<DatabaseRecoveryMarker?> consumeRecoveryMarker(
+  Directory dbDirectory,
+) async {
+  final marker = await readRecoveryMarker(dbDirectory);
+  if (marker != null) {
+    await acknowledgeRecoveryMarker(dbDirectory, marker);
+  }
+  return marker;
+}
+
+Future<List<File>> _recoveryMarkerFiles(Directory dbDirectory) async {
+  if (!await dbDirectory.exists()) return const [];
+  return dbDirectory
+      .list()
+      .where(
+        (entry) =>
+            entry is File &&
+            p.basename(entry.path).startsWith(_recoveryMarkerPrefix) &&
+            p.basename(entry.path).endsWith('.txt'),
+      )
+      .cast<File>()
+      .toList();
 }
 
 Future<String?> _findMostRecentBackup(Directory dbDirectory) async {

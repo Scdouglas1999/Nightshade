@@ -5,17 +5,35 @@
   <!-- CSP: connect-src restricted to same origin + same-origin WebSockets only (§2.4).
        The previous "http://*:*" wildcard allowed an attacker-controlled page served
        from the dashboard origin to relay credentials to any host on the network. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+  <!-- No external font/CDN origins: an observatory is routinely offline, and
+       the server's own CSP response header is `style-src 'self'` (see
+       security_headers), so a Google Fonts <link> could never load anyway —
+       it only cost a doomed DNS/TCP attempt plus a CSP console error on every
+       page load. The --font-sans/--font-mono stacks in dashboard.css already
+       fall back to the platform UI font. `frame-ancestors` is deliberately
+       absent here: it is ignored when delivered via <meta> (browsers log an
+       error), and the response header already carries it. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#0A0C0F">
   <title>Nightshade Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+  <!-- Declare an icon so the browser stops probing /favicon.ico, which is not
+       a registered route and therefore answers 401 to an unauthenticated
+       browser — one console error on every single dashboard load. Inlined as a
+       data: URI (permitted by img-src 'self' data: blob:) so it costs no
+       request and no extra bundled file. -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230A0C0F'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%235FB0FF'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/dashboard/css/dashboard.css">
 </head>
 <body>
+  <!-- Keyboard users land on the top bar and would otherwise tab through the
+       whole 10-item capability nav before reaching a control. -->
+  <a href="#dashboard-grid" class="skip-link">Skip to dashboard</a>
   <div class="app-layout">
+
+    <!-- The visible brand is a styled span; the document still needs exactly
+         one level-1 heading so assistive tech can announce/outline the page. -->
+    <h1 class="sr-only">Nightshade Web Dashboard</h1>
 
     <!-- ===== Top Bar ===== -->
     <div class="top-bar">
@@ -38,6 +56,11 @@
              dashboard initialises serverUrl from window.location.origin. -->
         <label for="server-url" class="top-bar-label sr-only" id="server-url-label">Server URL</label>
         <input id="server-url" class="server-url-input" type="text" placeholder="http://host:port" hidden aria-labelledby="server-url-label">
+        <!-- Compact re-entry point for the pairing/token bar once it
+             auto-collapses after successful authentication. -->
+        <button id="btn-auth-reveal" class="btn btn-sm hidden" type="button"
+                aria-label="Show pairing and token controls" aria-expanded="false"
+                title="Pairing / token">Auth</button>
         <button id="btn-connect" class="btn btn-primary btn-sm" aria-label="Connect to server">Connect</button>
         <span id="connect-progress" class="connect-progress" aria-live="polite"></span>
         <div class="connection-status" role="status" aria-live="polite">
@@ -72,11 +95,17 @@
       <button type="button" class="cap-nav-btn" data-route="devices" data-scroll-panel="panel-devices">Devices</button>
       <button type="button" class="cap-nav-btn" data-route="gallery" data-scroll-panel="panel-gallery">Gallery</button>
       <button type="button" class="cap-nav-btn" data-route="logs" data-scroll-panel="panel-logs">Logs</button>
-      <button type="button" class="cap-nav-btn" data-scroll-panel="panel-guiding">Guiding</button>
-      <button type="button" class="cap-nav-btn" data-scroll-panel="panel-planetarium">Planetarium</button>
-      <button type="button" class="cap-nav-btn" data-scroll-panel="ops-profile-panel">Analytics</button>
-      <button type="button" class="cap-nav-btn" data-scroll-panel="panel-settings">Settings</button>
-      <button type="button" class="cap-nav-btn" data-scroll-panel="ops-seq-load-panel">Sequences</button>
+      <!-- These five carried only data-scroll-panel, so they scrolled but never
+           updated the hash, highlighted the target panel, lit the active-tab
+           indicator, or fired the route's side effects — half the nav behaved
+           differently and left NO tab looking selected. HASH_ROUTES already
+           maps every one of these routes, so they only needed data-route (the
+           working buttons above carry both attributes). -->
+      <button type="button" class="cap-nav-btn" data-route="guiding" data-scroll-panel="panel-guiding">Guiding</button>
+      <button type="button" class="cap-nav-btn" data-route="planetarium" data-scroll-panel="panel-planetarium">Planetarium</button>
+      <button type="button" class="cap-nav-btn" data-route="analytics" data-scroll-panel="ops-profile-panel">Analytics</button>
+      <button type="button" class="cap-nav-btn" data-route="settings" data-scroll-panel="panel-settings">Settings</button>
+      <button type="button" class="cap-nav-btn" data-route="sequences" data-scroll-panel="ops-seq-load-panel">Sequences</button>
       <a id="nav-run-watch" class="cap-nav-btn cap-nav-link" href="/run-watch/">Run-Watch</a>
     </nav>
 
@@ -86,7 +115,11 @@
   </div>
 
     <!-- ===== Dashboard Grid ===== -->
-    <div class="dashboard-grid" id="dashboard-grid">
+    <!-- role=main (rather than a <main> wrapper) supplies the missing main
+         landmark without restructuring the grid the CSS selectors depend on;
+         tabindex=-1 lets the skip-link actually move focus here, not just
+         scroll. -->
+    <div class="dashboard-grid" id="dashboard-grid" role="main" tabindex="-1">
 
       <!-- ===== Device Status Panel ===== -->
       <div class="panel" id="panel-devices" data-panel="devices">
@@ -883,7 +916,7 @@
         <div class="panel-header">
           <span class="panel-title">
             <span class="panel-title-icon" aria-hidden="true">&#9881;</span>
-            Profile &amp; Session
+            Profile &amp; Analytics
           </span>
           <div class="panel-actions">
             <button id="ops-btn-profile-reload" class="btn btn-sm" aria-label="Reload the active profile from disk">Reload</button>
@@ -1073,12 +1106,12 @@
       <h2 class="modal-title" id="pair-modal-title">Pair this browser</h2>
       <div class="modal-body" id="pair-modal-desc">
         Open the Nightshade desktop application and watch its console output. A
-        new 6-digit code will be printed there. Type it in below and press Pair
+        new pairing code will be printed there. Type it in below and press Pair
         to complete first-run setup. The code expires after a few minutes; if it
         does, click Pair again to request a fresh one.
       </div>
-      <label for="pair-modal-code" class="sr-only">6-digit pairing code</label>
-      <input id="pair-modal-code" class="modal-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="------" aria-describedby="pair-modal-status">
+      <label for="pair-modal-code" class="sr-only">Pairing code</label>
+      <input id="pair-modal-code" class="modal-input" type="text" autocomplete="one-time-code" maxlength="32" placeholder="STAR-LYRA-1234" aria-describedby="pair-modal-status">
       <div class="modal-status" id="pair-modal-status" role="status" aria-live="polite"></div>
       <div class="modal-actions">
         <button id="btn-pair-cancel" class="btn btn-sm" aria-label="Cancel pairing">Cancel</button>

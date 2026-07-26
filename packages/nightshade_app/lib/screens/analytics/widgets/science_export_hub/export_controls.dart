@@ -96,7 +96,7 @@ class _DateButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -106,7 +106,7 @@ class _DateButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(LucideIcons.calendar, size: 14, color: colors.textMuted),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(

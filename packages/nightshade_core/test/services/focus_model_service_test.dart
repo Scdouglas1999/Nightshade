@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -30,6 +31,67 @@ void main() {
   });
 
   group('FocusModelService', () {
+    test('import rebinds exported data to the destination profile', () async {
+      final service = FocusModelService();
+      await service.importData(
+        'destination',
+        jsonEncode({
+          'profileId': 'source',
+          'dataPoints': [
+            {
+              'timestamp': DateTime.utc(2026, 7, 15).toIso8601String(),
+              'temperature': 8.0,
+              'position': 12000,
+              'hfr': 1.9,
+              'filter': 'L',
+            },
+          ],
+          'temperatureModel': null,
+          'filterOffsets': <String, dynamic>{},
+          'referenceFilter': null,
+        }),
+      );
+
+      expect(service.getProfileData('source'), isNull);
+      expect(service.getProfileData('destination')?.profileId, 'destination');
+
+      final reloaded = FocusModelService();
+      await reloaded.initialize();
+      expect(reloaded.getProfileData('source'), isNull);
+      expect(reloaded.getProfileData('destination')?.dataPoints, hasLength(1));
+    });
+
+    test(
+      'a newly invalid regression clears the previously fitted model',
+      () async {
+        final service = FocusModelService();
+        for (var i = 0; i < 5; i++) {
+          await service.addDataPoint(
+            profileId: 'profile-model-clear',
+            temperatureCelsius: i.toDouble(),
+            focusPosition: 10000 + (i * 50),
+            hfr: 2,
+          );
+        }
+        expect(
+          service.getProfileData('profile-model-clear')?.temperatureModel,
+          isNotNull,
+        );
+
+        await service.addDataPoint(
+          profileId: 'profile-model-clear',
+          temperatureCelsius: 5,
+          focusPosition: 100000,
+          hfr: 2,
+        );
+
+        expect(
+          service.getProfileData('profile-model-clear')?.temperatureModel,
+          isNull,
+        );
+      },
+    );
+
     test(
       'does not build a temperature model when all temperatures are identical',
       () async {

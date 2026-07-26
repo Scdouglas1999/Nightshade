@@ -14,6 +14,7 @@ class _DiscordRoutingSectionState
   final _url = TextEditingController();
   final _user = TextEditingController();
   bool _initialized = false;
+  bool _clearWebhook = false;
 
   @override
   void dispose() {
@@ -27,16 +28,38 @@ class _DiscordRoutingSectionState
     final cfgAsync = ref.watch(discordTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => const NightshadeInlineBanner(
-        message: 'Could not load Discord routing configuration.',
-        severity: NightshadeAlertSeverity.error,
-      ),
+      error: (e, _) {
+        _initialized = false;
+        return _transportErrorSection(
+          title: 'Discord (routing matrix)',
+          error: e,
+          onRetry: () => ref.invalidate(discordTransportConfigProvider),
+        );
+      },
       data: (cfg) {
         if (!_initialized) {
-          _url.text = cfg.webhookUrl;
+          _url.clear();
           _user.text = cfg.username ?? '';
+          _clearWebhook = false;
           _initialized = true;
         }
+        Future<_PrepResult> saveConfig() async {
+          final webhook = _clearWebhook
+              ? ''
+              : (_url.text.trim().isEmpty ? cfg.webhookUrl : _url.text.trim());
+          final urlError = _validateUrlField(webhook);
+          if (urlError != null) return _PrepResult.fail(urlError);
+          final cfg2 = DiscordTransportConfig(
+            webhookUrl: webhook,
+            username: _user.text.trim().isEmpty ? null : _user.text.trim(),
+            avatarUrl: cfg.avatarUrl,
+          );
+          await ref.read(discordTransportConfigProvider.notifier).save(cfg2);
+          _url.clear();
+          _clearWebhook = false;
+          return const _PrepResult.ok();
+        }
+
         return SettingsSection(
           title: 'Discord (routing matrix)',
           children: [
@@ -49,6 +72,8 @@ class _DiscordRoutingSectionState
               hasStoredValue: cfg.webhookUrl.isNotEmpty,
               isMobile: widget.isMobile,
               hint: 'https://discord.com/api/webhooks/…',
+              onChanged: (_) => _clearWebhook = false,
+              onClear: () => setState(() => _clearWebhook = true),
             ),
             SettingRow(
               icon: LucideIcons.user,
@@ -63,31 +88,18 @@ class _DiscordRoutingSectionState
             SettingRow(
               icon: LucideIcons.save,
               title: 'Save Discord config',
-              trailing: NightshadeButton(
-                label: 'Save',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () async {
-                  final cfg2 = DiscordTransportConfig(
-                    webhookUrl: _url.text.trim(),
-                    username:
-                        _user.text.trim().isEmpty ? null : _user.text.trim(),
-                  );
-                  await ref
-                      .read(discordTransportConfigProvider.notifier)
-                      .save(cfg2);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Discord (routing) saved')),
-                  );
-                },
+              trailing: _SaveButton(
+                successMessage: 'Discord (routing) saved',
+                onSave: saveConfig,
               ),
             ),
-            const SettingRow(
+            SettingRow(
               icon: LucideIcons.send,
               title: 'Test Discord',
-              trailing:
-                  _TestSendButton(kind: NotificationTransportKind.discord),
+              trailing: _TestSendButton(
+                kind: NotificationTransportKind.discord,
+                onBeforeSend: saveConfig,
+              ),
               isLast: true,
             ),
           ],

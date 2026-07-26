@@ -1,4 +1,4 @@
-﻿import 'package:drift/native.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -73,6 +73,17 @@ void main() {
                   now.hour < 12 ? now.subtract(const Duration(days: 1)) : now,
               plan: _plan('M51'),
             );
+    final editor = container.read(currentSequenceProvider.notifier);
+    editor.createSequence(name: 'Unsaved manual plan');
+    editor.addNode(
+      TargetHeaderNode(
+        id: 'manual-target',
+        name: 'Manual target',
+        targetName: 'Manual target',
+        raHours: 1,
+        decDegrees: 2,
+      ),
+    );
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -90,6 +101,22 @@ void main() {
     expect(find.text('View tonight\'s plan'), findsOneWidget);
 
     await tester.tap(find.text('View tonight\'s plan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.text('Discard unsaved changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(
+      container.read(currentSequenceProvider)?.name,
+      'Unsaved manual plan',
+      reason: 'viewing a draft must not silently destroy unsaved work',
+    );
+
+    await tester.tap(find.text('View tonight\'s plan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.text('Discard and open'));
     await tester.pumpAndSettle();
 
     expect(container.read(currentSequenceProvider)?.name, 'Smart Night M51');

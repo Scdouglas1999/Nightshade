@@ -8,6 +8,7 @@ import '../../database/database.dart' as db;
 import '../../models/scheduler/target_constraint.dart';
 import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
+import '../../utils/resilient_poll_stream.dart';
 import 'integration_goal_service.dart'
     show targetConstraintsSchemaSql, targetConstraintsTargetIndexSql;
 
@@ -196,16 +197,12 @@ class TargetConstraintService {
       // change-guard (mirrors database_provider's _pollRemote). Host-side
       // edits surface within the interval; our own mutations are picked up by
       // the next poll.
-      var last = await remote.getTargetConstraints();
-      yield last;
-      while (true) {
-        await Future<void>.delayed(const Duration(seconds: 10));
-        final next = await remote.getTargetConstraints();
-        if (!_constraintListEquals(last, next)) {
-          last = next;
-          yield next;
-        }
-      }
+      yield* resilientDistinctPoll(
+        fetch: remote.getTargetConstraints,
+        unchanged: _constraintListEquals,
+        interval: const Duration(seconds: 10),
+      );
+      return;
     }
     await _ensureSchema();
     yield await listAll();

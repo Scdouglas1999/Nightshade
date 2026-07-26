@@ -191,5 +191,67 @@ void main() {
       final seq = container.read(currentSequenceProvider)!;
       expect(seq.nodes.values.whereType<TargetHeaderNode>(), isEmpty);
     });
+
+    testWidgets(
+        'library failure blocks false-empty destinations and retries the fetch',
+        (tester) async {
+      var attempts = 0;
+      final container = ProviderContainer(
+        overrides: [
+          savedSequencesProvider.overrideWith((ref) async {
+            attempts++;
+            if (attempts == 1) {
+              throw StateError('sequence host unavailable');
+            }
+            return const <Sequence>[];
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      late WidgetRef capturedRef;
+      late BuildContext capturedContext;
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Consumer(
+              builder: (ctx, ref, _) {
+                capturedRef = ref;
+                capturedContext = ctx;
+                return const Scaffold(body: SizedBox.shrink());
+              },
+            ),
+          ),
+        ),
+      );
+
+      final future = addFramedTargetToExistingSequence(
+        context: capturedContext,
+        ref: capturedRef,
+        target: _target(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Could not load saved sequences'), findsOneWidget);
+      expect(
+        find.textContaining('Bad state: sequence host unavailable'),
+        findsOneWidget,
+      );
+      expect(find.text('New empty sequence'), findsNothing);
+      expect(attempts, 1);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(attempts, 2);
+      expect(find.text('Add target to sequence'), findsOneWidget);
+      expect(find.text('New empty sequence'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(await future, isFalse);
+      expect(container.read(currentSequenceProvider), isNull);
+    });
   });
 }

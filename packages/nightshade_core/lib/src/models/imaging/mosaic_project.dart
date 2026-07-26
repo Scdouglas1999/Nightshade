@@ -97,6 +97,20 @@ class MosaicProject {
   /// When the project row was last updated (UTC).
   final DateTime updatedAt;
 
+  /// The hub mosaic id once this project has been published as a collaborative
+  /// mosaic (WS2), or null for a local-only project. The handle the panel claim
+  /// broker / upload / assemble endpoints act on.
+  final String? hubMosaicId;
+
+  /// This device's collaborative role for the published mosaic: `owner` (the rig
+  /// that published + assembles) or `participant` (a rig that claimed panels), or
+  /// null when not part of a collaborative mosaic.
+  final String? collabRole;
+
+  /// The hub-side collaborative lifecycle, mirrored locally: `published`,
+  /// `assembling`, or `complete` — or null for a local-only project.
+  final String? collabStatus;
+
   const MosaicProject({
     this.id,
     this.targetId,
@@ -109,7 +123,14 @@ class MosaicProject {
     this.outputMasterId,
     required this.createdAt,
     required this.updatedAt,
+    this.hubMosaicId,
+    this.collabRole,
+    this.collabStatus,
   });
+
+  /// True once this project has been published to the hub as a collaborative
+  /// mosaic (it carries a hub mosaic id).
+  bool get isPublished => hubMosaicId != null && hubMosaicId!.isNotEmpty;
 
   /// Total panels in the grid.
   int get totalPanels => rows * cols;
@@ -130,6 +151,9 @@ class MosaicProject {
     int? outputMasterId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? hubMosaicId,
+    String? collabRole,
+    String? collabStatus,
   }) {
     return MosaicProject(
       id: id ?? this.id,
@@ -143,6 +167,9 @@ class MosaicProject {
       outputMasterId: outputMasterId ?? this.outputMasterId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      hubMosaicId: hubMosaicId ?? this.hubMosaicId,
+      collabRole: collabRole ?? this.collabRole,
+      collabStatus: collabStatus ?? this.collabStatus,
     );
   }
 
@@ -231,6 +258,20 @@ class MosaicProjectPanel {
   /// Lifecycle status.
   final MosaicPanelStatus status;
 
+  /// The hub rig fingerprint this panel is assigned to (WS2 distributed
+  /// capture), or null when unclaimed. Free-text provenance only.
+  final String? assignedRigId;
+
+  /// The hub account id this panel is assigned to (WS2), or null when unclaimed.
+  final String? assignedUserId;
+
+  /// The hub-issued claim baton token held for this panel (WS2), or null.
+  final String? claimToken;
+
+  /// The local `integrated_masters.id` of the panel master uploaded to the hub
+  /// for this panel (WS2), or null until uploaded.
+  final int? uploadedMasterId;
+
   const MosaicProjectPanel({
     this.id,
     required this.projectId,
@@ -241,7 +282,29 @@ class MosaicProjectPanel {
     this.integratedMasterId,
     this.capturedCount = 0,
     this.status = MosaicPanelStatus.pending,
+    this.assignedRigId,
+    this.assignedUserId,
+    this.claimToken,
+    this.uploadedMasterId,
   });
+
+  /// True once this panel has been claimed by a rig (it carries a claim token).
+  bool get isClaimed => claimToken != null && claimToken!.isNotEmpty;
+
+  /// True once this panel's master has been uploaded to the hub.
+  bool get isUploaded => uploadedMasterId != null;
+
+  /// A short provenance label for the rig/user this panel is assigned to (WS2
+  /// distributed capture), or null when unassigned. Prefers the hub account id
+  /// (the human who claimed it), falling back to the rig fingerprint, so the
+  /// grid can attribute each claimed panel.
+  String? get assignedLabel {
+    final user = assignedUserId?.trim();
+    if (user != null && user.isNotEmpty) return user;
+    final rig = assignedRigId?.trim();
+    if (rig != null && rig.isNotEmpty) return rig;
+    return null;
+  }
 
   /// True once the panel's per-panel master has been integrated.
   bool get isIntegrated =>
@@ -257,6 +320,10 @@ class MosaicProjectPanel {
     int? integratedMasterId,
     int? capturedCount,
     MosaicPanelStatus? status,
+    String? assignedRigId,
+    String? assignedUserId,
+    String? claimToken,
+    int? uploadedMasterId,
   }) {
     return MosaicProjectPanel(
       id: id ?? this.id,
@@ -268,6 +335,10 @@ class MosaicProjectPanel {
       integratedMasterId: integratedMasterId ?? this.integratedMasterId,
       capturedCount: capturedCount ?? this.capturedCount,
       status: status ?? this.status,
+      assignedRigId: assignedRigId ?? this.assignedRigId,
+      assignedUserId: assignedUserId ?? this.assignedUserId,
+      claimToken: claimToken ?? this.claimToken,
+      uploadedMasterId: uploadedMasterId ?? this.uploadedMasterId,
     );
   }
 

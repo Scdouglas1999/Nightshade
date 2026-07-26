@@ -264,6 +264,27 @@ void main() {
     expect(regions.firstWhere((r) => r.id == id).name, 'Orion');
   });
 
+  test('ensureRegion rejects impossible coordinates before writing', () async {
+    for (final values in [
+      (ra: double.nan, dec: 0.0, radius: 1.0),
+      (ra: 361.0, dec: 0.0, radius: 1.0),
+      (ra: 10.0, dec: -91.0, radius: 1.0),
+      (ra: 10.0, dec: 20.0, radius: 0.0),
+      (ra: 10.0, dec: 20.0, radius: 181.0),
+    ]) {
+      await expectLater(
+        service.ensureRegion(
+          name: 'Invalid',
+          centerRaDeg: values.ra,
+          centerDecDeg: values.dec,
+          radiusDeg: values.radius,
+        ),
+        throwsRangeError,
+      );
+    }
+    expect(await service.regions(), isEmpty);
+  });
+
   test(
     'autoFoldCapturedImage creates + attaches a region from the target',
     () async {

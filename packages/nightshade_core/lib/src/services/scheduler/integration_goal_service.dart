@@ -8,6 +8,7 @@ import '../../database/database.dart' as db;
 import '../../models/scheduler/integration_goal.dart';
 import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
+import '../../utils/resilient_poll_stream.dart';
 
 /// SQL schema for the three scheduler tables.
 ///
@@ -195,16 +196,12 @@ class IntegrationGoalService {
       // suppresses unchanged re-fetches (mirrors database_provider's
       // _pollRemote). Our own optimistic mutations are picked up by the next
       // poll within the interval.
-      var last = await remote.getIntegrationGoals();
-      yield last;
-      while (true) {
-        await Future<void>.delayed(const Duration(seconds: 10));
-        final next = await remote.getIntegrationGoals();
-        if (!_goalListEquals(last, next)) {
-          last = next;
-          yield next;
-        }
-      }
+      yield* resilientDistinctPoll(
+        fetch: remote.getIntegrationGoals,
+        unchanged: _goalListEquals,
+        interval: const Duration(seconds: 10),
+      );
+      return;
     }
     await _ensureSchema();
     yield await listAll();
@@ -313,10 +310,12 @@ class IntegrationGoalService {
 
 final integrationGoalServiceProvider = Provider<IntegrationGoalService>((ref) {
   final backend = ref.watch(backendProvider);
-  return IntegrationGoalService(
+  final service = IntegrationGoalService(
     ref.watch(databaseProvider),
     remote: backend is NetworkBackend ? backend : null,
   );
+  ref.onDispose(() => service.dispose());
+  return service;
 });
 
 /// Re-used DDL strings exported so the scheduler engine init can ensure

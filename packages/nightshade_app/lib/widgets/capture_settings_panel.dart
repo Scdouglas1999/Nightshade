@@ -25,7 +25,45 @@ class CaptureSettingsPanel extends ConsumerStatefulWidget {
 }
 
 class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
+  /// Consecutive failed loop captures before the loop stops itself so a
+  /// disconnected camera or persistent error can't burn the night spinning.
+  static const _maxLoopFailures = 3;
+
   bool _isLooping = false;
+  bool _isChangingFilter = false;
+  int _loopGeneration = 0;
+  ProviderSubscription<ImagingService>? _imagingSubscription;
+  ProviderSubscription<DeviceService>? _deviceSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _imagingSubscription = ref.listenManual<ImagingService>(
+      imagingServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _loopGeneration++;
+        if (mounted && _isLooping) setState(() => _isLooping = false);
+      },
+    );
+    _deviceSubscription = ref.listenManual<DeviceService>(
+      deviceServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted && _isChangingFilter) {
+          setState(() => _isChangingFilter = false);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _loopGeneration++;
+    _imagingSubscription?.close();
+    _deviceSubscription?.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +71,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final cameraState = ref.watch(cameraStateProvider);
+    final filterWheelState = ref.watch(filterWheelStateProvider);
     // Binning options reflect the connected camera's real maxBinX/Y (+ async
     // bin support) instead of a fixed list; falls back to defaults when no
     // camera/capabilities are available.
@@ -43,6 +82,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
         cameraState.connectionState == DeviceConnectionState.connected;
     final isCapturing =
         exposureProgress.percent > 0 || exposureProgress.isDownloading;
+    final filterWheelBusy = _isChangingFilter || filterWheelState.isMoving;
 
     final spacing = widget.compact ? 8.0 : 12.0;
 
@@ -186,7 +226,11 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
           ),
         ),
         SizedBox(height: spacing),
-        _buildFilterControl(colors, exposureSettings),
+        _buildFilterControl(
+          colors,
+          exposureSettings,
+          captureBusy: isCapturing || _isLooping,
+        ),
         SizedBox(height: widget.compact ? 16 : 24),
         Row(
           children: [
@@ -199,7 +243,12 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
                     : 'Capture',
                 icon: isCapturing ? LucideIcons.loader2 : LucideIcons.camera,
                 size: widget.compact ? ButtonSize.medium : ButtonSize.large,
-                onPressed: (!isConnected || isCapturing) ? null : _captureImage,
+                onPressed: (!isConnected ||
+                        isCapturing ||
+                        _isLooping ||
+                        filterWheelBusy)
+                    ? null
+                    : _captureImage,
               ),
             ),
           ],
@@ -214,7 +263,11 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
                 variant:
                     _isLooping ? ButtonVariant.primary : ButtonVariant.outline,
                 size: widget.compact ? ButtonSize.medium : ButtonSize.large,
-                onPressed: (!isConnected || isCapturing) ? null : _toggleLoop,
+                onPressed: _isLooping
+                    ? _toggleLoop
+                    : (!isConnected || isCapturing || filterWheelBusy)
+                        ? null
+                        : _toggleLoop,
               ),
             ),
             const SizedBox(width: 8),
@@ -252,8 +305,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
   /// static label list and only tags the exposure metadata.
   Widget _buildFilterControl(
     NightshadeColors colors,
-    ExposureSettings exposureSettings,
-  ) {
+    ExposureSettings exposureSettings, {
+    required bool captureBusy,
+  }) {
     final wheel = ref.watch(filterWheelStateProvider);
     final wheelConnected =
         wheel.connectionState == DeviceConnectionState.connected &&
@@ -283,17 +337,17 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
             value:
                 filterNames.contains(selected) ? selected : filterNames.first,
             items: filterNames,
-            onChanged: (value) {
-              if (value == null) return;
-              ref.read(exposureSettingsProvider.notifier).state =
-                  exposureSettings.copyWith(filter: value);
-              if (wheelConnected) {
-                final position = filterNames.indexOf(value);
-                if (position >= 0) {
-                  _commandFilterWheel(position);
-                }
-              }
-            },
+            onChanged: captureBusy || wheel.isMoving || _isChangingFilter
+                ? null
+                : (value) {
+                    if (value != null) {
+                      _selectFilter(
+                        value: value,
+                        filterNames: filterNames,
+                        wheelConnected: wheelConnected,
+                      );
+                    }
+                  },
           ),
         ),
         if (wheelConnected) ...[
@@ -353,60 +407,134 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
     );
   }
 
-  Future<void> _commandFilterWheel(int position) async {
+  Future<void> _selectFilter({
+    required String value,
+    required List<String> filterNames,
+    required bool wheelConnected,
+  }) async {
+    final position = filterNames.indexOf(value);
+    if (position < 0) return;
+
+    final settingsNotifier = ref.read(exposureSettingsProvider.notifier);
+    if (!wheelConnected) {
+      settingsNotifier.state = settingsNotifier.state.copyWith(filter: value);
+      return;
+    }
+
+    if (_isChangingFilter || ref.read(filterWheelStateProvider).isMoving) {
+      return;
+    }
+    final deviceService = ref.read(deviceServiceProvider);
+    final providerContainer = ProviderScope.containerOf(context, listen: false);
+    setState(() => _isChangingFilter = true);
     try {
-      await ref.read(deviceServiceProvider).setFilterWheelPosition(position);
+      await deviceService.setFilterWheelPosition(position);
+      // Tag captures only after the wheel has physically settled. Updating the
+      // metadata first allowed an immediate Capture tap to save an L frame as
+      // Ha while the wheel was still turning (or after the move failed).
+      if (identical(
+        providerContainer.read(deviceServiceProvider),
+        deviceService,
+      )) {
+        settingsNotifier.state = settingsNotifier.state.copyWith(filter: value);
+      }
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(
-            'Could not change the filter. Please try again.');
+      if (mounted &&
+          identical(
+            providerContainer.read(deviceServiceProvider),
+            deviceService,
+          )) {
+        context.showErrorSnackBar('Could not change the filter: $e');
+      }
+    } finally {
+      if (mounted &&
+          identical(
+            providerContainer.read(deviceServiceProvider),
+            deviceService,
+          )) {
+        setState(() => _isChangingFilter = false);
       }
     }
   }
 
-  Future<void> _captureImage() async {
+  Future<bool> _captureImage({ImagingService? expectedService}) async {
+    if (_isChangingFilter || ref.read(filterWheelStateProvider).isMoving) {
+      if (mounted) {
+        context.showInfoSnackBar('Wait for the filter wheel to finish moving.');
+      }
+      return false;
+    }
+    final ImagingService imagingService =
+        expectedService ?? ref.read(imagingServiceProvider);
+    if (!_isCurrentImagingService(imagingService)) return false;
     try {
-      final imagingService = ref.read(imagingServiceProvider);
       final settings = ref.read(exposureSettingsProvider);
 
       final result = await imagingService.captureImage(settings: settings);
 
-      if (result != null && mounted) {
+      if (result != null && _isCurrentImagingService(imagingService)) {
         ref.read(currentImageProvider.notifier).state = result;
+        return true;
       }
+      return false;
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentImagingService(imagingService)) {
         context.showErrorSnackBar('Capture failed: $e');
       }
+      return false;
     }
   }
 
   void _toggleLoop() async {
     if (_isLooping) {
+      _loopGeneration++;
       setState(() => _isLooping = false);
       return;
     }
 
+    final imagingService = ref.read(imagingServiceProvider);
+    final generation = ++_loopGeneration;
     setState(() => _isLooping = true);
 
-    while (_isLooping && mounted) {
-      await _captureImage();
+    var consecutiveFailures = 0;
+    while (_isLooping &&
+        mounted &&
+        generation == _loopGeneration &&
+        _isCurrentImagingService(imagingService)) {
+      final captured = await _captureImage(expectedService: imagingService);
+      if (!_isCurrentImagingService(imagingService) ||
+          generation != _loopGeneration) {
+        break;
+      }
+      if (captured) {
+        consecutiveFailures = 0;
+      } else if (++consecutiveFailures >= _maxLoopFailures) {
+        if (mounted) {
+          context.showErrorSnackBar(
+              'Loop stopped after repeated capture failures.');
+        }
+        break;
+      }
       if (_isLooping && mounted) {
         await Future.delayed(const Duration(milliseconds: 500));
       }
     }
 
-    if (mounted) {
+    if (mounted && generation == _loopGeneration) {
       setState(() => _isLooping = false);
     }
   }
 
   void _abortCapture() {
+    _loopGeneration++;
     setState(() {
       _isLooping = false;
     });
     ref.read(imagingServiceProvider).cancelExposure();
   }
+
+  bool _isCurrentImagingService(ImagingService service) =>
+      mounted && identical(ref.read(imagingServiceProvider), service);
 }
 
 class _ControlRow extends StatelessWidget {

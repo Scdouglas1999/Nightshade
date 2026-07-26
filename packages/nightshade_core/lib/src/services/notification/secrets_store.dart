@@ -40,7 +40,11 @@ const String _secretsKeyPrefix = 'ns.notif.v1.';
 /// Sentinel value written to `app_settings` once the one-shot migration
 /// has completed. Presence of this flag short-circuits subsequent
 /// migration attempts.
-const String _migrationFlagKey = 'notification_secrets_migrated_v1';
+// v2 adds generic-webhook URLs and authorization headers. It intentionally
+// does not honor the old v1 flag: all v1 migrations are idempotent, while
+// honoring it would leave newly-classified webhook secrets in plaintext for
+// existing users.
+const String _migrationFlagKey = 'notification_secrets_migrated_v2';
 
 /// Logical secret fields the store owns. Each one is a stable string
 /// the UI / providers reference (vs. coupling to enum names that might
@@ -51,6 +55,8 @@ abstract class SecretField {
   static const String pushoverUserKey = 'pushover.user_key';
   static const String telegramBotToken = 'telegram.bot_token';
   static const String discordWebhookUrl = 'discord.webhook_url';
+  static const String genericWebhookUrl = 'webhook.url';
+  static const String genericWebhookHeaders = 'webhook.headers_json';
   static const String mqttPassword = 'mqtt.password';
 
   /// Cloud backup/sync — WebDAV password for the configured sync target
@@ -66,14 +72,13 @@ abstract class SecretField {
   /// `app_settings` alongside the WebDAV username.
   static const String cloudSyncS3SecretKey = 'sync.s3_secret_key';
 
-  /// TNS (Transient Name Server) bot API key used by the First Light
-  /// submission path to authenticate real `set/bulk-report` calls.
+  /// TNS (Transient Name Server) bot API key used by both alert ingestion and
+  /// the First Light submission path to authenticate TNS API calls.
   ///
   /// This is the SUBMISSION key and MUST live in the keyring, never in
   /// `app_settings`/science settings (those are plaintext and ride
-  /// export/backup). The unrelated plaintext `tnsApiKey` on
-  /// `TransientAlertSettings` is for the alert-INGEST side and should also move
-  /// to secure storage in a later pass; do not reuse it for submission.
+  /// export/backup). `TransientAlertSettings.tnsApiKey` is populated only as an
+  /// in-memory request snapshot from this keyring value and is never persisted.
   static const String tnsApiKey = 'tns.api_key';
 }
 
@@ -165,7 +170,10 @@ class SecretsStore {
         level: 900,
         error: e,
       );
-      return '';
+      // An unavailable keyring is not the same thing as an absent secret.
+      // Propagate the failure so config providers fail closed and the UI can
+      // offer Retry instead of publishing a manufactured empty credential.
+      rethrow;
     }
   }
 
@@ -203,6 +211,7 @@ class SecretsStore {
         level: 900,
         error: e,
       );
+      rethrow;
     }
   }
 
@@ -234,56 +243,73 @@ class SecretsStore {
     // back, so a crash midway leaves the database in a consistent state
     // (the half that migrated is gone, the half that didn't is still
     // there — both halves still functional).
-    await _migrateBlob(
-      dao,
-      transportKey:
-          'notification_transport_${NotificationTransportKind.email.storageKey}',
-      secretFields: const {'password': SecretField.emailPassword},
-    );
-    await _migrateBlob(
-      dao,
-      transportKey:
-          'notification_transport_${NotificationTransportKind.pushover.storageKey}',
-      secretFields: const {
-        'apiToken': SecretField.pushoverApiToken,
-        'userKey': SecretField.pushoverUserKey,
-      },
-    );
-    await _migrateBlob(
-      dao,
-      transportKey:
-          'notification_transport_${NotificationTransportKind.telegram.storageKey}',
-      secretFields: const {'botToken': SecretField.telegramBotToken},
-    );
-    await _migrateBlob(
-      dao,
-      transportKey:
-          'notification_transport_${NotificationTransportKind.discord.storageKey}',
-      secretFields: const {'webhookUrl': SecretField.discordWebhookUrl},
-    );
-    await _migrateBlob(
-      dao,
-      transportKey:
-          'notification_transport_${NotificationTransportKind.mqtt.storageKey}',
-      secretFields: const {'password': SecretField.mqttPassword},
-    );
+    var complete = await _migrateWebhookBlob(dao);
+    complete =
+        await _migrateBlob(
+          dao,
+          transportKey:
+              'notification_transport_${NotificationTransportKind.email.storageKey}',
+          secretFields: const {'password': SecretField.emailPassword},
+        ) &&
+        complete;
+    complete =
+        await _migrateBlob(
+          dao,
+          transportKey:
+              'notification_transport_${NotificationTransportKind.pushover.storageKey}',
+          secretFields: const {
+            'apiToken': SecretField.pushoverApiToken,
+            'userKey': SecretField.pushoverUserKey,
+          },
+        ) &&
+        complete;
+    complete =
+        await _migrateBlob(
+          dao,
+          transportKey:
+              'notification_transport_${NotificationTransportKind.telegram.storageKey}',
+          secretFields: const {'botToken': SecretField.telegramBotToken},
+        ) &&
+        complete;
+    complete =
+        await _migrateBlob(
+          dao,
+          transportKey:
+              'notification_transport_${NotificationTransportKind.discord.storageKey}',
+          secretFields: const {'webhookUrl': SecretField.discordWebhookUrl},
+        ) &&
+        complete;
+    complete =
+        await _migrateBlob(
+          dao,
+          transportKey:
+              'notification_transport_${NotificationTransportKind.mqtt.storageKey}',
+          secretFields: const {'password': SecretField.mqttPassword},
+        ) &&
+        complete;
 
-    await dao.setSetting(_migrationFlagKey, 'true');
-    return true;
+    // A malformed blob may still contain a plaintext credential. Marking the
+    // one-shot migration complete in that state would strand the credential
+    // forever. Successfully cleaned blobs are idempotent, so retrying all of
+    // them after the malformed blob is repaired is safe.
+    if (complete) {
+      await dao.setSetting(_migrationFlagKey, 'true');
+    }
+    return complete;
   }
 
-  Future<void> _migrateBlob(
+  Future<bool> _migrateBlob(
     SettingsDao dao, {
     required String transportKey,
     required Map<String, String> secretFields,
   }) async {
     final raw = await dao.getSetting(transportKey);
-    if (raw == null) return;
+    if (raw == null) return true;
 
     Map<String, dynamic> blob;
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! Map) return;
+      if (decoded is! Map) return false;
       blob = Map<String, dynamic>.from(decoded);
     } catch (e) {
       developer.log(
@@ -291,7 +317,7 @@ class SecretsStore {
         name: 'SecretsStore',
         level: 900,
       );
-      return;
+      return false;
     }
 
     var changed = false;
@@ -314,5 +340,62 @@ class SecretsStore {
         level: 800,
       );
     }
+    return true;
+  }
+
+  Future<bool> _migrateWebhookBlob(SettingsDao dao) async {
+    const transportKey = 'notification_transport_webhookGeneric';
+    final raw = await dao.getSetting(transportKey);
+    if (raw == null) return true;
+
+    Map<String, dynamic> blob;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return false;
+      blob = Map<String, dynamic>.from(decoded);
+    } catch (error) {
+      developer.log(
+        '[SecretsStore] Skipping migration of $transportKey: bad JSON '
+        '($error)',
+        name: 'SecretsStore',
+        level: 900,
+      );
+      return false;
+    }
+
+    var changed = false;
+    final url = blob['url'];
+    if (url is String && url.isNotEmpty) {
+      await write(SecretField.genericWebhookUrl, url);
+      blob['url'] = '';
+      changed = true;
+    } else if (url != null && url is! String) {
+      return false;
+    }
+
+    final rawHeaders = blob['headers'];
+    if (rawHeaders != null) {
+      if (rawHeaders is! Map) return false;
+      final headers = <String, String>{};
+      for (final entry in rawHeaders.entries) {
+        if (entry.key is! String || entry.value is! String) return false;
+        headers[entry.key as String] = entry.value as String;
+      }
+      if (headers.isNotEmpty) {
+        await write(SecretField.genericWebhookHeaders, jsonEncode(headers));
+        blob['headers'] = <String, String>{};
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await dao.setSetting(transportKey, jsonEncode(blob));
+      developer.log(
+        '[SecretsStore] Migrated secrets out of $transportKey',
+        name: 'SecretsStore',
+        level: 800,
+      );
+    }
+    return true;
   }
 }

@@ -54,6 +54,17 @@ class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
 
     final imageScale = draft.imageScaleArcsecPerPixel;
 
+    // The observing site lives in app settings (not the draft) because it is a
+    // global observer setting. lat/lon both 0.0 is the "null island" default,
+    // which we surface as "— not set —" rather than a bogus 0/0 coordinate.
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final siteSet = settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0);
+    final siteValue = siteSet
+        ? '${settings.latitude.toStringAsFixed(4)}°, '
+            '${settings.longitude.toStringAsFixed(4)}°'
+        : null;
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,6 +163,8 @@ class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
                 const Divider(height: 20),
                 _summaryRow(theme, colors, NightshadeIcons.folder,
                     'Capture folder', draft.captureDirectory),
+                _summaryRow(
+                    theme, colors, LucideIcons.mapPin, 'Site', siteValue),
               ],
             ),
           ),

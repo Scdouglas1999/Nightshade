@@ -15,7 +15,16 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
 
   @override
   Future<void> saveProfile(EquipmentProfile profile) async {
-    await _post('profiles', {'profile': profile.toJson()});
+    _lastSavedProfileId = null;
+    final response = await _post('profiles', {'profile': profile.toJson()});
+    final rawId = response['id'];
+    final id = rawId?.toString();
+    if (id == null || id.isEmpty || (int.tryParse(id) ?? 0) <= 0) {
+      throw const FormatException(
+        'Profile save response did not contain a valid positive id',
+      );
+    }
+    _lastSavedProfileId = id;
   }
 
   @override
@@ -66,6 +75,24 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   // Settings & Location
   // =========================================================================
 
+  /// `GET /api/system/disk-space` — the HOST's capture-directory disk
+  /// telemetry. Deliberately not part of [NightshadeBackend]: local backends
+  /// sample their own filesystem; only remote clients need the wire hop
+  /// (the host's capture path does not exist on the phone's filesystem).
+  /// Returns `null` when the host has no capture directory configured.
+  Future<DiskSpaceInfo?> getHostCaptureDiskSpace() async {
+    final json = await _get('system/disk-space');
+    if (json['configured'] == false) return null;
+    return DiskSpaceInfo(
+      path: json['path'] as String? ?? '',
+      totalBytes: (json['totalBytes'] as num?)?.toInt() ?? 0,
+      freeBytes: (json['freeBytes'] as num?)?.toInt() ?? 0,
+      sampledAt:
+          DateTime.tryParse(json['sampledAt'] as String? ?? '')?.toLocal() ??
+          DateTime.now(),
+    );
+  }
+
   @override
   Future<models.AppSettings> getSettings() async {
     final json = await _get('settings');
@@ -101,6 +128,51 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
         ? null
         : <String, String>{'X-Nightshade-Command-Id': commandId};
     await _post('settings', {'settings': settings.toJson()}, extraHeaders);
+  }
+
+  /// Load the imaging host's global meridian-flip defaults.
+  ///
+  /// These settings drive unattended hardware behavior and therefore belong
+  /// to the host, not the phone rendering the settings screen.
+  Future<MeridianFlipSettings> getMeridianFlipSettings() async {
+    final response = await _get('settings/meridian-flip');
+    final raw = response['settings'];
+    if (raw is! Map<String, dynamic>) {
+      throw const FormatException(
+        'GET /api/settings/meridian-flip returned no settings object',
+      );
+    }
+    return MeridianFlipSettings.fromJson(raw);
+  }
+
+  /// Replace the imaging host's global meridian-flip defaults.
+  Future<void> updateMeridianFlipSettings(MeridianFlipSettings settings) async {
+    await _post('settings/meridian-flip', {'settings': settings.toJson()});
+  }
+
+  /// Load the headless/desktop host's Home Assistant discovery and broker
+  /// configuration. The returned broker never contains its password.
+  Future<HomeAssistantHostSettings> getHomeAssistantHostSettings() async {
+    final response = await _get('settings/home-assistant');
+    return HomeAssistantHostSettings.fromJson(response);
+  }
+
+  /// Replace the host's Home Assistant discovery and broker configuration.
+  ///
+  /// Omitting [replacementPassword] preserves the write-only host secret;
+  /// passing an empty string explicitly clears it.
+  Future<HomeAssistantHostSettings> updateHomeAssistantHostSettings({
+    required HomeAssistantDiscoveryConfig config,
+    required MqttTransportConfig broker,
+    String? replacementPassword,
+    bool replacePassword = false,
+  }) async {
+    final response = await _post('settings/home-assistant', {
+      'config': config.toJson(),
+      'broker': broker.copyWith(clearPassword: true).toJson(),
+      if (replacePassword) 'password': replacementPassword ?? '',
+    });
+    return HomeAssistantHostSettings.fromJson(response);
   }
 
   @override
@@ -185,6 +257,72 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
         'darkFramesDirectory': darkFramesDirectory,
     });
     final status = response['status'] as Map<String, dynamic>;
+    return _defectMapStatusFromJson(status);
+  }
+
+  /// Query the defect map owned by the imaging host for one exact
+  /// camera/sensor/temperature bucket. Null means no map exists.
+  Future<DefectMapStatus?> getDefectMapStatus({
+    required String cameraId,
+    required int width,
+    required int height,
+    required double sensorTemperatureCelsius,
+  }) async {
+    final response = await _get('calibration/defect-maps/status', {
+      'cameraId': cameraId,
+      'width': width,
+      'height': height,
+      'sensorTemperatureCelsius': sensorTemperatureCelsius,
+    });
+    final status = response['status'];
+    if (status == null) return null;
+    if (status is! Map<String, dynamic>) {
+      throw const FormatException('Malformed remote defect-map status');
+    }
+    return _defectMapStatusFromJson(status);
+  }
+
+  /// Clear one exact host defect-map bucket and disable its apply flag.
+  Future<void> clearDefectMap({
+    required String cameraId,
+    required int width,
+    required int height,
+    required double sensorTemperatureCelsius,
+  }) async {
+    await _post('calibration/defect-maps/clear', {
+      'cameraId': cameraId,
+      'width': width,
+      'height': height,
+      'sensorTemperatureCelsius': sensorTemperatureCelsius,
+    });
+  }
+
+  /// Push the selected map and correction strategy into the host's live
+  /// sequencer runtime. This is distinct from the persisted per-camera apply
+  /// flag and must run on the process that owns the executor.
+  Future<void> applyDefectMapToSequencer({
+    required String cameraId,
+    required int width,
+    required int height,
+    required double sensorTemperatureCelsius,
+    required bool enabled,
+    required DefectMapMethod method,
+    required DefectMapKernelSize kernel,
+    required bool saveOriginal,
+  }) async {
+    await _post('calibration/defect-maps/sequencer-apply', {
+      'cameraId': cameraId,
+      'width': width,
+      'height': height,
+      'sensorTemperatureCelsius': sensorTemperatureCelsius,
+      'enabled': enabled,
+      'method': method.wireValue,
+      'kernelDiameter': kernel.diameter,
+      'saveOriginal': saveOriginal,
+    });
+  }
+
+  DefectMapStatus _defectMapStatusFromJson(Map<String, dynamic> status) {
     return DefectMapStatus(
       cameraId: status['cameraId'] as String,
       width: (status['width'] as num).toInt(),
@@ -345,69 +483,67 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
 
   @override
   Future<List<CapturedImage>> getSessionImages(int sessionId) async {
+    if (sessionId <= 0) {
+      throw ArgumentError.value(sessionId, 'sessionId', 'must be positive');
+    }
     final imagesList = await getSessionImageRows(sessionId);
-
-    return imagesList.map((img) {
-      return CapturedImage(
-        id: img['image_id'].toString(),
-        filePath: img['file_path'] as String,
-        capturedAt: DateTime.fromMillisecondsSinceEpoch(
-          (img['captured_at'] as int) * 1000,
-        ),
-        settings: ExposureSettings(
-          exposureTime: (img['exposure_duration'] as num).toDouble(),
-          gain: img['gain'] as int? ?? 0,
-          offset: img['offset'] as int? ?? 0,
-          binningX: img['bin_x'] as int? ?? 1,
-          binningY: img['bin_y'] as int? ?? 1,
-          filter: img['filter'] as String?,
-          frameType: _parseFrameType(img['frame_type'] as String),
-        ),
-        stats: img['hfr'] != null
-            ? ImageStats(
-                hfr: (img['hfr'] as num?)?.toDouble(),
-                starCount: img['star_count'] as int?,
-              )
-            : null,
-        targetName: null, // Not included in basic metadata
-        format: _parseImageFormat(img['file_format'] as String),
-      );
-    }).toList();
+    final images = <CapturedImage>[];
+    final ids = <String>{};
+    for (var index = 0; index < imagesList.length; index++) {
+      final image = _capturedImageFromRow(imagesList[index], index);
+      if (!ids.add(image.id)) {
+        throw FormatException(
+          'sessions/$sessionId/images contains duplicate image id '
+          '${image.id}',
+        );
+      }
+      images.add(image);
+    }
+    return images;
   }
 
   Future<List<Map<String, dynamic>>> getSessionImageRows(int sessionId) async {
+    if (sessionId <= 0) {
+      throw ArgumentError.value(sessionId, 'sessionId', 'must be positive');
+    }
     final response = await _get('sessions/$sessionId/images');
-    final images = response['images'] as List? ?? [];
-    return images.cast<Map<String, dynamic>>();
+    return _rowsFromJson<Map<String, dynamic>>(
+      response['images'],
+      (row) => row,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getAllImageRows() async {
     final response = await _get('images');
-    final images = response['images'] as List? ?? [];
-    return images.cast<Map<String, dynamic>>();
+    return _rowsFromJson<Map<String, dynamic>>(
+      response['images'],
+      (row) => row,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getStandaloneImageRows() async {
     final response = await _get('images/standalone');
-    final images = response['images'] as List? ?? [];
-    return images.cast<Map<String, dynamic>>();
+    return _rowsFromJson<Map<String, dynamic>>(
+      response['images'],
+      (row) => row,
+    );
   }
 
   @override
   Future<Uint8List> getImageThumbnail(int imageId) async {
-    final uri = _apiUri('images/$imageId/thumbnail');
-
-    final request = await _httpClient.getUrl(uri);
-    final response = await request.close();
-
-    if (response.statusCode != 200) {
-      throw IoException(
-        message: 'HTTP ${response.statusCode}: Failed to get thumbnail',
-        userMessage: 'Failed to download the image thumbnail',
-      );
+    if (imageId <= 0) {
+      throw ArgumentError.value(imageId, 'imageId', 'must be positive');
     }
-
+    final endpoint = 'images/$imageId/thumbnail';
+    final response = await _openRawGetWithAuthRefresh(endpoint);
+    if (response.statusCode != HttpStatus.ok) {
+      final body = await response.transform(utf8.decoder).join();
+      throw _parseErrorResponse(response.statusCode, body, 'GET', endpoint);
+    }
     final bytes = await consolidateHttpClientResponseBytes(response);
+    if (bytes.isEmpty) {
+      throw FormatException('$endpoint returned an empty thumbnail');
+    }
     return Uint8List.fromList(bytes);
   }
 
@@ -417,122 +553,435 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     String localPath, {
     void Function(double)? onProgress,
   }) async {
-    final uri = _apiUri('images/$imageId/download');
-
-    // Opportunistic resume. If a partial file already exists at
-    // [localPath] from a prior aborted attempt, send `Range: bytes=N-`
-    // to ask the server to continue. A server that supports Range
-    // (a newer build Nightshade) replies with 206 + `content-range`; an
-    // older/naive server ignores the header and returns 200 with the
-    // entire body — we detect that and start over from byte 0.
+    if (imageId <= 0) {
+      throw ArgumentError.value(imageId, 'imageId', 'must be positive');
+    }
     final file = File(localPath);
     await file.parent.create(recursive: true);
+    final metadataFile = File('$localPath.nightshade-download');
+    await _downloadImageAttempt(
+      imageId: imageId,
+      file: file,
+      metadataFile: metadataFile,
+      onProgress: onProgress,
+      mayResetRange: true,
+    );
+  }
 
-    int resumeOffset = 0;
+  Future<void> _downloadImageAttempt({
+    required int imageId,
+    required File file,
+    required File metadataFile,
+    required void Function(double)? onProgress,
+    required bool mayResetRange,
+  }) async {
+    final endpoint = 'images/$imageId/download';
+    var resumeOffset = 0;
+    _ImageDownloadMetadata? metadata;
+
     if (await file.exists()) {
       try {
         resumeOffset = await file.length();
-      } on FileSystemException catch (e) {
-        // Existing file is unreadable — surface it instead of pretending
-        // to start from zero. Errors are a feature here.
+      } on FileSystemException catch (error) {
         throw IoException(
-          message: 'Failed to stat partial download at $localPath: $e',
+          message: 'Failed to stat partial download at ${file.path}: $error',
           userMessage: 'Could not read the partially downloaded file',
         );
       }
-    }
-
-    final request = await _httpClient.getUrl(uri);
-    if (resumeOffset > 0) {
-      request.headers.set('range', 'bytes=$resumeOffset-');
-    }
-    final response = await request.close();
-
-    // Server can answer:
-    //   * 206 Partial Content — honoured the Range, append to the file.
-    //   * 200 OK + content-range absent — full body, truncate the file
-    //     and write from scratch.
-    //   * 416 — our resume offset is past EOF on the server (e.g. the
-    //     file was replaced). Truncate and retry without Range.
-    //   * anything else — propagate.
-    final statusCode = response.statusCode;
-    final contentRange = response.headers.value('content-range');
-    final bool isPartial = statusCode == 206 && contentRange != null;
-
-    if (statusCode == 416 && resumeOffset > 0) {
-      // The server says our partial is invalid (file changed / shrunk).
-      // Drop the partial and retry from scratch with a fresh request.
-      developer.log(
-        '[NetworkBackend] Server returned 416 for resume offset '
-        '$resumeOffset; discarding partial and retrying from byte 0',
-        name: 'NetworkBackend',
-        level: 900,
-      );
-      await response.drain<void>();
-      await file.delete();
-      // Recursive single-shot retry (resumeOffset will be 0 next call
-      // because the file was deleted). This is bounded — a 416 on the
-      // retry would mean the server has nothing at all to serve, which
-      // we let propagate.
-      return downloadImage(imageId, localPath, onProgress: onProgress);
-    }
-
-    if (statusCode != 200 && statusCode != 206) {
-      await response.drain<void>();
-      throw IoException(
-        message: 'HTTP $statusCode: Failed to download image',
-        userMessage: 'Failed to download the image',
-      );
-    }
-
-    // Get total length for progress tracking. For 206 the response
-    // content-length is the *slice* length, but we want total bytes
-    // for the progress fraction; pull the total from `content-range:
-    // bytes START-END/TOTAL`.
-    int totalLength = response.contentLength;
-    if (isPartial) {
-      final slash = contentRange.lastIndexOf('/');
-      if (slash > 0 && slash < contentRange.length - 1) {
-        final totalStr = contentRange.substring(slash + 1);
-        if (totalStr != '*') {
-          totalLength = int.tryParse(totalStr) ?? totalLength;
-        }
+      metadata = await _readImageDownloadMetadata(metadataFile);
+      final canResume =
+          resumeOffset > 0 &&
+          metadata != null &&
+          metadata.imageId == imageId &&
+          resumeOffset <= metadata.totalLength;
+      if (!canResume) {
+        await _deleteIfPresent(file);
+        await _deleteIfPresent(metadataFile);
+        resumeOffset = 0;
+        metadata = null;
+      } else if (resumeOffset == metadata.totalLength) {
+        await _deleteIfPresent(metadataFile);
+        onProgress?.call(1);
+        return;
       }
-    }
-
-    // Open the sink in the correct mode: append for 206, write
-    // (truncate) for 200. If we asked for a range but got 200, the
-    // server doesn't support Range — discard whatever was already on
-    // disk and start over.
-    final IOSink sink;
-    int bytesReceived;
-    if (isPartial) {
-      sink = file.openWrite(mode: FileMode.append);
-      bytesReceived = resumeOffset;
     } else {
-      sink = file.openWrite();
-      bytesReceived = 0;
+      await _deleteIfPresent(metadataFile);
     }
 
+    final headers = <String, String>{};
+    if (resumeOffset > 0) {
+      headers[HttpHeaders.rangeHeader] = 'bytes=$resumeOffset-';
+      headers[HttpHeaders.ifRangeHeader] = metadata!.etag;
+    }
+    final response = await _openRawGetWithAuthRefresh(
+      endpoint,
+      extraHeaders: headers,
+    );
+    final statusCode = response.statusCode;
+
+    if (statusCode == HttpStatus.requestedRangeNotSatisfiable &&
+        resumeOffset > 0 &&
+        mayResetRange) {
+      await response.drain<void>();
+      await _deleteIfPresent(file);
+      await _deleteIfPresent(metadataFile);
+      return _downloadImageAttempt(
+        imageId: imageId,
+        file: file,
+        metadataFile: metadataFile,
+        onProgress: onProgress,
+        mayResetRange: false,
+      );
+    }
+    if (statusCode != HttpStatus.ok &&
+        statusCode != HttpStatus.partialContent) {
+      final body = await response.transform(utf8.decoder).join();
+      throw _parseErrorResponse(statusCode, body, 'GET', endpoint);
+    }
+
+    final contentRange = response.headers.value(HttpHeaders.contentRangeHeader);
+    final etag = response.headers.value(HttpHeaders.etagHeader)?.trim();
+    final bool isPartial;
+    final int totalLength;
+    final int expectedBodyLength;
+
+    if (statusCode == HttpStatus.partialContent) {
+      if (resumeOffset == 0 || metadata == null) {
+        await response.drain<void>();
+        throw FormatException('$endpoint returned unsolicited partial content');
+      }
+      final range = _parseImageContentRange(contentRange, endpoint);
+      if (range.start != resumeOffset ||
+          range.end < range.start ||
+          range.end >= range.total ||
+          range.total != metadata.totalLength) {
+        await response.drain<void>();
+        throw FormatException(
+          '$endpoint returned a Content-Range inconsistent with the partial '
+          'file',
+        );
+      }
+      expectedBodyLength = range.end - range.start + 1;
+      if (response.contentLength != expectedBodyLength) {
+        await response.drain<void>();
+        throw FormatException(
+          '$endpoint Content-Length does not match Content-Range',
+        );
+      }
+      if (etag == null || etag.isEmpty || etag != metadata.etag) {
+        await response.drain<void>();
+        throw FormatException('$endpoint changed ETag during resume');
+      }
+      isPartial = true;
+      totalLength = range.total;
+    } else {
+      if (contentRange != null) {
+        await response.drain<void>();
+        throw FormatException('$endpoint returned Content-Range with HTTP 200');
+      }
+      if (response.contentLength <= 0) {
+        await response.drain<void>();
+        throw FormatException('$endpoint omitted a positive Content-Length');
+      }
+      isPartial = false;
+      totalLength = response.contentLength;
+      expectedBodyLength = totalLength;
+      resumeOffset = 0;
+      metadata = null;
+    }
+
+    final resumable = etag != null && etag.isNotEmpty;
+    if (resumable) {
+      await _writeImageDownloadMetadata(
+        metadataFile,
+        _ImageDownloadMetadata(
+          imageId: imageId,
+          etag: etag,
+          totalLength: totalLength,
+        ),
+      );
+    } else {
+      await _deleteIfPresent(metadataFile);
+    }
+
+    final sink = file.openWrite(
+      mode: isPartial ? FileMode.append : FileMode.write,
+    );
+    var bytesReceived = resumeOffset;
+    var bodyBytes = 0;
+    Object? streamError;
+    StackTrace? streamStack;
     try {
       await for (final chunk in response) {
-        sink.add(chunk);
-        bytesReceived += chunk.length;
-
-        if (onProgress != null && totalLength > 0) {
-          onProgress(bytesReceived / totalLength);
+        if (bodyBytes + chunk.length > expectedBodyLength ||
+            bytesReceived + chunk.length > totalLength) {
+          throw FormatException('$endpoint returned more bytes than declared');
         }
+        sink.add(chunk);
+        bodyBytes += chunk.length;
+        bytesReceived += chunk.length;
+        onProgress?.call(bytesReceived / totalLength);
       }
+    } catch (error, stack) {
+      streamError = error;
+      streamStack = stack;
     } finally {
       await sink.close();
     }
 
+    final exactLength = await file.length();
+    final complete =
+        streamError == null &&
+        bodyBytes == expectedBodyLength &&
+        bytesReceived == totalLength &&
+        exactLength == totalLength;
+    if (!complete) {
+      final corrupt =
+          bodyBytes > expectedBodyLength ||
+          bytesReceived > totalLength ||
+          exactLength > totalLength;
+      if (corrupt || !resumable || exactLength == 0) {
+        await _deleteIfPresent(file);
+        await _deleteIfPresent(metadataFile);
+      }
+      if (streamError != null) {
+        Error.throwWithStackTrace(streamError, streamStack!);
+      }
+      throw IoException(
+        message: '$endpoint ended at $exactLength bytes; expected $totalLength',
+        userMessage: 'The image download was incomplete and can be resumed',
+      );
+    }
+
+    await _deleteIfPresent(metadataFile);
+    onProgress?.call(1);
     developer.log(
-      '[NetworkBackend] Downloaded image $imageId to $localPath '
-      '($bytesReceived bytes${isPartial ? ', resumed from $resumeOffset' : ''})',
+      '[NetworkBackend] Downloaded image $imageId to ${file.path} '
+      '($bytesReceived bytes${isPartial ? ', resumed' : ''})',
       name: 'NetworkBackend',
       level: 800,
     );
+  }
+
+  Future<_ImageDownloadMetadata?> _readImageDownloadMetadata(File file) async {
+    if (!await file.exists()) return null;
+    try {
+      final value = jsonDecode(await file.readAsString());
+      if (value is! Map<String, dynamic>) return null;
+      final imageId = value['imageId'];
+      final etag = value['etag'];
+      final totalLength = value['totalLength'];
+      if (imageId is! int ||
+          imageId <= 0 ||
+          etag is! String ||
+          etag.isEmpty ||
+          totalLength is! int ||
+          totalLength <= 0) {
+        return null;
+      }
+      return _ImageDownloadMetadata(
+        imageId: imageId,
+        etag: etag,
+        totalLength: totalLength,
+      );
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _writeImageDownloadMetadata(
+    File file,
+    _ImageDownloadMetadata metadata,
+  ) async {
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(jsonEncode(metadata.toJson()), flush: true);
+    await _deleteIfPresent(file);
+    await temporary.rename(file.path);
+  }
+
+  Future<void> _deleteIfPresent(File file) async {
+    if (await file.exists()) await file.delete();
+  }
+
+  ({int start, int end, int total}) _parseImageContentRange(
+    String? value,
+    String endpoint,
+  ) {
+    if (value == null) {
+      throw FormatException('$endpoint omitted Content-Range for HTTP 206');
+    }
+    final match = RegExp(
+      r'^bytes ([0-9]+)-([0-9]+)/([0-9]+)$',
+    ).firstMatch(value);
+    if (match == null) {
+      throw FormatException('$endpoint returned malformed Content-Range');
+    }
+    return (
+      start: int.parse(match.group(1)!),
+      end: int.parse(match.group(2)!),
+      total: int.parse(match.group(3)!),
+    );
+  }
+
+  CapturedImage _capturedImageFromRow(Map<String, dynamic> row, int index) {
+    const currentKeys = {
+      'id',
+      'filePath',
+      'capturedAt',
+      'exposureDuration',
+      'binX',
+      'binY',
+      'frameType',
+      'fileFormat',
+      'starCount',
+    };
+    const legacyKeys = {
+      'image_id',
+      'file_path',
+      'captured_at',
+      'exposure_duration',
+      'bin_x',
+      'bin_y',
+      'frame_type',
+      'file_format',
+      'star_count',
+    };
+    final hasCurrent = currentKeys.any(row.containsKey);
+    final hasLegacy = legacyKeys.any(row.containsKey);
+    final context = 'sessions image row $index';
+    if (hasCurrent == hasLegacy) {
+      throw FormatException(
+        '$context must use exactly one supported image metadata schema',
+      );
+    }
+
+    final idKey = hasCurrent ? 'id' : 'image_id';
+    final pathKey = hasCurrent ? 'filePath' : 'file_path';
+    final capturedAtKey = hasCurrent ? 'capturedAt' : 'captured_at';
+    final exposureKey = hasCurrent ? 'exposureDuration' : 'exposure_duration';
+    final binXKey = hasCurrent ? 'binX' : 'bin_x';
+    final binYKey = hasCurrent ? 'binY' : 'bin_y';
+    final frameTypeKey = hasCurrent ? 'frameType' : 'frame_type';
+    final formatKey = hasCurrent ? 'fileFormat' : 'file_format';
+    final starCountKey = hasCurrent ? 'starCount' : 'star_count';
+
+    final id = _requiredImageInt(row, idKey, context, min: 1);
+    final path = _requiredImageString(row, pathKey, context);
+    final timestamp = _requiredImageInt(row, capturedAtKey, context, min: 1);
+    final exposure = _requiredImageDouble(row, exposureKey, context, min: 0);
+    final gain = _optionalImageInt(row, 'gain', context, min: 0) ?? 0;
+    final offset = _optionalImageInt(row, 'offset', context, min: 0) ?? 0;
+    final binX = _requiredImageInt(row, binXKey, context, min: 1);
+    final binY = _requiredImageInt(row, binYKey, context, min: 1);
+    final filter = _optionalImageString(row, 'filter', context);
+    final hfr = _optionalImageDouble(row, 'hfr', context, min: 0);
+    final starCount = _optionalImageInt(row, starCountKey, context, min: 0);
+
+    final milliseconds = hasCurrent ? timestamp : timestamp * 1000;
+    final DateTime capturedAt;
+    try {
+      capturedAt = DateTime.fromMillisecondsSinceEpoch(milliseconds);
+    } on Object catch (error) {
+      throw FormatException('$context.$capturedAtKey is out of range', error);
+    }
+
+    return CapturedImage(
+      id: id.toString(),
+      filePath: path,
+      capturedAt: capturedAt,
+      settings: ExposureSettings(
+        exposureTime: exposure,
+        gain: gain,
+        offset: offset,
+        binningX: binX,
+        binningY: binY,
+        filter: filter,
+        frameType: _parseFrameType(
+          _requiredImageString(row, frameTypeKey, context),
+        ),
+      ),
+      stats: hfr != null || starCount != null
+          ? ImageStats(hfr: hfr, starCount: starCount)
+          : null,
+      format: _parseImageFormat(_requiredImageString(row, formatKey, context)),
+    );
+  }
+
+  int _requiredImageInt(
+    Map<String, dynamic> row,
+    String key,
+    String context, {
+    required int min,
+  }) {
+    if (!row.containsKey(key)) {
+      throw FormatException('$context is missing $key');
+    }
+    final value = row[key];
+    if (value is! num || !value.isFinite || value != value.truncateToDouble()) {
+      throw FormatException('$context.$key must be an integer');
+    }
+    final result = value.toInt();
+    if (result < min) {
+      throw FormatException('$context.$key must be at least $min');
+    }
+    return result;
+  }
+
+  int? _optionalImageInt(
+    Map<String, dynamic> row,
+    String key,
+    String context, {
+    required int min,
+  }) {
+    if (!row.containsKey(key) || row[key] == null) return null;
+    return _requiredImageInt(row, key, context, min: min);
+  }
+
+  double _requiredImageDouble(
+    Map<String, dynamic> row,
+    String key,
+    String context, {
+    required double min,
+  }) {
+    if (!row.containsKey(key)) {
+      throw FormatException('$context is missing $key');
+    }
+    final value = row[key];
+    if (value is! num || !value.isFinite || value < min) {
+      throw FormatException('$context.$key must be finite and at least $min');
+    }
+    return value.toDouble();
+  }
+
+  double? _optionalImageDouble(
+    Map<String, dynamic> row,
+    String key,
+    String context, {
+    required double min,
+  }) {
+    if (!row.containsKey(key) || row[key] == null) return null;
+    return _requiredImageDouble(row, key, context, min: min);
+  }
+
+  String _requiredImageString(
+    Map<String, dynamic> row,
+    String key,
+    String context,
+  ) {
+    final value = row[key];
+    if (value is! String || value.trim().isEmpty) {
+      throw FormatException('$context.$key must be a non-empty string');
+    }
+    return value;
+  }
+
+  String? _optionalImageString(
+    Map<String, dynamic> row,
+    String key,
+    String context,
+  ) {
+    if (!row.containsKey(key) || row[key] == null) return null;
+    return _requiredImageString(row, key, context);
   }
 
   FrameType _parseFrameType(String str) {
@@ -546,15 +995,20 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       case 'bias':
         return FrameType.bias;
       case 'darkflat':
+      case 'dark_flat':
+      case 'dark-flat':
         return FrameType.darkFlat;
+      case 'snapshot':
+        return FrameType.snapshot;
       default:
-        return FrameType.light;
+        throw FormatException('Unknown captured-image frame type: $str');
     }
   }
 
   ImageFileFormat _parseImageFormat(String str) {
     switch (str.toLowerCase()) {
       case 'fits':
+      case 'fit':
         return ImageFileFormat.fits;
       case 'xisf':
         return ImageFileFormat.xisf;
@@ -566,7 +1020,7 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       case 'jpg':
         return ImageFileFormat.jpeg;
       default:
-        return ImageFileFormat.fits;
+        throw FormatException('Unknown captured-image file format: $str');
     }
   }
 
@@ -607,17 +1061,12 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   @override
   Future<List<int>> getLastRawImageData(String deviceId) async {
     return _retryableRequest(() async {
+      const endpoint = 'imaging/raw-data';
       final uri = _apiUri('imaging/raw-data', {'deviceId': deviceId});
-
-      final request = await _httpClient.getUrl(uri);
-
-      // Add authentication headers
-      final headers = _addAuthHeaders({}, endpoint: 'imaging/raw-data');
-      headers.forEach((key, value) {
-        request.headers.set(key, value);
-      });
-
-      final response = await request.close();
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        send: (headers) => _http.get(uri, headers: headers),
+      );
 
       // Check for transient status codes
       if (_isTransientStatusCode(response.statusCode)) {
@@ -634,9 +1083,27 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
         );
       }
 
-      // Read binary data
-      final bytes = await consolidateHttpClientResponseBytes(response);
-      return bytes;
+      // The host contract is a packed little-endian u16 stream. Decode it
+      // back to pixel samples here; returning the transport bytes directly
+      // silently turns every 16-bit pixel into two unrelated 8-bit values.
+      final bytes = response.bodyBytes;
+      if (bytes.length.isOdd) {
+        throw IoException(
+          message:
+              'Malformed raw image payload: expected an even byte count, '
+              'received ${bytes.length}',
+          userMessage: 'The host returned malformed raw image data',
+        );
+      }
+      final byteData = ByteData.sublistView(bytes);
+      return List<int>.generate(
+        bytes.length ~/ Uint16List.bytesPerElement,
+        (index) => byteData.getUint16(
+          index * Uint16List.bytesPerElement,
+          Endian.little,
+        ),
+        growable: false,
+      );
     });
   }
 
@@ -699,4 +1166,22 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   Future<void> clearDeviceImage(String deviceId) async {
     await _delete('imaging/device-image/${Uri.encodeComponent(deviceId)}');
   }
+}
+
+class _ImageDownloadMetadata {
+  final int imageId;
+  final String etag;
+  final int totalLength;
+
+  const _ImageDownloadMetadata({
+    required this.imageId,
+    required this.etag,
+    required this.totalLength,
+  });
+
+  Map<String, Object> toJson() => {
+    'imageId': imageId,
+    'etag': etag,
+    'totalLength': totalLength,
+  };
 }

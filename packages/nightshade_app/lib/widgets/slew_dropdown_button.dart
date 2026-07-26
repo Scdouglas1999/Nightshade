@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../services/mount_command_service.dart';
 import '../screens/imaging/centering_dialog.dart';
+import '../utils/authority_bound_dialog.dart';
 import '../utils/snackbar_helper.dart';
 
 /// The slew mode selection for the dropdown.
@@ -27,7 +28,7 @@ enum SlewMode {
 ///
 /// The "Slew, Center & Rotate" option is only shown if a rotator is connected
 /// AND a [targetRotation] is provided.
-class SlewDropdownButton extends ConsumerWidget {
+class SlewDropdownButton extends ConsumerStatefulWidget {
   /// Right Ascension in hours.
   final double ra;
 
@@ -66,7 +67,37 @@ class SlewDropdownButton extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SlewDropdownButton> createState() => _SlewDropdownButtonState();
+}
+
+class _SlewDropdownButtonState extends ConsumerState<SlewDropdownButton> {
+  bool _operationInFlight = false;
+  int _operationRevision = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _operationRevision++;
+        if (mounted && _operationInFlight) {
+          setState(() => _operationInFlight = false);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final rotatorState = ref.watch(rotatorStateProvider);
     final hasRotator =
@@ -74,14 +105,14 @@ class SlewDropdownButton extends ConsumerWidget {
     final mountState = ref.watch(mountStateProvider);
     final isMountConnected =
         mountState.connectionState == DeviceConnectionState.connected;
+    final enabled = widget.isEnabled && isMountConnected && !_operationInFlight;
 
     // Determine if slew+center+rotate option should be shown
-    final showRotateOption = hasRotator && targetRotation != null;
+    final showRotateOption = hasRotator && widget.targetRotation != null;
 
     return PopupMenuButton<SlewMode>(
-      enabled: isEnabled && isMountConnected,
-      onSelected: (mode) =>
-          _handleSlewMode(context, ref, mode, showRotateOption),
+      enabled: enabled,
+      onSelected: _handleSlewMode,
       offset: const Offset(0, 40),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       color: colors.surface,
@@ -124,21 +155,28 @@ class SlewDropdownButton extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Expanded(
-            child: NightshadeButton(
-              label: label ?? 'Slew',
-              icon: icon ?? LucideIcons.move,
-              variant: variant,
-              // onPressed is null since PopupMenuButton handles tap
-              onPressed: null,
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: NightshadeButton(
+                  label: _operationInFlight
+                      ? 'Working...'
+                      : widget.label ?? 'Slew',
+                  icon: widget.icon ?? LucideIcons.move,
+                  variant: widget.variant,
+                  // PopupMenuButton owns the gesture and semantics. A no-op
+                  // callback here only gives the visual child the correct
+                  // enabled styling; IgnorePointer prevents a nested gesture
+                  // recognizer from stealing the popup tap.
+                  onPressed: enabled ? () {} : null,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 4),
           Icon(
             LucideIcons.chevronDown,
             size: 16,
-            color: (isEnabled && isMountConnected)
-                ? colors.textPrimary
-                : colors.textMuted,
+            color: enabled ? colors.textPrimary : colors.textMuted,
           ),
         ],
       ),
@@ -146,113 +184,207 @@ class SlewDropdownButton extends ConsumerWidget {
   }
 
   Future<void> _handleSlewMode(
-    BuildContext context,
-    WidgetRef ref,
     SlewMode mode,
-    bool showRotateOption,
   ) async {
-    switch (mode) {
-      case SlewMode.slew:
-        await _handleSlew(context, ref);
-        break;
-      case SlewMode.slewAndCenter:
-        await _handleSlewAndCenter(context, ref);
-        break;
-      case SlewMode.slewCenterRotate:
-        await _handleSlewCenterRotate(context, ref);
-        break;
+    if (_operationInFlight) return;
+    final revision = ++_operationRevision;
+    final backend = ref.read(backendProvider);
+    setState(() => _operationInFlight = true);
+    try {
+      switch (mode) {
+        case SlewMode.slew:
+          await _handleSlew(revision, backend);
+          break;
+        case SlewMode.slewAndCenter:
+          await _handleSlewAndCenter(revision, backend);
+          break;
+        case SlewMode.slewCenterRotate:
+          await _handleSlewCenterRotate(revision, backend);
+          break;
+      }
+    } finally {
+      if (_isCurrentOperation(revision, backend)) {
+        setState(() => _operationInFlight = false);
+      }
     }
   }
 
-  Future<void> _handleSlew(BuildContext context, WidgetRef ref) async {
+  Future<void> _handleSlew(
+    int revision,
+    NightshadeBackend backend,
+  ) async {
     final mountService = ref.read(mountCommandServiceProvider);
-    final result = await mountService.slewTo(ra, dec);
-    if (!context.mounted) return;
+    final result = await mountService.slewTo(widget.ra, widget.dec);
+    if (!mounted ||
+        !_isCurrentOperation(revision, backend) ||
+        !identical(ref.read(mountCommandServiceProvider), mountService)) {
+      return;
+    }
     context.showCommandActionResult(result);
   }
 
-  Future<void> _handleSlewAndCenter(BuildContext context, WidgetRef ref) async {
+  Future<void> _handleSlewAndCenter(
+    int revision,
+    NightshadeBackend backend,
+  ) async {
+    if (!await _preflightCentering(revision, backend)) return;
+
     // First slew to approximate position
     final mountService = ref.read(mountCommandServiceProvider);
-    final slewResult = await mountService.slewTo(ra, dec, showFeedback: false);
+    final slewResult = await mountService.slewTo(
+      widget.ra,
+      widget.dec,
+      showFeedback: false,
+    );
+
+    if (!mounted ||
+        !_isCurrentOperation(revision, backend) ||
+        !identical(ref.read(mountCommandServiceProvider), mountService)) {
+      return;
+    }
 
     if (!slewResult.isSuccess) {
-      if (context.mounted) {
-        context.showCommandActionResult(slewResult);
-      }
+      context.showCommandActionResult(slewResult);
       return;
     }
 
     // Wait for slew to complete, then show centering dialog
     // The centering dialog handles the plate solve loop
-    if (context.mounted) {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => CenteringDialog(
-          targetRa: ra,
-          targetDec: dec,
-          targetName: targetName ?? 'Target',
-        ),
-      );
-    }
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => CenteringDialog(
+        targetRa: widget.ra,
+        targetDec: widget.dec,
+        targetName: widget.targetName ?? 'Target',
+      ),
+    );
   }
 
   Future<void> _handleSlewCenterRotate(
-      BuildContext context, WidgetRef ref) async {
+    int revision,
+    NightshadeBackend backend,
+  ) async {
+    if (!await _preflightCentering(revision, backend)) return;
+
     // First do slew and center
     final mountService = ref.read(mountCommandServiceProvider);
-    final slewResult = await mountService.slewTo(ra, dec, showFeedback: false);
+    final slewResult = await mountService.slewTo(
+      widget.ra,
+      widget.dec,
+      showFeedback: false,
+    );
+
+    if (!mounted ||
+        !_isCurrentOperation(revision, backend) ||
+        !identical(ref.read(mountCommandServiceProvider), mountService)) {
+      return;
+    }
 
     if (!slewResult.isSuccess) {
-      if (context.mounted) {
-        context.showCommandActionResult(slewResult);
-      }
+      context.showCommandActionResult(slewResult);
       return;
     }
 
     // Show centering dialog and wait for completion
     CenteringResult? centeringResult;
-    if (context.mounted) {
-      centeringResult = await showDialog<CenteringResult>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _CenteringDialogWithResult(
-          targetRa: ra,
-          targetDec: dec,
-          targetName: targetName ?? 'Target',
-        ),
-      );
-    }
+    if (!mounted) return;
+    centeringResult = await showDialog<CenteringResult>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _CenteringDialogWithResult(
+        targetRa: widget.ra,
+        targetDec: widget.dec,
+        targetName: widget.targetName ?? 'Target',
+      ),
+    );
+
+    if (!mounted || !_isCurrentOperation(revision, backend)) return;
 
     // If centering failed or was cancelled, don't rotate
     if (centeringResult == null || !centeringResult.success) {
-      if (context.mounted && centeringResult != null) {
-        context.showWarningSnackBar('Centering failed - rotation skipped');
+      if (centeringResult != null) {
+        final reason =
+            centeringResult.errorMessage ?? 'Unknown centering error';
+        context.showWarningSnackBar(
+          'Centering failed: $reason Rotation was skipped.',
+        );
       }
       return;
     }
 
     // Now rotate to target angle
-    if (targetRotation != null && context.mounted) {
+    if (widget.targetRotation != null) {
       try {
         final rotatorState = ref.read(rotatorStateProvider);
         if (rotatorState.connectionState == DeviceConnectionState.connected &&
             rotatorState.deviceId != null) {
-          final backend = ref.read(deviceBackendProvider);
-          await backend.rotatorMoveTo(rotatorState.deviceId!, targetRotation!);
-          if (context.mounted) {
+          final deviceBackend = ref.read(deviceBackendProvider);
+          await deviceBackend.rotatorMoveTo(
+            rotatorState.deviceId!,
+            widget.targetRotation!,
+          );
+          if (mounted &&
+              _isCurrentOperation(revision, backend) &&
+              identical(ref.read(deviceBackendProvider), deviceBackend) &&
+              ref.read(rotatorStateProvider).deviceId ==
+                  rotatorState.deviceId) {
             context.showSuccessSnackBar(
-                'Rotating to ${targetRotation!.toStringAsFixed(1)}°');
+                'Rotating to ${widget.targetRotation!.toStringAsFixed(1)}°');
           }
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted && _isCurrentOperation(revision, backend)) {
           context.showErrorSnackBar('Rotation failed: $e');
         }
       }
     }
   }
+
+  Future<bool> _preflightCentering(
+    int revision,
+    NightshadeBackend backend,
+  ) async {
+    final camera = ref.read(cameraStateProvider);
+    if (camera.connectionState != DeviceConnectionState.connected) {
+      if (mounted && _isCurrentOperation(revision, backend)) {
+        context.showWarningSnackBar(
+          'Connect an imaging camera before using Slew & Center.',
+        );
+      }
+      return false;
+    }
+
+    final centering = ref.read(centeringServiceProvider);
+    if (centering.isRunning) {
+      if (mounted && _isCurrentOperation(revision, backend)) {
+        context
+            .showWarningSnackBar('A centering operation is already running.');
+      }
+      return false;
+    }
+
+    try {
+      await ref.read(plateSolveServiceProvider).ensureSolverAvailable();
+      return _isCurrentOperation(revision, backend);
+    } on SolverNotAvailableError catch (e) {
+      if (mounted && _isCurrentOperation(revision, backend)) {
+        context.showWarningSnackBar(e.message);
+      }
+      return false;
+    } catch (e) {
+      if (mounted && _isCurrentOperation(revision, backend)) {
+        context.showErrorSnackBar('Could not check the plate solver: $e');
+      }
+      return false;
+    }
+  }
+
+  bool _isCurrentOperation(int revision, NightshadeBackend backend) =>
+      mounted &&
+      revision == _operationRevision &&
+      identical(ref.read(backendProvider), backend);
 }
 
 /// Internal version of CenteringDialog that returns the result
@@ -275,6 +407,8 @@ class _CenteringDialogWithResult extends ConsumerStatefulWidget {
 class _CenteringDialogWithResultState
     extends ConsumerState<_CenteringDialogWithResult> {
   bool _isCentering = false;
+  bool _cancelInFlight = false;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
   CenteringConfig get _centeringConfig {
     final profile = ref.read(activeEquipmentProfileProvider);
@@ -284,7 +418,8 @@ class _CenteringDialogWithResultState
       toleranceArcsec: 30.0,
       exposureTime: exposureTime > 0 ? exposureTime : 5.0,
       binning: profile?.defaultBinX ?? 2,
-      gain: profile?.defaultGain ?? 100,
+      gain: profile?.defaultGain,
+      offset: profile?.defaultOffset,
       syncMount: false,
     );
   }
@@ -292,10 +427,23 @@ class _CenteringDialogWithResultState
   @override
   void initState() {
     super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        closeAuthorityBoundDialog(context);
+      },
+    );
     // Auto-start centering
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startCentering();
     });
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   Future<void> _startCentering() async {
@@ -332,6 +480,16 @@ class _CenteringDialogWithResultState
         // Return result when done
         Navigator.of(context).pop(result);
       }
+    } on SolverNotAvailableError catch (e) {
+      if (mounted) {
+        final failureResult = CenteringResult.failure(
+          errorMessage: e.message,
+          iterations: 0,
+          iterationHistory: const [],
+        );
+        setState(() => _isCentering = false);
+        Navigator.of(context).pop(failureResult);
+      }
     } catch (e) {
       if (mounted) {
         final failureResult = CenteringResult.failure(
@@ -344,6 +502,20 @@ class _CenteringDialogWithResultState
         });
         Navigator.of(context).pop(failureResult);
       }
+    }
+  }
+
+  Future<void> _cancelCentering() async {
+    setState(() => _cancelInFlight = true);
+    try {
+      await ref.read(centeringServiceProvider).stop();
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Cancel failed: $e');
+      }
+    }
+    if (mounted) {
+      Navigator.of(context).pop(null);
     }
   }
 
@@ -422,9 +594,7 @@ class _CenteringDialogWithResultState
               const SizedBox(height: 16),
               if (_isCentering)
                 NightshadeButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(null);
-                  },
+                  onPressed: _cancelInFlight ? null : _cancelCentering,
                   label: 'Cancel',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,

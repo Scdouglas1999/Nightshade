@@ -1,1 +1,17 @@
+assets/screenshots/analytics.png
+assets/screenshots/desktop-dashboard.png
+assets/screenshots/equipment.png
+assets/screenshots/flat-wizard.png
+assets/screenshots/framing.png
+assets/screenshots/guiding.png
+assets/screenshots/imaging.png
+assets/screenshots/plan-tonight.png
+assets/screenshots/planetarium.png
+assets/screenshots/sequencer.png
+assets/screenshots/settings-equipment-profiles.png
+assets/screenshots/weather.png
+docs/design/goldens/morning-report-sub-cull-rail.png
+docs/design/goldens/morning-report-workbench.png
+docs/design/goldens/mosaic-project-complete.png
 docs/design/goldens/surface-run-session-progress.png
+docs/design/goldens/surface-settings-appearance.png

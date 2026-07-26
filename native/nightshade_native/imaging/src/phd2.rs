@@ -1209,7 +1209,10 @@ impl Phd2Client {
 
     /// Clear calibration
     pub fn clear_calibration(&mut self, which: &str) -> Result<(), String> {
-        self.send_request("clear_calibration", Some(serde_json::json!(which)))?;
+        // PHD2's positional JSON-RPC contract requires an array here.
+        // Sending the bare string makes PHD2 2.6.14 execute the clear but omit
+        // the response, leaving the caller blocked until its 10-second timeout.
+        self.send_request("clear_calibration", Some(serde_json::json!([which])))?;
         Ok(())
     }
 
@@ -1392,6 +1395,16 @@ impl Phd2Client {
         let names: Vec<String> = arr
             .iter()
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            // `algorithmName` is PHD2's STRING parameter naming the active guide
+            // algorithm (e.g. "hysteresis"), NOT a numeric tunable. Every consumer
+            // of this list fetches each name's value as a number
+            // (`get_algo_param` -> f64), so leaving it in makes that call fail with
+            // "Invalid response for parameter algorithmName: expected number",
+            // which aborts the ENTIRE brain-settings load. Exclude it here so only
+            // numeric parameters are enumerated (this list also drives the UI
+            // sliders, which algorithmName is not). The algorithm name, if needed,
+            // must be queried separately as a string.
+            .filter(|s| s != "algorithmName")
             .collect();
 
         Ok(names)
@@ -1963,6 +1976,7 @@ pub fn launch_phd2() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::TcpListener;
 
     #[test]
     fn normalizes_localhost_for_tcp() {
@@ -2149,5 +2163,39 @@ mod tests {
         assert!(!json.contains("params"));
         assert!(json.contains("\"method\":\"get_app_state\""));
         assert!(json.contains("\"id\":1"));
+    }
+
+    #[test]
+    fn clear_calibration_uses_phd2_positional_parameter_array() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock PHD2");
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("accept client");
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            reader.read_line(&mut line).expect("read request");
+            let request: serde_json::Value =
+                serde_json::from_str(line.trim()).expect("valid request JSON");
+            assert_eq!(request["method"], "clear_calibration");
+            assert_eq!(request["params"], serde_json::json!(["both"]));
+
+            let id = request["id"].as_u64().expect("numeric request id");
+            let mut writer = stream;
+            writeln!(
+                writer,
+                "{}",
+                serde_json::json!({"jsonrpc": "2.0", "result": 0, "id": id})
+            )
+            .expect("write response");
+            writer.flush().expect("flush response");
+        });
+
+        let mut client = Phd2Client::new("127.0.0.1", port);
+        client.connect().expect("connect mock PHD2");
+        client
+            .clear_calibration("both")
+            .expect("clear calibration response");
+        client.disconnect();
+        server.join().expect("mock server completed");
     }
 }

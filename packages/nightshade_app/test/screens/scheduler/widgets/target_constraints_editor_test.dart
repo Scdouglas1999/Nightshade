@@ -16,6 +16,14 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as ndb;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void switchTo(NightshadeBackend backend) => state = backend;
+}
+
 Future<int> _insertTargetWithId(
     ndb.NightshadeDatabase db, int id, String name) async {
   // Force the id so the wizard test's hard-coded targetId matches the
@@ -184,6 +192,64 @@ void main() {
     expect(rows.length, 1);
     expect(rows.first.kind, TargetConstraintKind.moonIlluminationMax);
     expect(rows.first.moonIlluminationMax, closeTo(0.30, 1e-6));
+  });
+
+  testWidgets('wizard cannot save a host-A constraint after a host switch',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(900, 1100);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    late _SwappableBackendNotifier notifier;
+    final container = ProviderContainer(overrides: [
+      databaseProvider.overrideWithValue(database),
+      backendProvider.overrideWith((ref) {
+        notifier = _SwappableBackendNotifier(ref, DisconnectedBackend());
+        return notifier;
+      }),
+    ]);
+    addTearDown(container.dispose);
+    await _insertTargetWithId(database, 88, 'M51');
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: const Scaffold(
+          body: SingleChildScrollView(
+            child: TargetConstraintsEditor(
+              targetId: 88,
+              targetName: 'M51',
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester
+        .tap(find.byKey(const ValueKey('add-constraint-wizard-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('wizard-kind-moon')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('wizard-next')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('wizard-next')));
+    await tester.pumpAndSettle();
+    expect(find.text('Review and save'), findsOneWidget);
+
+    notifier.switchTo(DisconnectedBackend());
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('wizard-save')));
+    await tester.pumpAndSettle();
+
+    final rows =
+        await container.read(targetConstraintServiceProvider).listForTarget(88);
+    expect(rows, isEmpty);
+    expect(find.textContaining('Reopen the constraint editor'), findsOneWidget);
   });
 
   testWidgets(

@@ -27,7 +27,13 @@ class ImmersiveChromeController extends StateNotifier<bool> {
 
   /// Idle delay before the chrome tucks itself away on a freshly-entered
   /// screen (only while the operator hasn't taken manual control).
-  static const Duration idleTimeout = Duration(seconds: 5);
+  ///
+  /// 30s, not the original 5s: at five seconds the nav vanished before a
+  /// first-time operator finished reading the screen, and the only way back
+  /// was the slim grabber — live-device testing showed people (and one
+  /// auditor) simply got stranded. Thirty seconds keeps the tuck-away for
+  /// long monitoring stretches without amputating navigation mid-orientation.
+  static const Duration idleTimeout = Duration(seconds: 30);
 
   bool get enabled => _enabled;
 

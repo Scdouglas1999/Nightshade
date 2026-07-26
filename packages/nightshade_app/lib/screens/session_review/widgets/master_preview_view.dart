@@ -17,7 +17,7 @@ class MasterPreviewView extends StatefulWidget {
   final String? previewPath;
 
   /// Path to the rejection-map PNG, enabling the overlay toggle when present.
-  final String? rejectionMapPath;
+  final String? rejectionMapPngPath;
 
   /// Integration stat line shown under the image.
   final String? statLine;
@@ -25,7 +25,7 @@ class MasterPreviewView extends StatefulWidget {
   const MasterPreviewView({
     super.key,
     required this.previewPath,
-    this.rejectionMapPath,
+    this.rejectionMapPngPath,
     this.statLine,
   });
 
@@ -34,7 +34,7 @@ class MasterPreviewView extends StatefulWidget {
     final r = outcome.result;
     return MasterPreviewView(
       previewPath: r.previewPath,
-      rejectionMapPath: r.rejectionMapPath,
+      rejectionMapPngPath: r.rejectionMapPreviewPath,
       statLine: '${r.framesIntegrated} frames · ${r.framesRejected} rejected · '
           '${formatHms(r.totalIntegrationSec)} · '
           'residual ${r.rmsResidual.toStringAsFixed(2)} px',
@@ -45,7 +45,7 @@ class MasterPreviewView extends StatefulWidget {
   static Widget fromMaster(IntegratedMaster master) {
     return MasterPreviewView(
       previewPath: master.previewPngPath,
-      rejectionMapPath: master.rejectionMapPath,
+      rejectionMapPngPath: master.rejectionMapPreviewPath,
       statLine: '${master.frameCount} frames · '
           '${formatHms(master.totalIntegrationSeconds)} · '
           '${master.width}×${master.height}',
@@ -72,7 +72,7 @@ class _MasterPreviewViewState extends State<MasterPreviewView> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final hasPreview = _exists(widget.previewPath);
-    final hasRejection = _exists(widget.rejectionMapPath);
+    final hasRejection = _exists(widget.rejectionMapPngPath);
 
     if (!hasPreview) {
       return EmptyState(
@@ -127,7 +127,7 @@ class _MasterPreviewViewState extends State<MasterPreviewView> {
                     Opacity(
                       opacity: 0.55,
                       child: Image.file(
-                        File(widget.rejectionMapPath!),
+                        File(widget.rejectionMapPngPath!),
                         fit: BoxFit.contain,
                       ),
                     ),

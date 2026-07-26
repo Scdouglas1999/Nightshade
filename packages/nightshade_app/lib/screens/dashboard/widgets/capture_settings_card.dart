@@ -19,6 +19,45 @@ class CaptureSettingsCard extends ConsumerStatefulWidget {
 class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
   bool _isLooping = false;
   bool _isChangingFilter = false;
+  bool _captureInFlight = false;
+  int _loopGeneration = 0;
+  ProviderSubscription<ImagingService>? _imagingSubscription;
+  ProviderSubscription<DeviceService>? _deviceSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _imagingSubscription = ref.listenManual<ImagingService>(
+      imagingServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _loopGeneration++;
+        if (mounted && (_isLooping || _captureInFlight)) {
+          setState(() {
+            _isLooping = false;
+            _captureInFlight = false;
+          });
+        }
+      },
+    );
+    _deviceSubscription = ref.listenManual<DeviceService>(
+      deviceServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted && _isChangingFilter) {
+          setState(() => _isChangingFilter = false);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _loopGeneration++;
+    _imagingSubscription?.close();
+    _deviceSubscription?.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +66,23 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
     final exposureProgress = ref.watch(exposureProgressProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final filterWheelState = ref.watch(filterWheelStateProvider);
+    final autofocusRunning = ref.watch(
+      sessionStateProvider.select((session) => session.isAutofocusing),
+    );
+    final binningOptions = ref.watch(
+      cameraBinningOptionsProvider(cameraState.deviceId ?? ''),
+    );
 
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
-    final isCapturing =
-        exposureProgress.percent > 0 || exposureProgress.isDownloading;
+    final isCapturing = _captureInFlight ||
+        cameraState.isExposing ||
+        exposureProgress.percent > 0 ||
+        exposureProgress.isDownloading;
+    final captureBlocked = isCapturing ||
+        _isChangingFilter ||
+        filterWheelState.isMoving ||
+        autofocusRunning;
     final isFilterWheelConnected =
         filterWheelState.connectionState == DeviceConnectionState.connected;
 
@@ -82,6 +133,7 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                   if (parsed != null && parsed > 0) {
                     ref.read(exposureSettingsProvider.notifier).state =
                         exposureSettings.copyWith(exposureTime: parsed);
+                    _markExposureSettingsDirty();
                   }
                 },
               ),
@@ -95,14 +147,17 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                   if (parsed != null && parsed >= 0) {
                     ref.read(exposureSettingsProvider.notifier).state =
                         exposureSettings.copyWith(gain: parsed);
+                    _markExposureSettingsDirty();
                   }
                 },
               ),
               // Binning dropdown
               _CompactDropdown(
                 label: 'Bin',
-                value: exposureSettings.binning,
-                items: const ['1x1', '2x2', '3x3', '4x4'],
+                value: binningOptions.contains(exposureSettings.binning)
+                    ? exposureSettings.binning
+                    : binningOptions.first,
+                items: binningOptions,
                 colors: colors,
                 onChanged: (v) {
                   if (v != null) {
@@ -112,6 +167,7 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                       binningX: int.parse(parts[0]),
                       binningY: int.parse(parts[1]),
                     );
+                    _markExposureSettingsDirty();
                   }
                 },
               ),
@@ -122,7 +178,11 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                 items: filterNames,
                 colors: colors,
                 highlight: true,
-                onChanged: (_isChangingFilter || filterWheelState.isMoving)
+                onChanged: (_isChangingFilter ||
+                        filterWheelState.isMoving ||
+                        autofocusRunning ||
+                        isCapturing ||
+                        _isLooping)
                     ? null
                     : (v) => _onFilterChanged(v, filterNames),
               ),
@@ -140,6 +200,7 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                     );
                     ref.read(exposureSettingsProvider.notifier).state =
                         exposureSettings.copyWith(frameType: type);
+                    _markExposureSettingsDirty();
                   }
                 },
               ),
@@ -152,14 +213,14 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                        value: exposureProgress.percent,
+                        value: (exposureProgress.percent / 100).clamp(0.0, 1.0),
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation(colors.primary),
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      '${(exposureProgress.percent * 100).toInt()}%',
+                      '${exposureProgress.percent.clamp(0.0, 100.0).toInt()}%',
                       style: NightshadeTypography.labelStrongSm.copyWith(
                         color: colors.primary,
                       ),
@@ -199,19 +260,26 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                   icon: isCapturing ? LucideIcons.loader2 : LucideIcons.camera,
                   size: ButtonSize.small,
                   onPressed:
-                      (!isConnected || isCapturing) ? null : _captureImage,
+                      (!isConnected || captureBlocked) ? null : _captureImage,
                 ),
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: NightshadeButton(
-                  label: _isLooping ? 'Stop' : 'Loop',
+                  label: _isLooping ? 'Stop Loop' : 'Loop',
                   icon: LucideIcons.repeat,
                   variant: _isLooping
                       ? ButtonVariant.primary
                       : ButtonVariant.outline,
                   size: ButtonSize.small,
-                  onPressed: (!isConnected || isCapturing) ? null : _toggleLoop,
+                  // Stopping the loop must remain available while its current
+                  // exposure is in flight. Abort is the separate action that
+                  // cancels that exposure immediately.
+                  onPressed: _isLooping
+                      ? _toggleLoop
+                      : (!isConnected || captureBlocked)
+                          ? null
+                          : _toggleLoop,
                 ),
               ),
               const SizedBox(width: 6),
@@ -231,7 +299,8 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
     );
   }
 
-  Future<bool> _captureImage() async {
+  Future<bool> _captureImage({ImagingService? expectedService}) async {
+    if (_captureInFlight) return false;
     final cameraState = ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       if (mounted) {
@@ -241,33 +310,49 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
       }
       return false;
     }
-
+    final ImagingService imagingService =
+        expectedService ?? ref.read(imagingServiceProvider);
+    if (!_isCurrentImagingService(imagingService)) return false;
+    setState(() => _captureInFlight = true);
     try {
-      final imagingService = ref.read(imagingServiceProvider);
       final settings = ref.read(exposureSettingsProvider);
       final result = await imagingService.captureImage(settings: settings);
-      if (result != null && mounted) {
-        ref.read(currentImageProvider.notifier).state = result;
-      }
-      return result != null;
+      // ImagingService owns currentImage publication, including the later raw
+      // pixel upgrade. Re-publishing its early return here can overwrite that
+      // newer raw-ready image with a stale preview-only copy.
+      return result != null && _isCurrentImagingService(imagingService);
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentImagingService(imagingService)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Capture failed: $e')),
         );
       }
       return false;
+    } finally {
+      if (_isCurrentImagingService(imagingService)) {
+        setState(() => _captureInFlight = false);
+      }
     }
   }
 
   void _toggleLoop() async {
     if (_isLooping) {
+      _loopGeneration++;
       setState(() => _isLooping = false);
       return;
     }
+    final imagingService = ref.read(imagingServiceProvider);
+    final generation = ++_loopGeneration;
     setState(() => _isLooping = true);
-    while (_isLooping && mounted) {
-      final captured = await _captureImage();
+    while (_isLooping &&
+        mounted &&
+        generation == _loopGeneration &&
+        _isCurrentImagingService(imagingService)) {
+      final captured = await _captureImage(expectedService: imagingService);
+      if (!_isCurrentImagingService(imagingService) ||
+          generation != _loopGeneration) {
+        break;
+      }
       if (!captured) {
         break;
       }
@@ -275,14 +360,19 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
         await Future.delayed(const Duration(milliseconds: 500));
       }
     }
-    if (mounted) {
+    if (mounted && generation == _loopGeneration) {
       setState(() => _isLooping = false);
     }
   }
 
   void _abortCapture() {
+    _loopGeneration++;
     setState(() => _isLooping = false);
     ref.read(imagingServiceProvider).cancelExposure();
+  }
+
+  void _markExposureSettingsDirty() {
+    ref.read(exposureSettingsUserDirtyProvider.notifier).state = true;
   }
 
   /// Handle filter selection - updates settings AND moves the physical filter wheel
@@ -296,20 +386,37 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
     final position = filterNames.indexOf(filterName);
     if (position < 0) return;
 
-    // Always update exposure settings so filter is recorded in FITS headers
-    final exposureSettings = ref.read(exposureSettingsProvider);
-    ref.read(exposureSettingsProvider.notifier).state =
-        exposureSettings.copyWith(filter: filterName);
-
     // If filter wheel is connected, actually move it
     final filterWheelState = ref.read(filterWheelStateProvider);
     if (filterWheelState.connectionState == DeviceConnectionState.connected) {
+      // Capture the long-lived controllers before awaiting hardware. The card
+      // may be removed while a slow wheel is still moving; reading `ref` after
+      // that point would throw and lose the metadata update for a move that
+      // physically succeeded.
+      final deviceService = ref.read(deviceServiceProvider);
+      final providerContainer =
+          ProviderScope.containerOf(context, listen: false);
+      final exposureSettingsController =
+          ref.read(exposureSettingsProvider.notifier);
+      final dirtyController =
+          ref.read(exposureSettingsUserDirtyProvider.notifier);
       setState(() => _isChangingFilter = true);
       try {
-        final deviceService = ref.read(deviceServiceProvider);
         await deviceService.setFilterWheelPosition(position);
+        if (identical(
+          providerContainer.read(deviceServiceProvider),
+          deviceService,
+        )) {
+          exposureSettingsController.state =
+              exposureSettingsController.state.copyWith(filter: filterName);
+          dirtyController.state = true;
+        }
       } catch (e) {
-        if (mounted) {
+        if (mounted &&
+            identical(
+              providerContainer.read(deviceServiceProvider),
+              deviceService,
+            )) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to change filter: $e'),
@@ -318,12 +425,24 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
           );
         }
       } finally {
-        if (mounted) {
+        if (mounted &&
+            identical(
+              providerContainer.read(deviceServiceProvider),
+              deviceService,
+            )) {
           setState(() => _isChangingFilter = false);
         }
       }
+    } else {
+      final exposureSettings = ref.read(exposureSettingsProvider);
+      ref.read(exposureSettingsProvider.notifier).state =
+          exposureSettings.copyWith(filter: filterName);
+      _markExposureSettingsDirty();
     }
   }
+
+  bool _isCurrentImagingService(ImagingService service) =>
+      mounted && identical(ref.read(imagingServiceProvider), service);
 }
 
 /// Compact text field for inline settings editing

@@ -100,6 +100,39 @@ void main() {
       },
     );
 
+    test(
+      'create node rejects unsupported wire types without poisoning the tree',
+      () async {
+        final sequenceId = await db.sequencesDao.createSequence(
+          SequencesCompanion.insert(name: 'Node validation'),
+        );
+
+        final response = await translateHandlerErrors(
+          handlers.handleCreateNode(
+            Request(
+              'POST',
+              Uri.parse(
+                'http://localhost/api/sequence-management/$sequenceId/nodes',
+              ),
+              body: jsonEncode({
+                'nodeId': 'bad-root',
+                'nodeType': 'container',
+                'specificType': 'sequential',
+                'name': 'Unsupported root',
+                'properties': '{}',
+              }),
+            ),
+            '$sequenceId',
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['field'], 'specificType');
+        expect(await db.sequencesDao.getNodesForSequence(sequenceId), isEmpty);
+      },
+    );
+
     test('save-full persists sequence and notifies catalog bus', () async {
       final updates = <SequenceCatalogUpdate>[];
       final sub = container
@@ -150,6 +183,11 @@ void main() {
       expect(updates.single.action, 'saved');
       expect(updates.single.name, 'Remote Draft');
       expect(updates.single.sequenceId, body['id']);
+      expect(
+        await db.sequenceVersionsDao.listVersions(body['id'] as int),
+        isEmpty,
+        reason: 'debounced save-full must not flood explicit version history',
+      );
 
       await sub.cancel();
     });
@@ -263,10 +301,165 @@ void main() {
       final body = jsonDecode(await listResponse.readAsString()) as Map;
       final sequences = body['sequences'] as List;
       expect(sequences, isNotEmpty);
-      expect(
-        sequences.cast<Map>().any((m) => m['name'] == 'List Full Entry'),
-        isTrue,
+      final saved = sequences.cast<Map>().singleWhere(
+        (m) => m['name'] == 'List Full Entry',
       );
+
+      final detailResponse = await translateHandlerErrors(
+        handlers.handleGetFullSequence(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/sequence-management/${saved['databaseId']}/full',
+            ),
+          ),
+          '${saved['databaseId']}',
+        ),
+      );
+      expect(detailResponse.statusCode, HttpStatus.ok);
+      final detail = jsonDecode(await detailResponse.readAsString()) as Map;
+      expect((detail['sequence'] as Map)['name'], 'List Full Entry');
+    });
+
+    test('remote library metadata and explicit versions round-trip', () async {
+      const rootId = 'root-library-parity';
+      final sequenceMap = <String, dynamic>{
+        'schemaVersion': SequenceFileService.currentSchemaVersion,
+        'version': '2.0',
+        'name': 'Library Parity',
+        'description': '',
+        'rootNodeId': rootId,
+        'isTemplate': false,
+        'createdAt': DateTime(2026, 1, 1).toIso8601String(),
+        'modifiedAt': DateTime(2026, 1, 2).toIso8601String(),
+        'nodes': {
+          rootId: {
+            'id': rootId,
+            'nodeType': 'instructionSet',
+            'name': 'Sequence',
+            'parentId': null,
+            'childIds': <String>[],
+            'orderIndex': 0,
+            'isEnabled': true,
+          },
+        },
+      };
+      final saveResponse = await translateHandlerErrors(
+        handlers.handleSaveFullSequence(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/sequence-management/save-full'),
+            body: jsonEncode({'sequence': sequenceMap, 'isTemplate': false}),
+            headers: {'Content-Type': 'application/json'},
+          ),
+        ),
+      );
+      final sequenceId =
+          (jsonDecode(await saveResponse.readAsString()) as Map)['id'] as int;
+
+      final tagsResponse = await translateHandlerErrors(
+        handlers.handleSetTags(
+          Request(
+            'PUT',
+            Uri.parse(
+              'http://localhost/api/sequence-management/$sequenceId/tags',
+            ),
+            body: jsonEncode({
+              'tags': ['  winter ', 'winter', '', 'narrowband'],
+            }),
+            headers: {'Content-Type': 'application/json'},
+          ),
+          '$sequenceId',
+        ),
+      );
+      expect(tagsResponse.statusCode, HttpStatus.ok);
+
+      final favoriteResponse = await translateHandlerErrors(
+        handlers.handleToggleFavorite(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/sequence-management/$sequenceId/favorite',
+            ),
+          ),
+          '$sequenceId',
+        ),
+      );
+      final favoriteBody =
+          jsonDecode(await favoriteResponse.readAsString()) as Map;
+      expect(favoriteBody['isFavorite'], isTrue);
+
+      final summariesResponse = await translateHandlerErrors(
+        handlers.handleListSequenceSummaries(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/sequence-management/summaries'),
+          ),
+        ),
+      );
+      final summariesBody =
+          jsonDecode(await summariesResponse.readAsString()) as Map;
+      final summary = (summariesBody['summaries'] as List)
+          .cast<Map>()
+          .singleWhere((row) => row['id'] == sequenceId);
+      expect(summary['tags'], ['winter', 'narrowband']);
+      expect(summary['isFavorite'], isTrue);
+
+      final snapshotResponse = await translateHandlerErrors(
+        handlers.handleSnapshotVersion(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/sequence-management/$sequenceId/versions',
+            ),
+            body: jsonEncode({'sequence': sequenceMap, 'label': 'before edit'}),
+            headers: {'Content-Type': 'application/json'},
+          ),
+          '$sequenceId',
+        ),
+      );
+      final versionId =
+          (jsonDecode(await snapshotResponse.readAsString()) as Map)['id']
+              as int;
+
+      final listResponse = await translateHandlerErrors(
+        handlers.handleListVersions(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/sequence-management/$sequenceId/versions',
+            ),
+          ),
+          '$sequenceId',
+        ),
+      );
+      final versions =
+          (jsonDecode(await listResponse.readAsString()) as Map)['versions']
+              as List;
+      expect(versions, hasLength(1));
+      expect((versions.single as Map)['label'], 'before edit');
+      expect(
+        versions.single,
+        isNot(contains('snapshotJson')),
+        reason: 'history lists must not transfer every full sequence snapshot',
+      );
+
+      final detailResponse = await translateHandlerErrors(
+        handlers.handleGetVersion(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/sequence-management/versions/$versionId',
+            ),
+          ),
+          '$versionId',
+        ),
+      );
+      final version =
+          (jsonDecode(await detailResponse.readAsString()) as Map)['version']
+              as Map;
+      expect(version['sequenceId'], sequenceId);
+      expect(version['snapshotJson'], contains('Library Parity'));
     });
   });
 }

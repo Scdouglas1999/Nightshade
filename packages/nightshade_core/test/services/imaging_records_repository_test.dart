@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,37 @@ import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/services/imaging_records_repository.dart';
 
 import '../fakes/fake_network_client.dart';
+
+Map<String, Object?> _imageRow(int id) => {
+  'id': id,
+  'filePath': '/host/frame-$id.fits',
+  'fileName': 'frame-$id.fits',
+  'fileFormat': 'fits',
+  'frameType': 'light',
+  'exposureDuration': 120,
+  'binX': 1,
+  'binY': 1,
+  'capturedAt': 1700000000000 + id,
+  'createdAt': 1700000000000 + id,
+  'isAccepted': true,
+  'isPlateSolved': false,
+};
+
+Future<void> _waitUntil(
+  bool Function() condition, {
+  String Function()? describe,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 1));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail(
+        'Timed out waiting for repository polling'
+        '${describe == null ? '' : ': ${describe()}'}',
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+  }
+}
 
 void main() {
   group('ImagingRecordsRepository local', () {
@@ -75,6 +108,8 @@ void main() {
       repository = ImagingRecordsRepository.remote(backend);
     });
 
+    tearDown(() => backend.dispose());
+
     test('startSession posts to host API', () async {
       fake.setResponse('/api/sessions', method: 'POST', body: '{"id": 42}');
 
@@ -116,5 +151,95 @@ void main() {
       expect(fake.requests.single.path, '/api/images/3');
       expect(fake.requests.single.body, contains('isAccepted'));
     });
+
+    test('getAllSequenceRunsRemote follows every host page', () async {
+      fake.setResponseSequence(
+        '/api/sequence-runs',
+        responses: [
+          (
+            status: 200,
+            body: '''
+              {"items":[
+                {"id":3,"sequenceId":9,"sequenceName":"Galaxy","startedAt":"2025-06-03T00:00:00Z","status":"completed"},
+                {"id":2,"sequenceId":9,"sequenceName":"Galaxy","startedAt":"2025-06-02T00:00:00Z","status":"failed"}
+              ],"total":3}
+            ''',
+            headers: null,
+          ),
+          (
+            status: 200,
+            body: '''
+              {"items":[
+                {"id":1,"sequenceId":9,"sequenceName":"Galaxy","startedAt":"2025-06-01T00:00:00Z","status":"completed"}
+              ],"total":3}
+            ''',
+            headers: null,
+          ),
+        ],
+      );
+
+      final runs = await repository.getAllSequenceRunsRemote();
+
+      expect(runs.map((run) => run.id), [3, 2, 1]);
+      final requests = fake.requestsFor('/api/sequence-runs');
+      expect(requests, hasLength(2));
+      expect(requests[0].url.queryParameters, {'limit': '1000', 'offset': '0'});
+      expect(requests[1].url.queryParameters, {'limit': '1000', 'offset': '2'});
+    });
+
+    test(
+      'image watch suppresses duplicates and recovers after a host blip',
+      () async {
+        fake.setResponseSequence(
+          '/api/sessions/6/images',
+          responses: [
+            (
+              status: 200,
+              body: jsonEncode({
+                'images': [_imageRow(1)],
+              }),
+              headers: null,
+            ),
+            (
+              status: 200,
+              body: jsonEncode({
+                'images': [_imageRow(1)],
+              }),
+              headers: null,
+            ),
+            (status: 400, body: '{"error":"temporary"}', headers: null),
+            (
+              status: 200,
+              body: jsonEncode({
+                'images': [_imageRow(2)],
+              }),
+              headers: null,
+            ),
+          ],
+        );
+        final pollingRepository = ImagingRecordsRepository.remote(
+          backend,
+          pollInterval: const Duration(milliseconds: 5),
+        );
+        final values = <List<CapturedImage>>[];
+        final errors = <Object>[];
+        final subscription = pollingRepository
+            .watchImagesForSession(6)
+            .listen(values.add, onError: errors.add);
+
+        await _waitUntil(
+          () =>
+              fake.requestsFor('/api/sessions/6/images').length >= 5 &&
+              values.length >= 2,
+          describe: () =>
+              '${fake.requestsFor('/api/sessions/6/images').length} requests, '
+              '${values.length} values, ${errors.length} errors',
+        );
+
+        expect(values.map((rows) => rows.single.id), [1, 2]);
+        expect(errors, isEmpty);
+        await subscription.cancel().timeout(const Duration(seconds: 1));
+      },
+    );
   });
 }

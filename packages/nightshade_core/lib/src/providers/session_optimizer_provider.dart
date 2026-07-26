@@ -1,7 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    show TwilightTimes;
 
+import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
 import '../database/daos/guide_rms_history_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../models/planning/target_suggestion.dart';
@@ -11,6 +15,7 @@ import '../services/smart_night/exposure_calculator.dart';
 import '../services/smart_night/hardware_specs_service.dart';
 import '../services/session_optimizer_service.dart';
 import '../services/smart_night_service.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment/filter_wheel_state_provider.dart';
 import 'profiles_provider.dart';
@@ -39,123 +44,137 @@ final hardwareSpecsServiceProvider = Provider<HardwareSpecsService>(
 /// Missing camera sensor/spec values are surfaced as caveats instead of being
 /// silently guessed. Missing telescope focal length or aperture disables the
 /// Smart Night path because the physics model cannot be made meaningful.
-final smartNightExposureContextProvider =
-    FutureProvider.autoDispose<SmartNightExposureContext?>((ref) async {
-      final settings = await ref.watch(appSettingsProvider.future);
-      final opticalConfig = ref.watch(opticalConfigProvider);
-      final profile = ref.watch(activeEquipmentProfileProvider);
-      final effectiveFilters = ref.watch(effectiveFiltersProvider);
-      final guideStats = await _weightedGuideRmsForMount(
-        ref.watch(guideRmsHistoryDaoProvider),
-        profile?.mountId,
-      );
+final smartNightExposureContextProvider = FutureProvider<SmartNightExposureContext?>((
+  ref,
+) async {
+  final settings = await ref.watch(appSettingsProvider.future);
+  final opticalConfig = ref.watch(opticalConfigProvider);
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  final effectiveFilters = ref.watch(effectiveFiltersProvider);
+  final backend = ref.watch(backendProvider);
+  final guideStats = await _weightedGuideRmsForMount(
+    profile?.mountId,
+    backend: backend,
+    localDao: backend is NetworkBackend
+        ? null
+        : ref.watch(guideRmsHistoryDaoProvider),
+  );
 
-      final focalLength = opticalConfig?.focalLength ?? profile?.focalLength;
-      final aperture = opticalConfig?.aperture ?? profile?.aperture;
-      if (focalLength == null ||
-          focalLength <= 0 ||
-          aperture == null ||
-          aperture <= 0) {
-        return null;
-      }
+  final focalLength = opticalConfig?.focalLength ?? profile?.focalLength;
+  final aperture = opticalConfig?.aperture ?? profile?.aperture;
+  if (focalLength == null ||
+      focalLength <= 0 ||
+      aperture == null ||
+      aperture <= 0) {
+    return null;
+  }
 
-      final dao = ref.watch(settingsDaoProvider);
-      final caveats = <String>[];
-      final hardwareOverrides = await _readCameraHardwareOverrides(
-        dao,
-        caveats,
-      );
-      final hardwareSpecs = hardwareOverrides.isEmpty
-          ? ref.watch(hardwareSpecsServiceProvider)
-          : ref
-                .watch(hardwareSpecsServiceProvider)
-                .withCameraOverrides(hardwareOverrides);
-      final hardwareMatch = hardwareSpecs.matchCamera(
-        cameraName: profile?.cameraName,
-        cameraId: profile?.cameraId,
-        gain: profile?.defaultGain,
-      );
+  final rawSettings = await _loadSmartNightRigSettings(
+    backend,
+    localDao: backend is NetworkBackend ? null : ref.watch(settingsDaoProvider),
+  );
+  final caveats = <String>[];
+  final hardwareOverrides = await _readCameraHardwareOverrides(
+    rawSettings,
+    caveats,
+  );
+  final hardwareSpecs = hardwareOverrides.isEmpty
+      ? ref.watch(hardwareSpecsServiceProvider)
+      : ref
+            .watch(hardwareSpecsServiceProvider)
+            .withCameraOverrides(hardwareOverrides);
+  final hardwareMatch = hardwareSpecs.matchCamera(
+    cameraName: profile?.cameraName,
+    cameraId: profile?.cameraId,
+    gain: profile?.defaultGain,
+  );
 
-      final readNoise = await _readDoubleSetting(
-        dao,
-        'science.camera.read_noise_e',
+  final readNoise = _readDoubleSetting(
+    rawSettings,
+    'science.camera.read_noise_e',
+  );
+  final fullWell = _readDoubleSetting(
+    rawSettings,
+    'smart_night.camera.full_well_e',
+  );
+  final qePeak = _readDoubleSetting(rawSettings, 'smart_night.camera.qe_peak');
+  final gloverK = _readDoubleSetting(
+    rawSettings,
+    'smart_night.glover_k_factor',
+  );
+  var pixelSize = opticalConfig?.pixelSize;
+  if (pixelSize == null || pixelSize <= 0) {
+    pixelSize = hardwareMatch?.pixelSizeMicrons;
+    if (pixelSize == null || pixelSize <= 0) {
+      pixelSize = 3.76;
+      caveats.add(
+        'Camera pixel size is unavailable; using a 3.76 micron planning estimate.',
       );
-      final fullWell = await _readDoubleSetting(
-        dao,
-        'smart_night.camera.full_well_e',
-      );
-      final qePeak = await _readDoubleSetting(
-        dao,
-        'smart_night.camera.qe_peak',
-      );
-      final gloverK = await _readDoubleSetting(
-        dao,
-        'smart_night.glover_k_factor',
-      );
-      var pixelSize = opticalConfig?.pixelSize;
-      if (pixelSize == null || pixelSize <= 0) {
-        pixelSize = hardwareMatch?.pixelSizeMicrons;
-        if (pixelSize == null || pixelSize <= 0) {
-          pixelSize = 3.76;
-          caveats.add(
-            'Camera pixel size is unavailable; using a 3.76 micron planning estimate.',
-          );
-        }
-      }
+    }
+  }
 
-      final hardwareCamera = hardwareMatch?.exposureSpec;
-      final effectiveReadNoise = readNoise ?? hardwareCamera?.readNoiseE ?? 3.5;
-      if (readNoise == null && hardwareCamera == null) {
-        caveats.add(
-          'Camera read noise is not configured; using a conservative 3.5e- planning estimate.',
-        );
-      }
+  final hardwareCamera = hardwareMatch?.exposureSpec;
+  final effectiveReadNoise = readNoise ?? hardwareCamera?.readNoiseE ?? 3.5;
+  if (readNoise == null && hardwareCamera == null) {
+    caveats.add(
+      'Camera read noise is not configured; using a conservative 3.5e- planning estimate.',
+    );
+  }
 
-      final effectiveFullWell =
-          fullWell ?? hardwareCamera?.fullWellE ?? 18000.0;
-      if (fullWell == null && hardwareCamera == null) {
-        caveats.add(
-          'Camera full well is not configured; using an 18,000e- planning estimate.',
-        );
-      }
+  final effectiveFullWell = fullWell ?? hardwareCamera?.fullWellE ?? 18000.0;
+  if (fullWell == null && hardwareCamera == null) {
+    caveats.add(
+      'Camera full well is not configured; using an 18,000e- planning estimate.',
+    );
+  }
 
-      final effectiveQePeak = qePeak ?? hardwareCamera?.qePeak ?? 0.65;
-      if (qePeak == null && hardwareCamera == null) {
-        caveats.add(
-          'Camera QE is not configured; using a 65% planning estimate.',
-        );
-      }
+  final effectiveQePeak = qePeak ?? hardwareCamera?.qePeak ?? 0.65;
+  if (qePeak == null && hardwareCamera == null) {
+    caveats.add('Camera QE is not configured; using a 65% planning estimate.');
+  }
 
-      return SmartNightExposureContext(
-        camera: CameraExposureSpec(
-          readNoiseE: effectiveReadNoise,
-          fullWellE: effectiveFullWell,
-          qePeak: effectiveQePeak.clamp(0.05, 1.0).toDouble(),
-        ),
-        bortleClass: settings.bortleClass,
-        focalLengthMm: focalLength,
-        apertureMm: aperture,
-        pixelSizeMicrons: pixelSize,
-        availableFilterNames: effectiveFilters.isNotEmpty
-            ? effectiveFilters
-            : (profile?.filterNames ?? const []),
-        guideRmsArcsec: guideStats.rmsArcsec,
-        guideSampleCount: guideStats.sampleCount,
-        gloverKFactor: gloverK ?? 10,
-        targetSnr: settings.smartNightTargetSnr,
-        userCapSeconds: settings.smartNightSubExposureCeilingSecs,
-        floorSeconds: settings.smartNightSubExposureFloorSecs,
-        caveats: caveats,
-      );
-    });
+  return SmartNightExposureContext(
+    camera: CameraExposureSpec(
+      readNoiseE: effectiveReadNoise,
+      fullWellE: effectiveFullWell,
+      qePeak: effectiveQePeak.clamp(0.05, 1.0).toDouble(),
+    ),
+    bortleClass: settings.bortleClass,
+    focalLengthMm: focalLength,
+    apertureMm: aperture,
+    pixelSizeMicrons: pixelSize,
+    availableFilterNames: effectiveFilters.isNotEmpty
+        ? effectiveFilters
+        : (profile?.filterNames ?? const []),
+    guideRmsArcsec: guideStats.rmsArcsec,
+    guideSampleCount: guideStats.sampleCount,
+    gloverKFactor: gloverK ?? 10,
+    targetSnr: settings.smartNightTargetSnr,
+    userCapSeconds: settings.smartNightSubExposureCeilingSecs,
+    floorSeconds: settings.smartNightSubExposureFloorSecs,
+    caveats: caveats,
+  );
+});
+
+Future<Map<String, String>> _loadSmartNightRigSettings(
+  NightshadeBackend backend, {
+  required SettingsDao? localDao,
+}) async {
+  if (backend is NetworkBackend) {
+    final values = await Future.wait([
+      backend.getScienceSettings(),
+      backend.getSmartNightSettings(),
+    ]);
+    return {...values[0], ...values[1]};
+  }
+  return localDao!.getAllSettings();
+}
 
 Future<List<CameraHardwareSpec>> _readCameraHardwareOverrides(
-  SettingsDao dao,
+  Map<String, String> settings,
   List<String> caveats,
 ) async {
-  final raw = await dao.getSetting(
-    HardwareSpecsService.cameraOverridesSettingKey,
-  );
+  final raw = settings[HardwareSpecsService.cameraOverridesSettingKey];
   if (raw == null || raw.trim().isEmpty) return const [];
   try {
     return HardwareSpecsService.cameraOverridesFromJson(jsonDecode(raw));
@@ -175,6 +194,7 @@ Future<List<CameraHardwareSpec>> _readCameraHardwareOverrides(
 /// survives app restarts.
 class _DismissedInsightsNotifier extends AsyncNotifier<Set<String>> {
   static const _key = 'session_insights.dismissed';
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<Set<String>> build() async {
@@ -188,28 +208,40 @@ class _DismissedInsightsNotifier extends AsyncNotifier<Set<String>> {
         .toSet();
   }
 
-  Future<void> dismiss(String id) async {
-    final dao = ref.read(settingsDaoProvider);
-    final current = state.valueOrNull ?? <String>{};
-    final updated = {...current, id};
-    await dao.setSetting(_key, updated.join(','));
-    state = AsyncValue.data(updated);
+  Future<void> _update(Set<String> Function(Set<String> current) change) {
+    final result = _writeTail.then((_) async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError(
+          'Dismissed session insights are not loaded; refusing to '
+          'overwrite them with an empty set.',
+        );
+      }
+      final updated = Set<String>.unmodifiable(change(current));
+      final dao = ref.read(settingsDaoProvider);
+      await dao.setSetting(_key, updated.join(','));
+      if (!identical(ref.read(settingsDaoProvider), dao)) {
+        throw StateError(
+          'The settings database changed while saving dismissed insights.',
+        );
+      }
+      state = AsyncValue.data(updated);
+    });
+    _writeTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
   }
 
-  Future<void> undismiss(String id) async {
-    final dao = ref.read(settingsDaoProvider);
-    final current = state.valueOrNull ?? <String>{};
-    if (!current.contains(id)) return;
-    final updated = {...current}..remove(id);
-    await dao.setSetting(_key, updated.join(','));
-    state = AsyncValue.data(updated);
-  }
+  Future<void> dismiss(String id) => _update((current) => {...current, id});
 
-  Future<void> clear() async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSetting(_key, '');
-    state = const AsyncValue.data(<String>{});
-  }
+  Future<void> undismiss(String id) => _update((current) {
+    if (!current.contains(id)) return current;
+    return {...current}..remove(id);
+  });
+
+  Future<void> clear() => _update((_) => const <String>{});
 }
 
 /// Operator's "Don't suggest this again" set.
@@ -242,8 +274,8 @@ final sessionInsightsProvider = FutureProvider.autoDispose
       );
     });
 
-Future<double?> _readDoubleSetting(SettingsDao dao, String key) async {
-  final raw = await dao.getSetting(key);
+double? _readDoubleSetting(Map<String, String> settings, String key) {
+  final raw = settings[key];
   if (raw == null || raw.trim().isEmpty) return null;
   final parsed = double.tryParse(raw);
   if (parsed == null || !parsed.isFinite || parsed <= 0) return null;
@@ -258,15 +290,40 @@ class _GuideRmsStats {
 }
 
 Future<_GuideRmsStats> _weightedGuideRmsForMount(
-  GuideRmsHistoryDao dao,
-  String? mountId,
-) async {
+  String? mountId, {
+  required NightshadeBackend backend,
+  required GuideRmsHistoryDao? localDao,
+}) async {
   final trimmedMountId = mountId?.trim();
   if (trimmedMountId == null || trimmedMountId.isEmpty) {
     return const _GuideRmsStats();
   }
 
-  final samples = await dao.recentForMount(trimmedMountId, limit: 20);
+  final List<({double totalRmsArcsec, DateTime recordedAt})> samples;
+  if (backend is NetworkBackend) {
+    final page = await backend.fetchGuideRmsHistory(
+      mountId: trimmedMountId,
+      limit: 20,
+    );
+    samples = page.items
+        .map(
+          (sample) => (
+            totalRmsArcsec: sample.totalRmsArcsec,
+            recordedAt: sample.recordedAt,
+          ),
+        )
+        .toList(growable: false);
+  } else {
+    final rows = await localDao!.recentForMount(trimmedMountId, limit: 20);
+    samples = rows
+        .map(
+          (sample) => (
+            totalRmsArcsec: sample.totalRmsArcsec,
+            recordedAt: sample.recordedAt,
+          ),
+        )
+        .toList(growable: false);
+  }
   if (samples.isEmpty) {
     return const _GuideRmsStats();
   }
@@ -322,14 +379,20 @@ final plannerTargetIntegrationPreviewProvider = FutureProvider.autoDispose
       final filters = ref.watch(effectiveFiltersProvider);
       if (filters.isEmpty) return null;
 
-      final window =
-          SmartNightService(
-            suggestionService: ref.read(targetSuggestionServiceProvider),
-            logging: ref.read(loggingServiceProvider),
-          ).calculateWindow(
-            latitudeDeg: settings.latitude,
-            longitudeDeg: settings.longitude,
-          );
+      late final ({DateTime start, DateTime end, TwilightTimes twilight})
+      window;
+      try {
+        window =
+            SmartNightService(
+              suggestionService: ref.read(targetSuggestionServiceProvider),
+              logging: ref.read(loggingServiceProvider),
+            ).calculateWindow(
+              latitudeDeg: settings.latitude,
+              longitudeDeg: settings.longitude,
+            );
+      } on SmartNightBuildException {
+        return null;
+      }
 
       final integrationGoals = await ref
           .read(integrationGoalServiceProvider)

@@ -103,6 +103,18 @@ class $PairedDevicesTable extends PairedDevices
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _authGrantSpecMeta = const VerificationMeta(
+    'authGrantSpec',
+  );
+  @override
+  late final GeneratedColumn<String> authGrantSpec = GeneratedColumn<String>(
+    'auth_grant_spec',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('control'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     deviceId,
@@ -113,6 +125,7 @@ class $PairedDevicesTable extends PairedDevices
     deviceType,
     isActive,
     expiresAt,
+    authGrantSpec,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -188,6 +201,15 @@ class $PairedDevicesTable extends PairedDevices
         expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
       );
     }
+    if (data.containsKey('auth_grant_spec')) {
+      context.handle(
+        _authGrantSpecMeta,
+        authGrantSpec.isAcceptableOrUnknown(
+          data['auth_grant_spec']!,
+          _authGrantSpecMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -229,6 +251,10 @@ class $PairedDevicesTable extends PairedDevices
         DriftSqlType.dateTime,
         data['${effectivePrefix}expires_at'],
       ),
+      authGrantSpec: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auth_grant_spec'],
+      )!,
     );
   }
 
@@ -265,6 +291,14 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
   /// compatibility). New pairings populate this with
   /// `pairedAt + PairingService._defaultSessionTokenLifetime`.
   final DateTime? expiresAt;
+
+  /// Canonical authorization grant attached to [sessionToken]. Coarse grants
+  /// are stored as `view`, `control`, or `admin`; fine-grained grants use the
+  /// host API's canonical `resource:level,...` form.
+  ///
+  /// The default deliberately matches the historical pairing grant so rows
+  /// migrated from v3 remain usable without accidentally gaining admin access.
+  final String authGrantSpec;
   const PairedDevice({
     required this.deviceId,
     required this.deviceName,
@@ -274,6 +308,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
     required this.deviceType,
     required this.isActive,
     this.expiresAt,
+    required this.authGrantSpec,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -290,6 +325,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
     if (!nullToAbsent || expiresAt != null) {
       map['expires_at'] = Variable<DateTime>(expiresAt);
     }
+    map['auth_grant_spec'] = Variable<String>(authGrantSpec);
     return map;
   }
 
@@ -307,6 +343,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       expiresAt: expiresAt == null && nullToAbsent
           ? const Value.absent()
           : Value(expiresAt),
+      authGrantSpec: Value(authGrantSpec),
     );
   }
 
@@ -324,6 +361,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       deviceType: serializer.fromJson<String>(json['deviceType']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
+      authGrantSpec: serializer.fromJson<String>(json['authGrantSpec']),
     );
   }
   @override
@@ -338,6 +376,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       'deviceType': serializer.toJson<String>(deviceType),
       'isActive': serializer.toJson<bool>(isActive),
       'expiresAt': serializer.toJson<DateTime?>(expiresAt),
+      'authGrantSpec': serializer.toJson<String>(authGrantSpec),
     };
   }
 
@@ -350,6 +389,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
     String? deviceType,
     bool? isActive,
     Value<DateTime?> expiresAt = const Value.absent(),
+    String? authGrantSpec,
   }) => PairedDevice(
     deviceId: deviceId ?? this.deviceId,
     deviceName: deviceName ?? this.deviceName,
@@ -361,6 +401,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
     deviceType: deviceType ?? this.deviceType,
     isActive: isActive ?? this.isActive,
     expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
+    authGrantSpec: authGrantSpec ?? this.authGrantSpec,
   );
   PairedDevice copyWithCompanion(PairedDevicesCompanion data) {
     return PairedDevice(
@@ -380,6 +421,9 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           : this.deviceType,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      authGrantSpec: data.authGrantSpec.present
+          ? data.authGrantSpec.value
+          : this.authGrantSpec,
     );
   }
 
@@ -393,7 +437,8 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           ..write('lastConnectedAt: $lastConnectedAt, ')
           ..write('deviceType: $deviceType, ')
           ..write('isActive: $isActive, ')
-          ..write('expiresAt: $expiresAt')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('authGrantSpec: $authGrantSpec')
           ..write(')'))
         .toString();
   }
@@ -408,6 +453,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
     deviceType,
     isActive,
     expiresAt,
+    authGrantSpec,
   );
   @override
   bool operator ==(Object other) =>
@@ -420,7 +466,8 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           other.lastConnectedAt == this.lastConnectedAt &&
           other.deviceType == this.deviceType &&
           other.isActive == this.isActive &&
-          other.expiresAt == this.expiresAt);
+          other.expiresAt == this.expiresAt &&
+          other.authGrantSpec == this.authGrantSpec);
 }
 
 class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
@@ -432,6 +479,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
   final Value<String> deviceType;
   final Value<bool> isActive;
   final Value<DateTime?> expiresAt;
+  final Value<String> authGrantSpec;
   final Value<int> rowid;
   const PairedDevicesCompanion({
     this.deviceId = const Value.absent(),
@@ -442,6 +490,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     this.deviceType = const Value.absent(),
     this.isActive = const Value.absent(),
     this.expiresAt = const Value.absent(),
+    this.authGrantSpec = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PairedDevicesCompanion.insert({
@@ -453,6 +502,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     this.deviceType = const Value.absent(),
     this.isActive = const Value.absent(),
     this.expiresAt = const Value.absent(),
+    this.authGrantSpec = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : deviceId = Value(deviceId),
        deviceName = Value(deviceName),
@@ -467,6 +517,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     Expression<String>? deviceType,
     Expression<bool>? isActive,
     Expression<DateTime>? expiresAt,
+    Expression<String>? authGrantSpec,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -478,6 +529,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
       if (deviceType != null) 'device_type': deviceType,
       if (isActive != null) 'is_active': isActive,
       if (expiresAt != null) 'expires_at': expiresAt,
+      if (authGrantSpec != null) 'auth_grant_spec': authGrantSpec,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -491,6 +543,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     Value<String>? deviceType,
     Value<bool>? isActive,
     Value<DateTime?>? expiresAt,
+    Value<String>? authGrantSpec,
     Value<int>? rowid,
   }) {
     return PairedDevicesCompanion(
@@ -502,6 +555,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
       deviceType: deviceType ?? this.deviceType,
       isActive: isActive ?? this.isActive,
       expiresAt: expiresAt ?? this.expiresAt,
+      authGrantSpec: authGrantSpec ?? this.authGrantSpec,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -533,6 +587,9 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     if (expiresAt.present) {
       map['expires_at'] = Variable<DateTime>(expiresAt.value);
     }
+    if (authGrantSpec.present) {
+      map['auth_grant_spec'] = Variable<String>(authGrantSpec.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -550,6 +607,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
           ..write('deviceType: $deviceType, ')
           ..write('isActive: $isActive, ')
           ..write('expiresAt: $expiresAt, ')
+          ..write('authGrantSpec: $authGrantSpec, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1855,6 +1913,7 @@ typedef $$PairedDevicesTableCreateCompanionBuilder =
       Value<String> deviceType,
       Value<bool> isActive,
       Value<DateTime?> expiresAt,
+      Value<String> authGrantSpec,
       Value<int> rowid,
     });
 typedef $$PairedDevicesTableUpdateCompanionBuilder =
@@ -1867,6 +1926,7 @@ typedef $$PairedDevicesTableUpdateCompanionBuilder =
       Value<String> deviceType,
       Value<bool> isActive,
       Value<DateTime?> expiresAt,
+      Value<String> authGrantSpec,
       Value<int> rowid,
     });
 
@@ -1916,6 +1976,11 @@ class $$PairedDevicesTableFilterComposer
 
   ColumnFilters<DateTime> get expiresAt => $composableBuilder(
     column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get authGrantSpec => $composableBuilder(
+    column: $table.authGrantSpec,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1968,6 +2033,11 @@ class $$PairedDevicesTableOrderingComposer
     column: $table.expiresAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get authGrantSpec => $composableBuilder(
+    column: $table.authGrantSpec,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PairedDevicesTableAnnotationComposer
@@ -2010,6 +2080,11 @@ class $$PairedDevicesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get expiresAt =>
       $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<String> get authGrantSpec => $composableBuilder(
+    column: $table.authGrantSpec,
+    builder: (column) => column,
+  );
 }
 
 class $$PairedDevicesTableTableManager
@@ -2057,6 +2132,7 @@ class $$PairedDevicesTableTableManager
                 Value<String> deviceType = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime?> expiresAt = const Value.absent(),
+                Value<String> authGrantSpec = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PairedDevicesCompanion(
                 deviceId: deviceId,
@@ -2067,6 +2143,7 @@ class $$PairedDevicesTableTableManager
                 deviceType: deviceType,
                 isActive: isActive,
                 expiresAt: expiresAt,
+                authGrantSpec: authGrantSpec,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2079,6 +2156,7 @@ class $$PairedDevicesTableTableManager
                 Value<String> deviceType = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime?> expiresAt = const Value.absent(),
+                Value<String> authGrantSpec = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PairedDevicesCompanion.insert(
                 deviceId: deviceId,
@@ -2089,6 +2167,7 @@ class $$PairedDevicesTableTableManager
                 deviceType: deviceType,
                 isActive: isActive,
                 expiresAt: expiresAt,
+                authGrantSpec: authGrantSpec,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

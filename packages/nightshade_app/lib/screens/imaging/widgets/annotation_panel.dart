@@ -10,6 +10,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
+import '../../../utils/exported_file_reveal.dart';
 import '../../../widgets/annotation_overlay.dart';
 import '../imaging_science_state.dart';
 import 'annotation_filters.dart';
@@ -95,25 +96,32 @@ String generateDs9RegionFile(List<CelestialObjectAnnotation> objects) {
   return buf.toString();
 }
 
-/// Show a file save dialog and write [content] to the chosen path.
-/// Returns the saved path, or null if the user cancelled.
+/// Resolve an export destination and write [content] to it.
+///
+/// Goes through [chooseExportTarget] rather than `getSaveLocation` because
+/// `file_selector` has no save dialog on Android/iOS (`getSavePath` throws
+/// UnimplementedError), which made both annotation exports dead on a phone. On
+/// touch platforms the file lands in the app sandbox, so callers must hand the
+/// returned path to [revealExportedFile].
+///
+/// Returns the saved path, or null if the user cancelled the desktop dialog.
 Future<String?> _saveExportFile({
   required String suggestedName,
   required String content,
   required String label,
   required List<String> extensions,
 }) async {
-  final location = await getSaveLocation(
+  final target = await chooseExportTarget(
     suggestedName: suggestedName,
     acceptedTypeGroups: [
       XTypeGroup(label: label, extensions: extensions),
     ],
   );
-  if (location == null) return null;
+  if (target == null) return null;
 
-  final file = File(location.path);
+  final file = File(target.path);
   await file.writeAsString(content);
-  return location.path;
+  return target.path;
 }
 
 /// Provider for the annotation sidebar panel visibility state
@@ -130,6 +138,53 @@ ShapeBorder _annotationMenuShape(NightshadeColors colors) {
   return RoundedRectangleBorder(
     borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
     side: BorderSide(color: colors.border),
+  );
+}
+
+Widget _annotationAuthorityState({
+  required NightshadeColors colors,
+  required String label,
+  required VoidCallback onRetry,
+  Object? error,
+}) {
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (error == null)
+            const CircularProgressIndicator(strokeWidth: 2)
+          else
+            Icon(NightshadeIcons.warning, color: colors.error, size: 20),
+          const SizedBox(height: 10),
+          Text(
+            error == null ? 'Loading $label…' : 'Could not load $label',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: colors.textMuted,
+                fontSize: NightshadeTypography.fontSize11,
+              ),
+            ),
+            const SizedBox(height: 10),
+            NightshadeButton(
+              label: 'Retry annotation settings',
+              icon: NightshadeIcons.refresh,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onRetry,
+            ),
+          ],
+        ],
+      ),
+    ),
   );
 }
 

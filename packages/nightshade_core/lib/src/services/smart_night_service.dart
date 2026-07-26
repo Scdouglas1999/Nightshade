@@ -109,9 +109,10 @@ class SmartNightService {
        _hardwareSpecs = hardwareSpecs;
 
   /// Compute tonight's dark window from the observer location. Falls back
-  /// to nautical / civil twilight at high latitudes, and finally to a
-  /// 21:00 → 05:00 default when no twilight period exists (e.g. polar
-  /// midnight sun).
+  /// to nautical / civil twilight at high latitudes. During polar night,
+  /// when the Sun remains below the horizon, a conservative 21:00 → 05:00
+  /// window is returned. Polar midnight sun is rejected rather than being
+  /// presented as darkness.
   ///
   /// [now] is exposed for testability — production code passes
   /// `DateTime.now()`.
@@ -156,12 +157,30 @@ class SmartNightService {
       );
     }
 
-    // Polar midnight sun fallback — fail loudly through the log so the
-    // user knows we couldn't compute astronomical darkness, but still
-    // return *something* so the wizard isn't blocked.
+    final sunVisibility = AstronomyCalculations.calculateSunVisibility(
+      date: todayDate,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+    );
+    if (!sunVisibility.neverRises) {
+      _logging.warning(
+        'No twilight bounds and the Sun does not remain below the horizon at '
+        'lat=$latitudeDeg lon=$longitudeDeg. Smart Night cannot derive a dark '
+        'window.',
+        source: _source,
+      );
+      throw const SmartNightBuildException(
+        'The Sun does not set at this location tonight, so Smart Night cannot '
+        'create a safe deep-sky imaging window. Choose a different date or '
+        'build a manual sequence for intentional daylight/twilight imaging.',
+      );
+    }
+
+    // With no crossings and the Sun below the horizon all day, this is polar
+    // night. Use a conservative clock window rather than claiming all 24 hours.
     _logging.warning(
-      'No astronomical/nautical/civil twilight at lat=$latitudeDeg lon=$longitudeDeg; '
-      'falling back to 21:00 → 05:00 local default.',
+      'The Sun remains below the horizon at lat=$latitudeDeg lon=$longitudeDeg; '
+      'using a conservative 21:00 → 05:00 local polar-night window.',
       source: _source,
     );
     final fallbackStart = DateTime(

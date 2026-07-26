@@ -213,7 +213,7 @@ class ProfileSidebar extends ConsumerWidget {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
       buildDefaultDragHandles: false,
-      onReorder: onReorderProfiles,
+      onReorderItem: onReorderProfiles,
       itemCount: profiles.length,
       proxyDecorator: (child, index, animation) {
         return AnimatedBuilder(

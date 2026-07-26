@@ -93,6 +93,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   // because the two actions have different latencies and we don't want
   // the "Rescanning..." spinner blocking the much longer "Scan All".
   bool _isRescanning = false;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
   // 30s tick refreshes the "Last scan: N seconds ago" label. Suspended when
@@ -103,6 +105,19 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next)) return;
+        _operationGeneration++;
+        if (mounted && (_isScanning || _isRescanning)) {
+          setState(() {
+            _isScanning = false;
+            _isRescanning = false;
+          });
+        }
+      },
+    );
     _expandController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
@@ -138,6 +153,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _operationGeneration++;
+    _backendSubscription?.close();
     _expandController.dispose();
     _lastScanTimer?.cancel();
     super.dispose();
@@ -155,16 +172,26 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   }
 
   Future<void> _scanForDevices() async {
+    if (_isScanning || _isRescanning) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
     setState(() => _isScanning = true);
     try {
       // discoverAll clears stale grouped results before scanning.
       await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
-      final completedAt =
-          ref.read(unifiedDiscoveryProvider).lastDiscoveryCompletedAt;
-      ref.read(lastScanTimeProvider.notifier).state =
-          completedAt ?? DateTime.now();
+      if (_isCurrentOperation(generation, authority, scanning: true)) {
+        final completedAt =
+            ref.read(unifiedDiscoveryProvider).lastDiscoveryCompletedAt;
+        ref.read(lastScanTimeProvider.notifier).state =
+            completedAt ?? DateTime.now();
+      }
+    } catch (e) {
+      if (mounted &&
+          _isCurrentOperation(generation, authority, scanning: true)) {
+        context.showErrorSnackBar('Equipment scan failed: $e');
+      }
     } finally {
-      if (mounted) {
+      if (_isCurrentOperation(generation, authority, scanning: true)) {
         setState(() => _isScanning = false);
       }
     }
@@ -190,24 +217,44 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   /// backend op POSTs to the HOST instead. On the desktop host the same op
   /// resolves to the FfiBackend and drives the local hot-plug pass unchanged.
   Future<void> _rescanEquipment() async {
+    if (_isRescanning || _isScanning) return;
+    final authority = ref.read(backendProvider);
+    final backend = ref.read(deviceBackendProvider);
+    final generation = ++_operationGeneration;
     setState(() => _isRescanning = true);
     final messenger = ScaffoldMessenger.maybeOf(context);
     try {
-      await ref.read(deviceBackendProvider).rescanDevices();
-      if (mounted) {
+      await backend.rescanDevices();
+      if (mounted &&
+          _isCurrentOperation(generation, authority, rescanning: true) &&
+          identical(ref.read(deviceBackendProvider), backend)) {
         context.showSuccessSnackBar('Equipment rescan complete');
       }
     } catch (e) {
       // Surface failures loudly — errors are a feature.
-      messenger?.showSnackBar(
-        SnackBar(content: Text('Rescan failed: $e')),
-      );
+      if (_isCurrentOperation(generation, authority, rescanning: true)) {
+        messenger?.showSnackBar(
+          SnackBar(content: Text('Rescan failed: $e')),
+        );
+      }
     } finally {
-      if (mounted) {
+      if (_isCurrentOperation(generation, authority, rescanning: true)) {
         setState(() => _isRescanning = false);
       }
     }
   }
+
+  bool _isCurrentOperation(
+    int generation,
+    NightshadeBackend authority, {
+    bool scanning = false,
+    bool rescanning = false,
+  }) =>
+      mounted &&
+      generation == _operationGeneration &&
+      identical(ref.read(backendProvider), authority) &&
+      (!scanning || _isScanning) &&
+      (!rescanning || _isRescanning);
 
   String _formatLastScanTime(DateTime? lastScan) {
     if (lastScan == null) return 'Never scanned';
@@ -300,7 +347,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
                     isLoading: isDiscovering,
-                    onPressed: isDiscovering ? null : _scanForDevices,
+                    onPressed: (isDiscovering || _isRescanning)
+                        ? null
+                        : _scanForDevices,
                   );
 
                   // "Rescan equipment" — triggers the Rust hot-plug diff
@@ -310,7 +359,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                   // Lives next to Scan All as an icon-only button so the
                   // header stays compact on phone widths.
                   final rescanButton = IconButton(
-                    onPressed: _isRescanning ? null : _rescanEquipment,
+                    onPressed: (_isRescanning || isDiscovering)
+                        ? null
+                        : _rescanEquipment,
                     icon: _isRescanning
                         ? SizedBox(
                             width: 14,
@@ -443,113 +494,118 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
             ),
           ),
 
-          // Expanded content
-          SizeTransition(
-            sizeFactor: _expandAnimation,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.border)),
-              ),
-              constraints: const BoxConstraints(maxHeight: 500),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Server configuration hint
-                    if (!Platform.isWindows) _buildINDIServerHint(colors),
+          // Expanded content. Flexible(loose): under a tight parent (phone
+          // column with the readiness checklist expanded) this section takes
+          // the remaining height and scrolls inside, instead of insisting on
+          // its intrinsic size and overflowing the panel by hundreds of px.
+          Flexible(
+            child: SizeTransition(
+              sizeFactor: _expandAnimation,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: colors.border)),
+                ),
+                constraints: const BoxConstraints(maxHeight: 500),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Server configuration hint
+                      if (!Platform.isWindows) _buildINDIServerHint(colors),
 
-                    // Device lists by type (always show, even if empty for that type)
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'CAMERAS',
-                      DeviceType.camera,
-                      LucideIcons.camera,
-                      cameras,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'MOUNTS',
-                      DeviceType.mount,
-                      LucideIcons.compass,
-                      mounts,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'FOCUSERS',
-                      DeviceType.focuser,
-                      LucideIcons.focus,
-                      focusers,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'FILTER WHEELS',
-                      DeviceType.filterWheel,
-                      LucideIcons.disc,
-                      filterWheels,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'GUIDERS',
-                      DeviceType.guider,
-                      LucideIcons.crosshair,
-                      guiders,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'ROTATORS',
-                      DeviceType.rotator,
-                      LucideIcons.rotateCw,
-                      rotators,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'DOMES',
-                      DeviceType.dome,
-                      LucideIcons.home,
-                      domes,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'WEATHER',
-                      DeviceType.weather,
-                      LucideIcons.cloud,
-                      weatherStations,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'SAFETY MONITORS',
-                      DeviceType.safetyMonitor,
-                      LucideIcons.shieldAlert,
-                      safetyMonitors,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildDeviceGroupSection(
-                      context,
-                      colors,
-                      'COVER / CALIBRATORS',
-                      DeviceType.coverCalibrator,
-                      LucideIcons.sunMedium,
-                      coverCalibrators,
-                    ),
-                  ],
+                      // Device lists by type (always show, even if empty for that type)
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'CAMERAS',
+                        DeviceType.camera,
+                        LucideIcons.camera,
+                        cameras,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'MOUNTS',
+                        DeviceType.mount,
+                        LucideIcons.compass,
+                        mounts,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'FOCUSERS',
+                        DeviceType.focuser,
+                        LucideIcons.focus,
+                        focusers,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'FILTER WHEELS',
+                        DeviceType.filterWheel,
+                        LucideIcons.disc,
+                        filterWheels,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'GUIDERS',
+                        DeviceType.guider,
+                        LucideIcons.crosshair,
+                        guiders,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'ROTATORS',
+                        DeviceType.rotator,
+                        LucideIcons.rotateCw,
+                        rotators,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'DOMES',
+                        DeviceType.dome,
+                        LucideIcons.home,
+                        domes,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'WEATHER',
+                        DeviceType.weather,
+                        LucideIcons.cloud,
+                        weatherStations,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'SAFETY MONITORS',
+                        DeviceType.safetyMonitor,
+                        LucideIcons.shieldAlert,
+                        safetyMonitors,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'COVER / CALIBRATORS',
+                        DeviceType.coverCalibrator,
+                        LucideIcons.sunMedium,
+                        coverCalibrators,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -732,6 +788,14 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         return deviceService.connectGuider(deviceId);
       case DeviceType.rotator:
         return deviceService.connectRotator(deviceId);
+      case DeviceType.dome:
+        return deviceService.connectDome(deviceId);
+      case DeviceType.weather:
+        return deviceService.connectWeather(deviceId);
+      case DeviceType.safetyMonitor:
+        return deviceService.connectSafetyMonitor(deviceId);
+      case DeviceType.coverCalibrator:
+        return deviceService.connectCoverCalibrator(deviceId);
       default:
         throw Exception('Unsupported device type: $type');
     }
@@ -759,6 +823,18 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
           break;
         case DeviceType.rotator:
           await deviceService.disconnectRotator();
+          break;
+        case DeviceType.dome:
+          await deviceService.disconnectDome();
+          break;
+        case DeviceType.weather:
+          await deviceService.disconnectWeather();
+          break;
+        case DeviceType.safetyMonitor:
+          await deviceService.disconnectSafetyMonitor();
+          break;
+        case DeviceType.coverCalibrator:
+          await deviceService.disconnectCoverCalibrator();
           break;
         default:
           throw Exception('Unsupported device type: $deviceType');

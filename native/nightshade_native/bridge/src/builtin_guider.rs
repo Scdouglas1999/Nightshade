@@ -38,7 +38,7 @@
 use crate::api::{get_device_manager, get_state, Phd2StarImage, Phd2Status};
 use crate::device::DeviceType;
 use crate::error::NightshadeError;
-use crate::event::{EventSeverity, GuidingEvent};
+use crate::event::{EventSeverity, GuidingEvent, SystemEvent};
 use nightshade_imaging::{detect_stars_with_stats, DetectedStar, ImageData, StarDetectionConfig};
 use serde::Serialize;
 use std::sync::Arc;
@@ -48,6 +48,21 @@ use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
 const BUILTIN_GUIDER_ID: &str = "native:builtin_guider:multi_star";
+
+/// Operator-facing reason for a guiding failure.
+///
+/// Every layer adds its own label on the way up, so a naive
+/// `format!("Guiding stopped: {error}")` reached the UI as
+/// "Guiding stopped: Operation failed: Calibration star match failed". Drop the
+/// generic wrapper label so the panel shows the cause and nothing else.
+fn guiding_failure_reason(error: &NightshadeError) -> String {
+    let text = error.to_string();
+    let cause = text
+        .strip_prefix("Operation failed: ")
+        .unwrap_or(text.as_str())
+        .trim();
+    format!("Guiding stopped: {}", cause)
+}
 const GUIDE_MAX_MATCH_DISTANCE_PX: f64 = 20.0;
 /// Up to this many guide stars are tracked per frame. Raised from 8 to 12 so the
 /// sigma-clipped weighted centroid (see [`measure_offset`]) has enough samples
@@ -142,6 +157,40 @@ impl Vec2 {
     }
 }
 
+/// Derive the guide camera's angular sampling from physical pixel pitch and
+/// focal length. Binning enlarges each centroid pixel by the same factor.
+fn guide_pixel_scale_arcsec(pixel_size_um: f64, focal_length_mm: f64, binning: i32) -> Option<f64> {
+    if !pixel_size_um.is_finite()
+        || pixel_size_um <= 0.0
+        || !focal_length_mm.is_finite()
+        || focal_length_mm <= 0.0
+        || binning <= 0
+    {
+        return None;
+    }
+
+    Some(206.265 * pixel_size_um * f64::from(binning) / focal_length_mm)
+}
+
+fn binned_guide_pixel_scale(unbinned_pixel_scale: f64, binning: i32) -> Option<f64> {
+    if !unbinned_pixel_scale.is_finite() || unbinned_pixel_scale <= 0.0 || binning <= 0 {
+        return None;
+    }
+
+    Some(unbinned_pixel_scale * f64::from(binning))
+}
+
+fn guide_offset_arcsec(offset_pixels: Vec2, pixel_scale_arcsec: f64) -> Option<Vec2> {
+    if !pixel_scale_arcsec.is_finite() || pixel_scale_arcsec <= 0.0 {
+        return None;
+    }
+
+    Some(Vec2 {
+        x: offset_pixels.x * pixel_scale_arcsec,
+        y: offset_pixels.y * pixel_scale_arcsec,
+    })
+}
+
 #[derive(Clone, Debug)]
 struct GuideReferenceStar {
     x: f64,
@@ -210,6 +259,8 @@ struct GuideFrame {
     frame: u32,
     image: ImageData,
     stars: Vec<DetectedStar>,
+    /// Angular sampling for this frame's configured binning.
+    pixel_scale_arcsec: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -228,11 +279,15 @@ struct GuideSnapshot {
 pub struct BuiltinGuideStatus {
     pub connected: bool,
     pub state: String,
+    /// Current RA-axis guide error in arcseconds.
     pub rms_ra: f64,
+    /// Current Dec-axis guide error in arcseconds.
     pub rms_dec: f64,
+    /// Current total guide error in arcseconds.
     pub rms_total: f64,
     pub snr: f64,
     pub star_mass: f64,
+    /// Guide-camera angular sampling in arcseconds per binned pixel.
     pub pixel_scale: f64,
 }
 
@@ -391,6 +446,21 @@ struct BuiltinGuiderState {
     /// Recent per-frame total RMS (pixels), newest last, capped in length. Drives
     /// adaptive dither settle tolerance (poorer seeing -> looser settle).
     rms_history: Vec<f64>,
+    /// Recent per-axis guide errors in ARCSEC, newest last, capped in length.
+    ///
+    /// Backs the `rms_ra`/`rms_dec`/`rms_total` this guider reports. Those fields
+    /// live on a PHD2-shaped status struct, and PHD2 fills them with a genuine
+    /// root-mean-square; this guider used to assign the CURRENT frame's absolute
+    /// offset instead. Same labels, different statistic — so the identical
+    /// "RMS Tot" readout meant one thing under PHD2 and another under the
+    /// built-in guider, and the built-in guider always looked worse because a
+    /// single-frame error is strictly noisier than an RMS over a window.
+    rms_samples_arcsec: Vec<Vec2>,
+    /// Native, unbinned guide-camera sampling in arcsec/pixel. Derived from the
+    /// active profile focal length and the selected camera's physical pixel size.
+    /// Kept separately so a live binning config change can update the reported
+    /// scale without re-querying hardware.
+    unbinned_pixel_scale: Option<f64>,
     stop_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     task: Option<JoinHandle<()>>,
     config: GuiderConfig,
@@ -418,6 +488,8 @@ impl Default for BuiltinGuiderState {
             last_dec_direction: None,
             dither_step: 0,
             rms_history: Vec::new(),
+            rms_samples_arcsec: Vec::new(),
+            unbinned_pixel_scale: None,
             stop_flag: None,
             task: None,
             config: GuiderConfig::default(),
@@ -454,7 +526,12 @@ fn op_lock() -> &'static Arc<Mutex<()>> {
 /// to subsequent operations. Calling while guiding is active will update the config
 /// for future frames.
 pub async fn set_config(config: GuiderConfig) {
-    state().write().await.config = config;
+    let mut guard = state().write().await;
+    guard.last_status.pixel_scale = guard
+        .unbinned_pixel_scale
+        .and_then(|scale| binned_guide_pixel_scale(scale, config.binning))
+        .unwrap_or(0.0);
+    guard.config = config;
 }
 
 /// Get the current guider configuration.
@@ -464,13 +541,24 @@ pub async fn get_config() -> GuiderConfig {
 
 pub async fn connect() -> Result<(), NightshadeError> {
     let (camera_id, mount_id) = resolve_devices().await?;
+    let config = state().read().await.config.clone();
+    let unbinned_pixel_scale = resolve_unbinned_guide_pixel_scale(&camera_id).await?;
+    let pixel_scale =
+        binned_guide_pixel_scale(unbinned_pixel_scale, config.binning).ok_or_else(|| {
+            NightshadeError::OperationFailed(format!(
+                "Built-in guider requires positive camera binning, got {}",
+                config.binning
+            ))
+        })?;
     let mut guard = state().write().await;
     guard.connected = true;
     guard.camera_id = Some(camera_id);
     guard.mount_id = Some(mount_id);
+    guard.unbinned_pixel_scale = Some(unbinned_pixel_scale);
     guard.last_status = BuiltinGuideStatus {
         connected: true,
         state: "Connected".to_string(),
+        pixel_scale,
         ..BuiltinGuideStatus::default()
     };
     Ok(())
@@ -524,8 +612,42 @@ pub async fn start_guiding(
                 guard.looping = false;
                 guard.calibrating = false;
                 guard.last_status.state = "Disconnected".to_string();
+                // Carry the REASON to the UI, not just the state change.
+                //
+                // `GuidingEvent::Disconnected` has no message field, so a task
+                // that died from e.g. "Calibration star match failed" reached
+                // Dart as a bare disconnect: the imaging Guiding panel then said
+                // "No guider connected" and the operator was sent to check
+                // cables for a calibration problem the log had already
+                // diagnosed. Reproduced end-to-end with the built-in guider on
+                // the simulator camera.
+                //
+                // `report_error` is the channel that actually lands: it marks the
+                // device errored, stores `last_error`, and publishes the
+                // equipment `Error` event carrying device_type/device_id/message
+                // which `DeviceService._handleDeviceError` routes into
+                // `guiderStateProvider.setError(...)` — so the guiding panel can
+                // name the failure instead of claiming no guider is connected.
+                // The system event stays as the operator-visible log line.
+                //
+                // ORDER MATTERS. The guiding `Disconnected` event is handled by
+                // `DeviceService._handleDeviceDisconnected`, which calls
+                // `setDisconnected()` — and that RESETS the guider state object,
+                // wiping any `lastError` already on it. Publishing the error
+                // first therefore lost it (observed: panel still read "No guider
+                // connected"). Emit the disconnect first so the error is the
+                // final state the UI settles on, while the disconnect still
+                // drives the existing "Guiding Lost" notification.
+                drop(guard);
+                let reason = guiding_failure_reason(&error);
                 get_state()
                     .publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Warning);
+                get_state().publish_system_event(SystemEvent::Error {
+                    message: reason.clone(),
+                });
+                get_device_manager()
+                    .report_error(BUILTIN_GUIDER_ID, reason)
+                    .await;
             }
         },
     )
@@ -656,6 +778,12 @@ async fn stop_locked() -> Result<(), NightshadeError> {
         guard.dither_pending = false;
         guard.last_dec_direction = None;
         guard.rms_history.clear();
+        // Carrying the previous session's samples into the next one would make
+        // the first frames of a new session report the old target's guiding.
+        guard.rms_samples_arcsec.clear();
+        guard.last_status.rms_ra = 0.0;
+        guard.last_status.rms_dec = 0.0;
+        guard.last_status.rms_total = 0.0;
         guard.last_status.state = if guard.connected {
             "Connected".to_string()
         } else {
@@ -913,11 +1041,22 @@ pub async fn get_lock_position() -> Result<(f64, f64), NightshadeError> {
 }
 
 pub async fn get_star_image(size: u32) -> Result<Phd2StarImage, NightshadeError> {
+    // If there is no snapshot yet we must capture a fresh guide frame. That
+    // capture MUST happen without holding the state lock: capture_guide_frame
+    // re-acquires state().read(), and a tokio RwLock is not reentrant, so
+    // holding the write lock across it self-deadlocks and permanently wedges
+    // the guider (status/stop/disconnect all then block on the same lock).
+    let need_capture = { state().read().await.last_snapshot.is_none() };
+    let fresh_frame = if need_capture {
+        Some(capture_guide_frame().await?)
+    } else {
+        None
+    };
+
     let mut guard = state().write().await;
-    if guard.last_snapshot.is_none() {
-        let guide_frame = capture_guide_frame().await?;
-        update_snapshot_from_frame(&mut guard, &guide_frame, size);
-        guard.last_frame = Some(guide_frame);
+    if let Some(frame) = fresh_frame {
+        update_snapshot_from_frame(&mut guard, &frame, size);
+        guard.last_frame = Some(frame);
     } else if let Some(frame) = guard.last_frame.clone() {
         update_snapshot_from_frame(&mut guard, &frame, size);
     }
@@ -1061,9 +1200,53 @@ async fn first_connected_device(device_type: DeviceType) -> Option<String> {
         .await
 }
 
+async fn resolve_unbinned_guide_pixel_scale(camera_id: &str) -> Result<f64, NightshadeError> {
+    let profile = get_state().get_profile().await.ok_or_else(|| {
+        NightshadeError::OperationFailed(
+            "Built-in guider requires an active profile with a guide focal length".to_string(),
+        )
+    })?;
+    let focal_length_mm = profile.telescope_focal_length;
+    let camera_status = get_device_manager()
+        .camera_get_status(camera_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    if !camera_status.pixel_size_x.is_finite()
+        || camera_status.pixel_size_x <= 0.0
+        || !camera_status.pixel_size_y.is_finite()
+        || camera_status.pixel_size_y <= 0.0
+    {
+        return Err(NightshadeError::OperationFailed(format!(
+            "Built-in guider requires positive camera pixel dimensions \
+             (pixel_size_x_um={}, pixel_size_y_um={})",
+            camera_status.pixel_size_x, camera_status.pixel_size_y
+        )));
+    }
+    let pixel_size_um = (camera_status.pixel_size_x + camera_status.pixel_size_y) / 2.0;
+
+    guide_pixel_scale_arcsec(pixel_size_um, focal_length_mm, 1).ok_or_else(|| {
+        NightshadeError::OperationFailed(format!(
+            "Built-in guider requires positive guide focal length and camera pixel size \
+             (focal_length_mm={}, pixel_size_x_um={}, pixel_size_y_um={})",
+            focal_length_mm, camera_status.pixel_size_x, camera_status.pixel_size_y
+        ))
+    })
+}
+
 async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
     let (camera_id, _) = resolve_devices().await?;
-    let config = state().read().await.config.clone();
+    let (config, pixel_scale_arcsec) = {
+        let guard = state().read().await;
+        let pixel_scale = guard
+            .unbinned_pixel_scale
+            .and_then(|scale| binned_guide_pixel_scale(scale, guard.config.binning))
+            .ok_or_else(|| {
+                NightshadeError::OperationFailed(
+                    "Built-in guider has no valid guide-camera pixel scale".to_string(),
+                )
+            })?;
+        (guard.config.clone(), pixel_scale)
+    };
     let device_manager = get_device_manager();
 
     device_manager
@@ -1074,10 +1257,19 @@ async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
             Some(config.offset),
             config.binning,
             config.binning,
+            // Guide frames are always light frames (shutter open).
+            nightshade_native::camera::FrameType::Light,
         )
         .await
         .map_err(NightshadeError::from)?;
 
+    // Bound the completion wait. Without a deadline a wedged guide camera
+    // (status never returns "complete" — USB stall, driver hang) spins this
+    // loop forever, and because stop/disconnect join this task they would then
+    // block indefinitely too. On timeout, abort the exposure so the sensor is
+    // left idle and surface a clean error the caller can recover from.
+    let capture_deadline =
+        Instant::now() + Duration::from_secs_f64(config.exposure_secs.max(0.0) + 30.0);
     loop {
         if device_manager
             .camera_is_exposure_complete(&camera_id)
@@ -1085,6 +1277,14 @@ async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
             .map_err(NightshadeError::from)?
         {
             break;
+        }
+        if Instant::now() >= capture_deadline {
+            let _ = device_manager.camera_abort_exposure(&camera_id).await;
+            return Err(NightshadeError::OperationFailed(format!(
+                "Guide exposure on {} did not complete within {:.0}s",
+                camera_id,
+                config.exposure_secs + 30.0
+            )));
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
@@ -1120,6 +1320,7 @@ async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
         frame: frame_counter,
         image,
         stars,
+        pixel_scale_arcsec,
     })
 }
 
@@ -1215,11 +1416,32 @@ async fn run_guiding_loop(
             // tracked star drifted this frame, not just the aggregate centroid.
             record_per_star_residuals(&mut guard.reference_stars, &frame.stars, desired);
             update_snapshot_from_frame(&mut guard, &frame, 50);
+            let offset_arcsec =
+                guide_offset_arcsec(offset, frame.pixel_scale_arcsec).ok_or_else(|| {
+                    NightshadeError::OperationFailed(
+                        "Built-in guider has no valid guide-camera pixel scale".to_string(),
+                    )
+                })?;
             guard.last_status.connected = true;
             guard.last_status.state = "Guiding".to_string();
-            guard.last_status.rms_ra = offset.x.abs();
-            guard.last_status.rms_dec = offset.y.abs();
-            guard.last_status.rms_total = offset.magnitude();
+            // Public guider RMS is consumed by the sequencer's arcsecond
+            // GuidingFailed threshold. Internal correction, settle, and dither
+            // calculations below deliberately remain in guide-camera pixels.
+            //
+            // A dither is a commanded move, not a guiding error, so its samples
+            // are excluded while the settle is pending — otherwise every dither
+            // spikes the reported RMS (observed jumping 0.64" -> 1.52" and
+            // colouring the UI red mid-dither) and drags the rolling window for
+            // the next 20 frames. This is what PHD2 does, and it also stops
+            // transient dither excursions feeding the GuidingFailed trigger.
+            if !guard.dither_pending {
+                push_arcsec_sample(&mut guard.rms_samples_arcsec, offset_arcsec);
+            }
+            let (rms_ra, rms_dec, rms_total) = axis_rms(&guard.rms_samples_arcsec);
+            guard.last_status.rms_ra = rms_ra;
+            guard.last_status.rms_dec = rms_dec;
+            guard.last_status.rms_total = rms_total;
+            guard.last_status.pixel_scale = frame.pixel_scale_arcsec;
             guard.last_status.snr = selected.snr;
             guard.last_status.star_mass = selected.flux;
             guard.last_frame = Some(frame.clone());
@@ -1406,10 +1628,31 @@ async fn calibrate_dec_response(
         .map_err(NightshadeError::from)?;
     tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
     let rev_frame = capture_guide_frame().await?;
-    let rev_offset =
-        measure_offset(&refs_after_fwd, &rev_frame.stars, Vec2::default()).unwrap_or_default();
-
-    let dec_backlash_ms = estimate_dec_backlash_ms(north, rev_offset, config.calibration_ms as f64);
+    // A failed reverse star match must not be fed to the estimator as "the mount
+    // did not move". Work the arithmetic: reverse_first = (0,0) makes
+    // reverse_travel 0, so shortfall == fwd_mag and the result is EXACTLY
+    // pulse_ms — the maximum plausible backlash, indistinguishable from a
+    // genuinely sloppy mount. That value is then added to every Dec direction
+    // reversal for the rest of the session (see the `reversing` branch in the
+    // correction path), causing gross Dec overshoot from one lost star.
+    //
+    // Unlike the forward leg this is not fatal: the forward leg establishes the
+    // guide RATE and calibration is worthless without it, whereas backlash is an
+    // optional refinement. So degrade to "unmeasured" (0 = no compensation,
+    // which is the same behaviour as a mount that was never characterised)
+    // rather than aborting an otherwise-good calibration — but say so loudly.
+    let rev_offset = measure_offset(&refs_after_fwd, &rev_frame.stars, Vec2::default());
+    let dec_backlash_ms = match rev_offset {
+        Some(offset) => estimate_dec_backlash_ms(north, offset, config.calibration_ms as f64),
+        None => {
+            tracing::warn!(
+                "Built-in guider: Dec calibration reverse star match failed; leaving Dec \
+                 backlash UNMEASURED (no compensation) rather than inferring a full-pulse \
+                 backlash from a lost star."
+            );
+            0.0
+        }
+    };
 
     // Restore toward baseline: issue a second reverse pulse so we end roughly
     // where we started (the forward leg moved two pulses, we have reversed one).
@@ -1653,6 +1896,42 @@ async fn push_rms_sample(controller: &Arc<RwLock<BuiltinGuiderState>>, rms: f64)
     let len = guard.rms_history.len();
     if len > RMS_HISTORY_LEN {
         guard.rms_history.drain(0..len - RMS_HISTORY_LEN);
+    }
+}
+
+/// Root-mean-square of each axis over a window of per-axis errors, plus the
+/// combined total.
+///
+/// Returns `(rms_ra, rms_dec, rms_total)`. An empty window yields all zeros,
+/// matching [`BuiltinGuideStatus::default`] — "no measurement yet" rather than a
+/// fabricated one. `rms_total` is the quadrature sum of the two axis RMS values,
+/// which is identical to the RMS of the per-frame magnitudes and is what PHD2
+/// reports, so the two guiders' numbers are directly comparable.
+fn axis_rms(samples: &[Vec2]) -> (f64, f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0, 0.0);
+    }
+    let n = samples.len() as f64;
+    let sum_sq_x: f64 = samples.iter().map(|s| s.x * s.x).sum();
+    let sum_sq_y: f64 = samples.iter().map(|s| s.y * s.y).sum();
+    let rms_ra = (sum_sq_x / n).sqrt();
+    let rms_dec = (sum_sq_y / n).sqrt();
+    (
+        rms_ra,
+        rms_dec,
+        (rms_ra * rms_ra + rms_dec * rms_dec).sqrt(),
+    )
+}
+
+/// Append a per-axis arcsec error sample, capped to the rolling window.
+fn push_arcsec_sample(samples: &mut Vec<Vec2>, sample: Vec2) {
+    if !sample.x.is_finite() || !sample.y.is_finite() {
+        return;
+    }
+    samples.push(sample);
+    let len = samples.len();
+    if len > RMS_HISTORY_LEN {
+        samples.drain(0..len - RMS_HISTORY_LEN);
     }
 }
 
@@ -2146,6 +2425,103 @@ mod tests {
         assert_eq!(refs.len(), 2);
     }
 
+    /// The reported RMS must be a genuine root-mean-square over the window, not
+    /// the newest sample. A single bad frame in an otherwise clean run barely
+    /// moves an RMS but would dominate an instantaneous readout.
+    #[test]
+    fn axis_rms_is_a_root_mean_square_not_the_latest_sample() {
+        let samples = vec![
+            Vec2 { x: 1.0, y: 0.0 },
+            Vec2 { x: -1.0, y: 0.0 },
+            Vec2 { x: 1.0, y: 0.0 },
+            Vec2 { x: -1.0, y: 0.0 },
+        ];
+        let (ra, dec, total) = axis_rms(&samples);
+        // Signs must not cancel: a mean would give 0.0 here, an RMS gives 1.0.
+        assert!((ra - 1.0).abs() < 1e-9, "ra {ra}");
+        assert!(dec.abs() < 1e-9, "dec {dec}");
+        assert!((total - 1.0).abs() < 1e-9, "total {total}");
+    }
+
+    /// `rms_total` must be the quadrature sum of the axes, which is what PHD2
+    /// reports — otherwise the two guiders are not comparable.
+    #[test]
+    fn axis_rms_total_is_the_quadrature_sum() {
+        let samples = vec![Vec2 { x: 3.0, y: 4.0 }];
+        let (ra, dec, total) = axis_rms(&samples);
+        assert!((ra - 3.0).abs() < 1e-9);
+        assert!((dec - 4.0).abs() < 1e-9);
+        assert!((total - 5.0).abs() < 1e-9, "total {total} should be 5.0");
+    }
+
+    /// No samples means no measurement, not a fabricated zero-error claim
+    /// dressed up as a reading. Zeros match `BuiltinGuideStatus::default`, which
+    /// the UI renders as "no data yet".
+    #[test]
+    fn axis_rms_of_an_empty_window_is_zero() {
+        assert_eq!(axis_rms(&[]), (0.0, 0.0, 0.0));
+    }
+
+    /// One outlier must not dominate: this is the whole reason to report RMS
+    /// over a window rather than the current frame.
+    #[test]
+    fn a_single_spike_barely_moves_the_windowed_rms() {
+        let mut samples = vec![Vec2 { x: 0.4, y: 0.4 }; 19];
+        samples.push(Vec2 { x: 12.0, y: 12.0 });
+        let (_, _, total) = axis_rms(&samples);
+        let (_, _, instantaneous) = axis_rms(&samples[19..]);
+        assert!(
+            total < instantaneous / 3.0,
+            "windowed RMS {total:.2} should be far below the spike's own {instantaneous:.2}"
+        );
+    }
+
+    /// The window is bounded, and keeps the NEWEST samples — an RMS that never
+    /// forgets would keep reporting a bad patch long after guiding recovered.
+    #[test]
+    fn arcsec_window_is_capped_and_keeps_the_newest_samples() {
+        let mut samples = Vec::new();
+        for _ in 0..RMS_HISTORY_LEN * 2 {
+            push_arcsec_sample(&mut samples, Vec2 { x: 5.0, y: 5.0 });
+        }
+        assert_eq!(samples.len(), RMS_HISTORY_LEN);
+        for _ in 0..RMS_HISTORY_LEN {
+            push_arcsec_sample(&mut samples, Vec2 { x: 0.1, y: 0.1 });
+        }
+        assert_eq!(samples.len(), RMS_HISTORY_LEN);
+        let (_, _, total) = axis_rms(&samples);
+        assert!(
+            total < 0.2,
+            "window should have forgotten the bad samples, got {total:.3}"
+        );
+    }
+
+    /// A non-finite sample must be dropped rather than poisoning the window: one
+    /// NaN would make every subsequent RMS NaN and blank the readout for the
+    /// rest of the session.
+    #[test]
+    fn non_finite_samples_are_rejected() {
+        let mut samples = Vec::new();
+        push_arcsec_sample(
+            &mut samples,
+            Vec2 {
+                x: f64::NAN,
+                y: 0.0,
+            },
+        );
+        push_arcsec_sample(
+            &mut samples,
+            Vec2 {
+                x: 0.0,
+                y: f64::INFINITY,
+            },
+        );
+        assert!(samples.is_empty(), "non-finite samples must not be stored");
+        push_arcsec_sample(&mut samples, Vec2 { x: 0.5, y: 0.5 });
+        let (_, _, total) = axis_rms(&samples);
+        assert!(total.is_finite() && total > 0.0);
+    }
+
     #[test]
     fn measure_offset_uses_matched_star_delta() {
         let refs = vec![
@@ -2168,6 +2544,21 @@ mod tests {
         let offset = measure_offset(&refs, &stars, Vec2::default()).expect("offset");
         assert!((offset.x - 1.5).abs() < 1e-6);
         assert!((offset.y + 1.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn guide_rms_conversion_reports_arcseconds() {
+        // 3.76um pixels at 206.265mm give 3.76 arcsec/native pixel; 2x binning
+        // therefore gives a known 7.52 arcsec/centroid-pixel scale.
+        let pixel_scale =
+            guide_pixel_scale_arcsec(3.76, 206.265, 2).expect("valid guide pixel scale");
+        assert!((pixel_scale - 7.52).abs() < 1e-12);
+
+        let offset = guide_offset_arcsec(Vec2 { x: 3.0, y: 4.0 }, pixel_scale)
+            .expect("valid angular offset");
+        assert!((offset.x - 22.56).abs() < 1e-12);
+        assert!((offset.y - 30.08).abs() < 1e-12);
+        assert!((offset.magnitude() - 37.6).abs() < 1e-12);
     }
 
     #[test]
@@ -2523,6 +2914,20 @@ mod tests {
         assert_eq!(estimate_dec_backlash_ms(fwd, rev_first, 250.0), 0.0);
     }
 
+    /// Pins WHY the reverse leg must not swallow a failed star match into
+    /// `Vec2::default()`: a zero reverse offset makes the estimator return
+    /// exactly one full calibration pulse — the maximum plausible backlash —
+    /// which was then added to every Dec reversal for the session. The caller
+    /// now reports "unmeasured" (0.0) instead of feeding this in.
+    #[test]
+    fn zero_reverse_offset_would_infer_a_full_pulse_of_backlash() {
+        let fwd = Vec2 { x: 0.0, y: 3.0 };
+        let lost_star = Vec2::default();
+        assert_eq!(estimate_dec_backlash_ms(fwd, lost_star, 250.0), 250.0);
+        // ...and it scales with the pulse, so a 2 s calibration would inject 2 s.
+        assert_eq!(estimate_dec_backlash_ms(fwd, lost_star, 2000.0), 2000.0);
+    }
+
     // --- Corrections: aggressiveness, clamps, backlash compensation ----------
 
     fn ortho_calib(backlash_ms: f64) -> GuideCalibration {
@@ -2814,5 +3219,28 @@ mod tests {
                 "round {round}: dead handle/flag left in state after final stop"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod guiding_failure_reason_tests {
+    use super::*;
+
+    #[test]
+    fn strips_the_generic_operation_failed_label() {
+        let err = NightshadeError::OperationFailed("Calibration star match failed".to_string());
+        assert_eq!(
+            guiding_failure_reason(&err),
+            "Guiding stopped: Calibration star match failed"
+        );
+    }
+
+    #[test]
+    fn keeps_a_message_that_has_no_wrapper_label() {
+        let err = NightshadeError::NotConnected("native:builtin_guider:multi_star".to_string());
+        let reason = guiding_failure_reason(&err);
+        assert!(reason.starts_with("Guiding stopped: "));
+        assert!(reason.contains("not connected"));
+        assert!(!reason.contains("Operation failed"));
     }
 }

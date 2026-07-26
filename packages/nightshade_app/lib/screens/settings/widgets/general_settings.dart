@@ -14,6 +14,7 @@ class GeneralSettings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(appSettingsProvider);
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
     final l10n = context.l10n;
 
     return settingsAsync.when(
@@ -33,20 +34,23 @@ class GeneralSettings extends ConsumerWidget {
             title: l10n.text('generalStartup'),
             isMobile: isMobile,
             children: [
-              SettingRow(
-                icon: LucideIcons.power,
-                title: l10n.text('generalStartMinimized'),
-                subtitle: l10n.text('generalStartMinimizedDesc'),
-                trailing: SettingsSwitch(
-                  value: settings.startMinimized,
-                  onChanged: (value) {
-                    ref
-                        .read(appSettingsProvider.notifier)
-                        .setStartMinimized(value);
-                  },
+              // `start_minimized` is intentionally non-remotable (host-only);
+              // hide the row over a remote session so it can't throw.
+              if (!isRemoteMode)
+                SettingRow(
+                  icon: LucideIcons.power,
+                  title: l10n.text('generalStartMinimized'),
+                  subtitle: l10n.text('generalStartMinimizedDesc'),
+                  trailing: SettingsSwitch(
+                    value: settings.startMinimized,
+                    onChanged: (value) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setStartMinimized(value);
+                    },
+                  ),
+                  isMobile: isMobile,
                 ),
-                isMobile: isMobile,
-              ),
               SettingRow(
                 icon: LucideIcons.plug,
                 title: l10n.text('generalAutoConnect'),
@@ -54,7 +58,7 @@ class GeneralSettings extends ConsumerWidget {
                 trailing: SettingsSwitch(
                   value: settings.autoConnectEquipment,
                   onChanged: (value) {
-                    ref
+                    return ref
                         .read(appSettingsProvider.notifier)
                         .setAutoConnectEquipment(value);
                   },
@@ -81,29 +85,33 @@ class GeneralSettings extends ConsumerWidget {
                     l10n.text('languageSpanish'),
                   ],
                   onChanged: (value) {
-                    ref.read(appSettingsProvider.notifier).setLanguage(
+                    return ref.read(appSettingsProvider.notifier).setLanguage(
                           value == l10n.text('languageSpanish') ? 'es' : 'en',
                         );
                   },
                   width: 150,
                 ),
+                isLast: isRemoteMode,
                 isMobile: isMobile,
               ),
-              SettingRow(
-                icon: LucideIcons.alertTriangle,
-                title: l10n.text('generalConfirmBeforeClosing'),
-                subtitle: l10n.text('generalConfirmBeforeClosingDesc'),
-                trailing: SettingsSwitch(
-                  value: settings.confirmBeforeClosing,
-                  onChanged: (value) {
-                    ref
-                        .read(appSettingsProvider.notifier)
-                        .setConfirmBeforeClosing(value);
-                  },
+              // `confirm_before_closing` is intentionally non-remotable
+              // (host-only); hide the row over a remote session.
+              if (!isRemoteMode)
+                SettingRow(
+                  icon: LucideIcons.alertTriangle,
+                  title: l10n.text('generalConfirmBeforeClosing'),
+                  subtitle: l10n.text('generalConfirmBeforeClosingDesc'),
+                  trailing: SettingsSwitch(
+                    value: settings.confirmBeforeClosing,
+                    onChanged: (value) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setConfirmBeforeClosing(value);
+                    },
+                  ),
+                  isLast: true,
+                  isMobile: isMobile,
                 ),
-                isLast: true,
-                isMobile: isMobile,
-              ),
             ],
           ),
         ],

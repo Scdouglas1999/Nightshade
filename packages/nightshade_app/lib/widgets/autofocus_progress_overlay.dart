@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -198,7 +199,7 @@ class _AutofocusProgressOverlayState
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              _buildCloseButton(colors),
+              _buildCloseButton(colors, overlayState),
             ],
           ),
         ),
@@ -360,7 +361,7 @@ class _AutofocusProgressOverlayState
           ),
           const SizedBox(width: 2),
           // Close button
-          _buildCloseButton(colors),
+          _buildCloseButton(colors, overlayState),
         ],
       ),
     );
@@ -430,10 +431,33 @@ class _AutofocusProgressOverlayState
     return Tooltip(message: tooltip, child: button);
   }
 
-  Widget _buildCloseButton(NightshadeColors colors) {
+  Widget _buildCloseButton(
+    NightshadeColors colors,
+    AutofocusOverlayState overlayState,
+  ) {
+    if (overlayState.isRunning) {
+      return _buildIconButton(
+        icon: LucideIcons.square,
+        tooltip: 'Cancel autofocus',
+        onPressed: () {
+          unawaited(
+            ref.read(deviceServiceProvider).cancelAutofocus().catchError((
+              Object error,
+            ) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not cancel autofocus: $error')),
+                );
+              }
+            }),
+          );
+        },
+        colors: colors,
+      );
+    }
     return _buildIconButton(
       icon: LucideIcons.x,
-      tooltip: 'Close',
+      tooltip: 'Dismiss',
       onPressed: () => ref.read(autofocusOverlayProvider.notifier).dismiss(),
       colors: colors,
     );

@@ -82,6 +82,31 @@ _BlockerInput _blockerInputFor(
   final detail = check['detail']?.toString() ?? '';
 
   switch (id) {
+    case 'windows_bundle':
+      return _BlockerInput(
+        id: id,
+        label: label,
+        category: 'packaging',
+        localStatus: detail,
+        requiredInput:
+            'A current Windows x64 release bundle built from the exact release candidate on a Windows runner.',
+        acceptanceCriteria: [
+          '`dart run melos run build:desktop:windows --no-select` succeeds on Windows for the release candidate.',
+          'The bundle contains every required executable, DLL, Flutter asset, and embedded dashboard asset.',
+          'The bundle audit reports bundleExists=true, missingRequiredFileCount=0, disallowedFileCount=0, and passed=true.',
+        ],
+        rerunCommands: [
+          'dart run melos run build:desktop:windows --no-select',
+          'dart run melos run audit:windows-bundle --no-select',
+          'dart run melos run audit:public-release-gate --no-select',
+        ],
+        expectedEvidence: [
+          'apps/desktop/build/windows/x64/runner/Release/nightshade_desktop.exe',
+          'docs/production-readiness/windows-bundle-audit.json',
+          'docs/production-readiness/windows-bundle-audit.md',
+        ],
+        currentGateDetail: detail,
+      );
     case 'release_staging':
       final branch = context.staging?['currentBranch']?.toString() ?? 'unknown';
       final entryCount = _intValue(context.staging?['entryCount']);

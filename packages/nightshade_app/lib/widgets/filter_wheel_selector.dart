@@ -75,6 +75,12 @@ class FilterWheelSelector extends ConsumerStatefulWidget {
 
 class _FilterWheelSelectorState extends ConsumerState<FilterWheelSelector> {
   Future<void> _selectFilter(int position) async {
+    final state = ref.read(filterWheelStateProvider);
+    if (state.connectionState != DeviceConnectionState.connected ||
+        state.isMoving ||
+        ref.read(sessionStateProvider).isAutofocusing) {
+      return;
+    }
     try {
       // Always use deviceService - it handles filter offsets
       await ref.read(deviceServiceProvider).setFilterWheelPosition(position);
@@ -94,6 +100,10 @@ class _FilterWheelSelectorState extends ConsumerState<FilterWheelSelector> {
     final filterNames = fwState.filterNames;
     final currentPosition = fwState.currentPosition;
     final isMoving = fwState.isMoving;
+    final controlsEnabled =
+        fwState.connectionState == DeviceConnectionState.connected &&
+            !isMoving &&
+            !ref.watch(sessionStateProvider).isAutofocusing;
 
     // Don't show if no filters configured
     if (filterNames.isEmpty) return const SizedBox.shrink();
@@ -126,8 +136,9 @@ class _FilterWheelSelectorState extends ConsumerState<FilterWheelSelector> {
                   ),
                 ))
             .toList(),
-        onChanged:
-            isMoving ? null : (pos) => pos != null ? _selectFilter(pos) : null,
+        onChanged: controlsEnabled
+            ? (pos) => pos != null ? _selectFilter(pos) : null
+            : null,
       );
     }
 
@@ -143,7 +154,7 @@ class _FilterWheelSelectorState extends ConsumerState<FilterWheelSelector> {
                 color: FilterWheelSelector.getFilterColor(e.value),
                 isSelected: currentPosition != null && e.key == currentPosition,
                 compact: widget.compact,
-                onTap: isMoving ? null : () => _selectFilter(e.key),
+                onTap: controlsEnabled ? () => _selectFilter(e.key) : null,
               ))
           .toList(),
     );

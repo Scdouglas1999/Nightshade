@@ -22,10 +22,20 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+class _TestSettingsNotifier extends AppSettingsNotifier {
+  final Future<AppSettingsState> Function() _load;
+
+  _TestSettingsNotifier(this._load);
+
+  @override
+  Future<AppSettingsState> build() => _load();
+}
+
 Future<ProviderContainer> _pumpDialog(
   WidgetTester tester, {
   List<Override> overrides = const [],
   SmartNightDialog dialog = const SmartNightDialog(),
+  Future<AppSettingsState> Function()? settingsLoader,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1024, 800);
@@ -34,7 +44,16 @@ Future<ProviderContainer> _pumpDialog(
     tester.view.resetDevicePixelRatio();
   });
 
-  final container = ProviderContainer(overrides: overrides);
+  final container = ProviderContainer(
+    overrides: [
+      appSettingsProvider.overrideWith(
+        () => _TestSettingsNotifier(
+          settingsLoader ?? () async => const AppSettingsState(),
+        ),
+      ),
+      ...overrides,
+    ],
+  );
   addTearDown(container.dispose);
 
   await tester.pumpWidget(
@@ -48,15 +67,31 @@ Future<ProviderContainer> _pumpDialog(
       ),
     ),
   );
-  // Let the FutureProvider chains settle. We don't await all of them
-  // because some (e.g. the targets DB) are stubbed out when no
-  // overrides are supplied — we'd need a full app harness to wait on
-  // those. The smoke test only cares that the first frame renders.
+  // Resolve the one provider the dialog now treats as launch-authoritative.
+  // Errors are intentionally swallowed here so failure-state tests can assert
+  // on the rendered retry surface.
+  try {
+    await container.read(appSettingsProvider.future);
+  } catch (_) {}
   await tester.pump();
   return container;
 }
 
 void main() {
+  testWidgets('settings failure blocks the wizard instead of using defaults',
+      (tester) async {
+    await _pumpDialog(
+      tester,
+      settingsLoader: () async =>
+          throw StateError('settings database unavailable'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cannot load Smart Night settings'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Next'), findsNothing);
+  });
+
   testWidgets('SmartNightDialog renders header + step indicator',
       (tester) async {
     await _pumpDialog(tester);
@@ -81,6 +116,24 @@ void main() {
       find.textContaining('No observer location set'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('SmartNightDialog blocks a fabricated midnight-sun window',
+      (tester) async {
+    await _pumpDialog(
+      tester,
+      overrides: [
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 89, longitude: 0),
+        ),
+      ],
+    );
+
+    expect(find.textContaining('Sun does not set'), findsOneWidget);
+    await tester.tap(find.text('Next'));
+    await tester.pump();
+    expect(find.text('Tonight\'s dark window'), findsOneWidget);
+    expect(find.textContaining('Sun does not set'), findsWidgets);
   });
 
   testWidgets(
@@ -202,6 +255,77 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('2. Equipment'), findsOneWidget);
+    expect(find.text('3. Targets'), findsOneWidget);
+  });
+
+  testWidgets('saved hand-pick preference seeds the Targets step',
+      (tester) async {
+    await _pumpDialog(
+      tester,
+      settingsLoader: () async =>
+          const AppSettingsState(smartNightAutoSelect: false),
+      overrides: [
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Test rig',
+            focalLength: 600,
+            aperture: 120,
+            filterNames: ['L'],
+          ),
+        ),
+        tonightSuggestionsProvider.overrideWith((_) async => const []),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hand-pick from suggestions below'), findsOneWidget);
+  });
+
+  testWidgets('suggestion failure is retryable and cannot advance',
+      (tester) async {
+    await _pumpDialog(
+      tester,
+      overrides: [
+        appObserverLocationProvider.overrideWithValue(
+          const LocationSettings(latitude: 40, longitude: -75),
+        ),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            name: 'Test rig',
+            focalLength: 600,
+            aperture: 120,
+            filterNames: ['L'],
+          ),
+        ),
+        tonightSuggestionsProvider.overrideWith(
+          (_) async => throw StateError('catalog unavailable'),
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Failed to load suggestions'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Next'));
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.textContaining('Could not load target suggestions'),
+        findsOneWidget);
+    expect(find.text('Hand-pick from suggestions below'), findsNothing);
     expect(find.text('3. Targets'), findsOneWidget);
   });
 }

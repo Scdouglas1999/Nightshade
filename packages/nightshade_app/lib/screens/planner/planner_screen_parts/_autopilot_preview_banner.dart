@@ -34,7 +34,38 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
 
   Widget _buildBanner(BuildContext context, SchedulerDecision decision) {
     final hasPick = decision.chosenTargetId != null;
+    // Distinguish an EMPTY scheduler queue (fresh install / nothing added yet)
+    // from "targets are queued but none pass right now". The old banner showed
+    // the alarming "Nothing eligible right now" for BOTH — including the empty
+    // queue — right next to a full Night Outlook (which lists the whole bundled
+    // catalog), which read as a bug. `scoredCandidates` is empty only when the
+    // scheduler had zero candidates to evaluate.
+    final queueEmpty = !hasPick && decision.scoredCandidates.isEmpty;
     final accent = hasPick ? colors.primary : colors.warning;
+    final String headerLabel;
+    final String title;
+    final String subtitle;
+    if (hasPick) {
+      headerLabel = 'AUTOPILOT WILL RUN';
+      title = decision.chosenTargetName ?? 'Target ${decision.chosenTargetId}';
+      subtitle = 'Live scheduler pick — what the rig would slew to next '
+          '(score ${decision.score.toStringAsFixed(2)}).';
+    } else if (queueEmpty) {
+      headerLabel = 'AUTOPILOT STANDING BY';
+      title = 'No targets in your scheduler queue';
+      subtitle =
+          'The autopilot runs targets from your scheduler queue, which is '
+          'empty. The Night Outlook below is your object catalog — add targets '
+          'to the Target Queue (with integration goals) for the autopilot to '
+          'run them.';
+    } else {
+      headerLabel = 'AUTOPILOT STANDING BY';
+      title = 'Nothing eligible right now';
+      subtitle =
+          'Targets are queued, but none pass the scheduler right now (e.g. '
+          'still below the horizon, or their filters are not in the active '
+          'wheel). The outlook below shows when they become available tonight.';
+    }
 
     return Container(
       width: double.infinity,
@@ -53,7 +84,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
               Icon(LucideIcons.radar, size: 16, color: accent),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
-                'AUTOPILOT WILL RUN',
+                headerLabel,
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
@@ -65,10 +96,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
-            hasPick
-                ? decision.chosenTargetName ??
-                    'Target ${decision.chosenTargetId}'
-                : 'Nothing eligible right now',
+            title,
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.w700,
@@ -77,11 +105,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
-            hasPick
-                ? 'Live scheduler pick — what the rig would slew to next '
-                    '(score ${decision.score.toStringAsFixed(2)}).'
-                : 'The dynamic scheduler has no eligible target at this instant. '
-                    'The outlook below shows what becomes available tonight.',
+            subtitle,
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,

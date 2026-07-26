@@ -31,6 +31,8 @@ const FLIDEVICE_FOCUSER: c_long = 0x300;
 
 // Frame types
 const FLI_FRAME_TYPE_NORMAL: c_long = 0;
+// FLI_FRAME_TYPE_DARK keeps the mechanical shutter closed for dark/bias frames.
+const FLI_FRAME_TYPE_DARK: c_long = 1;
 
 // Bit depth
 const FLI_MODE_16BIT: c_long = 1;
@@ -408,6 +410,16 @@ fn check_fli_error(result: c_long, context: &str) -> Result<(), NativeError> {
     }
 }
 
+fn close_fli_handle(sdk: &FliSdk, handle: &mut FliDev) {
+    if *handle == FLI_INVALID_DEVICE {
+        return;
+    }
+
+    // SAFETY: caller holds fli_mutex and handle was returned by a successful FLIOpen.
+    unsafe { (sdk.close)(*handle) };
+    *handle = FLI_INVALID_DEVICE;
+}
+
 // =============================================================================
 // Discovery
 // =============================================================================
@@ -736,34 +748,58 @@ impl NativeDevice for FliCamera {
         let result = unsafe {
             (sdk.get_visible_area)(self.handle, &mut ul_x, &mut ul_y, &mut lr_x, &mut lr_y)
         };
-        check_fli_error(result, "get visible area")?;
+        if let Err(error) = check_fli_error(result, "get visible area") {
+            close_fli_handle(sdk, &mut self.handle);
+            return Err(error);
+        }
 
         // Why: FLIGetVisibleArea returns c_long (i32 on Windows MSVC LLP64, i64 on most
         // *nix LP64). FLI hardware tops out around 8192x8192 pixels so the values are
         // tiny. We use a helper to validate fit in i32 on platforms where c_long is wider
         // (no-op clamp on Windows where c_long == i32).
-        self.visible_ul_x = fli_c_long_to_i32(ul_x, "ul_x")?;
-        self.visible_ul_y = fli_c_long_to_i32(ul_y, "ul_y")?;
-        self.visible_lr_x = fli_c_long_to_i32(lr_x, "lr_x")?;
-        self.visible_lr_y = fli_c_long_to_i32(lr_y, "lr_y")?;
-
         // Why: lr >= ul is guaranteed by FLI's visible-area contract (lower-right is
         // strictly bottom-right of upper-left). Subtract first, then convert via try_into
         // to fail closed if the SDK ever returns an inverted rectangle.
-        let raw_width = lr_x - ul_x;
-        let raw_height = lr_y - ul_y;
-        let width = u32::try_from(raw_width).map_err(|_| {
-            NativeError::SdkError(format!(
-                "FLI visible-area width is negative or > u32::MAX: {}",
-                raw_width
+        let visible_area: Result<(i32, i32, i32, i32, u32, u32), NativeError> = (|| {
+            let visible_ul_x = fli_c_long_to_i32(ul_x, "ul_x")?;
+            let visible_ul_y = fli_c_long_to_i32(ul_y, "ul_y")?;
+            let visible_lr_x = fli_c_long_to_i32(lr_x, "lr_x")?;
+            let visible_lr_y = fli_c_long_to_i32(lr_y, "lr_y")?;
+            let raw_width = lr_x - ul_x;
+            let raw_height = lr_y - ul_y;
+            let width = u32::try_from(raw_width).map_err(|_| {
+                NativeError::SdkError(format!(
+                    "FLI visible-area width is negative or > u32::MAX: {}",
+                    raw_width
+                ))
+            })?;
+            let height = u32::try_from(raw_height).map_err(|_| {
+                NativeError::SdkError(format!(
+                    "FLI visible-area height is negative or > u32::MAX: {}",
+                    raw_height
+                ))
+            })?;
+            Ok((
+                visible_ul_x,
+                visible_ul_y,
+                visible_lr_x,
+                visible_lr_y,
+                width,
+                height,
             ))
-        })?;
-        let height = u32::try_from(raw_height).map_err(|_| {
-            NativeError::SdkError(format!(
-                "FLI visible-area height is negative or > u32::MAX: {}",
-                raw_height
-            ))
-        })?;
+        })();
+        let (visible_ul_x, visible_ul_y, visible_lr_x, visible_lr_y, width, height) =
+            match visible_area {
+                Ok(area) => area,
+                Err(error) => {
+                    close_fli_handle(sdk, &mut self.handle);
+                    return Err(error);
+                }
+            };
+        self.visible_ul_x = visible_ul_x;
+        self.visible_ul_y = visible_ul_y;
+        self.visible_lr_x = visible_lr_x;
+        self.visible_lr_y = visible_lr_y;
 
         // Set sensor info
         self.sensor_info = SensorInfo {
@@ -798,7 +834,10 @@ impl NativeDevice for FliCamera {
         // Set full frame
         // SAFETY: fli_mutex held; self.handle is open; ul_x/ul_y/lr_x/lr_y came from the SDK-reported visible area above so they are valid sensor coordinates.
         let result = unsafe { (sdk.set_image_area)(self.handle, ul_x, ul_y, lr_x, lr_y) };
-        check_fli_error(result, "set image area")?;
+        if let Err(error) = check_fli_error(result, "set image area") {
+            close_fli_handle(sdk, &mut self.handle);
+            return Err(error);
+        }
 
         self.connected = true;
         self.state = CameraState::Idle;
@@ -923,9 +962,17 @@ impl NativeCamera for FliCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = fli_mutex().lock().await;
 
-        // Set frame type (normal mode by default - dark frames handled at higher level)
-        // SAFETY: fli_mutex held; self.handle is valid (connected=true checked at function start); frame type is a compile-time constant.
-        let result = unsafe { (sdk.set_frame_type)(self.handle, FLI_FRAME_TYPE_NORMAL) };
+        // Dark/bias frames must keep the mechanical shutter CLOSED
+        // (FLI_FRAME_TYPE_DARK); light/flat frames open it (FLI_FRAME_TYPE_NORMAL).
+        // The old code hardcoded NORMAL for every frame, so darks/bias were
+        // exposed with the shutter OPEN → light-contaminated calibration masters.
+        let fli_frame_type = if params.frame_type.opens_shutter() {
+            FLI_FRAME_TYPE_NORMAL
+        } else {
+            FLI_FRAME_TYPE_DARK
+        };
+        // SAFETY: fli_mutex held; self.handle is valid (connected=true checked at function start); frame type is a valid FLI frame-type constant.
+        let result = unsafe { (sdk.set_frame_type)(self.handle, fli_frame_type) };
         check_fli_error(result, "set frame type")?;
 
         // Set exposure time (in milliseconds)
@@ -1039,7 +1086,7 @@ impl NativeCamera for FliCamera {
         };
 
         // Allocate raw byte buffer (16-bit = 2 bytes per pixel).
-        // Why: FLIGrabRow() writes `width` bytes of little-endian pixel data into a *mut u8
+        // Why: FLIGrabRow() writes `width` u16 pixels (= width*2 bytes) of little-endian pixel data into a *mut u8
         // sink. Allocating Vec<u16> and casting through *mut u8 would force the caller to
         // assume the host is little-endian for the resulting u16 values; allocating a Vec<u8>
         // and decoding via from_le_bytes pins the SDK's documented LE framing and removes
@@ -1057,8 +1104,8 @@ impl NativeCamera for FliCamera {
             let row_offset = row * row_bytes;
             // SAFETY: row_offset = row * row_bytes is strictly less than total_bytes = height * row_bytes (row < height), so the resulting pointer remains within byte_buffer's allocation (in-bounds, single allocated object); both row and row_bytes are usize derived from validated overflow-checked multiplications above.
             let row_ptr = unsafe { byte_buffer.as_mut_ptr().add(row_offset) };
-            // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `row_ptr` points to `row_bytes` bytes inside byte_buffer (verified above); FLIGrabRow writes exactly `row_bytes` bytes per the libfli contract.
-            let result = unsafe { (sdk.grab_row)(self.handle, row_ptr, row_bytes) };
+            // SAFETY: fli_mutex held above; self.handle is valid (connected=true checked); `row_ptr` points to `row_bytes` bytes inside byte_buffer (verified above). FLIGrabRow's third argument is a PIXEL count, not a byte count — it writes exactly `width` u16 elements = `width * 2` = `row_bytes` bytes into `row_ptr`. Passing `row_bytes` here (the previous bug) told the SDK to write `row_bytes` u16 pixels = 2x the row slot, overrunning the buffer on every bin>=2 frame (bin=1 was masked by the SDK's internal width clamp). Matches the reference (fli_ccd.cpp:667 passes pixel `width`).
+            let result = unsafe { (sdk.grab_row)(self.handle, row_ptr, width) };
             if result != 0 {
                 tracing::error!(
                     "FLI GrabRow() failed for camera '{}'. Row: {}/{}, width: {} bytes, error code: {}",
@@ -1730,12 +1777,29 @@ impl NativeDevice for FliFilterWheel {
         // Get filter count
         let mut count: c_long = 0;
         // SAFETY: fli_mutex held; self.handle is open; `count` is a valid stack pointer.
-        if unsafe { (sdk.get_filter_count)(self.handle, &mut count) } == 0 {
-            // Why: filter count is a small positive integer (<= ~16 across all FLI CFW
-            // models); SDK returns c_long. Use helper to fail closed on absurd values.
-            self.filter_count = fli_c_long_to_i32(count, "filter count")?;
+        let result = unsafe { (sdk.get_filter_count)(self.handle, &mut count) };
+        if let Err(error) = check_fli_error(result, "get filter count") {
+            close_fli_handle(sdk, &mut self.handle);
+            return Err(error);
+        }
+        // Why: filter count is a small positive integer (<= ~16 across all FLI CFW
+        // models); SDK returns c_long. Use helper to fail closed on absurd values.
+        let filter_count = match fli_c_long_to_i32(count, "filter count") {
+            Ok(filter_count) => filter_count,
+            Err(error) => {
+                close_fli_handle(sdk, &mut self.handle);
+                return Err(error);
+            }
+        };
+        if filter_count <= 0 {
+            close_fli_handle(sdk, &mut self.handle);
+            return Err(NativeError::SdkError(format!(
+                "FLI filter wheel at '{}' reported invalid filter count {}",
+                self.device_path, filter_count
+            )));
         }
 
+        self.filter_count = filter_count;
         self.connected = true;
         tracing::info!(
             "Connected to FLI filter wheel: {} ({} positions)",

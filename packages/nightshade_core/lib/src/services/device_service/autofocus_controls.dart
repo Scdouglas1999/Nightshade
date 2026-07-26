@@ -3,9 +3,11 @@ part of '../device_service.dart';
 extension _DeviceServiceAutofocusControls on DeviceService {
   /// Run autofocus routine
   ///
-  /// When [useSettingsDefaults] is true (the default), the persisted autofocus
-  /// settings from [appSettingsProvider] are used. The explicit parameters serve
-  /// as overrides only when [useSettingsDefaults] is false.
+  /// When [useSettingsDefaults] is true (the default), persisted autofocus
+  /// settings supply every field. When false, the explicit panel parameters
+  /// override only exposure, step geometry, metric, and binning; persisted
+  /// advanced settings (curve fit, retries, crops, settling, backlash, guide
+  /// pause, and per-filter behavior) still apply when available.
   ///
   /// If `afDisableGuidingDuringAf` is enabled in settings, guiding is
   /// paused before the AF run and resumed afterwards.
@@ -23,8 +25,15 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       );
     }
     _isAutofocusRunning = true;
+    _autofocusCancelRequested = false;
+    _ref.read(sessionStateProvider.notifier).setAutofocusing(true);
 
     try {
+      if (_isFocuserMoveRunning || _ref.read(focuserStateProvider).isMoving) {
+        throw StateError(
+          'Cannot start autofocus while the focuser is already moving.',
+        );
+      }
       final focuserDeviceId = await _getFocuserDeviceId();
       if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
         throw Exception('No focuser connected');
@@ -44,6 +53,8 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       final int effectiveStepsOut;
       final String effectiveMethod;
       final int effectiveBinning;
+      final int? effectiveGain;
+      final int? effectiveOffset;
       final String effectiveCurveFitting;
       final int effectiveNumberOfAttempts;
       final int effectiveExposuresPerPoint;
@@ -56,6 +67,22 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       final int effectiveBacklashIn;
       final int effectiveBacklashOut;
       final bool disableGuidingDuringAf;
+      final filterWheelBeforeAutofocus = _ref.read(filterWheelStateProvider);
+      final originalFilterPosition = filterWheelBeforeAutofocus.currentPosition;
+      final originalFilterName = filterWheelBeforeAutofocus.currentFilterName;
+      final perFilterSettings = appSettings == null
+          ? const <String, FilterAutofocusConfig>{}
+          : AutofocusSettings.parseFilterSettingsJson(
+              appSettings.afFilterSettingsJson,
+            );
+      final activeFilterSettings = originalFilterName == null
+          ? null
+          : perFilterSettings[originalFilterName];
+      final perFilterAfName = activeFilterSettings?.afFilterName?.trim();
+      final defaultAfName = appSettings?.afAutofocusFilterName.trim() ?? '';
+      final String? autofocusFilterName = perFilterAfName?.isNotEmpty == true
+          ? perFilterAfName
+          : (defaultAfName.isEmpty ? null : defaultAfName);
 
       if (useSettingsDefaults && appSettings == null) {
         // Settings not yet loaded from DB — don't silently fall back to hardcoded
@@ -67,11 +94,15 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       }
 
       if (useSettingsDefaults && appSettings != null) {
-        effectiveExposureTime = appSettings.afExposureTime;
+        effectiveExposureTime =
+            activeFilterSettings?.afExposureTime ?? appSettings.afExposureTime;
         effectiveStepSize = appSettings.afStepSize;
         effectiveStepsOut = appSettings.afInitialOffsetSteps;
         effectiveMethod = appSettings.afMethod;
-        effectiveBinning = appSettings.afBinning;
+        effectiveBinning =
+            activeFilterSettings?.binning ?? appSettings.afBinning;
+        effectiveGain = activeFilterSettings?.gain;
+        effectiveOffset = activeFilterSettings?.offset;
         effectiveCurveFitting = appSettings.afCurveFitting;
         effectiveNumberOfAttempts = appSettings.afNumberOfAttempts;
         effectiveExposuresPerPoint = appSettings.afExposuresPerPoint;
@@ -90,18 +121,56 @@ extension _DeviceServiceAutofocusControls on DeviceService {
         effectiveStepsOut = stepsOut;
         effectiveMethod = method;
         effectiveBinning = binning;
-        effectiveCurveFitting = 'Hyperbolic';
-        effectiveNumberOfAttempts = 1;
-        effectiveExposuresPerPoint = 1;
-        effectiveRSquaredThreshold = 0.7;
-        effectiveOuterCropRatio = 1.0;
-        effectiveInnerCropRatio = 0.0;
-        effectiveUseBrightestNStars = 0;
-        effectiveFocuserSettleTimeMs = 500;
-        effectiveBacklashCompMethod = 'Overshoot';
-        effectiveBacklashIn = 350;
-        effectiveBacklashOut = 0;
-        disableGuidingDuringAf = false;
+        effectiveGain = activeFilterSettings?.gain;
+        effectiveOffset = activeFilterSettings?.offset;
+        if (appSettings != null) {
+          effectiveCurveFitting = appSettings.afCurveFitting;
+          effectiveNumberOfAttempts = appSettings.afNumberOfAttempts;
+          effectiveExposuresPerPoint = appSettings.afExposuresPerPoint;
+          effectiveRSquaredThreshold = appSettings.afRSquaredThreshold;
+          effectiveOuterCropRatio = appSettings.afOuterCropRatio;
+          effectiveInnerCropRatio = appSettings.afInnerCropRatio;
+          effectiveUseBrightestNStars = appSettings.afUseBrightestNStars;
+          effectiveFocuserSettleTimeMs = appSettings.afFocuserSettleTimeMs;
+          effectiveBacklashCompMethod = appSettings.afBacklashCompMethod;
+          effectiveBacklashIn = appSettings.afBacklashIn;
+          effectiveBacklashOut = appSettings.afBacklashOut;
+          disableGuidingDuringAf = appSettings.afDisableGuidingDuringAf;
+        } else {
+          effectiveCurveFitting = 'Hyperbolic';
+          effectiveNumberOfAttempts = 1;
+          effectiveExposuresPerPoint = 1;
+          effectiveRSquaredThreshold = 0.7;
+          effectiveOuterCropRatio = 1.0;
+          effectiveInnerCropRatio = 0.0;
+          effectiveUseBrightestNStars = 0;
+          effectiveFocuserSettleTimeMs = 500;
+          effectiveBacklashCompMethod = 'Overshoot';
+          effectiveBacklashIn = 350;
+          effectiveBacklashOut = 0;
+          disableGuidingDuringAf = false;
+        }
+      }
+
+      final validationError = _validateAutofocusInputs(
+        exposureTime: effectiveExposureTime,
+        stepSize: effectiveStepSize,
+        stepsOut: effectiveStepsOut,
+        binning: effectiveBinning,
+        numberOfAttempts: effectiveNumberOfAttempts,
+        exposuresPerPoint: effectiveExposuresPerPoint,
+        rSquaredThreshold: effectiveRSquaredThreshold,
+        outerCropRatio: effectiveOuterCropRatio,
+        innerCropRatio: effectiveInnerCropRatio,
+        useBrightestNStars: effectiveUseBrightestNStars,
+        focuserSettleTimeMs: effectiveFocuserSettleTimeMs,
+        backlashIn: effectiveBacklashIn,
+        backlashOut: effectiveBacklashOut,
+        gain: effectiveGain,
+        offset: effectiveOffset,
+      );
+      if (validationError != null) {
+        throw ArgumentError('Invalid autofocus settings: $validationError');
       }
 
       final focuserNotifier = _ref.read(focuserStateProvider.notifier);
@@ -109,7 +178,7 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       final overlayNotifier = _ref.read(autofocusOverlayProvider.notifier);
 
       focuserNotifier.setMoving(true);
-      operationsNotifier.startOperation(
+      final operationId = operationsNotifier.startOperation(
         type: OperationType.autofocus,
         description: 'Running autofocus ($effectiveMethod)',
         currentStep: 'Initializing...',
@@ -118,7 +187,76 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       overlayNotifier.onAutofocusStarted();
 
       var wasGuiding = false;
+      var guidingWasPaused = false;
+      var filterWasSwitched = false;
       try {
+        // Pause guiding before any configured AF-filter switch. Switching
+        // filters may also apply a focuser offset, which is part of the AF run
+        // and must not happen while a guider the user asked us to pause is
+        // still issuing corrections.
+        final guiderState = _ref.read(guiderStateProvider);
+        wasGuiding = disableGuidingDuringAf && guiderState.isGuiding;
+        if (wasGuiding) {
+          try {
+            final loggingService = _ref.read(loggingServiceProvider);
+            loggingService.info(
+              'Pausing guiding for autofocus run',
+              source: 'DeviceService',
+            );
+            await stopGuiding();
+            guidingWasPaused = true;
+          } catch (e) {
+            final loggingService = _ref.read(loggingServiceProvider);
+            loggingService.error(
+              'Cannot run autofocus because guiding could not be paused: $e',
+              source: 'DeviceService',
+            );
+            throw StateError(
+              'Autofocus is configured to pause guiding, but guiding could '
+              'not be stopped: $e',
+            );
+          }
+        }
+
+        final requestedFilterName = autofocusFilterName;
+        if (requestedFilterName != null &&
+            requestedFilterName != originalFilterName) {
+          if (filterWheelBeforeAutofocus.connectionState !=
+                  DeviceConnectionState.connected ||
+              filterWheelBeforeAutofocus.deviceId == null ||
+              filterWheelBeforeAutofocus.deviceId!.isEmpty) {
+            throw StateError(
+              'Autofocus is configured to use filter "$requestedFilterName", '
+              'but no filter wheel is connected.',
+            );
+          }
+          if (originalFilterPosition == null) {
+            throw StateError(
+              'Cannot switch to autofocus filter "$requestedFilterName": '
+              'the filter wheel does not report its current position, so the '
+              'original filter could not be restored safely.',
+            );
+          }
+          final targetPosition = filterWheelBeforeAutofocus.filterNames.indexOf(
+            requestedFilterName,
+          );
+          if (targetPosition < 0) {
+            throw StateError(
+              'Configured autofocus filter "$requestedFilterName" is not '
+              'present in the connected wheel.',
+            );
+          }
+          // From the moment the switch command is sent, restoration is
+          // required even if verification or focus-offset application fails:
+          // the wheel may already have reached the AF slot before that error.
+          filterWasSwitched = true;
+          await _setFilterWheelPosition(
+            targetPosition,
+            requireFocusOffset: true,
+            allowDuringAutofocus: true,
+          );
+        }
+
         // Predictive-AF consultation (wire-up). Before running the real
         // sweep, ask the persisted per-filter model what it would predict for the
         // current temperature/filter. We log the decision and capture the
@@ -132,52 +270,84 @@ extension _DeviceServiceAutofocusControls on DeviceService {
           method: effectiveMethod,
         );
 
-        // Pause guiding if configured and guiding is active
-        final guiderState = _ref.read(guiderStateProvider);
-        wasGuiding = disableGuidingDuringAf && guiderState.isGuiding;
-        if (wasGuiding) {
-          try {
-            final loggingService = _ref.read(loggingServiceProvider);
-            loggingService.info(
-              'Pausing guiding for autofocus run',
-              source: 'DeviceService',
-            );
-            await stopGuiding();
-          } catch (e) {
-            final loggingService = _ref.read(loggingServiceProvider);
-            loggingService.warning(
-              'Failed to pause guiding before autofocus: $e',
-              source: 'DeviceService',
-            );
-          }
+        if (_autofocusCancelRequested) {
+          throw const AutofocusCancelledException();
         }
 
-        final result = await _backend.autofocusStart(
-          deviceId: focuserDeviceId,
-          cameraId: cameraDeviceId,
-          exposureTime: effectiveExposureTime,
-          stepSize: effectiveStepSize,
-          stepsOut: effectiveStepsOut,
-          method: effectiveMethod,
-          binning: effectiveBinning,
-          curveFitting: effectiveCurveFitting,
-          numberOfAttempts: effectiveNumberOfAttempts,
-          exposuresPerPoint: effectiveExposuresPerPoint,
-          rSquaredThreshold: effectiveRSquaredThreshold,
-          outerCropRatio: effectiveOuterCropRatio,
-          innerCropRatio: effectiveInnerCropRatio,
-          useBrightestNStars: effectiveUseBrightestNStars,
-          focuserSettleTimeMs: effectiveFocuserSettleTimeMs,
-          backlashCompMethod: effectiveBacklashCompMethod,
-          backlashIn: effectiveBacklashIn,
-          backlashOut: effectiveBacklashOut,
-        );
+        final currentFocuser = _ref.read(focuserStateProvider);
+        final currentCamera = _ref.read(cameraStateProvider);
+        if (currentFocuser.connectionState != DeviceConnectionState.connected ||
+            currentFocuser.deviceId != focuserDeviceId ||
+            currentCamera.connectionState != DeviceConnectionState.connected ||
+            currentCamera.deviceId != cameraDeviceId) {
+          throw StateError(
+            'Camera or focuser connection changed before autofocus started.',
+          );
+        }
 
-        _ref.read(autofocusResultProvider.notifier).state = result;
-        overlayNotifier.onAutofocusCompleted(result);
+        AutofocusResult? result;
+        Object? runError;
+        StackTrace? runStackTrace;
+        try {
+          result = await _backend.autofocusStart(
+            deviceId: focuserDeviceId,
+            cameraId: cameraDeviceId,
+            exposureTime: effectiveExposureTime,
+            stepSize: effectiveStepSize,
+            stepsOut: effectiveStepsOut,
+            method: effectiveMethod,
+            binning: effectiveBinning,
+            gain: effectiveGain,
+            offset: effectiveOffset,
+            curveFitting: effectiveCurveFitting,
+            numberOfAttempts: effectiveNumberOfAttempts,
+            exposuresPerPoint: effectiveExposuresPerPoint,
+            rSquaredThreshold: effectiveRSquaredThreshold,
+            outerCropRatio: effectiveOuterCropRatio,
+            innerCropRatio: effectiveInnerCropRatio,
+            useBrightestNStars: effectiveUseBrightestNStars,
+            focuserSettleTimeMs: effectiveFocuserSettleTimeMs,
+            backlashCompMethod: effectiveBacklashCompMethod,
+            backlashIn: effectiveBacklashIn,
+            backlashOut: effectiveBacklashOut,
+          );
+        } catch (error, stackTrace) {
+          runError = error;
+          runStackTrace = stackTrace;
+        }
+
+        if (filterWasSwitched) {
+          try {
+            await _setFilterWheelPosition(
+              originalFilterPosition!,
+              requireFocusOffset: true,
+              allowDuringAutofocus: true,
+            );
+            filterWasSwitched = false;
+          } catch (restoreError, restoreStackTrace) {
+            final message = runError == null
+                ? 'Autofocus completed, but restoring the original filter '
+                      '"${originalFilterName ?? originalFilterPosition}" failed: '
+                      '$restoreError'
+                : 'Autofocus failed ($runError), and restoring the original '
+                      'filter "${originalFilterName ?? originalFilterPosition}" '
+                      'also failed: $restoreError';
+            Error.throwWithStackTrace(StateError(message), restoreStackTrace);
+          }
+        }
+        if (runError != null) {
+          Error.throwWithStackTrace(runError, runStackTrace!);
+        }
+        if (_autofocusCancelRequested) {
+          throw const AutofocusCancelledException();
+        }
+        final completedResult = result!;
+
+        _ref.read(autofocusResultProvider.notifier).state = completedResult;
+        overlayNotifier.onAutofocusCompleted(completedResult);
 
         // Smart notification for autofocus completion
-        final hfrText = result.bestHfr.toStringAsFixed(2);
+        final hfrText = completedResult.bestHfr.toStringAsFixed(2);
         _ref
             .read(smartNotificationServiceProvider)
             .showSuccessIfNotOnScreens(
@@ -197,20 +367,48 @@ extension _DeviceServiceAutofocusControls on DeviceService {
         // user already has their focus result.
         await _recordPredictiveAfOutcome(
           context: predictiveContext,
-          result: result,
+          result: completedResult,
         );
 
-        return result;
+        return completedResult;
       } catch (e) {
+        if (filterWasSwitched && originalFilterPosition != null) {
+          try {
+            await _setFilterWheelPosition(
+              originalFilterPosition,
+              requireFocusOffset: true,
+              allowDuringAutofocus: true,
+            );
+          } catch (restoreError, restoreStackTrace) {
+            overlayNotifier.onAutofocusFailed(
+              'Autofocus failed ($e), and restoring the original filter also '
+              'failed: $restoreError',
+            );
+            Error.throwWithStackTrace(
+              StateError(
+                'Autofocus failed ($e), and restoring the original filter '
+                '"${originalFilterName ?? originalFilterPosition}" also '
+                'failed: $restoreError',
+              ),
+              restoreStackTrace,
+            );
+          }
+        }
+        if (_autofocusCancelRequested || _isAutofocusCancellation(e)) {
+          overlayNotifier.onAutofocusCancelled();
+          throw const AutofocusCancelledException();
+        }
         overlayNotifier.onAutofocusFailed('$e');
         rethrow;
       } finally {
-        _isAutofocusRunning = false;
         focuserNotifier.setMoving(false);
-        operationsNotifier.completeOperation(OperationType.autofocus);
+        operationsNotifier.completeOperation(
+          OperationType.autofocus,
+          operationId: operationId,
+        );
 
         // Resume guiding if it was paused
-        if (wasGuiding) {
+        if (guidingWasPaused) {
           try {
             final loggingService = _ref.read(loggingServiceProvider);
             loggingService.info(
@@ -227,10 +425,101 @@ extension _DeviceServiceAutofocusControls on DeviceService {
           }
         }
       }
-    } catch (_) {
+    } finally {
       _isAutofocusRunning = false;
+      _autofocusCancelRequested = false;
+      _ref.read(sessionStateProvider.notifier).setAutofocusing(false);
+    }
+  }
+
+  String? _validateAutofocusInputs({
+    required double exposureTime,
+    required int stepSize,
+    required int stepsOut,
+    required int binning,
+    required int numberOfAttempts,
+    required int exposuresPerPoint,
+    required double rSquaredThreshold,
+    required double outerCropRatio,
+    required double innerCropRatio,
+    required int useBrightestNStars,
+    required int focuserSettleTimeMs,
+    required int backlashIn,
+    required int backlashOut,
+    required int? gain,
+    required int? offset,
+  }) {
+    if (!exposureTime.isFinite || exposureTime < 0.1 || exposureTime > 300) {
+      return 'exposure time must be between 0.1 and 300 seconds';
+    }
+    if (stepSize < 1 || stepSize > 10000) {
+      return 'step size must be between 1 and 10000';
+    }
+    if (stepsOut < 1 || stepsOut > 50) {
+      return 'initial offset steps must be between 1 and 50';
+    }
+    if (binning < 1 || binning > 4) {
+      return 'binning must be between 1 and 4';
+    }
+    if (numberOfAttempts < 1 || numberOfAttempts > 10) {
+      return 'number of attempts must be between 1 and 10';
+    }
+    if (exposuresPerPoint < 1 || exposuresPerPoint > 20) {
+      return 'exposures per point must be between 1 and 20';
+    }
+    if (!rSquaredThreshold.isFinite ||
+        rSquaredThreshold < 0 ||
+        rSquaredThreshold > 1) {
+      return 'R² threshold must be between 0 and 1';
+    }
+    if (!outerCropRatio.isFinite ||
+        !innerCropRatio.isFinite ||
+        outerCropRatio <= 0 ||
+        outerCropRatio > 1 ||
+        innerCropRatio < 0 ||
+        innerCropRatio >= outerCropRatio) {
+      return 'crop ratios must satisfy 0 ≤ inner < outer ≤ 1';
+    }
+    if (useBrightestNStars < 0 || useBrightestNStars > 500) {
+      return 'brightest-star count must be between 0 and 500';
+    }
+    if (focuserSettleTimeMs < 0 || focuserSettleTimeMs > 10000) {
+      return 'focuser settle time must be between 0 and 10000 ms';
+    }
+    if (backlashIn < 0 ||
+        backlashIn > 10000 ||
+        backlashOut < 0 ||
+        backlashOut > 10000) {
+      return 'backlash values must be between 0 and 10000';
+    }
+    if ((gain != null && gain < 0) || (offset != null && offset < 0)) {
+      return 'gain and offset overrides cannot be negative';
+    }
+    return null;
+  }
+
+  Future<void> _cancelAutofocus() async {
+    if (!_isAutofocusRunning || _autofocusCancelRequested) return;
+    _autofocusCancelRequested = true;
+    _ref
+        .read(autofocusOverlayProvider.notifier)
+        .onAutofocusCancellationRequested();
+    try {
+      await _backend.autofocusCancel();
+    } catch (_) {
+      // A failed cancellation means the run may still own the hardware. Clear
+      // the request flag so the UI returns to Running and the operator can
+      // retry; the owning autofocus Future remains authoritative.
+      _autofocusCancelRequested = false;
+      _ref.read(autofocusOverlayProvider.notifier).onAutofocusCancelFailed();
       rethrow;
     }
+  }
+
+  bool _isAutofocusCancellation(Object error) {
+    if (error is AutofocusCancelledException) return true;
+    final text = error.toString().toLowerCase();
+    return text.contains('cancelled') || text.contains('canceled');
   }
 
   /// Resolve the temperature to associate with a predictive-AF sample/decision.

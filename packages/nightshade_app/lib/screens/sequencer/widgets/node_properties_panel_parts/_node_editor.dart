@@ -61,81 +61,101 @@ class _NodeEditor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // While the executor owns the tree (Running / Paused / Stopping) the
+    // notifier throws SequenceLockedException from every mutation, so the
+    // Name/Enabled/type/Delete controls must be inert rather than looking
+    // live and silently discarding edits.
+    final canEdit = ref.watch(canEditSequenceProvider);
+
     // The properties panel's outer surface is a DecoratedBox with a background
     // color. Some editors render ListTile/SwitchListTile, which (Flutter 3.44)
     // assert when their nearest Material ancestor is hidden behind such a
     // DecoratedBox. A transparent Material gives every ListTile descendant a
     // Material to paint on without altering the visuals.
+    // The edit lock must sit INSIDE the scroll view, not around it. With
+    // IgnorePointer wrapping SingleChildScrollView, `!canEdit` (i.e. any time a
+    // sequence is running/paused/stopping — all night) also swallowed drag and
+    // wheel scrolling, so everything below the fold became unreadable: the
+    // operator could not even inspect the settings of the node currently
+    // executing. On mobile it also froze the DraggableScrollableSheet that
+    // hands this panel its controller. Dimming stays outside (it is purely
+    // visual); only pointer-blocking moved in, so the form is still read-only.
     return Material(
       type: MaterialType.transparency,
-      child: SingleChildScrollView(
-        controller: scrollController,
-        padding: EdgeInsets.all(isMobile ? 20 : 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Node type badge
-            _NodeTypeBadge(colors: colors, node: node),
-            const SizedBox(height: 16),
+      child: Opacity(
+        opacity: canEdit ? 1.0 : NightshadeTokens.opacityDisabled,
+        child: SingleChildScrollView(
+          controller: scrollController,
+          padding: EdgeInsets.all(isMobile ? 20 : 16),
+          child: IgnorePointer(
+            ignoring: !canEdit,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Node type badge
+                _NodeTypeBadge(colors: colors, node: node),
+                const SizedBox(height: 16),
 
-            // Name field
-            NodePropertyField(
-              colors: colors,
-              label: 'Name',
-              child: NodeTextInput(
-                colors: colors,
-                value: node.name,
-                onChanged: (value) {
-                  ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(name: value),
-                      );
-                },
-              ),
-            ),
-
-            // Enabled toggle
-            NodePropertyField(
-              colors: colors,
-              label: 'Enabled',
-              child: NodeToggleSwitch(
-                colors: colors,
-                value: node.isEnabled,
-                onChanged: (value) {
-                  ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(isEnabled: value),
-                      );
-                },
-              ),
-            ),
-
-            const Divider(height: 32),
-
-            // Type-specific properties
-            _buildTypeSpecificProperties(ref),
-
-            const SizedBox(height: 24),
-
-            // Delete button — routes through the canonical confirmation
-            // helper so a stray click on the Properties-panel button can't
-            // silently nuke a container holding many descendants. The
-            // helper handles both the prompt and the selection cleanup.
-            SizedBox(
-              width: double.infinity,
-              child: NodeDangerButton(
-                colors: colors,
-                label: 'Delete Node',
-                icon: LucideIcons.trash2,
-                onPressed: () async {
-                  await confirmAndDeleteSequenceNode(
-                    context: context,
-                    ref: ref,
-                    nodeId: node.id,
+                // Name field
+                NodePropertyField(
+                  colors: colors,
+                  label: 'Name',
+                  child: NodeTextInput(
                     colors: colors,
-                  );
-                },
-              ),
+                    value: node.name,
+                    onChanged: (value) {
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(name: value),
+                          );
+                    },
+                  ),
+                ),
+
+                // Enabled toggle
+                NodePropertyField(
+                  colors: colors,
+                  label: 'Enabled',
+                  child: NodeToggleSwitch(
+                    colors: colors,
+                    value: node.isEnabled,
+                    onChanged: (value) {
+                      ref.read(currentSequenceProvider.notifier).updateNode(
+                            node.copyWith(isEnabled: value),
+                          );
+                    },
+                  ),
+                ),
+
+                const Divider(height: 32),
+
+                // Type-specific properties
+                _buildTypeSpecificProperties(ref),
+
+                const SizedBox(height: 24),
+
+                // Delete button — routes through the canonical confirmation
+                // helper so a stray click on the Properties-panel button can't
+                // silently nuke a container holding many descendants. The
+                // helper handles both the prompt and the selection cleanup.
+                SizedBox(
+                  width: double.infinity,
+                  child: NodeDangerButton(
+                    colors: colors,
+                    label: 'Delete Node',
+                    icon: LucideIcons.trash2,
+                    onPressed: () async {
+                      await confirmAndDeleteSequenceNode(
+                        context: context,
+                        ref: ref,
+                        nodeId: node.id,
+                        colors: colors,
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

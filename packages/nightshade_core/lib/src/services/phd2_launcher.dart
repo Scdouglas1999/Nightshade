@@ -103,11 +103,11 @@ class Phd2Launcher {
 
       try {
         await bridge_api.apiLaunchPhd2();
-      } catch (e) {
+      } catch (_) {
         throw StateError(
           'PHD2 is not running and could not be launched automatically. '
           'Install PHD2 or set Settings → PHD2 Guiding → PHD2 executable '
-          'path. ($e)',
+          'path.',
         );
       }
     }

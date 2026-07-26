@@ -75,6 +75,7 @@ void main() {
 
       final sessions = await container.read(allSessionsProvider.future);
       expect(sessions, hasLength(2));
+      expect(sessions.map((session) => session.id), [2, 1]);
       verify(() => backend.getAllSessions()).called(greaterThanOrEqualTo(1));
     });
 
@@ -160,6 +161,7 @@ void main() {
 
         final images = await container.read(allDbImagesProvider.future);
         expect(images, hasLength(2));
+        expect(images.map((image) => image.id), [11, 10]);
         verify(() => backend.getAllImageRows()).called(greaterThanOrEqualTo(1));
       },
     );

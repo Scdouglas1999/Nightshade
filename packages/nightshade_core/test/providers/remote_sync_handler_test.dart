@@ -14,6 +14,17 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+
+  void switchTo(NightshadeBackend backend) {
+    state = backend;
+  }
+}
+
+class _NoSurveyFramingNotifier extends FramingNotifier {
+  _NoSurveyFramingNotifier(super.ref);
+
+  @override
+  Future<void> loadSurveyImage({double? canvasWidthLogicalPx}) async {}
 }
 
 void main() {
@@ -22,6 +33,48 @@ void main() {
   });
 
   group('applyRemoteSyncEvent', () {
+    test(
+      'host framing events do not echo the target back to the host',
+      () async {
+        final backend = _MockNetworkBackend();
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            framingProvider.overrideWith(_NoSurveyFramingNotifier.new),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await applyRemoteSyncEvent(
+          container,
+          remoteSyncEvent(
+            eventType: RemoteSyncEventTypes.framingTargetChanged,
+            data: const {'ra': 1.5, 'dec': -20.0, 'name': 'M42'},
+          ),
+        );
+        await applyRemoteSyncEvent(
+          container,
+          buildHostMutationEvent(
+            entityType: HostMutationEntity.framing,
+            action: HostMutationAction.updated,
+            extra: const {'ra': 2.0, 'dec': 30.0, 'name': 'M31'},
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(container.read(framingProvider).target?.name, 'M31');
+        verifyNever(
+          () => backend.framingSetTarget(
+            ra: any(named: 'ra'),
+            dec: any(named: 'dec'),
+            name: any(named: 'name'),
+          ),
+        );
+      },
+    );
+
     test('equipment Connected updates mount chip without hydration', () async {
       final backend = _MockNetworkBackend();
       when(
@@ -217,6 +270,57 @@ void main() {
       expect(frame.settings.exposureTime, 12.0);
       expect(frame.previewSource, CapturePreviewSource.remote);
       verify(() => backend.cameraGetLastImage('asi:0')).called(1);
+    });
+
+    test('late current-frame response from an old host is discarded', () async {
+      final hostA = _MockNetworkBackend();
+      final hostB = _MockNetworkBackend();
+      final delayedFrame = Completer<CapturedImageResult?>();
+      when(
+        () => hostA.cameraGetLastImage('asi:0'),
+      ).thenAnswer((_) => delayedFrame.future);
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, hostA),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(cameraStateProvider.notifier)
+        ..setConnecting('asi:0', 'ASI Camera')
+        ..setConnected();
+
+      await applyRemoteSyncEvent(
+        container,
+        const NightshadeEvent(
+          timestamp: 6,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ImageReady',
+          data: {'width': 4, 'height': 2},
+        ),
+        networkBackend: hostA,
+      );
+      await pumpEventQueue();
+      verify(() => hostA.cameraGetLastImage('asi:0')).called(1);
+
+      final notifier =
+          container.read(backendProvider.notifier) as _FixedBackendNotifier;
+      notifier.switchTo(hostB);
+      delayedFrame.complete(
+        makeCapturedImageResult(
+          width: 4,
+          height: 2,
+          exposureTime: 12,
+          timestamp: '2026-06-02T03:00:00Z',
+        ),
+      );
+      await pumpEventQueue(times: 20);
+
+      expect(container.read(currentImageProvider), isNull);
+      verifyNever(() => hostB.cameraGetLastImage(any()));
     });
 
     test(

@@ -74,6 +74,11 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
               HeadlessApiServer._requestIdHeader: requestId,
             },
           );
+        } on HijackException {
+          // WebSocket upgrades intentionally hijack the shelf request stream.
+          // This is control flow for shelf_io, not a failed HTTP request; it
+          // must escape every middleware layer untouched.
+          rethrow;
         } catch (e, stackTrace) {
           final elapsedMs = DateTime.now().difference(startedAt).inMilliseconds;
           _logError(
@@ -538,6 +543,17 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       // client-side, so an operator can pair from any LAN browser without the
       // mobile app or terminal access.
       '/pair',
+      // Site root. Typing the host into a browser used to return
+      // `{"error":"Authentication required"}` as raw JSON (401), or
+      // `Route not found` once authenticated — machine output shown to a human
+      // who has no way to know `/dashboard` exists. It only ever redirects an
+      // HTML client to the (already-public) dashboard, so exempting it exposes
+      // nothing.
+      '/',
+      // Browsers request this unprompted on every page load, and a 401 per load
+      // both spammed the console and logged an auth failure for a file we do
+      // not even serve.
+      '/favicon.ico',
     };
 
     // WebSocket paths that support query-param auth (legacy ?token=) or the
@@ -551,8 +567,19 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
 
     return (innerHandler) {
       return (request) {
-        // Skip auth if no token is configured
-        if (_effectiveAuthTokensByValue.isEmpty &&
+        // FAIL CLOSED when unconfigured. Historically this short-circuited
+        // EVERY request when no tokens were configured, which served a fresh
+        // appliance wide open. We now only take that path behind the explicit
+        // `--allow-unauthenticated` / NIGHTSHADE_ALLOW_UNAUTHENTICATED opt-in
+        // (a prominent warning is logged at startup, see server_lifecycle).
+        //
+        // Without the opt-in we deliberately fall through to the public-path
+        // allowlist below: an unconfigured server still exposes only the
+        // pairing/discovery/dashboard bootstrap surface so the appliance can be
+        // onboarded, while every privileged endpoint requires a bearer token
+        // and returns 401 until a token is configured or a device pairs.
+        if (allowUnauthenticated &&
+            _effectiveAuthTokensByValue.isEmpty &&
             _pairedSessionTokens.isEmpty) {
           return innerHandler(request);
         }
@@ -637,10 +664,10 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                 },
               );
             }
-            final queryScope = _scopeForToken(queryToken);
-            if (queryScope != null &&
-                HeadlessAuthPolicy.allows(
-                  actual: queryScope,
+            final queryGrant = _grantForToken(queryToken);
+            if (queryGrant != null &&
+                HeadlessAuthPolicy.permits(
+                  grant: queryGrant,
                   method: 'WS',
                   path: path,
                 )) {
@@ -796,8 +823,8 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
             },
           );
         }
-        final tokenScope = _scopeForToken(token);
-        if (tokenScope == null) {
+        final tokenGrant = _grantForToken(token);
+        if (tokenGrant == null) {
           _tokenResolver.recordFailure(clientKey);
           _logWarning(
             '[AUTH][$requestId] Rejected request to $path - invalid token',
@@ -814,26 +841,41 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
         // resets the counter for that client.
         _tokenResolver.clearFailures(clientKey);
 
-        if (!HeadlessAuthPolicy.allows(
-          actual: tokenScope,
+        if (!HeadlessAuthPolicy.permits(
+          grant: tokenGrant,
           method: request.method,
           path: path,
         )) {
+          final requiredCapability = HeadlessAuthPolicy.requiredCapabilityFor(
+            method: request.method,
+            path: path,
+          );
           final requiredScope = HeadlessAuthPolicy.requiredScopeFor(
             method: request.method,
             path: path,
           );
           _logWarning(
             '[AUTH][$requestId] Rejected request to $path - '
-            'scope=${headlessTokenScopeName(tokenScope)} '
-            'required=${headlessTokenScopeName(requiredScope)}',
+            'scope=${headlessTokenScopeName(tokenGrant.coarseScope)} '
+            'required=${headlessTokenScopeName(requiredScope)} '
+            'resource=${headlessResourceName(requiredCapability.resource)} '
+            'level=${headlessAccessLevelName(requiredCapability.level)}',
           );
           return jsonForbidden(
             {
               'error': 'Access denied',
               'message': 'Token scope is not permitted for this endpoint',
+              // back-compat coarse fields (existing clients key off these).
               'requiredScope': headlessTokenScopeName(requiredScope),
-              'tokenScope': headlessTokenScopeName(tokenScope),
+              'tokenScope': headlessTokenScopeName(tokenGrant.coarseScope),
+              // fine-grained detail so a scoped client can see exactly which
+              // resource/level it lacked.
+              'requiredResource': headlessResourceName(
+                requiredCapability.resource,
+              ),
+              'requiredLevel': requiredCapability.adminOnly
+                  ? 'admin'
+                  : headlessAccessLevelName(requiredCapability.level),
             },
             headers: {HeadlessApiServer._requestIdHeader: requestId},
           );
@@ -968,27 +1010,35 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     );
   }
 
-  HeadlessTokenScope? _scopeForToken(String? token) {
+  /// Resolve [token] to its [HeadlessAuthGrant], or null when unrecognised.
+  ///
+  /// Why constant-time + full-iteration: a naive Map[token] short-circuits on
+  /// hash mismatch, leaking per-character timing of the bearer token to a
+  /// network attacker (§2.22). The resolver iterates the entire map and uses
+  /// XOR-based comparison so timing is independent of which entry matches. The
+  /// paired-session sweep below mirrors that property — we do NOT branch on the
+  /// static-table outcome before completing the paired scan, so the choice
+  /// between "static config token" and "paired token" is not observable.
+  HeadlessAuthGrant? _grantForToken(String? token) {
     if (token == null || token.isEmpty) {
       return null;
     }
-    // Why constant-time + full-iteration: a naive Map[token] short-circuits on
-    // hash mismatch, leaking per-character timing of the bearer token to a
-    // network attacker (§2.22). The resolver iterates the entire map and uses
-    // XOR-based comparison so timing is independent of which entry matches.
-    final scope = _tokenResolver.resolve(token);
-    if (scope != null) {
-      return scope;
-    }
+    final staticGrant = _tokenResolver.resolve(token);
     // Paired-session tokens live outside the immutable static map (Drift-
-    // backed). Mirror the same constant-time iteration here so the choice
-    // between "static config token" and "paired token" is not observable.
-    HeadlessTokenScope? pairedMatch;
+    // backed). Mirror the same constant-time iteration here.
+    HeadlessAuthGrant? pairedMatch;
     for (final entry in _pairedSessionTokens.entries) {
       if (constantTimeCompareStrings(entry.key, token)) {
         pairedMatch = entry.value;
       }
     }
-    return pairedMatch;
+    return staticGrant ?? pairedMatch;
+  }
+
+  /// Coarse projection of [_grantForToken], kept for the AuthHandlers
+  /// recognised-token check (`POST /api/auth/cookie`). Returns null iff the
+  /// token is unknown.
+  HeadlessTokenScope? _scopeForToken(String? token) {
+    return _grantForToken(token)?.coarseScope;
   }
 }

@@ -12,6 +12,7 @@ export 'api/connection/ascom_connections.dart';
 export 'api/devices/camera.dart';
 export 'api/devices/cover_calibrator.dart';
 export 'api/devices/dome.dart';
+export 'api/devices/environment.dart';
 export 'api/devices/filter_wheel.dart';
 export 'api/devices/focuser.dart';
 export 'api/devices/mount.dart';

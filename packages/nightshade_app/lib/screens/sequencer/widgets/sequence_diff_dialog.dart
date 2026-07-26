@@ -64,13 +64,42 @@ class SequenceDiffDialog extends StatelessWidget {
       return;
     }
 
-    // The snapshot of the run immediately before this one. Null when there is
-    // no earlier completed run, or when the earlier run predates the snapshot
-    // column (legacy rows store null).
-    final previousJson = await repo.loadPreviousRunSnapshot(
-      sequenceId,
-      beforeRunId: run.id,
-    );
+    // Resolve both sides together so remote clients compare the exact
+    // host-persisted documents instead of falling back to a controller-local
+    // database or a since-edited live sequence definition.
+    final SequenceRunDiffContext diffContext;
+    try {
+      diffContext = await repo.loadRunDiffContext(run.id);
+    } on ServerError catch (error) {
+      if (!context.mounted) return;
+      await _showNoComparison(
+        context,
+        colors,
+        error.code == 'sequence_run_not_found'
+            ? 'This run no longer exists on the imaging host.'
+            : 'Could not load the run snapshots from the imaging host. '
+                'Check the connection and try again.',
+      );
+      return;
+    } catch (_) {
+      if (!context.mounted) return;
+      await _showNoComparison(
+        context,
+        colors,
+        'Could not load the saved run snapshots. Try again.',
+      );
+      return;
+    }
+    if (diffContext.sequenceId != sequenceId) {
+      if (!context.mounted) return;
+      await _showNoComparison(
+        context,
+        colors,
+        'This run is no longer linked to the sequence shown in history.',
+      );
+      return;
+    }
+    final previousJson = diffContext.previousSnapshotJson;
     if (previousJson == null) {
       if (!context.mounted) return;
       await _showNoComparison(
@@ -88,7 +117,7 @@ class SequenceDiffDialog extends StatelessWidget {
     // definition for runs that predate snapshot capture.
     Sequence current;
     try {
-      final currentSnapshot = run.sequenceSnapshotJson;
+      final currentSnapshot = diffContext.currentSnapshotJson;
       if (currentSnapshot != null && currentSnapshot.isNotEmpty) {
         current = _parseSnapshot(fileService, currentSnapshot);
       } else {

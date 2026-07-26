@@ -25,6 +25,7 @@ class _SequenceCard extends ConsumerStatefulWidget {
 class _SequenceCardState extends ConsumerState<_SequenceCard> {
   bool _isHovered = false;
   bool _expanded = false;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
   /// Lazily-loaded full sequence for the expandable preview. Loaded the first
   /// time the user expands the card and reused afterwards.
@@ -33,6 +34,32 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   Object? _previewError;
 
   SequenceSummary get _summary => widget.summary;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        setState(() {
+          _expanded = false;
+          _previewSequence = null;
+          _previewLoading = false;
+          _previewError = null;
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  bool _isCurrentAuthority(NightshadeBackend authority) =>
+      identical(ref.read(backendProvider), authority);
 
   String _formatDuration() {
     final totalSecs = _summary.totalIntegrationSecs;
@@ -79,6 +106,41 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   Widget _buildMainRow() {
     final primaryTarget = _summary.primaryTargetName;
+    final info = _buildInfo(primaryTarget);
+    final actions = _buildActions();
+
+    if (Responsive.isMobile(context)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _FavoriteToggle(
+                colors: widget.colors,
+                isFavorite: _summary.isFavorite,
+                onPressed: _toggleFavorite,
+              ),
+              const SizedBox(width: 8),
+              _buildSequenceIcon(size: 40),
+              const SizedBox(width: 12),
+              Expanded(child: info),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AnimatedOpacity(
+            opacity: 1,
+            duration: const Duration(milliseconds: 150),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: actions,
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         // Favorite star (also acts as the favorite toggle).
@@ -91,90 +153,12 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         const SizedBox(width: 8),
 
         // Icon
-        Container(
-          width: 48,
-          height: 48,
-          decoration: NightshadeDecorations.tintedBadge(
-            widget.colors.primary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-          ),
-          child: Icon(
-            LucideIcons.workflow,
-            size: 24,
-            color: widget.colors.primary,
-          ),
-        ),
+        _buildSequenceIcon(),
 
         const SizedBox(width: 16),
 
         // Info
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _summary.name,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize15,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _formatDate(_summary.modifiedAt),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: widget.colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Stats
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
-                children: [
-                  if (primaryTarget != null && primaryTarget.isNotEmpty)
-                    _StatChip(
-                      colors: widget.colors,
-                      icon: LucideIcons.star,
-                      label: primaryTarget,
-                    ),
-                  _StatChip(
-                    colors: widget.colors,
-                    icon: LucideIcons.layers,
-                    label: '${_summary.nodeCount} nodes',
-                  ),
-                  _StatChip(
-                    colors: widget.colors,
-                    icon: LucideIcons.target,
-                    label: '${_summary.targetCount} targets',
-                  ),
-                  _StatChip(
-                    colors: widget.colors,
-                    icon: LucideIcons.camera,
-                    label: '${_summary.exposureCount} exposures',
-                  ),
-                  _StatChip(
-                    colors: widget.colors,
-                    icon: LucideIcons.timer,
-                    label: _formatDuration(),
-                  ),
-                ],
-              ),
-              _buildRunRollup(),
-              _buildTagRow(),
-            ],
-          ),
-        ),
+        Expanded(child: info),
 
         // Actions
         AnimatedOpacity(
@@ -183,68 +167,152 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _IconButton(
-                colors: widget.colors,
-                icon:
-                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-                tooltip: _expanded ? 'Hide preview' : 'Preview',
-                onPressed: _togglePreview,
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.history,
-                tooltip: 'View run history',
-                onPressed: () => _openHistory(context),
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.gitBranch,
-                tooltip: 'Version history',
-                onPressed: () => _openVersionHistory(context),
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.tags,
-                tooltip: 'Edit tags',
-                onPressed: () => _editTags(context),
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.folderOpen,
-                tooltip: 'Load',
-                onPressed: () => _loadSequence(context),
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.copy,
-                tooltip: 'Duplicate',
-                onPressed: () => _duplicateSequence(context),
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.upload,
-                tooltip: 'Export',
-                onPressed: () => _exportSequence(context),
-              ),
-              const SizedBox(width: 4),
-              _IconButton(
-                colors: widget.colors,
-                icon: LucideIcons.trash2,
-                tooltip: 'Delete',
-                color: widget.colors.error,
-                onPressed: () => _deleteSequence(context),
-              ),
+              for (var i = 0; i < actions.length; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                actions[i],
+              ],
             ],
           ),
         ),
       ],
     );
+  }
+
+  Widget _buildSequenceIcon({double size = 48}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: NightshadeDecorations.tintedBadge(
+        widget.colors.primary,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+      ),
+      child: Icon(
+        LucideIcons.workflow,
+        size: size / 2,
+        color: widget.colors.primary,
+      ),
+    );
+  }
+
+  Widget _buildInfo(String? primaryTarget) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _summary.name,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize15,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              _formatDate(_summary.modifiedAt),
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: widget.colors.textMuted,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 6,
+          children: [
+            if (primaryTarget != null && primaryTarget.isNotEmpty)
+              _StatChip(
+                colors: widget.colors,
+                icon: LucideIcons.star,
+                label: primaryTarget,
+              ),
+            _StatChip(
+              colors: widget.colors,
+              icon: LucideIcons.layers,
+              label: '${_summary.nodeCount} nodes',
+            ),
+            _StatChip(
+              colors: widget.colors,
+              icon: LucideIcons.target,
+              label: '${_summary.targetCount} targets',
+            ),
+            _StatChip(
+              colors: widget.colors,
+              icon: LucideIcons.camera,
+              label: '${_summary.exposureCount} exposures',
+            ),
+            _StatChip(
+              colors: widget.colors,
+              icon: LucideIcons.timer,
+              label: _formatDuration(),
+            ),
+          ],
+        ),
+        _buildRunRollup(),
+        _buildTagRow(),
+      ],
+    );
+  }
+
+  List<Widget> _buildActions() {
+    return [
+      _IconButton(
+        colors: widget.colors,
+        icon: _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+        tooltip: _expanded ? 'Hide preview' : 'Preview',
+        onPressed: _togglePreview,
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.history,
+        tooltip: 'View run history',
+        onPressed: () => _openHistory(context),
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.gitBranch,
+        tooltip: 'Version history',
+        onPressed: () => _openVersionHistory(context),
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.tags,
+        tooltip: 'Edit tags',
+        onPressed: () => _editTags(context),
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.folderOpen,
+        tooltip: 'Load',
+        onPressed: () => _loadSequence(context),
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.copy,
+        tooltip: 'Duplicate',
+        onPressed: () => _duplicateSequence(context),
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.upload,
+        tooltip: 'Export',
+        onPressed: () => _exportSequence(context),
+      ),
+      _IconButton(
+        colors: widget.colors,
+        icon: LucideIcons.trash2,
+        tooltip: 'Delete',
+        color: widget.colors.error,
+        onPressed: () => _deleteSequence(context),
+      ),
+    ];
   }
 
   /// Run-history rollup row ("N runs · last DATE"), straight from the summary.
@@ -489,16 +557,20 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   /// Load the full sequence from the repository, used by every tree-requiring
   /// action. Returns null and surfaces an error snackbar on failure.
-  Future<Sequence?> _loadFullSequence(BuildContext context) async {
+  Future<Sequence?> _loadFullSequence(
+    BuildContext context, {
+    required NightshadeBackend authority,
+    required SequenceRepository repository,
+  }) async {
     try {
-      final repository = ref.read(sequenceRepositoryProvider);
       final sequence = await repository.loadSequence(_summary.id);
+      if (!_isCurrentAuthority(authority)) return null;
       if (sequence == null && context.mounted) {
         context.showErrorSnackBar('Sequence is no longer available');
       }
       return sequence;
     } catch (e) {
-      if (context.mounted) {
+      if (context.mounted && _isCurrentAuthority(authority)) {
         context.showErrorSnackBar('Failed to load sequence: $e');
       }
       return null;
@@ -514,14 +586,15 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   }
 
   Future<void> _loadPreview() async {
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
     setState(() {
       _previewLoading = true;
       _previewError = null;
     });
     try {
-      final repository = ref.read(sequenceRepositoryProvider);
       final sequence = await repository.loadSequence(_summary.id);
-      if (!mounted) return;
+      if (!mounted || !_isCurrentAuthority(authority)) return;
       setState(() {
         _previewSequence = sequence;
         _previewLoading = false;
@@ -530,7 +603,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         }
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_isCurrentAuthority(authority)) return;
       setState(() {
         _previewLoading = false;
         _previewError = e;
@@ -539,12 +612,14 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   }
 
   Future<void> _toggleFavorite() async {
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
     try {
-      final repository = ref.read(sequenceRepositoryProvider);
       await repository.toggleFavorite(_summary.id);
+      if (!_isCurrentAuthority(authority)) return;
       ref.invalidate(savedSequenceSummariesProvider);
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentAuthority(authority)) {
         context.showErrorSnackBar('Failed to update favorite: $e');
       }
     }
@@ -595,8 +670,16 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   }
 
   Future<void> _loadSequence(BuildContext context) async {
-    final source = await _loadFullSequence(context);
-    if (source == null || !context.mounted) return;
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
+    final source = await _loadFullSequence(
+      context,
+      authority: authority,
+      repository: repository,
+    );
+    if (source == null || !context.mounted || !_isCurrentAuthority(authority)) {
+      return;
+    }
 
     // Create a copy with new IDs so we don't modify the saved one
     final newNodes = <String, SequenceNode>{};
@@ -665,9 +748,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
           ],
         ),
       );
-      if (discard != true) return;
+      if (discard != true || !_isCurrentAuthority(authority)) return;
       editor.loadSequence(loadedSequence, discardUnsaved: true);
     }
+
+    if (!_isCurrentAuthority(authority)) return;
 
     ref.read(sequencerTabProvider.notifier).state = 0;
 
@@ -677,10 +762,13 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   }
 
   Future<void> _duplicateSequence(BuildContext context) async {
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
     try {
-      final repository = ref.read(sequenceRepositoryProvider);
       final duplicated = await repository.duplicateSequence(
           _summary.id, '${_summary.name} (Copy)');
+
+      if (!_isCurrentAuthority(authority)) return;
 
       if (duplicated?.databaseId != null) {
         notifySequenceCatalogChanged(
@@ -693,11 +781,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         ref.invalidate(savedSequenceSummariesProvider);
       }
 
-      if (context.mounted) {
+      if (context.mounted && _isCurrentAuthority(authority)) {
         context.showSuccessSnackBar('Duplicated "${_summary.name}"');
       }
     } catch (e) {
-      if (context.mounted) {
+      if (context.mounted && _isCurrentAuthority(authority)) {
         context.showErrorSnackBar('Failed to duplicate: $e');
       }
     }
@@ -707,98 +795,189 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   /// export path: on a blocking validation failure, surface the structured
   /// issue dialog with a "force export anyway" escape hatch.
   Future<void> _exportSequence(BuildContext context) async {
-    final sequence = await _loadFullSequence(context);
-    if (sequence == null || !context.mounted) return;
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
+    final sequence = await _loadFullSequence(
+      context,
+      authority: authority,
+      repository: repository,
+    );
+    if (sequence == null ||
+        !context.mounted ||
+        !_isCurrentAuthority(authority)) {
+      return;
+    }
     final fileService = ref.read(sequenceFileServiceProvider);
     try {
-      await fileService.exportSequence(sequence);
-      if (context.mounted) {
-        context.showSuccessSnackBar('Exported "${sequence.name}"');
+      final exportedPath = await fileService.exportSequence(sequence);
+      if (exportedPath != null &&
+          context.mounted &&
+          _isCurrentAuthority(authority)) {
+        // On a phone the file landed in the app sandbox, so a snackbar naming
+        // it would be a file the user can never open — hand it to the share
+        // sheet instead. Live before this: "Failed to export:
+        // UnimplementedError: getSavePath() has not been implemented."
+        await revealExportedFile(
+          context,
+          exportedPath,
+          subject: 'Nightshade sequence: ${sequence.name}',
+          desktopMessage: 'Exported "${sequence.name}"',
+        );
       }
     } on SequenceValidationFailedException catch (e) {
-      if (!context.mounted) return;
+      if (!context.mounted || !_isCurrentAuthority(authority)) return;
       final force = await showValidationIssueDialog(
         context,
         issues: e.issues,
         operationName: 'Export Sequence',
         forceLabel: 'Force export anyway',
       );
-      if (!force || !context.mounted) return;
+      if (!force || !context.mounted || !_isCurrentAuthority(authority)) {
+        return;
+      }
       try {
-        await fileService.exportSequence(sequence, forceExport: true);
-        if (context.mounted) {
-          context.showSuccessSnackBar('Exported "${sequence.name}" (forced)');
+        final exportedPath = await fileService.exportSequence(
+          sequence,
+          forceExport: true,
+        );
+        if (exportedPath != null &&
+            context.mounted &&
+            _isCurrentAuthority(authority)) {
+          await revealExportedFile(
+            context,
+            exportedPath,
+            subject: 'Nightshade sequence: ${sequence.name}',
+            desktopMessage: 'Exported "${sequence.name}" (forced)',
+          );
         }
       } catch (err) {
-        if (context.mounted) {
+        if (context.mounted && _isCurrentAuthority(authority)) {
           context.showErrorSnackBar('Failed to export: $err');
         }
       }
     } catch (e) {
-      if (context.mounted) {
+      if (context.mounted && _isCurrentAuthority(authority)) {
         context.showErrorSnackBar('Failed to export: $e');
       }
     }
   }
 
   void _deleteSequence(BuildContext context) {
-    final dbId = _summary.id;
-
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (_) => _DeleteSequenceDialog(
+        colors: widget.colors,
+        sequenceId: _summary.id,
+        sequenceName: _summary.name,
+      ),
+    );
+  }
+}
+
+class _DeleteSequenceDialog extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final int sequenceId;
+  final String sequenceName;
+
+  const _DeleteSequenceDialog({
+    required this.colors,
+    required this.sequenceId,
+    required this.sequenceName,
+  });
+
+  @override
+  ConsumerState<_DeleteSequenceDialog> createState() =>
+      _DeleteSequenceDialogState();
+}
+
+class _DeleteSequenceDialogState extends ConsumerState<_DeleteSequenceDialog> {
+  late final NightshadeBackend _authority;
+  late final SequenceRepository _repository;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  bool _isDeleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authority = ref.read(backendProvider);
+    _repository = ref.read(sequenceRepositoryProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        context.showWarningSnackBar(
+          'The connected host changed. Sequence deletion cancelled.',
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  Future<void> _delete() async {
+    if (!identical(ref.read(backendProvider), _authority)) return;
+    setState(() => _isDeleting = true);
+    try {
+      await _repository.deleteSequence(widget.sequenceId);
+      if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
+
+      notifySequenceCatalogChanged(
+        ref,
+        sequenceId: widget.sequenceId,
+        action: 'deleted',
+        name: widget.sequenceName,
+      );
+      context.showSuccessSnackBar('Deleted "${widget.sequenceName}"');
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
+      setState(() => _isDeleting = false);
+      context.showErrorSnackBar('Failed to delete: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isDeleting,
+      child: AlertDialog(
         backgroundColor: widget.colors.surface,
         shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(NightshadeTokens.radiusInline8)),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        ),
         title: Text(
           'Delete Sequence',
           style: TextStyle(color: widget.colors.textPrimary),
         ),
         content: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
-            dialogContext,
+            context,
             designMaxWidth: 400,
           ),
           child: Text(
-            'Are you sure you want to delete "${_summary.name}"? This action cannot be undone.',
+            'Are you sure you want to delete "${widget.sequenceName}"? '
+            'This action cannot be undone.',
             style: TextStyle(color: widget.colors.textSecondary),
           ),
         ),
         actions: [
           NightshadeButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
+            onPressed: _isDeleting ? null : () => Navigator.of(context).pop(),
             label: 'Cancel',
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
           ),
           NightshadeButton(
-            onPressed: () async {
-              Navigator.of(dialogContext).pop();
-
-              try {
-                final repository = ref.read(sequenceRepositoryProvider);
-                await repository.deleteSequence(dbId);
-
-                notifySequenceCatalogChanged(
-                  ref,
-                  sequenceId: dbId,
-                  action: 'deleted',
-                  name: _summary.name,
-                );
-
-                if (context.mounted) {
-                  context.showSuccessSnackBar('Deleted "${_summary.name}"');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to delete: $e');
-                }
-              }
-            },
+            onPressed: _isDeleting ? null : _delete,
             label: 'Delete',
             variant: ButtonVariant.destructive,
             size: ButtonSize.small,
+            isLoading: _isDeleting,
           ),
         ],
       ),

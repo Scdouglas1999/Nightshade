@@ -1,13 +1,8 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
-import 'package:path/path.dart' as p;
 
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/flat_wizard_keys.dart';

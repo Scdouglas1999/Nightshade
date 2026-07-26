@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'settings_widgets.dart';
 
@@ -25,8 +28,15 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   List<RemoteCatalogStatus> _installed = const [];
   List<RemoteAvailableCatalog> _available = const [];
   bool _loading = false;
-  bool _busy = false;
+  Object? _actionToken;
+  String? _busyAction;
+  String? _busyCatalog;
+  bool _confirmationOpen = false;
   String? _error;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _loadGeneration = 0;
+
+  bool get _busy => _actionToken != null;
 
   NetworkBackend? get _backend {
     final b = ref.read(backendProvider);
@@ -36,27 +46,71 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _loadGeneration++;
+        setState(() {
+          _installed = const [];
+          _available = const [];
+          _error = null;
+          _loading = next is NetworkBackend;
+          _actionToken = null;
+          _busyAction = null;
+          _busyCatalog = null;
+          _confirmationOpen = false;
+        });
+        if (next is NetworkBackend) unawaited(_refresh());
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_refresh());
+    });
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
     final backend = _backend;
-    if (backend == null) return;
+    final generation = ++_loadGeneration;
+    if (backend == null) {
+      if (!mounted) return;
+      setState(() {
+        _installed = const [];
+        _available = const [];
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final status = await backend.getCatalogStatus();
-      final available = await backend.listAvailableCatalogs();
-      if (!mounted) return;
+      final responses = await Future.wait<Object>([
+        backend.getCatalogStatus(),
+        backend.listAvailableCatalogs(),
+      ]);
+      if (!_isCurrentLoad(backend, generation)) return;
+      final status = responses[0] as RemoteCatalogStatusResponse;
+      final available = responses[1] as List<RemoteAvailableCatalog>;
       setState(() {
-        _installed = status.catalogs;
+        // The status endpoint returns every known catalog, including
+        // `missing` rows. Missing rows must remain downloadable.
+        _installed = status.catalogs
+            .where((catalog) => catalog.status.toLowerCase() != 'missing')
+            .toList(growable: false);
         _available = available;
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentLoad(backend, generation)) return;
       setState(() {
         _loading = false;
         _error = '$e';
@@ -64,19 +118,125 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     }
   }
 
-  Future<void> _run(String label, Future<void> Function() action) async {
+  bool _isCurrentLoad(NetworkBackend backend, int generation) =>
+      mounted &&
+      generation == _loadGeneration &&
+      identical(ref.read(backendProvider), backend);
+
+  bool _isCurrentAction(NetworkBackend backend, Object token) =>
+      mounted &&
+      identical(_actionToken, token) &&
+      identical(ref.read(backendProvider), backend);
+
+  Future<void> _run({
+    required String actionLabel,
+    required String successMessage,
+    String? catalogName,
+    required Future<void> Function(NetworkBackend backend) action,
+  }) async {
+    if (_busy || _confirmationOpen) return;
     final backend = _backend;
     if (backend == null) return;
-    setState(() => _busy = true);
+    final token = Object();
+    setState(() {
+      _actionToken = token;
+      _busyAction = actionLabel;
+      _busyCatalog = catalogName;
+    });
     try {
-      await action();
-      if (mounted) context.showSuccessSnackBar('$label started');
+      await action(backend);
+      if (mounted && _isCurrentAction(backend, token)) {
+        context.showSuccessSnackBar(successMessage);
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('$label failed: $e');
+      if (mounted && _isCurrentAction(backend, token)) {
+        context.showErrorSnackBar('$actionLabel failed: $e');
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
-      await _refresh();
+      if (_isCurrentAction(backend, token)) {
+        setState(() {
+          _actionToken = null;
+          _busyAction = null;
+          _busyCatalog = null;
+        });
+        await _refresh();
+      }
     }
+  }
+
+  Future<void> _downloadCatalog(RemoteAvailableCatalog catalog) {
+    return _run(
+      actionLabel: 'Download',
+      successMessage: '${catalog.displayName} installed',
+      catalogName: catalog.name,
+      action: (backend) async {
+        final accepted = await backend.downloadCatalog(catalog.name);
+        final completed = accepted.isTerminal
+            ? accepted
+            : await backend.awaitJobCompletion(
+                accepted.jobId,
+                timeout: const Duration(minutes: 30),
+              );
+        if (completed.state != 'succeeded') {
+          final detail = completed.error?['message'] ??
+              completed.error?['code'] ??
+              completed.state;
+          throw StateError('catalog job ended ${completed.state}: $detail');
+        }
+      },
+    );
+  }
+
+  Future<void> _verifyCatalog(RemoteCatalogStatus catalog) {
+    return _run(
+      actionLabel: 'Verify',
+      successMessage: '${catalog.name} catalog verified',
+      catalogName: catalog.name,
+      action: (backend) async {
+        final results = await backend.verifyCatalog(name: catalog.name);
+        final result = results[catalog.name];
+        if (result == null) {
+          throw StateError('the appliance returned no verification result');
+        }
+        if (!result.ok) {
+          final detail = result.errors.isEmpty
+              ? 'hash verification did not match'
+              : result.errors.join('; ');
+          throw StateError(detail);
+        }
+      },
+    );
+  }
+
+  Future<void> _confirmUninstall(RemoteCatalogStatus catalog) async {
+    if (_busy || _confirmationOpen) return;
+    final backend = _backend;
+    if (backend == null) return;
+    setState(() => _confirmationOpen = true);
+    final bool confirmed;
+    try {
+      confirmed = await ConfirmDialog.show(
+        context: context,
+        title: 'Remove ${catalog.name} catalog?',
+        message: 'Features that depend on this catalog will stop working on '
+            'the appliance until it is downloaded again.',
+        confirmLabel: 'Remove',
+        isDestructive: true,
+      );
+    } finally {
+      if (mounted) setState(() => _confirmationOpen = false);
+    }
+    if (!mounted || !confirmed) return;
+    if (!identical(ref.read(backendProvider), backend)) {
+      context.showInfoSnackBar('Rig changed; catalog removal cancelled');
+      return;
+    }
+    await _run(
+      actionLabel: 'Remove',
+      successMessage: '${catalog.name} catalog removed',
+      catalogName: catalog.name,
+      action: (authority) => authority.uninstallCatalog(catalog.name),
+    );
   }
 
   static String _fmtBytes(int bytes) {
@@ -122,7 +282,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
                       fontWeight: FontWeight.w600)),
               const Spacer(),
               NightshadeButton(
-                onPressed: _loading ? null : _refresh,
+                onPressed: (_loading || _busy) ? null : _refresh,
                 label: 'Refresh',
                 icon: LucideIcons.rotateCw,
                 variant: ButtonVariant.ghost,
@@ -131,12 +291,17 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
               const SizedBox(width: 8),
               NightshadeButton(
                 onPressed: (!_busy && _isInstalled)
-                    ? () => _run('Reload', () => _backend!.reloadCatalogs())
+                    ? () => _run(
+                          actionLabel: 'Reload',
+                          successMessage: 'Catalog loaders reloaded',
+                          action: (backend) => backend.reloadCatalogs(),
+                        )
                     : null,
                 label: 'Reload',
                 icon: LucideIcons.refreshCw,
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
+                isLoading: _busyAction == 'Reload',
               ),
             ],
           ),
@@ -201,22 +366,22 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
                         fontWeight: FontWeight.w600)),
               ),
               NightshadeButton(
-                onPressed: _busy
+                onPressed: (_busy || _confirmationOpen)
                     ? null
-                    : () => _run(
-                        'Verify', () => _backend!.verifyCatalog(name: c.name)),
+                    : () => _verifyCatalog(c),
                 label: 'Verify',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
+                isLoading: _busyAction == 'Verify' && _busyCatalog == c.name,
               ),
               NightshadeButton(
-                onPressed: _busy
+                onPressed: (_busy || _confirmationOpen)
                     ? null
-                    : () => _run(
-                        'Uninstall', () => _backend!.uninstallCatalog(c.name)),
+                    : () => _confirmUninstall(c),
                 label: 'Remove',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
+                isLoading: _busyAction == 'Remove' && _busyCatalog == c.name,
               ),
             ],
           ),
@@ -239,7 +404,9 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   }
 
   Widget _availableTile(NightshadeColors colors, RemoteAvailableCatalog a) {
-    final installed = _installed.any((c) => c.name == a.name);
+    final installed = _installed.any(
+      (c) => c.name.toLowerCase() == a.name.toLowerCase(),
+    );
     return NightshadeCard(
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -274,14 +441,12 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
           ),
           const SizedBox(width: 8),
           NightshadeButton(
-            onPressed: (_busy || installed)
-                ? null
-                : () =>
-                    _run('Download', () => _backend!.downloadCatalog(a.name)),
+            onPressed: (_busy || installed) ? null : () => _downloadCatalog(a),
             label: installed ? 'Installed' : 'Download',
             icon: installed ? LucideIcons.check : LucideIcons.download,
             variant: installed ? ButtonVariant.ghost : ButtonVariant.primary,
             size: ButtonSize.small,
+            isLoading: _busyAction == 'Download' && _busyCatalog == a.name,
           ),
         ],
       ),

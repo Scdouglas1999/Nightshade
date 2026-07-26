@@ -238,6 +238,11 @@ impl DeviceManager {
                 m.status.right_ascension = ra;
                 m.status.declination = dec;
                 m.status.parked = false;
+                drop(m);
+                // Repointing starts a new target: the previous one's accumulated
+                // drift does not carry over, and this is what stops a long
+                // session leaving the field pinned at its offset clamp.
+                crate::api::devices::simulation::reset_sim_guide_offset().await;
                 Ok(())
             }
         }
@@ -469,7 +474,34 @@ impl DeviceManager {
                     let mounts = self.ascom_mounts.read().await;
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
-                        return mount.unpark().await.map_err(DeviceOpError::driver);
+                        mount.unpark().await.map_err(DeviceOpError::driver)?;
+                        let deadline =
+                            tokio::time::Instant::now() + std::time::Duration::from_secs(15);
+                        loop {
+                            match mount.is_parked().await {
+                                Ok(false) => return Ok(()),
+                                Ok(true) => {}
+                                Err(error) => {
+                                    return Err(DeviceOpError::hardware(
+                                        Some(device_id.to_string()),
+                                        format!(
+                                            "ASCOM mount {} accepted Unpark but its parked-state readback failed: {}",
+                                            device_id, error
+                                        ),
+                                    ));
+                                }
+                            }
+                            if tokio::time::Instant::now() >= deadline {
+                                return Err(DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    format!(
+                                        "ASCOM mount {} did not report unparked within 15s",
+                                        device_id
+                                    ),
+                                ));
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                        }
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -651,6 +683,8 @@ impl DeviceManager {
                 m.status.altitude = Some(altitude);
                 m.status.azimuth = Some(azimuth);
                 m.status.parked = false;
+                drop(m);
+                crate::api::devices::simulation::reset_sim_guide_offset().await;
                 Ok(())
             }
         }
@@ -1236,13 +1270,22 @@ impl DeviceManager {
                 )))
             }
             DriverType::Simulator => {
-                // Pulse guide on the simulator is a timing-only op; the
-                // singleton has no field that records the last pulse. Just
-                // gate on connection and return Ok so guide-loops driving a
-                // sim mount don't spuriously fail.
+                // Move the simulated star field. This used to gate on connection
+                // and return Ok without recording anything, which meant the
+                // built-in guider's own pulses never shifted the field it was
+                // measuring: calibration always aborted with "Calibration
+                // response on east axis was too small (0.000px)", so guiding,
+                // dithering and the correction loop could not be exercised
+                // without a mount.
                 crate::device_manager::ops::sim_gate::require_mount_connected()
                     .await
-                    .map_err(DeviceOpError::driver)
+                    .map_err(DeviceOpError::driver)?;
+                crate::api::devices::simulation::advance_sim_guide_pulse(
+                    &direction_lower,
+                    duration_ms,
+                )
+                .await;
+                Ok(())
             }
         }
     }
@@ -1735,7 +1778,13 @@ impl DeviceManager {
                             (false, false, false, false)
                         }
                     };
-                    let can_set_tracking_rate = mount.can_set_tracking().await.unwrap_or(false);
+                    // CanSetTracking governs the boolean Tracking property.
+                    // Rate mutability is advertised by TelescopeRates.
+                    let can_set_tracking_rate = mount
+                        .tracking_rates()
+                        .await
+                        .map(|rates| !rates.is_empty())
+                        .unwrap_or(false);
 
                     let tracking_rate_opt = match mount.tracking_rate().await {
                         Ok(rate) => {

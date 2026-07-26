@@ -2,8 +2,256 @@ part of '../calibration_handlers.dart';
 
 extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
   // ===========================================================================
+  // Calibration settings
+  // ===========================================================================
+
+  Future<Map<String, dynamic>> _calibrationSettingsJson() async {
+    final stored = await container.read(settingsDaoProvider).getAllSettings();
+
+    String? pathSetting(String key) {
+      final value = stored[key]?.trim();
+      return value == null || value.isEmpty ? null : value;
+    }
+
+    return {
+      'autoCalibrate': stored['calibration.auto_calibrate'] == 'true',
+      'masterFlatPath': pathSetting('calibration.master_flat_path'),
+      'masterBiasPath': pathSetting('calibration.master_bias_path'),
+      'autoDarkFromLibrary':
+          stored['calibration.auto_dark_from_library'] != 'false',
+      'manualDarkPath': pathSetting('calibration.manual_dark_path'),
+    };
+  }
+
+  Future<Response> handleGetCalibrationSettings(Request request) async {
+    _logInfo('[API] GET /api/calibration/settings');
+    return jsonOk(await _calibrationSettingsJson());
+  }
+
+  Future<Response> handleUpdateCalibrationSettings(Request request) async {
+    _logInfo('[API] POST /api/calibration/settings');
+    final payload = await readJsonObject(request);
+    final updates = <String, String>{};
+
+    if (payload.containsKey('autoCalibrate')) {
+      updates['calibration.auto_calibrate'] = requireBool(
+        payload,
+        'autoCalibrate',
+      ).toString();
+    }
+    if (payload.containsKey('autoDarkFromLibrary')) {
+      updates['calibration.auto_dark_from_library'] = requireBool(
+        payload,
+        'autoDarkFromLibrary',
+      ).toString();
+    }
+    for (final entry in const {
+      'masterFlatPath': 'calibration.master_flat_path',
+      'masterBiasPath': 'calibration.master_bias_path',
+      'manualDarkPath': 'calibration.manual_dark_path',
+    }.entries) {
+      if (payload.containsKey(entry.key)) {
+        updates[entry.value] = _validatedCalibrationFilePath(
+          payload,
+          entry.key,
+        );
+      }
+    }
+
+    if (updates.isEmpty) {
+      throw BadRequestError(
+        field: 'body',
+        expected: 'at_least_one_calibration_setting',
+        message: 'At least one calibration setting is required',
+      );
+    }
+
+    await container.read(settingsDaoProvider).setSettings(updates);
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.updated,
+      extra: const {'namespace': 'calibration'},
+    );
+    return jsonOk(await _calibrationSettingsJson());
+  }
+
+  String _validatedCalibrationFilePath(
+    Map<String, dynamic> payload,
+    String field,
+  ) {
+    final raw = payload[field];
+    if (raw == null) return '';
+    if (raw is! String) {
+      throw BadRequestError(field: field, expected: 'string_or_null');
+    }
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+    if (value.length > 4096) {
+      throw BadRequestError(
+        field: field,
+        expected: 'host_fits_path',
+        message: 'Calibration file path exceeds 4096 characters',
+      );
+    }
+    if (!p.isAbsolute(value)) {
+      throw BadRequestError(
+        field: field,
+        expected: 'absolute_host_path',
+        message: 'Calibration file path must be absolute on the imaging host',
+      );
+    }
+    final extension = p.extension(value).toLowerCase();
+    if (!const {'.fits', '.fit', '.fts', '.xisf'}.contains(extension)) {
+      throw BadRequestError(
+        field: field,
+        expected: 'fits_or_xisf_file',
+        message: 'Calibration master must be a FITS or XISF file',
+      );
+    }
+    if (!File(value).existsSync()) {
+      throw BadRequestError(
+        field: field,
+        expected: 'existing_host_file',
+        message: 'Calibration file does not exist on the imaging host',
+      );
+    }
+    return value;
+  }
+
+  // ===========================================================================
   // Dark library
   // ===========================================================================
+
+  Future<Map<String, dynamic>> _darkSettingsJson() async {
+    final stored = await container.read(settingsDaoProvider).getAllSettings();
+    final temperature = double.tryParse(
+      stored[darkLibraryTempToleranceKey] ?? '',
+    );
+    return {
+      'autoCalibrate': stored['calibration.auto_calibrate'] == 'true',
+      'temperatureTolerance':
+          temperature ?? DarkLibraryMatchTolerances.defaults.temperatureC,
+    };
+  }
+
+  Future<Response> handleGetDarkSettings(Request request) async {
+    _logInfo('[API] GET /api/calibration/darks/settings');
+    return jsonOk(await _darkSettingsJson());
+  }
+
+  Future<Response> handleUpdateDarkSettings(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/settings');
+    final payload = await readJsonObject(request);
+    final autoCalibrate = optionalBool(payload, 'autoCalibrate');
+    final temperature = optionalDouble(
+      payload,
+      'temperatureTolerance',
+      min: 0,
+      max: 20,
+    );
+    if (autoCalibrate == null && temperature == null) {
+      throw BadRequestError(
+        field: 'body',
+        expected: 'autoCalibrate_or_temperatureTolerance',
+        message: 'At least one dark-library setting is required',
+      );
+    }
+    await container.read(settingsDaoProvider).setSettings({
+      if (autoCalibrate != null)
+        'calibration.auto_calibrate': autoCalibrate.toString(),
+      if (temperature != null)
+        darkLibraryTempToleranceKey: temperature.toString(),
+    });
+    return jsonOk(await _darkSettingsJson());
+  }
+
+  String _darkFrameType(Map<String, dynamic> payload) {
+    final frameType = optionalString(payload, 'frameType') ?? 'dark';
+    if (frameType != 'dark' && frameType != 'bias') {
+      throw BadRequestError(
+        field: 'frameType',
+        expected: 'one_of:dark,bias',
+        message: 'Frame type must be dark or bias',
+      );
+    }
+    return frameType;
+  }
+
+  DarkGroupKey _darkGroupFromPayload(Map<String, dynamic> payload) {
+    return DarkGroupKey(
+      exposureTime: requireDouble(payload, 'exposureTime', min: 0, max: 86400),
+      gain: requireInt(payload, 'gain', min: 0),
+      offset: requireInt(payload, 'offset', min: 0),
+      binX: requireInt(payload, 'binX', min: 1, max: 16),
+      binY: requireInt(payload, 'binY', min: 1, max: 16),
+      frameType: _darkFrameType(payload),
+    );
+  }
+
+  Future<Response> handleCreateMasterDark(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/create-master');
+    final payload = await readJsonObject(request);
+    final group = _darkGroupFromPayload(payload);
+    final outputPath = requireString(payload, 'outputPath', maxLength: 4096);
+    if (!p.isAbsolute(outputPath)) {
+      throw BadRequestError(
+        field: 'outputPath',
+        expected: 'absolute_path',
+        message: 'Master-dark output path must be absolute on the imaging host',
+      );
+    }
+    final service = container.read(darkLibraryServiceProvider);
+    final frames = await service.getEntriesForGroup(group);
+    final rawFrames = frames
+        .where((entry) => entry.masterDarkPath == null)
+        .toList(growable: false);
+    if (rawFrames.length < 2) {
+      throw BadRequestError(
+        field: 'group',
+        expected: 'at_least_two_raw_frames',
+        message:
+            'Need at least 2 raw matching frames; found ${rawFrames.length}',
+      );
+    }
+    final id = await service.createMasterDark(
+      frames: rawFrames,
+      outputPath: outputPath,
+    );
+    return jsonOk({'id': id, 'frameCount': rawFrames.length});
+  }
+
+  Future<Response> handleCleanDarkOrphans(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/clean-orphans');
+    final removed = await container
+        .read(darkLibraryServiceProvider)
+        .cleanOrphanedEntries();
+    return jsonOk({'removed': removed});
+  }
+
+  Future<Response> handleClearDarkLibrary(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/clear');
+    final payload = await readJsonObject(request);
+    final deleteFiles = optionalBool(payload, 'deleteFiles') ?? false;
+    final service = container.read(darkLibraryServiceProvider);
+    final removed = (await service.getAllEntries()).length;
+    await service.clearLibrary(deleteFiles: deleteFiles);
+    return jsonOk({'removed': removed});
+  }
+
+  Future<Response> handleDeleteDarkGroup(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/delete-group');
+    final payload = await readJsonObject(request);
+    final group = _darkGroupFromPayload(payload);
+    final deleteFiles = optionalBool(payload, 'deleteFiles') ?? false;
+    final service = container.read(darkLibraryServiceProvider);
+    final entries = await service.getEntriesForGroup(group);
+    await service.deleteEntries(
+      entries.map((entry) => entry.id).toList(growable: false),
+      deleteFile: deleteFiles,
+    );
+    return jsonOk({'removed': entries.length});
+  }
 
   /// GET /api/calibration/darks
   Future<Response> handleListDarks(Request request) async {

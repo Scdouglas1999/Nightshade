@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../utils/exported_file_reveal.dart';
 
 /// Panel for submitting / exporting a confirmed First Light transient detection
 /// to AAVSO, the MPC, or the TNS.
@@ -49,12 +50,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
 
   final _reportService = TransientReportService();
 
-  // The science calibration path does not (yet) join a per-frame photometric
-  // zeropoint onto the detection row, so a calibrated AAVSO magnitude is not
-  // available here. AAVSO is therefore disabled for current detections (the
-  // honest STD-mag gate) rather than emitting a non-ingestible na-filled row.
-  // When the MAGZP join lands, thread it in here and AAVSO enables itself.
-  double? get _magZeroPoint => null;
+  double? _magZeroPoint;
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +59,11 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
       return const SizedBox.shrink();
     }
 
-    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
+    final scienceSettingsAsync = ref.watch(scienceSettingsProvider);
+    if (scienceSettingsAsync.hasError || !scienceSettingsAsync.hasValue) {
+      return _scienceSettingsUnavailable(scienceSettingsAsync);
+    }
+    final scienceSettings = scienceSettingsAsync.requireValue;
 
     // Reviewed (confirmed) detections first, then newest.
     final sorted = [...widget.detections]..sort((a, b) {
@@ -76,6 +75,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
       orElse: () => sorted.first,
     );
     _selectedId = selected.id;
+    _magZeroPoint = _resolveMagZeroPoint(selected);
 
     return NightshadeCard(
       child: Padding(
@@ -201,6 +201,67 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
         ),
       ),
     );
+  }
+
+  Widget _scienceSettingsUnavailable(AsyncValue<ScienceSettings> settings) {
+    return NightshadeCard(
+      child: Padding(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              settings.hasError
+                  ? 'Reporting settings unavailable'
+                  : 'Loading reporting settings…',
+              style: TextStyle(color: widget.colors.error),
+            ),
+            if (settings.hasError) ...[
+              const SizedBox(height: 6),
+              Text(
+                settings.error.toString(),
+                style: TextStyle(color: widget.colors.textMuted),
+              ),
+              const SizedBox(height: 10),
+              NightshadeButton(
+                label: 'Retry reporting settings',
+                icon: LucideIcons.refreshCw,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => ref.invalidate(scienceSettingsProvider),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Resolve the calibration that belongs to the exact captured frame which
+  /// produced [d]. The science providers already serve the same rows from the
+  /// local database and the remote host; joining here makes AAVSO available
+  /// without copying a stale zeropoint onto the detection record itself.
+  double? _resolveMagZeroPoint(TransientDetectionRow d) {
+    final imageId = d.capturedImageId;
+    if (imageId == null) return null;
+
+    final calibrations = d.sessionId == null
+        ? ref.watch(sessionlessCalibrationsProvider).valueOrNull ?? const []
+        : ref
+                .watch(sessionFrameCalibrationsProvider(d.sessionId!))
+                .valueOrNull ??
+            const [];
+    for (final calibration in calibrations) {
+      final zeroPoint = calibration.zeroPoint;
+      if (calibration.capturedImageId == imageId &&
+          calibration.isCalibrated &&
+          zeroPoint != null &&
+          zeroPoint.isFinite) {
+        return zeroPoint;
+      }
+    }
+    return null;
   }
 
   Widget _buildActionRow(
@@ -441,7 +502,11 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
       }
       if (mounted) {
         setState(() => _lastExportPath = path);
-        context.showSuccessSnackBar('Report exported to: $path');
+        await revealExportedFile(
+          context,
+          path,
+          subject: 'Nightshade transient report',
+        );
       }
     } catch (e) {
       if (mounted) context.showErrorSnackBar('Export failed: $e');

@@ -126,6 +126,16 @@ class FocuserTempCompensator {
       case SequenceExecutionState.completed:
       case SequenceExecutionState.failed:
         return false;
+      // A failed native stop means the hardware was NOT confirmed stopped, so
+      // the Rust temperature-compensation instruction may still own the
+      // focuser — treat it as active. A pending persistence cleanup
+      // (cleanupFailed) or in-flight finalization both mean the hardware IS
+      // stopped, so Dart-side compensation may resume.
+      case SequenceExecutionState.stopFailed:
+        return true;
+      case SequenceExecutionState.cleanupFailed:
+      case SequenceExecutionState.finalizing:
+        return false;
     }
   }
 

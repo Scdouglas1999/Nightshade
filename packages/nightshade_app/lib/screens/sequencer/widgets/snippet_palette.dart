@@ -10,6 +10,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../utils/exported_file_reveal.dart';
+
 part 'snippet_palette/rendering.dart';
 part 'snippet_palette/actions.dart';
 part 'snippet_palette/category_section.dart';
@@ -46,11 +48,29 @@ class SnippetPalette extends ConsumerStatefulWidget {
 class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  bool _isSnippetFileActionRunning = false;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  // These single-flight guards live on the State (not the actions extension)
+  // because setState is a protected State member — calling it from the
+  // extension trips INVALID_USE_OF_PROTECTED_MEMBER.
+  bool _beginSnippetFileAction() {
+    if (_isSnippetFileActionRunning) return false;
+    setState(() => _isSnippetFileActionRunning = true);
+    return true;
+  }
+
+  void _finishSnippetFileAction() {
+    if (mounted) {
+      setState(() => _isSnippetFileActionRunning = false);
+    } else {
+      _isSnippetFileActionRunning = false;
+    }
   }
 
   IconData _getIcon(String iconName) {

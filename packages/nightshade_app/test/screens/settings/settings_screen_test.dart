@@ -42,6 +42,7 @@ import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
+import 'settings_sidebar_nav.dart';
 
 /// Install a FlutterError.onError handler that drops "overflowed" layout
 /// exceptions during the current test and re-forwards everything else.
@@ -112,6 +113,13 @@ void main() {
     );
 
     // Group headers render in UPPER CASE in the sidebar.
+    //
+    // Scroll to each in turn rather than asserting all seven are on screen at
+    // once: the sidebar is a lazy ListView.builder, so a header past the fold
+    // simply is not built, and a bare `findsOneWidget` was passing only while
+    // the whole taxonomy happened to fit the test surface. Walking the list is
+    // also the stronger claim — it proves every group is REACHABLE, which is
+    // what the user actually needs, at any row height or surface size.
     for (final title in const [
       'GENERAL',
       'EQUIPMENT',
@@ -121,8 +129,12 @@ void main() {
       'NOTIFICATIONS & REMOTE',
       'ADVANCED',
     ]) {
+      await revealInSettingsSidebar(tester, find.text(title));
       expect(find.text(title), findsOneWidget,
           reason: 'The grouped sidebar must show the "$title" group header.');
+      expect(find.text(title).hitTestable(), findsOneWidget,
+          reason: 'The "$title" group header must be tappable once scrolled '
+              'to, not merely present in the widget tree.');
     }
   });
 
@@ -169,9 +181,14 @@ void main() {
     await tester.tap(find.text('Location').first);
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
-    final latField = find.widgetWithText(TextField, '42.500000');
-    expect(latField, findsOneWidget,
+    final latitudeInput = find.byType(SettingsNumberInput).first;
+    final latitudeWidget = tester.widget<SettingsNumberInput>(latitudeInput);
+    expect(latitudeWidget.controller.text, '42.5',
         reason: 'Latitude field must render the seeded value');
+    final latField = find.descendant(
+      of: latitudeInput,
+      matching: find.byType(EditableText),
+    );
 
     await tester.enterText(latField, 'abc');
     await tester.pumpAndSettle(const Duration(seconds: 1));
@@ -197,8 +214,11 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     expect(find.byType(LocationSettingsPage), findsOneWidget);
-    expect(find.widgetWithText(TextField, '0.000000'), findsWidgets,
-        reason: 'Default latitude (0.0) must render formatted as "0.000000".');
+    final latitudeInput = tester.widget<SettingsNumberInput>(
+      find.byType(SettingsNumberInput).first,
+    );
+    expect(latitudeInput.controller.text, '0',
+        reason: 'Default latitude (0.0) must render as "0".');
   });
 
   testWidgets(
@@ -217,8 +237,12 @@ void main() {
     await tester.tap(find.text('Location').first);
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
-    final latField = find.widgetWithText(TextField, '0.000000').first;
+    final latField = find.descendant(
+      of: find.byType(SettingsNumberInput).first,
+      matching: find.byType(EditableText),
+    );
     await tester.enterText(latField, '47.5');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     final state = handle.container.read(appSettingsProvider).value;
@@ -274,8 +298,9 @@ void main() {
   });
 
   testWidgets(
-      'dark_mode_switch_toggles_theme_state: tapping the Appearance dark mode '
-      'switch flips AppSettingsState.theme through setTheme()', (tester) async {
+      'theme_dropdown_selects_red_night: choosing "Red night" in the '
+      'Appearance theme dropdown flips AppSettingsState.theme through '
+      'setTheme()', (tester) async {
     _swallowKnownOverflows();
     const initial = AppSettingsState();
     expect(initial.theme, 'dark', reason: 'Sanity: the default theme is dark.');
@@ -292,16 +317,18 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
     expect(find.byType(AppearanceSettings), findsOneWidget);
 
-    final switches = find.byType(SettingsSwitch);
-    expect(switches, findsAtLeastNWidgets(1));
-    await tester.tap(switches.first);
+    // The Dark on/off switch was replaced by a three-way theme selector
+    // (Dark / Light / Red night) so the red-night mode — built for a dark
+    // site — is finally reachable. Open it and pick Red night.
+    await tester.tap(find.text('Dark').first);
+    await tester.pumpAndSettle(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Red night').last);
     await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
     final state = handle.container.read(appSettingsProvider).value;
     expect(state, isNotNull);
-    expect(state!.theme, 'light',
-        reason: 'Tapping the Dark mode switch when theme=="dark" must fire '
-            'setTheme("light").');
+    expect(state!.theme, 'redNight',
+        reason: 'Selecting "Red night" must fire setTheme("redNight").');
   });
 
   // ===========================================================================
@@ -374,6 +401,8 @@ void main() {
 
     expect(find.byType(FilePathSettings), findsOneWidget);
     expect(find.byType(AutoSaveSettings), findsOneWidget);
+    expect(find.text('Enable sequence auto-save'), findsOneWidget);
+    expect(find.text('Sequence save interval'), findsOneWidget);
   });
 
   testWidgets(
@@ -480,6 +509,7 @@ void main() {
       'file-paths',
       'auto-save',
       'predictive-af',
+      'focus-model',
       'notification-routing',
     ]) {
       expect(kSettingsSectionIndex[key], isNotNull,
@@ -493,6 +523,8 @@ void main() {
     expect(kSettingsSectionIndex['auto-save'],
         kSettingsSectionIndex['files-storage']);
     expect(kSettingsSectionIndex['predictive-af'],
+        kSettingsSectionIndex['autofocus']);
+    expect(kSettingsSectionIndex['focus-model'],
         kSettingsSectionIndex['autofocus']);
     expect(kSettingsSectionIndex['notification-routing'],
         kSettingsSectionIndex['notifications']);

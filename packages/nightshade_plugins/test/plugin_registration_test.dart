@@ -332,6 +332,59 @@ void main() {
       },
     );
 
+    test(
+      'retry rebuilds a failed registration and attempts later plugins',
+      () async {
+        final host = PluginHost();
+        addTearDown(host.dispose);
+        var firstAttempts = 0;
+        final descriptors = [
+          ExamplePluginDescriptor(
+            id: 'com.test.retry',
+            create: () => _RegistrationPlugin(
+              id: 'com.test.retry',
+              onLoad: () async {
+                firstAttempts++;
+                if (firstAttempts == 1) throw StateError('first load failed');
+              },
+            ),
+            firedEvent: null,
+          ),
+          ExamplePluginDescriptor(
+            id: 'com.test.after-failure',
+            create: () => _RegistrationPlugin(id: 'com.test.after-failure'),
+            firedEvent: null,
+          ),
+        ];
+
+        await expectLater(
+          registerPluginDescriptors(
+            host: host,
+            store: const AllEnabledPluginEnablementStore(),
+            descriptors: descriptors,
+          ),
+          throwsA(isA<PluginException>()),
+        );
+        expect(host.registrationFailed('com.test.retry'), isTrue);
+        expect(
+          host.isEnabled('com.test.after-failure'),
+          isTrue,
+          reason: 'one failure must not suppress later plugins',
+        );
+
+        await registerPluginDescriptors(
+          host: host,
+          store: const AllEnabledPluginEnablementStore(),
+          descriptors: descriptors,
+        );
+
+        expect(firstAttempts, 2);
+        expect(host.registrationFailed('com.test.retry'), isFalse);
+        expect(host.isEnabled('com.test.retry'), isTrue);
+        expect(host.pluginError('com.test.retry'), isNull);
+      },
+    );
+
     test('default enablement store enables every plugin', () async {
       const store = AllEnabledPluginEnablementStore();
       for (final descriptor in kUserFacingExamplePlugins) {
@@ -339,6 +392,40 @@ void main() {
       }
     });
   });
+}
+
+class _RegistrationPlugin implements NightshadePlugin {
+  _RegistrationPlugin({required this.id, Future<void> Function()? onLoad})
+    : _onLoad = onLoad;
+
+  @override
+  final String id;
+  final Future<void> Function()? _onLoad;
+
+  @override
+  String get name => id;
+  @override
+  String get version => '1.0.0';
+  @override
+  String get description => 'registration test';
+  @override
+  String get author => 'test';
+  @override
+  String? get minAppVersion => null;
+
+  @override
+  Future<void> onLoad(PluginContext context) async {
+    await _onLoad?.call();
+  }
+
+  @override
+  Future<void> onEnable() async {}
+
+  @override
+  Future<void> onDisable() async {}
+
+  @override
+  Future<void> onUnload() async {}
 }
 
 /// Stub factory for descriptors used only by the tracker (which never calls

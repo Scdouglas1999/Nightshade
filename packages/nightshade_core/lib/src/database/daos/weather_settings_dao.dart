@@ -26,9 +26,13 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
       )..orderBy([(s) => OrderingTerm.asc(s.id)])).get();
 
       if (rows.isEmpty) {
-        await into(
-          weatherSettings,
-        ).insert(WeatherSettingsCompanion.insert(id: const Value(1)));
+        await into(weatherSettings).insert(
+          WeatherSettingsCompanion.insert(
+            id: const Value(1),
+            // Weather gating is opt-in (see WeatherSettings.weatherSafetyEnabled).
+            weatherSafetyEnabled: const Value(false),
+          ),
+        );
         return (await (select(
           weatherSettings,
         )..where((s) => s.id.equals(1))).getSingle());
@@ -60,6 +64,35 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
     String? preferredProvider,
     int? refreshIntervalSeconds,
   }) async {
+    void checkRange(num? value, String name, num min, num max) {
+      if (value != null && (!value.isFinite || value < min || value > max)) {
+        throw ArgumentError.value(value, name, 'must be between $min and $max');
+      }
+    }
+
+    checkRange(triggerDistanceKm, 'triggerDistanceKm', 1, 500);
+    checkRange(cloudDensityThreshold, 'cloudDensityThreshold', 0, 100);
+    checkRange(leadTimeMinutes, 'leadTimeMinutes', 1, 180);
+    checkRange(maxHumidityPercent, 'maxHumidityPercent', 0, 100);
+    checkRange(maxWindSpeedKph, 'maxWindSpeedKph', 0, 150);
+    checkRange(maxCloudCoverPercent, 'maxCloudCoverPercent', 0, 100);
+    checkRange(refreshIntervalSeconds, 'refreshIntervalSeconds', 30, 3600);
+    if (preferredProvider != null &&
+        !const {
+          'auto',
+          'goessatellite',
+          'noaa',
+          'rainviewer',
+          'openmeteo',
+          'metno',
+        }.contains(preferredProvider.toLowerCase())) {
+      throw ArgumentError.value(
+        preferredProvider,
+        'preferredProvider',
+        'is not a supported radar provider',
+      );
+    }
+
     // Ensure at least one row exists
     final existing = await getOrCreateSettings();
 
@@ -110,9 +143,13 @@ class WeatherSettingsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<void> resetToDefaults() async {
     await transaction(() async {
       await delete(weatherSettings).go();
-      await into(
-        weatherSettings,
-      ).insert(WeatherSettingsCompanion.insert(id: const Value(1)));
+      await into(weatherSettings).insert(
+        WeatherSettingsCompanion.insert(
+          id: const Value(1),
+          // Weather gating is opt-in (see WeatherSettings.weatherSafetyEnabled).
+          weatherSafetyEnabled: const Value(false),
+        ),
+      );
     });
   }
 

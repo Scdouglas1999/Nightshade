@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -8,6 +10,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 // Note: dismissedTourPromptsProvider is now imported from nightshade_core
 // with database persistence for tracking dismissed prompts across app restarts.
+
+/// Key on the prompt card itself. Exposed so tests can assert that the card's
+/// rect does not intersect the content it is anchored over.
+const Key contextualTourPromptCardKey = Key('contextualTourPrompt.card');
 
 /// A small, non-intrusive tooltip that appears when user first visits certain screens.
 /// Offers to start a contextual tour relevant to the current screen.
@@ -59,8 +65,12 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   bool _isVisible = false;
+  bool _isStartingTour = false;
   final _overlayKey = GlobalKey();
   Timer? _showDelayTimer;
+
+  /// Measured size of the prompt card, used to reserve the band it covers.
+  Size? _promptSize;
 
   @override
   void initState() {
@@ -83,7 +93,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
 
     // Check if prompt should be shown after build
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowPrompt();
+      unawaited(_checkAndShowPrompt());
     });
   }
 
@@ -94,7 +104,13 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
     super.dispose();
   }
 
-  void _checkAndShowPrompt() {
+  Future<void> _checkAndShowPrompt() async {
+    if (!mounted) return;
+
+    // Wait for the persisted dismissals to load before deciding. Reading them
+    // synchronously here is what made a dismissed prompt reappear on every
+    // launch: the set is empty until its database read completes.
+    await ref.read(dismissedTourPromptsProvider.notifier).ready;
     if (!mounted) return;
 
     final tutorialState = ref.read(tutorialProvider);
@@ -137,17 +153,46 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
       if (mounted) {
         setState(() => _isVisible = false);
         // Remember that this prompt was dismissed (persisted to database)
-        ref
-            .read(dismissedTourPromptsProvider.notifier)
-            .dismissPrompt(widget.screenId);
+        unawaited(
+          ref
+              .read(dismissedTourPromptsProvider.notifier)
+              .dismissPrompt(widget.screenId)
+              .catchError((Object _) {
+            if (mounted) {
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Could not save the tour prompt preference.',
+                  ),
+                ),
+              );
+            }
+          }),
+        );
       }
     });
   }
 
-  void _startTour() {
-    final tutorialNotifier = ref.read(tutorialProvider.notifier);
-    tutorialNotifier.startTutorial(widget.tourCategory);
-    _dismissPrompt();
+  Future<void> _startTour() async {
+    if (_isStartingTour) return;
+    setState(() => _isStartingTour = true);
+    try {
+      await ref
+          .read(tutorialProvider.notifier)
+          .startTutorial(widget.tourCategory);
+      // The provider listener dismisses the prompt after the authoritative
+      // state becomes active.
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Could not start the tour. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isStartingTour = false);
+    }
   }
 
   @override
@@ -159,14 +204,61 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
       }
     });
 
-    return Stack(
-      key: _overlayKey,
-      clipBehavior: Clip.none,
-      children: [
-        widget.child,
-        if (_isVisible) _buildPrompt(context),
-      ],
+    // LayoutBuilder because the reserved band has to be capped against the
+    // height actually available, which only the parent's constraints know.
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        key: _overlayKey,
+        clipBehavior: Clip.none,
+        children: [
+          // The card is INSET out of the child rather than floated over it. As a
+          // free-floating overlay it sat on top of live dashboard content — at
+          // 800x600 it covered the right half of the "Last run" card and clipped
+          // the Readiness chips — so the first thing a new user saw was a nudge
+          // obscuring the very panels it was describing. Reserving the band keeps
+          // the card exactly where it was while the content underneath reflows
+          // clear of it, and costs nothing once dismissed.
+          Padding(
+            padding: _reservedInset(constraints.maxHeight),
+            child: widget.child,
+          ),
+          if (_isVisible) _buildPrompt(context),
+        ],
+      ),
     );
+  }
+
+  /// The largest share of the host's height this nudge may reserve.
+  ///
+  /// Without a cap the band is whatever the card measures, and the card's height
+  /// is driven by how far its copy wraps — so on a short viewport it can exceed
+  /// the viewport itself. It did: squeezed to 64px (a landscape phone whose
+  /// shell has handed most of the height to the keyboard) the card measured
+  /// 203px, the child was laid out at zero height, and EVERY control on the
+  /// screen — including the settings search field — stopped hit-testing. A
+  /// dismissible suggestion must never be able to take the screen away.
+  static const double _maxReservedFraction = 0.4;
+
+  /// Space held clear for the prompt card on the edge it is anchored to,
+  /// clamped so content always keeps the majority of [availableHeight].
+  EdgeInsets _reservedInset(double availableHeight) {
+    if (!_isVisible) return EdgeInsets.zero;
+    final height = _promptSize?.height;
+    if (height == null) return EdgeInsets.zero;
+    // The card is offset from the edge by the alignment offset; leave a small
+    // gap between it and the content it used to overlap.
+    final wanted = height + widget.offset.dy.abs() + 8;
+    // All-or-nothing, not a partial band. Reserving *some* of what the card
+    // needs is the worst of both worlds: the card still overlaps content AND
+    // the content is squeezed. Over the cap, drop the reservation entirely and
+    // let the card float, exactly as it did before the band existed.
+    final fits = !availableHeight.isFinite ||
+        wanted <= availableHeight * _maxReservedFraction;
+    final band = fits ? wanted : 0.0;
+    return switch (widget.alignment) {
+      Alignment.topLeft || Alignment.topRight => EdgeInsets.only(top: band),
+      _ => EdgeInsets.only(bottom: band),
+    };
   }
 
   Widget _buildPrompt(BuildContext context) {
@@ -193,17 +285,62 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
         opacity: _fadeAnimation,
         child: SlideTransition(
           position: _slideAnimation,
-          child: _PromptCard(
-            title: widget.title ?? 'New to this screen?',
-            description: widget.description ??
-                'Take a quick ${widget.durationMinutes}-minute tour.',
-            colors: colors,
-            onDismiss: _dismissPrompt,
-            onStartTour: _startTour,
+          child: _MeasureSize(
+            onChange: (size) {
+              if (!mounted || _promptSize == size) return;
+              setState(() => _promptSize = size);
+            },
+            child: _PromptCard(
+              title: widget.title ?? 'New to this screen?',
+              description: widget.description ??
+                  'Take a quick ${widget.durationMinutes}-minute tour.',
+              colors: colors,
+              onDismiss: _dismissPrompt,
+              onStartTour: _startTour,
+              isStartingTour: _isStartingTour,
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Reports its child's laid-out size, so the prompt can reserve exactly the
+/// band the card occupies instead of guessing a constant that drifts whenever
+/// the copy or the type ramp changes.
+class _MeasureSize extends SingleChildRenderObjectWidget {
+  const _MeasureSize({required this.onChange, required Widget super.child});
+
+  final ValueChanged<Size> onChange;
+
+  @override
+  _RenderMeasureSize createRenderObject(BuildContext context) =>
+      _RenderMeasureSize(onChange);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderMeasureSize renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureSize extends RenderProxyBox {
+  _RenderMeasureSize(this.onChange);
+
+  ValueChanged<Size> onChange;
+  Size? _reported;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final current = size;
+    if (_reported == current) return;
+    _reported = current;
+    // Reporting during layout would mutate the tree mid-pass; defer a frame.
+    SchedulerBinding.instance.addPostFrameCallback((_) => onChange(current));
   }
 }
 
@@ -213,6 +350,7 @@ class _PromptCard extends StatelessWidget {
   final NightshadeColors colors;
   final VoidCallback onDismiss;
   final VoidCallback onStartTour;
+  final bool isStartingTour;
 
   const _PromptCard({
     required this.title,
@@ -220,11 +358,13 @@ class _PromptCard extends StatelessWidget {
     required this.colors,
     required this.onDismiss,
     required this.onStartTour,
+    required this.isStartingTour,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: contextualTourPromptCardKey,
       constraints: const BoxConstraints(maxWidth: 240),
       decoration: BoxDecoration(
         color: colors.surfaceElevated,
@@ -264,7 +404,7 @@ class _PromptCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: NightshadeButton(
-                    onPressed: onDismiss,
+                    onPressed: isStartingTour ? null : onDismiss,
                     label: 'Maybe Later',
                     variant: ButtonVariant.ghost,
                     size: ButtonSize.small,
@@ -272,10 +412,11 @@ class _PromptCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 NightshadeButton(
-                  onPressed: onStartTour,
+                  onPressed: isStartingTour ? null : onStartTour,
                   label: 'Start Tour',
                   icon: LucideIcons.arrowRight,
                   size: ButtonSize.small,
+                  isLoading: isStartingTour,
                 ),
               ],
             ),
@@ -334,6 +475,7 @@ class _ContextualTourPromptOverlayState
   late Animation<Offset> _slideAnimation;
   OverlayEntry? _overlayEntry;
   bool _hasShown = false;
+  bool _isStartingTour = false;
   Timer? _showDelayTimer;
 
   @override
@@ -356,7 +498,7 @@ class _ContextualTourPromptOverlayState
     ));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndShowPrompt();
+      unawaited(_checkAndShowPrompt());
     });
   }
 
@@ -368,7 +510,12 @@ class _ContextualTourPromptOverlayState
     super.dispose();
   }
 
-  void _checkAndShowPrompt() {
+  Future<void> _checkAndShowPrompt() async {
+    if (!mounted || _hasShown) return;
+
+    // See the sibling widget: the dismissal set loads asynchronously, so a
+    // synchronous read here always reports nothing dismissed.
+    await ref.read(dismissedTourPromptsProvider.notifier).ready;
     if (!mounted || _hasShown) return;
 
     final tutorialState = ref.read(tutorialProvider);
@@ -433,6 +580,7 @@ class _ContextualTourPromptOverlayState
         slideAnimation: _slideAnimation,
         onDismiss: _dismissPrompt,
         onStartTour: _startTour,
+        isStartingTour: _isStartingTour,
       ),
     );
 
@@ -449,16 +597,43 @@ class _ContextualTourPromptOverlayState
     _animController.reverse().then((_) {
       _removeOverlay();
       // Remember that this prompt was dismissed (persisted to database)
-      ref
-          .read(dismissedTourPromptsProvider.notifier)
-          .dismissPrompt(widget.screenId);
+      unawaited(
+        ref
+            .read(dismissedTourPromptsProvider.notifier)
+            .dismissPrompt(widget.screenId)
+            .catchError((Object _) {
+          if (mounted) {
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              const SnackBar(
+                content: Text('Could not save the tour prompt preference.'),
+              ),
+            );
+          }
+        }),
+      );
     });
   }
 
-  void _startTour() {
-    final tutorialNotifier = ref.read(tutorialProvider.notifier);
-    tutorialNotifier.startTutorial(widget.tourCategory);
-    _dismissPrompt();
+  Future<void> _startTour() async {
+    if (_isStartingTour) return;
+    _isStartingTour = true;
+    _overlayEntry?.markNeedsBuild();
+    try {
+      await ref
+          .read(tutorialProvider.notifier)
+          .startTutorial(widget.tourCategory);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Could not start the tour. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      _isStartingTour = false;
+      _overlayEntry?.markNeedsBuild();
+    }
   }
 
   @override
@@ -484,6 +659,7 @@ class _OverlayPrompt extends StatelessWidget {
   final Animation<Offset> slideAnimation;
   final VoidCallback onDismiss;
   final VoidCallback onStartTour;
+  final bool isStartingTour;
 
   const _OverlayPrompt({
     this.targetRect,
@@ -495,6 +671,7 @@ class _OverlayPrompt extends StatelessWidget {
     required this.slideAnimation,
     required this.onDismiss,
     required this.onStartTour,
+    required this.isStartingTour,
   });
 
   @override
@@ -560,6 +737,7 @@ class _OverlayPrompt extends StatelessWidget {
               colors: colors,
               onDismiss: onDismiss,
               onStartTour: onStartTour,
+              isStartingTour: isStartingTour,
             ),
           ),
         ),

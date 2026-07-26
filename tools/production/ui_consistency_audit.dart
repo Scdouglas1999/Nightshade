@@ -370,6 +370,7 @@ String _classifyRawMaterialColor({required String path, required String line}) {
     '/guiding/',
     '/imaging/widgets/annotation',
     '/imaging/widgets/custom_annotation_drawing.dart',
+    '/imaging/widgets/fullscreen_image_viewer.dart',
     '/imaging/widgets/overlay_',
     '/imaging/widgets/live_preview_area.dart',
     '/imaging/tabs/camera_tab.dart',
@@ -379,6 +380,7 @@ String _classifyRawMaterialColor({required String path, required String line}) {
     '/dashboard/widgets/dashboard_tile.dart',
     '/dashboard/widgets/glass_card.dart',
     '/analytics/widgets/session_chart.dart',
+    '/settings/widgets/captured_images_settings.dart',
   ];
   final overlayLineHints = <String>[
     'paint',

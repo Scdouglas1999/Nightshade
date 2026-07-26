@@ -34,6 +34,16 @@ List<HeadlessRoute> buildScienceRoutes(ScienceHandlers h) => <HeadlessRoute>[
   ),
   HeadlessRoute(
     HttpMethod.get,
+    '/api/smart-night/settings',
+    h.handleGetSmartNightSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/smart-night/settings',
+    h.handleUpdateSmartNightSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
     '/api/science/session/<sessionId>/config',
     h.handleGetSessionConfig,
   ),

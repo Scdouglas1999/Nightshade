@@ -20,6 +20,7 @@ class _MqttTransportSectionState extends ConsumerState<_MqttTransportSection> {
   bool _retain = false;
   bool _tls = false;
   bool _initialized = false;
+  bool _clearPassword = false;
 
   @override
   void dispose() {
@@ -37,23 +38,69 @@ class _MqttTransportSectionState extends ConsumerState<_MqttTransportSection> {
     final cfgAsync = ref.watch(mqttTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => const NightshadeInlineBanner(
-        message: 'Could not load MQTT routing configuration.',
-        severity: NightshadeAlertSeverity.error,
-      ),
+      error: (e, _) {
+        _initialized = false;
+        return _transportErrorSection(
+          title: 'MQTT broker',
+          error: e,
+          onRetry: () => ref.invalidate(mqttTransportConfigProvider),
+        );
+      },
       data: (cfg) {
         if (!_initialized) {
           _host.text = cfg.host;
           _port.text = cfg.port.toString();
           _user.text = cfg.username ?? '';
-          _pass.text = cfg.password ?? '';
+          _pass.clear();
           _topic.text = cfg.topic;
           _clientId.text = cfg.clientId;
-          _qos = cfg.qos;
+          // QoS 2 was exposed by older builds but the publisher only ever
+          // delivered it as QoS 1. Keep hand-built/legacy config values from
+          // breaking the two-item dropdown and show the effective behavior.
+          _qos = cfg.qos == 1 || cfg.qos == 2 ? 1 : 0;
           _retain = cfg.retain;
           _tls = cfg.useTls;
+          _clearPassword = false;
           _initialized = true;
         }
+        Future<_PrepResult> saveConfig() async {
+          final parsedPort = _parsePortField(_port.text, defaultPort: 1883);
+          if (parsedPort.error != null) {
+            return _PrepResult.fail(parsedPort.error);
+          }
+          final host = _host.text.trim();
+          final topic = _topic.text.trim();
+          if (host.isNotEmpty && topic.isEmpty) {
+            return const _PrepResult.fail('Enter an MQTT topic.');
+          }
+          final username = _user.text.trim().isEmpty ? null : _user.text.trim();
+          final password = _clearPassword
+              ? null
+              : (_pass.text.isEmpty ? cfg.password : _pass.text);
+          if ((password ?? '').isNotEmpty && username == null) {
+            return const _PrepResult.fail(
+              'Enter a username when an MQTT password is configured.',
+            );
+          }
+          final cfg2 = MqttTransportConfig(
+            host: host,
+            port: parsedPort.port!,
+            username: username,
+            password: password,
+            topic: topic,
+            qos: _qos,
+            retain: _retain,
+            useTls: _tls,
+            clientId: _clientId.text.trim().isEmpty
+                ? 'nightshade'
+                : _clientId.text.trim(),
+          );
+          await ref.read(mqttTransportConfigProvider.notifier).save(cfg2);
+          _pass.clear();
+          _clearPassword = false;
+          return const _PrepResult.ok();
+        }
+
         return SettingsSection(
           title: 'MQTT broker',
           children: [
@@ -67,6 +114,8 @@ class _MqttTransportSectionState extends ConsumerState<_MqttTransportSection> {
               hasStoredValue: (cfg.password ?? '').isNotEmpty,
               isMobile: widget.isMobile,
               hint: 'broker password',
+              onChanged: (_) => _clearPassword = false,
+              onClear: () => setState(() => _clearPassword = true),
             ),
             _row(LucideIcons.hash, 'Topic', _topic, 'nightshade/notifications'),
             _row(LucideIcons.tag, 'Client ID', _clientId, 'nightshade'),
@@ -103,39 +152,18 @@ class _MqttTransportSectionState extends ConsumerState<_MqttTransportSection> {
             SettingRow(
               icon: LucideIcons.save,
               title: 'Save MQTT config',
-              trailing: NightshadeButton(
-                label: 'Save',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () async {
-                  final cfg2 = MqttTransportConfig(
-                    host: _host.text.trim(),
-                    port: int.tryParse(_port.text) ?? 1883,
-                    username:
-                        _user.text.trim().isEmpty ? null : _user.text.trim(),
-                    password: _pass.text.trim().isEmpty ? null : _pass.text,
-                    topic: _topic.text.trim(),
-                    qos: _qos,
-                    retain: _retain,
-                    useTls: _tls,
-                    clientId: _clientId.text.trim().isEmpty
-                        ? 'nightshade'
-                        : _clientId.text.trim(),
-                  );
-                  await ref
-                      .read(mqttTransportConfigProvider.notifier)
-                      .save(cfg2);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('MQTT config saved')),
-                  );
-                },
+              trailing: _SaveButton(
+                successMessage: 'MQTT config saved',
+                onSave: saveConfig,
               ),
             ),
-            const SettingRow(
+            SettingRow(
               icon: LucideIcons.send,
               title: 'Test MQTT publish',
-              trailing: _TestSendButton(kind: NotificationTransportKind.mqtt),
+              trailing: _TestSendButton(
+                kind: NotificationTransportKind.mqtt,
+                onBeforeSend: saveConfig,
+              ),
               isLast: true,
             ),
           ],

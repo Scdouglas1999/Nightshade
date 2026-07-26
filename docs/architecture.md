@@ -234,9 +234,12 @@ a wired `PluginContext`, and returns a **structured result rather than
 throwing** — lookup failures, validation failures, thrown exceptions, and
 timeouts (default 10 minutes) all map to a structured failure the sequencer can
 act on. The plugin node executor is intentionally executor-agnostic: it does not
-depend on the Rust bridge or on `nightshade_core` types. Plugins are managed over
-the headless API at `/api/plugins` (upload, enable, disable, delete) via
-`routes/plugin_routes.dart`. The plugin SDK is documented under
+depend on the Rust bridge or on `nightshade_core` types. The headless API at
+`/api/plugins` lists the host's live bundled plugins and can enable or disable
+them. Dart AOT cannot load uploaded source archives, so the compatibility
+upload route returns 501 instead of claiming an inert file was installed;
+delete remains available only to clean up archives stored by older builds. The
+plugin SDK is documented under
 `docs/plugin_sdk/` and `docs/architecture/plugin-sequence-nodes.md`.
 
 ---

@@ -110,8 +110,8 @@ maintains a `PluginNodeRegistry`. Lifecycle wiring:
 
 The registry is a `PluginNodeRegistry` instance held on the host; it
 exposes a `Stream<List<PluginNodeRegistration>>` (the `changes` stream)
-so the sequence editor's palette can render a live list as the user
-installs / enables / disables plugins.
+so the sequence editor's palette can render a live list as bundled plugins are
+enabled or disabled.
 
 Riverpod providers:
 
@@ -327,8 +327,8 @@ scene to dim room lights to red.
 * Plugin node execution happens **between** Rust sequencer steps,
   driven by the Dart-side `SequenceExecutor`. Latency is dominated by
   the plugin's own network I/O.
-* Settings UI for enabling / disabling individual plugins is a future
-  pack (follow-up).
+* The Integrations settings page enables/disables bundled plugins and
+  configures the credentials used by their nodes.
 
 ### v2 — DONE
 
@@ -343,14 +343,9 @@ scene to dim room lights to red.
 * **Discoverable plugins directory**: when Flutter ships a
   production-grade JIT or AOT-isolate spawn API, scan
   `<appDataDir>/Plugins/` for `.dart` files and load them.
-* **Plugin settings panel**: per-plugin configuration widget so users
-  can enter API keys / connection URLs without code.
-* **Remote backend dispatch**: the `NetworkBackend.sequencerPluginNodeFinished`
-  is a faithful forwarder today, but the remote host side needs to
-  dispatch the plugin in the Dart-on-host process. The host does not yet
-  ship that side — when the remote-protocol pack lands, the
-  remote dispatch path can run plugins on the host rig and report
-  back to the client.
+* **Runtime installation**: uploaded Dart source cannot be loaded by the AOT
+  desktop/headless process. `/api/plugins/upload` therefore reports 501; a
+  plugin must be included in a Nightshade build to become executable.
 
 ## 6. Self-audit
 

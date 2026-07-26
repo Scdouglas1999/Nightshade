@@ -30,12 +30,11 @@ class SystemPushTransport extends NotificationTransport {
   @override
   String get name => 'Mobile push';
 
-  /// Always configured: the push broadcaster is part of the runtime. If the
-  /// user disabled push entirely the service's master `enabled` flag swallows
-  /// the enqueue, so we still claim configured to avoid greying out the
-  /// test-send button when the user simply hasn't reopened settings yet.
+  /// Configured only while the authoritative master gate is enabled. This
+  /// keeps a disabled/fail-closed push feed from consuming router debounce and
+  /// rate-limit slots for messages that cannot actually leave the service.
   @override
-  bool get isConfigured => true;
+  bool get isConfigured => _service.config.enabled;
 
   @override
   Future<NotificationResult> send({

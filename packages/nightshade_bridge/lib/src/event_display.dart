@@ -113,6 +113,11 @@ bool isCriticalEvent(NightshadeEvent event) {
     },
     EventPayload_Sequencer(field0: final v) => switch (v) {
       SequencerEvent_Error() => true,
+      // A terminal run failure used to arrive as `SequencerEvent_Error` and so
+      // was escalated by the line above. Now that it has its own payload it
+      // must stay on the allow-list, or splitting the variant would silently
+      // downgrade "your night just died" to a scrolling feed row.
+      SequencerEvent_Failed() => true,
       _ => false,
     },
     _ => false,
@@ -369,6 +374,7 @@ String _sequencerTitle(SequencerEvent v) {
     SequencerEvent_Resumed() => 'Sequence resumed',
     SequencerEvent_Stopped() => 'Sequence stopped',
     SequencerEvent_Completed() => 'Sequence complete',
+    SequencerEvent_Failed() => 'Sequence failed',
     SequencerEvent_NodeStarted() => 'Step started',
     SequencerEvent_NodeCompleted() => 'Step finished',
     SequencerEvent_Progress() => 'Progress',
@@ -377,6 +383,11 @@ String _sequencerTitle(SequencerEvent v) {
     SequencerEvent_ExposureStarted() => 'Exposure started',
     SequencerEvent_ExposureCompleted() => 'Exposure complete',
     SequencerEvent_Error() => 'Sequencer error',
+    SequencerEvent_MeridianFlipOutcome(outcome: final o) => switch (o) {
+      'success' => 'Meridian flip complete',
+      'aborted' => 'Meridian flip aborted',
+      _ => 'Meridian flip FAILED',
+    },
     SequencerEvent_TriggerFired() => 'Trigger fired',
     SequencerEvent_InstructionProgress() => 'Instruction progress',
     SequencerEvent_InstructionProgressStructured() => 'Instruction progress',
@@ -427,6 +438,7 @@ String _sequencerDetail(SequencerEvent v) {
     SequencerEvent_Resumed() => '',
     SequencerEvent_Stopped() => '',
     SequencerEvent_Completed() => '',
+    SequencerEvent_Failed(error: final e) => e,
     SequencerEvent_NodeStarted(nodeType: final t) => t,
     SequencerEvent_NodeCompleted(status: final s) => s,
     SequencerEvent_Progress(current: final c, total: final t) => '$c / $t',
@@ -448,6 +460,18 @@ String _sequencerDetail(SequencerEvent v) {
     ) =>
       '$f/$t · ${d.toStringAsFixed(1)}s',
     SequencerEvent_Error(message: final m) => m,
+    SequencerEvent_MeridianFlipOutcome(
+      targetName: final t,
+      outcome: final o,
+      attempts: final a,
+      durationSecs: final d,
+      error: final e,
+    ) =>
+      o == 'success'
+          ? (a > 1
+                ? '$t · succeeded on attempt $a · ${d.toStringAsFixed(1)}s'
+                : '$t · ${d.toStringAsFixed(1)}s')
+          : '$t · after $a attempt(s): ${e ?? "unknown error"}',
     SequencerEvent_TriggerFired(triggerName: final n, action: final a) =>
       '$n → $a',
     SequencerEvent_InstructionProgress(

@@ -435,6 +435,15 @@ class RunDashboardEvent {
   /// banner at the top of the dashboard.
   final bool isCritical;
 
+  /// How many consecutive identical events this row stands for.
+  ///
+  /// 1 for a lone event. The feed only holds a handful of rows, so a condition
+  /// that re-reports itself would otherwise evict everything else: a single
+  /// mount unplug produced four identical "Guider disconnected" rows (one per
+  /// reconnect attempt, on a 5/10/20s backoff) and filled 4 of the 5 slots,
+  /// pushing the equipment error that actually named the cause off-panel.
+  final int repeatCount;
+
   const RunDashboardEvent({
     required this.eventId,
     required this.time,
@@ -443,7 +452,48 @@ class RunDashboardEvent {
     required this.title,
     required this.message,
     required this.isCritical,
+    this.repeatCount = 1,
   });
+
+  RunDashboardEvent withRepeatCount(int count) => RunDashboardEvent(
+        eventId: eventId,
+        time: time,
+        severity: severity,
+        category: category,
+        title: title,
+        message: message,
+        isCritical: isCritical,
+        repeatCount: count,
+      );
+}
+
+/// Collapse runs of identical adjacent events into one row carrying a count.
+///
+/// Identity is the rendered content (category/title/message/severity), not
+/// `eventId`: these are genuinely distinct events that happen to say the same
+/// thing, which is exactly the case a reader gains nothing from seeing repeated.
+/// Only ADJACENT events collapse, so an interleaved different event still breaks
+/// the run and the ordering stays truthful. The retained row keeps the NEWEST
+/// occurrence's identity and timestamp — "when did this last happen" is the
+/// useful question.
+List<RunDashboardEvent> collapseRepeatedEvents(
+  Iterable<RunDashboardEvent> events,
+) {
+  final out = <RunDashboardEvent>[];
+  for (final event in events) {
+    final last = out.isEmpty ? null : out.last;
+    final isRepeat = last != null &&
+        last.category == event.category &&
+        last.title == event.title &&
+        last.message == event.message &&
+        last.severity == event.severity;
+    if (isRepeat) {
+      out[out.length - 1] = last.withRepeatCount(last.repeatCount + 1);
+    } else {
+      out.add(event);
+    }
+  }
+  return out;
 }
 
 RunDashboardEventSeverity _mapSeverity(ns_events.EventSeverity sev) {
@@ -478,6 +528,14 @@ String _categoryLabel(ns_events.EventCategory cat) {
   }
 }
 
+/// Whether [event] itself claims to be at least an error.
+///
+/// Guards against payload-type classification escalating an event above the
+/// severity it declares.
+bool _isAtLeastError(ns_events.NightshadeEvent event) =>
+    event.severity == ns_events.EventSeverity.error ||
+    event.severity == ns_events.EventSeverity.critical;
+
 /// Convert a freezed bridge event into the dashboard's compact model.
 ///
 /// Uses the exhaustive switch helpers in `event_display.dart` so a new
@@ -486,7 +544,13 @@ String _categoryLabel(ns_events.EventCategory cat) {
 RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   final ms = event.timestamp.toInt();
   final severity = _mapSeverity(event.severity);
-  final isCritical = ns_events.isCriticalEvent(event);
+  // `isCriticalEvent` classifies by PAYLOAD type, so on its own it will promote
+  // a benign event to critical whenever a payload is reused for something
+  // routine. An event's declared severity is the authoritative statement about
+  // how bad it is, and nothing should silently escalate past it — the alerting
+  // path below already refuses to treat an Info event as critical, and the two
+  // must not disagree about the same event.
+  final isCritical = ns_events.isCriticalEvent(event) && _isAtLeastError(event);
   return RunDashboardEvent(
     eventId: event.eventId,
     time: DateTime.fromMillisecondsSinceEpoch(ms),
@@ -505,7 +569,12 @@ RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
 final runDashboardRecentEventsProvider =
     Provider.family<List<RunDashboardEvent>, int>((ref, limit) {
   final history = ref.watch(eventHistoryProvider);
-  return history.take(limit).map(_toDashboardEvent).toList(growable: false);
+  // Collapse BEFORE taking `limit`, so squashing a repeated condition actually
+  // frees slots for the different events behind it. Taking first would leave
+  // the panel showing one collapsed row and four blanks' worth of lost history.
+  return collapseRepeatedEvents(history.map(_toDashboardEvent))
+      .take(limit)
+      .toList(growable: false);
 });
 
 // ============================================================================
@@ -707,6 +776,15 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
       // Process oldest-first so the most recent ends up at the head of
       // the notifier's state list.
       for (final event in fresh.reversed) {
+        // An Info-severity event is never a critical alert, regardless of its
+        // payload type. The Rust executor deliberately surfaces benign
+        // runtime-config updates (e.g. `conditions_score`) with Info severity
+        // but reuses the `SequencerEvent::Error` payload to avoid an FRB regen
+        // (see native `RuntimeConfigUpdated`); isCriticalEvent keys off that
+        // Error payload, so without this guard every 30s config tick flooded
+        // the run dashboard with false "Sequencer error" banners + audible /
+        // push alerts.
+        if (event.severity == ns_events.EventSeverity.info) continue;
         if (!ns_events.isCriticalEvent(event)) continue;
         final dashboardEvent = _toDashboardEvent(event);
         ref

@@ -18,12 +18,57 @@ class CatalogLookupResult {
   final double raHours;
   final double decDegrees;
 
+  /// Catalog ids and aliases that may match the imported designation even
+  /// when [canonicalName] is a friendly common name.
+  final List<String> identifiers;
+
   const CatalogLookupResult({
     required this.canonicalName,
     required this.raHours,
     required this.decDegrees,
+    this.identifiers = const [],
   });
 }
+
+/// Adapts Nightshade's local/remote catalog search surfaces to the importer's
+/// single-result lookup contract.
+///
+/// Exact normalized name/id matches win. CatalogManager already ranks exact
+/// matches first, so the first valid candidate is the fallback for common-name
+/// searches whose alias is not included in the wire row.
+class CatalogSearchLookup implements CatalogLookup {
+  final Future<List<CatalogLookupResult>> Function(String designation) _search;
+
+  const CatalogSearchLookup(this._search);
+
+  @override
+  Future<CatalogLookupResult?> resolve(String designation) async {
+    final candidates = (await _search(
+      designation,
+    )).where(_hasValidCoordinates).toList(growable: false);
+    if (candidates.isEmpty) return null;
+
+    final query = _normalizeCatalogIdentifier(designation);
+    for (final candidate in candidates) {
+      final names = [candidate.canonicalName, ...candidate.identifiers];
+      if (names.any((name) => _normalizeCatalogIdentifier(name) == query)) {
+        return candidate;
+      }
+    }
+    return candidates.first;
+  }
+
+  static bool _hasValidCoordinates(CatalogLookupResult candidate) =>
+      candidate.raHours.isFinite &&
+      candidate.raHours >= 0 &&
+      candidate.raHours < 24 &&
+      candidate.decDegrees.isFinite &&
+      candidate.decDegrees >= -90 &&
+      candidate.decDegrees <= 90;
+}
+
+String _normalizeCatalogIdentifier(String value) =>
+    value.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
 
 /// A no-op catalog lookup. Used as the default when no catalog source has
 /// been configured — every resolve returns `null` and the importer surfaces

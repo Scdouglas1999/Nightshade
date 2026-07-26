@@ -122,6 +122,11 @@ MockBackend mockBackend() {
   when(() => backend.eventStream).thenAnswer((_) => eventController.stream);
   when(() => backend.polarAlignmentEvents)
       .thenAnswer((_) => polarAlignController.stream);
+  // PluginNodeAvailabilityRule reads this getter on every live-validation
+  // pass; an unstubbed mocktail bool getter returns null and type-errors the
+  // whole validation run (which broke every sequencer-screen widget test).
+  // `true` matches the local FFI backend the harness stands in for.
+  when(() => backend.dispatchPluginNodesLocally).thenReturn(true);
   // dispose() returns void; mocktail won't auto-stub void getters/setters but
   // void methods are fine. Still, set up explicitly so `verify(() => ...)`
   // works for tests that want to assert disposal.

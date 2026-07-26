@@ -193,7 +193,7 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
         // Expandable content
         SizeTransition(
           sizeFactor: _expandAnimation,
-          axisAlignment: -1.0,
+          alignment: Alignment.topLeft,
           child: FadeTransition(
             opacity: _expandAnimation,
             child: Padding(

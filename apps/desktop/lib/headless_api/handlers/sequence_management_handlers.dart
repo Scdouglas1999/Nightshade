@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/database_entities.dart'
@@ -13,6 +15,92 @@ import '../validation.dart';
 /// This is SEPARATE from sequencer_handlers.dart which controls sequencer execution.
 class SequenceManagementHandlers {
   final ProviderContainer container;
+
+  static const Set<String> _logicNodeTypes = {
+    'loop',
+    'Loop',
+    'parallel',
+    'Parallel',
+    'conditional',
+    'Conditional',
+    'recovery',
+    'Recovery',
+    'instructionSet',
+    'InstructionSet',
+    'targetScheduler',
+    'TargetScheduler',
+    'target_scheduler',
+  };
+  static const Set<String> _targetNodeTypes = {'targetGroup', 'TargetHeader'};
+  static const Set<String> _triggerNodeTypes = {'meridianFlip', 'MeridianFlip'};
+  static const Set<String> _instructionNodeTypes = {
+    'exposure',
+    'TakeExposure',
+    'slew',
+    'SlewToTarget',
+    'center',
+    'CenterTarget',
+    'autofocus',
+    'Autofocus',
+    'dither',
+    'Dither',
+    'filterChange',
+    'ChangeFilter',
+    'coolCamera',
+    'CoolCamera',
+    'warmCamera',
+    'WarmCamera',
+    'rotator',
+    'MoveRotator',
+    'park',
+    'Park',
+    'unpark',
+    'Unpark',
+    'waitTime',
+    'WaitForTime',
+    'delay',
+    'Delay',
+    'notification',
+    'Notification',
+    'script',
+    'RunScript',
+    'startGuiding',
+    'StartGuiding',
+    'stopGuiding',
+    'StopGuiding',
+    'openDome',
+    'OpenDome',
+    'closeDome',
+    'CloseDome',
+    'parkDome',
+    'ParkDome',
+    'polarAlignment',
+    'PolarAlignment',
+    'smartExposure',
+    'SmartExposure',
+    'smart_exposure',
+    'pluginNode',
+    'PluginNode',
+    'plugin_node',
+    'liveStacking',
+    'LiveStacking',
+    'live_stacking',
+    'openCover',
+    'OpenCover',
+    'open_cover',
+    'closeCover',
+    'CloseCover',
+    'close_cover',
+    'calibratorOn',
+    'CalibratorOn',
+    'calibrator_on',
+    'calibratorOff',
+    'CalibratorOff',
+    'calibrator_off',
+    'sciencePhotometry',
+    'SciencePhotometry',
+    'science_photometry',
+  };
 
   SequenceManagementHandlers(this.container);
 
@@ -37,6 +125,45 @@ class SequenceManagementHandlers {
       );
     }
     return parsed;
+  }
+
+  void _validateNodeWireType(String nodeType, String specificType) {
+    final expectedCategory = switch (specificType) {
+      _ when _logicNodeTypes.contains(specificType) => 'logic',
+      _ when _targetNodeTypes.contains(specificType) => 'target',
+      _ when _triggerNodeTypes.contains(specificType) => 'trigger',
+      _ when _instructionNodeTypes.contains(specificType) => 'instruction',
+      _ => null,
+    };
+    if (expectedCategory == null) {
+      throw BadRequestError(
+        field: 'specificType',
+        expected: 'a supported sequence node type',
+        message: 'Unsupported sequence node type "$specificType"',
+      );
+    }
+    if (nodeType != expectedCategory) {
+      throw BadRequestError(
+        field: 'nodeType',
+        expected: expectedCategory,
+        message:
+            'Node type "$specificType" belongs to category "$expectedCategory"',
+      );
+    }
+  }
+
+  void _validatePropertiesJson(String properties) {
+    try {
+      final decoded = jsonDecode(properties);
+      if (decoded is! Map) {
+        throw const FormatException('properties is not an object');
+      }
+    } on FormatException {
+      throw BadRequestError(
+        field: 'properties',
+        expected: 'a JSON object encoded as a string',
+      );
+    }
   }
 
   // ===========================================================================
@@ -82,6 +209,22 @@ class SequenceManagementHandlers {
     });
   }
 
+  /// GET `/api/sequence-management/<id>/full`
+  Future<Response> handleGetFullSequence(Request request, String id) async {
+    final sequenceId = _parsePathId(id, 'id');
+    _logInfo('[API] GET /api/sequence-management/$sequenceId/full');
+    final fileService = container.read(sequenceFileServiceProvider);
+    final sequence = await container
+        .read(sequenceRepositoryProvider)
+        .loadSequence(sequenceId);
+    if (sequence == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
+    }
+    final map = fileService.sequenceToMap(sequence);
+    map['databaseId'] = sequenceId;
+    return jsonOk({'sequence': map});
+  }
+
   /// POST /api/sequence-management/save-full
   Future<Response> handleSaveFullSequence(Request request) async {
     _logInfo('[API] POST /api/sequence-management/save-full');
@@ -92,9 +235,28 @@ class SequenceManagementHandlers {
 
     final fileService = container.read(sequenceFileServiceProvider);
     final repo = container.read(sequenceRepositoryProvider);
-    var sequence = fileService.parseFromMap(
-      Map<String, dynamic>.from(sequenceMap),
-    );
+    // Parse defensively, matching `handleSaveProfile`: `parseFromMap` throws a
+    // bare FormatException/TypeError on any shape it dislikes, which the
+    // top-level guard turns into `500 internal_error`. A caller sending the
+    // wrong node encoding is a client error, and a 500 reads as a server fault
+    // that clients are entitled to retry. Verified against the live rig: a
+    // sequence whose `nodes` was a JSON list answered
+    // `500 internal_error: FormatException: Sequence field "nodes" must be a
+    // JSON object, got List<dynamic>`.
+    var sequence = (() {
+      try {
+        return fileService.parseFromMap(Map<String, dynamic>.from(sequenceMap));
+      } on Object catch (e) {
+        final reason = e.toString();
+        throw BadRequestError(
+          field: 'sequence',
+          expected: 'sequence_document',
+          message:
+              'Malformed sequence payload: '
+              '${reason.length > 200 ? '${reason.substring(0, 200)}...' : reason}',
+        );
+      }
+    })();
     if (databaseId != null) {
       sequence = sequence.copyWith(databaseId: databaseId);
     }
@@ -108,6 +270,134 @@ class SequenceManagementHandlers {
       isTemplate: isTemplate,
     );
     return jsonOk({'id': id});
+  }
+
+  /// GET /api/sequence-management/summaries
+  ///
+  /// Returns the same lightweight, persisted metadata the desktop sequence
+  /// library uses. This keeps tags, favorites and run roll-ups intact on a
+  /// companion without transferring every full sequence tree.
+  Future<Response> handleListSequenceSummaries(Request request) async {
+    _logInfo('[API] GET /api/sequence-management/summaries');
+    final summaries = await container
+        .read(sequenceRepositoryProvider)
+        .loadSequenceSummaries();
+    return jsonOk({
+      'summaries': summaries.map(_summaryToJson).toList(growable: false),
+    });
+  }
+
+  /// PUT `/api/sequence-management/<id>/tags`
+  Future<Response> handleSetTags(Request request, String id) async {
+    final sequenceId = _parsePathId(id, 'id');
+    _logInfo('[API] PUT /api/sequence-management/$sequenceId/tags');
+    final payload = await readJsonObject(request);
+    final tags = requireList<String>(payload, 'tags');
+    final database = container.read(databaseProvider);
+    final existing = await database.sequencesDao.getSequenceById(sequenceId);
+    if (existing == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
+    }
+
+    await container.read(sequenceRepositoryProvider).setTags(sequenceId, tags);
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: sequenceId,
+      action: 'updated',
+      name: existing.name,
+      isTemplate: existing.isTemplate,
+    );
+    return jsonOk({'status': 'updated'});
+  }
+
+  /// POST `/api/sequence-management/<id>/favorite`
+  Future<Response> handleToggleFavorite(Request request, String id) async {
+    final sequenceId = _parsePathId(id, 'id');
+    _logInfo('[API] POST /api/sequence-management/$sequenceId/favorite');
+    final database = container.read(databaseProvider);
+    final existing = await database.sequencesDao.getSequenceById(sequenceId);
+    if (existing == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
+    }
+
+    final isFavorite = await container
+        .read(sequenceRepositoryProvider)
+        .toggleFavorite(sequenceId);
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: sequenceId,
+      action: 'updated',
+      name: existing.name,
+      isTemplate: existing.isTemplate,
+    );
+    return jsonOk({'status': 'updated', 'isFavorite': isFavorite});
+  }
+
+  /// POST `/api/sequence-management/<id>/versions`
+  ///
+  /// Version rows are explicit save points. The debounced remote editor uses
+  /// `save-full` only and therefore no longer floods this capped history every
+  /// 1.5 seconds; the Save dialog calls this route after its meaningful save.
+  Future<Response> handleSnapshotVersion(Request request, String id) async {
+    final sequenceId = _parsePathId(id, 'id');
+    _logInfo('[API] POST /api/sequence-management/$sequenceId/versions');
+    final payload = await readJsonObject(request);
+    final sequenceMap = requireObject(payload, 'sequence');
+    final label = optionalString(
+      payload,
+      'label',
+      allowEmpty: true,
+      maxLength: 200,
+    );
+    final database = container.read(databaseProvider);
+    final existing = await database.sequencesDao.getSequenceById(sequenceId);
+    if (existing == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
+    }
+
+    // Parse and re-encode through the canonical file schema before storing so
+    // a malformed client document can never become an unrestorable row.
+    final fileService = container.read(sequenceFileServiceProvider);
+    final parsed = fileService.parseFromMap(
+      Map<String, dynamic>.from(sequenceMap),
+    );
+    final snapshotJson = jsonEncode(fileService.sequenceToMap(parsed));
+    final versionId = await database.sequenceVersionsDao.appendVersion(
+      sequenceId: sequenceId,
+      snapshotJson: snapshotJson,
+      label: label,
+    );
+    return jsonOk({'id': versionId});
+  }
+
+  /// GET `/api/sequence-management/<id>/versions`
+  Future<Response> handleListVersions(Request request, String id) async {
+    final sequenceId = _parsePathId(id, 'id');
+    _logInfo('[API] GET /api/sequence-management/$sequenceId/versions');
+    final database = container.read(databaseProvider);
+    if (await database.sequencesDao.getSequenceById(sequenceId) == null) {
+      return jsonNotFound({'error': 'Sequence not found: $id'});
+    }
+    final versions = await database.sequenceVersionsDao.listVersions(
+      sequenceId,
+    );
+    return jsonOk({
+      'versions': versions.map(_versionSummaryToJson).toList(growable: false),
+    });
+  }
+
+  /// GET `/api/sequence-management/versions/<versionId>`
+  Future<Response> handleGetVersion(Request request, String versionId) async {
+    final parsedId = _parsePathId(versionId, 'versionId');
+    _logInfo('[API] GET /api/sequence-management/versions/$parsedId');
+    final version = await container
+        .read(databaseProvider)
+        .sequenceVersionsDao
+        .loadVersion(parsedId);
+    if (version == null) {
+      return jsonNotFound({'error': 'Sequence version not found: $versionId'});
+    }
+    return jsonOk({'version': _versionToJson(version)});
   }
 
   // ===========================================================================
@@ -299,18 +589,25 @@ class SequenceManagementHandlers {
     final database = container.read(databaseProvider);
 
     final propertiesValue = optionalString(payload, 'properties') ?? '{}';
+    final nodeType = requireString(payload, 'nodeType');
+    final specificType = requireString(payload, 'specificType');
+    _validateNodeWireType(nodeType, specificType);
+    _validatePropertiesJson(propertiesValue);
+    if (await database.sequencesDao.getSequenceById(seqId) == null) {
+      return jsonNotFound({'error': 'Sequence not found: $seqId'});
+    }
     final companion = SequenceNodesCompanion.insert(
       nodeId: requireString(payload, 'nodeId'),
       sequenceId: seqId,
       targetId: Value(optionalInt(payload, 'targetId')),
-      nodeType: requireString(payload, 'nodeType'),
-      specificType: requireString(payload, 'specificType'),
+      nodeType: nodeType,
+      specificType: specificType,
       name: requireString(payload, 'name'),
       properties: Value(propertiesValue),
       recoveryConfig: Value(optionalString(payload, 'recoveryConfig')),
       parentNodeId: Value(optionalString(payload, 'parentNodeId')),
       orderIndex: Value(optionalInt(payload, 'orderIndex') ?? 0),
-      isEnabled: Value(optionalBool(payload, 'isEnabled') ?? false),
+      isEnabled: Value(optionalBool(payload, 'isEnabled') ?? true),
     );
 
     final id = await database.sequencesDao.createNode(companion);
@@ -343,11 +640,16 @@ class SequenceManagementHandlers {
     // back to existing values.
     final updatedProperties =
         optionalString(payload, 'properties') ?? existing.properties;
+    final updatedNodeType =
+        optionalString(payload, 'nodeType') ?? existing.nodeType;
+    final updatedSpecificType =
+        optionalString(payload, 'specificType') ?? existing.specificType;
+    _validateNodeWireType(updatedNodeType, updatedSpecificType);
+    _validatePropertiesJson(updatedProperties);
     final updated = existing.copyWith(
       name: optionalString(payload, 'name') ?? existing.name,
-      nodeType: optionalString(payload, 'nodeType') ?? existing.nodeType,
-      specificType:
-          optionalString(payload, 'specificType') ?? existing.specificType,
+      nodeType: updatedNodeType,
+      specificType: updatedSpecificType,
       properties: updatedProperties,
       recoveryConfig: Value(
         optionalString(payload, 'recoveryConfig') ?? existing.recoveryConfig,
@@ -479,6 +781,37 @@ class SequenceManagementHandlers {
       'updatedAt': sequence.updatedAt.millisecondsSinceEpoch,
     };
   }
+
+  Map<String, dynamic> _summaryToJson(SequenceSummary summary) => {
+    'id': summary.id,
+    'name': summary.name,
+    'nodeCount': summary.nodeCount,
+    'targetCount': summary.targetCount,
+    'exposureCount': summary.exposureCount,
+    'totalIntegrationSecs': summary.totalIntegrationSecs,
+    'primaryTargetName': summary.primaryTargetName,
+    'lastRunAt': summary.lastRunAt?.toIso8601String(),
+    'runCount': summary.runCount,
+    'tags': summary.tags,
+    'isFavorite': summary.isFavorite,
+    'createdAt': summary.createdAt.toIso8601String(),
+    'modifiedAt': summary.modifiedAt.toIso8601String(),
+  };
+
+  Map<String, dynamic> _versionToJson(SequenceVersion version) => {
+    'id': version.id,
+    'sequenceId': version.sequenceId,
+    'snapshotJson': version.snapshotJson,
+    'label': version.label,
+    'createdAt': version.createdAt.toIso8601String(),
+  };
+
+  Map<String, dynamic> _versionSummaryToJson(SequenceVersion version) => {
+    'id': version.id,
+    'sequenceId': version.sequenceId,
+    'label': version.label,
+    'createdAt': version.createdAt.toIso8601String(),
+  };
 
   // ===========================================================================
   // Helper: Convert SequenceNode to JSON

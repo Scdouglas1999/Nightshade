@@ -6,7 +6,9 @@ class _FilterSettingsMobileCard extends StatefulWidget {
   final FilterAutofocusConfig config;
   final List<String> allFilterNames;
   final bool isLast;
-  final ValueChanged<FilterAutofocusConfig> onConfigChanged;
+  final Future<void> Function(
+    FilterAutofocusConfig Function(FilterAutofocusConfig current) update,
+  ) onConfigChanged;
 
   const _FilterSettingsMobileCard({
     required this.position,
@@ -49,12 +51,35 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
   void didUpdateWidget(_FilterSettingsMobileCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.config != widget.config) {
-      _focusOffsetController.text = widget.config.focusOffset.toString();
-      _afExpTimeController.text =
-          widget.config.afExposureTime?.toString() ?? '';
-      _gainController.text = widget.config.gain?.toString() ?? '';
-      _offsetController.text = widget.config.offset?.toString() ?? '';
+      _syncIfUnedited(
+        _focusOffsetController,
+        oldWidget.config.focusOffset.toString(),
+        widget.config.focusOffset.toString(),
+      );
+      _syncIfUnedited(
+        _afExpTimeController,
+        oldWidget.config.afExposureTime?.toString() ?? '',
+        widget.config.afExposureTime?.toString() ?? '',
+      );
+      _syncIfUnedited(
+        _gainController,
+        oldWidget.config.gain?.toString() ?? '',
+        widget.config.gain?.toString() ?? '',
+      );
+      _syncIfUnedited(
+        _offsetController,
+        oldWidget.config.offset?.toString() ?? '',
+        widget.config.offset?.toString() ?? '',
+      );
     }
+  }
+
+  void _syncIfUnedited(
+    TextEditingController controller,
+    String oldText,
+    String newText,
+  ) {
+    if (controller.text == oldText) controller.text = newText;
   }
 
   @override
@@ -123,35 +148,41 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
               _buildMobileField(
                 'Focus Offset',
                 _buildCompactNumberInput(
+                  fieldKey:
+                      ValueKey('af-filter-${widget.filterName}-focus-offset'),
                   controller: _focusOffsetController,
-                  onChanged: (value) {
+                  allowNegative: true,
+                  onCommit: (value) {
                     final parsed = int.tryParse(value);
-                    if (parsed != null) {
-                      widget.onConfigChanged(
-                        widget.config.copyWith(focusOffset: parsed),
-                      );
-                    }
+                    if (parsed == null) return Future<void>.value();
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(focusOffset: parsed),
+                    );
                   },
                 ),
               ),
               _buildMobileField(
                 'AF Exp Time',
                 _buildCompactNumberInput(
+                  fieldKey: ValueKey('af-filter-${widget.filterName}-exposure'),
                   controller: _afExpTimeController,
                   hint: 'default',
-                  onChanged: (value) {
+                  allowDecimal: true,
+                  allowClear: true,
+                  min: 0.1,
+                  max: 300,
+                  onCommit: (value) {
                     if (value.isEmpty) {
-                      widget.onConfigChanged(
-                        widget.config.copyWith(clearAfExposureTime: true),
+                      return widget.onConfigChanged(
+                        (current) =>
+                            current.copyWith(clearAfExposureTime: true),
                       );
-                    } else {
-                      final parsed = double.tryParse(value);
-                      if (parsed != null) {
-                        widget.onConfigChanged(
-                          widget.config.copyWith(afExposureTime: parsed),
-                        );
-                      }
                     }
+                    final parsed = double.tryParse(value);
+                    if (parsed == null) return Future<void>.value();
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(afExposureTime: parsed),
+                    );
                   },
                 ),
               ),
@@ -161,17 +192,14 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                   value: afFilterName,
                   items: ['Default', ...widget.allFilterNames],
                   onChanged: (value) {
-                    if (value != null) {
-                      if (value == 'Default') {
-                        widget.onConfigChanged(
-                          widget.config.copyWith(clearAfFilterName: true),
-                        );
-                      } else {
-                        widget.onConfigChanged(
-                          widget.config.copyWith(afFilterName: value),
-                        );
-                      }
+                    if (value == 'Default') {
+                      return widget.onConfigChanged(
+                        (current) => current.copyWith(clearAfFilterName: true),
+                      );
                     }
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(afFilterName: value),
+                    );
                   },
                   isMobile: true,
                   flexible: true,
@@ -183,12 +211,10 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                   value: binningStr,
                   items: const ['1x1', '2x2', '3x3', '4x4'],
                   onChanged: (value) {
-                    if (value != null) {
-                      final binVal = int.tryParse(value.split('x').first) ?? 1;
-                      widget.onConfigChanged(
-                        widget.config.copyWith(binning: binVal),
-                      );
-                    }
+                    final binVal = int.tryParse(value.split('x').first) ?? 1;
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(binning: binVal),
+                    );
                   },
                   isMobile: true,
                   flexible: true,
@@ -197,42 +223,44 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
               _buildMobileField(
                 'Gain',
                 _buildCompactNumberInput(
+                  fieldKey: ValueKey('af-filter-${widget.filterName}-gain'),
                   controller: _gainController,
                   hint: 'default',
-                  onChanged: (value) {
+                  allowClear: true,
+                  min: 0,
+                  onCommit: (value) {
                     if (value.isEmpty) {
-                      widget.onConfigChanged(
-                        widget.config.copyWith(clearGain: true),
+                      return widget.onConfigChanged(
+                        (current) => current.copyWith(clearGain: true),
                       );
-                    } else {
-                      final parsed = int.tryParse(value);
-                      if (parsed != null) {
-                        widget.onConfigChanged(
-                          widget.config.copyWith(gain: parsed),
-                        );
-                      }
                     }
+                    final parsed = int.tryParse(value);
+                    if (parsed == null) return Future<void>.value();
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(gain: parsed),
+                    );
                   },
                 ),
               ),
               _buildMobileField(
                 'Offset',
                 _buildCompactNumberInput(
+                  fieldKey: ValueKey('af-filter-${widget.filterName}-offset'),
                   controller: _offsetController,
                   hint: 'default',
-                  onChanged: (value) {
+                  allowClear: true,
+                  min: 0,
+                  onCommit: (value) {
                     if (value.isEmpty) {
-                      widget.onConfigChanged(
-                        widget.config.copyWith(clearOffset: true),
+                      return widget.onConfigChanged(
+                        (current) => current.copyWith(clearOffset: true),
                       );
-                    } else {
-                      final parsed = int.tryParse(value);
-                      if (parsed != null) {
-                        widget.onConfigChanged(
-                          widget.config.copyWith(offset: parsed),
-                        );
-                      }
                     }
+                    final parsed = int.tryParse(value);
+                    if (parsed == null) return Future<void>.value();
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(offset: parsed),
+                    );
                   },
                 ),
               ),
@@ -265,41 +293,27 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
   }
 
   Widget _buildCompactNumberInput({
+    required Key fieldKey,
     required TextEditingController controller,
     String? hint,
-    required ValueChanged<String> onChanged,
+    bool allowDecimal = false,
+    bool allowNegative = false,
+    bool allowClear = false,
+    num? min,
+    num? max,
+    required Future<void> Function(String) onCommit,
   }) {
-    return Container(
+    return _FilterSettingsNumberInput(
+      fieldKey: fieldKey,
+      controller: controller,
+      hint: hint,
+      allowDecimal: allowDecimal,
+      allowNegative: allowNegative,
+      allowClear: allowClear,
+      min: min,
+      max: max,
       height: 32,
-      decoration: BoxDecoration(
-        color: NightshadeColors.of(context).surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-        border: Border.all(color: NightshadeColors.of(context).border),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-        ],
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize12,
-          color: NightshadeColors.of(context).textPrimary,
-        ),
-        textAlign: TextAlign.right,
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          isDense: true,
-          hintText: hint,
-          hintStyle: TextStyle(
-            fontSize: NightshadeTypography.fontSize10,
-            color: NightshadeColors.of(context).textMuted,
-          ),
-        ),
-        onChanged: onChanged,
-      ),
+      onCommit: onCommit,
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -23,27 +25,95 @@ class SwitchControlCard extends ConsumerStatefulWidget {
 
 class _SwitchControlCardState extends ConsumerState<SwitchControlCard> {
   final _pending = <int>{};
+  final _analogDrafts = <int, double>{};
+  bool _refreshing = false;
+  ProviderSubscription<DeviceService>? _serviceSubscription;
 
   @override
   void initState() {
     super.initState();
+    _serviceSubscription = ref.listenManual<DeviceService>(
+      deviceServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted) {
+          setState(() {
+            _refreshing = false;
+            _pending.clear();
+            _analogDrafts.clear();
+          });
+        }
+      },
+    );
     // Connect already refreshes channels, but a client that opens the screen
     // after the switch connected needs a pull to populate names/states.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(deviceServiceProvider).refreshSwitchChannels();
+      if (mounted) unawaited(_refresh());
     });
   }
 
-  Future<void> _toggle(int index, bool value) async {
-    setState(() => _pending.add(index));
+  @override
+  void dispose() {
+    _serviceSubscription?.close();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    final service = ref.read(deviceServiceProvider);
+    setState(() => _refreshing = true);
     try {
-      await ref.read(deviceServiceProvider).setSwitchChannel(index, value);
+      await service.refreshSwitchChannels();
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Switch failed: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Channel refresh failed: $e');
+      }
     } finally {
-      if (mounted) setState(() => _pending.remove(index));
+      if (_isCurrentService(service)) {
+        setState(() => _refreshing = false);
+      }
     }
   }
+
+  Future<void> _toggle(int index, bool value) async {
+    if (_pending.contains(index)) return;
+    final service = ref.read(deviceServiceProvider);
+    setState(() => _pending.add(index));
+    try {
+      await service.setSwitchChannel(index, value);
+    } catch (e) {
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Switch failed: $e');
+      }
+    } finally {
+      if (_isCurrentService(service)) {
+        setState(() => _pending.remove(index));
+      }
+    }
+  }
+
+  Future<void> _setValue(int index, double value) async {
+    if (_pending.contains(index)) return;
+    final service = ref.read(deviceServiceProvider);
+    setState(() => _pending.add(index));
+    try {
+      await service.setSwitchChannelValue(index, value);
+    } catch (e) {
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Switch failed: $e');
+      }
+    } finally {
+      if (_isCurrentService(service)) {
+        setState(() {
+          _pending.remove(index);
+          _analogDrafts.remove(index);
+        });
+      }
+    }
+  }
+
+  bool _isCurrentService(DeviceService service) =>
+      mounted && identical(ref.read(deviceServiceProvider), service);
 
   @override
   Widget build(BuildContext context) {
@@ -75,11 +145,22 @@ class _SwitchControlCardState extends ConsumerState<SwitchControlCard> {
               ),
               const Spacer(),
               IconButton(
-                icon: Icon(LucideIcons.refreshCw,
-                    size: 16, color: colors.textMuted),
+                icon: _refreshing
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colors.primary,
+                        ),
+                      )
+                    : Icon(
+                        LucideIcons.refreshCw,
+                        size: 16,
+                        color: colors.textMuted,
+                      ),
                 tooltip: 'Refresh channels',
-                onPressed: () =>
-                    ref.read(deviceServiceProvider).refreshSwitchChannels(),
+                onPressed: _refreshing ? null : _refresh,
               ),
             ],
           ),
@@ -91,39 +172,230 @@ class _SwitchControlCardState extends ConsumerState<SwitchControlCard> {
                     fontSize: NightshadeTypography.fontSize12))
           else
             for (var i = 0; i < count; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        (i < names.length && names[i].isNotEmpty)
-                            ? names[i]
-                            : 'Channel ${i + 1}',
-                        style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize13),
-                      ),
-                    ),
-                    if (_pending.contains(i))
-                      const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Padding(
-                          padding: EdgeInsets.all(4),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    else
-                      Switch(
-                        value: i < states.length && states[i],
-                        onChanged: (v) => _toggle(i, v),
-                      ),
-                  ],
-                ),
+              _buildChannel(
+                index: i,
+                state: state,
+                names: names,
+                states: states,
+                colors: colors,
               ),
         ],
       ),
+    );
+  }
+
+  Widget _buildChannel({
+    required int index,
+    required SwitchState state,
+    required List<String> names,
+    required List<bool> states,
+    required NightshadeColors colors,
+  }) {
+    final name = index < names.length && names[index].isNotEmpty
+        ? names[index]
+        : 'Channel ${index + 1}';
+    final description = index < state.channelDescriptions.length
+        ? state.channelDescriptions[index]
+        : '';
+    final isBoolean =
+        index >= state.channelIsBoolean.length || state.channelIsBoolean[index];
+    final canWrite =
+        index >= state.channelCanWrite.length || state.channelCanWrite[index];
+    final pending = _pending.contains(index);
+
+    if (isBoolean) {
+      final on = index < states.length && states[index];
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: _ChannelLabel(
+                name: name,
+                description: description,
+                colors: colors,
+              ),
+            ),
+            if (pending)
+              const _PendingIndicator()
+            else if (canWrite)
+              Switch(
+                key: ValueKey('switch-channel-$index-toggle'),
+                value: on,
+                onChanged: (value) => _toggle(index, value),
+              )
+            else
+              _ReadOnlyValue(label: on ? 'On' : 'Off', colors: colors),
+          ],
+        ),
+      );
+    }
+
+    final min = index < state.channelMinValues.length
+        ? state.channelMinValues[index]
+        : 0.0;
+    final max = index < state.channelMaxValues.length
+        ? state.channelMaxValues[index]
+        : 1.0;
+    final hardwareValue =
+        index < state.channelValues.length ? state.channelValues[index] : min;
+    final validRange = min.isFinite && max.isFinite && max > min;
+    final value = validRange
+        ? (_analogDrafts[index] ?? hardwareValue).clamp(min, max).toDouble()
+        : hardwareValue;
+    final step =
+        index < state.channelSteps.length ? state.channelSteps[index] : 0.0;
+    final divisionCount = validRange && step.isFinite && step > 0
+        ? ((max - min) / step).round()
+        : 0;
+    final divisions =
+        divisionCount >= 1 && divisionCount <= 1000 ? divisionCount : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _ChannelLabel(
+                  name: name,
+                  description: description,
+                  colors: colors,
+                ),
+              ),
+              if (pending)
+                const _PendingIndicator()
+              else
+                _ReadOnlyValue(
+                  label: _formatValue(value),
+                  colors: colors,
+                  locked: !canWrite,
+                ),
+            ],
+          ),
+          if (validRange)
+            Slider(
+              key: ValueKey('switch-channel-$index-slider'),
+              min: min,
+              max: max,
+              divisions: divisions,
+              value: value,
+              label: _formatValue(value),
+              onChanged: canWrite && !pending
+                  ? (next) => setState(() => _analogDrafts[index] = next)
+                  : null,
+              onChangeEnd: canWrite && !pending
+                  ? (next) => _setValue(index, next)
+                  : null,
+            )
+          else
+            Text(
+              'Driver reported an invalid numeric range',
+              style: TextStyle(
+                color: colors.warning,
+                fontSize: NightshadeTypography.fontSize11,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _formatValue(double value) {
+    if (!value.isFinite) return '—';
+    if ((value - value.round()).abs() < 0.000001) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(2);
+  }
+}
+
+class _ChannelLabel extends StatelessWidget {
+  final String name;
+  final String description;
+  final NightshadeColors colors;
+
+  const _ChannelLabel({
+    required this.name,
+    required this.description,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: NightshadeTypography.fontSize13,
+          ),
+        ),
+        if (description.isNotEmpty)
+          Text(
+            description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize10,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _PendingIndicator extends StatelessWidget {
+  const _PendingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 24,
+      height: 24,
+      child: Padding(
+        padding: EdgeInsets.all(4),
+        child: CircularProgressIndicator(strokeWidth: 2),
+      ),
+    );
+  }
+}
+
+class _ReadOnlyValue extends StatelessWidget {
+  final String label;
+  final NightshadeColors colors;
+  final bool locked;
+
+  const _ReadOnlyValue({
+    required this.label,
+    required this.colors,
+    this.locked = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (locked) ...[
+          Icon(LucideIcons.lock, size: 12, color: colors.textMuted),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          label,
+          style: TextStyle(
+            color: colors.textMuted,
+            fontSize: NightshadeTypography.fontSize12,
+          ),
+        ),
+      ],
     );
   }
 }

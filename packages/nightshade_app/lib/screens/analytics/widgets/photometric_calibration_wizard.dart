@@ -75,17 +75,53 @@ class _PhotometricCalibrationWizardState
   PhotometricTransformCoefficients? _computedCoefficients;
   String _statusMessage = '';
   bool _isComputing = false;
+  bool _isSaving = false;
+  bool _fitAttempted = false;
+  int _operationGeneration = 0;
 
   void _update(VoidCallback fn) => setState(fn);
 
+  bool _isCurrentOperation(
+    int generation,
+    NightshadeBackend authority,
+  ) {
+    return mounted &&
+        generation == _operationGeneration &&
+        identical(ref.read(backendProvider), authority);
+  }
+
+  void _retireAsyncWork() {
+    _operationGeneration++;
+    _isComputing = false;
+    _isSaving = false;
+  }
+
   @override
   void dispose() {
+    _operationGeneration++;
     _filterController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (previous == null || identical(previous, next)) return;
+      _operationGeneration++;
+      setState(() {
+        _step = 0;
+        _filterName = '';
+        _filterController.clear();
+        _selectedSessionId = null;
+        _selectedImageIds.clear();
+        _starMatches = const [];
+        _computedCoefficients = null;
+        _statusMessage = '';
+        _isComputing = false;
+        _isSaving = false;
+        _fitAttempted = false;
+      });
+    });
     final colors = NightshadeColors.of(context);
 
     return NightshadeDialog(

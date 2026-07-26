@@ -110,11 +110,40 @@ class _TargetEditorOverlay extends ConsumerWidget {
                                         targetId: targetId,
                                         targetName: name,
                                         onChanged: () {
-                                          ref
-                                              .read(schedulerEngineProvider)
-                                              .evaluateNow(
-                                                reason: 'constraint edit',
-                                              );
+                                          final backend =
+                                              ref.read(backendProvider);
+                                          if (backend is NetworkBackend) {
+                                            unawaited(() async {
+                                              try {
+                                                await backend.controlScheduler(
+                                                  'evaluate',
+                                                );
+                                                if (!context.mounted) return;
+                                                ref.invalidate(
+                                                  schedulerRemoteSnapshotProvider,
+                                                );
+                                                ref.invalidate(
+                                                  schedulerPreviewDecisionProvider,
+                                                );
+                                              } catch (error) {
+                                                if (!context.mounted) return;
+                                                ScaffoldMessenger.of(context)
+                                                    .showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Could not re-evaluate scheduler: $error',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            }());
+                                          } else {
+                                            ref
+                                                .read(schedulerEngineProvider)
+                                                .evaluateNow(
+                                                  reason: 'constraint edit',
+                                                );
+                                          }
                                         },
                                       ),
                                     ],

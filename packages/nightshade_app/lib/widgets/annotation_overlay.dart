@@ -106,8 +106,8 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
   }
 
   void _onHoverMove(PointerEvent event) {
-    final settings = ref.read(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settings = ref.read(annotationSettingsProvider).valueOrNull;
+    if (settings == null) return;
     if (!settings.enabled || widget.annotation == null) return;
 
     final localPosition = event.localPosition;
@@ -206,8 +206,11 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     _isHovering = hovering;
     ref.read(annotationHoverStateProvider.notifier).state = hovering;
 
-    final settings = ref.read(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settings = ref.read(annotationSettingsProvider).valueOrNull;
+    if (settings == null) {
+      _clearHoverState();
+      return;
+    }
     if (!settings.fadeWhenNotHovering) return;
 
     if (hovering) {
@@ -219,34 +222,38 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     }
   }
 
+  CelestialObjectAnnotation? _objectAt(
+    Offset imagePoint,
+    AnnotationSettings settings,
+  ) {
+    if (widget.annotation == null) return null;
+    for (final object in widget.annotation!.objects) {
+      if (!_isObjectVisibleForInteraction(object, settings)) continue;
+
+      final dx = object.x - imagePoint.dx;
+      final dy = object.y - imagePoint.dy;
+      final distance = (dx * dx + dy * dy);
+      final hitRadius = (object.size ?? 30) * 1.5;
+
+      if (distance < hitRadius * hitRadius) return object;
+    }
+    return null;
+  }
+
   void _onTapUp(TapUpDetails details) {
-    final settings = ref.read(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settings = ref.read(annotationSettingsProvider).valueOrNull;
+    if (settings == null) return;
 
-    final localPosition = details.localPosition;
-
-    // Convert screen position to image coordinates
     final imagePoint = viewportToImage(
-      viewportPoint: localPosition,
+      viewportPoint: details.localPosition,
       imageOffset: widget.imageOffset,
       zoomLevel: widget.zoomLevel,
     );
 
-    // Check if tapped on an existing object
-    if (widget.annotation != null) {
-      for (final object in widget.annotation!.objects) {
-        if (!_isObjectVisibleForInteraction(object, settings)) continue;
-
-        final dx = object.x - imagePoint.dx;
-        final dy = object.y - imagePoint.dy;
-        final distance = (dx * dx + dy * dy);
-        final hitRadius = (object.size ?? 30) * 1.5;
-
-        if (distance < hitRadius * hitRadius) {
-          widget.onObjectTapped?.call(object);
-          return;
-        }
-      }
+    final object = _objectAt(imagePoint, settings);
+    if (object != null) {
+      widget.onObjectTapped?.call(object);
+      return;
     }
 
     // On touch platforms, tapping empty space toggles annotation visibility
@@ -262,14 +269,40 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
     widget.onIdentifyAt?.call(imagePoint.dx, imagePoint.dy);
   }
 
+  /// Touch-platform identify gesture. Tap is reserved for visibility toggling,
+  /// so long-press (and secondary-tap where a pointer provides it) runs the
+  /// same object-tap / click-to-identify path desktop gets from a plain click.
+  void _onIdentifyGesture(Offset localPosition) {
+    final settings = ref.read(annotationSettingsProvider).valueOrNull;
+    if (settings == null) return;
+
+    final imagePoint = viewportToImage(
+      viewportPoint: localPosition,
+      imageOffset: widget.imageOffset,
+      zoomLevel: widget.zoomLevel,
+    );
+
+    final object = _objectAt(imagePoint, settings);
+    if (object != null) {
+      widget.onObjectTapped?.call(object);
+      return;
+    }
+
+    if (!settings.clickToIdentify) return;
+    widget.onIdentifyAt?.call(imagePoint.dx, imagePoint.dy);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(annotationSettingsProvider);
     final markerStyleAsync = ref.watch(annotationMarkerStyleProvider);
 
-    final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
-    final markerStyle =
-        markerStyleAsync.valueOrNull ?? const AnnotationMarkerStyle();
+    final settings = settingsAsync.valueOrNull;
+    final markerStyle = markerStyleAsync.valueOrNull;
+
+    if (settings == null || markerStyle == null) {
+      return const SizedBox.shrink();
+    }
 
     _fadeController.duration = Duration(milliseconds: settings.fadeAnimationMs);
     _fadeAnimation = _createFadeAnimation(settings);
@@ -295,6 +328,8 @@ class _AnnotationOverlayState extends ConsumerState<AnnotationOverlay>
         children: [
           GestureDetector(
             onTapUp: _onTapUp,
+            onLongPressStart: (d) => _onIdentifyGesture(d.localPosition),
+            onSecondaryTapUp: (d) => _onIdentifyGesture(d.localPosition),
             behavior: HitTestBehavior.translucent,
             child: Opacity(
               opacity: _touchAnnotationsVisible ? settings.hoverOpacity : 0.0,

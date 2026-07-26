@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+
+import '../../../utils/authority_bound_dialog.dart';
+import '../../../utils/count_label.dart';
 
 class ListsTab extends ConsumerStatefulWidget {
   final NightshadeColors colors;
@@ -260,7 +265,7 @@ class _CreateListButton extends ConsumerWidget {
     if (compact) {
       return IconButton(
         icon: Icon(NightshadeIcons.add, size: 16, color: colors.primary),
-        onPressed: () => _showCreateDialog(context, ref),
+        onPressed: () => _showCreateDialog(context),
         tooltip: 'Create new list',
         visualDensity: VisualDensity.compact,
         padding: EdgeInsets.zero,
@@ -269,7 +274,7 @@ class _CreateListButton extends ConsumerWidget {
     }
 
     return GestureDetector(
-      onTap: () => _showCreateDialog(context, ref),
+      onTap: () => _showCreateDialog(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
@@ -292,13 +297,99 @@ class _CreateListButton extends ConsumerWidget {
     );
   }
 
-  void _showCreateDialog(BuildContext context, WidgetRef ref) {
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-
-    showDialog(
+  void _showCreateDialog(BuildContext context) {
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (_) => const _CreateObservingListDialog(),
+    );
+  }
+}
+
+class _CreateObservingListDialog extends ConsumerStatefulWidget {
+  const _CreateObservingListDialog();
+
+  @override
+  ConsumerState<_CreateObservingListDialog> createState() =>
+      _CreateObservingListDialogState();
+}
+
+class _CreateObservingListDialogState
+    extends ConsumerState<_CreateObservingListDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  late final NightshadeBackend _authority;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  bool _saving = false;
+  String? _nameError;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _descriptionController = TextEditingController();
+    _authority = ref.read(backendProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('The connected host changed. List creation cancelled.'),
+          ),
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Enter a list name');
+      return;
+    }
+    if (!identical(ref.read(backendProvider), _authority)) return;
+
+    setState(() {
+      _saving = true;
+      _nameError = null;
+    });
+    final description = _descriptionController.text.trim();
+    final id =
+        await ref.read(observingListNotifierProvider.notifier).createList(
+              name: name,
+              description: description.isEmpty ? null : description,
+            );
+
+    if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
+    if (id == null) {
+      setState(() => _saving = false);
+      final message = ref.read(observingListNotifierProvider).errorMessage ??
+          'Could not create the observing list';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      return;
+    }
+
+    ref.read(activeObservingListIdProvider.notifier).state = id;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
         title: const Text('Create Observing List'),
         content: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
@@ -309,64 +400,45 @@ class _CreateListButton extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
+                controller: _nameController,
+                decoration: InputDecoration(
                   labelText: 'List Name',
                   hintText: 'e.g., Winter Galaxies',
+                  errorText: _nameError,
                 ),
                 autofocus: true,
-                onSubmitted: (_) => _submit(
-                    context, ref, nameController, descriptionController),
+                textInputAction: TextInputAction.next,
+                onChanged: (_) {
+                  if (_nameError != null) setState(() => _nameError = null);
+                },
               ),
               const SizedBox(height: 12),
               TextField(
-                controller: descriptionController,
+                controller: _descriptionController,
                 decoration: const InputDecoration(
                   labelText: 'Description (optional)',
                   hintText: 'e.g., Best galaxies visible in winter',
                 ),
                 maxLines: 2,
+                onSubmitted: (_) {
+                  if (!_saving) _submit();
+                },
               ),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () =>
-                _submit(context, ref, nameController, descriptionController),
-            child: const Text('Create'),
+            onPressed: _saving ? null : _submit,
+            child: Text(_saving ? 'Creating…' : 'Create'),
           ),
         ],
       ),
     );
-  }
-
-  Future<void> _submit(
-    BuildContext context,
-    WidgetRef ref,
-    TextEditingController nameController,
-    TextEditingController descriptionController,
-  ) async {
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-
-    final description = descriptionController.text.trim();
-    final id =
-        await ref.read(observingListNotifierProvider.notifier).createList(
-              name: name,
-              description: description.isEmpty ? null : description,
-            );
-
-    if (context.mounted) {
-      Navigator.of(context).pop();
-      if (id != null) {
-        ref.read(activeObservingListIdProvider.notifier).state = id;
-      }
-    }
   }
 }
 
@@ -461,6 +533,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
 
   @override
   Widget build(BuildContext context) {
+    final showRemove = Responsive.isMobile(context) || _isHovered;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -489,10 +562,14 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          widget.item.objectName,
-                          style: NightshadeTypography.h6
-                              .copyWith(color: widget.colors.textPrimary),
+                        Expanded(
+                          child: Text(
+                            widget.item.objectName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: NightshadeTypography.h6
+                                .copyWith(color: widget.colors.textPrimary),
+                          ),
                         ),
                         if (widget.item.catalogId != null) ...[
                           const SizedBox(width: 6),
@@ -538,19 +615,25 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                     color: widget.colors.textMuted,
                   ),
                 ),
-              if (_isHovered) ...[
+              if (showRemove) ...[
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: widget.onRemove,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: widget.colors.error.withValues(alpha: 0.15),
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline4),
+                Tooltip(
+                  message: 'Remove from list',
+                  child: IconButton(
+                    onPressed: widget.onRemove,
+                    icon: Icon(
+                      NightshadeIcons.close,
+                      size: 14,
+                      color: widget.colors.error,
                     ),
-                    child: Icon(NightshadeIcons.close,
-                        size: 12, color: widget.colors.error),
+                    style: IconButton.styleFrom(
+                      backgroundColor:
+                          widget.colors.error.withValues(alpha: 0.15),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
                   ),
                 ),
               ],
@@ -562,7 +645,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
   }
 }
 
-class _ExportToSequenceButton extends ConsumerWidget {
+class _ExportToSequenceButton extends ConsumerStatefulWidget {
   final int listId;
   final String listName;
   final NightshadeColors colors;
@@ -574,74 +657,148 @@ class _ExportToSequenceButton extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ExportToSequenceButton> createState() =>
+      _ExportToSequenceButtonState();
+}
+
+class _ExportToSequenceButtonState
+    extends ConsumerState<_ExportToSequenceButton> {
+  bool _exporting = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Export to Sequence',
+      message: _exporting ? 'Creating sequence…' : 'Export to Sequence',
       child: GestureDetector(
-        onTap: () => _exportToSequence(context, ref),
+        onTap: _exporting ? null : _exportToSequence,
         child: Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.15),
+            color: widget.colors.primary.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
-          child: Icon(LucideIcons.listPlus, size: 14, color: colors.primary),
+          child: _exporting
+              ? SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: widget.colors.primary,
+                  ),
+                )
+              : Icon(
+                  LucideIcons.listPlus,
+                  size: 14,
+                  color: widget.colors.primary,
+                ),
         ),
       ),
     );
   }
 
-  Future<void> _exportToSequence(BuildContext context, WidgetRef ref) async {
-    // Read items through the remote-aware provider so a slave exports the
-    // master's list (the local DAO is empty on a NetworkBackend).
-    final items = await ref.read(observingListItemsProvider(listId).future);
+  Future<void> _exportToSequence() async {
+    setState(() => _exporting = true);
+    final backend = ref.read(backendProvider);
+    final sequencesDao =
+        backend is NetworkBackend ? null : ref.read(sequencesDaoProvider);
+    int? sequenceId;
+    try {
+      // Read items through the remote-aware provider so a slave exports the
+      // master's list (the local DAO is empty on a NetworkBackend).
+      final items =
+          await ref.read(observingListItemsProvider(widget.listId).future);
 
-    if (items.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('List is empty, nothing to export.')),
+      if (items.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('List is empty, nothing to export.')),
+          );
+        }
+        return;
+      }
+
+      if (backend is NetworkBackend) {
+        sequenceId = await backend.createSequence({
+          'name': widget.listName,
+          'isTemplate': false,
+        });
+      } else {
+        sequenceId = await sequencesDao!.createSequence(
+          SequencesCompanion.insert(
+            name: widget.listName,
+            isTemplate: const Value(false),
+          ),
         );
       }
-      return;
-    }
 
-    // Create a new sequence with target nodes for each item
-    final sequencesDao = ref.read(sequencesDaoProvider);
-    final sequenceId = await sequencesDao.createSequence(
-      SequencesCompanion.insert(
-        name: listName,
-        isTemplate: const Value(false),
-      ),
-    );
+      final nodeStamp = DateTime.now().microsecondsSinceEpoch;
+      for (var i = 0; i < items.length; i++) {
+        final item = items[i];
+        final nodeId = 'target_${nodeStamp}_$i';
+        final properties = jsonEncode({
+          'ra': item.ra,
+          'dec': item.dec,
+          if (item.catalogId != null) 'catalogId': item.catalogId,
+        });
+        if (backend is NetworkBackend) {
+          await backend.createSequenceNode(sequenceId, {
+            'nodeId': nodeId,
+            'nodeType': 'target',
+            'specificType': 'target',
+            'name': item.objectName,
+            'properties': properties,
+            'orderIndex': i,
+          });
+        } else {
+          await sequencesDao!.createNode(
+            SequenceNodesCompanion.insert(
+              nodeId: nodeId,
+              sequenceId: sequenceId,
+              nodeType: 'target',
+              specificType: 'target',
+              name: item.objectName,
+              properties: Value(properties),
+              orderIndex: Value(i),
+            ),
+          );
+        }
+      }
 
-    for (var i = 0; i < items.length; i++) {
-      final item = items[i];
-      // Create a target node for each list item
-      final nodeId = 'target_${DateTime.now().microsecondsSinceEpoch}_$i';
-      await sequencesDao.createNode(
-        SequenceNodesCompanion.insert(
-          nodeId: nodeId,
-          sequenceId: sequenceId,
-          nodeType: 'target',
-          specificType: 'target',
-          name: item.objectName,
-          properties: Value(
-            '{"ra": ${item.ra}, "dec": ${item.dec}'
-            '${item.catalogId != null ? ', "catalogId": "${item.catalogId}"' : ''}'
-            '}',
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Created sequence "${widget.listName}" with '
+              '${countLabel(items.length, 'target')}',
+            ),
           ),
-          orderIndex: Value(i),
-        ),
-      );
-    }
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Created sequence "$listName" with ${items.length} targets'),
-        ),
-      );
+        );
+      }
+    } catch (error) {
+      Object? rollbackError;
+      if (sequenceId != null) {
+        try {
+          if (backend is NetworkBackend) {
+            await backend.deleteSequence(sequenceId);
+          } else {
+            await sequencesDao!.deleteSequence(sequenceId);
+          }
+        } catch (cleanupError) {
+          rollbackError = cleanupError;
+        }
+      }
+      if (mounted) {
+        final cleanupDetail = rollbackError == null
+            ? ''
+            : ' The partial sequence could not be removed: $rollbackError';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not create sequence: $error.$cleanupDetail'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
   }
 }

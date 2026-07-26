@@ -67,20 +67,22 @@ void main() {
       expect(exposures, hasLength(2));
     });
 
-    test('sorts items by priority ascending', () {
-      const json =
-          '{"name":"L","version":1,"items":['
-          '{"target":{"name":"C","ra":5,"dec":0},"priority":3},'
-          '{"target":{"name":"A","ra":5,"dec":0},"priority":1},'
-          '{"target":{"name":"B","ra":5,"dec":0},"priority":2}'
-          ']}';
-      final root = ObservingListJsonImporter().parse(json);
-      // After sort, names should be A, B, C
-      expect(root.children, hasLength(3));
-      expect(root.children[0].attributes['targetName'], 'A');
-      expect(root.children[1].attributes['targetName'], 'B');
-      expect(root.children[2].attributes['targetName'], 'C');
-    });
+    test(
+      'sorts higher priorities first and preserves source order for ties',
+      () {
+        const json =
+            '{"name":"L","version":1,"items":['
+            '{"target":{"name":"C","ra":5,"dec":0},"priority":3},'
+            '{"target":{"name":"A","ra":5,"dec":0},"priority":3},'
+            '{"target":{"name":"B","ra":5,"dec":0},"priority":2}'
+            ']}';
+        final root = ObservingListJsonImporter().parse(json);
+        expect(root.children, hasLength(3));
+        expect(root.children[0].attributes['targetName'], 'C');
+        expect(root.children[1].attributes['targetName'], 'A');
+        expect(root.children[2].attributes['targetName'], 'B');
+      },
+    );
 
     test('throws MalformedSourceError on invalid JSON', () {
       expect(

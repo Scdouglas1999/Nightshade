@@ -8,8 +8,11 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../sequencer_screen.dart';
+import '../../../utils/authority_bound_dialog.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../utils/count_label.dart';
+import '../../../utils/exported_file_reveal.dart';
 
 part 'sequence_library_tab/library_header.dart';
 part 'sequence_library_tab/library_filter_row.dart';
@@ -115,9 +118,7 @@ final filteredSequenceSummariesProvider =
         filtered.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
         break;
       case SequenceSortOrder.dateCreated:
-        // Summaries have no created-at column; modified-at is the closest
-        // proxy and keeps the menu option meaningful.
-        filtered.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
+        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
         break;
       case SequenceSortOrder.nodeCount:
         filtered.sort((a, b) => b.nodeCount.compareTo(a.nodeCount));
@@ -138,6 +139,7 @@ class SequenceLibraryTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final isMobile = Responsive.isMobile(context);
     final filteredAsync = ref.watch(filteredSequenceSummariesProvider);
     final searchQuery = ref.watch(sequenceSearchProvider);
     final hasActiveFilter = searchQuery.trim().isNotEmpty ||
@@ -145,7 +147,7 @@ class SequenceLibraryTab extends ConsumerWidget {
         ref.watch(sequenceFavoritesOnlyProvider);
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
       child: Column(
         children: [
           // Header

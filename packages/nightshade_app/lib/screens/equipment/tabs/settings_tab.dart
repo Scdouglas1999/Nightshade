@@ -52,7 +52,6 @@ class EquipmentSettingsTab extends ConsumerWidget {
                 _CameraSettingsCard(settings: settings),
                 _MountSettingsCard(settings: settings),
                 _FocuserSettingsCard(settings: settings),
-                _GuiderSettingsCard(settings: settings),
                 const _BuiltinGuiderSettingsCard(),
               ],
             ),
@@ -85,17 +84,6 @@ class _CameraSettingsCard extends ConsumerWidget {
                   NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
-            _SettingRow(
-              label: 'Cooling Behavior',
-              child: NightshadeDropdown(
-                value: settings.coolingBehavior,
-                items: const ['On Connect', 'Manual', 'Never'],
-                onChanged: (value) {
-                  if (value != null) notifier.setCoolingBehavior(value);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
             _SettingRow(
               label: 'Default Gain',
               child: _compactNumberField(
@@ -260,71 +248,6 @@ class _FocuserSettingsCard extends ConsumerWidget {
   }
 }
 
-class _GuiderSettingsCard extends ConsumerWidget {
-  final AppSettingsState settings;
-
-  const _GuiderSettingsCard({required this.settings});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
-    final notifier = ref.read(appSettingsProvider.notifier);
-
-    return NightshadeCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Guider Settings',
-              style:
-                  NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: 16),
-            _SettingRow(
-              label: 'Dither Scale',
-              child: NightshadeDropdown(
-                value: settings.ditherScale,
-                items: const ['Small', 'Medium', 'Large'],
-                onChanged: (value) {
-                  if (value != null) notifier.setDitherScale(value);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SettingRow(
-              label: 'Settle Threshold',
-              child: _compactNumberField(
-                context,
-                initialValue: settings.settleThreshold.toString(),
-                suffix: '"',
-                onChanged: (value) {
-                  final parsed = double.tryParse(value);
-                  if (parsed != null) notifier.setSettleThreshold(parsed);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SettingRow(
-              label: 'Settle Timeout',
-              child: _compactNumberField(
-                context,
-                initialValue: settings.settleTimeout.toString(),
-                suffix: 's',
-                onChanged: (value) {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null) notifier.setSettleTimeout(parsed);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Settings card for the built-in multi-star guider.
 ///
 /// The built-in guider runs entirely inside Nightshade (no second camera, no
@@ -357,8 +280,11 @@ class _BuiltinGuiderSettingsCardState
 
   bool _initialized = false;
   bool _loading = true;
+  bool _saving = false;
   String? _loadError;
   BuiltinGuiderConfig _lastApplied = BuiltinGuiderConfig.defaults;
+  int _backendGeneration = 0;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -371,6 +297,18 @@ class _BuiltinGuiderSettingsCardState
     _minPulseController = TextEditingController();
     _maxPulseController = TextEditingController();
     _settleSleepController = TextEditingController();
+    ref.listenManual<NightshadeBackend>(backendProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      _backendGeneration++;
+      _loadGeneration++;
+      setState(() {
+        _initialized = false;
+        _loading = true;
+        _saving = false;
+        _loadError = null;
+      });
+      _loadInitialConfig();
+    });
     _loadInitialConfig();
   }
 
@@ -380,10 +318,18 @@ class _BuiltinGuiderSettingsCardState
     // current config regardless of connection state, so we read it directly
     // through the backend. Rust returns the in-memory default when the
     // guider hasn't been connected, which is exactly what we want to show.
+    final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
+    final loadGeneration = ++_loadGeneration;
     try {
-      final config =
-          await ref.read(guidingBackendProvider).builtinGuiderGetConfig();
-      if (!mounted) return;
+      final config = await backend.builtinGuiderGetConfig();
+      if (!_isCurrentBackend(
+        backend,
+        backendGeneration,
+        loadGeneration: loadGeneration,
+      )) {
+        return;
+      }
       _applyToControllers(config);
       setState(() {
         _lastApplied = config;
@@ -391,12 +337,39 @@ class _BuiltinGuiderSettingsCardState
         _initialized = true;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentBackend(
+        backend,
+        backendGeneration,
+        loadGeneration: loadGeneration,
+      )) {
+        return;
+      }
       setState(() {
         _loadError = e.toString();
         _loading = false;
       });
     }
+  }
+
+  void _retryLoad() {
+    if (_loading || _saving) return;
+    setState(() {
+      _initialized = false;
+      _loading = true;
+      _loadError = null;
+    });
+    _loadInitialConfig();
+  }
+
+  bool _isCurrentBackend(
+    NightshadeBackend backend,
+    int backendGeneration, {
+    int? loadGeneration,
+  }) {
+    return mounted &&
+        backendGeneration == _backendGeneration &&
+        (loadGeneration == null || loadGeneration == _loadGeneration) &&
+        identical(backend, ref.read(backendProvider));
   }
 
   void _applyToControllers(BuiltinGuiderConfig config) {
@@ -424,6 +397,7 @@ class _BuiltinGuiderSettingsCardState
   }
 
   Future<void> _applyConfig() async {
+    if (_saving) return;
     final exposure = double.tryParse(_exposureController.text);
     final gain = int.tryParse(_gainController.text);
     final offset = int.tryParse(_offsetController.text);
@@ -475,6 +449,9 @@ class _BuiltinGuiderSettingsCardState
       settleSleepMs: settleSleep,
     );
 
+    final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
+    setState(() => _saving = true);
     try {
       // When the built-in guider is connected, the riverpod notifier owns the
       // canonical state. Route through it so its cached AsyncValue stays in
@@ -485,34 +462,43 @@ class _BuiltinGuiderSettingsCardState
             .read(builtinGuiderConfigProvider.notifier)
             .updateConfig(newConfig);
       } else {
-        await ref
-            .read(guidingBackendProvider)
-            .builtinGuiderSetConfig(newConfig);
+        await backend.builtinGuiderSetConfig(newConfig);
       }
-      if (!mounted) return;
+      if (!_isCurrentBackend(backend, backendGeneration)) return;
       setState(() => _lastApplied = newConfig);
-      context.showSuccessSnackBar('Built-in guider settings applied');
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_isCurrentBackend(backend, backendGeneration)) return;
       context.showErrorSnackBar('Failed to apply settings: $e');
+    } finally {
+      if (_isCurrentBackend(backend, backendGeneration)) {
+        setState(() => _saving = false);
+      }
     }
   }
 
   Future<void> _resetDefaults() async {
+    if (_saving) return;
     const defaults = BuiltinGuiderConfig.defaults;
-    _applyToControllers(defaults);
+    final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
+    setState(() => _saving = true);
     try {
       final isConnected = ref.read(isBuiltinGuiderProvider);
       if (isConnected) {
         await ref.read(builtinGuiderConfigProvider.notifier).resetToDefaults();
       } else {
-        await ref.read(guidingBackendProvider).builtinGuiderSetConfig(defaults);
+        await backend.builtinGuiderSetConfig(defaults);
       }
-      if (!mounted) return;
+      if (!_isCurrentBackend(backend, backendGeneration)) return;
+      _applyToControllers(defaults);
       setState(() => _lastApplied = defaults);
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !_isCurrentBackend(backend, backendGeneration)) return;
       context.showErrorSnackBar('Failed to reset settings: $e');
+    } finally {
+      if (_isCurrentBackend(backend, backendGeneration)) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -536,10 +522,23 @@ class _BuiltinGuiderSettingsCardState
     } else if (_loadError != null) {
       body = Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(
-          'Failed to load built-in guider config: $_loadError',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12, color: colors.error),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Failed to load built-in guider config: $_loadError',
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.error),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('builtin-guider-retry'),
+              onPressed: _retryLoad,
+              icon: const Icon(NightshadeIcons.refresh, size: 14),
+              label: const Text('Retry'),
+            ),
+          ],
         ),
       );
     } else {
@@ -552,6 +551,7 @@ class _BuiltinGuiderSettingsCardState
                 'Guide-frame length. Longer averages out seeing; shorter reacts faster.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-exposure'),
               controller: _exposureController,
               decimal: true,
             ),
@@ -562,6 +562,7 @@ class _BuiltinGuiderSettingsCardState
             subtitle: 'Guide-camera gain. Raise to find stars in poor seeing.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-gain'),
               controller: _gainController,
               decimal: false,
             ),
@@ -572,6 +573,7 @@ class _BuiltinGuiderSettingsCardState
             subtitle: 'Guide-camera offset (black-level pedestal).',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-offset'),
               controller: _offsetController,
               decimal: false,
             ),
@@ -583,6 +585,7 @@ class _BuiltinGuiderSettingsCardState
                 'Combine pixels to boost star SNR at the cost of resolution.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-binning'),
               controller: _binningController,
               decimal: false,
             ),
@@ -594,6 +597,7 @@ class _BuiltinGuiderSettingsCardState
                 'Mount move per calibration step. Longer for short focal lengths.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-calibration-ms'),
               controller: _calibrationMsController,
               decimal: false,
             ),
@@ -605,6 +609,7 @@ class _BuiltinGuiderSettingsCardState
                 'chasing seeing.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-min-pulse'),
               controller: _minPulseController,
               decimal: true,
             ),
@@ -616,6 +621,7 @@ class _BuiltinGuiderSettingsCardState
                 'cannot lurch the mount.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-max-pulse'),
               controller: _maxPulseController,
               decimal: true,
             ),
@@ -626,6 +632,7 @@ class _BuiltinGuiderSettingsCardState
             subtitle: 'Wait between settle checks after a dither or slew.',
             child: _builtinNumberField(
               context,
+              key: const ValueKey('builtin-guider-settle-sleep'),
               controller: _settleSleepController,
               decimal: false,
             ),
@@ -635,7 +642,8 @@ class _BuiltinGuiderSettingsCardState
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _initialized ? _resetDefaults : null,
+                  key: const ValueKey('builtin-guider-reset'),
+                  onPressed: _initialized && !_saving ? _resetDefaults : null,
                   icon: const Icon(NightshadeIcons.refresh, size: 14),
                   label: const Text('Reset',
                       style:
@@ -645,7 +653,8 @@ class _BuiltinGuiderSettingsCardState
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _initialized ? _applyConfig : null,
+                  key: const ValueKey('builtin-guider-apply'),
+                  onPressed: _initialized && !_saving ? _applyConfig : null,
                   icon: const Icon(NightshadeIcons.check, size: 14),
                   label: const Text('Apply',
                       style:
@@ -659,6 +668,7 @@ class _BuiltinGuiderSettingsCardState
     }
 
     return NightshadeCard(
+      key: const ValueKey('builtin-guider-settings-card'),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -707,6 +717,7 @@ class _BuiltinGuiderSettingsCardState
             if (!_loading && _loadError == null) ...[
               const SizedBox(height: 10),
               Text(
+                key: const ValueKey('builtin-guider-last-applied'),
                 'Last applied: ${_describeConfig(_lastApplied)}',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
@@ -730,12 +741,14 @@ class _BuiltinGuiderSettingsCardState
 
 Widget _builtinNumberField(
   BuildContext context, {
+  Key? key,
   required TextEditingController controller,
   required bool decimal,
 }) {
   return ConstrainedBox(
     constraints: BoxConstraints(maxWidth: dialogMaxWidth(context, 100)),
     child: TextField(
+      key: key,
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       inputFormatters: decimal

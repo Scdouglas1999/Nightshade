@@ -17,6 +17,9 @@ class _QueueTable extends ConsumerWidget {
     int targetId,
     String targetName,
   ) async {
+    final authority = ref.read(backendProvider);
+    final goalsSvc = ref.read(integrationGoalServiceProvider);
+    final constraintsSvc = ref.read(targetConstraintServiceProvider);
     final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -53,23 +56,34 @@ class _QueueTable extends ConsumerWidget {
       },
     );
     if (confirmed != true) return;
-    final goalsSvc = ref.read(integrationGoalServiceProvider);
-    final constraintsSvc = ref.read(targetConstraintServiceProvider);
+    if (!context.mounted) return;
+    if (!identical(ref.read(backendProvider), authority)) {
+      _showAuthorityChanged(context);
+      return;
+    }
     await goalsSvc.deleteForTarget(targetId);
     await constraintsSvc.deleteForTarget(targetId);
+    if (!context.mounted || !identical(ref.read(backendProvider), authority)) {
+      return;
+    }
     ref.invalidate(allIntegrationGoalsProvider);
     ref.invalidate(integrationGoalProgressProvider(targetId));
     // Surface the change immediately even though the auto-reeval listeners
     // will also fire — `evaluateNow` waits, the listeners don't.
-    await ref
-        .read(schedulerEngineProvider)
-        .evaluateNow(reason: 'row removed from scheduler');
+    await _reevaluate(
+      ref,
+      authority: authority,
+      reason: 'row removed from scheduler',
+    );
   }
 
   Future<void> _confirmClearAll(
     BuildContext context,
     WidgetRef ref,
   ) async {
+    final authority = ref.read(backendProvider);
+    final goalsSvc = ref.read(integrationGoalServiceProvider);
+    final constraintsSvc = ref.read(targetConstraintServiceProvider);
     final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -106,14 +120,47 @@ class _QueueTable extends ConsumerWidget {
       },
     );
     if (confirmed != true) return;
-    final goalsSvc = ref.read(integrationGoalServiceProvider);
-    final constraintsSvc = ref.read(targetConstraintServiceProvider);
+    if (!context.mounted) return;
+    if (!identical(ref.read(backendProvider), authority)) {
+      _showAuthorityChanged(context);
+      return;
+    }
     await goalsSvc.deleteAll();
     await constraintsSvc.deleteAll();
+    if (!context.mounted || !identical(ref.read(backendProvider), authority)) {
+      return;
+    }
     ref.invalidate(allIntegrationGoalsProvider);
-    await ref
-        .read(schedulerEngineProvider)
-        .evaluateNow(reason: 'scheduler queue cleared');
+    await _reevaluate(
+      ref,
+      authority: authority,
+      reason: 'scheduler queue cleared',
+    );
+  }
+
+  void _showAuthorityChanged(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'The imaging host changed. Scheduler cleanup was cancelled.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reevaluate(
+    WidgetRef ref, {
+    required String reason,
+    NightshadeBackend? authority,
+  }) async {
+    final backend = authority ?? ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      await backend.controlScheduler('evaluate');
+      ref.invalidate(schedulerRemoteSnapshotProvider);
+      ref.invalidate(schedulerPreviewDecisionProvider);
+      return;
+    }
+    await ref.read(schedulerEngineProvider).evaluateNow(reason: reason);
   }
 
   @override

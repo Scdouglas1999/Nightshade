@@ -185,7 +185,8 @@ class _SequenceHeader extends ConsumerWidget {
         if (showTargetCount) ...[
           const SizedBox(width: 8),
           Text(
-            '${sequence.targetHeaders.length} targets',
+            '${sequence.targetHeaders.length} '
+            '${sequence.targetHeaders.length == 1 ? 'target' : 'targets'}',
             style: TextStyle(
               fontSize: isMobile
                   ? NightshadeTypography.fontSize11
@@ -213,7 +214,8 @@ class _SequenceHeader extends ConsumerWidget {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  '${sequence.nodes.length} nodes',
+                  '${sequence.nodes.length} '
+                  '${sequence.nodes.length == 1 ? 'node' : 'nodes'}',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,

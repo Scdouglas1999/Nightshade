@@ -13,12 +13,15 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/calibration_handlers.dart';
 import 'package:nightshade_desktop/headless_api/route_metadata.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
+
+class _MockDefectMapService extends Mock implements DefectMapService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +30,7 @@ void main() {
     late ProviderContainer container;
     late NightshadeDatabase db;
     late CalibrationHandlers handlers;
+    late _MockDefectMapService defectMapService;
     late Directory tempDir;
     late Directory calibrationDir;
 
@@ -37,9 +41,13 @@ void main() {
       );
       calibrationDir = Directory('${tempDir.path}/data');
       await calibrationDir.create(recursive: true);
+      defectMapService = _MockDefectMapService();
 
       container = ProviderContainer(
-        overrides: [databaseProvider.overrideWithValue(db)],
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          defectMapServiceProvider.overrideWithValue(defectMapService),
+        ],
       );
       handlers = CalibrationHandlers(
         container,
@@ -412,6 +420,159 @@ void main() {
       expect(body['totalBytes'], greaterThan(0));
     });
 
+    test('dark settings round-trip through the host settings store', () async {
+      final update = await translateHandlerErrors(
+        handlers.handleUpdateDarkSettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/darks/settings'),
+            body: jsonEncode({
+              'autoCalibrate': true,
+              'temperatureTolerance': 1.5,
+            }),
+          ),
+        ),
+      );
+      expect(update.statusCode, HttpStatus.ok);
+
+      final response = await handlers.handleGetDarkSettings(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/calibration/darks/settings'),
+        ),
+      );
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['autoCalibrate'], isTrue);
+      expect(body['temperatureTolerance'], 1.5);
+    });
+
+    test('complete calibration settings round-trip host paths', () async {
+      final flat = await writeDarkFile('master_flat.fits');
+      final dark = await writeDarkFile('master_dark.fit');
+      final update = await translateHandlerErrors(
+        handlers.handleUpdateCalibrationSettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/settings'),
+            body: jsonEncode({
+              'autoCalibrate': true,
+              'masterFlatPath': flat.path,
+              'masterBiasPath': null,
+              'autoDarkFromLibrary': false,
+              'manualDarkPath': dark.path,
+            }),
+          ),
+        ),
+      );
+      expect(update.statusCode, HttpStatus.ok);
+
+      final response = await handlers.handleGetCalibrationSettings(
+        Request('GET', Uri.parse('http://localhost/api/calibration/settings')),
+      );
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['autoCalibrate'], isTrue);
+      expect(body['masterFlatPath'], flat.path);
+      expect(body['masterBiasPath'], isNull);
+      expect(body['autoDarkFromLibrary'], isFalse);
+      expect(body['manualDarkPath'], dark.path);
+    });
+
+    test('calibration settings reject unusable host paths', () async {
+      final relative = await translateHandlerErrors(
+        handlers.handleUpdateCalibrationSettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/settings'),
+            body: jsonEncode({'masterFlatPath': 'relative/master.fits'}),
+          ),
+        ),
+      );
+      expect(relative.statusCode, HttpStatus.badRequest);
+
+      final missing = await translateHandlerErrors(
+        handlers.handleUpdateCalibrationSettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/settings'),
+            body: jsonEncode({
+              'manualDarkPath': '${tempDir.path}/missing.fits',
+            }),
+          ),
+        ),
+      );
+      expect(missing.statusCode, HttpStatus.badRequest);
+      expect(
+        await db.settingsDao.getSetting('calibration.manual_dark_path'),
+        isNull,
+      );
+    });
+
+    test('clean-orphans and group delete mutate the host library', () async {
+      final presentA = await writeDarkFile('group-a.fits');
+      final presentB = await writeDarkFile('group-b.fits');
+      final missing = await writeDarkFile('missing.fits');
+      await insertDark(presentA, exposure: 60, gain: 100, offset: 10);
+      await insertDark(presentB, exposure: 60, gain: 100, offset: 10);
+      await insertDark(missing, exposure: 30, gain: 200, offset: 5);
+      await missing.delete();
+
+      final cleaned = await handlers.handleCleanDarkOrphans(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/calibration/darks/clean-orphans'),
+        ),
+      );
+      final cleanedBody = jsonDecode(await cleaned.readAsString()) as Map;
+      expect(cleanedBody['removed'], 1);
+
+      final deleted = await translateHandlerErrors(
+        handlers.handleDeleteDarkGroup(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/darks/delete-group'),
+            body: jsonEncode({
+              'exposureTime': 60,
+              'gain': 100,
+              'offset': 10,
+              'binX': 1,
+              'binY': 1,
+              'frameType': 'dark',
+              'deleteFiles': true,
+            }),
+          ),
+        ),
+      );
+      final deletedBody = jsonDecode(await deleted.readAsString()) as Map;
+      expect(deletedBody['removed'], 2);
+      expect(await presentA.exists(), isFalse);
+      expect(await presentB.exists(), isFalse);
+      expect(await db.darkLibraryDao.getAllEntries(), isEmpty);
+    });
+
+    test('create-master rejects client-relative host paths', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleCreateMasterDark(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/darks/create-master'),
+            body: jsonEncode({
+              'exposureTime': 60,
+              'gain': 100,
+              'offset': 10,
+              'binX': 1,
+              'binY': 1,
+              'frameType': 'dark',
+              'outputPath': 'master.fits',
+            }),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['field'], 'outputPath');
+    });
+
     // =====================================================================
     // Flat history endpoints
     // =====================================================================
@@ -519,6 +680,151 @@ void main() {
     // =====================================================================
     // Defect map endpoints
     // =====================================================================
+
+    test('defect-map status, clear, and sequencer apply run on host', () async {
+      const status = DefectMapStatus(
+        cameraId: 'native:test:1',
+        width: 6248,
+        height: 4176,
+        temperatureBucket: DefectMapTemperatureBucket(-100),
+        defectivePixelCount: 42,
+        lastRebuiltUnixSeconds: 1234,
+        applyDuringCapture: true,
+        storedOnDisk: true,
+      );
+      when(
+        () => defectMapService.getStatus(
+          cameraId: 'native:test:1',
+          width: 6248,
+          height: 4176,
+          sensorTemperatureCelsius: -10,
+        ),
+      ).thenAnswer((_) async => status);
+      when(
+        () => defectMapService.clear(
+          cameraId: 'native:test:1',
+          width: 6248,
+          height: 4176,
+          sensorTemperatureCelsius: -10,
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => defectMapService.applyToSequencer(
+          cameraId: 'native:test:1',
+          width: 6248,
+          height: 4176,
+          sensorTemperatureCelsius: -10,
+          enabled: true,
+          method: DefectMapMethod.gaussian,
+          kernel: DefectMapKernelSize.k5,
+          saveOriginal: true,
+        ),
+      ).thenAnswer((_) async {});
+
+      final statusResponse = await translateHandlerErrors(
+        handlers.handleGetDefectMapStatus(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/calibration/defect-maps/status'
+              '?cameraId=native%3Atest%3A1&width=6248&height=4176'
+              '&sensorTemperatureCelsius=-10',
+            ),
+          ),
+        ),
+      );
+      expect(statusResponse.statusCode, HttpStatus.ok);
+      final statusBody = jsonDecode(await statusResponse.readAsString()) as Map;
+      expect((statusBody['status'] as Map)['defectivePixelCount'], 42);
+
+      final clearResponse = await translateHandlerErrors(
+        handlers.handleClearDefectMap(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/defect-maps/clear'),
+            body: jsonEncode({
+              'cameraId': 'native:test:1',
+              'width': 6248,
+              'height': 4176,
+              'sensorTemperatureCelsius': -10,
+            }),
+          ),
+        ),
+      );
+      expect(clearResponse.statusCode, HttpStatus.ok);
+
+      final applyResponse = await translateHandlerErrors(
+        handlers.handleApplyDefectMapToSequencer(
+          Request(
+            'POST',
+            Uri.parse(
+              'http://localhost/api/calibration/defect-maps/sequencer-apply',
+            ),
+            body: jsonEncode({
+              'cameraId': 'native:test:1',
+              'width': 6248,
+              'height': 4176,
+              'sensorTemperatureCelsius': -10,
+              'enabled': true,
+              'method': 'gaussian',
+              'kernelDiameter': 5,
+              'saveOriginal': true,
+            }),
+          ),
+        ),
+      );
+      expect(applyResponse.statusCode, HttpStatus.ok);
+      verify(
+        () => defectMapService.clear(
+          cameraId: 'native:test:1',
+          width: 6248,
+          height: 4176,
+          sensorTemperatureCelsius: -10,
+        ),
+      ).called(1);
+      verify(
+        () => defectMapService.applyToSequencer(
+          cameraId: 'native:test:1',
+          width: 6248,
+          height: 4176,
+          sensorTemperatureCelsius: -10,
+          enabled: true,
+          method: DefectMapMethod.gaussian,
+          kernel: DefectMapKernelSize.k5,
+          saveOriginal: true,
+        ),
+      ).called(1);
+    });
+
+    test('defect-map settings round-trip through the host store', () async {
+      final update = await translateHandlerErrors(
+        handlers.handleUpdateDefectMapSettings(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/calibration/defect-maps/settings'),
+            body: jsonEncode({
+              'autoApply': true,
+              'method': 'mean',
+              'kernelDiameter': 7,
+              'saveOriginal': true,
+            }),
+          ),
+        ),
+      );
+      expect(update.statusCode, HttpStatus.ok);
+
+      final response = await handlers.handleGetDefectMapSettings(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/calibration/defect-maps/settings'),
+        ),
+      );
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['autoApply'], isTrue);
+      expect(body['method'], 'mean');
+      expect(body['kernelDiameter'], 7);
+      expect(body['saveOriginal'], isTrue);
+    });
 
     test('POST defect-map then GET list excludes bitmap', () async {
       // Bitmap for 16x16 sensor = 16*16/8 = 32 bytes
@@ -791,35 +1097,28 @@ void main() {
       );
     });
 
-    test('Upload and backfill are admin scope and high-risk', () {
-      expect(
-        requiredAuthScopeNameForEndpoint(
-          method: 'POST',
-          path: '/api/calibration/darks/upload',
-        ),
-        'admin',
-      );
-      expect(
-        requiredAuthScopeNameForEndpoint(
-          method: 'POST',
-          path: '/api/calibration/darks/backfill-sizes',
-        ),
-        'admin',
-      );
-      expect(
-        highRiskAuditActionFor(
-          method: 'POST',
-          path: '/api/calibration/darks/upload',
-        ),
-        'calibration_dark_upload',
-      );
-      expect(
-        highRiskAuditActionFor(
-          method: 'POST',
-          path: '/api/calibration/darks/backfill-sizes',
-        ),
-        'calibration_backfill',
-      );
+    test('Destructive and heavy dark maintenance is admin/high-risk', () {
+      const paths = {
+        '/api/calibration/darks/upload': 'calibration_dark_upload',
+        '/api/calibration/darks/backfill-sizes': 'calibration_backfill',
+        '/api/calibration/darks/create-master':
+            'calibration_dark_create_master',
+        '/api/calibration/darks/clean-orphans':
+            'calibration_dark_clean_orphans',
+        '/api/calibration/darks/clear': 'calibration_dark_clear',
+        '/api/calibration/darks/delete-group': 'calibration_dark_delete_group',
+      };
+      for (final entry in paths.entries) {
+        expect(
+          requiredAuthScopeNameForEndpoint(method: 'POST', path: entry.key),
+          'admin',
+        );
+        expect(isHighRiskControlPath(entry.key), isTrue);
+        expect(
+          highRiskAuditActionFor(method: 'POST', path: entry.key),
+          entry.value,
+        );
+      }
     });
 
     test('DELETE on calibration is admin scope and audited', () {

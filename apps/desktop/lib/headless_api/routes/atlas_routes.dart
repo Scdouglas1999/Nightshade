@@ -12,6 +12,7 @@ import 'headless_route.dart';
 /// Build the declarative route table for [AtlasHandlers].
 List<HeadlessRoute> buildAtlasRoutes(AtlasHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.get, '/api/atlas/regions', h.handleGetRegions),
+  HeadlessRoute(HttpMethod.post, '/api/atlas/regions', h.handleCreateRegion),
   HeadlessRoute(HttpMethod.get, '/api/atlas/coverage', h.handleGetCoverage),
   HeadlessRoute(HttpMethod.get, '/api/atlas/region/<id>', h.handleGetRegion),
   HeadlessRoute(

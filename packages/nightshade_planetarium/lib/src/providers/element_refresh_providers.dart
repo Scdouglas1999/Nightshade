@@ -85,10 +85,13 @@ class ElementRefreshStatus {
 
   DateTime? get lastUpdated {
     final t = [
-      if (asteroidsFetchedAt != null) asteroidsFetchedAt!,
-      if (cometsFetchedAt != null) cometsFetchedAt!,
+      if (asteroidCount > 0 && asteroidsFetchedAt != null) asteroidsFetchedAt!,
+      if (cometCount > 0 && cometsFetchedAt != null) cometsFetchedAt!,
     ]..sort();
-    return t.isEmpty ? null : t.last;
+    // The card summarizes both sources, so the oldest populated source is the
+    // honest age. Showing the newest would hide a stale comet/asteroid cache
+    // after a partial refresh.
+    return t.isEmpty ? null : t.first;
   }
 
   bool get hasData => asteroidCount > 0 || cometCount > 0;
@@ -127,11 +130,40 @@ class ElementRefreshController extends StateNotifier<ElementRefreshStatus> {
     final service = _ref.read(elementRefreshServiceProvider);
     final cached = await service.loadCached();
     if (!mounted) return;
-    _applyResult(cached);
+    // Don't stomp a manual refresh the user kicked off while _init awaited the
+    // (offline-safe) cache read.
+    if (!state.isRefreshing) _applyResult(cached);
 
-    final config = await service.loadConfig();
+    final ElementRefreshConfig config;
+    try {
+      config = await service.loadConfig();
+    } catch (e) {
+      developer.log(
+        '[ElementRefresh] config authority unavailable at init: $e',
+        name: 'ElementRefreshProviders',
+        level: 900,
+        error: e,
+      );
+      if (!mounted) return;
+      // The config is unreadable/corrupt. Keep the cached elements visible but
+      // do NOT auto-refresh from a manufactured default schedule/URL — surface
+      // the failure so the settings UI can prompt a fix. A manual refresh or a
+      // controller rebuild after the config recovers still works.
+      if (!state.isRefreshing) {
+        state = state.copyWith(error: 'Refresh configuration unavailable: $e');
+      }
+      return;
+    }
     if (!mounted) return;
+    // A manual refresh started while we loaded config: let it own the state.
+    if (state.isRefreshing) return;
     if (service.isStale(cached, config)) {
+      final lastAttemptAt = await service.lastAttempt();
+      if (!mounted ||
+          !identical(_ref.read(elementRefreshServiceProvider), service)) {
+        return;
+      }
+      if (!service.isAutoRetryDue(lastAttemptAt)) return;
       // Auto-refresh on the schedule, but only one attempt — failures fall
       // back to the (possibly empty) cache and surface in [state.error].
       unawaited(refresh());
@@ -145,6 +177,13 @@ class ElementRefreshController extends StateNotifier<ElementRefreshStatus> {
     try {
       final result = await service.refresh();
       if (!mounted) return;
+      if (!identical(_ref.read(elementRefreshServiceProvider), service)) {
+        state = state.copyWith(
+          isRefreshing: false,
+          error: 'Element refresh authority changed while refreshing.',
+        );
+        return;
+      }
       _applyResult(result);
       // Let consumers (propagation, search) pick up the new disk cache.
       _ref.read(elementRefreshReloadProvider.notifier).state++;
@@ -167,6 +206,7 @@ class ElementRefreshController extends StateNotifier<ElementRefreshStatus> {
       asteroidCount: r.asteroids.length,
       cometCount: r.comets.length,
       isRefreshing: false,
+      error: r.refreshFailureSummary,
     );
   }
 }
@@ -175,5 +215,6 @@ final elementRefreshControllerProvider =
     StateNotifierProvider<ElementRefreshController, ElementRefreshStatus>((
       ref,
     ) {
+      ref.watch(elementRefreshServiceProvider);
       return ElementRefreshController(ref);
     });

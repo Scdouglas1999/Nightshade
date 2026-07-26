@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../utils/snackbar_helper.dart';
+
 /// Widget that displays the current operation progress in a compact status bar format.
 ///
 /// Shows:
@@ -25,6 +27,7 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
   late AnimationController _slideController;
   late Animation<double> _slideAnimation;
   Timer? _elapsedTimer;
+  String? _cancellingOperationId;
   // Tracks whether build() decided the timer should be running, so we can
   // restart on resume without depending on operation provider state.
   bool _timerShouldRun = false;
@@ -81,6 +84,35 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
     _elapsedTimer = null;
   }
 
+  Future<void> _cancelOperation(OperationProgress operation) async {
+    if (_cancellingOperationId == operation.id) return;
+    setState(() => _cancellingOperationId = operation.id);
+
+    try {
+      switch (operation.type) {
+        case OperationType.slewToTarget:
+          await ref.read(deviceServiceProvider).abortMountSlew();
+          break;
+        case OperationType.autofocus:
+          await ref.read(deviceServiceProvider).cancelAutofocus();
+          break;
+        default:
+          throw UnsupportedError(
+            '${operation.type.label} cannot be cancelled from the status bar',
+          );
+      }
+
+      // Do not remove the operation here. Its owning Future clears the exact
+      // operation when cancellation has actually propagated. Removing by type
+      // here could hide work that is still stopping, or erase a newer operation
+      // of the same type that started while the cancel request was in flight.
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cancellingOperationId = null);
+      context.showErrorSnackBar('Cancel failed: $e');
+    }
+  }
+
   IconData _getOperationIcon(OperationType type) {
     switch (type) {
       case OperationType.slewToTarget:
@@ -135,7 +167,7 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
 
     return SizeTransition(
       sizeFactor: _slideAnimation,
-      axisAlignment: -1.0,
+      alignment: AlignmentDirectional.topStart,
       child: operation != null
           ? _buildOperationBar(operation, colors)
           : const SizedBox.shrink(),
@@ -144,6 +176,7 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
 
   Widget _buildOperationBar(
       OperationProgress operation, NightshadeColors colors) {
+    final isCancelling = _cancellingOperationId == operation.id;
     return Container(
       height: 28,
       margin: const EdgeInsets.symmetric(horizontal: 8),
@@ -207,24 +240,31 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
           if (operation.canCancel) ...[
             const SizedBox(width: 8),
             MouseRegion(
-              cursor: SystemMouseCursors.click,
+              cursor: isCancelling
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.click,
               child: GestureDetector(
-                onTap: () {
-                  ref
-                      .read(activeOperationsProvider.notifier)
-                      .cancelOperation(operation.type);
-                },
+                onTap: isCancelling ? null : () => _cancelOperation(operation),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: NightshadeDecorations.tintedBadge(
                     colors.error,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Icon(
-                    LucideIcons.x,
-                    size: 12,
-                    color: colors.error,
-                  ),
+                  child: isCancelling
+                      ? SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: colors.error,
+                          ),
+                        )
+                      : Icon(
+                          LucideIcons.x,
+                          size: 12,
+                          color: colors.error,
+                        ),
                 ),
               ),
             ),

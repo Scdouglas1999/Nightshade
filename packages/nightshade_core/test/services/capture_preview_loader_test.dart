@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,11 +17,14 @@ class TestBackendNotifier extends BackendNotifier {
   TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  void replaceBackend(NightshadeBackend backend) => state = backend;
 }
 
 void main() {
   late MockBackend mockBackend;
   late ProviderContainer container;
+  late TestBackendNotifier backendNotifier;
 
   setUp(() {
     mockBackend = MockBackend();
@@ -28,7 +32,7 @@ void main() {
     container = ProviderContainer(
       overrides: [
         backendProvider.overrideWith(
-          (ref) => TestBackendNotifier(ref, mockBackend),
+          (ref) => backendNotifier = TestBackendNotifier(ref, mockBackend),
         ),
       ],
     );
@@ -130,4 +134,31 @@ void main() {
     expect(current!.capturedAt, newer.capturedAt);
     expect(current.rawLoadStatus, RawLoadStatus.ready);
   });
+
+  test(
+    'raw completion from the old backend cannot update the new host',
+    () async {
+      final rawResult = Completer<List<int>>();
+      when(
+        () => mockBackend.getLastRawImageData(any()),
+      ).thenAnswer((_) => rawResult.future);
+
+      final publisher = container.read(capturePreviewPublisherProvider);
+      publisher.publish(container, samplePreview(), 'cam-1');
+      await untilCalled(() => mockBackend.getLastRawImageData('cam-1'));
+
+      final replacementBackend = MockBackend();
+      backendNotifier.replaceBackend(replacementBackend);
+      container.read(currentImageProvider.notifier).state = null;
+
+      rawResult.complete(Uint8List(4 * 2 * 2));
+      await pumpEventQueue(times: 5);
+
+      expect(container.read(currentImageProvider), isNull);
+      expect(
+        container.read(capturePreviewPublisherProvider),
+        isNot(same(publisher)),
+      );
+    },
+  );
 }

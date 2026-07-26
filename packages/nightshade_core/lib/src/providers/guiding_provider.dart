@@ -15,6 +15,7 @@ import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/phd2_models.dart';
+import '../services/device_exceptions.dart';
 import '../services/device_service.dart';
 import '../services/logging_service.dart';
 import '../services/phd2_status_poll.dart';

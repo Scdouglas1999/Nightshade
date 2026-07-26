@@ -18,9 +18,12 @@
 
 import 'dart:async';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/sequencer/recovery_status.dart';
+import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/recovery_provider.dart';
 import 'package:nightshade_core/src/providers/push_notification_provider.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
@@ -107,8 +110,11 @@ void main() {
     setUp(() async {
       mock = _RecordingDelivery();
       pushes = <PushNotification>[];
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
       container = ProviderContainer(
         overrides: [
+          databaseProvider.overrideWithValue(db),
           appSettingsProvider.overrideWith(
             () => _FakeAppSettingsNotifier(const AppSettingsState()),
           ),
@@ -129,6 +135,12 @@ void main() {
       // Forward every broadcast push through the mock delivery, exactly as the
       // headless server's fan-out tap would.
       final service = container.read(pushNotificationServiceProvider);
+      // The broadcaster now starts fail-closed and only enables once the push
+      // config resolves authoritatively. Load it (fresh DB → enabled defaults)
+      // and let the service provider's listener apply it before firing events,
+      // matching a running app that has its config provisioned.
+      await container.read(pushNotificationConfigProvider.future);
+      await Future<void>.delayed(Duration.zero);
       sub = service.notifications.listen((n) {
         pushes.add(n);
         // ignore: discarded_futures
@@ -254,8 +266,11 @@ void main() {
         container.dispose();
         mock = _RecordingDelivery();
         pushes = <PushNotification>[];
+        final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(db.close);
         container = ProviderContainer(
           overrides: [
+            databaseProvider.overrideWithValue(db),
             appSettingsProvider.overrideWith(
               () => _FakeAppSettingsNotifier(
                 const AppSettingsState(pushCriticalAlerts: false),
@@ -269,6 +284,11 @@ void main() {
         container.read(recoveryPushBridgeProvider);
         ref = container.read(_refCaptureProvider);
         final service = container.read(pushNotificationServiceProvider);
+        // Enable the broadcaster authoritatively so this subtest proves the
+        // pushCriticalAlerts gate suppresses the push — not merely that the
+        // fail-closed broadcaster swallowed it.
+        await container.read(pushNotificationConfigProvider.future);
+        await Future<void>.delayed(Duration.zero);
         sub = service.notifications.listen((n) {
           // ignore: discarded_futures
           mock.deliver(_frameFor(n));

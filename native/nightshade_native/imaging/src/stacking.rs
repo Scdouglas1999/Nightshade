@@ -55,6 +55,13 @@ pub struct LiveStackConfig {
     pub match_flux_tolerance: f64,
     /// Minimum number of matched star pairs required for alignment
     pub min_matched_pairs: usize,
+    /// Maximum RMS alignment residual (pixels) accepted before a frame is
+    /// folded into the stack. A geometrically-inconsistent fit (mismatched
+    /// stars) produces a large residual; folding it in permanently blurs the
+    /// stack. Good affine fits are sub-pixel, so the default rejects only
+    /// clearly-broken alignments while leaving generous margin for poor
+    /// tracking/seeing. Set to `f64::INFINITY` to disable the gate.
+    pub max_alignment_residual_px: f64,
     /// Star detection config overrides
     pub star_detection: StarDetectionConfig,
     /// Bayer pattern of the source CFA frames, when the session is OSC.
@@ -84,6 +91,7 @@ impl Default for LiveStackConfig {
             match_radius_px: 50.0,
             match_flux_tolerance: 0.7,
             min_matched_pairs: 5,
+            max_alignment_residual_px: 10.0,
             star_detection: StarDetectionConfig {
                 detection_sigma: 4.0,
                 min_snr: 8.0,
@@ -479,6 +487,24 @@ impl LiveStacker {
         // Compute alignment residual (RMS of distances after transform)
         let residual = compute_alignment_residual(&matches, &transform);
 
+        // Reject a geometrically-inconsistent fit before it is folded in. A
+        // large residual means the matched pairs do not agree on a single
+        // affine transform (typically spurious nearest-neighbour matches), and
+        // accumulating the resampled frame would permanently blur the stack.
+        if residual.is_finite() && residual > self.config.max_alignment_residual_px {
+            self.stats.rejected_alignment_failures += 1;
+            tracing::warn!(
+                "Frame rejected: alignment residual {:.2}px exceeds max {:.2}px ({} matches)",
+                residual,
+                self.config.max_alignment_residual_px,
+                matches.len()
+            );
+            return Err(format!(
+                "Alignment residual too high: {:.2}px (max {:.2}px)",
+                residual, self.config.max_alignment_residual_px
+            ));
+        }
+
         tracing::debug!(
             "Frame aligned: {} matches, residual={:.2}px, tx={:.1}, ty={:.1}, rot={:.3}deg",
             matches.len(),
@@ -842,14 +868,23 @@ fn apply_transform_bilinear(
                 let ix = fx_floor as i64;
                 let iy = fy_floor as i64;
 
-                // Check bounds (need ix, ix+1, iy, iy+1 all in range)
-                if ix < 0 || iy < 0 || ix + 1 >= width as i64 || iy + 1 >= height as i64 {
+                // Require the base pixel (ix, iy) in range. The +1 neighbours
+                // only contribute when the fractional offset is non-zero, so a
+                // sample landing exactly on the last row/column (dx==0/dy==0)
+                // must not be dropped — the old `ix+1 >= width` test discarded
+                // the entire last row and column even under the identity
+                // transform. Clamp the +1 index to the edge; its weight is 0
+                // when the corresponding offset is 0 (exact on-grid), and it
+                // edge-extends otherwise.
+                if ix < 0 || iy < 0 || ix >= width as i64 || iy >= height as i64 {
                     // Out of bounds: leave as NaN
                     continue;
                 }
 
                 let ix = ix as usize;
                 let iy = iy as usize;
+                let ix1 = (ix + 1).min(width - 1);
+                let iy1 = (iy + 1).min(height - 1);
                 let dx = fx - fx_floor;
                 let dy = fy - fy_floor;
 
@@ -860,9 +895,9 @@ fn apply_transform_bilinear(
 
                 for c in 0..channels {
                     let p00 = frame_pixels[iy * stride + ix * channels + c];
-                    let p10 = frame_pixels[iy * stride + (ix + 1) * channels + c];
-                    let p01 = frame_pixels[(iy + 1) * stride + ix * channels + c];
-                    let p11 = frame_pixels[(iy + 1) * stride + (ix + 1) * channels + c];
+                    let p10 = frame_pixels[iy * stride + ix1 * channels + c];
+                    let p01 = frame_pixels[iy1 * stride + ix * channels + c];
+                    let p11 = frame_pixels[iy1 * stride + ix1 * channels + c];
 
                     row[x * channels + c] = w00 * p00 + w10 * p10 + w01 * p01 + w11 * p11;
                 }
@@ -1945,6 +1980,62 @@ mod tests {
     /// "second frame" share an identical geometric shift.
     fn shift_field(field: &[(f64, f64, f64)], dx: f64, dy: f64) -> Vec<(f64, f64, f64)> {
         field.iter().map(|&(x, y, b)| (x + dx, y + dy, b)).collect()
+    }
+
+    /// Regression (#14): a geometrically-inconsistent fit must be rejected on
+    /// its RMS residual rather than silently folded into the stack.
+    #[test]
+    fn add_frame_rejects_high_alignment_residual() {
+        let field = osc_test_field();
+        let reference = make_test_image(512, 512, &field);
+        // Inconsistent per-star shifts: no single affine transform fits them
+        // all, so the least-squares fit carries a multi-pixel residual while the
+        // stars still match their reference counterparts (shifts « match radius).
+        let inconsistent: Vec<(f64, f64, f64)> = field
+            .iter()
+            .enumerate()
+            .map(|(i, &(x, y, b))| {
+                if i % 2 == 0 {
+                    (x + 3.0, y + 2.0, b)
+                } else {
+                    (x + 9.0, y + 8.0, b)
+                }
+            })
+            .collect();
+        let frame = make_test_image(512, 512, &inconsistent);
+
+        // Gate disabled -> the poor fit is still accepted (historic behaviour).
+        let mut permissive = LiveStacker::new(
+            &reference,
+            LiveStackConfig {
+                max_alignment_residual_px: f64::INFINITY,
+                ..osc_test_config()
+            },
+        )
+        .expect("reference accepted");
+        assert!(
+            permissive.add_frame(&frame).is_ok(),
+            "with the gate disabled the frame should still stack"
+        );
+
+        // Tight gate -> the same frame is rejected and not counted.
+        let mut strict = LiveStacker::new(
+            &reference,
+            LiveStackConfig {
+                max_alignment_residual_px: 0.5,
+                ..osc_test_config()
+            },
+        )
+        .expect("reference accepted");
+        let err = strict
+            .add_frame(&frame)
+            .expect_err("high-residual frame must be rejected");
+        assert!(err.contains("residual"), "unexpected error: {err}");
+        assert_eq!(
+            strict.frame_count(),
+            1,
+            "a rejected frame must not be counted into the stack"
+        );
     }
 
     /// (1) Regression: the mono two-frame stack is unchanged by this work.

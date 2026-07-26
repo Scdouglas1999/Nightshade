@@ -38,6 +38,7 @@ use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
 use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_long, c_uchar, CStr};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 // =============================================================================
@@ -377,6 +378,31 @@ impl Default for CoolerState {
     }
 }
 
+/// Full-scale ADU of the delivered pixel container for a ZWO sensor of
+/// `bit_depth` bits read out as [`ASIImgType::Raw16`].
+///
+/// The ASI SDK left-justifies sub-16-bit samples into the 16-bit buffer, so a
+/// 12-bit ADC produces values that are multiples of 16 spanning `0 ..= 4095 <<
+/// 4` (65520) — NOT `0 ..= 4095`. Verified on a live ASI1600MM-Cool: a
+/// nowhere-near-saturated 2 ms frame measured min 3856, max 5792, median 4464
+/// (every one an exact multiple of 16), and a saturated frame clipped at 65504
+/// (`4094 << 4`). Reporting `(1 << bit_depth) - 1` here made
+/// `/api/equipment/camera/status` claim `maxAdu: 4095` for the same camera whose
+/// frames reach 65504 — a 16x error that made every percent-of-full-scale
+/// consumer (flat-frame targets above all) unreachable.
+///
+/// `bit_depth >= 16` needs no shift. `bit_depth == 0` means the SDK never
+/// populated the property; fall back to the container's own ceiling rather than
+/// underflowing to 0, which would report "this camera cannot produce any signal".
+fn raw16_container_max_adu(bit_depth: u32) -> u32 {
+    const CONTAINER_BITS: u32 = 16;
+    const CONTAINER_MAX: u32 = u16::MAX as u32;
+    if bit_depth == 0 || bit_depth >= CONTAINER_BITS {
+        return CONTAINER_MAX;
+    }
+    (((1u32 << bit_depth) - 1) << (CONTAINER_BITS - bit_depth)) & CONTAINER_MAX
+}
+
 /// ZWO ASI Camera implementation
 #[derive(Debug)]
 pub struct ZwoCamera {
@@ -394,6 +420,10 @@ pub struct ZwoCamera {
     current_offset: i32,
     // Exposure metadata tracking
     exposure_time: f64,
+    // The ASI SDK may leave ASI_EXP_SUCCESS latched after StopExposure. Track
+    // whether Nightshade still owns an active acquisition so an aborted frame
+    // cannot leave status permanently stuck at Downloading.
+    exposure_active: AtomicBool,
     current_subframe: Option<SubFrame>,
     // Locally-tracked cooler command (last set_cooler) — see CoolerState docs.
     cooler_state: Mutex<CoolerState>,
@@ -415,6 +445,7 @@ impl ZwoCamera {
             current_gain: 0,
             current_offset: 0,
             exposure_time: 0.0,
+            exposure_active: AtomicBool::new(false),
             current_subframe: None,
             cooler_state: Mutex::new(CoolerState::default()),
             temperature_skip_first_pending: Mutex::new(false),
@@ -425,12 +456,32 @@ impl ZwoCamera {
     fn load_camera_info(&mut self) -> Result<(), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
-        // SAFETY: ASICameraInfo is `#[repr(C)]` POD (only c_int/c_long/f64/f32/c_char arrays); zeroed is a valid initial state per ASI SDK contract before ASIGetCameraProperty writes into it.
-        let mut info: ASICameraInfo = unsafe { std::mem::zeroed() };
-        // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
-        // SAFETY: `&mut info` points to a fully-allocated ASICameraInfo on the stack; camera_id is the index validated against the SDK's ASIGetNumOfConnectedCameras() at construction time. zwo_camera_mutex is held by caller (sync helper) ensuring the non-thread-safe SDK is single-threaded.
-        let result = unsafe { (sdk.get_camera_property)(&mut info, self.camera_id) };
-        check_asi_error(result)?;
+        // ASIGetCameraProperty takes the current enumeration index, while every
+        // camera operation takes ASICameraInfo::CameraID. Resolve the stable ID
+        // again here because USB enumeration can change between discovery and
+        // connect.
+        // SAFETY: caller holds zwo_camera_mutex; ASIGetNumOfConnectedCameras
+        // takes no arguments and only reads SDK state.
+        let num_cameras = unsafe { (sdk.get_num_cameras)() };
+        let mut matched_info = None;
+        for index in 0..num_cameras {
+            // SAFETY: ASICameraInfo is `#[repr(C)]` POD; zeroed is a valid initial
+            // state before the SDK populates it.
+            let mut info: ASICameraInfo = unsafe { std::mem::zeroed() };
+            // SAFETY: caller holds zwo_camera_mutex; `index` is bounded by the
+            // count returned above and `info` is a valid stack out-pointer.
+            let result = unsafe { (sdk.get_camera_property)(&mut info, index) };
+            if result == 0 && info.camera_id == self.camera_id {
+                matched_info = Some(info);
+                break;
+            }
+        }
+        let info = matched_info.ok_or_else(|| {
+            NativeError::InvalidDevice(format!(
+                "ZWO camera ID {} is no longer present in the SDK enumeration",
+                self.camera_id
+            ))
+        })?;
 
         // max_width/max_height are c_long in the SDK (i64 on Linux LP64, i32 on
         // Windows LLP64). Our own fields are i32; sensor dimensions always fit.
@@ -539,6 +590,114 @@ impl ZwoCamera {
             )
         };
         check_asi_error(result)
+    }
+
+    /// Read a control back after writing it, falling back to `requested`
+    /// when the SDK refuses to answer.
+    ///
+    /// Caller must already hold `zwo_camera_mutex` (same contract as
+    /// [`Self::get_control`]). See [`commit_zwo_cached_setting`] for why the
+    /// read-back matters: `ASISetControlValue` clamps out-of-range values
+    /// and still reports success.
+    fn read_back_control_sync(&self, control: ASIControlType, requested: i32) -> i32 {
+        match self.get_control(control) {
+            Ok(actual) => {
+                let actual = actual as i32;
+                if actual != requested {
+                    tracing::warn!(
+                        "ZWO clamped control {:?}: requested {}, sensor is at {}",
+                        control,
+                        requested,
+                        actual
+                    );
+                }
+                actual
+            }
+            Err(error) => {
+                // The write succeeded, so the sensor did change; we just
+                // cannot confirm to what. Reporting the request is the only
+                // remaining estimate, and is no worse than the old behaviour.
+                tracing::warn!(
+                    "ZWO control {:?} read-back failed after write ({}); \
+                     reporting requested value {}",
+                    control,
+                    error,
+                    requested
+                );
+                requested
+            }
+        }
+    }
+
+    /// Async sibling of [`Self::read_back_control_sync`] for callers that do
+    /// NOT already hold `zwo_camera_mutex`.
+    async fn read_back_control_async(&self, control: ASIControlType, requested: i32) -> i32 {
+        match self.get_control_async(control).await {
+            Ok(actual) => {
+                let actual = actual as i32;
+                if actual != requested {
+                    tracing::warn!(
+                        "ZWO clamped control {:?}: requested {}, sensor is at {}",
+                        control,
+                        requested,
+                        actual
+                    );
+                }
+                actual
+            }
+            Err(error) => {
+                tracing::warn!(
+                    "ZWO control {:?} read-back failed after write ({}); \
+                     reporting requested value {}",
+                    control,
+                    error,
+                    requested
+                );
+                requested
+            }
+        }
+    }
+
+    /// Read a control's `(min, max, default)` WITHOUT narrowing to `i32`.
+    ///
+    /// [`Self::get_control_caps_async`] casts to `i32` on the documented
+    /// assumption that "ZWO controls never exceed i32 in practice (gain <= 600,
+    /// offset <= 255)". That assumption does not hold for `ASI_EXPOSURE`, whose
+    /// values are MICROSECONDS: a 2000 s maximum is 2_000_000_000 µs, one
+    /// rounding away from `i32::MAX`, and longer-exposure models overflow it
+    /// outright. Exposure limits must therefore come through this variant.
+    async fn get_control_caps_raw_async(
+        &self,
+        target_control: ASIControlType,
+    ) -> Result<(i64, i64, i64), NativeError> {
+        let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = zwo_camera_mutex().lock().await;
+
+        let mut num_controls: c_int = 0;
+        // SAFETY: zwo_camera_mutex held above; `num_controls` is a valid stack
+        // pointer; camera_id is valid (camera opened during connect).
+        let result = unsafe { (sdk.get_num_controls)(self.camera_id, &mut num_controls) };
+        check_asi_error(result)?;
+
+        for i in 0..num_controls {
+            // SAFETY: ASIControlCaps is `#[repr(C)]` POD; zeroed is a safe
+            // initial state per the SDK contract.
+            let mut caps: ASIControlCaps = unsafe { std::mem::zeroed() };
+            // SAFETY: zwo_camera_mutex held; `caps` is a valid stack pointer;
+            // `i` is bounded by num_controls; camera_id is valid.
+            let result = unsafe { (sdk.get_control_caps)(self.camera_id, i, &mut caps) };
+            if result == 0 && caps.control_type as c_int == target_control as c_int {
+                // c_long is i32 on Windows and i64 on Linux; widening to i64 is
+                // lossless on both.
+                return Ok((
+                    caps.min_value as i64,
+                    caps.max_value as i64,
+                    caps.default_value as i64,
+                ));
+            }
+        }
+
+        Err(NativeError::NotSupported)
     }
 
     /// Get the min/max range for a control (mutex protected)
@@ -695,13 +854,29 @@ fn validate_zwo_eaf_target(position: i32, max_position: i32) -> Result<i32, Nati
     Ok(position)
 }
 
+/// Commit a control value to the driver's status cache after the SDK write
+/// succeeded.
+///
+/// `effective_value` MUST be a read-back of the control, not the value that
+/// was requested. `ASISetControlValue` returns `ASI_SUCCESS` for values
+/// outside a control's published range and silently clamps them, so caching
+/// the request makes the driver report a setting the sensor is not at.
+/// Observed on a real ZWO ASI1600MM-Cool (published range gain 0-600,
+/// offset 0-100): requesting gain 601 / 1000 / 99999 produced frames whose
+/// read noise was indistinguishable from gain 600 (stddev 1486 / 1457 /
+/// 1472 / 1478), and requesting offset 101 / 500 / 5000 produced identical
+/// pedestals (mean 1430.60 / 1430.28 / 1430.52 / 1430.45) — yet
+/// `get_status()` reported the requested number, and that number is what
+/// reaches `ImageMetadata.gain`/`.offset` and therefore the FITS `GAIN` /
+/// `OFFSET` keywords. A dark library keyed on gain 99999 can never match a
+/// light actually taken at gain 600.
 fn commit_zwo_cached_setting(
     cache: &mut i32,
-    requested_value: i32,
+    effective_value: i32,
     sdk_result: Result<(), NativeError>,
 ) -> Result<(), NativeError> {
     sdk_result?;
-    *cache = requested_value;
+    *cache = effective_value;
     Ok(())
 }
 
@@ -750,7 +925,7 @@ impl NativeDevice for ZwoCamera {
 
         // Open camera
         tracing::debug!("Opening camera ID {}", self.camera_id);
-        // SAFETY: zwo_camera_mutex is held (acquired in connect() before this point); camera_id is the index from discover_devices() which was validated against ASIGetNumOfConnectedCameras.
+        // SAFETY: zwo_camera_mutex is held (acquired in connect() before this point); camera_id is the stable ASICameraInfo::CameraID resolved by load_camera_info().
         let result = unsafe { (sdk.open_camera)(self.camera_id) };
         if result != 0 {
             tracing::error!(
@@ -907,10 +1082,14 @@ impl NativeCamera for ZwoCamera {
         let result = unsafe { (sdk.get_exp_status)(self.camera_id, &mut exp_status) };
         check_asi_error(result)?;
 
+        let exposure_active = self.exposure_active.load(Ordering::Acquire);
         let state = match exp_status {
             0 => CameraState::Idle,
             1 => CameraState::Exposing,
-            2 => CameraState::Downloading,
+            2 if exposure_active => CameraState::Downloading,
+            2 => CameraState::Idle,
+            3 if exposure_active => CameraState::Error,
+            3 => CameraState::Idle,
             _ => CameraState::Error,
         };
 
@@ -969,6 +1148,27 @@ impl NativeCamera for ZwoCamera {
             return Err(NativeError::NotConnected);
         }
 
+        if params.bin_x < 1
+            || params.bin_y < 1
+            || params.bin_x > 4
+            || params.bin_y > 4
+            || params.bin_x != params.bin_y
+        {
+            return Err(NativeError::InvalidParameter(format!(
+                "ZWO binning must be symmetric and between 1x1 and 4x4, got {}x{}",
+                params.bin_x, params.bin_y
+            )));
+        }
+
+        // ExposureParams is the per-frame source of truth. Previously this
+        // driver logged requested binning but never programmed the SDK, so a
+        // 2x2 request silently downloaded a full-resolution 1x1 frame.
+        if self.current_bin != params.bin_x {
+            self.set_binning(params.bin_x, params.bin_y).await?;
+        }
+        // Also resets a previous subframe when this frame requests full sensor.
+        self.set_subframe(params.subframe.clone()).await?;
+
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
 
         // Acquire mutex for SDK operations
@@ -978,25 +1178,33 @@ impl NativeCamera for ZwoCamera {
         let exposure_us = (params.duration_secs * 1_000_000.0) as c_long;
         self.set_control(ASIControlType::ASI_EXPOSURE, exposure_us, false)?;
 
-        // Set gain
+        // Set gain, then cache what the SENSOR ended up at, not what was asked
+        // for. See `read_back_control_sync` for why.
         if let Some(gain) = params.gain {
             self.set_control(ASIControlType::ASI_GAIN, gain as c_long, false)?;
-            self.current_gain = gain;
+            self.current_gain = self.read_back_control_sync(ASIControlType::ASI_GAIN, gain);
         }
 
         // Set offset if provided
         if let Some(offset) = params.offset {
             self.set_control(ASIControlType::ASI_OFFSET, offset as c_long, false)?;
-            self.current_offset = offset;
+            self.current_offset =
+                self.read_back_control_sync(ASIControlType::ASI_OFFSET, offset);
         }
 
-        // Start exposure (false = not dark frame)
+        // Start exposure with the correct shutter state for calibration frames.
+        let is_dark = if params.frame_type.opens_shutter() {
+            ASI_FALSE
+        } else {
+            ASI_TRUE
+        };
         // SAFETY: zwo_camera_mutex held by caller (start_exposure() acquires it before this point); camera_id is valid (connected=true checked earlier).
-        let result = unsafe { (sdk.start_exposure)(self.camera_id, ASI_FALSE) };
+        let result = unsafe { (sdk.start_exposure)(self.camera_id, is_dark) };
         check_asi_error(result)?;
 
         // Track exposure time for metadata
         self.exposure_time = params.duration_secs;
+        self.exposure_active.store(true, Ordering::Release);
 
         tracing::info!("Started {}s exposure", params.duration_secs);
         Ok(())
@@ -1012,6 +1220,7 @@ impl NativeCamera for ZwoCamera {
         // SAFETY: zwo_camera_mutex held above; camera_id is valid (connected=true checked earlier).
         let result = unsafe { (sdk.stop_exposure)(self.camera_id) };
         check_asi_error(result)?;
+        self.exposure_active.store(false, Ordering::Release);
 
         tracing::info!("Aborted exposure");
         Ok(())
@@ -1031,6 +1240,14 @@ impl NativeCamera for ZwoCamera {
         check_asi_error(result)?;
 
         let is_complete = status == ASIExposureStatus::Success as c_int;
+        if is_complete {
+            self.exposure_active.store(false, Ordering::Release);
+        } else if status == ASIExposureStatus::Failed as c_int {
+            self.exposure_active.store(false, Ordering::Release);
+            return Err(NativeError::SdkError(
+                "ZWO camera reported a failed exposure".to_string(),
+            ));
+        }
         // Log status for debugging (0=Idle, 1=Working, 2=Success, 3=Failed)
         if is_complete || status == ASIExposureStatus::Failed as c_int {
             tracing::info!(
@@ -1273,7 +1490,13 @@ impl NativeCamera for ZwoCamera {
         let sdk_result = self
             .set_control_async(ASIControlType::ASI_GAIN, gain as c_long, false)
             .await;
-        commit_zwo_cached_setting(&mut self.current_gain, gain, sdk_result)
+        let effective = if sdk_result.is_ok() {
+            self.read_back_control_async(ASIControlType::ASI_GAIN, gain)
+                .await
+        } else {
+            gain
+        };
+        commit_zwo_cached_setting(&mut self.current_gain, effective, sdk_result)
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
@@ -1286,7 +1509,13 @@ impl NativeCamera for ZwoCamera {
         let sdk_result = self
             .set_control_async(ASIControlType::ASI_OFFSET, offset as c_long, false)
             .await;
-        commit_zwo_cached_setting(&mut self.current_offset, offset, sdk_result)
+        let effective = if sdk_result.is_ok() {
+            self.read_back_control_async(ASIControlType::ASI_OFFSET, offset)
+                .await
+        } else {
+            offset
+        };
+        commit_zwo_cached_setting(&mut self.current_offset, effective, sdk_result)
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
@@ -1308,9 +1537,17 @@ impl NativeCamera for ZwoCamera {
         // Calculate new dimensions. max_width/max_height are c_long (i64 on
         // Linux); sensor dimensions fit in i32, so do the arithmetic in i32 to
         // match our own width/height fields and the SDK's int ROI parameters.
+        //
+        // ZWO's SDK requires the ROI width to be a multiple of 8 and the height a
+        // multiple of 2 (ASICamera2.h); an unaligned value makes ASISetROIFormat
+        // return ASI_ERROR_INVALID_SIZE. For most flagship sensors the binned
+        // dimension is NOT already aligned (e.g. ASI2600 6248/2=3124, 3124%8=4;
+        // ASI294 →1411, odd), so without this every bin>=2 frame aborts. Round
+        // DOWN to the nearest valid multiple exactly like the reference driver
+        // (asi_base.cpp: `subW -= subW % 8; subH -= subH % 2`).
         let info = self.camera_info.as_ref().ok_or(NativeError::NotConnected)?;
-        let new_width = info.max_width as i32 / bin;
-        let new_height = info.max_height as i32 / bin;
+        let new_width = (info.max_width as i32 / bin) & !7; // multiple of 8
+        let new_height = (info.max_height as i32 / bin) & !1; // multiple of 2
 
         // Acquire mutex for SDK operation
         let _lock = zwo_camera_mutex().lock().await;
@@ -1362,6 +1599,13 @@ impl NativeCamera for ZwoCamera {
             )
         };
 
+        // ZWO requires ROI width%8==0 and height%2==0 (ASICamera2.h); round down
+        // to the nearest valid multiple like the reference driver so a caller-
+        // supplied or bin-derived ROI that isn't already aligned doesn't fail
+        // with ASI_ERROR_INVALID_SIZE.
+        let width = width & !7;
+        let height = height & !1;
+
         // Acquire mutex for SDK operations
         let _lock = zwo_camera_mutex().lock().await;
 
@@ -1403,7 +1647,11 @@ impl NativeCamera for ZwoCamera {
                 height: u32::try_from(info.max_height).unwrap_or(0),
                 pixel_size_x: info.pixel_size,
                 pixel_size_y: info.pixel_size,
-                max_adu: (1u32 << info.bit_depth) - 1,
+                // Container full scale, NOT the ADC range: the SDK is driven in
+                // Raw16 (see `image_type`) and left-justifies sub-16-bit
+                // samples. See [`raw16_container_max_adu`] and the
+                // `SensorInfo::max_adu` contract.
+                max_adu: raw16_container_max_adu(u32::try_from(info.bit_depth).unwrap_or(0)),
                 bit_depth: u32::try_from(info.bit_depth).unwrap_or(0),
                 color: info.is_color_cam != 0,
                 bayer_pattern: if info.is_color_cam != 0 {
@@ -1467,6 +1715,40 @@ impl NativeCamera for ZwoCamera {
         }
         self.get_control_range_async(ASIControlType::ASI_OFFSET)
             .await
+    }
+
+    /// ZWO publishes the exposure range via `ASIGetControlCaps(ASI_EXPOSURE)`
+    /// in MICROSECONDS. Converted to seconds to match the capability contract.
+    /// A camera that does not publish the control answers `Ok(None)` rather
+    /// than a fabricated range.
+    async fn get_exposure_range(&self) -> Result<Option<(f64, f64)>, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+        match self
+            .get_control_caps_raw_async(ASIControlType::ASI_EXPOSURE)
+            .await
+        {
+            Ok((min_us, max_us, _default_us)) => {
+                // Guard against a driver reporting a nonsensical window; an
+                // inverted or non-positive range is worse than "unknown".
+                if min_us <= 0 || max_us < min_us {
+                    tracing::warn!(
+                        "ZWO reported an unusable ASI_EXPOSURE range ({} .. {} us); \
+                         publishing None rather than a bogus limit",
+                        min_us,
+                        max_us
+                    );
+                    return Ok(None);
+                }
+                Ok(Some((
+                    min_us as f64 / 1_000_000.0,
+                    max_us as f64 / 1_000_000.0,
+                )))
+            }
+            Err(NativeError::NotSupported) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Surface the SDK-advertised recommended settings.
@@ -1591,6 +1873,7 @@ impl NativeCamera for ZwoCamera {
 
 /// ZWO camera discovery info
 pub struct ZwoDiscoveryInfo {
+    /// Stable SDK CameraID used by ASIOpenCamera and all subsequent operations.
     pub camera_id: i32,
     pub name: String,
     /// Discovery index (0-based) for disambiguation when multiple same-model cameras
@@ -1661,10 +1944,15 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
                     .to_string_lossy()
                     .to_string()
             };
-            tracing::info!("Found ZWO camera: {} (ID: {})", name, i);
+            tracing::info!(
+                "Found ZWO camera: {} (ID: {}, index: {})",
+                name,
+                info.camera_id,
+                i
+            );
 
             cameras.push(ZwoDiscoveryInfo {
-                camera_id: i,
+                camera_id: info.camera_id,
                 name,
                 // Why: `i` ranges 0..num_cameras (c_int) and is non-negative by loop
                 // bound; ZWO advertises a small camera count (<= ~10). `as usize` is
@@ -2620,6 +2908,7 @@ pub struct ZwoFilterWheel {
     slot_count: i32,
     name: String,
     filter_names: Vec<String>,
+    settle_after_move_pending: AtomicBool,
 }
 
 impl ZwoFilterWheel {
@@ -2632,7 +2921,51 @@ impl ZwoFilterWheel {
             slot_count: 0,
             name: format!("ZWO EFW {}", filterwheel_id),
             filter_names: Vec::new(),
+            settle_after_move_pending: AtomicBool::new(false),
         }
+    }
+
+    async fn read_position_once(&self) -> Result<i32, NativeError> {
+        let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = zwo_efw_mutex().lock().await;
+        let mut position: c_int = -999;
+        // SAFETY: zwo_efw_mutex held; `position` is a valid stack pointer and
+        // filterwheel_id is valid while this filter wheel is connected.
+        let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
+        check_efw_error(result)?;
+        Ok(position)
+    }
+
+    /// Read EFW position without consuming the post-move settle during motion.
+    ///
+    /// A non-moving result is re-read after the configured delay. If that
+    /// confirmation says the wheel is still moving, the settle remains pending
+    /// so the full delay is applied again after actual completion.
+    async fn read_position_settled(&self) -> Result<i32, NativeError> {
+        let position = self.read_position_once().await?;
+        if position == -1 || !self.settle_after_move_pending.load(Ordering::Acquire) {
+            return Ok(position);
+        }
+
+        match crate::quirks::get_position_delay_after_move_ms(&self.device_id) {
+            Some(delay_ms) if delay_ms > 0 => {
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            }
+            Some(_) => {}
+            None => {
+                tracing::warn!(
+                    "ZWO EFW {} has no DelayAfterMoveMs quirk entry; skipping post-move settle (callers may observe stale slot index).",
+                    self.device_id
+                );
+            }
+        }
+
+        let confirmed_position = self.read_position_once().await?;
+        if confirmed_position != -1 {
+            self.settle_after_move_pending
+                .store(false, Ordering::Release);
+        }
+        Ok(confirmed_position)
     }
 }
 
@@ -2668,8 +3001,33 @@ impl NativeDevice for ZwoFilterWheel {
         // Acquire mutex for EFW SDK operations
         let _lock = zwo_efw_mutex().lock().await;
 
+        // EFWGetNum/EFWGetID populate the vendor SDK's internal ID table.
+        // A profile can connect a persisted hardware ID before any discovery
+        // has run; on real ZWO SDK builds, calling EFWOpen directly in that
+        // state returns EFW_ERROR_INVALID_ID even though the wheel is present.
+        let num_wheels = unsafe { (sdk.get_num)() };
+        let mut id_is_present = false;
+        for index in 0..num_wheels {
+            let mut discovered_id: c_int = -1;
+            // SAFETY: zwo_efw_mutex is held, index is bounded by EFWGetNum,
+            // and discovered_id is a valid output pointer.
+            let result = unsafe { (sdk.get_id)(index, &mut discovered_id) };
+            if result == 0 && discovered_id == self.filterwheel_id {
+                id_is_present = true;
+                break;
+            }
+        }
+        if !id_is_present {
+            return Err(NativeError::DeviceNotFound(format!(
+                "ZWO EFW ID {} is not present (SDK reported {} wheel(s))",
+                self.filterwheel_id,
+                num_wheels.max(0)
+            )));
+        }
+
         // Open filter wheel
-        // SAFETY: zwo_efw_mutex held above; filterwheel_id comes from discover_filter_wheels() via EFWGetID(), a valid SDK-issued identifier.
+        // SAFETY: zwo_efw_mutex held above; filterwheel_id was matched against
+        // the SDK-issued IDs immediately above.
         let result = unsafe { (sdk.open)(self.filterwheel_id) };
         check_efw_error(result)?;
 
@@ -2799,6 +3157,8 @@ impl NativeDevice for ZwoFilterWheel {
         check_efw_error(result)?;
 
         self.connected = false;
+        self.settle_after_move_pending
+            .store(false, Ordering::Release);
 
         // Remove from the connected-EFW registry so that subsequent discovery
         // polls perform a full open/query/close (device may have been physically
@@ -2837,24 +3197,8 @@ impl NativeFilterWheel for ZwoFilterWheel {
         // SAFETY: zwo_efw_mutex held above; `position` was bounds-checked against slot_count earlier in this function; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.set_position)(self.filterwheel_id, position) };
         check_efw_error(result)?;
-        drop(_lock);
-
-        // Honour the EFW DelayAfterMoveMs quirk: some ZWO EFW firmware revisions
-        // report a stale slot index for ~500ms after a move completes. The quirks
-        // database carries the per-model delay; if a future model has none we log
-        // loudly so the missing entry doesn't disappear into a silent fallback.
-        match crate::quirks::get_position_delay_after_move_ms(&self.device_id) {
-            Some(delay_ms) if delay_ms > 0 => {
-                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
-            }
-            Some(_) => {}
-            None => {
-                tracing::warn!(
-                    "ZWO EFW {} has no DelayAfterMoveMs quirk entry; skipping post-move settle (callers may observe stale slot index).",
-                    self.device_id
-                );
-            }
-        }
+        self.settle_after_move_pending
+            .store(true, Ordering::Release);
         Ok(())
     }
 
@@ -2863,18 +3207,13 @@ impl NativeFilterWheel for ZwoFilterWheel {
             return Err(NativeError::NotConnected);
         }
 
-        let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
-        let _lock = zwo_efw_mutex().lock().await;
-        let mut position: c_int = -999; // sentinel to detect if SDK writes
-                                        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
-        let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
-        tracing::info!(
-            "[ZWO EFW] get_position(hw_id={}) => SDK result={}, position={}",
+        let position = self.read_position_settled().await?;
+        // debug, not info: position is polled continuously by status pollers.
+        tracing::debug!(
+            "[ZWO EFW] get_position(hw_id={}) => position={}",
             self.filterwheel_id,
-            result,
             position
         );
-        check_efw_error(result)?;
         Ok(position)
     }
 
@@ -2883,18 +3222,13 @@ impl NativeFilterWheel for ZwoFilterWheel {
             return Err(NativeError::NotConnected);
         }
 
-        let sdk = EfwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
-        let _lock = zwo_efw_mutex().lock().await;
-        let mut position: c_int = -999; // sentinel to detect if SDK writes
-                                        // SAFETY: zwo_efw_mutex held above; `position` is a valid stack pointer; filterwheel_id is valid (connected=true checked).
-        let result = unsafe { (sdk.get_position)(self.filterwheel_id, &mut position) };
-        tracing::info!(
-            "[ZWO EFW] is_moving(hw_id={}) => SDK result={}, position={}",
+        let position = self.read_position_settled().await?;
+        // debug, not info: polled continuously while a move is in flight.
+        tracing::debug!(
+            "[ZWO EFW] is_moving(hw_id={}) => position={}",
             self.filterwheel_id,
-            result,
             position
         );
-        check_efw_error(result)?;
         // Position is -1 when moving
         Ok(position == -1)
     }
@@ -3128,6 +3462,71 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // -------------------------------------------------------------------------
+    // Pixel-container full scale (no hardware required)
+    // -------------------------------------------------------------------------
+
+    /// The container ceiling must be reported in the units the pixels arrive in.
+    /// `(1 << bit_depth) - 1` — what this used to publish — is the ADC range and
+    /// is 16x/4x too small for the 12/14-bit sensors that make up most of the
+    /// ZWO line.
+    #[test]
+    fn raw16_container_max_adu_accounts_for_left_justification() {
+        // 12-bit ASI1600MM/ASI183/ASI294: 4095 << 4.
+        assert_eq!(raw16_container_max_adu(12), 65520);
+        // 14-bit ASI2600/ASI6200: 16383 << 2.
+        assert_eq!(raw16_container_max_adu(14), 65532);
+        // 10-bit: 1023 << 6.
+        assert_eq!(raw16_container_max_adu(10), 65472);
+        // 8-bit sensor read out in Raw16: 255 << 8.
+        assert_eq!(raw16_container_max_adu(8), 65280);
+        // A true 16-bit sensor needs no shift.
+        assert_eq!(raw16_container_max_adu(16), 65535);
+    }
+
+    /// Every reported ceiling must be reachable inside a u16 and be an exact
+    /// multiple of the left-shift step, which is what makes frame statistics from
+    /// these cameras land on multiples of 16 (12-bit) or 4 (14-bit).
+    #[test]
+    fn raw16_container_max_adu_is_a_reachable_u16_sample() {
+        for bit_depth in 1..=16u32 {
+            let max = raw16_container_max_adu(bit_depth);
+            assert!(
+                max <= u16::MAX as u32,
+                "bit_depth {bit_depth} produced {max}, outside the u16 container"
+            );
+            let step = 1u32 << (16 - bit_depth.min(16));
+            assert_eq!(
+                max % step,
+                0,
+                "bit_depth {bit_depth}: {max} is not a multiple of the {step}-ADU sample step"
+            );
+        }
+    }
+
+    /// A bit depth the SDK never populated must not collapse the range to 0 —
+    /// that would publish "this camera cannot produce any signal" and make every
+    /// percent-of-full-scale target 0.
+    #[test]
+    fn raw16_container_max_adu_unknown_bit_depth_falls_back_to_container() {
+        assert_eq!(raw16_container_max_adu(0), 65535);
+        assert_eq!(raw16_container_max_adu(32), 65535);
+    }
+
+    /// The saturation threshold the imaging pipeline ships (65024 = 4064 << 4)
+    /// must sit just under, not above, the 12-bit container ceiling — otherwise
+    /// saturation could never be detected on the most common astro sensor class.
+    #[test]
+    fn raw16_container_max_adu_agrees_with_pipeline_saturation_threshold() {
+        let twelve_bit_ceiling = raw16_container_max_adu(12);
+        assert!(
+            65024 < twelve_bit_ceiling,
+            "pipeline threshold 65024 must be below the 12-bit ceiling {twelve_bit_ceiling}"
+        );
+        // The live ASI1600MM clips at 4094 << 4; that must still be flagged.
+        assert!(65024 <= 65504 && 65504 <= twelve_bit_ceiling);
+    }
 
     // -------------------------------------------------------------------------
     // Connected-device registry tests (no hardware required)

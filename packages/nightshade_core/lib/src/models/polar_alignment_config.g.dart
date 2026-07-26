@@ -16,6 +16,8 @@ _PolarAlignmentConfig _$PolarAlignmentConfigFromJson(
   manualRotation: json['manualRotation'] as bool? ?? false,
   rotateEast: json['rotateEast'] as bool? ?? true,
   solveTimeout: (json['solveTimeout'] as num?)?.toDouble() ?? 30.0,
+  iterationCadenceSecs:
+      (json['iterationCadenceSecs'] as num?)?.toDouble() ?? 3.0,
   autoCompleteThreshold:
       (json['autoCompleteThreshold'] as num?)?.toDouble() ?? 30.0,
   startFromCurrent: json['startFromCurrent'] as bool? ?? true,
@@ -33,6 +35,7 @@ Map<String, dynamic> _$PolarAlignmentConfigToJson(
   'manualRotation': instance.manualRotation,
   'rotateEast': instance.rotateEast,
   'solveTimeout': instance.solveTimeout,
+  'iterationCadenceSecs': instance.iterationCadenceSecs,
   'autoCompleteThreshold': instance.autoCompleteThreshold,
   'startFromCurrent': instance.startFromCurrent,
   'gain': instance.gain,

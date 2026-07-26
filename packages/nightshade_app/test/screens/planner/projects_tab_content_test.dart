@@ -15,6 +15,8 @@
 // avoid colliding with the legacy analytics ProjectProgress), so the test seeds
 // the progress provider with it straight off the nightshade_core barrel.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,11 +42,13 @@ class _FakeActiveProjectNotifier extends ActiveProjectNotifier {
 
   int? lastSetId;
   int setCallCount = 0;
+  bool failWrites = false;
 
   @override
   Future<void> setActiveProject(int? id) async {
     setCallCount++;
     lastSetId = id;
+    if (failWrites) throw StateError('write failed');
     state = id;
   }
 }
@@ -57,8 +61,10 @@ class _FakeProjectService implements ProjectService {
   String? createdName;
   String? createdDescription;
   int nextId;
+  int createCallCount = 0;
+  Completer<int>? createCompleter;
 
-  _FakeProjectService({this.nextId = 99});
+  _FakeProjectService({this.nextId = 99, this.createCompleter});
 
   @override
   Future<int> createProject({
@@ -66,8 +72,11 @@ class _FakeProjectService implements ProjectService {
     String? description,
     int? colorArgb,
   }) async {
+    createCallCount++;
     createdName = name;
     createdDescription = description;
+    final completer = createCompleter;
+    if (completer != null) return completer.future;
     return nextId;
   }
 
@@ -220,6 +229,38 @@ void main() {
     expect(find.textContaining('1 complete'), findsOneWidget);
   });
 
+  testWidgets('failed project selection stays unchanged and reports the error',
+      (tester) async {
+    final first = _project(id: 1, name: 'Winter Nebulae');
+    final second = _project(id: 2, name: 'Galaxy Season');
+    late _FakeActiveProjectNotifier activeNotifier;
+    final progress = CampaignProgress(project: first, targets: const []);
+
+    await tester.pumpWidget(_harness(
+      overrides: [
+        projectListProvider.overrideWith(
+          (ref) => Stream.value([first, second]),
+        ),
+        activeProjectIdProvider.overrideWith((ref) {
+          activeNotifier = _FakeActiveProjectNotifier(ref, 1)
+            ..failWrites = true;
+          return activeNotifier;
+        }),
+        activeProjectProgressProvider.overrideWith((ref) async => progress),
+      ],
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Galaxy Season').last);
+    await tester.pumpAndSettle();
+
+    expect(activeNotifier.lastSetId, 2);
+    expect(activeNotifier.state, 1);
+    expect(find.text('Could not save the active project.'), findsOneWidget);
+  });
+
   testWidgets('"New Project" opens the create dialog', (tester) async {
     await tester.pumpWidget(_harness(
       overrides: [
@@ -271,6 +312,50 @@ void main() {
     expect(service.createdName, 'Comet Hunt');
     expect(activeNotifier.lastSetId, 77);
     expect(activeNotifier.setCallCount, greaterThan(0));
+  });
+
+  testWidgets('project creation is single-flight after the dialog closes',
+      (tester) async {
+    final createCompleter = Completer<int>();
+    final service = _FakeProjectService(createCompleter: createCompleter);
+    late _FakeActiveProjectNotifier activeNotifier;
+
+    await tester.pumpWidget(_harness(
+      overrides: [
+        projectListProvider.overrideWith((ref) => Stream.value(const [])),
+        activeProjectIdProvider.overrideWith((ref) {
+          activeNotifier = _FakeActiveProjectNotifier(ref, null);
+          return activeNotifier;
+        }),
+        activeProjectProgressProvider.overrideWith((ref) async => null),
+        projectServiceProvider.overrideWithValue(service),
+      ],
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'New Project'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Slow Project');
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Create'));
+    await tester.pump();
+
+    expect(service.createCallCount, 1);
+    final busyButton = tester.widget<NightshadeButton>(
+      find.widgetWithText(NightshadeButton, 'New Project'),
+    );
+    expect(busyButton.isLoading, isTrue);
+    expect(busyButton.onPressed, isNull);
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'New Project'),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+    expect(service.createCallCount, 1);
+
+    createCompleter.complete(88);
+    await tester.pumpAndSettle();
+    expect(activeNotifier.lastSetId, 88);
   });
 
   testWidgets('shows the add-target prompt when a project has no targets',
@@ -333,7 +418,8 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(NightshadeButton, 'Plan Tonight'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     // The wizard opened.
     expect(find.byType(SmartNightDialog), findsOneWidget);
@@ -342,5 +428,58 @@ void main() {
     // Seeded with ONLY the incomplete target (50), not the complete one (51).
     expect(dialog.seedTargetIds, [50]);
     expect(dialog.seedSourceLabel, 'Galaxy Season');
+  });
+
+  testWidgets('Plan Tonight discards a roll-up after the project changes',
+      (tester) async {
+    final first = _project(id: 5, name: 'Galaxy Season');
+    final second = _project(id: 6, name: 'Nebula Season');
+    final progressCompleter = Completer<CampaignProgress?>();
+    late _FakeActiveProjectNotifier activeNotifier;
+
+    await tester.pumpWidget(_harness(
+      overrides: [
+        projectListProvider.overrideWith(
+          (ref) => Stream.value([first, second]),
+        ),
+        activeProjectIdProvider.overrideWith((ref) {
+          activeNotifier = _FakeActiveProjectNotifier(ref, 5);
+          return activeNotifier;
+        }),
+        activeProjectProgressProvider.overrideWith(
+          (ref) => progressCompleter.future,
+        ),
+        appObserverLocationProvider.overrideWithValue(null),
+      ],
+    ));
+    await tester.pump();
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Plan Tonight'));
+    await tester.pump();
+    await activeNotifier.setActiveProject(6);
+    await tester.pump();
+
+    progressCompleter.complete(
+      CampaignProgress(
+        project: first,
+        targets: [
+          _targetProgress(
+            targetId: 50,
+            name: 'M51',
+            goalFrames: 40,
+            capturedFrames: 10,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SmartNightDialog), findsNothing);
+    expect(
+      find.text(
+        'The active project changed while its plan was loading. Try again.',
+      ),
+      findsOneWidget,
+    );
   });
 }

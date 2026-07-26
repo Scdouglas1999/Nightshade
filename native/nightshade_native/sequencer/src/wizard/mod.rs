@@ -593,6 +593,7 @@ mod tests {
 
     fn dummy_ctx() -> InstructionContext {
         InstructionContext {
+            node_id: String::new(),
             target_ra: None,
             target_dec: None,
             target_rotation: None,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'narrative_view.dart';
@@ -35,6 +36,41 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final backend = ref.watch(backendProvider);
+    if (backend is NetworkBackend) {
+      // Session Review owns persisted masters, night reports, culling state,
+      // and previews whose paths are local to the imaging host. Instantiating
+      // its DAO-backed controller on a remote client would write a second,
+      // client-local history after running compute on the host. Keep the
+      // boundary explicit until the whole aggregate (including artifact
+      // streaming) has a host-authoritative API.
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: const SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              ScreenHeader(
+                title: 'Session Review',
+                subtitle: 'Host-only processing',
+                icon: NightshadeIcons.image,
+              ),
+              Expanded(
+                child: EmptyState(
+                  icon: NightshadeIcons.device,
+                  title: 'Open Session Review on the imaging host',
+                  body: 'Full-resolution subs, integrated masters, and their '
+                      'previews are stored on the imaging computer. Open '
+                      'Nightshade there to review, cull, integrate, or finish '
+                      'this session. Remote Session Review is unavailable in '
+                      'this release.',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final state = ref.watch(sessionReviewControllerProvider(widget.scope));
 
     // Surface controller errors as a toast, once each.

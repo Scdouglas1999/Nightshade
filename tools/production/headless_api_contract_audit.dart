@@ -100,7 +100,7 @@ void main(List<String> args) {
     apiDocsSource: _readSource(_apiDocsPath),
   );
   final systemHandlersSource = _readSource(_systemHandlersPath);
-  if (systemHandlersSource == null) {
+  if (systemHandlersSource.isEmpty) {
     stderr.writeln(
       'Endpoint-catalog source not found at $_systemHandlersPath — '
       'the canonical endpoint catalog `availableHeadlessEndpoints()` '

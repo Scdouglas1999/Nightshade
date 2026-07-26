@@ -315,6 +315,8 @@ class _RecipeChips extends StatelessWidget {
           icon: NightshadeIcons.filter,
           label: 'Reject: ${_rejectLabel(settings.reject)}',
           colors: colors,
+          onTap: () =>
+              onEdit(settings.copyWith(reject: _nextReject(settings.reject))),
         ),
         _Chip(
           icon: NightshadeIcons.sliders,
@@ -326,6 +328,11 @@ class _RecipeChips extends StatelessWidget {
           icon: NightshadeIcons.layers,
           label: 'Combine: ${_combineLabel(settings.combine)}',
           colors: colors,
+          onTap: () => onEdit(settings.copyWith(
+            combine: settings.combine == CombineMode.mean
+                ? CombineMode.median
+                : CombineMode.mean,
+          )),
         ),
         if (settings.weightingEnabled)
           _Chip(
@@ -349,15 +356,20 @@ class _Chip extends StatelessWidget {
   final String label;
   final NightshadeColors colors;
 
+  /// When set, the chip becomes a tappable control (cycles the setting it
+  /// represents); when null it is a display-only pill.
+  final VoidCallback? onTap;
+
   const _Chip({
     required this.icon,
     required this.label,
     required this.colors,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceSm,
         vertical: NightshadeTokens.spaceXs,
@@ -380,7 +392,20 @@ class _Chip extends StatelessWidget {
         ],
       ),
     );
+    if (onTap == null) return chip;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+      child: chip,
+    );
   }
+}
+
+/// Cycle to the next [RejectAlgorithm] so tapping the Reject chip walks the
+/// available algorithms.
+RejectAlgorithm _nextReject(RejectAlgorithm r) {
+  const values = RejectAlgorithm.values;
+  return values[(r.index + 1) % values.length];
 }
 
 class _PreviewPlaceholder extends StatelessWidget {

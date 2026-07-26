@@ -17,6 +17,7 @@ class _BackendGuidingEventBinding {
   final Ref _ref;
   final void Function(NightshadeEvent event) _onEvent;
   StreamSubscription<NightshadeEvent>? _sub;
+  int _generation = 0;
 
   void start() {
     _bind(_ref.read(backendProvider));
@@ -26,11 +27,19 @@ class _BackendGuidingEventBinding {
   }
 
   void _bind(NightshadeBackend backend) {
-    _sub?.cancel();
-    _sub = backend.eventStream.listen(_onEvent);
+    final generation = ++_generation;
+    final previous = _sub;
+    _sub = backend.eventStream.listen((event) {
+      if (generation != _generation) return;
+      _onEvent(event);
+    });
+    // The generation guard makes already-queued events harmless while the
+    // asynchronous cancellation finishes.
+    previous?.cancel();
   }
 
   void dispose() {
+    _generation++;
     _sub?.cancel();
   }
 }
@@ -228,44 +237,85 @@ class GuideStarsNotifier extends StateNotifier<List<GuideStar>> {
         if (state.isNotEmpty) state = const [];
       }
     });
+
+    // A pending status request belongs to the backend that issued it. Switching
+    // rigs invalidates that request immediately so equal guider IDs on two
+    // hosts cannot leak the old host's stars into the new session.
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (identical(previous, next)) return;
+      _stopPolling();
+      if (state.isNotEmpty) state = const [];
+    });
   }
 
   final Ref ref;
   Timer? _pollTimer;
+  int _pollGeneration = 0;
+  bool _pollInFlight = false;
+  int _consecutiveFailures = 0;
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   bool get _isBuiltin => ref.read(isBuiltinGuiderProvider);
 
   void _startPolling() {
     _stopPolling();
+    final generation = _pollGeneration;
     _pollTimer = Timer.periodic(
       const Duration(milliseconds: 1000),
-      (_) => _fetch(),
+      (_) => _fetch(generation),
     );
-    _fetch();
+    unawaited(_fetch(generation));
   }
 
   void _stopPolling() {
+    _pollGeneration++;
     _pollTimer?.cancel();
     _pollTimer = null;
+    _pollInFlight = false;
+    _consecutiveFailures = 0;
   }
 
-  Future<void> _fetch() async {
-    if (!mounted) return;
+  Future<void> _fetch(int generation) async {
+    if (!mounted || generation != _pollGeneration || _pollInFlight) return;
+    final backend = ref.read(backendProvider);
+    final guiderId = ref.read(guiderStateProvider).deviceId;
+    if (!_isBuiltin || guiderId == null) return;
+    _pollInFlight = true;
     try {
-      final backend = ref.read(backendProvider);
       final status = await backend.phd2GetStatus();
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _pollGeneration ||
+          !identical(backend, ref.read(backendProvider)) ||
+          ref.read(guiderStateProvider).deviceId != guiderId ||
+          !_isBuiltin) {
+        return;
+      }
+      _consecutiveFailures = 0;
       // Only adopt the list when it actually changed — avoids churning the
       // graph/list rebuilds every poll when nothing moved.
       if (!_listEquals(status.trackedStars, state)) {
         state = status.trackedStars;
       }
     } catch (e) {
-      _logger.debug(
-        'guideStarsProvider poll failed: $e',
-        source: 'GuideStarsNotifier',
-      );
+      if (mounted &&
+          generation == _pollGeneration &&
+          identical(backend, ref.read(backendProvider)) &&
+          ref.read(guiderStateProvider).deviceId == guiderId &&
+          _isBuiltin) {
+        _consecutiveFailures++;
+        // A transient missed poll should not erase the graph or spam logs.
+        // After sustained failure, clear the now-stale stars and emit one
+        // actionable warning; later ticks keep trying and recover naturally.
+        if (_consecutiveFailures == 3) {
+          if (state.isNotEmpty) state = const [];
+          _logger.warning(
+            'Built-in guider star status is unavailable after 3 polls: $e',
+            source: 'GuideStarsNotifier',
+          );
+        }
+      }
+    } finally {
+      if (generation == _pollGeneration) _pollInFlight = false;
     }
   }
 

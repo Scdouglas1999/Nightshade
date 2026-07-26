@@ -8,12 +8,47 @@ import 'package:path/path.dart' as p;
 
 import '../diagnostics/diagnostics_screen/psf_field_map_view.dart';
 import '../sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
+import '../../utils/confirm_dialog.dart';
 import 'session_review_controller.dart';
 import 'widgets/ab_compare_panel.dart';
 import 'widgets/integration_settings_panel.dart';
+import 'widgets/master_library_panel.dart';
 import 'widgets/master_overlay_view.dart';
+import 'widgets/master_preview_view.dart';
 import 'widgets/narrowband_mixer_panel.dart' as nb;
 import 'widgets/sub_cull_rail.dart';
+
+/// Keeps the PSF field-map selection attached to the same captured image when
+/// the live sub list is reordered or replaced. If that image disappeared,
+/// selects the sharpest remaining frame instead of borrowing the same numeric
+/// index from an unrelated list.
+@visibleForTesting
+int reconcileFieldQualityIndex({
+  required List<DbCapturedImage> oldSubs,
+  required List<DbCapturedImage> newSubs,
+  required int currentIndex,
+}) {
+  if (newSubs.isEmpty) return 0;
+
+  final oldSelectedId = currentIndex >= 0 && currentIndex < oldSubs.length
+      ? oldSubs[currentIndex].id
+      : null;
+  if (oldSelectedId != null) {
+    final preserved = newSubs.indexWhere((sub) => sub.id == oldSelectedId);
+    if (preserved >= 0) return preserved;
+  }
+
+  var best = 0;
+  var bestHfr = double.infinity;
+  for (var i = 0; i < newSubs.length; i++) {
+    final hfr = newSubs[i].hfr ?? double.infinity;
+    if (hfr < bestHfr) {
+      bestHfr = hfr;
+      best = i;
+    }
+  }
+  return best;
+}
 
 /// The *workbench* rendering of the one [SessionReviewController] state: a
 /// dense, control-heavy console for the operator who wants to drive every knob.
@@ -172,11 +207,14 @@ class _RightColumn extends StatelessWidget {
               child: MasterOverlayView(
                 previewPngPath: previewPath,
                 annotations: state.annotationLayer,
-                rejectionMapPngPath: outcome?.result.rejectionMapPath,
+                rejectionMapPngPath: outcome?.result.rejectionMapPreviewPath ??
+                    state.reviewedMaster?.rejectionMapPreviewPath,
+                coverageMapPngPath: outcome?.result.coverageMapPreviewPath ??
+                    state.coverageMapPath,
                 showAnnotations: true,
                 showRejection: false,
                 showCoverage: false,
-                finishingLayers: _finishingLayers(master),
+                finishingLayers: finishingLayersForMaster(master),
               ),
             ),
           )
@@ -191,8 +229,8 @@ class _RightColumn extends StatelessWidget {
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
-                    'Integrate to produce a master, then toggle the rejection, '
-                    'coverage and annotation overlays here.',
+                    'Integrate to produce a master, then toggle the rejection '
+                    'and annotation overlays here.',
                     style: NightshadeTypography.bodySm
                         .copyWith(color: colors.textSecondary),
                   ),
@@ -204,6 +242,34 @@ class _RightColumn extends StatelessWidget {
 
         // ── Finishing actions (non-destructive post-steps on the master). ─
         _FinishingActions(state: state, controller: controller),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+
+        // ── Multi-night master library (accumulate / finalize). ──────────
+        MasterLibraryPanel(
+          masters: state.masters,
+          acceptedSubCount: state.acceptedCount,
+          busy: state.busy,
+          onOpen: (m) => _showMasterPreview(context, m),
+          onCreateAccumulating: () async {
+            await controller.createAccumulatingMaster();
+            await controller.loadSmartData();
+          },
+          onAddTonight: (m) async {
+            await controller.addToAccumulatingMaster(master: m);
+            await controller.loadSmartData();
+          },
+          onFinalize: (m) async {
+            await controller.finalizeMaster(m);
+            await controller.loadSmartData();
+          },
+          onDelete: (m) async {
+            final ok = await ConfirmDialog.delete(
+              context: context,
+              itemName: m.name,
+            );
+            if (ok) await controller.deleteMaster(m);
+          },
+        ),
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── Per-sub field quality (PSF map). ─────────────────────────────
@@ -274,44 +340,19 @@ class _RightColumn extends StatelessWidget {
   }
 }
 
-/// The conventional sibling preview PNG for a finishing-artifact FITS at
-/// [fitsPath]: the same path with a `.png` extension — what the controller's
-/// finishing actions render beside each `_bgx`/`_decon`/`_starred` FITS.
-String _siblingPng(String fitsPath) {
-  final dir = p.dirname(fitsPath);
-  final stem = p.basenameWithoutExtension(fitsPath);
-  return p.join(dir, '$stem.png');
-}
-
-/// The finishing-result "after" layers for [master] that exist on disk — one
-/// per persisted finishing FITS path (background extraction / deconvolution /
-/// star reduction), pointing at its sibling preview PNG so [MasterOverlayView]
-/// can A/B each pass against the raw master. Empty when no master / no
-/// finishing artifacts have been produced.
-List<FinishingResultLayer> _finishingLayers(IntegratedMaster? master) {
-  if (master == null) return const [];
-  bool exists(String path) {
-    try {
-      return File(path).existsSync();
-    } catch (_) {
-      return false;
-    }
-  }
-
-  final out = <FinishingResultLayer>[];
-  void add(String? fits, String label, IconData icon) {
-    if (fits == null || fits.trim().isEmpty) return;
-    final png = _siblingPng(fits);
-    if (!exists(png)) return;
-    out.add(FinishingResultLayer(label: label, pngPath: png, icon: icon));
-  }
-
-  add(master.backgroundExtractedPath, 'Background extract',
-      NightshadeIcons.grid);
-  add(master.deconvolvedPath, 'Deconvolve', NightshadeIcons.sparkle);
-  add(master.starReducedPath, 'Reduce stars', NightshadeIcons.star);
-  add(master.colorCalibratedPath, 'Color calibrate', NightshadeIcons.star);
-  return out;
+/// Open a persisted master's stretched preview in a dialog, so a card in the
+/// [MasterLibraryPanel] can be inspected without leaving the workbench.
+void _showMasterPreview(BuildContext context, IntegratedMaster master) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => NightshadeDialog(
+      title: master.name,
+      width: 760,
+      height: 620,
+      scrollableBody: false,
+      child: MasterPreviewView.fromMaster(master),
+    ),
+  );
 }
 
 /// The non-destructive finishing-action row: "Background extract", "Deconvolve",
@@ -427,8 +468,21 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
   @override
   void didUpdateWidget(covariant _FieldQualityCard old) {
     super.didUpdateWidget(old);
-    if (widget.subs.length != old.subs.length) {
-      _index = _index.clamp(0, _maxIndex);
+    var idsChanged = widget.subs.length != old.subs.length;
+    if (!idsChanged) {
+      for (var i = 0; i < widget.subs.length; i++) {
+        if (widget.subs[i].id != old.subs[i].id) {
+          idsChanged = true;
+          break;
+        }
+      }
+    }
+    if (idsChanged) {
+      _index = reconcileFieldQualityIndex(
+        oldSubs: old.subs,
+        newSubs: widget.subs,
+        currentIndex: _index,
+      );
       _loadTiles();
     }
   }
@@ -438,17 +492,11 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
   /// Start on the sharpest accepted sub (lowest HFR) — the field map is most
   /// informative on a good frame.
   int _initialIndex() {
-    if (widget.subs.isEmpty) return 0;
-    var best = 0;
-    var bestHfr = double.infinity;
-    for (var i = 0; i < widget.subs.length; i++) {
-      final hfr = widget.subs[i].hfr ?? double.infinity;
-      if (hfr < bestHfr) {
-        bestHfr = hfr;
-        best = i;
-      }
-    }
-    return best;
+    return reconcileFieldQualityIndex(
+      oldSubs: const [],
+      newSubs: widget.subs,
+      currentIndex: 0,
+    );
   }
 
   void _loadTiles() {

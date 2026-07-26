@@ -62,11 +62,13 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('AAVSO export saved to: $filePath'),
-          duration: const Duration(seconds: 5),
-        ),
+      // Share on mobile (the app-docs file is otherwise unreachable); path
+      // snackbar on desktop.
+      await revealExportedFile(
+        context,
+        filePath,
+        subject: 'Nightshade AAVSO export',
+        desktopMessage: 'AAVSO export saved to: $filePath',
       );
     } on AavsoExportError catch (e) {
       if (!mounted) return;
@@ -94,8 +96,8 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
   }
 
   Future<String?> _showTargetNameDialog() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+    var targetName = '';
+    return showDialog<String>(
       context: context,
       builder: (ctx) {
         return AlertDialog(
@@ -115,8 +117,8 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
                   '(e.g., "SS CYG", "R LEO"):',
                 ),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
+                TextFormField(
+                  onChanged: (value) => targetName = value,
                   autofocus: true,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(
@@ -124,7 +126,7 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
-                  onSubmitted: (value) => Navigator.of(ctx).pop(value),
+                  onFieldSubmitted: (value) => Navigator.of(ctx).pop(value),
                 ),
               ],
             ),
@@ -135,15 +137,13 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              onPressed: () => Navigator.of(ctx).pop(targetName),
               child: const Text('Export'),
             ),
           ],
         );
       },
     );
-    controller.dispose();
-    return result;
   }
 
   @override
@@ -700,12 +700,51 @@ class _LineRatioCard extends ConsumerStatefulWidget {
 class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
   bool _isGenerating = false;
   String? _statusMessage;
+  int _operationGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant _LineRatioCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sessionId != widget.sessionId) {
+      _operationGeneration++;
+      _isGenerating = false;
+      _statusMessage = null;
+    }
+  }
+
+  bool _ownsOperation(
+    int generation,
+    int sessionId,
+    NightshadeBackend backend,
+  ) {
+    return generation == _operationGeneration &&
+        widget.sessionId == sessionId &&
+        identical(ref.read(backendProvider), backend);
+  }
+
+  void _handleBackendChanged(
+    NightshadeBackend? previous,
+    NightshadeBackend next,
+  ) {
+    if (previous == null ||
+        identical(previous, next) ||
+        !_isGenerating ||
+        !mounted) {
+      return;
+    }
+    _operationGeneration++;
+    setState(() {
+      _isGenerating = false;
+      _statusMessage = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
-    final narrowbandEnabled = scienceSettings.narrowbandRatiosEnabled;
+    ref.listen<NightshadeBackend>(backendProvider, _handleBackendChanged);
+    final scienceSettingsAsync = ref.watch(scienceSettingsProvider);
+    final narrowbandEnabled =
+        scienceSettingsAsync.valueOrNull?.narrowbandRatiosEnabled;
     final latest = widget.lineRatios.isEmpty ? null : widget.lineRatios.first;
 
     return NightshadeCard(
@@ -732,16 +771,23 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
-                onPressed: _isGenerating ||
-                        !narrowbandEnabled ||
-                        widget.sessionId == null
+                isLoading: _isGenerating,
+                onPressed: _isGenerating
                     ? null
-                    : _generateLineRatios,
-                label: !narrowbandEnabled
-                    ? 'Enable Narrowband Ratios in Settings'
-                    : _isGenerating
-                        ? 'Generating...'
-                        : 'Generate From Session Frames',
+                    : narrowbandEnabled == null
+                        ? null
+                        : !narrowbandEnabled
+                            ? () => context.push('/settings?section=science')
+                            : widget.sessionId == null
+                                ? null
+                                : _generateLineRatios,
+                label: narrowbandEnabled == null
+                    ? 'Science settings unavailable'
+                    : !narrowbandEnabled
+                        ? 'Enable Narrowband Ratios in Settings'
+                        : _isGenerating
+                            ? 'Generating...'
+                            : 'Generate From Session Frames',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
               ),
@@ -758,7 +804,29 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
                   ),
                 ),
               ),
-            if (!narrowbandEnabled)
+            if (scienceSettingsAsync.hasError)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Could not load science settings: '
+                        '${scienceSettingsAsync.error}',
+                        style: TextStyle(
+                          color: widget.colors.error,
+                          fontSize: NightshadeTypography.fontSize11,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => ref.invalidate(scienceSettingsProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              )
+            else if (narrowbandEnabled == false)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
@@ -801,38 +869,52 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
 
   Future<void> _generateLineRatios() async {
     final sessionId = widget.sessionId;
-    if (sessionId == null) return;
-
-    final scienceSettings = ref.read(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
-    if (!scienceSettings.narrowbandRatiosEnabled) {
-      setState(() {
-        _statusMessage =
-            'Narrowband ratios are disabled. Enable them in Settings > Science.';
-      });
-      return;
-    }
+    if (sessionId == null || _isGenerating) return;
+    final backend = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
 
     setState(() {
       _isGenerating = true;
       _statusMessage = null;
     });
 
+    final ScienceSettings scienceSettings;
     try {
-      final backend = ref.read(backendProvider);
+      scienceSettings = await ref.read(scienceSettingsProvider.future);
+    } catch (error) {
+      if (mounted && _ownsOperation(generation, sessionId, backend)) {
+        setState(() {
+          _statusMessage = 'Could not load science settings: $error';
+          _isGenerating = false;
+        });
+      }
+      return;
+    }
+    if (!mounted || !_ownsOperation(generation, sessionId, backend)) return;
+    if (!scienceSettings.narrowbandRatiosEnabled) {
+      setState(() {
+        _statusMessage =
+            'Narrowband ratios are disabled. Enable them in Settings > Science.';
+        _isGenerating = false;
+      });
+      return;
+    }
+
+    try {
       if (backend is NetworkBackend) {
         final result = await backend.generateSessionLineRatios(sessionId);
+        if (!mounted || !_ownsOperation(generation, sessionId, backend)) return;
         ref.invalidate(sessionLineRatioProductsProvider(sessionId));
         setState(() {
           final files = (result['files'] as List?)?.join(', ') ?? 'host frames';
           _statusMessage = 'Generated using $files.';
-          _isGenerating = false;
         });
         return;
       }
 
       final images =
           await ref.read(imagesDaoProvider).getImagesForSession(sessionId);
+      if (!mounted || !_ownsOperation(generation, sessionId, backend)) return;
       final ha =
           _findLatestByFilter(images, {'ha', 'halpha', 'h-alpha', 'h alpha'});
       final oiii = _findLatestByFilter(images, {'oiii', 'o3'});
@@ -842,7 +924,6 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
         setState(() {
           _statusMessage =
               'Need latest H-alpha, OIII, and SII frames in this session.';
-          _isGenerating = false;
         });
         return;
       }
@@ -859,16 +940,21 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
             siiImageId: sii.id,
           );
 
+      if (!mounted || !_ownsOperation(generation, sessionId, backend)) return;
       setState(() {
         _statusMessage =
             'Generated using ${ha.fileName}, ${oiii.fileName}, ${sii.fileName}.';
-        _isGenerating = false;
       });
     } catch (error) {
-      setState(() {
-        _statusMessage = 'Line-ratio generation failed: $error';
-        _isGenerating = false;
-      });
+      if (mounted && _ownsOperation(generation, sessionId, backend)) {
+        setState(() {
+          _statusMessage = 'Line-ratio generation failed: $error';
+        });
+      }
+    } finally {
+      if (mounted && _ownsOperation(generation, sessionId, backend)) {
+        setState(() => _isGenerating = false);
+      }
     }
   }
 

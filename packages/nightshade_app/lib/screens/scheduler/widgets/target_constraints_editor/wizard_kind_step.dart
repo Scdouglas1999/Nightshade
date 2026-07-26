@@ -93,7 +93,8 @@ class _Step1ChooseKind extends StatelessWidget {
           kind: TargetConstraintKind.moonIlluminationMax,
           icon: LucideIcons.moon,
           title: 'Moon avoidance',
-          body: 'Skip this target when the moon is bright nearby.',
+          body: "Skip this target when the moon's illumination is above a "
+              'set percentage.',
           selected: selected == TargetConstraintKind.moonIlluminationMax,
           disabled:
               existingKinds.contains(TargetConstraintKind.moonIlluminationMax),

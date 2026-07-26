@@ -9,7 +9,7 @@
 /// The three solved (RA, Dec) points define a plane on the unit
 /// sphere; the mount's mechanical axis is the normal to that plane.
 /// Degenerate (collinear) inputs return `(0, 90)` as a safe default.
-pub(super) fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) {
+pub fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) {
     if points.len() < 3 {
         return (0.0, 90.0);
     }
@@ -58,7 +58,7 @@ pub(super) fn calculate_center_of_rotation(points: &[(f64, f64)]) -> (f64, f64) 
 
 /// Compute (Δaz, Δalt, total) alignment error in arcminutes from the
 /// mechanical axis coordinates and observer location.
-pub(super) fn calculate_alignment_error_arcmin(
+pub fn calculate_alignment_error_arcmin(
     axis_ra_degrees: f64,
     axis_dec_degrees: f64,
     is_north: bool,
@@ -81,8 +81,12 @@ pub(super) fn calculate_alignment_error_arcmin(
     };
     let pole_azimuth = if is_north { 0.0 } else { 180.0 };
 
-    let altitude_error_arcmin = (pole_altitude - axis_altitude) * 60.0;
-    let azimuth_error_arcmin = normalize_signed_angle_degrees(pole_azimuth - axis_azimuth) * 60.0;
+    // Report where the mechanical axis sits relative to the true pole. This
+    // matches the public/Dart convention: positive altitude = axis above the
+    // pole; positive azimuth = axis east of the pole. UI guidance then tells
+    // the operator to move in the opposite direction to correct it.
+    let altitude_error_arcmin = (axis_altitude - pole_altitude) * 60.0;
+    let azimuth_error_arcmin = normalize_signed_angle_degrees(axis_azimuth - pole_azimuth) * 60.0;
     let total_error_arcmin = (altitude_error_arcmin.powi(2) + azimuth_error_arcmin.powi(2)).sqrt();
 
     (
@@ -158,7 +162,7 @@ fn unit_to_radec(v: (f64, f64, f64)) -> (f64, f64) {
 /// initial axis every frame, so the displayed error vector never responded to
 /// the user's adjustments — they were aligning blind. Returns the live axis
 /// (RA, Dec) in degrees.
-pub(super) fn rotate_axis_by_star_motion(
+pub fn rotate_axis_by_star_motion(
     axis: (f64, f64),
     star_initial: (f64, f64),
     star_current: (f64, f64),
@@ -225,6 +229,23 @@ mod tests {
         assert!(az_error.abs() < 1e-6);
         assert!(alt_error.abs() < 1e-6);
         assert!(total_error.abs() < 1e-6);
+    }
+
+    #[test]
+    fn horizontal_components_follow_axis_offset_signs() {
+        let when = chrono::Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+        let lon = -122.0;
+        let lst_deg = crate::local_sidereal_time(crate::julian_day(&when), lon) * 15.0;
+
+        // On the meridian, an axis one degree below the NCP appears one degree
+        // above the true pole in altitude for a mid-northern observer.
+        let (_, alt, _) = calculate_alignment_error_arcmin(lst_deg, 89.0, true, 45.0, lon, when);
+        assert!(alt > 59.0, "axis above pole should be positive: {alt}");
+
+        // RA east of the meridian produces an eastward horizontal offset.
+        let (az, _, _) =
+            calculate_alignment_error_arcmin(lst_deg + 1.0, 89.0, true, 45.0, lon, when);
+        assert!(az > 0.0, "axis east of pole should be positive: {az}");
     }
 
     #[test]

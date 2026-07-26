@@ -1,6 +1,12 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
+  Future<Map<String, dynamic>> awaitJobResultOrLegacy(
+    Map<String, dynamic> response, {
+    required String operation,
+    required Duration timeout,
+  });
+
   // =========================================================================
   // Plate Solving
   // =========================================================================
@@ -11,13 +17,20 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     double? ra,
     double? dec,
     double? fovDegrees,
+    int? timeoutSeconds,
   }) async {
-    final response = await _post('plate-solve', {
+    final start = await _post('plate-solve', {
       'imagePath': imagePath,
       if (ra != null) 'ra': ra,
       if (dec != null) 'dec': dec,
       if (fovDegrees != null) 'fov': fovDegrees,
+      if (timeoutSeconds != null) 'timeoutSeconds': timeoutSeconds,
     });
+    final response = await awaitJobResultOrLegacy(
+      start,
+      operation: 'plate solve',
+      timeout: Duration(seconds: (timeoutSeconds ?? 300) + 30),
+    );
 
     // CD matrix + SIP distortion terms are enriched by the master
     // (`ImagingHandlers._plateSolveJson`). Tolerate their absence so an older
@@ -127,6 +140,21 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   @override
   Future<void> sequencerStop() async {
     await _post('sequencer/stop');
+  }
+
+  /// Host-authoritative secondary-rig status. These operations deliberately
+  /// live on [NetworkBackend] rather than the generic sequencer role because
+  /// the local implementation is still an FRB-owned background capture loop.
+  Future<Map<String, dynamic>> secondaryRigGetStatus() {
+    return _get('sequencer/secondary-rig');
+  }
+
+  Future<void> secondaryRigStart(Map<String, dynamic> config) async {
+    await _post('sequencer/secondary-rig/start', config);
+  }
+
+  Future<void> secondaryRigStop() async {
+    await _post('sequencer/secondary-rig/stop');
   }
 
   @override
@@ -257,6 +285,13 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   }
 
   @override
+  Future<void> sequencerUpdateMeridianFlipConfig(String configJson) async {
+    await _post('sequencer/update-meridian-flip-config', {
+      'configJson': configJson,
+    });
+  }
+
+  @override
   Future<void> sequencerUpdateLocation({
     required double latitude,
     required double longitude,
@@ -381,13 +416,22 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     // endpoint mirrors the local FRB call.
     try {
       final response = await _get('sequencer/cloud-motion');
-      final json = response['cloud_motion'];
-      return json is String ? json : null;
-    } catch (_) {
-      // The remote endpoint may not be implemented in older headless
-      // servers; treat a 404 / parse error as "no data" rather than
-      // failing the dashboard tick.
-      return null;
+      if (!response.containsKey('cloud_motion')) {
+        throw const FormatException(
+          'GET /api/sequencer/cloud-motion returned no `cloud_motion` field',
+        );
+      }
+      final value = response['cloud_motion'];
+      if (value == null || value is String) return value as String?;
+      throw FormatException(
+        'GET /api/sequencer/cloud-motion returned a non-string '
+        '`cloud_motion` field (${value.runtimeType})',
+      );
+    } on ServerError catch (error) {
+      // Compatibility with masters that predate this optional dashboard
+      // endpoint. Every other host/transport failure remains visible.
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
@@ -680,21 +724,34 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   // Device Capabilities
   // =========================================================================
 
+  void _requireRemoteCapabilityFields(
+    Map<String, dynamic> response,
+    String endpoint,
+    List<String> fields,
+  ) {
+    final missing = fields.where((field) => !response.containsKey(field));
+    if (missing.isNotEmpty) {
+      throw FormatException(
+        'GET /api/$endpoint returned no `${missing.join('`, `')}` field(s)',
+      );
+    }
+  }
+
   @override
   Future<CameraCapabilities?> getCameraCapabilities(String deviceId) async {
     try {
       final response = await _get('equipment/camera/capabilities', {
         'deviceId': deviceId,
       });
-      return CameraCapabilities.fromJson(response);
-    } catch (e) {
-      developer.log(
-        'Failed to get camera capabilities: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      _requireRemoteCapabilityFields(
+        response,
+        'equipment/camera/capabilities',
+        const ['maxWidth', 'maxHeight', 'bitDepth'],
       );
-      return null;
+      return CameraCapabilities.fromJson(response);
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
@@ -704,15 +761,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       final response = await _get('equipment/mount/capabilities', {
         'deviceId': deviceId,
       });
-      return MountCapabilities.fromJson(response);
-    } catch (e) {
-      developer.log(
-        'Failed to get mount capabilities: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      _requireRemoteCapabilityFields(
+        response,
+        'equipment/mount/capabilities',
+        const ['canSlew', 'canPark', 'canSetTracking'],
       );
-      return null;
+      return MountCapabilities.fromJson(response);
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
@@ -722,15 +779,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       final response = await _get('equipment/focuser/capabilities', {
         'deviceId': deviceId,
       });
-      return FocuserCapabilities.fromJson(response);
-    } catch (e) {
-      developer.log(
-        'Failed to get focuser capabilities: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      _requireRemoteCapabilityFields(
+        response,
+        'equipment/focuser/capabilities',
+        const ['maxPosition', 'maxIncrement', 'absolute'],
       );
-      return null;
+      return FocuserCapabilities.fromJson(response);
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
@@ -742,15 +799,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       final response = await _get('equipment/filter-wheel/capabilities', {
         'deviceId': deviceId,
       });
-      return FilterWheelCapabilities.fromJson(response);
-    } catch (e) {
-      developer.log(
-        'Failed to get filter wheel capabilities: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      _requireRemoteCapabilityFields(
+        response,
+        'equipment/filter-wheel/capabilities',
+        const ['positionCount', 'filterNames', 'focusOffsets'],
       );
-      return null;
+      return FilterWheelCapabilities.fromJson(response);
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
@@ -760,15 +817,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       final response = await _get('equipment/rotator/capabilities', {
         'deviceId': deviceId,
       });
-      return RotatorCapabilities.fromJson(response);
-    } catch (e) {
-      developer.log(
-        'Failed to get rotator capabilities: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      _requireRemoteCapabilityFields(
+        response,
+        'equipment/rotator/capabilities',
+        const ['canReverse', 'canMoveAbsolute', 'canHalt'],
       );
-      return null;
+      return RotatorCapabilities.fromJson(response);
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 

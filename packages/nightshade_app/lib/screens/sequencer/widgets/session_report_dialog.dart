@@ -29,14 +29,23 @@ class SessionReportDialog extends ConsumerWidget {
   /// The session whose report should be rendered.
   final int sessionId;
 
-  const SessionReportDialog({super.key, required this.sessionId});
+  /// The completed run's `sequence_runs.id`, passed EXPLICITLY when the report
+  /// auto-opens for a just-finished run. The run-scoped Journal binds to this
+  /// instead of watching `currentRunIdProvider`, which finalization has
+  /// (correctly) already cleared by the time the report opens. Null for opens
+  /// from history / analytics, where the run is long over and the Journal falls
+  /// back to the per-target notes.
+  final int? runId;
+
+  const SessionReportDialog({super.key, required this.sessionId, this.runId});
 
   /// Convenience launcher — mirrors how the other sequencer dialogs in this
-  /// folder are opened.
-  static Future<void> show(BuildContext context, int sessionId) {
+  /// folder are opened. Pass [runId] when opening for a just-completed run so
+  /// the run-scoped Journal resolves correctly.
+  static Future<void> show(BuildContext context, int sessionId, {int? runId}) {
     return showDialog<void>(
       context: context,
-      builder: (_) => SessionReportDialog(sessionId: sessionId),
+      builder: (_) => SessionReportDialog(sessionId: sessionId, runId: runId),
     );
   }
 
@@ -46,12 +55,13 @@ class SessionReportDialog extends ConsumerWidget {
     final reportAsync = ref.watch(sessionReportProvider(sessionId));
 
     return reportAsync.when(
-      data: (report) => _ReportBody(report: report, colors: colors),
-      loading: () => NightshadeDialog(
+      data: (report) =>
+          _ReportBody(report: report, colors: colors, runId: runId),
+      loading: () => const NightshadeDialog(
         title: 'Session Report',
         icon: LucideIcons.fileBarChart,
         width: 720,
-        child: const SizedBox(
+        child: SizedBox(
           height: 200,
           child: Center(child: CircularProgressIndicator()),
         ),
@@ -64,6 +74,13 @@ class SessionReportDialog extends ConsumerWidget {
           icon: LucideIcons.alertTriangle,
           title: 'Could not build session report',
           body: '$err',
+          action: NightshadeButton(
+            label: 'Retry',
+            icon: LucideIcons.refreshCw,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: () => ref.invalidate(sessionReportProvider(sessionId)),
+          ),
         ),
       ),
     );
@@ -74,11 +91,16 @@ class _ReportBody extends ConsumerWidget {
   final SessionReport report;
   final NightshadeColors colors;
 
-  const _ReportBody({required this.report, required this.colors});
+  /// The completed run id, threaded from [SessionReportDialog.runId]. Null for
+  /// history / analytics opens.
+  final int? runId;
+
+  const _ReportBody({required this.report, required this.colors, this.runId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dateFormat = DateFormat('MMM d, yyyy HH:mm');
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
     return NightshadeDialog(
       title: 'Session Report',
       icon: LucideIcons.fileBarChart,
@@ -93,13 +115,23 @@ class _ReportBody extends ConsumerWidget {
       actions: [
         if (report.sessionId > 0)
           NightshadeButton(
-            label: 'Review & Integrate',
+            label: isRemote ? 'Review on imaging host' : 'Review & Integrate',
             icon: LucideIcons.sparkles,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
             onPressed: () {
+              if (isRemote) {
+                NightshadeToastHelper.show(
+                  context: context,
+                  message: 'Session Review uses full-resolution files stored '
+                      'on the imaging host. Open Nightshade there to continue.',
+                  severity: NightshadeAlertSeverity.info,
+                  icon: LucideIcons.monitor,
+                );
+                return;
+              }
               Navigator.of(context).pop();
-              context.go('/session-review?session=${report.sessionId}');
+              context.push('/session-review?session=${report.sessionId}');
             },
           ),
         NightshadeButton(
@@ -184,22 +216,37 @@ class _ReportBody extends ConsumerWidget {
           Consumer(builder: (context, ref, _) {
             final recoveriesAsync =
                 ref.watch(recoveryHistoryForSessionProvider(report.sessionId));
-            final recoveries = recoveriesAsync.valueOrNull ?? const [];
-            if (recoveries.isEmpty) return const SizedBox.shrink();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
-                _SectionTitle(
-                    title: 'Recoveries',
-                    icon: LucideIcons.rotateCw,
-                    colors: colors,
-                    titleColor: colors.error),
-                for (final entry in recoveries) ...[
-                  _RecoveryHistoryTile(entry: entry, colors: colors),
-                  const SizedBox(height: 4),
-                ],
-              ],
+            return recoveriesAsync.when(
+              loading: () => _AuxiliaryReportState(
+                label: 'Loading recovery history…',
+                colors: colors,
+              ),
+              error: (error, _) => _AuxiliaryReportState(
+                label: 'Could not load recovery history: $error',
+                colors: colors,
+                error: true,
+                onRetry: () => ref.invalidate(
+                  recoveryHistoryForSessionProvider(report.sessionId),
+                ),
+              ),
+              data: (recoveries) {
+                if (recoveries.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    _SectionTitle(
+                        title: 'Recoveries',
+                        icon: LucideIcons.rotateCw,
+                        colors: colors,
+                        titleColor: colors.error),
+                    for (final entry in recoveries) ...[
+                      _RecoveryHistoryTile(entry: entry, colors: colors),
+                      const SizedBox(height: 4),
+                    ],
+                  ],
+                );
+              },
             );
           }),
           // Diagnostics section. Rendered last, after warnings +
@@ -210,63 +257,85 @@ class _ReportBody extends ConsumerWidget {
           // noticed concerns).
           Consumer(builder: (context, ref, _) {
             final settingsAsync = ref.watch(appSettingsProvider);
-            final settings = settingsAsync.valueOrNull;
-            if (settings == null) return const SizedBox.shrink();
-
-            // Scoped to this report's session: reload the persisted
-            // pre/post optical-train snapshots from the
-            // `session_diagnostics` row instead of the live
-            // `opticalTrainBaselineProvider` /
-            // `opticalTrainCurrentSnapshotProvider`, so a historical
-            // report shows that session's drift, not the live run's.
-            final snapshot = ref
-                .watch(opticalTrainSnapshotForSessionProvider(report.sessionId))
-                .valueOrNull;
-            final baseline = snapshot?.baseline;
-            final current = snapshot?.current;
-            final healthSummary =
-                ref.watch(postSessionHealthSummaryProvider(report.sessionId));
-
-            // Synthesize an OpticalTrainDiagnostics from the
-            // current snapshot so the helper can compute drift.
-            // We only have score values in the snapshot; the
-            // helper treats absent issues as benign.
-            OpticalTrainDiagnostics? currentDiag;
-            if (current != null) {
-              currentDiag = OpticalTrainDiagnostics(
-                tiltScore: current.tiltScore,
-                collimationScore: current.collimationScore,
-                dominantTiltDirection: 'unknown',
-                issues: const [],
-              );
-            }
-
-            final diagnostics = PostSessionDiagnostics.build(
-              preSession: baseline,
-              postSession: currentDiag,
-              healthSummary: healthSummary,
-              opticalTrainDriftThreshold: settings.opticalTrainDriftThreshold,
-            );
-
-            if (diagnostics.isEmpty) return const SizedBox.shrink();
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
-                _SectionTitle(
-                    title: 'Diagnostics',
-                    icon: LucideIcons.stethoscope,
-                    colors: colors,
-                    titleColor: colors.primary),
-                for (final issue in diagnostics.all) ...[
-                  _DiagnosticIssueTile(
-                    issue: issue,
+            return settingsAsync.when(
+              loading: () => _AuxiliaryReportState(
+                label: 'Loading diagnostic settings…',
+                colors: colors,
+              ),
+              error: (error, _) => _AuxiliaryReportState(
+                label: 'Could not load diagnostic settings: $error',
+                colors: colors,
+                error: true,
+                onRetry: () => ref.invalidate(appSettingsProvider),
+              ),
+              data: (settings) {
+                // Scoped to this report's session: reload the persisted
+                // pre/post optical-train snapshots from the session row.
+                final snapshotAsync = ref.watch(
+                  opticalTrainSnapshotForSessionProvider(report.sessionId),
+                );
+                return snapshotAsync.when(
+                  loading: () => _AuxiliaryReportState(
+                    label: 'Loading optical-train diagnostics…',
                     colors: colors,
                   ),
-                  const SizedBox(height: 6),
-                ],
-              ],
+                  error: (error, _) => _AuxiliaryReportState(
+                    label: 'Could not load optical-train diagnostics: $error',
+                    colors: colors,
+                    error: true,
+                    onRetry: () => ref.invalidate(
+                      opticalTrainSnapshotForSessionProvider(report.sessionId),
+                    ),
+                  ),
+                  data: (snapshot) {
+                    final baseline = snapshot.baseline;
+                    final current = snapshot.current;
+                    final healthSummary = ref.watch(
+                      postSessionHealthSummaryProvider(report.sessionId),
+                    );
+
+                    OpticalTrainDiagnostics? currentDiag;
+                    if (current != null) {
+                      currentDiag = OpticalTrainDiagnostics(
+                        tiltScore: current.tiltScore,
+                        collimationScore: current.collimationScore,
+                        dominantTiltDirection: 'unknown',
+                        issues: const [],
+                      );
+                    }
+
+                    final diagnostics = PostSessionDiagnostics.build(
+                      preSession: baseline,
+                      postSession: currentDiag,
+                      healthSummary: healthSummary,
+                      opticalTrainDriftThreshold:
+                          settings.opticalTrainDriftThreshold,
+                    );
+                    if (diagnostics.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        _SectionTitle(
+                            title: 'Diagnostics',
+                            icon: LucideIcons.stethoscope,
+                            colors: colors,
+                            titleColor: colors.primary),
+                        for (final issue in diagnostics.all) ...[
+                          _DiagnosticIssueTile(
+                            issue: issue,
+                            colors: colors,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                      ],
+                    );
+                  },
+                );
+              },
             );
           }),
           // Post-session retrospective insights. Renders after
@@ -277,7 +346,19 @@ class _ReportBody extends ConsumerWidget {
           Consumer(builder: (context, ref, _) {
             final insightsAsync =
                 ref.watch(sessionInsightsProvider(report.sessionId));
-            return insightsAsync.maybeWhen(
+            return insightsAsync.when(
+              loading: () => _AuxiliaryReportState(
+                label: 'Loading retrospective suggestions…',
+                colors: colors,
+              ),
+              error: (error, _) => _AuxiliaryReportState(
+                label: 'Could not load retrospective suggestions: $error',
+                colors: colors,
+                error: true,
+                onRetry: () => ref.invalidate(
+                  sessionInsightsProvider(report.sessionId),
+                ),
+              ),
               data: (insights) {
                 if (insights.isEmpty) return const SizedBox.shrink();
                 return Column(
@@ -300,7 +381,6 @@ class _ReportBody extends ConsumerWidget {
                   ],
                 );
               },
-              orElse: () => const SizedBox.shrink(),
             );
           }),
           if (report.notes != null && report.notes!.isNotEmpty) ...[
@@ -320,7 +400,11 @@ class _ReportBody extends ConsumerWidget {
           // the same `_NoteTile` rows the History tab and
           // target card use, so an edit propagates everywhere.
           Consumer(builder: (context, ref, _) {
-            final runId = ref.watch(currentRunIdProvider);
+            // Prefer the run id passed in from the auto-open (an immutable
+            // snapshot of the just-completed run). Only fall back to the live
+            // provider for history / analytics opens, where no run id was
+            // passed and the provider reflects whatever run — if any — is live.
+            final runId = this.runId ?? ref.watch(currentRunIdProvider);
             // Prefer run-scoped notes when we have a run id; fall
             // back to per-target notes via the first target in the
             // report (most common: a sequence images one target
@@ -498,5 +582,48 @@ class _ReportBody extends ConsumerWidget {
         SnackBar(content: Text('Export failed: $e')),
       );
     }
+  }
+}
+
+class _AuxiliaryReportState extends StatelessWidget {
+  final String label;
+  final NightshadeColors colors;
+  final bool error;
+  final VoidCallback? onRetry;
+
+  const _AuxiliaryReportState({
+    required this.label,
+    required this.colors,
+    this.error = false,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = error ? colors.error : colors.textMuted;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Icon(
+            error ? LucideIcons.alertTriangle : LucideIcons.loader2,
+            size: 14,
+            color: accent,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: NightshadeTypography.caption.copyWith(color: accent),
+            ),
+          ),
+          if (onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Retry'),
+            ),
+        ],
+      ),
+    );
   }
 }

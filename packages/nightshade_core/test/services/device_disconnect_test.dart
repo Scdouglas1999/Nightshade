@@ -150,6 +150,104 @@ void main() {
         DeviceConnectionState.disconnected,
       );
     });
+
+    // A `Disconnected` event names a device, but `setDisconnected()` resets the
+    // whole type slot and takes no id. Applying a foreign/stale event therefore
+    // erased the identity of the device that WAS connected, while the native
+    // driver registry kept it open — and `POST /api/devices/disconnect` gates on
+    // this notifier, so the driver became releasable only by restarting the
+    // process (observed on the rig: `/api/devices/connected` listing an ASCOM
+    // focuser whose `status` returned `{"connected":true,"position":35840,...}`
+    // while disconnect answered `device_not_connected`).
+    test(
+      'a Disconnected event for a DIFFERENT focuser must not clear the live one',
+      () async {
+        final focuserNotifier = container.read(focuserStateProvider.notifier);
+        focuserNotifier.setConnecting('ascom:ASCOM.Simulator.Focuser');
+        focuserNotifier.setConnected();
+
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.warning,
+            category: EventCategory.equipment,
+            eventType: 'Disconnected',
+            // A stale event from an earlier, absent focuser (profile
+            // auto-reconnect churn is the common source).
+            data: {
+              'device_type': 'focuser',
+              'device_id': 'ascom:ASCOM.EAF.Focuser',
+            },
+          ),
+        );
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        final state = container.read(focuserStateProvider);
+        expect(
+          state.connectionState,
+          DeviceConnectionState.connected,
+          reason: 'the live focuser must stay connected',
+        );
+        expect(
+          state.deviceId,
+          'ascom:ASCOM.Simulator.Focuser',
+          reason: 'losing this id is what makes the driver unreleasable',
+        );
+      },
+    );
+
+    test(
+      'a Disconnected event for a DIFFERENT camera must not clear the live one',
+      () async {
+        final cameraNotifier = container.read(cameraStateProvider.notifier);
+        cameraNotifier.setConnecting('native:zwo:0', 'ASI1600MM');
+        cameraNotifier.setConnected();
+
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.warning,
+            category: EventCategory.equipment,
+            eventType: 'Disconnected',
+            data: {
+              'device_type': 'camera',
+              'device_id': 'ascom:ASCOM.Simulator.Camera',
+            },
+          ),
+        );
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        final state = container.read(cameraStateProvider);
+        expect(state.connectionState, DeviceConnectionState.connected);
+        expect(state.deviceId, 'native:zwo:0');
+      },
+    );
+
+    test(
+      'a Disconnected event for an empty slot is a harmless no-op',
+      () async {
+        expect(container.read(rotatorStateProvider).deviceId, isNull);
+
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.warning,
+            category: EventCategory.equipment,
+            eventType: 'Disconnected',
+            data: {'device_type': 'rotator', 'device_id': 'rotator-1'},
+          ),
+        );
+
+        await Future.delayed(const Duration(milliseconds: 100));
+
+        expect(
+          container.read(rotatorStateProvider).connectionState,
+          DeviceConnectionState.disconnected,
+        );
+      },
+    );
   });
 
   group('Connection Health Monitoring', () {
@@ -545,14 +643,10 @@ void main() {
       cameraNotifier.setConnected();
 
       // Emit a stale disconnect for camera-B (a previously disconnected
-      // camera). The current camera A's state notifier WILL still get
-      // setDisconnected() because the state provider has no concept of
-      // device-id-scoped events; but the _connectedCameraId / polling
-      // teardown MUST be skipped. We assert by emitting a *real*
-      // disconnect for camera-A and confirming things still behave —
-      // i.e. no crash, no double-tear-down. The primary observable
-      // here is that no exception bubbles up from temperature polling
-      // teardown for the wrong camera.
+      // camera). Both the polling teardown AND the notifier wipe must be
+      // skipped: this used to assert only "no crash", with a comment conceding
+      // that "the state provider has no concept of device-id-scoped events", so
+      // camera-A silently lost its identity while its driver stayed open.
       eventStreamController.add(
         NightshadeEvent(
           timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -565,9 +659,28 @@ void main() {
 
       await Future.delayed(const Duration(milliseconds: 50));
 
-      // The state notifier flips (it doesn't track which camera is
-      // current), but importantly: no crash, no exception.
-      expect(true, isTrue);
+      final state = container.read(cameraStateProvider);
+      expect(state.connectionState, DeviceConnectionState.connected);
+      expect(state.deviceId, 'camera-A');
+
+      // A real disconnect for camera-A still tears it down.
+      eventStreamController.add(
+        NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.warning,
+          category: EventCategory.equipment,
+          eventType: 'Disconnected',
+          data: {'device_type': 'camera', 'device_id': 'camera-A'},
+        ),
+      );
+
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        container.read(cameraStateProvider).connectionState,
+        DeviceConnectionState.disconnected,
+      );
+      expect(container.read(cameraStateProvider).deviceId, isNull);
     });
   });
 

@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../collaborative_sky/coimaging_create_sheet.dart';
 import '../your_sky/region_detail_screen.dart';
 import '../your_sky/sky_atlas_format.dart';
 import 'constellation_contribute_sheet.dart';
@@ -29,6 +30,8 @@ class _SharedTargetDetailScreenState
     extends ConsumerState<SharedTargetDetailScreen> {
   bool _joined = false;
   bool _pulling = false;
+  bool _retracting = false;
+  bool _coImaging = false;
   List<SwarmTile> _blended = const [];
 
   /// Own integration (seconds) at the moment of the last successful pull — the
@@ -56,6 +59,14 @@ class _SharedTargetDetailScreenState
     // Browse/Join stay enabled everywhere.
     final hostActionsEnabled =
         ref.watch(isConstellationHostActionEnabledProvider);
+    // widget.target is a frozen constructor snapshot; watch the refreshed hub
+    // target so contribute/retract update the headline depth + bar in place.
+    final refreshed = ref
+        .watch(sharedTargetsProvider)
+        .valueOrNull
+        ?.where((t) => t.targetId == widget.target.targetId)
+        .firstOrNull;
+    final effectiveTarget = refreshed ?? _target;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -72,13 +83,16 @@ class _SharedTargetDetailScreenState
         child: ListView(
           padding: NightshadeTokens.screenPadding,
           children: [
-            _SwarmSummaryCard(target: _target, yourSeconds: yourSeconds),
+            _SwarmSummaryCard(
+                target: effectiveTarget, yourSeconds: yourSeconds),
             const SizedBox(height: NightshadeTokens.spaceLg),
             _JoinCard(
               joined: _joined,
               onToggle: _toggleJoin,
               targetName: _target.name,
             ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _CoImageCard(starting: _coImaging, onCoImage: _coImage),
             if (!hostActionsEnabled) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
               const _HostOnlyNotice(),
@@ -100,13 +114,17 @@ class _SharedTargetDetailScreenState
               const SizedBox(height: NightshadeTokens.spaceMd),
               _BlendPayoffCard(
                 ownSecondsBefore: _ownSecondsBeforeBlend,
-                swarmSeconds: _target.integrationSeconds,
+                swarmSeconds: effectiveTarget.integrationSeconds,
                 onOpenInYourSky: _openBlendedRegion,
               ),
             ],
             if (hostActionsEnabled) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
-              _ContributionsCard(target: _target, onRetract: _retract),
+              _ContributionsCard(
+                target: _target,
+                onRetract: _retract,
+                busy: _retracting,
+              ),
             ],
             if (_blended.isNotEmpty) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
@@ -130,6 +148,46 @@ class _SharedTargetDetailScreenState
         _joined = true;
       }
     });
+  }
+
+  /// Open a live co-imaging session on this shared target, prefilling the create
+  /// sheet from the target's own centre + cone so the pooled session matches the
+  /// field being browsed. Co-imaging routes through the hub client (not the
+  /// local atlas), so — like Join — it works on both the FFI and network
+  /// backends and needs no host-only gate.
+  Future<void> _coImage() async {
+    if (_coImaging) return;
+    setState(() => _coImaging = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final session = await showCoImagingCreateSheet(
+        context,
+        initialTargetName: _target.name,
+        initialRaDeg: _target.raDeg,
+        initialDecDeg: _target.decDeg,
+        initialRadiusDeg: _target.radiusDeg,
+      );
+      if (session == null || !mounted) return;
+      // The creator is the anchor participant, so their subs need the same
+      // unattended-contribution consent the join flow requires before we can
+      // promise a co-add.
+      final sharing = await ensureCoImagingSharingConsent(context, ref);
+      if (sharing == null) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            sharing
+                ? 'Started a live co-imaging session on ${session.targetName} — '
+                    'your subs co-add into the combined stack.'
+                : 'Started a live co-imaging session on ${session.targetName}. '
+                    'Enable unattended contribution to add your subs to the '
+                    'combined stack.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _coImaging = false);
+    }
   }
 
   Future<void> _contribute() async {
@@ -179,9 +237,8 @@ class _SharedTargetDetailScreenState
           content: Text(
             tiles.isEmpty
                 ? 'Nothing to pull for this target yet.'
-                : 'Pulled ${tiles.length} community tile'
-                    '${tiles.length == 1 ? '' : 's'} — ready to blend into '
-                    'Your Sky.',
+                : 'Pulled and blended ${tiles.length} community tile'
+                    '${tiles.length == 1 ? '' : 's'} into Your Sky.',
           ),
         ),
       );
@@ -225,7 +282,33 @@ class _SharedTargetDetailScreenState
   }
 
   Future<void> _retract(ContributionRecord record) async {
+    if (_retracting) return;
     final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Retract this contribution?'),
+        content: Text(
+          'This subtracts your contribution to tile ${record.tileId} '
+          '(${record.contributedFrames} frame'
+          '${record.contributedFrames == 1 ? '' : 's'} · '
+          '${formatIntegration(record.contributedIntegrationSeconds)}) back '
+          'off the swarm.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Retract'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _retracting = true);
     try {
       final receipt = await ref
           .read(constellationServiceProvider)
@@ -250,6 +333,8 @@ class _SharedTargetDetailScreenState
       messenger.showSnackBar(
         SnackBar(content: Text(describeConstellationError(error))),
       );
+    } finally {
+      if (mounted) setState(() => _retracting = false);
     }
   }
 }
@@ -353,6 +438,69 @@ class _JoinCard extends StatelessWidget {
             variant: joined ? ButtonVariant.outline : ButtonVariant.primary,
             size: ButtonSize.small,
             onPressed: onToggle,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opens a LIVE co-imaging session on this target (WS3): the anchor side of
+/// pooling integration across rigs, distinct from the async swarm Contribute/
+/// Pull below. Available on every backend since the session routes through the
+/// hub client, not the local atlas.
+class _CoImageCard extends StatelessWidget {
+  final bool starting;
+  final VoidCallback onCoImage;
+
+  const _CoImageCard({required this.starting, required this.onCoImage});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return NightshadeCard(
+      padding: NightshadeTokens.cardPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                LucideIcons.radio,
+                size: NightshadeTokens.iconMd,
+                color: colors.accent,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: Text(
+                  'Co-image this target live',
+                  style: NightshadeTypography.labelStrong.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            'Open a live session so other rigs can pool their integration into '
+            'the same combined stack across the night. You stay the anchor and '
+            'can end it anytime.',
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Align(
+            alignment: Alignment.centerRight,
+            child: NightshadeButton(
+              label: starting ? 'Starting…' : 'Co-image this target',
+              icon: LucideIcons.radio,
+              size: ButtonSize.small,
+              isLoading: starting,
+              onPressed: starting ? null : onCoImage,
+            ),
           ),
         ],
       ),
@@ -634,8 +782,13 @@ class _HostOnlyNotice extends StatelessWidget {
 class _ContributionsCard extends ConsumerWidget {
   final SharedTarget target;
   final ValueChanged<ContributionRecord> onRetract;
+  final bool busy;
 
-  const _ContributionsCard({required this.target, required this.onRetract});
+  const _ContributionsCard({
+    required this.target,
+    required this.onRetract,
+    required this.busy,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -679,7 +832,11 @@ class _ContributionsCard extends ConsumerWidget {
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               for (final r in records)
-                _ContributionRow(record: r, onRetract: () => onRetract(r)),
+                _ContributionRow(
+                  record: r,
+                  onRetract: () => onRetract(r),
+                  busy: busy,
+                ),
             ],
           ),
         );
@@ -689,7 +846,29 @@ class _ContributionsCard extends ConsumerWidget {
         height: 96,
         borderRadius: NightshadeTokens.radiusLg,
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (error, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.warning,
+            title: 'Contribution receipts unavailable',
+            message: '${describeConstellationError(error)}\n\n'
+                'Retract actions are hidden until Nightshade can verify your '
+                'receipts with the imaging host.',
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Retry receipts',
+              icon: NightshadeIcons.refresh,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () => ref.invalidate(myContributionsProvider),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -697,8 +876,13 @@ class _ContributionsCard extends ConsumerWidget {
 class _ContributionRow extends StatelessWidget {
   final ContributionRecord record;
   final VoidCallback onRetract;
+  final bool busy;
 
-  const _ContributionRow({required this.record, required this.onRetract});
+  const _ContributionRow({
+    required this.record,
+    required this.onRetract,
+    required this.busy,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -734,7 +918,7 @@ class _ContributionRow extends StatelessWidget {
             label: 'Retract',
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: onRetract,
+            onPressed: busy ? null : onRetract,
           ),
         ],
       ),
@@ -742,11 +926,13 @@ class _ContributionRow extends StatelessWidget {
   }
 }
 
-class _SwarmTrustCard extends StatelessWidget {
+class _SwarmTrustCard extends ConsumerWidget {
   const _SwarmTrustCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final records = ref.watch(myContributionsProvider).valueOrNull;
+    if (records == null || records.isEmpty) return const SizedBox.shrink();
     final colors = NightshadeColors.of(context);
     return NightshadeCard(
       variant: CardVariant.subtle,

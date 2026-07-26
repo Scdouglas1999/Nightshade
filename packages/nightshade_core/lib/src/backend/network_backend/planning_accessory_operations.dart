@@ -1,6 +1,12 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
+  Future<Map<String, dynamic>> awaitJobResultOrLegacy(
+    Map<String, dynamic> response, {
+    required String operation,
+    required Duration timeout,
+  });
+
   // =========================================================================
   // Framing & Centering
   // =========================================================================
@@ -21,7 +27,7 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     int? gain,
     bool? syncMount,
   }) async {
-    final response = await _post('framing/center-on-target', {
+    final start = await _post('framing/center-on-target', {
       'ra': ra,
       'dec': dec,
       if (maxIterations != null) 'maxIterations': maxIterations,
@@ -31,7 +37,11 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
       if (gain != null) 'gain': gain,
       if (syncMount != null) 'syncMount': syncMount,
     });
-    return response;
+    return awaitJobResultOrLegacy(
+      start,
+      operation: 'center on target',
+      timeout: const Duration(minutes: 10),
+    );
   }
 
   /// Sync mount to coordinates
@@ -78,61 +88,61 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   // Dome Control
   // ===========================================================================
 
-  // The dome control verbs below satisfy the [DeviceBackend] role. The
-  // appliance owns its single connected dome, so the role's [deviceId] is not
-  // sent on the wire — the server resolves the device — but the parameter is
-  // kept for interface conformance with the FFI backend.
+  // The headless endpoints require an explicit deviceId. Keep it on every
+  // command/status/capability request so multi-dome hosts and the server's
+  // connected-device validation address the same physical device.
 
   /// Open dome shutter
   @override
   Future<void> domeOpenShutter(String deviceId) async {
-    await _post('dome/open');
+    await _post('dome/open', {'deviceId': deviceId});
   }
 
   /// Close dome shutter
   @override
   Future<void> domeCloseShutter(String deviceId) async {
-    await _post('dome/close');
+    await _post('dome/close', {'deviceId': deviceId});
   }
 
   /// Slew dome to azimuth
   @override
   Future<void> domeSlewToAzimuth(String deviceId, double azimuth) async {
-    await _post('dome/slew', {'azimuth': azimuth});
+    await _post('dome/slew', {'deviceId': deviceId, 'azimuth': azimuth});
   }
 
   /// Enable/disable dome-mount sync (slaving)
   @override
   Future<void> domeSetSlaved(String deviceId, bool slaved) async {
-    await _post('dome/sync', {'enable': slaved});
+    await _post('dome/sync', {'deviceId': deviceId, 'enable': slaved});
   }
 
   /// Park dome
   @override
   Future<void> domePark(String deviceId) async {
-    await _post('dome/park');
+    await _post('dome/park', {'deviceId': deviceId});
   }
 
   /// Move dome to home position
   @override
   Future<void> domeFindHome(String deviceId) async {
-    await _post('dome/home');
+    await _post('dome/home', {'deviceId': deviceId});
   }
 
   /// Halt dome movement
   @override
   Future<void> domeAbortSlew(String deviceId) async {
-    await _post('dome/halt');
+    await _post('dome/halt', {'deviceId': deviceId});
   }
 
   /// Get dome status
-  Future<Map<String, dynamic>> getDomeStatus() async {
-    return await _get('dome/status');
+  Future<Map<String, dynamic>> getDomeStatus(String deviceId) async {
+    return await _get('dome/status', {'deviceId': deviceId});
   }
 
   /// Get dome capabilities
-  Future<Map<String, dynamic>> getDomeCapabilities() async {
-    return await _get('dome/capabilities');
+  Future<DomeCapabilities?> getDomeCapabilities(String deviceId) async {
+    final json = await _get('dome/capabilities', {'deviceId': deviceId});
+    return DomeCapabilities.fromJson(json);
   }
 
   // ===========================================================================
@@ -145,6 +155,38 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
       'safety/status',
       deviceId != null ? {'deviceId': deviceId} : null,
     );
+  }
+
+  @override
+  Future<HardwareWeatherConditions> getHardwareWeatherConditions(
+    String deviceId,
+  ) async {
+    final json = await _get('weather/current');
+    if (json['hardwareConnected'] != true || json['deviceId'] != deviceId) {
+      throw StateError('Weather device $deviceId is not connected on the host');
+    }
+    double? number(String key) => (json[key] as num?)?.toDouble();
+    return HardwareWeatherConditions(
+      temperature: number('temperature'),
+      humidity: number('humidity'),
+      pressure: number('pressure'),
+      cloudCover: number('cloudCover'),
+      dewPoint: number('dewPoint'),
+      windSpeed: number('windSpeedMps') ?? number('windSpeed'),
+      windDirection: number('windDirection'),
+      skyQuality: number('skyQuality'),
+      skyTemperature: number('skyTemperature'),
+      rainRate: number('rainRate'),
+    );
+  }
+
+  @override
+  Future<bool> getHardwareSafetyStatus(String deviceId) async {
+    final json = await getSafetyStatus(deviceId: deviceId);
+    if (json['connected'] != true || json['isSafe'] is! bool) {
+      throw StateError('Safety monitor $deviceId did not return a valid state');
+    }
+    return json['isSafe'] as bool;
   }
 
   /// Get safety settings
@@ -166,6 +208,11 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
       'reason': reason,
       if (durationMinutes != null) 'durationMinutes': durationMinutes,
     });
+  }
+
+  /// Cancel a previously acknowledged/snoozed unsafe condition on the host.
+  Future<void> cancelSafetyAcknowledgement() async {
+    await _post('safety/cancel-acknowledgement');
   }
 
   // ===========================================================================
@@ -204,42 +251,46 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   // ===========================================================================
 
   /// Get cover calibrator status
-  Future<Map<String, dynamic>> getCoverStatus() async {
-    return await _get('cover/status');
+  Future<Map<String, dynamic>> getCoverStatus(String deviceId) async {
+    return await _get('cover/status', {'deviceId': deviceId});
   }
 
-  // The cover/calibrator verbs below satisfy the [DeviceBackend] role; as with
-  // the dome control above the appliance owns its device, so [deviceId] is not
-  // sent on the wire but is kept for interface conformance with the FFI
-  // backend.
+  // The headless endpoints validate the addressed connected device. Preserve
+  // [deviceId] on every remote command just as the local FFI backend does.
 
   /// Open cover
   @override
   Future<void> coverOpen(String deviceId) async {
-    await _post('cover/open');
+    await _post('cover/open', {'deviceId': deviceId});
   }
 
   /// Close cover
   @override
   Future<void> coverClose(String deviceId) async {
-    await _post('cover/close');
+    await _post('cover/close', {'deviceId': deviceId});
   }
 
   /// Set calibrator brightness
-  Future<void> setCoverBrightness(int brightness) async {
-    await _post('cover/brightness', {'brightness': brightness});
+  Future<void> setCoverBrightness(String deviceId, int brightness) async {
+    await _post('cover/brightness', {
+      'deviceId': deviceId,
+      'brightness': brightness,
+    });
   }
 
   /// Turn calibrator on
   @override
   Future<void> calibratorOn(String deviceId, int brightness) async {
-    await _post('cover/calibrator-on', {'brightness': brightness});
+    await _post('cover/calibrator-on', {
+      'deviceId': deviceId,
+      'brightness': brightness,
+    });
   }
 
   /// Turn calibrator off
   @override
   Future<void> calibratorOff(String deviceId) async {
-    await _post('cover/calibrator-off');
+    await _post('cover/calibrator-off', {'deviceId': deviceId});
   }
 
   // ===========================================================================
@@ -320,6 +371,23 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
       'scheduler/moon-info',
       date != null ? {'date': date.toIso8601String()} : null,
     );
+  }
+
+  /// Get the imaging host's complete unattended-scheduler state.
+  Future<Map<String, dynamic>> getSchedulerState() async {
+    return _get('scheduler/state');
+  }
+
+  /// Run a lifecycle command against the imaging host's scheduler engine.
+  Future<Map<String, dynamic>> controlScheduler(String action) async {
+    return _post('scheduler/control', {'action': action});
+  }
+
+  /// Persist and apply scheduler scoring configuration on the imaging host.
+  Future<Map<String, dynamic>> updateSchedulerConfig(
+    Map<String, dynamic> config,
+  ) async {
+    return _post('scheduler/config', config);
   }
 
   // ===========================================================================
@@ -404,6 +472,26 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   /// Import focus data from JSON
   Future<void> importFocusModel(Map<String, dynamic> data) async {
     await _post('focus-model/import', data);
+  }
+
+  /// Get the real per-filter predictive-AF config and models used by the host.
+  Future<Map<String, dynamic>> getPredictiveAfSettings() async {
+    return _get('focus-model/predictive');
+  }
+
+  Future<void> updatePredictiveAfConfig(Map<String, dynamic> config) async {
+    await _post('focus-model/predictive/config', config);
+  }
+
+  Future<void> clearPredictiveAfSamples(String filterName) async {
+    await _post('focus-model/predictive/clear-samples', {'filter': filterName});
+  }
+
+  Future<String?> exportPredictiveAfModel(String filterName) async {
+    final response = await _get('focus-model/predictive/export', {
+      'filter': filterName,
+    });
+    return response['json'] as String?;
   }
 
   // ===========================================================================

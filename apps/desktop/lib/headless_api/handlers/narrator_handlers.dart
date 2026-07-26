@@ -21,15 +21,11 @@ class NarratorHandlers {
   /// GET `/api/narrator/feed?sessionId=` — pinned-first, newest-first feed for
   /// a single session.
   Future<Response> handleFeed(Request request) async {
-    final raw = request.url.queryParameters['sessionId'];
-    final sessionId = int.tryParse(raw ?? '');
-    if (sessionId == null) {
-      throw BadRequestError(
-        field: 'sessionId',
-        expected: 'integer',
-        message: 'sessionId query parameter is required',
-      );
-    }
+    final sessionId = requireQueryInt(
+      request.url.queryParameters,
+      'sessionId',
+      min: 1,
+    );
     final dao = container.read(narratorEventsDaoProvider);
     final rows = await dao.getFeedForSession(sessionId);
     return jsonOk({'events': rows.map(_rowToWireJson).toList()});
@@ -40,10 +36,13 @@ class NarratorHandlers {
   /// `watchRecentFeed` behaviour).
   Future<Response> handleRecent(Request request) async {
     final limit =
-        (int.tryParse(request.url.queryParameters['limit'] ?? '') ?? 50).clamp(
-          1,
-          200,
-        );
+        optionalQueryInt(
+          request.url.queryParameters,
+          'limit',
+          min: 1,
+          max: 200,
+        ) ??
+        50;
     final dao = container.read(narratorEventsDaoProvider);
     final rows = await dao.getRecentFeed(limit: limit);
     return jsonOk({'events': rows.map(_rowToWireJson).toList()});

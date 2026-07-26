@@ -38,7 +38,14 @@ extension RotatorDeviceHandlers on DeviceHandlers {
   }
 
   Future<Response> handleRotatorGetStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = request.url.queryParameters['deviceId']?.trim() ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
 
     final backend = container.read(deviceBackendProvider);
     final angle = await backend.rotatorGetAngle(deviceId);
@@ -55,6 +62,21 @@ extension RotatorDeviceHandlers on DeviceHandlers {
     await backend.rotatorHalt(deviceId);
 
     return jsonOk({'status': 'halted'});
+  }
+
+  /// POST /api/rotator/set-reverse — write the driver's reverse-direction
+  /// flag (IRotatorV3 `Reverse`). Only valid when the driver reports
+  /// `canReverse`; unsupported drivers surface the backend error.
+  Future<Response> handleRotatorSetReverse(Request request) async {
+    _logInfo('[API] POST /api/rotator/set-reverse');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final reverse = requireBool(payload, 'reverse');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.rotatorSetReverse(deviceId, reverse);
+
+    return jsonOk({'status': 'ok', 'reverse': reverse});
   }
 
   /// POST /api/rotator/sync — sync rotator reported sky angle to the supplied

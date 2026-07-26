@@ -5,6 +5,21 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+Future<void> _runAlertStateAction(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  try {
+    await action();
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update this alert.')),
+      );
+    }
+  }
+}
+
 /// Panel displaying astronomical transient alerts (novae, supernovae, etc.)
 /// with the ability to queue them as observation targets.
 ///
@@ -108,6 +123,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                 children: [
                   for (int i = 0; i < limited.length; i++) ...[
                     _TransientAlertTile(
+                      key: ValueKey(limited[i].id),
                       alert: limited[i],
                       alertState: alertStates[limited[i].id],
                     ),
@@ -243,19 +259,39 @@ class _UnacknowledgedBadge extends ConsumerWidget {
 // Transient Alert Tile
 // =============================================================================
 
-class _TransientAlertTile extends ConsumerWidget {
+class _TransientAlertTile extends ConsumerStatefulWidget {
   final TransientAlert alert;
   final TransientAlertState? alertState;
 
   const _TransientAlertTile({
+    super.key,
     required this.alert,
     this.alertState,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TransientAlertTile> createState() =>
+      _TransientAlertTileState();
+}
+
+class _TransientAlertTileState extends ConsumerState<_TransientAlertTile> {
+  bool _queueing = false;
+
+  Future<void> _queue() async {
+    if (_queueing) return;
+    setState(() => _queueing = true);
+    try {
+      await queueTransientForTonight(ref, widget.alert);
+    } finally {
+      if (mounted) setState(() => _queueing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final effectiveState = alertState ?? TransientAlertState.newAlert;
+    final alert = widget.alert;
+    final effectiveState = widget.alertState ?? TransientAlertState.newAlert;
     final isNew = effectiveState == TransientAlertState.newAlert;
     final isDismissed = effectiveState == TransientAlertState.dismissed;
     final isQueued = effectiveState == TransientAlertState.queued;
@@ -265,9 +301,12 @@ class _TransientAlertTile extends ConsumerWidget {
       opacity: isDismissed ? 0.5 : 1.0,
       child: InkWell(
         onTap: isNew
-            ? () => ref
-                .read(transientAlertStatesProvider.notifier)
-                .acknowledge(alert.id)
+            ? () => _runAlertStateAction(
+                  context,
+                  () => ref
+                      .read(transientAlertStatesProvider.notifier)
+                      .acknowledge(alert.id),
+                )
             : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -414,10 +453,22 @@ class _TransientAlertTile extends ConsumerWidget {
                       width: 28,
                       height: 28,
                       child: IconButton(
-                        icon: Icon(LucideIcons.plus,
-                            size: 14, color: colors.success),
+                        icon: _queueing
+                            ? SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colors.success,
+                                ),
+                              )
+                            : Icon(
+                                LucideIcons.plus,
+                                size: 14,
+                                color: colors.success,
+                              ),
                         tooltip: 'Queue for tonight',
-                        onPressed: () => queueTransientForTonight(ref, alert),
+                        onPressed: _queueing ? null : _queue,
                         padding: EdgeInsets.zero,
                         visualDensity: VisualDensity.compact,
                       ),
@@ -429,9 +480,12 @@ class _TransientAlertTile extends ConsumerWidget {
                         icon: Icon(LucideIcons.x,
                             size: 14, color: colors.textMuted),
                         tooltip: 'Dismiss',
-                        onPressed: () => ref
-                            .read(transientAlertStatesProvider.notifier)
-                            .dismiss(alert.id),
+                        onPressed: () => _runAlertStateAction(
+                          context,
+                          () => ref
+                              .read(transientAlertStatesProvider.notifier)
+                              .dismiss(alert.id),
+                        ),
                         padding: EdgeInsets.zero,
                         visualDensity: VisualDensity.compact,
                       ),
@@ -542,9 +596,30 @@ class _TypeBadge extends StatelessWidget {
 // Settings Dialog
 // =============================================================================
 
-class _TransientSettingsDialog extends ConsumerWidget {
+class _TransientSettingsDialog extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TransientSettingsDialog> createState() =>
+      _TransientSettingsDialogState();
+}
+
+class _TransientSettingsDialogState
+    extends ConsumerState<_TransientSettingsDialog> {
+  Future<void> _run(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save the alert settings.'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final settings = ref.watch(transientAlertSettingsProvider);
     final notifier = ref.read(transientAlertSettingsProvider.notifier);
@@ -581,7 +656,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   ),
                   subtitle: source == TransientSource.tns
                       ? Text(
-                          'Requires API key',
+                          'Requires TNS bot credentials in Science settings',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize11,
                             color: colors.textMuted,
@@ -590,7 +665,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       : null,
                   dense: true,
                   value: settings.enabledSources.contains(source),
-                  onChanged: (_) => notifier.toggleSource(source),
+                  onChanged: (_) => _run(() => notifier.toggleSource(source)),
                   controlAffinity: ListTileControlAffinity.leading,
                 );
               }),
@@ -627,7 +702,8 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       max: 20.0,
                       divisions: 30,
                       label: settings.magnitudeThreshold.toStringAsFixed(1),
-                      onChanged: (val) => notifier.setMagnitudeThreshold(val),
+                      onChanged: (val) =>
+                          _run(() => notifier.setMagnitudeThreshold(val)),
                     ),
                   ),
                   Text(
@@ -671,7 +747,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       ),
                     ),
                     selected: isEnabled,
-                    onSelected: (_) => notifier.toggleType(type),
+                    onSelected: (_) => _run(() => notifier.toggleType(type)),
                     visualDensity: VisualDensity.compact,
                   );
                 }).toList(),
@@ -690,7 +766,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 ),
                 dense: true,
                 value: settings.notifyOnNew,
-                onChanged: (val) => notifier.setNotifyOnNew(val),
+                onChanged: (val) => _run(() => notifier.setNotifyOnNew(val)),
               ),
               SwitchListTile(
                 title: Text(
@@ -708,7 +784,8 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 ),
                 dense: true,
                 value: settings.autoQueueBright,
-                onChanged: (val) => notifier.setAutoQueueBright(val),
+                onChanged: (val) =>
+                    _run(() => notifier.setAutoQueueBright(val)),
               ),
             ],
           ),

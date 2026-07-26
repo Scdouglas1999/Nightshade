@@ -26,6 +26,7 @@ Future<void> _pumpMosaic(
   WidgetTester tester, {
   MockBackend? backend,
   SmartNightExposureContext? exposureContext,
+  CurrentSequenceNotifier? editor,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1600, 1000);
@@ -58,6 +59,8 @@ Future<void> _pumpMosaic(
             .overrideWith((ref) => TestBackendNotifier(ref, resolvedBackend)),
         smartNightExposureContextProvider
             .overrideWith((ref) async => exposureContext),
+        if (editor != null)
+          currentSequenceProvider.overrideWith((ref) => editor),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -109,6 +112,89 @@ void main() {
         (tester) async {
       await _pumpMosaic(tester);
       expect(find.byKey(const ValueKey('mosaic_resume_banner')), findsNothing);
+    });
+
+    testWidgets('load into sequencer creates one connected tree', (
+      tester,
+    ) async {
+      final editor = CurrentSequenceNotifier();
+      await _pumpMosaic(tester, editor: editor);
+
+      final loadButton = find.byKey(
+        const ValueKey('mosaic_generate_sequence_btn'),
+      );
+      await tester.ensureVisible(loadButton);
+      await tester.tap(loadButton);
+      await tester.pumpAndSettle();
+
+      final sequence = editor.state!;
+      final rootId = sequence.rootNodeId!;
+      final root = sequence.nodes[rootId]!;
+      final headers = sequence.nodes.values.whereType<TargetHeaderNode>();
+      expect(headers, hasLength(9));
+      expect(headers.every((header) => header.mosaicPanel != null), isTrue);
+      expect(root.childIds, hasLength(9));
+      expect(
+        root.childIds.map((id) => sequence.nodes[id]),
+        everyElement(isA<TargetHeaderNode>()),
+      );
+
+      for (final node in sequence.nodes.values) {
+        expect(node.childIds.toSet(), hasLength(node.childIds.length));
+        if (node.id == rootId) continue;
+        final parent = sequence.nodes[node.parentId];
+        expect(parent, isNotNull, reason: '${node.name} has no parent');
+        expect(parent!.childIds.where((id) => id == node.id), hasLength(1));
+      }
+
+      final reachable = <String>{};
+      void visit(String id) {
+        if (!reachable.add(id)) return;
+        for (final childId in sequence.nodes[id]!.childIds) {
+          visit(childId);
+        }
+      }
+
+      visit(rootId);
+      expect(reachable, hasLength(sequence.nodes.length));
+    });
+
+    testWidgets('disabled planner panel is omitted from generated sequence', (
+      tester,
+    ) async {
+      final editor = CurrentSequenceNotifier();
+      await _pumpMosaic(tester, editor: editor);
+
+      await tester.tap(find.byKey(const ValueKey('mosaic_panel_0_0')));
+      await tester.pumpAndSettle();
+
+      final loadButton = find.byKey(
+        const ValueKey('mosaic_generate_sequence_btn'),
+      );
+      await tester.ensureVisible(loadButton);
+      await tester.tap(loadButton);
+      await tester.pumpAndSettle();
+
+      final sequence = editor.state!;
+      final root = sequence.nodes[sequence.rootNodeId]!;
+      final headers = sequence.nodes.values.whereType<TargetHeaderNode>();
+      expect(headers, hasLength(8));
+      expect(root.childIds, hasLength(8));
+      expect(
+        headers.map((header) => header.mosaicPanel!.panelIndex),
+        isNot(contains(0)),
+      );
+
+      final reachable = <String>{};
+      void visit(String id) {
+        if (!reachable.add(id)) return;
+        for (final childId in sequence.nodes[id]!.childIds) {
+          visit(childId);
+        }
+      }
+
+      visit(sequence.rootNodeId!);
+      expect(reachable, hasLength(sequence.nodes.length));
     });
   });
 }

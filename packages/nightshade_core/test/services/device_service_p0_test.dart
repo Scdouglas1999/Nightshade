@@ -128,9 +128,9 @@ void main() {
     );
   });
 
-  group('notifier disconnect always reaches disconnected state', () {
+  group('failed disconnect preserves truthful connected state', () {
     test(
-      'CameraStateNotifier.disconnect clears state when backend throws',
+      'CameraStateNotifier.disconnect reports the failure and stays connected',
       () async {
         const deviceId = TestFixtures.cameraId;
 
@@ -145,38 +145,35 @@ void main() {
           () => mockBackend.disconnectDevice(DeviceType.camera, deviceId),
         ).thenThrow(Exception('INDI driver rejected disconnect'));
 
-        await camNotifier.disconnect();
+        await expectLater(camNotifier.disconnect(), throwsException);
 
         final state = container.read(cameraStateProvider);
-        expect(state.connectionState, DeviceConnectionState.disconnected);
-        expect(state.deviceId, isNull);
+        expect(state.connectionState, DeviceConnectionState.connected);
+        expect(state.deviceId, deviceId);
       },
     );
 
-    test(
-      'mount StateNotifier.disconnect clears state when backend throws',
-      () async {
-        const deviceId = TestFixtures.mountId;
+    test('mount disconnect reports the failure and stays connected', () async {
+      const deviceId = TestFixtures.mountId;
 
-        final mountNotifier = container.read(mountStateProvider.notifier);
-        mountNotifier.setConnecting(deviceId, 'Test Mount');
-        mountNotifier.setConnected();
+      final mountNotifier = container.read(mountStateProvider.notifier);
+      mountNotifier.setConnecting(deviceId, 'Test Mount');
+      mountNotifier.setConnected();
 
-        when(
-          () => mockBackend.stopDeviceHeartbeat(deviceId),
-        ).thenAnswer((_) async {});
-        when(
-          () => mockBackend.disconnectDevice(DeviceType.mount, deviceId),
-        ).thenThrow(Exception('COM disconnect failed'));
+      when(
+        () => mockBackend.stopDeviceHeartbeat(deviceId),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.disconnectDevice(DeviceType.mount, deviceId),
+      ).thenThrow(Exception('COM disconnect failed'));
 
-        await mountNotifier.disconnect();
+      await expectLater(mountNotifier.disconnect(), throwsException);
 
-        expect(
-          container.read(mountStateProvider).connectionState,
-          DeviceConnectionState.disconnected,
-        );
-      },
-    );
+      expect(
+        container.read(mountStateProvider).connectionState,
+        DeviceConnectionState.connected,
+      );
+    });
   });
 
   group('event stream onError resubscribes', () {

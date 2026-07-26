@@ -32,6 +32,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../utils/authority_bound_dialog.dart';
 import 'mosaic_wizard_dialog/mosaic_project_creation_controller.dart';
 part 'mosaic_wizard_dialog/config_controls.dart';
 part 'mosaic_wizard_dialog/panel_position.dart';
@@ -93,22 +94,50 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   /// sequence is detected. `null` while loading and when no mosaic
   /// checkpoint exists.
   CheckpointInfo? _resumableMosaicCheckpoint;
+  bool _isCreatingProject = false;
+  String? _checkpointAction;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _authorityGeneration = 0;
+
+  bool get _isBusy => _isCreatingProject || _checkpointAction != null;
 
   @override
   void initState() {
     super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _authorityGeneration++;
+        closeAuthorityBoundDialog(context);
+      },
+    );
     _centerRa = widget.initialRa ?? 0.0;
     _centerDec = widget.initialDec ?? 0.0;
     _probeForInterruptedMosaic();
   }
 
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  bool _isCurrentAuthority(NightshadeBackend backend, int generation) =>
+      mounted &&
+      generation == _authorityGeneration &&
+      identical(ref.read(backendProvider), backend);
+
   Future<void> _probeForInterruptedMosaic() async {
+    final authority = ref.read(backendProvider);
+    final generation = _authorityGeneration;
     try {
       final backend = ref.read(sequencerBackendProvider);
       final hasCheckpoint = await backend.hasCheckpoint();
+      if (!_isCurrentAuthority(authority, generation)) return;
       if (!hasCheckpoint) return;
       final info = await backend.getCheckpointInfo();
-      if (!mounted) return;
+      if (!_isCurrentAuthority(authority, generation)) return;
       final isMosaic = info != null &&
           info.canResume &&
           info.sequenceName.startsWith('Mosaic ');
@@ -116,7 +145,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         setState(() => _resumableMosaicCheckpoint = info);
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentAuthority(authority, generation)) {
         context.showErrorSnackBar(
           'Could not check for interrupted mosaic: $e',
         );
@@ -125,6 +154,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 
   Future<void> _resumeInterruptedMosaic() async {
+    if (_checkpointAction != null) return;
+    setState(() => _checkpointAction = 'resume');
     try {
       // Route through the SequenceExecutor provider — it re-seeds the
       // runtime config from current settings and issues the
@@ -133,26 +164,34 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       // native tree and leaves the executor idle.
       await ref.read(sequenceExecutorProvider).resumeFromCheckpoint();
       if (mounted) {
+        setState(() => _checkpointAction = null);
         Navigator.of(context).pop();
         context.showSuccessSnackBar('Resuming mosaic from checkpoint…');
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _checkpointAction = null);
         context.showErrorSnackBar('Failed to resume mosaic: $e');
       }
     }
   }
 
   Future<void> _discardMosaicCheckpoint() async {
+    if (_checkpointAction != null) return;
+    setState(() => _checkpointAction = 'discard');
     final backend = ref.read(sequencerBackendProvider);
     try {
       await backend.discardCheckpoint();
       if (mounted) {
-        setState(() => _resumableMosaicCheckpoint = null);
+        setState(() {
+          _checkpointAction = null;
+          _resumableMosaicCheckpoint = null;
+        });
         context.showSuccessSnackBar('Mosaic checkpoint discarded.');
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _checkpointAction = null);
         context.showErrorSnackBar('Failed to discard checkpoint: $e');
       }
     }
@@ -394,29 +433,35 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       (node) => node is InstructionSetNode && node.parentId == null,
     );
 
-    if (ref.read(currentSequenceProvider) == null) {
-      sequenceNotifier.createSequence(name: 'New Mosaic Sequence');
-    }
-
     final disabledChildIds = _disabledTargetSubtreeIds(nodes, rootNode);
+    final enabledNodes = Map<String, SequenceNode>.fromEntries(
+      nodes.entries.where((entry) => !disabledChildIds.contains(entry.key)),
+    );
 
-    for (final node in nodes.values) {
-      if (disabledChildIds.contains(node.id)) continue;
-
-      if (node.id != rootNode.id) {
-        sequenceNotifier.addNode(node, parentId: node.parentId);
-      } else {
-        final currentSeq = ref.read(currentSequenceProvider);
-        if (currentSeq != null) {
-          for (final childId in rootNode.childIds) {
-            if (disabledChildIds.contains(childId)) continue;
-            final child = nodes[childId];
-            if (child != null) {
-              sequenceNotifier.addNode(child, parentId: currentSeq.rootNodeId);
-            }
-          }
-        }
+    try {
+      if (ref.read(currentSequenceProvider) == null) {
+        sequenceNotifier.createSequence(name: 'New Mosaic Sequence');
       }
+      final currentRootId = ref.read(currentSequenceProvider)?.rootNodeId;
+      if (currentRootId == null) {
+        throw StateError('The current sequence has no root node');
+      }
+
+      // MosaicService emits a complete graph whose descendants are inserted
+      // before their parents in map order. Merge the graph atomically instead
+      // of replaying addNode in that order (which attached children to the
+      // current root and duplicated panel headers).
+      sequenceNotifier.mergeTemplateNodes(
+        templateNodes: enabledNodes,
+        templateRootId: rootNode.id,
+        targetId: currentRootId,
+      );
+    } on SequenceLockedException catch (error) {
+      context.showErrorSnackBar(error.message);
+      return;
+    } catch (error) {
+      context.showErrorSnackBar('Could not load mosaic: $error');
+      return;
     }
 
     Navigator.of(context).pop();
@@ -446,6 +491,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         positionAngleDeg: _rotation,
         panelWidthArcmin: _panelWidthArcmin,
         panelHeightArcmin: _panelHeightArcmin,
+        disabledCells: {..._disabledPanels},
       );
 
   /// Persist the current design as a durable [MosaicProject] and route to the
@@ -457,6 +503,11 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   /// the committed `mosaicProjectServiceProvider.createProject`). The
   /// load-into-sequencer path is untouched and still available.
   Future<void> _createMosaicProject() async {
+    final backend = ref.read(backendProvider);
+    if (backend is NetworkBackend || backend is DisconnectedBackend) {
+      _showMosaicProjectHostOnlyMessage();
+      return;
+    }
     const mosaicService = MosaicService();
     final config = MosaicConfig(
       centerRa: _centerRa,
@@ -482,19 +533,39 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 
   Future<void> _persistProject() async {
+    if (_isCreatingProject) return;
+    final authority = ref.read(backendProvider);
+    if (authority is NetworkBackend || authority is DisconnectedBackend) {
+      _showMosaicProjectHostOnlyMessage();
+      return;
+    }
+    setState(() => _isCreatingProject = true);
     final controller = MosaicProjectCreationController(
       ref.read(mosaicProjectServiceProvider),
     );
     try {
       final projectId = await controller.createProject(_currentDesign());
       if (!mounted) return;
+      if (!identical(ref.read(backendProvider), authority)) {
+        setState(() => _isCreatingProject = false);
+        return;
+      }
+      setState(() => _isCreatingProject = false);
       Navigator.of(context).pop();
       unawaited(context.push('/mosaic/$projectId'));
     } catch (e) {
       if (mounted) {
+        setState(() => _isCreatingProject = false);
         context.showErrorSnackBar('Could not create mosaic project: $e');
       }
     }
+  }
+
+  void _showMosaicProjectHostOnlyMessage() {
+    context.showInfoSnackBar(
+      'Create durable mosaic projects on the imaging host. You can still load '
+      'this mosaic into the host sequencer from here.',
+    );
   }
 
   /// Find the set of node IDs that correspond to user-disabled panels
@@ -643,6 +714,10 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final backend = ref.watch(backendProvider);
+    final isRemote = backend is NetworkBackend;
+    final isDisconnected = backend is DisconnectedBackend;
+    final canCreateProject = !isRemote && !isDisconnected;
     final panels = _calculatePanels();
     final smartExposure = mosaicWizardExposureSettingsForContext(
       ref.watch(smartNightExposureContextProvider).valueOrNull,
@@ -654,13 +729,14 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     return NightshadeDialog(
       title: 'Mosaic Wizard',
       icon: NightshadeIcons.grid,
+      closeEnabled: !_isBusy,
       width: 960,
       height: 720,
       scrollableBody: false,
       bodyPadding: EdgeInsets.zero,
       actions: [
         NightshadeButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
           label: 'Cancel',
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
@@ -672,7 +748,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
           message: 'Add these panels to the current sequence now',
           child: NightshadeButton(
             key: const ValueKey('mosaic_generate_sequence_btn'),
-            onPressed: _generateMosaic,
+            onPressed: _isBusy ? null : _generateMosaic,
             icon: NightshadeIcons.add,
             label: 'Load into Sequencer',
             variant: ButtonVariant.outline,
@@ -682,12 +758,23 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         // Primary path: persist the design as a durable mosaic project and open
         // the project screen (/mosaic/:id).
         Tooltip(
-          message: 'Save a reusable project and track its progress',
+          message: isRemote
+              ? 'Durable mosaic projects are managed on the imaging host'
+              : isDisconnected
+                  ? 'Connect to an imaging host before creating a durable project'
+                  : 'Save a reusable project and track its progress',
           child: NightshadeButton(
             key: const ValueKey('mosaic_create_project_btn'),
-            onPressed: () => unawaited(_createMosaicProject()),
+            onPressed: _isBusy || !canCreateProject
+                ? null
+                : () => unawaited(_createMosaicProject()),
             icon: NightshadeIcons.layoutGrid,
-            label: 'Create mosaic project',
+            label: isRemote
+                ? 'Create on imaging host'
+                : isDisconnected
+                    ? 'Connect to create project'
+                    : 'Create mosaic project',
+            isLoading: _isCreatingProject,
             variant: ButtonVariant.primary,
             size: ButtonSize.small,
           ),
@@ -900,16 +987,20 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
             runSpacing: 8,
             children: [
               NightshadeButton(
-                onPressed: _resumeInterruptedMosaic,
+                onPressed:
+                    _checkpointAction == null ? _resumeInterruptedMosaic : null,
                 icon: NightshadeIcons.play,
                 label: 'Resume',
+                isLoading: _checkpointAction == 'resume',
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,
               ),
               NightshadeButton(
-                onPressed: _discardMosaicCheckpoint,
+                onPressed:
+                    _checkpointAction == null ? _discardMosaicCheckpoint : null,
                 icon: NightshadeIcons.delete,
                 label: 'Start Over',
+                isLoading: _checkpointAction == 'discard',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
               ),

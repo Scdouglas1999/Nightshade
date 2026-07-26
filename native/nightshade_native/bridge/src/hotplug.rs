@@ -15,7 +15,7 @@
 //!
 //!   2. **Slow polling watcher** (`start_device_poll_watcher`): a tokio task
 //!      that walks the native (vendor-SDK) and, on Windows, ASCOM registry
-//!      device lists every `HOTPLUG_POLL_INTERVAL` (30 s). It diffs the live
+//!      device lists every `HOTPLUG_POLL_INTERVAL` (5 min). It diffs the live
 //!      list against a cached set keyed by `(driver_type, device_id)` and
 //!      emits one `device_discovered` event per new arrival and one
 //!      `device_lost` event per removal. This cadence is the safety net for
@@ -70,7 +70,7 @@ const HOTPLUG_DEBOUNCE_MS: u64 = 500;
 
 /// Polling cadence for the native / ASCOM hot-plug watcher.
 ///
-/// 30 seconds is the conservative fallback cadence in the hybrid architecture
+/// Five minutes is the fallback cadence in the hybrid architecture
 /// (see module docs). The OS bus listener (WM_DEVICECHANGE / libusb hotplug)
 /// is the primary low-latency path; this poll exists only to catch state
 /// changes the kernel does not surface:
@@ -80,12 +80,15 @@ const HOTPLUG_DEBOUNCE_MS: u64 = 500;
 ///     without producing a USB hotplug.
 ///   * Hub / chipset edge cases where WM_DEVICECHANGE is dropped.
 ///
-/// 30 s is short enough that a user plugging in an ASCOM-only device sees it
-/// within the same minute, and long enough that the vendor SDKs and registry
-/// are not hammered (most vendor SDKs serialise their list call internally).
-/// USB camera/mount/focuser arrivals do NOT wait this long — the WM_DEVICECHANGE
-/// handler triggers an off-cadence `poll_once` for sub-second latency.
-const HOTPLUG_POLL_INTERVAL: Duration = Duration::from_secs(30);
+/// Native discovery includes active serial protocol probes for Sky-Watcher,
+/// iOptron, and LX200 mounts. On a real Windows rig that pass takes 10–15
+/// seconds and opens every COM port, so a 30-second fallback spent a material
+/// fraction of uptime probing hardware and could contend with an active ASCOM
+/// driver. Five minutes retains a bounded fallback for missed kernel events
+/// without treating expensive serial discovery as a heartbeat. USB
+/// camera/mount/focuser arrivals do NOT wait this long — the
+/// WM_DEVICECHANGE handler triggers an off-cadence `poll_once` immediately.
+const HOTPLUG_POLL_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Device types we poll for hot-plug events. Keep this list narrow to the
 /// classes that are realistically hot-pluggable from the user's perspective:
@@ -644,7 +647,7 @@ fn handle_windows_device_change(wparam: usize) {
     publish_device_change(action);
     // The coarse `device_change` notification above is for legacy listeners.
     // Kick an off-cadence diff so typed `device_discovered`/`device_lost`
-    // events land within a second instead of waiting up to 30 s for the
+    // events land within a second instead of waiting for the fallback poll
     // slow-poll tick. This is the whole point of the hybrid architecture.
     schedule_off_cadence_poll();
 }
@@ -767,18 +770,19 @@ mod tests {
     }
 
     #[test]
-    fn slow_poll_interval_is_thirty_seconds() {
+    fn slow_poll_interval_is_five_minutes() {
         // The hybrid hot-plug architecture relies on this being the slow
         // (safety-net) cadence — not the fast cadence that the kernel-event
         // path delivers. If someone drops this back to the old 4 s value
         // they are reverting to the polling-only design and burning CPU /
         // hammering vendor SDKs. The OS bus listener
         // (WM_DEVICECHANGE / libusb hotplug) is the fast path; this must
-        // stay at the conservative cadence.
+        // stay at the conservative cadence. Native enumeration actively opens
+        // serial ports, so the fallback must not run every few seconds.
         assert_eq!(
             HOTPLUG_POLL_INTERVAL.as_secs(),
-            30,
-            "hot-plug slow-poll cadence must be 30s; fast arrivals come through the OS bus listener",
+            5 * 60,
+            "hot-plug slow-poll cadence must be 5m; fast arrivals come through the OS bus listener",
         );
     }
 

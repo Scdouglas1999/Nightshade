@@ -282,14 +282,14 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
     );
   }
 
-  void _createSnippetFromSelection({
+  Future<void> _createSnippetFromSelection({
     required String name,
     required String description,
     required SnippetCategory category,
     required String iconName,
     required List<String> nodeIds,
     required Sequence sequence,
-  }) {
+  }) async {
     try {
       final snippet = createSnippetFromSelection(
         name: name,
@@ -300,7 +300,7 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
         sequence: sequence,
       );
 
-      ref.read(customSnippetsProvider.notifier).addSnippet(snippet);
+      await ref.read(customSnippetsProvider.notifier).addSnippet(snippet);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -322,10 +322,10 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
     }
   }
 
-  void _handleDeleteSnippet(TemplateSnippet snippet) {
+  Future<void> _handleDeleteSnippet(TemplateSnippet snippet) async {
     if (snippet.isBuiltIn) return;
 
-    showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: widget.colors.surfaceOverlay,
@@ -371,18 +371,7 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
             size: ButtonSize.small,
           ),
           NightshadeButton(
-            onPressed: () {
-              ref
-                  .read(customSnippetsProvider.notifier)
-                  .removeSnippet(snippet.id);
-              Navigator.of(context).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Template "${snippet.name}" deleted'),
-                  backgroundColor: widget.colors.info,
-                ),
-              );
-            },
+            onPressed: () => Navigator.of(context).pop(true),
             label: 'Delete',
             variant: ButtonVariant.destructive,
             size: ButtonSize.small,
@@ -390,6 +379,26 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
         ],
       ),
     );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(customSnippetsProvider.notifier).removeSnippet(snippet.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Template "${snippet.name}" deleted'),
+          backgroundColor: widget.colors.info,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete template: $e'),
+          backgroundColor: widget.colors.error,
+        ),
+      );
+    }
   }
 
   /// Returns true if the running platform has a native share sheet
@@ -411,6 +420,7 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
   }
 
   Future<void> _handleImportSnippet() async {
+    if (!_beginSnippetFileAction()) return;
     try {
       final service = ref.read(snippetFileServiceProvider);
       final imported = await service.importSnippet();
@@ -453,23 +463,30 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
           backgroundColor: widget.colors.error,
         ),
       );
+    } finally {
+      _finishSnippetFileAction();
     }
   }
 
   Future<void> _handleExportSnippet(TemplateSnippet snippet) async {
+    if (!_beginSnippetFileAction()) return;
     try {
       final service = ref.read(snippetFileServiceProvider);
       final savedPath = await service.exportSnippet(snippet);
       if (savedPath == null) return; // user cancelled
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
+      // `_handleShareSnippet` routes touch platforms to the share sheet, but
+      // this method is still directly invocable there — and on a phone the
+      // export now lands in the app sandbox, so naming the basename would
+      // describe a file the user cannot open. Reveal handles both: share sheet
+      // on touch, the same success line on desktop.
+      await revealExportedFile(
+        context,
+        savedPath,
+        subject: 'Nightshade snippet: ${snippet.name}',
+        desktopMessage:
             'Exported "${snippet.name}" to ${p.basename(savedPath)}',
-          ),
-          backgroundColor: widget.colors.success,
-        ),
       );
     } catch (e) {
       if (!mounted) return;
@@ -479,6 +496,8 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
           backgroundColor: widget.colors.error,
         ),
       );
+    } finally {
+      _finishSnippetFileAction();
     }
   }
 
@@ -495,6 +514,7 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
       return;
     }
 
+    if (!_beginSnippetFileAction()) return;
     try {
       final service = ref.read(snippetFileServiceProvider);
 
@@ -520,6 +540,8 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
           backgroundColor: widget.colors.error,
         ),
       );
+    } finally {
+      _finishSnippetFileAction();
     }
   }
 

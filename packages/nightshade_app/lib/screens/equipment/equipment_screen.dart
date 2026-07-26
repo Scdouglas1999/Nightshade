@@ -18,6 +18,7 @@ import 'utils/connect_all_summary.dart';
 import 'utils/driver_error_pretty.dart';
 import 'utils/equipment_disconnect.dart';
 import '../../localization/nightshade_localizations.dart';
+import '../../utils/cooled_camera_guard.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/equipment_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
@@ -87,15 +88,52 @@ class EquipmentScreen extends ConsumerStatefulWidget {
 class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   /// Bumped on any profile mutation so delete-undo cannot race edits.
   int _profileMutationEpoch = 0;
+  int _profileOperationGeneration = 0;
 
   void _bumpProfileMutationEpoch() {
     _profileMutationEpoch++;
   }
 
+  bool _isCurrentProfileOperation(
+    int generation,
+    NightshadeBackend authority,
+  ) {
+    return mounted &&
+        generation == _profileOperationGeneration &&
+        identical(ref.read(backendProvider), authority);
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (previous == null || identical(previous, next)) return;
+      _profileOperationGeneration++;
+      _bumpProfileMutationEpoch();
+    });
     final colors = NightshadeColors.of(context);
-    final profiles = ref.watch(sortedProfilesProvider);
+    final profilesAsync = ref.watch(equipmentProfilesProvider);
+    if (profilesAsync.hasError) {
+      return _EquipmentProfilesUnavailable(
+        error: profilesAsync.error!,
+        onRetry: () => _retryProfiles(ref),
+      );
+    }
+    final profilesState = profilesAsync.valueOrNull;
+    if (profilesState == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (profilesState.error != null) {
+      return _EquipmentProfilesUnavailable(
+        error: profilesState.error!,
+        onRetry: () => _retryProfiles(ref),
+      );
+    }
+    final profiles = List<EquipmentProfileModel>.from(profilesState.profiles)
+      ..sort((a, b) {
+        final orderCompare = a.sortOrder.compareTo(b.sortOrder);
+        if (orderCompare != 0) return orderCompare;
+        return a.name.compareTo(b.name);
+      });
     final selectedProfileId = ref.watch(selectedEquipmentProfileIdProvider);
     final isRemoteMode = ref.watch(isRemoteModeProvider);
 
@@ -204,6 +242,12 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     );
   }
 
+  void _retryProfiles(WidgetRef ref) {
+    ref.invalidate(allProfilesProvider);
+    ref.invalidate(activeProfileProvider);
+    ref.invalidate(equipmentProfilesProvider);
+  }
+
   void _showProfilePickerSheet(BuildContext context, Widget profileSidebar) {
     final colors = NightshadeColors.of(context);
     showModalBottomSheet<void>(
@@ -248,22 +292,27 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
   Future<void> _showProfileEditor(
       BuildContext context, EquipmentProfileModel? profile) async {
-    await ProfileEditorDialog.show(context, profile: profile);
+    final saved = await ProfileEditorDialog.show(context, profile: profile);
+    if (saved == true) _bumpProfileMutationEpoch();
   }
 
   Future<void> _createEmptyProfile() async {
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileOperationGeneration;
     try {
-      final profileService = ref.read(profileServiceProvider);
-      final profileId = await profileService.createProfile('My Equipment');
+      final profileId = await ref
+          .read(equipmentProfilesProvider.notifier)
+          .createProfile(name: 'My Equipment');
+      if (!_isCurrentProfileOperation(generation, authority)) return;
       _bumpProfileMutationEpoch();
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = profileId;
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(
-          context.l10n
-              .text('equipmentCreateProfileFailed', params: {'error': '$e'}),
-        );
-      }
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        context.l10n
+            .text('equipmentCreateProfileFailed', params: {'error': '$e'}),
+      );
     }
   }
 
@@ -280,65 +329,68 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   }
 
   Future<void> _setDefaultProfile(EquipmentProfileModel profile) async {
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileOperationGeneration;
     try {
+      // The notifier's local setDefaultProfile(makeActive:true) branch now owns
+      // the native (Rust) executor write-through, so the GUI no longer needs a
+      // second manual push here; remote mode still routes activation through the
+      // host's REST loadProfile. Single authority = no split-brain activation.
       await ref
           .read(equipmentProfilesProvider.notifier)
           .setDefaultProfile(profile.id, makeActive: true);
-      // HOST ACTIVATION RUST WRITE-THROUGH: the notifier's local branch wrote
-      // SQLite; the GUI path bypasses the REST handleLoadProfile write-through,
-      // so push the now-active profile into the native (Rust) executor store so
-      // headless sequencing keeps a correct active-profile context. No-op /
-      // skipped in remote mode (the host owns activation via REST loadProfile).
-      if (profile.id != null && !ref.read(isRemoteModeProvider)) {
-        await writeActiveProfileThroughToRustFromWidget(ref, profile.id!);
-      }
-      if (mounted) {
-        context.showSuccessSnackBar(
-          context.l10n.text('equipmentDefaultProfileSet'),
-        );
-      }
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      _bumpProfileMutationEpoch();
+      context.showSuccessSnackBar(
+        context.l10n.text('equipmentDefaultProfileSet'),
+      );
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(
-          context.l10n
-              .text('equipmentSetDefaultFailed', params: {'error': '$e'}),
-        );
-      }
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        context.l10n.text('equipmentSetDefaultFailed', params: {'error': '$e'}),
+      );
     }
   }
 
   Future<void> _duplicateProfile(int profileId) async {
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileOperationGeneration;
     try {
-      final profileService = ref.read(profileServiceProvider);
       // Get the source profile to derive a name for the copy
       final profiles = ref.read(sortedProfilesProvider);
-      final sourceProfile = profiles.firstWhere(
-        (p) => p.id == profileId,
-        orElse: () => profiles.first,
-      );
+      final sourceProfile =
+          profiles.where((profile) => profile.id == profileId).firstOrNull;
+      if (sourceProfile == null) {
+        throw StateError('Profile $profileId no longer exists');
+      }
       final newName = '${sourceProfile.name} (Copy)';
-      final newId = await profileService.duplicateProfile(profileId, newName);
+      final newId = await ref
+          .read(equipmentProfilesProvider.notifier)
+          .duplicateProfile(profileId, newName);
+      if (!_isCurrentProfileOperation(generation, authority)) return;
       _bumpProfileMutationEpoch();
       // Select the newly duplicated profile
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = newId;
-      if (mounted) {
-        context.showSuccessSnackBar(
-          context.l10n.text('equipmentProfileDuplicated'),
-        );
-      }
+      if (!mounted) return;
+      context.showSuccessSnackBar(
+        context.l10n.text('equipmentProfileDuplicated'),
+      );
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(
-          context.l10n
-              .text('equipmentDuplicateFailed', params: {'error': '$e'}),
-        );
-      }
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        context.l10n.text('equipmentDuplicateFailed', params: {'error': '$e'}),
+      );
     }
   }
 
   Future<void> _deleteProfile(int profileId) async {
+    final backendOwner = ref.read(backendProvider.notifier);
+    final backendAtDelete = backendOwner.currentBackend;
+    final generation = ++_profileOperationGeneration;
     try {
-      final profileService = ref.read(profileServiceProvider);
       // Resolve the row-to-delete from the remote-aware in-memory list, not the
       // local-only DAO: on a slave (NetworkBackend) the local SQLite is empty,
       // so a direct DAO read would return null and abort the delete. The model
@@ -350,11 +402,22 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       if (deletedProfile == null) {
         throw StateError('Profile $profileId no longer exists');
       }
-      final deletedProfileJson =
-          await profileService.exportProfileToJson(profileId);
-      await profileService.deleteProfile(profileId);
-      final epochAtDelete = _profileMutationEpoch;
+
+      // Keep the undo payload in the authority that owns it. A remote profile
+      // is already fully represented by [deletedProfile], while a local
+      // profile retains the service's versioned JSON for an exact restore.
+      final deletedProfileJson = backendAtDelete is NetworkBackend
+          ? null
+          : await ref.read(profileServiceProvider).exportProfileToJson(
+                profileId,
+              );
+      if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .deleteProfile(profileId);
+      if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
       _bumpProfileMutationEpoch();
+      final epochAtDelete = _profileMutationEpoch;
 
       // If we deleted the selected profile, select another one
       final selectedId = ref.read(selectedEquipmentProfileIdProvider);
@@ -382,9 +445,11 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
               label: context.l10n.text('commonUndo'),
               onPressed: () {
                 unawaited(_restoreDeletedProfile(
-                  deletedProfileJson,
-                  wasActive: deletedProfile.isActive,
+                  deletedProfile,
+                  localExportJson: deletedProfileJson,
                   epochAtDelete: epochAtDelete,
+                  backendOwner: backendOwner,
+                  backendAtDelete: backendAtDelete,
                 ));
               },
             ),
@@ -392,22 +457,32 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(
-          context.l10n.text('equipmentDeleteFailed', params: {'error': '$e'}),
-        );
-      }
+      if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        context.l10n.text('equipmentDeleteFailed', params: {'error': '$e'}),
+      );
     }
   }
 
   Future<void> _reorderProfiles(int oldIndex, int newIndex) async {
+    final authority = ref.read(backendProvider);
+    final generation = ++_profileOperationGeneration;
     try {
       final profiles = ref.read(sortedProfilesProvider);
+      if (oldIndex < 0 || oldIndex >= profiles.length) {
+        throw StateError('The profile list changed before reordering.');
+      }
 
       // Build reordered list
       final reordered = [...profiles];
       final item = reordered.removeAt(oldIndex);
-      reordered.insert(newIndex > oldIndex ? newIndex - 1 : newIndex, item);
+      if (newIndex < 0 || newIndex > reordered.length) {
+        throw StateError('The profile destination is no longer available.');
+      }
+      // ProfileSidebar uses ReorderableListView.onReorderItem, whose
+      // destination index is already adjusted for removal of the source.
+      reordered.insert(newIndex, item);
 
       // Single notifier passthrough for both modes. On a slave this POSTs the
       // ordered id list to the host's dedicated reorder endpoint (writing the
@@ -419,17 +494,22 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       await ref
           .read(equipmentProfilesProvider.notifier)
           .reorderProfiles(orderedIds);
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Failed to reorder: $e');
+      if (_isCurrentProfileOperation(generation, authority)) {
+        _bumpProfileMutationEpoch();
       }
+    } catch (e) {
+      if (!_isCurrentProfileOperation(generation, authority)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar('Failed to reorder: $e');
     }
   }
 
   Future<void> _restoreDeletedProfile(
-    String exportedProfileJson, {
-    required bool wasActive,
+    EquipmentProfileModel deletedProfile, {
+    required String? localExportJson,
     required int epochAtDelete,
+    required BackendNotifier backendOwner,
+    required NightshadeBackend backendAtDelete,
   }) async {
     if (epochAtDelete != _profileMutationEpoch) {
       if (mounted) {
@@ -440,19 +520,46 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       return;
     }
 
-    try {
-      final profileService = ref.read(profileServiceProvider);
-      final restoredId =
-          await profileService.importProfileFromJson(exportedProfileJson);
-      _bumpProfileMutationEpoch();
-      if (wasActive) {
-        // Route reactivation through the remote-aware notifier so a slave hits
-        // remote.loadProfile() on the host; a direct DAO write would only touch
-        // the slave's empty SQLite (restoredId is the host-assigned id).
-        await ref
-            .read(equipmentProfilesProvider.notifier)
-            .setActiveProfile(restoredId);
+    if (!backendOwner.isCurrentBackend(backendAtDelete)) {
+      if (mounted) {
+        context.showWarningSnackBar(
+          'Undo expired — the connected imaging host changed.',
+        );
       }
+      return;
+    }
+
+    final generation = ++_profileOperationGeneration;
+    try {
+      final int restoredId;
+      if (backendAtDelete is NetworkBackend) {
+        final notifier = ref.read(equipmentProfilesProvider.notifier);
+        restoredId = await notifier.updateProfile(
+          deletedProfile.toInsertionCopy(name: deletedProfile.name),
+        );
+        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+        if (deletedProfile.isDefault) {
+          await notifier.setDefaultProfile(restoredId, makeActive: true);
+        } else if (deletedProfile.isActive) {
+          await notifier.setActiveProfile(restoredId);
+        }
+        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+      } else {
+        if (localExportJson == null) {
+          throw StateError('The local profile undo payload is missing.');
+        }
+        restoredId = await ref
+            .read(profileServiceProvider)
+            .importProfileFromJson(localExportJson);
+        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+        if (deletedProfile.isActive) {
+          await ref
+              .read(equipmentProfilesProvider.notifier)
+              .setActiveProfile(restoredId);
+        }
+        if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+      }
+      _bumpProfileMutationEpoch();
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = restoredId;
       if (mounted) {
         context.showSuccessSnackBar(
@@ -460,11 +567,11 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar(
-          context.l10n.text('equipmentRestoreFailed', params: {'error': '$e'}),
-        );
-      }
+      if (!_isCurrentProfileOperation(generation, backendAtDelete)) return;
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        context.l10n.text('equipmentRestoreFailed', params: {'error': '$e'}),
+      );
     }
   }
 
@@ -613,6 +720,12 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   }
 
   Future<void> _disconnectAllDevices() async {
+    // Disconnect All includes the camera: gate on an active cooler so the TEC
+    // is never cut abruptly without an explicit confirm (same guard as the
+    // per-device card).
+    final proceed = await confirmDisconnectCooledCamera(context, ref);
+    if (!proceed || !mounted) return;
+
     final summary = await runEquipmentDisconnectAll(ref);
 
     if (!mounted) return;
@@ -677,6 +790,36 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         scrollableBody: false,
         bodyPadding: EdgeInsets.zero,
         child: const EquipmentSettingsTab(),
+      ),
+    );
+  }
+}
+
+class _EquipmentProfilesUnavailable extends StatelessWidget {
+  final Object error;
+  final VoidCallback onRetry;
+
+  const _EquipmentProfilesUnavailable({
+    required this.error,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: EmptyState.compact(
+        icon: LucideIcons.alertTriangle,
+        title: 'Could not load equipment profiles',
+        body: 'Nightshade could not read the equipment configuration. '
+            'No profiles or setup actions are shown until it can be loaded.\n\n'
+            '$error',
+        action: NightshadeButton(
+          label: 'Retry',
+          icon: LucideIcons.refreshCw,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: onRetry,
+        ),
       ),
     );
   }

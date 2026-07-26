@@ -628,8 +628,83 @@ class RotatorStatus {
           canReverse == other.canReverse;
 }
 
+/// Safety monitor status
+class SafetyStatus {
+  final bool connected;
+  final bool isSafe;
+
+  const SafetyStatus({required this.connected, required this.isSafe});
+
+  @override
+  int get hashCode => connected.hashCode ^ isSafe.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SafetyStatus &&
+          runtimeType == other.runtimeType &&
+          connected == other.connected &&
+          isSafe == other.isSafe;
+}
+
 /// Dome shutter state
 enum ShutterState { open, closed, opening, closing, error, unknown }
 
 /// Tracking rate for mount
 enum TrackingRate { sidereal, lunar, solar, king, custom }
+
+/// Weather conditions from observing conditions device (raw sensor readings)
+class WeatherConditions {
+  final double? temperature;
+  final double? humidity;
+  final double? pressure;
+  final double? cloudCover;
+  final double? dewPoint;
+  final double? windSpeed;
+  final double? windDirection;
+  final double? skyQuality;
+  final double? skyTemperature;
+  final double? rainRate;
+
+  const WeatherConditions({
+    this.temperature,
+    this.humidity,
+    this.pressure,
+    this.cloudCover,
+    this.dewPoint,
+    this.windSpeed,
+    this.windDirection,
+    this.skyQuality,
+    this.skyTemperature,
+    this.rainRate,
+  });
+
+  @override
+  int get hashCode =>
+      temperature.hashCode ^
+      humidity.hashCode ^
+      pressure.hashCode ^
+      cloudCover.hashCode ^
+      dewPoint.hashCode ^
+      windSpeed.hashCode ^
+      windDirection.hashCode ^
+      skyQuality.hashCode ^
+      skyTemperature.hashCode ^
+      rainRate.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WeatherConditions &&
+          runtimeType == other.runtimeType &&
+          temperature == other.temperature &&
+          humidity == other.humidity &&
+          pressure == other.pressure &&
+          cloudCover == other.cloudCover &&
+          dewPoint == other.dewPoint &&
+          windSpeed == other.windSpeed &&
+          windDirection == other.windDirection &&
+          skyQuality == other.skyQuality &&
+          skyTemperature == other.skyTemperature &&
+          rainRate == other.rainRate;
+}

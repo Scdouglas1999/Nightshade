@@ -55,7 +55,7 @@ class _SmartNightMissingSpecsDialogState
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
-    return AlertDialog(
+    final dialog = AlertDialog(
       backgroundColor: colors.surface,
       title: Text(
         'Camera specs needed',
@@ -142,6 +142,7 @@ class _SmartNightMissingSpecsDialogState
         ),
       ],
     );
+    return PopScope(canPop: !_saving, child: dialog);
   }
 
   Widget _specField({
@@ -194,9 +195,15 @@ class _SmartNightMissingSpecsDialogState
     });
 
     try {
-      final dao = ref.read(settingsDaoProvider);
-      final raw =
-          await dao.getSetting(HardwareSpecsService.cameraOverridesSettingKey);
+      final backend = ref.read(backendProvider);
+      final localSettings =
+          backend is NetworkBackend ? null : ref.read(settingsDaoProvider);
+      final raw = backend is NetworkBackend
+          ? (await backend.getSmartNightSettings())[
+              HardwareSpecsService.cameraOverridesSettingKey]
+          : await localSettings!.getSetting(
+              HardwareSpecsService.cameraOverridesSettingKey,
+            );
       final existing = raw == null || raw.trim().isEmpty
           ? <CameraHardwareSpec>[]
           : HardwareSpecsService.cameraOverridesFromJson(jsonDecode(raw))
@@ -224,10 +231,19 @@ class _SmartNightMissingSpecsDialogState
         (entry) => entry.model.toLowerCase() == model.toLowerCase(),
       );
       existing.add(spec);
-      await dao.setSetting(
-        HardwareSpecsService.cameraOverridesSettingKey,
-        jsonEncode(existing.map((entry) => entry.toJson()).toList()),
+      final encoded = jsonEncode(
+        existing.map((entry) => entry.toJson()).toList(),
       );
+      if (backend is NetworkBackend) {
+        await backend.updateSmartNightSettings({
+          HardwareSpecsService.cameraOverridesSettingKey: encoded,
+        });
+      } else {
+        await localSettings!.setSetting(
+          HardwareSpecsService.cameraOverridesSettingKey,
+          encoded,
+        );
+      }
       ref.invalidate(smartNightExposureContextProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

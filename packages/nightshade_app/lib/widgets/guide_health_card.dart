@@ -10,7 +10,9 @@
 // Subscriptions:
 //   * guiderStateProvider     -> connection + device name + isGuiding/isCalibrating
 //   * phd2StateProvider       -> textual state label (Guiding, Lost Star, etc.)
-//   * guideStatsProvider      -> rolling RA/Dec/Total RMS (arcsec)
+//   * guideStatsProvider      -> rolling RA/Dec/Total RMS (pixels; PHD2's
+//                                RADistanceRaw/AvgDist. Shown in arcsec only
+//                                when a pixel scale is known, else "px".)
 //   * starLostEventProvider   -> drives the "Lost star" banner
 //   * backend.eventStream     -> raw GuideStep events feed the sparkline ring
 //
@@ -69,6 +71,8 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
   final List<double> _samples = <double>[];
 
   StreamSubscription<NightshadeEvent>? _eventSub;
+  ProviderSubscription<DiagnosticsBackend>? _backendSub;
+  int _backendGeneration = 0;
 
   @override
   void initState() {
@@ -77,18 +81,28 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
   }
 
   void _bindEvents() {
-    _eventSub?.cancel();
-    final backend = ref.read(diagnosticsBackendProvider);
-    _eventSub = backend.eventStream.listen(_onEvent);
+    _bindEventStream(ref.read(diagnosticsBackendProvider), clear: false);
     // Why also listen for backend swap: when the mobile companion connects
     // to a remote rig, `backendProvider` flips from DisconnectedBackend to
     // NetworkBackend mid-session. We re-bind so the subscription points at
     // the new stream.
-    ref.listenManual<NightshadeBackend>(backendProvider, (previous, next) {
+    _backendSub = ref.listenManual<DiagnosticsBackend>(
+        diagnosticsBackendProvider, (previous, next) {
       if (!mounted) return;
-      _eventSub?.cancel();
-      _eventSub = next.eventStream.listen(_onEvent);
+      if (identical(previous, next)) return;
+      _bindEventStream(next, clear: true);
     });
+  }
+
+  void _bindEventStream(DiagnosticsBackend backend, {required bool clear}) {
+    final generation = ++_backendGeneration;
+    final previous = _eventSub;
+    if (clear && _samples.isNotEmpty) setState(_samples.clear);
+    _eventSub = backend.eventStream.listen((event) {
+      if (generation != _backendGeneration) return;
+      _onEvent(event);
+    });
+    previous?.cancel();
   }
 
   void _onEvent(NightshadeEvent event) {
@@ -132,7 +146,9 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
 
   @override
   void dispose() {
+    _backendGeneration++;
     _eventSub?.cancel();
+    _backendSub?.close();
     super.dispose();
   }
 
@@ -201,9 +217,10 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
     Phd2State phd2State,
     Phd2GuideStats stats,
   ) {
-    final rmsColor = _rmsColor(stats.rmsTotal, phd2State, colors);
+    final readout = _rmsReadout(stats.rmsTotal, stats.pixelScale);
+    final rmsColor = _rmsColor(readout.value, phd2State, colors);
     final rmsText = phd2State == Phd2State.guiding && stats.frameCount > 0
-        ? stats.rmsTotal.toStringAsFixed(2)
+        ? readout.value.toStringAsFixed(2)
         : '—';
 
     return Row(
@@ -240,9 +257,9 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
                 ),
                 if (rmsText != '—')
                   Text(
-                    '"',
+                    readout.unit,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 14,
                       color: rmsColor,
                       fontWeight: FontWeight.w600,
                     ),
@@ -291,11 +308,14 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
   }
 
   Widget _buildBottomRow(NightshadeColors colors, Phd2GuideStats stats) {
+    final ra = _rmsReadout(stats.rmsRa, stats.pixelScale);
+    final dec = _rmsReadout(stats.rmsDec, stats.pixelScale);
     return Row(
       children: [
-        _AxisChip(label: 'RA', value: stats.rmsRa, colors: colors),
+        _AxisChip(label: 'RA', value: ra.value, unit: ra.unit, colors: colors),
         const SizedBox(width: 8),
-        _AxisChip(label: 'Dec', value: stats.rmsDec, colors: colors),
+        _AxisChip(
+            label: 'Dec', value: dec.value, unit: dec.unit, colors: colors),
         const Spacer(),
         Text(
           '3 min',
@@ -366,6 +386,14 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
   ///
   /// When PHD2 is not actively guiding we render in muted grey to make it
   /// obvious the number is stale.
+  /// PHD2 reports guide residuals in pixels (RADistanceRaw/AvgDist). When a
+  /// pixel scale (arcsec/px) is known we present arcseconds; otherwise we show
+  /// the raw pixel value labelled "px" rather than mislabelling it as arcsec.
+  ({double value, String unit}) _rmsReadout(double raw, double pixelScale) {
+    if (pixelScale > 0) return (value: raw * pixelScale, unit: '"');
+    return (value: raw, unit: ' px');
+  }
+
   Color _rmsColor(double rms, Phd2State state, NightshadeColors colors) {
     if (state != Phd2State.guiding) return colors.textMuted;
     if (rms < 0.8) return colors.success;
@@ -430,6 +458,8 @@ class _StateChip extends StatelessWidget {
         return ('Settling', colors.info);
       case Phd2State.stopped:
         return ('Stopped', colors.textMuted);
+      case Phd2State.unknown:
+        return ('Unknown', colors.warning);
       default:
         return ('Disconnected', colors.textMuted);
     }
@@ -439,11 +469,13 @@ class _StateChip extends StatelessWidget {
 class _AxisChip extends StatelessWidget {
   final String label;
   final double value;
+  final String unit;
   final NightshadeColors colors;
 
   const _AxisChip({
     required this.label,
     required this.value,
+    required this.unit,
     required this.colors,
   });
 
@@ -463,7 +495,7 @@ class _AxisChip extends StatelessWidget {
             style: TextStyle(fontSize: 10, color: colors.textMuted),
           ),
           Text(
-            '${value.toStringAsFixed(2)}"',
+            '${value.toStringAsFixed(2)}$unit',
             style: TextStyle(
               fontSize: 11,
               color: colors.textSecondary,

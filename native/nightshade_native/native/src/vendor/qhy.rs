@@ -39,7 +39,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 // =============================================================================
 // QHY SDK TYPE DEFINITIONS
@@ -633,6 +633,59 @@ enum QhyError {
     GetMemLength = 0x0008,
 }
 
+/// Full-scale ADU of the delivered pixel container for a QHY camera.
+///
+/// QHY splits this into two separate SDK queries, and the driver historically
+/// used neither:
+///
+/// * `GetQHYCCDChipInfo`'s `bpp` is the **container** depth (8 or 16). The SDK
+///   manual calls it "Image data bit depth", and it is what
+///   `SetQHYCCDBitsMode`/`CONTROL_TRANSFERBIT` set.
+/// * `GetQHYCCDParam(OutputDataActualBits)` is the **ADC precision** — "the
+///   actual number of bits of raw data output by the chip" (SDK manual §21).
+///
+/// The manual is explicit that sub-16-bit ADCs are left-justified into the
+/// 16-bit container. §14 ("Set digit and image data format"):
+///
+/// > Note that the output image data of digits and the original data bits may
+/// > not be consistent, such as camera raw data for the 12, then if set camera
+/// > output 16-bit data, inside the camera can be in the original data of low
+/// > zero padding, converted to 16 bits of data
+///
+/// and §21 again: "the 16-bit image data can be obtained by adding the low zero
+/// position". Zero-padding the *low* bits means the ADC bits sit high, so a
+/// 12-bit QHY in 16-bit transfer mode reaches `4095 << 4 = 65520`, not 4095.
+/// §22 exposes the same fact at runtime: "Get the alignment format of the camera
+/// output data. If the return value is 1, it indicates high alignment; if the
+/// return value is 0, it indicates low alignment." (QHYCCD SDK API manual v2.6,
+/// `QHYCCD SDK API MENU_EN.pdf`.) An independent user report of a ToupTek camera
+/// asks for "scaled 16 bit FITS files like you have with ZWO or QHY cameras"
+/// — <https://indilib.org/forum/ccds-dslrs/12316>.
+///
+/// `container_bits < 16` (the 8-bit transfer mode) is a genuine byte container:
+/// the SDK takes the high bits, so the ceiling is 255 regardless of the ADC.
+/// Unknown `actual_bits`, or an ADC at least as wide as the container, take the
+/// container's own ceiling rather than underflowing to 0, which would report
+/// "this camera cannot produce any signal". A `container_bits` outside 1..=16 is
+/// an unpopulated SDK field, not a 1-bit sensor, and falls back to 16 for the
+/// same reason.
+fn container_max_adu(container_bits: u32, actual_bits: Option<u32>, high_aligned: bool) -> u32 {
+    let container_bits = if (1..=16).contains(&container_bits) {
+        container_bits
+    } else {
+        16
+    };
+    let container_max = (1u32 << container_bits) - 1;
+    let Some(actual_bits) = actual_bits.filter(|bits| (1..container_bits).contains(bits)) else {
+        return container_max;
+    };
+    if high_aligned {
+        ((1u32 << actual_bits) - 1) << (container_bits - actual_bits)
+    } else {
+        (1u32 << actual_bits) - 1
+    }
+}
+
 /// Check QHY error and convert to NativeError with detailed error mapping
 fn check_qhy_error(code: c_uint, operation: &str) -> Result<(), NativeError> {
     match code {
@@ -724,6 +777,22 @@ pub struct QhyCamera {
     pixel_height: f64,
     bits_per_pixel: u32,
 
+    // Pixel-container description, established in connect() *after* the
+    // transfer bit depth is forced. `bits_per_pixel` above comes from
+    // GetQHYCCDChipInfo, which the QHY SDK manual calls the "Image data bit
+    // depth" — the container, not the ADC — and which is read before that
+    // force, so it must not be the source of truth for `max_adu`.
+    /// Transfer/container depth actually in force (8 or 16), i.e. the width of
+    /// the samples `GetQHYCCDSingleFrame` writes.
+    output_container_bits: u32,
+    /// ADC precision from `GetQHYCCDParam(OutputDataActualBits)`, or `None`
+    /// when the camera does not support that query.
+    actual_output_bits: Option<u32>,
+    /// `GetQHYCCDParam(OutputDataAlignment)`: 1 = high alignment, 0 = low.
+    /// Defaults to high, which is the behaviour the SDK manual documents for
+    /// every camera (see [`container_max_adu`]).
+    output_high_aligned: bool,
+
     // Current settings
     current_bin: i32,
     current_gain: i32,
@@ -769,6 +838,9 @@ impl QhyCamera {
             pixel_width: 0.0,
             pixel_height: 0.0,
             bits_per_pixel: 16,
+            output_container_bits: 16,
+            actual_output_bits: None,
+            output_high_aligned: true,
             current_bin: 1,
             current_gain: 0,
             current_offset: 0,
@@ -780,6 +852,79 @@ impl QhyCamera {
             cooler_on: false,
             cooler_target_c: None,
         }
+    }
+
+    /// Read the ADC precision behind the delivered container, or `None` when
+    /// this camera cannot report it.
+    ///
+    /// `OutputDataActualBits` is documented in the QHYCCD SDK API manual §21 as
+    /// "the actual number of bits of raw data output by the chip" — the ADC
+    /// precision, which `GetQHYCCDChipInfo`'s `bpp` (the container) is not.
+    /// `IsQHYCCDControlAvailable` entry 55 is "Check whether the camera can get
+    /// the actual bits of output data" and returns QHYCCD_SUCCESS (0) when it can.
+    ///
+    /// SAFETY (callers): `qhy_mutex()` must be held and `handle` must be an
+    /// open, initialized camera handle.
+    fn probe_output_data_actual_bits(&self, sdk: &QhySdk, handle: QhyCamHandle) -> Option<u32> {
+        // SAFETY: caller holds qhy_mutex() and `handle` came from a successful
+        // OpenQHYCCD/InitQHYCCD pair. Both FFI calls take the handle plus a
+        // plain control-id integer, with no out-pointers.
+        let available = unsafe {
+            (sdk.is_qhyccd_control_available)(handle, QhyControl::OutputDataActualBits as c_int)
+        };
+        if available != 0 {
+            return None;
+        }
+        // SAFETY: as above; GetQHYCCDParam returns the value by f64 return.
+        let raw =
+            unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::OutputDataActualBits as c_int) };
+        // QHY signals a failed read by returning QHYCCD_ERROR (0xFFFFFFFF) widened
+        // into the f64; anything outside a plausible ADC width is not usable.
+        if !(1.0..=16.0).contains(&raw) {
+            tracing::debug!(
+                "QHY camera {}: OutputDataActualBits returned {}, outside 1..=16; \
+                 falling back to the container ceiling",
+                self.camera_id,
+                raw
+            );
+            return None;
+        }
+        Some(raw as u32)
+    }
+
+    /// Whether the ADC bits sit at the top of the container.
+    ///
+    /// QHYCCD SDK API manual §22: "Get the alignment format of the camera output
+    /// data. If the return value is 1, it indicates high alignment; if the return
+    /// value is 0, it indicates low alignment." The parameter is optional (the
+    /// manual's Get-parameter table marks it "Not enabled" on many models), so
+    /// when it is unavailable we use the behaviour §14/§21 document for every
+    /// camera: 16-bit output is produced by "low zero padding" of the raw data,
+    /// i.e. high alignment.
+    ///
+    /// SAFETY (callers): `qhy_mutex()` must be held and `handle` must be an
+    /// open, initialized camera handle.
+    fn probe_output_data_high_aligned(&self, sdk: &QhySdk, handle: QhyCamHandle) -> bool {
+        // SAFETY: caller holds qhy_mutex() and `handle` came from a successful
+        // OpenQHYCCD/InitQHYCCD pair; control-id integer argument only.
+        let available = unsafe {
+            (sdk.is_qhyccd_control_available)(handle, QhyControl::OutputDataAlignment as c_int)
+        };
+        if available != 0 {
+            return true;
+        }
+        // SAFETY: as above.
+        let raw =
+            unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::OutputDataAlignment as c_int) };
+        if raw == 0.0 {
+            tracing::info!(
+                "QHY camera {}: OutputDataAlignment reports low alignment; \
+                 publishing the ADC range as the container ceiling",
+                self.camera_id
+            );
+            return false;
+        }
+        true
     }
 
     /// Load camera chip info from SDK
@@ -1034,6 +1179,10 @@ impl NativeDevice for QhyCamera {
     }
 
     async fn connect(&mut self) -> Result<(), NativeError> {
+        if self.connected {
+            return Ok(());
+        }
+
         // Ensure SDK is initialized
         QhySdk::ensure_initialized()?;
 
@@ -1064,6 +1213,8 @@ impl NativeDevice for QhyCamera {
             // SAFETY: qhy_mutex held; handle was successfully opened above. CloseQHYCCD pairs
             // with OpenQHYCCD to release the handle on the error path.
             unsafe { (sdk.close_qhyccd)(handle) };
+            self.handle = None;
+            self.connected = false;
             return Err(NativeError::SdkError(format!(
                 "Failed to set stream mode: {}",
                 result
@@ -1077,6 +1228,8 @@ impl NativeDevice for QhyCamera {
             // SAFETY: qhy_mutex held; handle was successfully opened above. CloseQHYCCD pairs
             // with OpenQHYCCD on the error path.
             unsafe { (sdk.close_qhyccd)(handle) };
+            self.handle = None;
+            self.connected = false;
             return Err(NativeError::SdkError(format!(
                 "Failed to init camera: {}",
                 result
@@ -1086,13 +1239,44 @@ impl NativeDevice for QhyCamera {
         self.handle = Some(handle);
 
         // Load camera info (mutex is already held)
-        self.load_camera_info()?;
+        if let Err(error) = self.load_camera_info() {
+            // SAFETY: qhy_mutex held; handle was successfully opened and initialized above.
+            // CloseQHYCCD pairs with OpenQHYCCD on the chip-info error path.
+            unsafe { (sdk.close_qhyccd)(handle) };
+            self.handle = None;
+            self.connected = false;
+            return Err(error);
+        }
 
         // Set default settings
         // SAFETY: qhy_mutex held; handle valid (opened + initialized above); 16 is a documented
         // bit-depth value per qhyccd.h.
-        let _ = unsafe { (sdk.set_qhyccd_bits_mode)(handle, 16) }; // 16-bit mode
-                                                                   // SAFETY: qhy_mutex held; handle valid; (1,1) is the documented identity binning.
+        // Why the result is captured rather than discarded: load_camera_info()
+        // ran *before* this call, so its GetQHYCCDChipInfo `bpp` describes
+        // whatever transfer mode the camera powered up in — on a model that
+        // defaults to 8-bit it would have us publish a 255 ceiling for frames we
+        // then download as 16-bit. Track what we actually negotiated.
+        let bits_mode_result = unsafe { (sdk.set_qhyccd_bits_mode)(handle, 16) };
+        self.output_container_bits = if bits_mode_result == 0 {
+            16
+        } else {
+            tracing::warn!(
+                "QHY camera {}: SetQHYCCDBitsMode(16) failed (error {}); keeping the SDK-reported {}-bit container",
+                self.camera_id,
+                bits_mode_result,
+                self.bits_per_pixel
+            );
+            self.bits_per_pixel
+        };
+        // The ADC precision and the alignment of those bits inside the container
+        // are separate, optional queries. Both are gated on
+        // IsQHYCCDControlAvailable (0 == available) exactly as the SDK manual
+        // prescribes; when unavailable we keep the documented default of high
+        // alignment with unknown precision, which yields the container ceiling.
+        // See [`container_max_adu`].
+        self.actual_output_bits = self.probe_output_data_actual_bits(sdk, handle);
+        self.output_high_aligned = self.probe_output_data_high_aligned(sdk, handle);
+        // SAFETY: qhy_mutex held; handle valid; (1,1) is the documented identity binning.
         let _ = unsafe { (sdk.set_qhyccd_binmode)(handle, 1, 1) }; // 1x1 binning
                                                                    // SAFETY: qhy_mutex held; handle valid; (0,0,image_width,image_height) is the full sensor
                                                                    // window that the SDK just reported via GetQHYCCDChipInfo in load_camera_info().
@@ -1208,7 +1392,26 @@ impl NativeCamera for QhyCamera {
         // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
         // was true (checked at entry). ExpQHYCCDSingleFrame takes only the handle.
         let result = unsafe { (sdk.exp_single_frame)(handle) };
-        check_qhy_error(result, "ExpQHYCCDSingleFrame")?;
+        // ExpQHYCCDSingleFrame does NOT return QHYCCD_SUCCESS(0) on every camera:
+        // legacy CCD / A-series bodies (QHY9, QHY8L, QHY22, QHY23, QHY16200A)
+        // return QHYCCD_READ_DIRECTLY (0x2001) or QHYCCD_DELAY_200MS (0x2000) to
+        // signal their readout timing — these are NON-fatal mode signals, not
+        // errors. Only QHYCCD_ERROR (0xFFFFFFFF) is a real failure. The reference
+        // driver checks exactly this (qhy_ccd.cpp: `if (ExpQHYCCDSingleFrame(...)
+        // == QHYCCD_ERROR)`); routing this through the generic error map instead
+        // aborted every exposure on those cameras with a bogus "Direct read
+        // failed". Match the reference: fail only on QHYCCD_ERROR.
+        if result == 0xFFFF_FFFF {
+            return Err(NativeError::SdkError(
+                "ExpQHYCCDSingleFrame: General error - camera may be in use by another application or disconnected".to_string(),
+            ));
+        }
+        if result == 0x2000 || result == 0x2001 {
+            tracing::debug!(
+                "QHY ExpQHYCCDSingleFrame returned readout-timing signal 0x{:X} (legacy CCD, non-fatal)",
+                result
+            );
+        }
 
         tracing::info!("Started {}s exposure on QHY camera", params.duration_secs);
         Ok(())
@@ -1567,8 +1770,18 @@ impl NativeCamera for QhyCamera {
             height: self.image_height,
             pixel_size_x: self.pixel_width,
             pixel_size_y: self.pixel_height,
-            max_adu: (1u32 << self.bits_per_pixel) - 1,
-            bit_depth: self.bits_per_pixel,
+            // `max_adu` is the pixel-container full scale and `bit_depth` the
+            // ADC precision — two different quantities that QHY exposes through
+            // two different SDK queries. See [`container_max_adu`] and the
+            // `SensorInfo::max_adu` contract. `(1 << bits_per_pixel) - 1` used
+            // both the wrong query (GetQHYCCDChipInfo's container `bpp`) and a
+            // value read before connect() forced 16-bit transfer mode.
+            max_adu: container_max_adu(
+                self.output_container_bits,
+                self.actual_output_bits,
+                self.output_high_aligned,
+            ),
+            bit_depth: self.actual_output_bits.unwrap_or(self.bits_per_pixel),
             color: self.is_color,
             bayer_pattern: self.bayer_pattern,
         }
@@ -1634,11 +1847,50 @@ impl NativeCamera for QhyCamera {
         let _lock = qhy_mutex().lock().await;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
+        // Read the current read mode first so we can restore it if the re-init
+        // below fails, leaving the camera in its prior working state.
+        // SAFETY: qhy_mutex held; handle validated; `&mut prev_mode` is a valid out-pointer.
+        let mut prev_mode: c_uint = 0;
+        let _ = unsafe { (sdk.get_qhyccd_read_mode)(handle, &mut prev_mode) };
+
         // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
         // was true. mode.index originated from a ReadoutMode this driver produced in
         // get_readout_modes() above, so it is a valid SDK read-mode index.
         let result = unsafe { (sdk.set_qhyccd_read_mode)(handle, mode.index as c_uint) };
-        check_qhy_error(result, "SetQHYCCDReadMode")
+        check_qhy_error(result, "SetQHYCCDReadMode")?;
+
+        // A read-mode change only takes effect after RE-INITIALIZING the camera,
+        // and different read modes can expose different sensor geometry, gain and
+        // full-well. Without the re-init + geometry refresh, SetQHYCCDReadMode
+        // silently no-ops (frames keep read-mode-0 characteristics) or leaves the
+        // SDK geometry inconsistent with our cached dimensions → misframed frames.
+        // The reference driver does SetReadMode -> InitQHYCCD -> re-read chip info
+        // -> reset ROI, reverting on failure (qhy_ccd.cpp:2069-2088).
+        // SAFETY: qhy_mutex held; handle valid. InitQHYCCD takes only the handle.
+        let init_result = unsafe { (sdk.init_qhyccd)(handle) };
+        if check_qhy_error(init_result, "InitQHYCCD (after read-mode change)").is_err() {
+            // Restore the previous read mode + re-init so the camera stays usable.
+            // SAFETY: qhy_mutex held; handle valid; prev_mode is the mode read above.
+            let _ = unsafe { (sdk.set_qhyccd_read_mode)(handle, prev_mode) };
+            let _ = unsafe { (sdk.init_qhyccd)(handle) };
+            let _ = self.load_camera_info();
+            // SAFETY: qhy_mutex held; handle valid; full-frame ROI from refreshed dims.
+            let _ = unsafe {
+                (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
+            };
+            return Err(NativeError::SdkError(format!(
+                "Failed to initialize QHY camera after switching to read mode {}; reverted to previous mode",
+                mode.index
+            )));
+        }
+
+        // Refresh cached geometry for the new read mode and reset the full-frame ROI.
+        self.load_camera_info()?;
+        // SAFETY: qhy_mutex held; handle valid; dimensions just refreshed by load_camera_info().
+        let res_result = unsafe {
+            (sdk.set_qhyccd_resolution)(handle, 0, 0, self.image_width, self.image_height)
+        };
+        check_qhy_error(res_result, "SetQHYCCDResolution (after read-mode change)")
     }
 
     async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
@@ -1962,6 +2214,56 @@ pub async fn discover_devices() -> Result<Vec<QhyCameraInfo>, NativeError> {
 // QHY FILTER WHEEL (CFW) IMPLEMENTATION
 // =============================================================================
 
+const QHYCCD_ERROR_VALUE: f64 = u32::MAX as f64;
+const DEFAULT_QHY_CFW_SLOTS: i32 = 5;
+const MAX_QHY_CFW_SLOTS: i32 = 16;
+const QHY_CFW_MOVE_TIMEOUT: Duration = Duration::from_secs(25);
+const QHY_CFW_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+fn parse_cfw_slot_count(count: f64) -> Result<i32, NativeError> {
+    if !count.is_finite()
+        || count >= QHYCCD_ERROR_VALUE
+        || count < 1.0
+        || count > f64::from(MAX_QHY_CFW_SLOTS)
+        || count.fract() != 0.0
+    {
+        return Err(NativeError::SdkError(format!(
+            "GetQHYCCDParam(CONTROL_CFWSLOTSNUM) returned invalid slot count {}",
+            count
+        )));
+    }
+
+    Ok(count as i32)
+}
+
+fn parse_cfw_position(position: f64) -> Result<i32, NativeError> {
+    if !position.is_finite() || position >= QHYCCD_ERROR_VALUE || position.fract() != 0.0 {
+        return Err(NativeError::SdkError(format!(
+            "GetQHYCCDParam(CONTROL_CFWPORT) returned invalid position {}",
+            position
+        )));
+    }
+
+    match position as u8 {
+        b'0'..=b'9' => Ok(i32::from(position as u8 - b'0')),
+        b'A'..=b'F' => Ok(i32::from(position as u8 - b'A') + 10),
+        b'a'..=b'f' => Ok(i32::from(position as u8 - b'a') + 10),
+        _ => Err(NativeError::SdkError(format!(
+            "GetQHYCCDParam(CONTROL_CFWPORT) returned invalid position {}",
+            position
+        ))),
+    }
+}
+
+fn encode_cfw_position(position: i32) -> f64 {
+    let value = match position {
+        0..=9 => b'0' + position as u8,
+        10..=15 => b'A' + (position - 10) as u8,
+        _ => unreachable!("CFW position was validated against the 16-slot maximum"),
+    };
+    f64::from(value)
+}
+
 /// QHY CFW discovery info
 pub struct QhyFilterWheelInfo {
     /// Camera ID that the filter wheel is attached to
@@ -1985,6 +2287,7 @@ pub struct QhyFilterWheel {
     connected: bool,
     slot_count: i32,
     filter_names: Vec<String>,
+    target_position: Option<i32>,
 }
 
 // SAFETY: QhyFilterWheel contains a raw `QhyCamHandle` (`Option<*mut c_void>`). Every FFI call
@@ -2009,6 +2312,7 @@ impl QhyFilterWheel {
             connected: false,
             slot_count: 0,
             filter_names: Vec::new(),
+            target_position: None,
         }
     }
 
@@ -2033,9 +2337,7 @@ impl QhyFilterWheel {
         let count =
             unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) };
 
-        // Why: slot count is a small non-negative integer encoded in f64 (filter wheels
-        // top out at <= 16 positions). f64 -> i32 saturating cast is safe here.
-        Ok(count as i32)
+        parse_cfw_slot_count(count)
     }
 
     /// Get current position (0-indexed)
@@ -2048,11 +2350,7 @@ impl QhyFilterWheel {
         // CONTROL_CFWPORT discriminant fits in c_int.
         let pos = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWPORT as c_int) };
 
-        // Convert from ASCII to 0-indexed position.
-        // Why: QHY filter-wheel positions are returned as ASCII codes ('0'..) encoded
-        // in f64. ASCII range 48..=63 fits trivially in i32 with no precision loss.
-        let position = (pos as i32) - 48;
-        Ok(position.max(0)) // Ensure non-negative
+        parse_cfw_position(pos)
     }
 
     /// Set position (0-indexed)
@@ -2060,8 +2358,8 @@ impl QhyFilterWheel {
         let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let handle = self.handle.ok_or(NativeError::NotConnected)?;
 
-        // QHY uses ASCII encoding (48 = '0', 49 = '1', etc.)
-        let ascii_position = (position + 48) as f64;
+        // QHY uses ASCII encoding ('0'..'9', then 'A'..'F').
+        let ascii_position = encode_cfw_position(position);
 
         // SAFETY: caller (move_to_position()) holds qhy_mutex(); handle validated above;
         // CONTROL_CFWPORT discriminant fits in c_int; ascii_position is pass-by-value c_double.
@@ -2146,15 +2444,43 @@ impl NativeDevice for QhyFilterWheel {
         }
 
         // Get slot count (mutex already held)
-        self.slot_count = self.get_slot_count()?;
-        if self.slot_count <= 0 {
-            self.slot_count = 5; // Default to 5 slots if detection fails
+        self.slot_count = match self.get_slot_count() {
+            Ok(count) => count,
+            Err(error) => {
+                tracing::warn!(
+                    "Failed to detect QHY CFW slot count: {}; using {} slots",
+                    error,
+                    DEFAULT_QHY_CFW_SLOTS
+                );
+                DEFAULT_QHY_CFW_SLOTS
+            }
         }
+        .clamp(1, MAX_QHY_CFW_SLOTS);
+
+        let current_position = match self.get_current_position() {
+            Ok(position) if position < self.slot_count => position,
+            Ok(position) => {
+                // SAFETY: qhy_mutex held; handle was successfully opened and initialized above.
+                unsafe { (sdk.close_qhyccd)(handle) };
+                self.handle = None;
+                return Err(NativeError::SdkError(format!(
+                    "QHY CFW reported position {} outside its {} slots",
+                    position, self.slot_count
+                )));
+            }
+            Err(error) => {
+                // SAFETY: qhy_mutex held; handle was successfully opened and initialized above.
+                unsafe { (sdk.close_qhyccd)(handle) };
+                self.handle = None;
+                return Err(error);
+            }
+        };
 
         // Initialize filter names with defaults
         self.filter_names = (0..self.slot_count)
             .map(|i| format!("Filter {}", i + 1))
             .collect();
+        self.target_position = Some(current_position);
 
         self.connected = true;
         tracing::info!("Connected to QHY CFW with {} slots", self.slot_count);
@@ -2179,6 +2505,7 @@ impl NativeDevice for QhyFilterWheel {
         }
 
         self.connected = false;
+        self.target_position = None;
         tracing::info!("Disconnected from QHY CFW");
 
         Ok(())
@@ -2217,17 +2544,40 @@ impl NativeFilterWheel for QhyFilterWheel {
             let _lock = qhy_mutex().lock().await;
             self.set_current_position(position)?;
         }
+        self.target_position = Some(position);
 
-        // Wait for filter wheel to settle (QHY CFW doesn't report moving status well)
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        let started = Instant::now();
+        loop {
+            let current_position = {
+                let _lock = qhy_mutex().lock().await;
+                self.get_current_position()?
+            };
+            if current_position == position {
+                return Ok(());
+            }
 
-        Ok(())
+            let elapsed = started.elapsed();
+            if elapsed >= QHY_CFW_MOVE_TIMEOUT {
+                return Err(NativeError::Timeout(format!(
+                    "QHY CFW did not reach position {} within {:?} (current position: {})",
+                    position, QHY_CFW_MOVE_TIMEOUT, current_position
+                )));
+            }
+
+            tokio::time::sleep(QHY_CFW_POLL_INTERVAL.min(QHY_CFW_MOVE_TIMEOUT - elapsed)).await;
+        }
     }
 
     async fn is_moving(&self) -> Result<bool, NativeError> {
-        // QHY CFW doesn't have a reliable "is moving" indicator
-        // We'll just return false as moves are typically fast
-        Ok(false)
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let target_position = self.target_position.ok_or_else(|| {
+            NativeError::SdkError("QHY CFW target position is unknown".to_string())
+        })?;
+        let _lock = qhy_mutex().lock().await;
+        Ok(self.get_current_position()? != target_position)
     }
 
     async fn get_filter_names(&self) -> Result<Vec<String>, NativeError> {
@@ -2308,13 +2658,17 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
             // CFW is available
             // SAFETY: caller holds qhy_mutex(); handle was opened and initialized above;
             // CONTROL_CFWSLOTSNUM discriminant fits in c_int.
-            // Why: GetQHYCCDParam returns c_double; slot count is a small non-negative
-            // integer (CFW max ~16). f64 -> i32 saturating cast is safe for this range.
-            let slot_count = unsafe {
-                (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) as i32
-            };
-
-            let slot_count = if slot_count > 0 { slot_count } else { 5 };
+            let raw_slot_count =
+                unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::CONTROL_CFWSLOTSNUM as c_int) };
+            let slot_count = parse_cfw_slot_count(raw_slot_count).unwrap_or_else(|error| {
+                tracing::warn!(
+                    "Failed to detect QHY CFW slot count for {}: {}; using {} slots",
+                    camera_id,
+                    error,
+                    DEFAULT_QHY_CFW_SLOTS
+                );
+                DEFAULT_QHY_CFW_SLOTS
+            });
 
             let (model_name, _) = QhyCameraInfo::parse_id(&camera_id);
 
@@ -2429,6 +2783,116 @@ pub async fn discover_filter_wheels() -> Result<Vec<QhyFilterWheelInfo>, NativeE
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A 16-bit transfer of a sub-16-bit ADC must publish the left-justified
+    /// container ceiling, because the QHY SDK zero-pads the *low* bits.
+    #[test]
+    fn container_max_adu_accounts_for_low_zero_padding() {
+        // 12-bit ADC (QHY183/QHY294 class) in 16-bit transfer: 4095 << 4
+        assert_eq!(container_max_adu(16, Some(12), true), 65520);
+        // 14-bit ADC: 16383 << 2
+        assert_eq!(container_max_adu(16, Some(14), true), 65532);
+        // 10-bit ADC: 1023 << 6
+        assert_eq!(container_max_adu(16, Some(10), true), 65472);
+        // A genuinely 16-bit ADC (QHY268/QHY600 class) needs no shift.
+        assert_eq!(container_max_adu(16, Some(16), true), 65535);
+    }
+
+    /// Whatever ceiling we publish must fit the container and land on the sample
+    /// grid the ADC produces — a 12-bit ADC left-justified into 16 bits can only
+    /// emit multiples of 16.
+    #[test]
+    fn container_max_adu_is_a_reachable_sample() {
+        for actual_bits in 1..=16u32 {
+            let max = container_max_adu(16, Some(actual_bits), true);
+            assert!(
+                max <= u32::from(u16::MAX),
+                "actual_bits {actual_bits} produced {max}, outside the 16-bit container"
+            );
+            let step = 1u32 << (16 - actual_bits);
+            assert_eq!(
+                max % step,
+                0,
+                "actual_bits {actual_bits}: {max} is not a multiple of the {step}-ADU sample step"
+            );
+        }
+    }
+
+    /// When `OutputDataAlignment` reports low alignment (return value 0), the
+    /// ADC range *is* the reachable ceiling and must not be shifted.
+    #[test]
+    fn container_max_adu_honours_low_alignment() {
+        assert_eq!(container_max_adu(16, Some(12), false), 4095);
+        assert_eq!(container_max_adu(16, Some(14), false), 16383);
+        assert_eq!(container_max_adu(16, Some(16), false), 65535);
+    }
+
+    /// An unavailable `OutputDataActualBits` query must fall back to the
+    /// container ceiling, never to 0 — a 0 ceiling would tell every
+    /// percent-of-full-scale consumer the camera cannot produce any signal.
+    #[test]
+    fn container_max_adu_unknown_precision_falls_back_to_container() {
+        assert_eq!(container_max_adu(16, None, true), 65535);
+        assert_eq!(container_max_adu(16, None, false), 65535);
+        // A reported precision at least as wide as the container is also a
+        // no-op, and an out-of-range one must not shift by a negative amount.
+        assert_eq!(container_max_adu(16, Some(0), true), 65535);
+        assert_eq!(container_max_adu(16, Some(32), true), 65535);
+    }
+
+    /// The 8-bit transfer mode is a genuine byte container: the SDK takes the
+    /// high bits, so the ceiling is 255 regardless of ADC precision. Publishing
+    /// the 16-bit ceiling there would overstate a frame 257x.
+    #[test]
+    fn container_max_adu_eight_bit_transfer_is_a_byte_container() {
+        assert_eq!(container_max_adu(8, Some(12), true), 255);
+        assert_eq!(container_max_adu(8, None, true), 255);
+    }
+
+    /// An unpopulated GetQHYCCDChipInfo `bpp` (0) must not be read as a 1-bit
+    /// sensor — a ceiling of 1 is the same "camera cannot produce any signal"
+    /// failure as a ceiling of 0.
+    #[test]
+    fn container_max_adu_unpopulated_container_width_falls_back_to_sixteen() {
+        assert_eq!(container_max_adu(0, None, true), 65535);
+        assert_eq!(container_max_adu(0, Some(12), true), 65520);
+        assert_eq!(container_max_adu(99, None, true), 65535);
+    }
+
+    /// A fresh camera must assume the 16-bit container it is about to negotiate,
+    /// with unknown ADC precision and the SDK-documented high alignment — i.e.
+    /// the full container ceiling, never 0.
+    #[test]
+    fn new_camera_publishes_the_container_ceiling_before_probing() {
+        let cam = QhyCamera::new("test".to_string());
+        assert_eq!(cam.output_container_bits, 16);
+        assert_eq!(cam.actual_output_bits, None);
+        assert!(cam.output_high_aligned);
+        assert_eq!(
+            container_max_adu(
+                cam.output_container_bits,
+                cam.actual_output_bits,
+                cam.output_high_aligned
+            ),
+            65535
+        );
+    }
+
+    /// The ceiling must agree with the pipeline's own saturation threshold
+    /// (`nightshade_imaging::fits` uses 65024, documented as "4064 << 4").
+    #[test]
+    fn container_max_adu_agrees_with_pipeline_saturation_threshold() {
+        const PIPELINE_SATURATION_THRESHOLD: u32 = 65024;
+        let twelve_bit_ceiling = container_max_adu(16, Some(12), true);
+        assert!(
+            PIPELINE_SATURATION_THRESHOLD < twelve_bit_ceiling,
+            "12-bit ceiling {twelve_bit_ceiling} is below the pipeline saturation threshold"
+        );
+        // The ADC range alone can never reach the threshold, so a driver that
+        // published it would make saturation undetectable on a 12-bit QHY.
+        let adc_range_only = |bits: u32| (1u32 << bits) - 1;
+        assert!(adc_range_only(12) < PIPELINE_SATURATION_THRESHOLD);
+    }
 
     /// get_status must reflect the locally-tracked cooler state
     /// after a successful set_cooler, not hardcode `cooler_on: false`.

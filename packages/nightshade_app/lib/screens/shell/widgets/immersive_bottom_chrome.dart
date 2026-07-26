@@ -38,33 +38,72 @@ class ImmersiveBottomChrome extends StatelessWidget {
               onToggle(); // swipe down hides
             }
           },
-          child: Container(
-            width: double.infinity,
-            height: 18,
-            color: colors.surface,
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 28,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: colors.textMuted.withValues(alpha: 0.5),
-                    borderRadius: NightshadeTokens.borderRadiusInline2,
+          // Hidden state gets a taller, clearly-labelled handle: with the
+          // whole nav bar gone this IS the navigation affordance, and the
+          // original 18px muted line + 13px chevron read as screen debris —
+          // live-device testing showed operators simply got stranded.
+          // Visible state keeps the original slim, subtle grabber.
+          child: visible
+              ? Container(
+                  width: double.infinity,
+                  height: 18,
+                  color: colors.surface,
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: colors.textMuted.withValues(alpha: 0.5),
+                          borderRadius: NightshadeTokens.borderRadiusInline2,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        NightshadeIcons.chevronDown,
+                        size: 13,
+                        color: colors.textMuted.withValues(alpha: 0.8),
+                      ),
+                    ],
+                  ),
+                )
+              // The bottom system inset (gesture home indicator / nav bar) is
+              // normally supplied by NightshadeBottomNavigation's own SafeArea.
+              // Hiding the chrome removes that widget, so the reveal handle must
+              // carry the inset itself — otherwise it renders *underneath* the
+              // gesture bar, which strikes through the 'Menu' label and hands the
+              // operator's swipe to the system instead of the app.
+              : Container(
+                  width: double.infinity,
+                  color: colors.surface,
+                  child: SafeArea(
+                    top: false,
+                    child: SizedBox(
+                      height: 28,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            NightshadeIcons.chevronUp,
+                            size: 14,
+                            color: colors.textSecondary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Menu',
+                            style: NightshadeTypography.captionSm.copyWith(
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Icon(
-                  visible
-                      ? NightshadeIcons.chevronDown
-                      : NightshadeIcons.chevronUp,
-                  size: 13,
-                  color: colors.textMuted.withValues(alpha: 0.8),
-                ),
-              ],
-            ),
-          ),
         ),
         // Collapsible chrome.
         AnimatedSize(

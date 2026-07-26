@@ -3,9 +3,12 @@
 // real drift database and FFI backend, so we override the providers each
 // tab actually reads with deterministic test doubles.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_app/screens/framing/altitude_chart.dart';
 import 'package:nightshade_app/screens/planner/planner_screen.dart';
@@ -14,6 +17,16 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../scheduler/scheduler_test_doubles.dart';
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void use(NightshadeBackend backend) => state = backend;
+}
 
 List<Override> _commonOverrides() {
   return [
@@ -76,6 +89,75 @@ int _selectedTabIndex(WidgetTester tester) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('catalog search fits above a compact landscape keyboard',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(932, 430);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetViewInsets();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _commonOverrides(),
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const PlannerScreen(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final search = find.widgetWithText(TextField, 'Search catalogs');
+    await tester.tap(search);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 230);
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(tester.takeException(), isNull);
+    expect(search.hitTestable(), findsOneWidget);
+    expect(find.byType(AdaptiveTabBar), findsNothing);
+  });
+
+  testWidgets(
+      'catalog search fits when an outer shell consumes keyboard insets',
+      (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(932, 430);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _commonOverrides(),
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                // The outer planner tab strip consumes 52 px, leaving the
+                // Recommendation tab the same 34 px production slot measured
+                // after the shared shell resizes for the keyboard.
+                height: 86,
+                child: PlannerScreen(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final search = find.widgetWithText(TextField, 'Search catalogs');
+    expect(tester.takeException(), isNull);
+    expect(search.hitTestable(), findsOneWidget);
+    expect(tester.getSize(search).height, 32);
+  });
 
   group('plannerTabFromQuery', () {
     test('returns null for null input', () {
@@ -496,5 +578,205 @@ void main() {
       reason:
           'Primary recommendation and candidate row should each show an altitude chart.',
     );
+  });
+
+  testWidgets(
+      'candidate create-and-add rolls back a partial list and keeps the dialog open',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 51,
+      targetName: 'Rosette Nebula',
+      raHours: 6.55,
+      decDegrees: 5.0,
+      totalScore: 86,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 50,
+        currentAzimuth: 170,
+        airmass: 1.3,
+        moonDistance: 100,
+        peakAltitude: 63,
+        hoursAboveMinAlt: 4.5,
+      ),
+      catalogId: 'NGC 2237',
+      objectType: 'Emission Nebula',
+      magnitude: 9.0,
+      sizeArcmin: 80,
+    );
+    final backend = _MockNetworkBackend();
+    when(
+      () => backend.createObservingList(
+        name: 'Winter targets',
+        description: null,
+      ),
+    ).thenAnswer((_) async => 77);
+    when(
+      () => backend.addObservingListItem(
+        listId: 77,
+        objectName: 'Rosette Nebula',
+        catalogId: 'NGC 2237',
+        objectType: 'Emission Nebula',
+        ra: 6.55,
+        dec: 5.0,
+        magnitude: 9.0,
+        sizeArcmin: 80,
+        notes: null,
+      ),
+    ).thenThrow(StateError('host item write failed'));
+    when(() => backend.deleteObservingList(77)).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+          backendProvider.overrideWith(
+            (ref) => _SwappableBackendNotifier(ref, backend),
+          ),
+          observingListsProvider.overrideWith(
+            (ref) => Stream.value(const <ObservingList>[]),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Add to observing list'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Create new list…'),
+    );
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).last, 'Winter targets');
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Create and add'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget,
+        reason: 'A failed combined mutation must remain retryable.');
+    expect(
+      find.textContaining('Failed to create list and add target'),
+      findsOneWidget,
+    );
+    verify(() => backend.deleteObservingList(77)).called(1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('candidate add dialog closes on host switch without touching B',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 52,
+      targetName: 'Andromeda Galaxy',
+      raHours: 0.71,
+      decDegrees: 41.27,
+      totalScore: 90,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 58,
+        currentAzimuth: 190,
+        airmass: 1.2,
+        moonDistance: 95,
+        peakAltitude: 72,
+        hoursAboveMinAlt: 6,
+      ),
+      catalogId: 'M31',
+      objectType: 'Galaxy',
+      magnitude: 3.4,
+      sizeArcmin: 190,
+    );
+    final now = DateTime.utc(2026, 7, 13);
+    final list = ObservingList(
+      id: 5,
+      name: 'Galaxies',
+      sortOrder: 0,
+      createdAt: now,
+      updatedAt: now,
+    );
+    final hostA = _MockNetworkBackend();
+    final hostB = _MockNetworkBackend();
+    final pending = Completer<int>();
+    when(
+      () => hostA.addObservingListItem(
+        listId: 5,
+        objectName: 'Andromeda Galaxy',
+        catalogId: 'M31',
+        objectType: 'Galaxy',
+        ra: 0.71,
+        dec: 41.27,
+        magnitude: 3.4,
+        sizeArcmin: 190,
+        notes: null,
+      ),
+    ).thenAnswer((_) => pending.future);
+    late _SwappableBackendNotifier backendNotifier;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+          backendProvider.overrideWith(
+            (ref) => backendNotifier = _SwappableBackendNotifier(ref, hostA),
+          ),
+          observingListsProvider.overrideWith(
+            (ref) => Stream.value([list]),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Add to observing list'),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Galaxies'));
+    await tester.pump();
+
+    backendNotifier.use(hostB);
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+
+    pending.complete(92);
+    await tester.pump();
+    verifyNever(
+      () => hostB.addObservingListItem(
+        listId: any(named: 'listId'),
+        objectName: any(named: 'objectName'),
+        catalogId: any(named: 'catalogId'),
+        objectType: any(named: 'objectType'),
+        ra: any(named: 'ra'),
+        dec: any(named: 'dec'),
+        magnitude: any(named: 'magnitude'),
+        sizeArcmin: any(named: 'sizeArcmin'),
+        notes: any(named: 'notes'),
+      ),
+    );
+    expect(tester.takeException(), isNull);
   });
 }

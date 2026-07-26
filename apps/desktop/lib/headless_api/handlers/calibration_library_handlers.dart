@@ -22,6 +22,44 @@ class CalibrationLibraryHandlers {
   final ProviderContainer container;
   CalibrationLibraryHandlers(this.container);
 
+  /// Map a hub-transport failure onto its wire status.
+  ///
+  /// Without this every hub fault on the share paths fell through to the
+  /// generic trap as a 500 `internal_error` — so "your hub is switched off"
+  /// was reported to the operator as "the appliance is broken", and a remote
+  /// client had no way to tell a retryable outage from a request it must fix.
+  /// Deliberately identical to `MosaicHandlers` / `CoImagingHandlers`: one
+  /// feature must not answer three different codes for one cause.
+  static int _hubStatusFor(ConstellationErrorKind kind) => switch (kind) {
+    // No answer from the hub at all — this appliance is the gateway.
+    ConstellationErrorKind.network => 502,
+    // The hub answered, but is itself unhealthy; retry later.
+    ConstellationErrorKind.server => 503,
+    ConstellationErrorKind.auth => 401,
+    ConstellationErrorKind.notFound => 404,
+    ConstellationErrorKind.conflict => 409,
+    ConstellationErrorKind.geometryMismatch => 409,
+    // The hub rejected the request itself — the caller must change it.
+    ConstellationErrorKind.protocol => 400,
+    _ => 502,
+  };
+
+  Response _hubError(
+    ConstellationException error, {
+    required String code,
+    required String message,
+  }) {
+    _logger.warning(
+      '[API] $code: $error',
+      source: 'CalibrationLibraryHandlers',
+    );
+    return jsonError(
+      code: code,
+      message: '$message: ${error.message}',
+      statusCode: _hubStatusFor(error.kind),
+    );
+  }
+
   LoggingService get _logger => container.read(loggingServiceProvider);
   CalibrationLibraryService get _service =>
       container.read(calibrationLibraryServiceProvider);
@@ -32,38 +70,79 @@ class CalibrationLibraryHandlers {
   /// `cameraId`, `gain`, `filter`, `binX`, `binY`, `exposureSeconds`
   /// (with `exposureTolSecs`), `tempMin`, `tempMax`, and `mastersOnly`
   /// (default true).
+  ///
+  /// Pagination (both optional; omitted → the full set, preserving existing
+  /// remote clients that expect every master): `offset` (rows to skip) and
+  /// `limit` (max rows to return, 1–1000). The response carries
+  /// `total` (matches before paging) alongside `count` (rows in this page).
+  static const int _maxListLimit = 1000;
+
   Future<Response> handleList(Request request) async {
     _logger.info(
       '[API] GET /api/calibration-library',
       source: 'CalibrationLibraryHandlers',
     );
     final q = request.url.queryParameters;
+    final typeRaw = q['type'];
+    final temperatureMin = optionalQueryDouble(q, 'tempMin');
+    final temperatureMax = optionalQueryDouble(q, 'tempMax');
+    if (temperatureMin != null &&
+        temperatureMax != null &&
+        temperatureMin > temperatureMax) {
+      throw BadRequestError(
+        field: 'tempMin',
+        expected: '<= tempMax',
+        message: 'tempMin must not exceed tempMax',
+      );
+    }
 
     final filter = CalibrationLibraryFilter(
-      type: _typeParam(q['type']),
-      cameraId: q['cameraId'],
-      gain: _intParam(q['gain']),
-      filter: q['filter'],
-      binX: _intParam(q['binX']),
-      binY: _intParam(q['binY']),
-      exposureSeconds: _doubleParam(q['exposureSeconds']),
-      exposureToleranceSecs: _doubleParam(q['exposureTolSecs']) ?? 0.5,
-      temperatureMin: _doubleParam(q['tempMin']),
-      temperatureMax: _doubleParam(q['tempMax']),
-      mastersOnly: _boolParam(q['mastersOnly']) ?? true,
+      type: typeRaw == null || typeRaw.isEmpty ? null : _requireType(typeRaw),
+      cameraId: _nonBlank(q['cameraId']),
+      gain: optionalQueryInt(q, 'gain'),
+      filter: _nonBlank(q['filter']),
+      binX: optionalQueryInt(q, 'binX', min: 1),
+      binY: optionalQueryInt(q, 'binY', min: 1),
+      exposureSeconds: optionalQueryDouble(q, 'exposureSeconds', min: 0),
+      exposureToleranceSecs:
+          optionalQueryDouble(q, 'exposureTolSecs', min: 0) ?? 0.5,
+      temperatureMin: temperatureMin,
+      temperatureMax: temperatureMax,
+      mastersOnly: optionalQueryBool(q, 'mastersOnly') ?? true,
     );
 
     final records = await _service.listMasters(filter: filter);
+    final total = records.length;
+
+    var page = records;
+    final offset = optionalQueryInt(q, 'offset', min: 0);
+    if (offset != null && offset > 0) {
+      page = offset >= page.length
+          ? const <CalibrationMasterRecord>[]
+          : page.sublist(offset);
+    }
+    final limit = optionalQueryInt(q, 'limit', min: 1, max: _maxListLimit);
+    if (limit != null) {
+      if (page.length > limit) page = page.sublist(0, limit);
+    }
+
     final now = DateTime.now();
     return jsonOk({
-      'masters': [for (final r in records) r.toJson(now: now)],
-      'count': records.length,
+      'masters': [for (final r in page) r.toJson(now: now)],
+      'count': page.length,
+      'total': total,
     });
   }
 
   /// POST /api/calibration-library/match — preview the auto-selection for a
   /// light-frame context. Body: `{gain, offset, exposureSeconds, temperature?,
-  /// filter?, binX?, binY?, cameraId?, opticalTrainId?}`.
+  /// filter?, binX?, binY?, cameraId?, opticalTrainId?, sensorWidth?,
+  /// sensorHeight?}`.
+  ///
+  /// `cameraId` and `sensorWidth`/`sensorHeight` feed the WS1 quality gate: a
+  /// REMOTE shared master is folded into the ranking only when it was shot on the
+  /// same camera and sensor geometry, so omitting them refuses every remote
+  /// candidate (the gate fails closed).
   Future<Response> handleMatch(Request request) async {
     _logger.info(
       '[API] POST /api/calibration-library/match',
@@ -81,10 +160,178 @@ class CalibrationLibraryHandlers {
       binX: optionalInt(body, 'binX', min: 1) ?? 1,
       binY: optionalInt(body, 'binY', min: 1) ?? 1,
       opticalTrainId: optionalString(body, 'opticalTrainId'),
+      sensorWidth: optionalInt(body, 'sensorWidth', min: 1),
+      sensorHeight: optionalInt(body, 'sensorHeight', min: 1),
     );
 
     final matchSet = await _service.match(context);
     return jsonOk(matchSet.toJson());
+  }
+
+  /// POST /api/calibration-library/accept — download a REMOTE shared master
+  /// surfaced by a prior `/match` and merge it into the appliance's local
+  /// library (WS1 download-on-accept, consent + quality gates re-applied).
+  ///
+  /// Body is the REMOTE `CalibrationMasterRecord` JSON from the match result
+  /// (must carry `remoteId`). Returns the acceptance outcome: `merged` (with the
+  /// new local id + file path), `preferredLocal` (an exact-tuple local master was
+  /// kept), or `refused` (with the reason).
+  Future<Response> handleAccept(Request request) async {
+    _logger.info(
+      '[API] POST /api/calibration-library/accept',
+      source: 'CalibrationLibraryHandlers',
+    );
+    final body = await readJsonObject(request);
+    // Parse defensively (same shape as profile_handlers): every other field in
+    // this decoder is tolerant, but `id` is a hard `(json['id'] as num)` cast,
+    // so a missing or misspelled id collapsed into an opaque 500
+    // ("type 'Null' is not a subtype of type 'num' in type cast").
+    final CalibrationMasterRecord record;
+    try {
+      record = CalibrationMasterRecord.fromJson(body);
+    } on Object {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'calibration_master_record with a numeric id',
+        message: 'Malformed calibration-master payload',
+      );
+    }
+    if (!record.isRemote) {
+      throw BadRequestError(
+        field: 'remoteId',
+        expected: 'a remote master record (with remoteId set)',
+        message: 'accept requires a remote shared-master record',
+      );
+    }
+    try {
+      final outcome = await _service.acceptRemoteMaster(record);
+      return jsonOk({
+        'kind': outcome.kind.name,
+        if (outcome.mergedId != null) 'mergedId': outcome.mergedId,
+        if (outcome.filePath != null) 'filePath': outcome.filePath,
+        if (outcome.existing != null) 'existingId': outcome.existing!.id,
+        if (outcome.reason != null) 'reason': outcome.reason,
+      });
+    } on ConstellationException catch (e) {
+      return _hubError(
+        e,
+        code: 'calibration_accept_failed',
+        message: 'Failed to accept calibration master',
+      );
+    } on StateError catch (e) {
+      throw HandlerFailure(
+        code: 'calibration_accept_failed',
+        message: e.message,
+        statusCode: 400,
+      );
+    }
+  }
+
+  /// POST /api/calibration-library/publish — publish a LOCAL appliance master to
+  /// the configured hub under an explicit consent/license (WS1 share).
+  ///
+  /// Body: `{type, id, license, attributionName?, shareRawSubframes?,
+  /// allowDerivatives?, allowRedistribution?, darkCurrent?}`.
+  Future<Response> handlePublish(Request request) async {
+    _logger.info(
+      '[API] POST /api/calibration-library/publish',
+      source: 'CalibrationLibraryHandlers',
+    );
+    final body = await readJsonObject(request);
+    final type = _requireType(requireString(body, 'type'));
+    final id = requireInt(body, 'id', min: 1);
+    // An explicit publish action opts into the permissive default only when the
+    // license token is recognized; an unknown token fails closed to `private`,
+    // which publishMaster then refuses.
+    final license = ContributionLicense.fromWire(
+      requireString(body, 'license'),
+      fallback: ContributionLicense.private,
+    );
+    final record = await _service.getRecord(type, id);
+    if (record == null) {
+      throw HandlerFailure(
+        code: 'calibration_master_not_found',
+        message: 'No calibration master with that type/id',
+        statusCode: 404,
+      );
+    }
+    final consent = ContributionConsent(
+      license: license,
+      attributionName: optionalString(body, 'attributionName'),
+      shareRawSubframes: optionalBool(body, 'shareRawSubframes') ?? false,
+      allowDerivatives: optionalBool(body, 'allowDerivatives') ?? true,
+      allowRedistribution: optionalBool(body, 'allowRedistribution') ?? true,
+      consentedAt: DateTime.now(),
+    );
+    try {
+      final published = await _service.publishMaster(
+        record,
+        consent: consent,
+        provenance: Provenance(
+          darkCurrent: optionalDouble(body, 'darkCurrent'),
+        ),
+      );
+      return jsonOk({
+        'status': 'published',
+        'id': published.id,
+        'masterType': published.masterType,
+        'license': published.license.wireName,
+        'frameCount': published.frameCount,
+      });
+    } on ConstellationException catch (e) {
+      return _hubError(
+        e,
+        code: 'calibration_publish_failed',
+        message: 'Failed to publish calibration master',
+      );
+    } on StateError catch (e) {
+      throw HandlerFailure(
+        code: 'calibration_publish_failed',
+        message: e.message,
+        statusCode: 400,
+      );
+    }
+  }
+
+  /// POST /api/calibration-library/retract — retract (un-share) a LOCAL
+  /// appliance master the user previously published to the hub (WS1 owner-scoped
+  /// retract). Body: `{type, id}`.
+  Future<Response> handleRetract(Request request) async {
+    _logger.info(
+      '[API] POST /api/calibration-library/retract',
+      source: 'CalibrationLibraryHandlers',
+    );
+    final body = await readJsonObject(request);
+    final type = _requireType(requireString(body, 'type'));
+    final id = requireInt(body, 'id', min: 1);
+    final record = await _service.getRecord(type, id);
+    if (record == null) {
+      throw HandlerFailure(
+        code: 'calibration_master_not_found',
+        message: 'No calibration master with that type/id',
+        statusCode: 404,
+      );
+    }
+    try {
+      await _service.retractPublishedMaster(record);
+      return jsonOk({
+        'status': 'retracted',
+        'type': calibrationMasterTypeWireName(type),
+        'id': id,
+      });
+    } on ConstellationException catch (e) {
+      return _hubError(
+        e,
+        code: 'calibration_retract_failed',
+        message: 'Failed to retract calibration master',
+      );
+    } on StateError catch (e) {
+      throw HandlerFailure(
+        code: 'calibration_retract_failed',
+        message: e.message,
+        statusCode: 400,
+      );
+    }
   }
 
   /// PUT `/api/calibration-library/<type>/<id>/tags` — replace tags/notes.
@@ -130,7 +377,7 @@ class CalibrationLibraryHandlers {
     final type = _requireType(typeRaw);
     final id = _requireId(idRaw);
     final deleteFile =
-        _boolParam(request.url.queryParameters['deleteFile']) ?? false;
+        optionalQueryBool(request.url.queryParameters, 'deleteFile') ?? false;
     _logger.info(
       '[API] DELETE /api/calibration-library/$typeRaw/$id'
       ' (deleteFile=$deleteFile)',
@@ -168,8 +415,8 @@ class CalibrationLibraryHandlers {
 
   int _requireId(String? raw) {
     final id = _intParam(raw);
-    if (id == null) {
-      throw BadRequestError(field: 'id', expected: 'integer');
+    if (id == null || id < 1) {
+      throw BadRequestError(field: 'id', expected: 'positive integer');
     }
     return id;
   }
@@ -182,14 +429,8 @@ class CalibrationLibraryHandlers {
   static int? _intParam(String? raw) =>
       (raw == null || raw.isEmpty) ? null : int.tryParse(raw);
 
-  static double? _doubleParam(String? raw) =>
-      (raw == null || raw.isEmpty) ? null : double.tryParse(raw);
-
-  static bool? _boolParam(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    final lower = raw.toLowerCase();
-    if (lower == 'true' || lower == '1' || lower == 'yes') return true;
-    if (lower == 'false' || lower == '0' || lower == 'no') return false;
-    return null;
+  static String? _nonBlank(String? raw) {
+    final value = raw?.trim();
+    return value == null || value.isEmpty ? null : value;
   }
 }

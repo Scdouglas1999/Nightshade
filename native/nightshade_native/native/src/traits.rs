@@ -286,6 +286,32 @@ pub trait NativeCamera: NativeDevice {
         Ok(None)
     }
 
+    /// Shortest and longest exposure the sensor accepts, in SECONDS.
+    ///
+    /// Same "never fabricate" contract as [`Self::get_cooler_temp_range`]: the
+    /// default returns `Ok(None)` ("this driver does not publish a range") and
+    /// only drivers whose SDK actually reports it override this.
+    ///
+    /// Why it matters: with the range absent, `CameraCapabilities.exposure_min`
+    /// / `exposure_max` were `null`, so no client could validate an exposure
+    /// before submitting it — a request outside the sensor's range failed late,
+    /// down in the SDK, instead of being rejected up front with the limit that
+    /// was violated. The ZWO SDK publishes this via `ASIGetControlCaps` for
+    /// `ASI_EXPOSURE`.
+    ///
+    /// Implementations MUST convert from their SDK's native unit (ZWO reports
+    /// microseconds) and MUST NOT narrow through `i32` on the way — a 2000 s
+    /// maximum is 2_000_000_000 µs, which is within a hair of `i32::MAX` and
+    /// overflows outright for cameras that allow longer.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` only when the SDK call genuinely failed. A camera that
+    /// simply does not publish the range returns `Ok(None)`.
+    async fn get_exposure_range(&self) -> Result<Option<(f64, f64)>, NativeError> {
+        Ok(None)
+    }
+
     /// Capture a live-view / preview frame as JPEG bytes when the driver supports it.
     async fn capture_preview(&self) -> Result<Vec<u8>, NativeError> {
         Err(NativeError::NotSupported)

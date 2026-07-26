@@ -44,6 +44,7 @@ class CapturePreviewPublisher {
     unawaited(
       _loadRawInBackground(
         ref: ref,
+        expectedBackend: backend,
         generation: generation,
         deviceId: deviceId,
         capturedAt: withSource.capturedAt,
@@ -71,6 +72,7 @@ class CapturePreviewPublisher {
 
   Future<void> _loadRawInBackground({
     required dynamic ref,
+    required NightshadeBackend expectedBackend,
     required int generation,
     required String deviceId,
     required DateTime capturedAt,
@@ -78,10 +80,10 @@ class CapturePreviewPublisher {
     required int expectedHeight,
   }) async {
     try {
-      final backend = _read(ref, backendProvider);
-      final rawList = await backend.getLastRawImageData(deviceId);
+      final rawList = await expectedBackend.getLastRawImageData(deviceId);
 
-      if (generation != _generation) {
+      if (generation != _generation ||
+          !identical(_read(ref, backendProvider), expectedBackend)) {
         return;
       }
 
@@ -126,7 +128,8 @@ class CapturePreviewPublisher {
         stackTrace: st,
       );
 
-      if (generation != _generation) {
+      if (generation != _generation ||
+          !identical(_read(ref, backendProvider), expectedBackend)) {
         return;
       }
 
@@ -146,7 +149,10 @@ class CapturePreviewPublisher {
 final capturePreviewPublisherProvider = Provider<CapturePreviewPublisher>((
   ref,
 ) {
-  return CapturePreviewPublisher();
+  ref.watch(backendProvider);
+  final publisher = CapturePreviewPublisher();
+  ref.onDispose(publisher.cancelPending);
+  return publisher;
 });
 
 /// Build UI image data from a backend capture result.

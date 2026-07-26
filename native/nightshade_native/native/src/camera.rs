@@ -43,6 +43,52 @@ pub enum CameraState {
     Error,
 }
 
+/// The kind of frame being captured.
+///
+/// Drives shutter behavior on cameras with a MECHANICAL SHUTTER (Moravian G-series,
+/// FLI, some CCDs): dark/bias frames must be taken with the shutter CLOSED to exclude
+/// light, otherwise the "dark" is contaminated and ruins calibration. CMOS cameras
+/// without a shutter simply ignore it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FrameType {
+    #[default]
+    Light,
+    Dark,
+    Flat,
+    Bias,
+    DarkFlat,
+}
+
+impl FrameType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            FrameType::Light => "Light",
+            FrameType::Dark => "Dark",
+            FrameType::Flat => "Flat",
+            FrameType::Bias => "Bias",
+            FrameType::DarkFlat => "DarkFlat",
+        }
+    }
+
+    /// Whether the mechanical shutter should be OPEN during the exposure.
+    /// Light and Flat collect light; Dark/Bias/DarkFlat must exclude it.
+    pub fn opens_shutter(self) -> bool {
+        matches!(self, FrameType::Light | FrameType::Flat)
+    }
+
+    /// Parse the sequencer's string frame type (case-insensitive). Unknown values
+    /// map to `Light` — the safe default (shutter open, no missed frame).
+    pub fn from_str_lenient(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "dark" => FrameType::Dark,
+            "flat" => FrameType::Flat,
+            "bias" => FrameType::Bias,
+            "darkflat" | "dark_flat" | "dark flat" => FrameType::DarkFlat,
+            _ => FrameType::Light,
+        }
+    }
+}
+
 /// Exposure parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExposureParams {
@@ -53,6 +99,9 @@ pub struct ExposureParams {
     pub bin_y: i32,
     pub subframe: Option<SubFrame>,
     pub readout_mode: Option<String>, // Vendor-specific readout mode name
+    /// Frame kind — drives mechanical-shutter behavior for dark/bias frames.
+    #[serde(default)]
+    pub frame_type: FrameType,
 }
 
 /// Subframe region for partial readout
@@ -65,13 +114,44 @@ pub struct SubFrame {
 }
 
 /// Sensor information
+///
+/// # `bit_depth` vs `max_adu` — two DIFFERENT quantities
+///
+/// Conflating these produced a shipped defect (camera status reported
+/// `maxAdu: 4095` for an ASI1600MM whose frames measurably contain values up to
+/// 65504), so the contract is spelled out here:
+///
+/// * [`SensorInfo::bit_depth`] is the **ADC resolution** — how many significant
+///   bits the sensor digitises (12 for an ASI1600MM). It describes precision,
+///   NOT the numeric range of the delivered samples.
+/// * [`SensorInfo::max_adu`] is the **pixel-container full scale** — the largest
+///   value that can actually appear in the `u16` pixel buffer this driver hands
+///   to the imaging pipeline. Every consumer (flat-frame percent-of-full-scale
+///   targets, saturation thresholds, histogram scaling, e-/ADU conversion)
+///   compares against real pixel values, so this is the only one of the two
+///   that may be used as a full-scale divisor.
+///
+/// The two differ whenever a vendor SDK left-justifies sub-16-bit samples into
+/// the 16-bit container — the norm for 12/14-bit astro CMOS. A 12-bit ADC
+/// delivered left-shifted by 4 has `bit_depth: 12` but `max_adu: 65520`
+/// (`4095 << 4`), and its samples are all multiples of 16.
+/// `nightshade_imaging::fits::ImageValidationOptions::saturation_threshold`
+/// documents the same convention from the pipeline side.
+///
+/// A driver MUST report `max_adu` in container units. Deriving it as
+/// `(1 << bit_depth) - 1` is only correct for a sensor whose samples are
+/// right-justified (or that is genuinely 16-bit).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SensorInfo {
     pub width: u32,
     pub height: u32,
     pub pixel_size_x: f64, // microns
     pub pixel_size_y: f64, // microns
+    /// Largest value that can appear in the delivered `u16` pixel data. See the
+    /// type-level docs — this is NOT `2^bit_depth - 1` for a left-justified
+    /// sub-16-bit sensor.
     pub max_adu: u32,
+    /// ADC resolution in bits. Describes precision only; see the type-level docs.
     pub bit_depth: u32,
     pub color: bool,
     pub bayer_pattern: Option<BayerPattern>,

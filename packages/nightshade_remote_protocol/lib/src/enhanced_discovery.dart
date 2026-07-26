@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nsd/nsd.dart';
 
 import 'discovery.dart';
+import 'network_uri.dart';
 import 'server_compatibility.dart';
 import 'tailnet_detector.dart';
 
@@ -413,6 +414,27 @@ String _normalizeTransportScheme(Object? raw, {String fallback = 'http'}) {
 typedef DiscoveryStatusCallback = void Function(String status);
 
 /// Enhanced discovery service with multiple fallback methods
+/// Why a server probe succeeded or failed.
+///
+/// Exists because the previous `bool` probe made "reachable" and "authorised"
+/// the same answer. A Nightshade host drops every paired token when it
+/// restarts, so the commonest real-world failure is a perfectly reachable host
+/// rejecting a stale token — which the UI then reported as "Could not reach
+/// `<host>`", pointing the operator at their network instead of re-pairing.
+enum ServerProbeOutcome {
+  /// Answered, compatible, and accepted the credential (or needs none).
+  reachable,
+
+  /// Answered, but rejected the credential (HTTP 401/403). The host is UP.
+  authRejected,
+
+  /// Answered, but runs an API version this client cannot talk to.
+  incompatible,
+
+  /// No usable answer: refused, DNS failure, timeout, TLS error, 5xx.
+  unreachable,
+}
+
 class EnhancedNightshadeDiscovery {
   /// Save successful connection for future reconnects.
   ///
@@ -583,8 +605,11 @@ class EnhancedNightshadeDiscovery {
       // default to `http`, matching legacy behaviour.
       final response = await http
           .get(
-            Uri.parse(
-              '${server.scheme}://${server.host}:${server.webPort}/api/info',
+            buildNightshadeServerUri(
+              scheme: server.scheme,
+              host: server.host,
+              port: server.webPort,
+              pathAndQuery: '/api/info',
             ),
             headers: _authHeaders(server.authToken),
           )
@@ -611,7 +636,19 @@ class EnhancedNightshadeDiscovery {
     }
   }
 
+  /// `401`/`403` both mean "I heard you, your credential is not good" — the
+  /// host is up. A Nightshade host answers 401 with no credential and 403 with
+  /// a stale one; neither is an unreachable host.
+  static bool _isAuthRejection(int statusCode) =>
+      statusCode == 401 || statusCode == 403;
+
   /// Test if a server is reachable.
+  ///
+  /// Thin `bool` wrapper over [probeServer], kept for the many callers that
+  /// only need a yes/no. Prefer [probeServer] anywhere the answer is shown to
+  /// a human: collapsing "the host refused my credential" into `false` makes
+  /// the UI report an unreachable host and sends the operator off to debug
+  /// their network instead of re-pairing.
   ///
   /// [scheme] selects the transport — `http` (default) or `https`. A
   /// TLS-enabled server (the typical Tailscale remote-observatory setup)
@@ -628,6 +665,30 @@ class EnhancedNightshadeDiscovery {
     String scheme = 'http',
     Duration timeout = const Duration(seconds: 5),
   }) async {
+    final outcome = await probeServer(
+      host,
+      port,
+      authToken: authToken,
+      scheme: scheme,
+      timeout: timeout,
+    );
+    return outcome == ServerProbeOutcome.reachable;
+  }
+
+  /// Reachability probe that preserves WHY the probe failed.
+  ///
+  /// The distinction that matters in the UI is reachable-but-rejected versus
+  /// genuinely-unreachable. A Nightshade host invalidates every paired token
+  /// when it restarts, so the single most common failure an operator hits is a
+  /// live, pingable host answering 401/403 to a stale token — which must be
+  /// reported as "pair again", not "could not reach".
+  static Future<ServerProbeOutcome> probeServer(
+    String host,
+    int port, {
+    String? authToken,
+    String scheme = 'http',
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
     final lowered = scheme.toLowerCase();
     if (lowered != 'http' && lowered != 'https') {
       throw ArgumentError.value(scheme, 'scheme', 'must be "http" or "https"');
@@ -635,13 +696,21 @@ class EnhancedNightshadeDiscovery {
     try {
       final infoResponse = await http
           .get(
-            Uri.parse('$lowered://$host:$port/api/info'),
+            buildNightshadeServerUri(
+              scheme: lowered,
+              host: host,
+              port: port,
+              pathAndQuery: '/api/info',
+            ),
             headers: _authHeaders(authToken),
           )
           .timeout(timeout);
 
+      if (_isAuthRejection(infoResponse.statusCode)) {
+        return ServerProbeOutcome.authRejected;
+      }
       if (infoResponse.statusCode != 200) {
-        return false;
+        return ServerProbeOutcome.unreachable;
       }
 
       final info = jsonDecode(infoResponse.body) as Map<String, dynamic>;
@@ -654,39 +723,51 @@ class EnhancedNightshadeDiscovery {
           name: 'EnhancedDiscovery',
           level: 900,
         );
-        return false;
+        return ServerProbeOutcome.incompatible;
       }
 
       final authRequired = info['authRequired'] as bool? ?? false;
       if (!authRequired) {
-        return true;
+        return ServerProbeOutcome.reachable;
       }
 
       if (authToken == null || authToken.isEmpty) {
         // Host is up; mobile will pair via /api/pairing/* before connecting.
         final pairingSupported = info['pairingSupported'] as bool? ?? false;
-        return pairingSupported;
+        return pairingSupported
+            ? ServerProbeOutcome.reachable
+            : ServerProbeOutcome.unreachable;
       }
 
       final statusResponse = await http
           .get(
-            Uri.parse('$lowered://$host:$port/api/status'),
+            buildNightshadeServerUri(
+              scheme: lowered,
+              host: host,
+              port: port,
+              pathAndQuery: '/api/status',
+            ),
             headers: _authHeaders(authToken),
           )
           .timeout(timeout);
 
-      return statusResponse.statusCode == 200;
+      if (_isAuthRejection(statusResponse.statusCode)) {
+        return ServerProbeOutcome.authRejected;
+      }
+      return statusResponse.statusCode == 200
+          ? ServerProbeOutcome.reachable
+          : ServerProbeOutcome.unreachable;
     } catch (e, stackTrace) {
       // Why: reachability probe — any exception (connection refused, DNS
       // failure, timeout, TLS error) is by definition "not reachable" and
-      // the caller treats `false` accordingly. Log so an operator chasing
+      // the caller treats it accordingly. Log so an operator chasing
       // "why doesn't my server show up" can see the actual cause.
       developer.log(
-        'testServerConnection failed for $host:$port: $e\n$stackTrace',
+        'probeServer failed for $host:$port: $e\n$stackTrace',
         name: 'EnhancedDiscovery',
         level: 900,
       );
-      return false;
+      return ServerProbeOutcome.unreachable;
     }
   }
 

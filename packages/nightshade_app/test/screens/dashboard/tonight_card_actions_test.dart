@@ -131,6 +131,7 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(LucideIcons.listPlus));
+    await tester.tap(find.byIcon(LucideIcons.listPlus));
     await tester.pumpAndSettle();
 
     final targets = container
@@ -139,7 +140,11 @@ void main() {
         .values
         .whereType<TargetHeaderNode>()
         .toList();
-    expect(targets, hasLength(1));
+    expect(
+      targets,
+      hasLength(1),
+      reason: 'rapid taps must not append the recommendation twice',
+    );
     expect(targets.single.targetName, 'M51');
     expect(targets.single.raHours, closeTo(13.5, 1e-6));
     expect(targets.single.decDegrees, closeTo(47.2, 1e-6));

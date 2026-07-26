@@ -6,6 +6,15 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'settings_widgets.dart';
 
+String? _validatePositiveScienceId(String value) {
+  if (value.isEmpty) return null;
+  final parsed = int.tryParse(value);
+  if (parsed == null || parsed <= 0) {
+    return 'Enter a positive whole-number ID';
+  }
+  return null;
+}
+
 class ScienceSettingsPage extends ConsumerWidget {
   final bool isMobile;
 
@@ -283,6 +292,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                   hint: 'e.g. 12345',
                   width: 100,
                   numeric: true,
+                  validate: _validatePositiveScienceId,
                   read: (s) => s.tnsBotId == 0 ? '' : s.tnsBotId.toString(),
                   write: (n, v) => n.setTnsBotId(int.tryParse(v) ?? 0),
                 ),
@@ -304,6 +314,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                   hint: 'e.g. 42',
                   width: 100,
                   numeric: true,
+                  validate: _validatePositiveScienceId,
                   read: (s) => s.tnsReportingGroupId == 0
                       ? ''
                       : s.tnsReportingGroupId.toString(),
@@ -318,6 +329,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                   hint: 'e.g. 7',
                   width: 100,
                   numeric: true,
+                  validate: _validatePositiveScienceId,
                   read: (s) => s.tnsDataSourceId == 0
                       ? ''
                       : s.tnsDataSourceId.toString(),
@@ -398,24 +410,61 @@ class _AavsoObserverCodeRow extends ConsumerStatefulWidget {
 
 class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
   String? _validationError;
+  bool _loading = true;
+  String _lastCommitted = '';
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _focusNode = FocusNode()..addListener(_onFocusChange);
     _loadValue();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
   }
 
   Future<void> _loadValue() async {
     final science = ref.read(scienceSettingsProvider).valueOrNull;
     if (science != null && science.aavsoObserverCode.isNotEmpty && mounted) {
       _controller.text = science.aavsoObserverCode;
+      _lastCommitted = science.aavsoObserverCode;
+    }
+    _loading = false;
+  }
+
+  Future<void> _commit() async {
+    if (_loading) return;
+    final trimmed = _controller.text.trim().toUpperCase();
+    if (trimmed == _lastCommitted) return;
+    if (trimmed.isNotEmpty && trimmed.length > 5) {
+      setState(() {
+        _validationError = 'AAVSO codes must be 1-5 characters';
+      });
+      return;
+    }
+    setState(() => _validationError = null);
+    final notifier = ref.read(scienceSettingsProvider.notifier);
+    final previous = _lastCommitted;
+    _lastCommitted = trimmed;
+    try {
+      await notifier.setAavsoObserverCode(trimmed);
+    } catch (_) {
+      _lastCommitted = previous;
+      rethrow;
+    }
+    if (mounted) {
+      _controller.text = trimmed;
     }
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -432,6 +481,7 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
         width: 100,
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           maxLength: 5,
           textCapitalization: TextCapitalization.characters,
           style: TextStyle(
@@ -458,21 +508,7 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
               borderSide: BorderSide(color: NightshadeColors.of(context).error),
             ),
           ),
-          onSubmitted: (value) async {
-            final trimmed = value.trim().toUpperCase();
-            if (trimmed.isNotEmpty && trimmed.length > 5) {
-              setState(() {
-                _validationError = 'AAVSO codes must be 1-5 characters';
-              });
-              return;
-            }
-            setState(() => _validationError = null);
-            final notifier = ref.read(scienceSettingsProvider.notifier);
-            await notifier.setAavsoObserverCode(trimmed);
-            if (mounted) {
-              _controller.text = trimmed;
-            }
-          },
+          onSubmitted: (_) => _commit(),
         ),
       ),
       isLast: true,
@@ -492,23 +528,62 @@ class _MpcObservatoryCodeRow extends ConsumerStatefulWidget {
 class _MpcObservatoryCodeRowState
     extends ConsumerState<_MpcObservatoryCodeRow> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
+  String? _validationError;
+  bool _loading = true;
+  String _lastCommitted = '';
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _focusNode = FocusNode()..addListener(_onFocusChange);
     _loadValue();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
   }
 
   Future<void> _loadValue() async {
     final science = ref.read(scienceSettingsProvider).valueOrNull;
     if (science != null && science.mpcObservatoryCode.isNotEmpty && mounted) {
       _controller.text = science.mpcObservatoryCode;
+      _lastCommitted = science.mpcObservatoryCode;
+    }
+    _loading = false;
+  }
+
+  Future<void> _commit() async {
+    if (_loading) return;
+    final trimmed = _controller.text.trim().toUpperCase();
+    if (trimmed == _lastCommitted) return;
+    if (trimmed.isNotEmpty &&
+        (trimmed.length != 3 || !RegExp(r'^[A-Z0-9]{3}$').hasMatch(trimmed))) {
+      setState(() {
+        _validationError = 'MPC codes must be exactly 3 letters or digits';
+      });
+      return;
+    }
+    setState(() => _validationError = null);
+    final notifier = ref.read(scienceSettingsProvider.notifier);
+    final previous = _lastCommitted;
+    _lastCommitted = trimmed;
+    try {
+      await notifier.setMpcObservatoryCode(trimmed);
+    } catch (_) {
+      _lastCommitted = previous;
+      rethrow;
+    }
+    if (mounted) {
+      _controller.text = trimmed;
     }
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -518,12 +593,14 @@ class _MpcObservatoryCodeRowState
     return SettingRow(
       icon: LucideIcons.star,
       title: 'MPC observatory code',
-      subtitle:
-          'Your 3-character MPC observatory code (e.g., "G40"). Required for MPC report export.',
+      subtitle: _validationError != null
+          ? _validationError!
+          : 'Your 3-character MPC observatory code (e.g., "G40"). Required for MPC report export.',
       trailing: SizedBox(
         width: 80,
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           maxLength: 3,
           textCapitalization: TextCapitalization.characters,
           style: TextStyle(
@@ -546,18 +623,7 @@ class _MpcObservatoryCodeRowState
                   BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
-          onSubmitted: (value) async {
-            final trimmed = value.trim().toUpperCase();
-            if (trimmed.isNotEmpty && trimmed.length != 3) {
-              // MPC codes must be exactly 3 characters
-              return;
-            }
-            final notifier = ref.read(scienceSettingsProvider.notifier);
-            await notifier.setMpcObservatoryCode(trimmed);
-            if (mounted) {
-              _controller.text = trimmed;
-            }
-          },
+          onSubmitted: (_) => _commit(),
         ),
       ),
       isLast: true,
@@ -579,6 +645,7 @@ class _ScienceTextRow extends ConsumerStatefulWidget {
   final double width;
   final bool numeric;
   final bool isLast;
+  final String? Function(String value)? validate;
   final String Function(ScienceSettings) read;
   final Future<void> Function(ScienceSettingsNotifier, String) write;
 
@@ -593,6 +660,7 @@ class _ScienceTextRow extends ConsumerStatefulWidget {
     required this.write,
     this.numeric = false,
     this.isLast = false,
+    this.validate,
   });
 
   @override
@@ -601,24 +669,61 @@ class _ScienceTextRow extends ConsumerStatefulWidget {
 
 class _ScienceTextRowState extends ConsumerState<_ScienceTextRow> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
+  bool _loading = true;
+  String _lastCommitted = '';
+  String? _validationError;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController();
+    _focusNode = FocusNode()..addListener(_onFocusChange);
     _loadValue();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
   }
 
   Future<void> _loadValue() async {
     final science = ref.read(scienceSettingsProvider).valueOrNull;
     if (science != null && mounted) {
       final value = widget.read(science);
-      if (value.isNotEmpty) _controller.text = value;
+      if (value.isNotEmpty) {
+        _controller.text = value;
+        _lastCommitted = value;
+      }
     }
+    _loading = false;
+  }
+
+  Future<void> _commit() async {
+    if (_loading) return;
+    final trimmed = _controller.text.trim();
+    if (trimmed == _lastCommitted) return;
+    final validationError = widget.validate?.call(trimmed);
+    if (validationError != null) {
+      setState(() => _validationError = validationError);
+      return;
+    }
+    setState(() => _validationError = null);
+    final notifier = ref.read(scienceSettingsProvider.notifier);
+    final previous = _lastCommitted;
+    _lastCommitted = trimmed;
+    try {
+      await widget.write(notifier, trimmed);
+    } catch (_) {
+      _lastCommitted = previous;
+      rethrow;
+    }
+    if (mounted) _controller.text = trimmed;
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -628,11 +733,12 @@ class _ScienceTextRowState extends ConsumerState<_ScienceTextRow> {
     return SettingRow(
       icon: widget.icon,
       title: widget.title,
-      subtitle: widget.subtitle,
+      subtitle: _validationError ?? widget.subtitle,
       trailing: SizedBox(
         width: widget.width,
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           keyboardType: widget.numeric ? TextInputType.number : null,
           style: TextStyle(
             color: NightshadeColors.of(context).textPrimary,
@@ -654,12 +760,7 @@ class _ScienceTextRowState extends ConsumerState<_ScienceTextRow> {
                   BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
-          onSubmitted: (value) async {
-            final trimmed = value.trim();
-            final notifier = ref.read(scienceSettingsProvider.notifier);
-            await widget.write(notifier, trimmed);
-            if (mounted) _controller.text = trimmed;
-          },
+          onSubmitted: (_) => _commit(),
         ),
       ),
       isLast: widget.isLast,
@@ -678,12 +779,19 @@ class _TnsApiKeyRow extends ConsumerStatefulWidget {
 
 class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
   final _controller = TextEditingController();
+  late final FocusNode _focusNode;
   bool _hasKey = false;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode()..addListener(_onFocusChange);
     _loadHas();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
   }
 
   Future<void> _loadHas() async {
@@ -691,8 +799,28 @@ class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
     if (mounted) setState(() => _hasKey = has);
   }
 
+  Future<void> _commit() async {
+    if (_saving) return;
+    final trimmed = _controller.text.trim();
+    if (trimmed.isEmpty) return;
+    _saving = true;
+    try {
+      await ref
+          .read(secretsStoreProvider)
+          .write(SecretField.tnsApiKey, trimmed);
+      if (mounted) {
+        _controller.clear();
+        setState(() => _hasKey = true);
+      }
+    } finally {
+      _saving = false;
+    }
+  }
+
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -709,6 +837,7 @@ class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
         width: 180,
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           obscureText: true,
           style: TextStyle(
             color: NightshadeColors.of(context).textPrimary,
@@ -730,17 +859,7 @@ class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
                   BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
-          onSubmitted: (value) async {
-            final trimmed = value.trim();
-            if (trimmed.isEmpty) return;
-            await ref
-                .read(secretsStoreProvider)
-                .write(SecretField.tnsApiKey, trimmed);
-            if (mounted) {
-              _controller.clear();
-              setState(() => _hasKey = true);
-            }
-          },
+          onSubmitted: (_) => _commit(),
         ),
       ),
       isMobile: false,
@@ -789,27 +908,33 @@ class _ScienceOnlineCatalogRow extends ConsumerStatefulWidget {
 
 class _ScienceOnlineCatalogRowState
     extends ConsumerState<_ScienceOnlineCatalogRow> {
-  bool _enabled = true;
+  bool? _pendingValue;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final stored = await ref
-        .read(settingsDaoProvider)
-        .getSetting(PhotometricCatalogService.onlineEnabledSettingKey);
-    if (mounted) {
-      setState(
-        () => _enabled = stored == null || stored.toLowerCase() != 'false',
-      );
+  Future<void> _setEnabled(bool value) async {
+    if (_pendingValue != null) return;
+    setState(() => _pendingValue = value);
+    try {
+      await ref
+          .read(scienceRawSettingsActionsProvider)
+          .setOnlineCatalogEnabled(value);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Could not save catalog setting: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pendingValue = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final rawSettings = ref.watch(scienceRawSettingsProvider).valueOrNull;
+    final stored =
+        rawSettings?[PhotometricCatalogService.onlineEnabledSettingKey];
+    final enabled =
+        _pendingValue ?? (stored == null || stored.toLowerCase() != 'false');
     return SettingRow(
       icon: LucideIcons.globe,
       title: 'Deep catalog lookups (APASS DR9)',
@@ -818,14 +943,8 @@ class _ScienceOnlineCatalogRowState
           'offline reuse; falls back to the bundled star catalog when off '
           'or unreachable.',
       trailing: SettingsSwitch(
-        value: _enabled,
-        onChanged: (value) async {
-          await ref.read(settingsDaoProvider).setSetting(
-                PhotometricCatalogService.onlineEnabledSettingKey,
-                value.toString(),
-              );
-          if (mounted) setState(() => _enabled = value);
-        },
+        value: enabled,
+        onChanged: _setEnabled,
       ),
       isLast: true,
       isMobile: widget.isMobile,
@@ -847,59 +966,45 @@ class _ScienceCameraAutoRow extends ConsumerStatefulWidget {
 }
 
 class _ScienceCameraAutoRowState extends ConsumerState<_ScienceCameraAutoRow> {
-  bool _autoManaged = true;
-  String? _source;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final dao = ref.read(settingsDaoProvider);
-    final managed =
-        await dao.getSetting(ScienceCameraAutoConfig.autoManagedKey);
-    final source = await dao.getSetting(ScienceCameraAutoConfig.autoSourceKey);
-    if (!mounted) return;
-    setState(() {
-      _autoManaged = managed == null || managed.toLowerCase() != 'false';
-      _source = source;
-    });
-  }
+  bool? _pendingValue;
 
   Future<void> _setAutoManaged(bool value) async {
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSetting(
-      ScienceCameraAutoConfig.autoManagedKey,
-      value.toString(),
-    );
-    if (value) {
-      // Re-enable: immediately resync from the current camera/profile.
+    if (_pendingValue != null) return;
+    setState(() => _pendingValue = value);
+    try {
       await ref
-          .read(scienceCameraAutoConfigProvider)
-          .maybeSync(reason: 'auto-config re-enabled', force: true);
-    }
-    if (mounted) {
-      setState(() => _autoManaged = value);
-      await _load();
+          .read(scienceRawSettingsActionsProvider)
+          .setCameraAutoManaged(value);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Could not save camera setting: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _pendingValue = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = _autoManaged
-        ? (_source == null || _source!.isEmpty
+    final rawSettings = ref.watch(scienceRawSettingsProvider).valueOrNull;
+    final storedManaged = rawSettings?[ScienceCameraAutoConfig.autoManagedKey];
+    final autoManaged = _pendingValue ??
+        (storedManaged == null || storedManaged.toLowerCase() != 'false');
+    final source = rawSettings?[ScienceCameraAutoConfig.autoSourceKey];
+    final subtitle = autoManaged
+        ? (source == null || source.isEmpty
             ? 'Read noise, gain, and saturation follow the connected camera '
                 'or active profile'
-            : 'Following: $_source')
+            : 'Following: $source')
         : 'Manual — values below are user-set and will not be overwritten';
     return SettingRow(
       icon: LucideIcons.wand2,
       title: 'Auto-configure from camera',
       subtitle: subtitle,
       trailing: SettingsSwitch(
-        value: _autoManaged,
+        value: autoManaged,
         onChanged: _setAutoManaged,
       ),
       isMobile: widget.isMobile,
@@ -943,38 +1048,108 @@ class _ScienceCameraValueRow extends ConsumerStatefulWidget {
 class _ScienceCameraValueRowState
     extends ConsumerState<_ScienceCameraValueRow> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
+  bool _loading = true;
+  late String _lastCommitted;
+  String? _validationError;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.defaultText);
+    _lastCommitted = widget.defaultText;
+    _focusNode = FocusNode()..addListener(_onFocusChange);
     _loadValue();
   }
 
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
+  }
+
   Future<void> _loadValue() async {
-    final dao = ref.read(settingsDaoProvider);
-    final stored = await dao.getSetting(widget.settingKey);
-    if (stored != null && stored.isNotEmpty && mounted) {
+    final settings = await ref.read(scienceRawSettingsProvider.future);
+    if (!mounted) return;
+    _syncCommittedValue(settings[widget.settingKey] ?? widget.defaultText);
+    _loading = false;
+  }
+
+  void _syncCommittedValue(String stored) {
+    if (_focusNode.hasFocus || _controller.text != _lastCommitted) return;
+    _controller.text = stored;
+    _lastCommitted = stored;
+  }
+
+  Future<void> _commit() async {
+    if (_loading) return;
+    final value = _controller.text.trim();
+    if (value == _lastCommitted) return;
+    final parsed = double.tryParse(value);
+    if (parsed == null || !parsed.isFinite) {
+      setState(() {
+        _validationError = 'Enter a number from ${widget.min} to ${widget.max}';
+      });
+      return;
+    }
+    setState(() => _validationError = null);
+    final clamped = parsed.clamp(widget.min, widget.max);
+    final stored =
+        widget.integer ? clamped.round().toString() : clamped.toString();
+    final previous = _lastCommitted;
+    _lastCommitted = stored;
+    try {
+      await ref
+          .read(scienceRawSettingsActionsProvider)
+          .setManualCameraValue(widget.settingKey, stored);
+    } catch (error) {
+      _lastCommitted = previous;
+      ref.invalidate(scienceRawSettingsProvider);
+      if (mounted) {
+        setState(() {
+          _controller.text = previous;
+          _validationError = 'Could not save this value';
+        });
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text('Could not save camera value: $error')),
+        );
+      }
+      return;
+    }
+    if (mounted) {
       _controller.text = stored;
     }
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final rawSettings = ref.watch(scienceRawSettingsProvider);
+    if (!rawSettings.isLoading) {
+      final authoritative =
+          rawSettings.valueOrNull?[widget.settingKey] ?? widget.defaultText;
+      if (authoritative != _lastCommitted &&
+          !_focusNode.hasFocus &&
+          _controller.text == _lastCommitted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _syncCommittedValue(authoritative);
+        });
+      }
+    }
     return SettingRow(
       icon: widget.icon,
       title: widget.title,
-      subtitle: widget.subtitle,
+      subtitle: _validationError ?? widget.subtitle,
       trailing: SizedBox(
         width: 72,
         child: TextField(
           controller: _controller,
+          focusNode: _focusNode,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: TextStyle(
             color: NightshadeColors.of(context).textPrimary,
@@ -990,27 +1165,7 @@ class _ScienceCameraValueRowState
                   BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
-          onSubmitted: (value) async {
-            final parsed = double.tryParse(value);
-            if (parsed != null && parsed > 0 && parsed.isFinite) {
-              final clamped = parsed.clamp(widget.min, widget.max);
-              final stored = widget.integer
-                  ? clamped.round().toString()
-                  : clamped.toString();
-              final dao = ref.read(settingsDaoProvider);
-              await dao.setSetting(widget.settingKey, stored);
-              // A hand-entered value is an explicit override — stop the
-              // auto-config service from replacing it on the next camera
-              // event. The user can flip auto back on in the row above.
-              await dao.setSetting(
-                ScienceCameraAutoConfig.autoManagedKey,
-                'false',
-              );
-              if (mounted) {
-                _controller.text = stored;
-              }
-            }
-          },
+          onSubmitted: (_) => _commit(),
         ),
       ),
       isLast: widget.isLast,

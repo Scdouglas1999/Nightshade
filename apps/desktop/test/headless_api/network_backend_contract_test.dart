@@ -90,6 +90,7 @@ void main() {
     const livingSkyClientRoutes = <String>{
       // Pillar A — Your Sky (atlas)
       'GET /api/atlas/regions',
+      'POST /api/atlas/regions',
       'GET /api/atlas/coverage',
       'GET /api/atlas/region/{param}',
       'GET /api/atlas/region/{param}/timeline',

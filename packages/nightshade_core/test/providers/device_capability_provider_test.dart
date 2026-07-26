@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart'
     hide CameraState;
+import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/device_capability_provider.dart';
 
@@ -295,5 +296,66 @@ void main() {
         );
       },
     );
+  });
+
+  group('equipmentCoverCalibratorCapabilitiesProvider', () {
+    test(
+      'reports each optional half and its live state independently',
+      () async {
+        const expected = CoverCalibratorCapabilitySnapshot(
+          coverPresent: false,
+          calibratorPresent: true,
+          calibratorStatus: CalibratorStatus.ready,
+          brightness: 42,
+          maxBrightness: 255,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            coverCalibratorCapabilityFetcherProvider.overrideWithValue((
+              id,
+            ) async {
+              expect(id, 'cover-1');
+              return expected;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final snapshot = await container.read(
+          equipmentCoverCalibratorCapabilitiesProvider('cover-1').future,
+        );
+
+        expect(snapshot, isNotNull);
+        expect(snapshot!.coverPresent, isFalse);
+        expect(snapshot.calibratorPresent, isTrue);
+        expect(snapshot.calibratorStatus, CalibratorStatus.ready);
+        expect(snapshot.brightness, 42);
+        expect(snapshot.maxBrightness, 255);
+      },
+    );
+
+    test('empty deviceId does not query the capability source', () async {
+      var fetches = 0;
+      final container = ProviderContainer(
+        overrides: [
+          coverCalibratorCapabilityFetcherProvider.overrideWithValue((_) async {
+            fetches++;
+            return const CoverCalibratorCapabilitySnapshot(
+              coverPresent: true,
+              calibratorPresent: true,
+              maxBrightness: 255,
+            );
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final snapshot = await container.read(
+        equipmentCoverCalibratorCapabilitiesProvider('').future,
+      );
+
+      expect(snapshot, isNull);
+      expect(fetches, 0);
+    });
   });
 }

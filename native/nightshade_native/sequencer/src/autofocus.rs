@@ -60,6 +60,7 @@ pub struct AutofocusConfig {
     pub steps_out: u32,
     pub exposure_duration: f64,
     pub backlash_compensation: i32,
+    pub backlash_out_compensation: i32,
     pub use_temperature_prediction: bool,
     pub max_star_count_change: Option<f64>, // Reject points with >X% star count change
     pub outlier_rejection_sigma: f64,       // Sigma for outlier rejection (0 = disabled)
@@ -76,6 +77,7 @@ impl Default for AutofocusConfig {
             steps_out: 7,
             exposure_duration: 3.0,
             backlash_compensation: 50,
+            backlash_out_compensation: 0,
             use_temperature_prediction: true,
             max_star_count_change: Some(0.5), // 50% change threshold
             outlier_rejection_sigma: 3.0,
@@ -220,7 +222,8 @@ impl VCurveAutofocus {
             method_used: self.config.method,
             data_points: filtered_points,
             temperature_celsius: None, // Set by caller
-            backlash_applied: self.config.backlash_compensation > 0,
+            backlash_applied: self.config.backlash_compensation > 0
+                || self.config.backlash_out_compensation > 0,
         })
     }
 
@@ -502,8 +505,14 @@ impl VCurveAutofocus {
                 if y * y > b * b {
                     let term = (y * y - b * b).sqrt();
                     if term.abs() > 1e-10 {
-                        sum_num += dx * term;
-                        sum_den += term * term;
+                        // The model is `sqrt(y² - b²) = |dx| · a`, so the
+                        // least-squares slope must regress `term` on |dx|.
+                        // Pairing a SIGNED dx with an unsigned term made the
+                        // numerator an odd function of dx, so a roughly
+                        // symmetric sweep cancelled it to ~0 and `a` collapsed —
+                        // see the R² site below for what that did downstream.
+                        sum_num += dx.abs() * term;
+                        sum_den += dx * dx;
                     }
                 }
             }
@@ -570,8 +579,17 @@ impl VCurveAutofocus {
             let y = point.hfr;
             if y * y > b * b {
                 let term = (y * y - b * b).sqrt();
-                sum_num += dx * term;
-                sum_den += term * term;
+                // Same magnitude-vs-magnitude regression as the iterative
+                // estimate above. With the previous signed-dx numerator, `a`
+                // came out ~0 on any near-symmetric sweep, so `predicted`
+                // flattened to the constant `b`, ss_res exceeded ss_tot, and the
+                // R² clamped to exactly 0.000 — every Hyperbolic autofocus then
+                // failed its own gate ("curve fit R² 0.000 is below the
+                // configured threshold 0.700"), no matter how clean the data.
+                // Measured on a real simulator sweep: 41 stars per point, HFR
+                // 4.09 → 2.35 → 3.02, variance 1.75, R² 0.000.
+                sum_num += dx.abs() * term;
+                sum_den += dx * dx;
             }
         }
         let a = if sum_den > 1e-10 {
@@ -636,38 +654,47 @@ fn fit_line(points: &[FocusDataPoint]) -> Option<(f64, f64)> {
 /// we overshoot by the backlash amount then move back to ensure consistent approach direction.
 #[derive(Debug, Clone)]
 pub struct BacklashCompensation {
-    pub backlash_steps: i32,
+    pub backlash_in_steps: i32,
+    pub backlash_out_steps: i32,
 }
 
 impl BacklashCompensation {
     pub fn new(backlash_steps: i32) -> Self {
-        Self { backlash_steps }
+        Self::new_directional(backlash_steps, 0)
+    }
+
+    pub fn new_directional(backlash_in_steps: i32, backlash_out_steps: i32) -> Self {
+        Self {
+            backlash_in_steps: backlash_in_steps.max(0),
+            backlash_out_steps: backlash_out_steps.max(0),
+        }
     }
 
     /// Calculate the approach positions for backlash compensation
     /// Returns (intermediate_position, final_position)
     pub fn calculate_approach(&self, current: i32, target: i32) -> (Option<i32>, i32) {
-        if self.backlash_steps == 0 {
-            return (None, target);
-        }
-
         if target < current {
             // Inward moves on most stepper focusers leave mechanical slack
             // in the gear train; approaching from a deliberate overshoot
             // ensures the final position is always reached from the same
             // side, eliminating direction-dependent focus error.
-            let overshoot = target - self.backlash_steps;
+            if self.backlash_in_steps == 0 {
+                return (None, target);
+            }
+            let overshoot = target.saturating_sub(self.backlash_in_steps);
+            (Some(overshoot), target)
+        } else if target > current && self.backlash_out_steps > 0 {
+            let overshoot = target.saturating_add(self.backlash_out_steps);
             (Some(overshoot), target)
         } else {
-            // Outward moves already approach from the slack side, so the
-            // gear train is engaged and no compensation is needed.
             (None, target)
         }
     }
 
     /// Check if backlash compensation is needed for this move
     pub fn is_needed(&self, current: i32, target: i32) -> bool {
-        self.backlash_steps > 0 && target < current
+        (target < current && self.backlash_in_steps > 0)
+            || (target > current && self.backlash_out_steps > 0)
     }
 }
 
@@ -839,6 +866,12 @@ mod tests {
         let (intermediate, final_pos) = backlash.calculate_approach(4500, 5000);
         assert_eq!(intermediate, None);
         assert_eq!(final_pos, 5000);
+
+        // Directional configuration also honors the user's OUT value.
+        let directional = BacklashCompensation::new_directional(50, 30);
+        let (intermediate, final_pos) = directional.calculate_approach(4500, 5000);
+        assert_eq!(intermediate, Some(5030));
+        assert_eq!(final_pos, 5000);
     }
 
     #[test]
@@ -908,5 +941,91 @@ mod tests {
         assert_eq!(positions[0], 4700);
         assert_eq!(positions[3], 5000); // Middle position
         assert_eq!(positions[6], 5300);
+    }
+
+    /// Regression: the DEFAULT method (`VCurve`) must return a usable R² for the
+    /// V-curve a real sweep produces, because the caller gates on
+    /// `r_squared_threshold` (0.7 by default) and aborts autofocus below it.
+    ///
+    /// Measured live against the simulator's star field: a clean sweep
+    /// (HFR 4.09 down to 2.35 and back up to 3.02, variance 1.75) came back with
+    /// R² exactly 0.000 and autofocus failed with "curve fit R² 0.000 is below
+    /// the configured threshold 0.700" — with no "curve fit failed" warning,
+    /// i.e. the fit reported success while scoring itself zero.
+    #[test]
+    fn vcurve_fit_scores_a_realistic_sweep_above_the_default_threshold() {
+        let engine = VCurveAutofocus::new(AutofocusConfig::default());
+
+        // The shape a real sweep traces: steeper on one side of focus than the
+        // other, best focus off the sweep's centre but inside its span.
+        const BEST: f64 = 25_075.0;
+        let points: Vec<FocusDataPoint> = (24_800..=25_200)
+            .step_by(50)
+            .map(|pos| {
+                let d = pos as f64 - BEST;
+                let hfr = 2.1 + (d.abs() / 200.0) * if d < 0.0 { 2.0 } else { 1.4 };
+                FocusDataPoint {
+                    position: pos,
+                    hfr,
+                    fwhm: None,
+                    star_count: 40,
+                }
+            })
+            .collect();
+
+        let (best_pos, r_squared) = engine.fit_vcurve(&points).expect("a clean V must fit");
+        assert!(
+            r_squared > 0.7,
+            "R² {r_squared} must clear the default 0.7 gate for a clean V-curve;              at 0.0 autofocus rejects its own good data"
+        );
+        assert!(
+            (best_pos as f64 - BEST).abs() < 60.0,
+            "best position {best_pos} should land near {BEST}"
+        );
+    }
+
+    /// Which fit method actually runs matters: a trigger-inserted autofocus uses
+    /// the runtime default, not a node config. All three must score a clean V
+    /// above the default 0.7 gate, or that method silently makes autofocus
+    /// unusable.
+    #[test]
+    fn every_fit_method_scores_a_realistic_sweep() {
+        const BEST: f64 = 25_075.0;
+        let points: Vec<FocusDataPoint> = (24_800..=25_200)
+            .step_by(50)
+            .map(|pos| {
+                let d = pos as f64 - BEST;
+                let hfr = 2.1 + (d.abs() / 200.0) * if d < 0.0 { 2.0 } else { 1.4 };
+                FocusDataPoint {
+                    position: pos,
+                    hfr,
+                    fwhm: None,
+                    star_count: 40,
+                }
+            })
+            .collect();
+
+        for method in [
+            AutofocusMethod::VCurve,
+            AutofocusMethod::Quadratic,
+            AutofocusMethod::Hyperbolic,
+        ] {
+            let engine = VCurveAutofocus::new(AutofocusConfig {
+                method,
+                ..Default::default()
+            });
+            let fit = match method {
+                AutofocusMethod::VCurve => engine.fit_vcurve(&points),
+                AutofocusMethod::Quadratic => engine.fit_parabola(&points),
+                AutofocusMethod::Hyperbolic => engine.fit_hyperbola(&points),
+            };
+            let (pos, r2) = fit.unwrap_or_else(|e| panic!("{method:?} fit errored: {e}"));
+            println!("{method:?} -> pos {pos}, R2 {r2:.3}");
+            assert!(
+                r2 > 0.7,
+                "{method:?} scored R² {r2:.3} on a clean V-curve; autofocus rejects \
+                 anything below 0.7, so this method cannot ever succeed"
+            );
+        }
     }
 }

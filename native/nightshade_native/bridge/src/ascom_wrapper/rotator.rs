@@ -1,8 +1,7 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomRotator};
+use nightshade_ascom::AscomRotator;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -14,6 +13,7 @@ enum AscomRotatorCommand {
     Halt(oneshot::Sender<Result<(), String>>),
     IsMoving(oneshot::Sender<Result<bool, String>>),
     Sync(f64, oneshot::Sender<Result<(), String>>),
+    SetReverse(bool, oneshot::Sender<Result<(), String>>),
     // ASCOM-Common metadata query commands. Mirrors the four
     // `InterfaceVersion` / `DriverVersion` / `DriverInfo` /
     // `SupportedActions` properties common to every ASCOM driver and is
@@ -26,34 +26,39 @@ enum AscomRotatorCommand {
 
 pub struct AscomRotatorWrapper {
     sender: mpsc::Sender<AscomRotatorCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
 }
 
 impl AscomRotatorWrapper {
     pub fn new(prog_id: String) -> Result<Self, String> {
         let (tx, mut rx) = mpsc::channel(32);
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
         let prog_id_clone = prog_id.clone();
 
-        let handle = thread::spawn(move || {
-            if let Err(error) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", error)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did.
+        register_device(move || {
             let mut rotator = match AscomRotator::new(&prog_id_clone) {
                 Ok(rotator) => rotator,
                 Err(error) => {
-                    let _ = init_tx.send(Err(format!("Failed to create ASCOM rotator: {}", error)));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM rotator: {}", error));
                 }
             };
 
-            let _ = init_tx.send(Ok(()));
-
-            while let Some(command) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let command = match rx.try_recv() {
+                    Ok(command) => command,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — the typed `AscomRotator`
+                        // (and its IDispatch) is released when this closure is
+                        // dropped, still on the STA worker thread that owns the
+                        // apartment. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match command {
                     AscomRotatorCommand::Connect(reply) => {
                         let _ = reply.send(rotator.connect());
@@ -76,6 +81,9 @@ impl AscomRotatorWrapper {
                     AscomRotatorCommand::Sync(position, reply) => {
                         let _ = reply.send(rotator.sync(position));
                     }
+                    AscomRotatorCommand::SetReverse(reverse, reply) => {
+                        let _ = reply.send(rotator.set_reverse(reverse));
+                    }
                     AscomRotatorCommand::GetInterfaceVersion(reply) => {
                         let _ = reply.send(rotator.interface_version());
                     }
@@ -89,18 +97,13 @@ impl AscomRotatorWrapper {
                         let _ = reply.send(rotator.supported_actions());
                     }
                 }
-            }
-
-            uninit_com();
-        });
-
-        init_rx
-            .recv()
-            .map_err(|error| format!("Failed to receive init result: {}", error))??;
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
         Ok(Self {
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
         })
     }
@@ -195,6 +198,17 @@ impl AscomRotatorWrapper {
         Self::recv_with_timeout(rx, Timeouts::property_write(), "sync").await
     }
 
+    /// Write the IRotatorV3 `Reverse` flag. Property write — returns promptly,
+    /// so the property-write timeout applies (no physical motion).
+    pub async fn set_reverse(&self, reverse: bool) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomRotatorCommand::SetReverse(reverse, tx))
+            .await
+            .map_err(|error| format!("Send error: {}", error))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_reverse").await
+    }
+
     /// Returns the ASCOM `InterfaceVersion` integer (ASCOM-Common §IAscomDriverV1).
     pub async fn interface_version(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
@@ -243,13 +257,14 @@ impl AscomRotatorWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomRotatorWrapper
     where
         F: FnMut(AscomRotatorCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -259,7 +274,6 @@ mod tests {
         });
         AscomRotatorWrapper {
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
         }
     }

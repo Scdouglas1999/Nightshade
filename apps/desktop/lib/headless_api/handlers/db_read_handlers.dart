@@ -1,4 +1,4 @@
-// read-only API surface for DB tables the phone could not see
+// API surface for DB tables the phone could not see
 // before this wave (sequence_runs, observation_logs (notes journal),
 // guide_rms_history, polar_alignment_history) plus paginated reads on
 // the calibration tables (dark_library, flat_history) that bypass the
@@ -23,6 +23,9 @@
 //   Notes journal (observation_logs):
 //     GET /api/notes-journal
 //         ?equipmentProfileId=&limit=&offset=
+//     POST /api/notes-journal
+//     DELETE /api/notes-journal/<id>
+//     DELETE /api/notes-journal
 //
 //   Guide-RMS history (time-bucketed):
 //     GET /api/guide-rms-history
@@ -171,10 +174,77 @@ class DbReadHandlers {
     });
   }
 
+  Future<Response> handleCreateObservationLog(Request request) async {
+    _logInfo('[API] POST /api/notes-journal');
+    final payload = await readJsonObject(request);
+    final timestampRaw = requireString(payload, 'timestamp');
+    final timestamp = DateTime.tryParse(timestampRaw);
+    if (timestamp == null) {
+      throw BadRequestError(
+        field: 'timestamp',
+        expected: 'ISO-8601 timestamp',
+        message: 'timestamp must be a valid ISO-8601 timestamp',
+      );
+    }
+
+    final id = await _database.observationLogsDao.insertLog(
+      timestamp: timestamp,
+      objectName: requireString(payload, 'objectName', maxLength: 500),
+      ra: requireDouble(payload, 'ra', min: 0, max: 24),
+      dec: requireDouble(payload, 'dec', min: -90, max: 90),
+      objectType: optionalString(payload, 'objectType', maxLength: 100),
+      catalogId: optionalString(payload, 'catalogId', maxLength: 100),
+      altitude: optionalDouble(payload, 'altitude', min: -90, max: 90),
+      azimuth: optionalDouble(payload, 'azimuth', min: 0, max: 360),
+      notes: optionalString(payload, 'notes', allowEmpty: true),
+      rating: optionalInt(payload, 'rating', min: 1, max: 5),
+      equipmentProfileId: optionalInt(payload, 'equipmentProfileId', min: 1),
+      seeingConditions: optionalString(
+        payload,
+        'seeingConditions',
+        maxLength: 100,
+      ),
+      transparency: optionalString(payload, 'transparency', maxLength: 100),
+      locationName: optionalString(payload, 'locationName', maxLength: 500),
+      latitude: optionalDouble(payload, 'latitude', min: -90, max: 90),
+      longitude: optionalDouble(payload, 'longitude', min: -180, max: 180),
+    );
+    return jsonOk({'status': 'created', 'id': id});
+  }
+
+  Future<Response> handleDeleteObservationLog(
+    Request request,
+    String idRaw,
+  ) async {
+    _logInfo('[API] DELETE /api/notes-journal/$idRaw');
+    final id = int.tryParse(idRaw);
+    if (id == null || id <= 0) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'positive integer',
+        message: '"$idRaw" is not a valid observation-log id',
+      );
+    }
+    final deleted = await _database.observationLogsDao.deleteLog(id);
+    if (deleted == 0) {
+      return jsonNotFound({
+        'error': 'observation_log_not_found',
+        'message': 'No observation log with id $id',
+      });
+    }
+    return jsonOk({'status': 'deleted', 'id': id});
+  }
+
+  Future<Response> handleDeleteAllObservationLogs(Request request) async {
+    _logInfo('[API] DELETE /api/notes-journal');
+    final deleted = await _database.observationLogsDao.deleteAllLogs();
+    return jsonOk({'status': 'deleted', 'count': deleted});
+  }
+
   Map<String, dynamic> _observationLogToJson(ObservationLogEntry row) {
     return {
       'id': row.id,
-      'timestamp': row.timestamp.toIso8601String(),
+      'timestamp': row.timestamp.toUtc().toIso8601String(),
       'objectName': row.objectName,
       'objectType': row.objectType,
       'catalogId': row.catalogId,
@@ -204,15 +274,21 @@ class DbReadHandlers {
     final offset = _parseOffset(qp['offset']);
     final sinceMs = _parseOptionalInt(qp['sinceMs']);
     final untilMs = _parseOptionalInt(qp['untilMs']);
+    final mountId = qp['mountId']?.trim();
 
     final dao = _database.guideRmsHistoryDao;
     final rows = await dao.listPaginated(
+      mountId: mountId,
       sinceMs: sinceMs,
       untilMs: untilMs,
       limit: limit,
       offset: offset,
     );
-    final total = await dao.countFiltered(sinceMs: sinceMs, untilMs: untilMs);
+    final total = await dao.countFiltered(
+      mountId: mountId,
+      sinceMs: sinceMs,
+      untilMs: untilMs,
+    );
 
     return jsonOk({
       'items': rows.map(_guideRmsToJson).toList(),
@@ -304,6 +380,80 @@ class DbReadHandlers {
       'items': notes.map((n) => n.toJson()).toList(),
       'total': notes.length,
     });
+  }
+
+  Future<Response> handleCreateJournalNote(Request request) async {
+    _logInfo('[API] POST /api/db/notes');
+    final payload = await readJsonObject(request);
+    final service = NotesService(_database);
+    final note = await service.addNote(
+      targetId: requireString(payload, 'targetId', maxLength: 500),
+      sequenceRunId: optionalInt(payload, 'sequenceRunId', min: 1),
+      body: requireString(
+        payload,
+        'body',
+        allowEmpty: true,
+        maxLength: 1000000,
+      ),
+      title: optionalString(payload, 'title', maxLength: 1000),
+      tags: optionalList<String>(payload, 'tags') ?? const <String>[],
+      attachments:
+          optionalList<String>(payload, 'attachments') ?? const <String>[],
+      sentiment: optionalString(payload, 'sentiment', maxLength: 20),
+    );
+    return jsonOk({'status': 'created', 'note': note.toJson()});
+  }
+
+  Future<Response> handleUpdateJournalNote(Request request, String id) async {
+    _logInfo('[API] PUT /api/db/notes/$id');
+    if (id.trim().isEmpty || id.length > 200) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'non-empty note id',
+        message: 'Journal-note id is invalid',
+      );
+    }
+    final payload = await readJsonObject(request);
+    final service = NotesService(_database);
+    if (await service.getNoteById(id) == null) {
+      return jsonNotFound({
+        'error': 'journal_note_not_found',
+        'message': 'No journal note with id $id',
+      });
+    }
+    final note = await service.updateNote(
+      id,
+      body: payload.containsKey('body')
+          ? requireString(payload, 'body', allowEmpty: true, maxLength: 1000000)
+          : null,
+      title: optionalString(payload, 'title', maxLength: 1000),
+      tags: optionalList<String>(payload, 'tags'),
+      attachments: optionalList<String>(payload, 'attachments'),
+      sentiment: optionalString(payload, 'sentiment', maxLength: 20),
+      clearTitle: optionalBool(payload, 'clearTitle') ?? false,
+      clearSentiment: optionalBool(payload, 'clearSentiment') ?? false,
+    );
+    return jsonOk({'status': 'updated', 'note': note.toJson()});
+  }
+
+  Future<Response> handleDeleteJournalNote(Request request, String id) async {
+    _logInfo('[API] DELETE /api/db/notes/$id');
+    if (id.trim().isEmpty || id.length > 200) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'non-empty note id',
+        message: 'Journal-note id is invalid',
+      );
+    }
+    final service = NotesService(_database);
+    final deleted = await service.deleteNote(id);
+    if (deleted == 0) {
+      return jsonNotFound({
+        'error': 'journal_note_not_found',
+        'message': 'No journal note with id $id',
+      });
+    }
+    return jsonOk({'status': 'deleted', 'id': id});
   }
 
   // =========================================================================
@@ -435,6 +585,23 @@ class DbReadHandlers {
     return parsed;
   }
 
+  bool _parseIncludeDiffContext(Request request) {
+    final raw = request.url.queryParameters['includeDiffContext'];
+    if (raw == null) return false;
+    switch (raw.toLowerCase()) {
+      case 'true':
+        return true;
+      case 'false':
+        return false;
+      default:
+        throw BadRequestError(
+          field: 'includeDiffContext',
+          expected: 'boolean',
+          message: 'includeDiffContext must be true or false',
+        );
+    }
+  }
+
   /// `GET /api/sequence-runs/<runId>` — fetch a single sequence-run by id.
   ///
   /// The response carries everything the replay scrubber needs to build
@@ -449,6 +616,7 @@ class DbReadHandlers {
   ) async {
     _logInfo('[API] GET /api/sequence-runs/$runIdRaw');
     final runId = _parseRunId(runIdRaw);
+    final includeDiffContext = _parseIncludeDiffContext(request);
 
     final run = await _database.sequenceRunsDao.getRunById(runId);
     if (run == null) {
@@ -487,9 +655,31 @@ class DbReadHandlers {
       }
     }
 
+    Map<String, dynamic>? diffContext;
+    if (includeDiffContext) {
+      final previousSnapshot = run.sequenceId == null
+          ? null
+          : await _database.sequenceRunsDao.previousCompletedRunSnapshot(
+              run.sequenceId!,
+              before: run.startedAt,
+            );
+      diffContext = {
+        'runId': run.id,
+        'sequenceId': run.sequenceId,
+        'currentSnapshotJson': _nonEmptySnapshot(run.sequenceSnapshotJson),
+        'previousSnapshotJson': _nonEmptySnapshot(previousSnapshot),
+      };
+    }
+
     return jsonOk({
       'run': _sequenceRunDetailToJson(run, frameCount, targetName),
+      if (diffContext != null) 'diffContext': diffContext,
     });
+  }
+
+  String? _nonEmptySnapshot(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    return value;
   }
 
   /// Detail-shaped JSON for a single run — same field names as the list

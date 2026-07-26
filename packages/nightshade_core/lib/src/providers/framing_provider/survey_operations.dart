@@ -25,7 +25,10 @@ extension _FramingSurveyOperations on FramingNotifier {
   /// [_requestPixelWidthFor]); when omitted the last-known canvas width — or the
   /// default — is used. The angular field of view is independent of this and is
   /// resolved from the target + equipment via [_computeRequestFov].
-  Future<void> _loadSurveyImage({double? canvasWidthLogicalPx}) async {
+  Future<void> _loadSurveyImage({
+    required Object token,
+    double? canvasWidthLogicalPx,
+  }) async {
     if (_currentState.target == null) return;
 
     _currentState = _currentState.copyWith(
@@ -43,13 +46,17 @@ extension _FramingSurveyOperations on FramingNotifier {
 
     try {
       final (requestWidth, requestHeight) = await _computeRequestFov();
+      if (!_isCurrentSurveyRequest(token, target, source)) return;
 
       // ---- OFFLINE-FIRST: serve a pinned cache entry when available. --------
       final served = await _tryServeFromCache(
+        token: token,
+        target: target,
         raHours: target.raHours,
         decDegrees: target.decDegrees,
         source: source,
       );
+      if (!_isCurrentSurveyRequest(token, target, source)) return;
       if (served) return;
 
       // ---- NETWORK: Aladin HiPS2FITS primary, NASA SkyView fallback. -------
@@ -83,9 +90,12 @@ extension _FramingSurveyOperations on FramingNotifier {
             error: e,
           );
         }
+        if (!_isCurrentSurveyRequest(token, target, source)) return;
 
         if (response != null && response.statusCode == 200) {
           await _applyFetchedImage(
+            token: token,
+            target: target,
             bytes: response.bodyBytes,
             raHours: target.raHours,
             decDegrees: target.decDegrees,
@@ -116,6 +126,8 @@ extension _FramingSurveyOperations on FramingNotifier {
 
           if (skyViewResponse.statusCode == 200) {
             await _applyFetchedImage(
+              token: token,
+              target: target,
               bytes: skyViewResponse.bodyBytes,
               raHours: target.raHours,
               decDegrees: target.decDegrees,
@@ -124,7 +136,7 @@ extension _FramingSurveyOperations on FramingNotifier {
               requestHeight: requestHeight,
             );
           } else {
-            if (!_isMounted) return;
+            if (!_isCurrentSurveyRequest(token, target, source)) return;
             _currentState = _currentState.copyWith(
               isLoadingImage: false,
               imageError: 'Failed to load survey image',
@@ -135,7 +147,7 @@ extension _FramingSurveyOperations on FramingNotifier {
         client.close();
       }
     } on TimeoutException catch (e) {
-      if (!_isMounted) return;
+      if (!_isCurrentSurveyRequest(token, target, source)) return;
       _currentState = _currentState.copyWith(
         isLoadingImage: false,
         imageError: 'Survey image fetch timed out - retry?',
@@ -147,7 +159,7 @@ extension _FramingSurveyOperations on FramingNotifier {
         error: e,
       );
     } catch (e) {
-      if (!_isMounted) return;
+      if (!_isCurrentSurveyRequest(token, target, source)) return;
       _currentState = _currentState.copyWith(
         isLoadingImage: false,
         imageError: 'Error: ${e.toString()}',
@@ -181,6 +193,8 @@ extension _FramingSurveyOperations on FramingNotifier {
   /// the requested FOV alongside any pinned cache entry so a future offline load
   /// can reconstruct the same registration linkage.
   Future<void> _applyFetchedImage({
+    required Object token,
+    required FramingTarget target,
     required Uint8List bytes,
     required double raHours,
     required double decDegrees,
@@ -203,7 +217,7 @@ extension _FramingSurveyOperations on FramingNotifier {
       fovHeightDeg: requestHeight,
     );
 
-    if (!_isMounted) return;
+    if (!_isCurrentSurveyRequest(token, target, source)) return;
     _currentState = _currentState.copyWith(
       surveyImageBytes: bytes,
       surveyImage: image,
@@ -226,6 +240,8 @@ extension _FramingSurveyOperations on FramingNotifier {
   /// the network. Any IO/decode error is surfaced via [developer.log] and also
   /// returns `false` rather than masking a real fetch failure.
   Future<bool> _tryServeFromCache({
+    required Object token,
+    required FramingTarget target,
     required double raHours,
     required double decDegrees,
     required SurveySource source,
@@ -264,7 +280,7 @@ extension _FramingSurveyOperations on FramingNotifier {
       ui.decodeImageFromList(bytes, completer.complete);
       final image = await completer.future;
 
-      if (!_isMounted) return true;
+      if (!_isCurrentSurveyRequest(token, target, source)) return true;
       _currentState = _currentState.copyWith(
         surveyImageBytes: bytes,
         surveyImage: image,

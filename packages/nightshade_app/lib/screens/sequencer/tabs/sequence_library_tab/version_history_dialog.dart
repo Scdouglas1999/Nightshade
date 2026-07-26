@@ -25,16 +25,37 @@ class _VersionHistoryDialog extends ConsumerStatefulWidget {
 }
 
 class _VersionHistoryDialogState extends ConsumerState<_VersionHistoryDialog> {
-  late Future<List<SequenceVersion>> _versionsFuture;
+  late Future<List<SequenceVersionSummary>> _versionsFuture;
+  late final NightshadeBackend _authority;
+  late final SequenceRepository _repository;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
   @override
   void initState() {
     super.initState();
+    _authority = ref.read(backendProvider);
+    _repository = ref.read(sequenceRepositoryProvider);
     _versionsFuture = _load();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        context.showWarningSnackBar(
+          'The connected host changed. Version history closed.',
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
   }
 
-  Future<List<SequenceVersion>> _load() {
-    return ref.read(sequenceRepositoryProvider).listVersions(widget.sequenceId);
+  Future<List<SequenceVersionSummary>> _load() {
+    return _repository.listVersions(widget.sequenceId);
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   @override
@@ -109,7 +130,7 @@ class _VersionHistoryDialogState extends ConsumerState<_VersionHistoryDialog> {
   }
 
   Widget _buildBody(NightshadeColors colors) {
-    return FutureBuilder<List<SequenceVersion>>(
+    return FutureBuilder<List<SequenceVersionSummary>>(
       future: _versionsFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData && !snapshot.hasError) {
@@ -135,7 +156,7 @@ class _VersionHistoryDialogState extends ConsumerState<_VersionHistoryDialog> {
             ),
           );
         }
-        final versions = snapshot.data ?? const <SequenceVersion>[];
+        final versions = snapshot.data ?? const <SequenceVersionSummary>[];
         if (versions.isEmpty) {
           return Padding(
             padding: const EdgeInsets.all(32),
@@ -211,19 +232,19 @@ class _VersionHistoryDialogState extends ConsumerState<_VersionHistoryDialog> {
     );
   }
 
-  Future<void> _restore(SequenceVersion version) async {
-    final repository = ref.read(sequenceRepositoryProvider);
+  Future<void> _restore(SequenceVersionSummary version) async {
+    if (!identical(ref.read(backendProvider), _authority)) return;
     final editor = ref.read(currentSequenceProvider.notifier);
     Sequence? restored;
     try {
-      restored = await repository.restoreVersion(version.id);
+      restored = await _repository.restoreVersion(version.id);
     } catch (e) {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), _authority)) {
         context.showErrorSnackBar('Failed to restore version: $e');
       }
       return;
     }
-    if (!mounted) return;
+    if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
     if (restored == null) {
       context.showErrorSnackBar('That version is no longer available');
       return;
@@ -256,11 +277,14 @@ class _VersionHistoryDialogState extends ConsumerState<_VersionHistoryDialog> {
           ],
         ),
       );
-      if (discard != true) return;
+      if (discard != true ||
+          !identical(ref.read(backendProvider), _authority)) {
+        return;
+      }
       editor.loadSequence(restored, discardUnsaved: true);
     }
 
-    if (!mounted) return;
+    if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
     Navigator.of(context).pop();
     ref.read(sequencerTabProvider.notifier).state = 0;
     context.showSuccessSnackBar(
@@ -271,7 +295,7 @@ class _VersionHistoryDialogState extends ConsumerState<_VersionHistoryDialog> {
 
 class _VersionRow extends StatelessWidget {
   final NightshadeColors colors;
-  final SequenceVersion version;
+  final SequenceVersionSummary version;
   final bool isLatest;
   final VoidCallback onRestore;
 

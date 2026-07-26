@@ -89,6 +89,11 @@ pub enum DeviceType {
 /// vendor SDKs are NOT thread-safe. Results are cached for CACHE_TTL seconds
 /// to avoid redundant SDK queries when multiple device types are discovered.
 pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError> {
+    // Publish libusb symbols globally BEFORE probing any vendor SDK. Some SDKs
+    // (SVBony) expect the host to provide libusb and otherwise abort the whole
+    // process with `undefined symbol: libusb_init` on first use. Idempotent.
+    crate::vendor::sdk_loader::ensure_libusb_global();
+
     // Acquire the discovery mutex to ensure only one discovery runs at a time
     let _guard = get_discovery_mutex().lock().await;
 
@@ -524,7 +529,25 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                 }
             }));
         }
-        Err(e) => tracing::warn!("Moravian camera discovery failed: {}", e),
+        Err(e) => {
+            // "SDK not installed" (Moravian gxccd not bundled/present) is the
+            // overwhelmingly common case for users without a Moravian camera —
+            // log at debug, not a per-discovery-cycle WARN flood. A genuinely
+            // present-but-broken SDK yields a different error and still warns.
+            let m = e.to_string().to_lowercase();
+            if m.contains("not loaded")
+                || m.contains("failed to load")
+                || m.contains("not found")
+                || m.contains("no such file")
+            {
+                tracing::debug!(
+                    "Moravian camera discovery skipped (SDK not installed): {}",
+                    e
+                );
+            } else {
+                tracing::warn!("Moravian camera discovery failed: {}", e);
+            }
+        }
     }
     tracing::debug!("Moravian discovery complete.");
 
@@ -563,8 +586,22 @@ pub async fn discover_all_devices() -> Result<Vec<NativeDeviceInfo>, NativeError
                 }));
             }
             Err(e) => {
-                // Log the error but continue - this is expected if X Acquire SDK is not installed
-                tracing::warn!("Fujifilm camera discovery failed: {}", e);
+                // Expected (and common) when the Fujifilm X-Acquire SDK is not
+                // installed — log at debug rather than a per-cycle WARN flood.
+                // A present-but-broken SDK yields a different error and warns.
+                let m = e.to_string().to_lowercase();
+                if m.contains("not loaded")
+                    || m.contains("failed to load")
+                    || m.contains("not found")
+                    || m.contains("no such file")
+                {
+                    tracing::debug!(
+                        "Fujifilm camera discovery skipped (SDK not installed): {}",
+                        e
+                    );
+                } else {
+                    tracing::warn!("Fujifilm camera discovery failed: {}", e);
+                }
             }
         }
         tracing::debug!("Fujifilm camera discovery complete.");

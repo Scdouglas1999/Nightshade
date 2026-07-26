@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
+import '../../../utils/authority_bound_dialog.dart';
+import '../../../utils/cooled_camera_guard.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
@@ -32,6 +36,23 @@ enum ConnectedDeviceType {
   safetyMonitor,
   coverCalibrator,
 }
+
+/// Narrow adapters keep the equipment card on the canonical weather-safety
+/// state machine while allowing the quick-action surface to be tested without
+/// constructing its long-lived polling timers.
+final equipmentSafetySnoozeStatusProvider = Provider<WeatherSafetyStatus>(
+  (ref) => ref.watch(weatherSafetyProvider).status,
+);
+
+final equipmentSafetySnoozeActionProvider =
+    Provider<void Function(Duration)>((ref) {
+  return (duration) =>
+      ref.read(weatherSafetyProvider.notifier).snooze(duration);
+});
+
+final equipmentSafetyCancelSnoozeActionProvider = Provider<VoidCallback>(
+  (ref) => ref.read(weatherSafetyProvider.notifier).cancelSnooze,
+);
 
 extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
   String get displayName {
@@ -187,14 +208,12 @@ class ConnectedDeviceCard extends ConsumerStatefulWidget {
   final ConnectedDeviceType type;
   final VoidCallback? onDisconnect;
   final VoidCallback? onSettings;
-  final ValueChanged<String>? onNameChanged;
 
   const ConnectedDeviceCard({
     super.key,
     required this.type,
     this.onDisconnect,
     this.onSettings,
-    this.onNameChanged,
   });
 
   @override
@@ -205,12 +224,37 @@ class ConnectedDeviceCard extends ConsumerStatefulWidget {
 class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     with SingleTickerProviderStateMixin {
   bool _isExpanded = false;
+  bool _deviceCommandInFlight = false;
+  bool _mountCommandInFlight = false;
+  bool _domeCommandInFlight = false;
+  bool _coverCalibratorCommandInFlight = false;
+  int _commandRevision = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
 
   @override
   void initState() {
     super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _commandRevision++;
+        if (mounted &&
+            (_deviceCommandInFlight ||
+                _mountCommandInFlight ||
+                _domeCommandInFlight ||
+                _coverCalibratorCommandInFlight)) {
+          setState(() {
+            _deviceCommandInFlight = false;
+            _mountCommandInFlight = false;
+            _domeCommandInFlight = false;
+            _coverCalibratorCommandInFlight = false;
+          });
+        }
+      },
+    );
     _expandController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 200),
@@ -223,6 +267,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
   @override
   void dispose() {
+    _backendSubscription?.close();
     _expandController.dispose();
     super.dispose();
   }
@@ -236,6 +281,126 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         _expandController.reverse();
       }
     });
+  }
+
+  bool get _anyCommandInFlight =>
+      _deviceCommandInFlight ||
+      _mountCommandInFlight ||
+      _domeCommandInFlight ||
+      _coverCalibratorCommandInFlight;
+
+  int? _beginDeviceCommand() {
+    if (_anyCommandInFlight) return null;
+    final revision = ++_commandRevision;
+    setState(() => _deviceCommandInFlight = true);
+    return revision;
+  }
+
+  int? _beginMountCommand() {
+    if (_anyCommandInFlight) return null;
+    final revision = ++_commandRevision;
+    setState(() => _mountCommandInFlight = true);
+    return revision;
+  }
+
+  int? _beginDomeCommand() {
+    if (_anyCommandInFlight) return null;
+    final revision = ++_commandRevision;
+    setState(() => _domeCommandInFlight = true);
+    return revision;
+  }
+
+  int? _beginCoverCalibratorCommand() {
+    if (_anyCommandInFlight) return null;
+    final revision = ++_commandRevision;
+    setState(() => _coverCalibratorCommandInFlight = true);
+    return revision;
+  }
+
+  void _finishDeviceCommand(int revision, NightshadeBackend backend) {
+    if (!mounted ||
+        revision != _commandRevision ||
+        !identical(ref.read(backendProvider), backend)) {
+      return;
+    }
+    setState(() => _deviceCommandInFlight = false);
+  }
+
+  void _finishMountCommand(int revision, NightshadeBackend backend) {
+    if (!mounted ||
+        revision != _commandRevision ||
+        !identical(ref.read(backendProvider), backend)) {
+      return;
+    }
+    setState(() => _mountCommandInFlight = false);
+  }
+
+  void _finishDomeCommand(int revision, NightshadeBackend backend) {
+    if (!mounted ||
+        revision != _commandRevision ||
+        !identical(ref.read(backendProvider), backend)) {
+      return;
+    }
+    setState(() => _domeCommandInFlight = false);
+  }
+
+  void _finishCoverCalibratorCommand(
+    int revision,
+    NightshadeBackend backend,
+  ) {
+    if (!mounted ||
+        revision != _commandRevision ||
+        !identical(ref.read(backendProvider), backend)) {
+      return;
+    }
+    setState(() => _coverCalibratorCommandInFlight = false);
+  }
+
+  /// Presents a device dialog that belongs to exactly one imaging host.
+  ///
+  /// Equipment IDs and capability snapshots are host-owned. If the user
+  /// changes rigs while a dialog is open, remove that route before it can
+  /// dispatch the old device state through the new host's providers.
+  Future<T?> _showEquipmentDialog<T>({
+    required BuildContext context,
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+  }) async {
+    final authority = ref.read(backendProvider);
+    BuildContext? dialogContext;
+    var authorityChanged = false;
+    final subscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(next, authority)) return;
+        authorityChanged = true;
+        final routeContext = dialogContext;
+        if (routeContext != null && routeContext.mounted) {
+          closeAuthorityBoundDialog(routeContext);
+        }
+      },
+    );
+
+    try {
+      return await showDialog<T>(
+        context: context,
+        barrierDismissible: barrierDismissible,
+        builder: (routeContext) {
+          dialogContext = routeContext;
+          if (authorityChanged ||
+              !identical(ref.read(backendProvider), authority)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (routeContext.mounted) {
+                closeAuthorityBoundDialog(routeContext);
+              }
+            });
+          }
+          return builder(routeContext);
+        },
+      );
+    } finally {
+      subscription.close();
+    }
   }
 
   @override

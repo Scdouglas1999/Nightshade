@@ -57,6 +57,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 // ignore: implementation_imports
 import 'package:nightshade_core/src/providers/plugin_enablement_provider.dart'
     show pluginEnablementProvider;
+import 'package:nightshade_core/nightshade_core.dart'
+    show NetworkBackend, backendProvider;
 
 import 'widgets/settings_widgets.dart';
 
@@ -103,6 +105,39 @@ class IntegrationsSettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Plugin code and credentials live on the process that executes the
+    // sequence. A thin client must not register/configure a second local host
+    // and imply those changes affect the remote rig.
+    if (ref.watch(backendProvider) is NetworkBackend) {
+      return SettingsPage(
+        title: 'Integrations',
+        description:
+            'Plugin integrations execute on the connected imaging host.',
+        isMobile: isMobile,
+        hideHeader: isMobile,
+        children: [
+          SettingsSection(
+            title: 'Imaging host',
+            isMobile: isMobile,
+            children: [
+              SettingRow(
+                icon: LucideIcons.server,
+                title: 'Managed on the imaging host',
+                subtitle:
+                    'Open Nightshade on the rig to enable plugins and enter '
+                    'their credentials. Local changes on this client would '
+                    'not affect remote sequence execution.',
+                trailing: const Icon(LucideIcons.lock, size: 16),
+                isLast: true,
+                isMobile: isMobile,
+                stackOnMobile: true,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     // Ensure the bundled plugins are registered before we read host state.
     // A registration failure must NOT silently render an empty list — surface
     // it as an error state (errors are a feature).

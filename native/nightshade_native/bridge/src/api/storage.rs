@@ -110,6 +110,7 @@ pub fn api_init_settings_storage(storage_path: String) -> Result<(), NightshadeE
             } else {
                 Some(pref.catalog_path.as_str())
             },
+            Some(pref.solver_choice.as_str()),
         );
         tracing::info!(
             "Plate-solver preference loaded at startup: astap={:?} catalog={:?}",

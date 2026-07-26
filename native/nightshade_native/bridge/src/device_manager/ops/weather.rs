@@ -152,9 +152,18 @@ impl DeviceManager {
                     "Native weather device not connected",
                 ))
             }
-            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
-                crate::device_manager::ops::sim_gate::unsupported_simulator_device("weather"),
-            )),
+            Some(DriverType::Simulator) => {
+                let weather = crate::api::devices::simulation::get_sim_weather()
+                    .read()
+                    .await;
+                if !weather.connected {
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        "Simulator weather device not connected",
+                    ));
+                }
+                Ok(weather.conditions.clone())
+            }
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }

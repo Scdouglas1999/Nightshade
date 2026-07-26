@@ -56,6 +56,11 @@ check('js: theme persisted to localStorage',
   /nightshade_theme/.test(app) && /localStorage\.setItem\(THEME_STORAGE_KEY/.test(app));
 check('js: respects prefers-color-scheme on first load',
   /prefers-color-scheme/.test(app));
+check('js: expanded auth controls retain a visible close toggle',
+  /classList\.toggle\('hidden', !authRequired\)/.test(app) &&
+  /'aria-expanded'/.test(app) && /Hide pairing and token controls/.test(app));
+check('js: protected gallery route waits for authentication',
+  /route === 'gallery' && api\.isConnected/.test(app));
 
 // --- 2b. Persisted panel prefs (collapse). -------------------------------
 check('js: setupPanelPrefs defined', /function setupPanelPrefs\(/.test(app));

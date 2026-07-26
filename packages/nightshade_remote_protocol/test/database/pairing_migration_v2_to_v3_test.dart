@@ -6,11 +6,10 @@
 //
 // Pattern mirrors the nightshade_core migration tests
 // (migration_v38_to_v39_test.dart):
-//   1. Open a fresh on-disk DB at v3 via onCreate (lands the full schema incl.
-//      the two Phase-D tables).
-//   2. DROP both Phase-D tables and rewind PRAGMA user_version to 2 so the DB
-//      looks like a pre-Phase-D v2 install with a real paired device.
-//   3. Reopen — triggers onUpgrade(2, 3), which runs
+//   1. Open a fresh on-disk DB at the current version via onCreate.
+//   2. DROP both Phase-D tables and the later v4 grant column, then rewind
+//      PRAGMA user_version to 2 so the DB has a genuine v2 shape.
+//   3. Reopen — triggers the stepped onUpgrade(2, current), including
 //      `m.createTable(devicePushTokens)` + `m.createTable(devicePushPrefs)`.
 //   4. Assert both tables now exist, the seeded paired-device row survived, and
 //      the push accessors the /api/push/* endpoints sit on work end to end.
@@ -25,10 +24,9 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 void main() {
   group('pairing DB stepped migration onUpgrade v2 -> v3 (Phase D push)', () {
-    /// Creates a fresh on-disk DB opened at v3 (full schema lands), then drops
-    /// the two Phase-D tables and rewinds `PRAGMA user_version = 2` so the next
-    /// open triggers `onUpgrade(2, 3)`. Seeds one paired device so the test can
-    /// prove the additive bump preserves existing rows.
+    /// Creates a fresh on-disk DB at the current schema, then removes every
+    /// post-v2 addition and rewinds `PRAGMA user_version = 2`. Seeds one paired
+    /// device so the test proves the stepped additive upgrades preserve rows.
     Future<File> createV2Database(Directory dir) async {
       final dbFile = File('${dir.path}/pairing.db');
       final setupDb = PairingDatabase.forTesting(NativeDatabase(dbFile));
@@ -44,6 +42,9 @@ void main() {
         // Reduce to the pre-Phase-D (v2) shape: the push tables did not exist.
         await setupDb.customStatement('DROP TABLE device_push_tokens');
         await setupDb.customStatement('DROP TABLE device_push_prefs');
+        await setupDb.customStatement(
+          'ALTER TABLE paired_devices DROP COLUMN auth_grant_spec',
+        );
         await setupDb.customStatement('PRAGMA user_version = 2');
       } finally {
         await setupDb.close();

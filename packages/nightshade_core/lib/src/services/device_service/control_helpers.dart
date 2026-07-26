@@ -139,11 +139,7 @@ extension _DeviceServiceControlHelpers on DeviceService {
   /// 1. Active profile filter names (if profile exists and has filter names)
   /// 2. Session filter names (if set via sessionFilterNamesProvider)
   /// 3. Driver-reported names (no sync needed, already set)
-  Future<void> _syncFilterNamesToDriver(
-    String deviceId,
-    List<String> driverNames,
-  ) async {
-    final notifier = _ref.read(filterWheelStateProvider.notifier);
+  Future<void> _syncFilterNamesToDriver(List<String> driverNames) async {
     final logger = _ref.read(loggingServiceProvider);
 
     try {
@@ -176,11 +172,7 @@ extension _DeviceServiceControlHelpers on DeviceService {
           syncedNames = profileFilterNames;
         }
 
-        await _applyFilterNamesToNotifier(
-          notifier: notifier,
-          deviceId: deviceId,
-          syncedNames: syncedNames,
-        );
+        await _writeFilterNamesToBackend(syncedNames: syncedNames);
         logger.debug(
           'Profile filter names synced: $syncedNames',
           source: 'DeviceService',
@@ -211,11 +203,7 @@ extension _DeviceServiceControlHelpers on DeviceService {
           syncedNames = sessionFilterNames;
         }
 
-        await _applyFilterNamesToNotifier(
-          notifier: notifier,
-          deviceId: deviceId,
-          syncedNames: syncedNames,
-        );
+        await _writeFilterNamesToBackend(syncedNames: syncedNames);
         logger.debug(
           'Session filter names synced: $syncedNames',
           source: 'DeviceService',
@@ -417,7 +405,10 @@ extension _DeviceServiceControlHelpers on DeviceService {
   ///
   /// Per-filter autofocus config `focusOffset` values from AppSettings take
   /// precedence over the general filter offset provider values.
-  Future<void> _applyFilterFocusOffset(String filterName) async {
+  Future<void> _applyFilterFocusOffset(
+    String filterName, {
+    bool rethrowOnFailure = false,
+  }) async {
     try {
       // Check if filter focus offsets are enabled in settings.
       // If settings haven't loaded yet, skip offsets (fail closed) rather than
@@ -468,15 +459,52 @@ extension _DeviceServiceControlHelpers on DeviceService {
         return;
       }
 
-      // Move focuser by the delta amount
-      final currentPosition = focuserState.position ?? 0;
+      if (_isFocuserMoveRunning ||
+          (focuserState.isMoving && !_isAutofocusRunning)) {
+        throw StateError(
+          'Cannot apply the filter focus offset while another focuser move '
+          'is in progress.',
+        );
+      }
+
+      // Move focuser by the delta amount. Unknown position is not a safe zero:
+      // fabricating it can drive an absolute focuser hard into its inward stop.
+      final currentPosition = focuserState.position;
+      if (currentPosition == null) {
+        throw StateError(
+          'Cannot apply filter focus offset: focuser position is unknown.',
+        );
+      }
       final targetPosition = currentPosition + delta;
+      if (targetPosition < 0 ||
+          (focuserState.maxPosition != null &&
+              focuserState.maxPosition! > 0 &&
+              targetPosition > focuserState.maxPosition!)) {
+        throw RangeError(
+          'Filter focus offset would move the focuser outside its reported '
+          'travel range (target $targetPosition).',
+        );
+      }
 
       final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+      _isFocuserMoveRunning = true;
       focuserNotifier.setMoving(true);
 
+      var commandWasSent = false;
+      var hardwareStillMoving = false;
       try {
-        await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
+        if (!_isStillConnectedToFocuser(focuserDeviceId)) {
+          throw StateError(
+            'Focuser connection changed before the filter offset was sent.',
+          );
+        }
+        final verifyGeneration = ++_focuserVerifyGeneration;
+        if (focuserState.isAbsolute) {
+          await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
+        } else {
+          await _backend.focuserMoveRelative(focuserDeviceId, delta);
+        }
+        commandWasSent = true;
         // Verify the focuser actually reached the target before recording
         // the offset as applied. Recording on send (the old behaviour)
         // poisons the delta bookkeeping after a stalled/failed move: every
@@ -486,7 +514,7 @@ extension _DeviceServiceControlHelpers on DeviceService {
         await _verifyFocuserPosition(
           deviceId: focuserDeviceId,
           targetPosition: targetPosition,
-          generation: _focuserVerifyGeneration,
+          generation: verifyGeneration,
         );
         _lastAppliedFilterOffsetByWheel[offsetKey] = newOffset;
 
@@ -496,8 +524,18 @@ extension _DeviceServiceControlHelpers on DeviceService {
           '(offset=$newOffset, moved to position $targetPosition)',
           source: 'DeviceService',
         );
+      } catch (_) {
+        if (commandWasSent) {
+          hardwareStillMoving = await _recoverFocuserMovingState(
+            focuserDeviceId,
+          );
+        }
+        rethrow;
       } finally {
-        focuserNotifier.setMoving(false);
+        _isFocuserMoveRunning = false;
+        if (!hardwareStillMoving) {
+          focuserNotifier.setMoving(false);
+        }
       }
     } catch (e) {
       // Don't fail filter change if focus offset fails — but surface it
@@ -519,6 +557,9 @@ extension _DeviceServiceControlHelpers on DeviceService {
       } on Object {
         // Notification surface unavailable (headless) — the log entry above
         // remains the record.
+      }
+      if (rethrowOnFailure) {
+        rethrow;
       }
     }
   }

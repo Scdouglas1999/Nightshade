@@ -1,8 +1,7 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomSwitch};
+use nightshade_ascom::AscomSwitch;
 use std::fmt::Debug;
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -31,7 +30,6 @@ pub struct AscomSwitchWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomSwitchCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     max_switch: i32,
 }
 
@@ -50,21 +48,21 @@ impl AscomSwitchWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
+        // The friendly `Name` and `MaxSwitch` count are read at construction
+        // (before connect) and ferried back to `new()` over this channel.
+        // `register_device` owns the success/error signalling; this side channel
+        // only carries the construction-time property payload the legacy init
+        // channel returned.
+        let (info_tx, info_rx) = std::sync::mpsc::channel();
 
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did.
+        register_device(move || {
             let mut switch = match AscomSwitch::new(&prog_id_clone) {
                 Ok(s) => s,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!("Failed to create ASCOM switch: {}", e)));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM switch: {}", e));
                 }
             };
 
@@ -78,10 +76,22 @@ impl AscomSwitchWrapper {
             // driver finishes initialising.
             let name = switch.name().unwrap_or_else(|_| prog_id_clone.clone());
             let max_switch = switch.max_switch().unwrap_or(0);
+            let _ = info_tx.send((name, max_switch));
 
-            let _ = init_tx.send(Ok((name, max_switch)));
-
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — the typed `AscomSwitch`
+                        // (and its IDispatch) is released when this closure is
+                        // dropped, still on the STA worker thread that owns the
+                        // apartment. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomSwitchCommand::Connect(reply) => {
                         let _ = reply.send(switch.connect());
@@ -132,21 +142,22 @@ impl AscomSwitchWrapper {
                         let _ = reply.send(switch.supported_actions());
                     }
                 }
-            }
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
-            uninit_com();
-        });
-
-        // Wait for initialization
-        let (name, max_switch) = init_rx
+        // The construction-time `(name, max_switch)` was sent on `info_tx` before
+        // the factory returned, so this receive completes immediately once
+        // `register_device` reports the device ready.
+        let (name, max_switch) = info_rx
             .recv()
-            .map_err(|e| format!("Failed to receive init result: {}", e))??;
+            .map_err(|e| format!("Failed to receive device properties: {}", e))?;
 
         Ok(Self {
             id: prog_id.clone(),
             name,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             max_switch,
         })
     }

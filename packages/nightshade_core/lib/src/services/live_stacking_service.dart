@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
 import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
 import '../providers/backend_provider.dart';
 import '../services/logging_service.dart';
 
@@ -71,6 +72,7 @@ class LiveStackingConfig {
     int? minMatchedPairs,
     String? sensorMode,
     String? bayerPattern,
+    bool clearBayerPattern = false,
     String? demosaicQuality,
   }) {
     return LiveStackingConfig(
@@ -81,7 +83,9 @@ class LiveStackingConfig {
       matchFluxTolerance: matchFluxTolerance ?? this.matchFluxTolerance,
       minMatchedPairs: minMatchedPairs ?? this.minMatchedPairs,
       sensorMode: sensorMode ?? this.sensorMode,
-      bayerPattern: bayerPattern ?? this.bayerPattern,
+      bayerPattern: clearBayerPattern
+          ? null
+          : (bayerPattern ?? this.bayerPattern),
       demosaicQuality: demosaicQuality ?? this.demosaicQuality,
     );
   }
@@ -160,18 +164,19 @@ class LiveStackingResult {
 /// The live stacking engine aligns and averages incoming frames in real time,
 /// providing a continuously improving preview for EAA and outreach.
 class LiveStackingService {
-  final Ref _ref;
+  final NightshadeBackend _backend;
+  final LoggingService _logger;
 
-  LiveStackingService(this._ref);
-
-  LoggingService get _logger => _ref.read(loggingServiceProvider);
+  LiveStackingService(Ref ref, {NightshadeBackend? backend})
+    : _backend = backend ?? ref.read(backendProvider),
+      _logger = ref.read(loggingServiceProvider);
 
   /// The active NetworkBackend when running as a remote client (tablet talking
   /// to a headless appliance), else null. When non-null the stacker runs on the
   /// HOST and every operation routes over `/api/stacking/*` rather than the
   /// local FFI bridge (whose stacker is empty on a remote client).
   NetworkBackend? get _remote {
-    final backend = _ref.read(backendProvider);
+    final backend = _backend;
     return backend is NetworkBackend ? backend : null;
   }
 
@@ -395,5 +400,6 @@ class LiveStackingService {
 
 /// Provider for the LiveStackingService.
 final liveStackingServiceProvider = Provider<LiveStackingService>((ref) {
-  return LiveStackingService(ref);
+  final backend = ref.watch(backendProvider);
+  return LiveStackingService(ref, backend: backend);
 });

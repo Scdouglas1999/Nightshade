@@ -100,20 +100,20 @@ Future<bool> addFramedTargetToExistingSequence({
   double? rotationDegrees,
 }) async {
   final current = ref.read(currentSequenceProvider);
-  final savedAsync = ref.read(savedSequencesProvider);
-
-  // Best-effort fetch of the library list. `savedSequencesProvider` is
-  // autoDispose + async; if it has not resolved yet (or errored) we degrade
-  // to "current + new" rather than blocking the user — the explicit fetch
-  // below awaits a fresh read so the common case still shows the full list.
-  List<Sequence> saved = savedAsync.valueOrNull ?? const <Sequence>[];
-  if (savedAsync is! AsyncData) {
+  List<Sequence>? saved;
+  while (saved == null) {
+    final savedAsync = ref.read(savedSequencesProvider);
+    if (savedAsync.hasValue && !savedAsync.isLoading && !savedAsync.hasError) {
+      saved = savedAsync.requireValue;
+      break;
+    }
     try {
       saved = await ref.read(savedSequencesProvider.future);
-    } catch (_) {
-      // Library unavailable (e.g. remote host offline) — proceed with what we
-      // have. The current/new destinations remain valid.
-      saved = ref.read(savedSequencesProvider).valueOrNull ?? saved;
+    } catch (error) {
+      if (!context.mounted) return false;
+      final retry = await _showSequenceLibraryError(context, error);
+      if (retry != true || !context.mounted) return false;
+      ref.invalidate(savedSequencesProvider);
     }
   }
   if (!context.mounted) return false;
@@ -217,6 +217,39 @@ Future<bool> addFramedTargetToExistingSequence({
     }
     return false;
   }
+}
+
+Future<bool?> _showSequenceLibraryError(
+  BuildContext context,
+  Object error,
+) {
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => NightshadeDialog(
+      title: 'Could not load saved sequences',
+      icon: LucideIcons.alertTriangle,
+      width: 440,
+      actions: [
+        NightshadeButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+        ),
+        NightshadeButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          label: 'Retry',
+          size: ButtonSize.small,
+        ),
+      ],
+      child: Text(
+        'Nightshade could not verify the sequence library: $error\n\n'
+        'No destination list or new-sequence option will be shown until the '
+        'library loads successfully.',
+      ),
+    ),
+  );
 }
 
 String? _targetCountSubtitle(Sequence sequence) {

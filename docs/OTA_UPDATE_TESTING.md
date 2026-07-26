@@ -308,6 +308,28 @@ whose public half is **not** embedded in the target build cannot be applied.
 
 ## CI Integration
 
+### Signed manifest publishing (release pipeline)
+
+`.github/workflows/release.yml` produces and publishes a signed OTA manifest as
+part of every tagged release. The Windows job:
+
+1. Bakes `NIGHTSHADE_UPDATE_PUBLIC_KEY` into the binary via `--dart-define` on
+   `flutter build windows --release`.
+2. Builds + stages `updater.exe`, Authenticode-signs the Release binaries, then
+   runs `scripts/build_update_package.ps1 -SkipBuild -SkipUpdaterBuild
+   -NoPusherCopy -DownloadUrl <per-tag asset URL>` in the
+   **"Package + sign OTA manifest"** step. With `NIGHTSHADE_UPDATE_PRIVATE_KEY`
+   present, `manifest.json` is signed against the canonical payload the runtime
+   verifier checks; absent, the manifest is emitted unsigned (OTA stays
+   fail-closed-disabled).
+3. Publishes `manifest.json` alongside `nightshade-<version>-windows-x64.zip`.
+
+Secret names, generation one-liners, the GitHub-Releases hosting +
+`NIGHTSHADE_UPDATE_SERVER` runtime URL, and the fail-closed contract are
+documented in [`release-signing.md`](release-signing.md).
+
+### Update-system self-tests
+
 Add to your CI pipeline:
 
 ```yaml

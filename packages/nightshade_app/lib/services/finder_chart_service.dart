@@ -128,58 +128,65 @@ class FinderChartService {
         ? _buildPrintModeConfig(renderConfig)
         : renderConfig;
 
-    // Use a PictureRecorder to capture the SkyCanvasPainter output
+    // Use a PictureRecorder to capture the SkyCanvasPainter output.
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Offset.zero & size);
+    ui.Picture? picture;
+    ui.Image? image;
+    try {
+      final canvas = Canvas(recorder, Offset.zero & size);
 
-    if (chartConfig.printMode) {
-      // White background for print mode
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = const Color(0xFFFFFFFF),
+      if (chartConfig.printMode) {
+        // White background for print mode
+        canvas.drawRect(
+          Offset.zero & size,
+          Paint()..color = const Color(0xFFFFFFFF),
+        );
+      }
+
+      // Create the painter with high-quality config (no animations)
+      final painter = SkyCanvasPainter(
+        viewState: viewState,
+        config: chartRenderConfig,
+        qualityConfig: const RenderQualityConfig.quality(),
+        stars: stars,
+        dsos: dsos,
+        constellations: constellations,
+        observationTime: observationTime,
+        latitude: latitude,
+        longitude: longitude,
+        selectedObject: selectedObject,
+        sunPosition: sunPosition,
+        moonPosition: moonPosition,
+        planets: planets,
+        milkyWayPoints: chartConfig.printMode ? null : milkyWayPoints,
+        // No animations for static chart
+        animationPhase: null,
+        selectionAnimationPhase: null,
+        popinAnimationPhase: null,
+        dsoPopinAnimationPhase: null,
+        parallaxPanDelta: null,
       );
+
+      painter.paint(canvas, size);
+
+      picture = recorder.endRecording();
+      image = await picture.toImage(
+        chartConfig.chartResolution,
+        chartConfig.chartResolution,
+      );
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw StateError('Failed to encode sky chart image to PNG');
+      }
+
+      return byteData.buffer.asUint8List();
+    } finally {
+      image?.dispose();
+      picture?.dispose();
+      if (recorder.isRecording) {
+        recorder.endRecording().dispose();
+      }
     }
-
-    // Create the painter with high-quality config (no animations)
-    final painter = SkyCanvasPainter(
-      viewState: viewState,
-      config: chartRenderConfig,
-      qualityConfig: const RenderQualityConfig.quality(),
-      stars: stars,
-      dsos: dsos,
-      constellations: constellations,
-      observationTime: observationTime,
-      latitude: latitude,
-      longitude: longitude,
-      selectedObject: selectedObject,
-      sunPosition: sunPosition,
-      moonPosition: moonPosition,
-      planets: planets,
-      milkyWayPoints: chartConfig.printMode ? null : milkyWayPoints,
-      // No animations for static chart
-      animationPhase: null,
-      selectionAnimationPhase: null,
-      popinAnimationPhase: null,
-      dsoPopinAnimationPhase: null,
-      parallaxPanDelta: null,
-    );
-
-    painter.paint(canvas, size);
-
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(
-      chartConfig.chartResolution,
-      chartConfig.chartResolution,
-    );
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    picture.dispose();
-    image.dispose();
-
-    if (byteData == null) {
-      throw StateError('Failed to encode sky chart image to PNG');
-    }
-
-    return byteData.buffer.asUint8List();
   }
 
   /// Build a SkyRenderConfig suitable for print mode (white bg, black stars).

@@ -1,6 +1,74 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
+  List<Map<String, dynamic>> _sessionScienceObjectList(
+    Map<String, dynamic> response,
+    String field,
+    String request,
+  ) {
+    final raw = response[field];
+    if (raw is! List) {
+      throw FormatException(
+        '$request returned a missing or non-list `$field` field',
+      );
+    }
+    final rows = <Map<String, dynamic>>[];
+    for (var index = 0; index < raw.length; index++) {
+      final row = raw[index];
+      if (row is! Map) {
+        throw FormatException(
+          '$request returned a non-object `$field[$index]` row',
+        );
+      }
+      rows.add(row.cast<String, dynamic>());
+    }
+    return rows;
+  }
+
+  Map<String, dynamic> _sessionScienceObject(
+    Map<String, dynamic> response,
+    String field,
+    String request,
+  ) {
+    final raw = response[field];
+    if (raw is! Map) {
+      throw FormatException(
+        '$request returned a missing or non-object `$field` field',
+      );
+    }
+    return raw.cast<String, dynamic>();
+  }
+
+  Map<String, dynamic>? _sessionScienceNullableObject(
+    Map<String, dynamic> response,
+    String field,
+    String request,
+  ) {
+    if (!response.containsKey(field)) {
+      throw FormatException('$request returned no `$field` field');
+    }
+    final raw = response[field];
+    if (raw == null) return null;
+    if (raw is! Map) {
+      throw FormatException('$request returned a non-object `$field` field');
+    }
+    return raw.cast<String, dynamic>();
+  }
+
+  num _sessionScienceNumber(
+    Map<String, dynamic> response,
+    String field,
+    String request,
+  ) {
+    final raw = response[field];
+    if (raw is! num) {
+      throw FormatException(
+        '$request returned a missing or non-numeric `$field` field',
+      );
+    }
+    return raw;
+  }
+
   /// True pixel dimensions of a host FITS file. Used by the photometric
   /// calibration wizard to size images exactly on a remote client instead of
   /// estimating from the detected-star bounding box. Returns null if the host
@@ -11,11 +79,29 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
         'path': hostPath,
       });
       return (
-        width: (response['width'] as num).toInt(),
-        height: (response['height'] as num).toInt(),
+        width: _sessionScienceNumber(
+          response,
+          'width',
+          'GET /api/imaging/fits-dimensions',
+        ).toInt(),
+        height: _sessionScienceNumber(
+          response,
+          'height',
+          'GET /api/imaging/fits-dimensions',
+        ).toInt(),
       );
-    } catch (_) {
-      return null;
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404 || error.code == 'fits_not_found') {
+        return null;
+      }
+      rethrow;
+    } on dart_error.NightshadeError catch (error) {
+      // Compatibility with hosts that predate the structured error envelope.
+      final message = error.message.toLowerCase();
+      if (message.contains('fits_not_found') || message.contains('http 404')) {
+        return null;
+      }
+      rethrow;
     }
   }
 
@@ -26,46 +112,38 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Get all imaging sessions
   Future<List<Map<String, dynamic>>> getAllSessions() async {
     final response = await _get('sessions');
-    final sessionsList = response['sessions'] as List? ?? [];
-    return sessionsList.cast<Map<String, dynamic>>();
+    return _sessionScienceObjectList(response, 'sessions', 'GET /api/sessions');
   }
 
   /// Get active session
   Future<Map<String, dynamic>?> getActiveSession() async {
-    try {
-      final response = await _get('sessions/active');
-      return response['session'] as Map<String, dynamic>?;
-    } catch (e) {
-      developer.log(
-        'Failed to get active session: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
-      );
-      return null;
-    }
+    final response = await _get('sessions/active');
+    return _sessionScienceNullableObject(
+      response,
+      'session',
+      'GET /api/sessions/active',
+    );
   }
 
   /// Get session by ID
   Future<Map<String, dynamic>?> getSessionById(int id) async {
     try {
       final response = await _get('sessions/$id');
-      return response['session'] as Map<String, dynamic>?;
-    } catch (e) {
-      developer.log(
-        'Failed to get session $id: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      return _sessionScienceNullableObject(
+        response,
+        'session',
+        'GET /api/sessions/$id',
       );
-      return null;
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
   /// Create a new session
   Future<int> createSession(Map<String, dynamic> session) async {
     final response = await _post('sessions', session);
-    return response['id'] as int;
+    return _sessionScienceNumber(response, 'id', 'POST /api/sessions').toInt();
   }
 
   /// Update session fields (stats, notes, status).
@@ -81,14 +159,17 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Sessions for a target.
   Future<List<Map<String, dynamic>>> getSessionsForTarget(int targetId) async {
     final response = await _get('sessions/target/$targetId');
-    final sessions = response['sessions'] as List? ?? [];
-    return sessions.cast<Map<String, dynamic>>();
+    return _sessionScienceObjectList(
+      response,
+      'sessions',
+      'GET /api/sessions/target/$targetId',
+    );
   }
 
   /// Create a captured-image metadata row on the host.
   Future<int> createCapturedImage(Map<String, dynamic> image) async {
     final response = await _post('images', image);
-    return response['id'] as int;
+    return _sessionScienceNumber(response, 'id', 'POST /api/images').toInt();
   }
 
   /// Patch captured-image metadata on the host.
@@ -100,23 +181,21 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   Future<Map<String, dynamic>?> getCapturedImageById(int id) async {
     try {
       final response = await _get('images/$id');
-      return response['image'] as Map<String, dynamic>?;
-    } catch (e) {
-      developer.log(
-        'Failed to get image $id: $e',
-        name: 'NetworkBackend',
-        level: 1000,
-        error: e,
+      return _sessionScienceNullableObject(
+        response,
+        'image',
+        'GET /api/images/$id',
       );
-      return null;
+    } on ServerError catch (error) {
+      if (error.httpStatus == 404) return null;
+      rethrow;
     }
   }
 
   /// Images for a target.
   Future<List<Map<String, dynamic>>> getImagesForTarget(int targetId) async {
     final response = await _get('images', {'targetId': targetId.toString()});
-    final images = response['images'] as List? ?? [];
-    return images.cast<Map<String, dynamic>>();
+    return _sessionScienceObjectList(response, 'images', 'GET /api/images');
   }
 
   /// Thumbnail-strip rows for a producing exposure node.
@@ -131,14 +210,17 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       if (limit != null) 'limit': limit.toString(),
     };
     final response = await _get('images', params);
-    final images = response['images'] as List? ?? [];
-    return images.cast<Map<String, dynamic>>();
+    return _sessionScienceObjectList(response, 'images', 'GET /api/images');
   }
 
   /// Get session statistics
   Future<Map<String, dynamic>> getSessionStats(int sessionId) async {
     final response = await _get('sessions/$sessionId/stats');
-    return response['stats'] as Map<String, dynamic>? ?? {};
+    return _sessionScienceObject(
+      response,
+      'stats',
+      'GET /api/sessions/$sessionId/stats',
+    );
   }
 
   Future<Uint8List> downloadSessionExport(int sessionId, String format) async {
@@ -146,23 +228,41 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   Future<List<PsfFieldTileRow>> getSessionPsfTiles(int sessionId) async {
+    final endpoint = 'GET /api/sessions/$sessionId/psf-tiles';
     final response = await _get('sessions/$sessionId/psf-tiles');
-    final tiles = response['psfTiles'] as List? ?? [];
-    return tiles
-        .cast<Map<String, dynamic>>()
-        .map(_psfFieldTileFromJson)
-        .toList();
+    final rows = _sessionScienceObjectList(response, 'psfTiles', endpoint);
+    final seenIds = <int>{};
+    final tiles = <PsfFieldTileRow>[];
+    for (var index = 0; index < rows.length; index++) {
+      final tile = _psfFieldTileFromJson(rows[index], endpoint, index);
+      if (!seenIds.add(tile.id)) {
+        throw FormatException(
+          '$endpoint row $index field `id` duplicates id ${tile.id}',
+        );
+      }
+      tiles.add(tile);
+    }
+    return tiles;
   }
 
   Future<List<AstrometryResidualVectorRow>> getSessionResidualVectors(
     int sessionId,
   ) async {
+    final endpoint = 'GET /api/sessions/$sessionId/residuals';
     final response = await _get('sessions/$sessionId/residuals');
-    final residuals = response['residuals'] as List? ?? [];
-    return residuals
-        .cast<Map<String, dynamic>>()
-        .map(_residualVectorFromJson)
-        .toList();
+    final rows = _sessionScienceObjectList(response, 'residuals', endpoint);
+    final seenIds = <int>{};
+    final vectors = <AstrometryResidualVectorRow>[];
+    for (var index = 0; index < rows.length; index++) {
+      final vector = _residualVectorFromJson(rows[index], endpoint, index);
+      if (!seenIds.add(vector.id)) {
+        throw FormatException(
+          '$endpoint row $index field `id` duplicates id ${vector.id}',
+        );
+      }
+      vectors.add(vector);
+    }
+    return vectors;
   }
 
   /// Get analytics summary
@@ -172,10 +272,10 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }) async {
     final params = <String, dynamic>{};
     if (startDate != null) {
-      params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+      params['startDate'] = startDate.toUtc().toIso8601String();
     }
     if (endDate != null) {
-      params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+      params['endDate'] = endDate.toUtc().toIso8601String();
     }
     final response = await _get(
       'analytics/summary',
@@ -191,10 +291,10 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }) async {
     final params = <String, dynamic>{};
     if (startDate != null) {
-      params['startDate'] = startDate.millisecondsSinceEpoch.toString();
+      params['startDate'] = startDate.toUtc().toIso8601String();
     }
     if (endDate != null) {
-      params['endDate'] = endDate.millisecondsSinceEpoch.toString();
+      params['endDate'] = endDate.toUtc().toIso8601String();
     }
     final response = await _get(
       'analytics/integration-time',
@@ -209,7 +309,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// against the host DB, so a remote client asks the host instead of guessing.
   Future<int> countUntrackedTargets() async {
     final response = await _get('analytics/untracked-targets/count');
-    return (response['count'] as num?)?.toInt() ?? 0;
+    return _sessionScienceNumber(
+      response,
+      'count',
+      'GET /api/analytics/untracked-targets/count',
+    ).toInt();
   }
 
   /// Permanently remove every untracked library target on the host and return
@@ -219,7 +323,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       'analytics/untracked-targets/remove',
       const {},
     );
-    return (response['deleted'] as num?)?.toInt() ?? 0;
+    return _sessionScienceNumber(
+      response,
+      'deleted',
+      'POST /api/analytics/untracked-targets/remove',
+    ).toInt();
   }
 
   // =========================================================================
@@ -243,8 +351,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Get weather alerts
   Future<List<Map<String, dynamic>>> getWeatherAlerts() async {
     final response = await _get('weather/alerts');
-    final alertsList = response['alerts'] as List? ?? [];
-    return alertsList.cast<Map<String, dynamic>>();
+    return _sessionScienceObjectList(
+      response,
+      'alerts',
+      'GET /api/weather/alerts',
+    );
   }
 
   /// Check safe imaging conditions
@@ -256,7 +367,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Get weather settings
   Future<Map<String, dynamic>> getWeatherSettings() async {
     final response = await _get('weather/settings');
-    return response['settings'] as Map<String, dynamic>? ?? {};
+    return _sessionScienceObject(
+      response,
+      'settings',
+      'GET /api/weather/settings',
+    );
   }
 
   /// Update weather settings
@@ -293,9 +408,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   List<Map<String, dynamic>> _narratorEventsList(Map<String, dynamic> json) {
-    final raw = json['events'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+    return _sessionScienceObjectList(json, 'events', 'GET /api/narrator feed');
   }
 
   // =========================================================================
@@ -314,9 +427,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       'firstlight/candidates',
       sessionId == null ? null : {'sessionId': sessionId.toString()},
     );
-    final raw = json['candidates'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+    return _sessionScienceObjectList(
+      json,
+      'candidates',
+      'GET /api/firstlight/candidates',
+    );
   }
 
   /// Fetch the host's cross-night history for one transient: every persisted
@@ -333,9 +448,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       'dec': decDeg.toString(),
       'radius': radiusDeg.toString(),
     });
-    final raw = json['detections'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+    return _sessionScienceObjectList(
+      json,
+      'detections',
+      'GET /api/firstlight/near',
+    );
   }
 
   /// Mark a First Light detection reviewed (confirmed) on the host.
@@ -391,7 +508,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
-  // Sky Atlas — Pillar A ("Your Sky") personal atlas (read-only)
+  // Sky Atlas — Pillar A ("Your Sky") personal atlas
   // =========================================================================
 
   /// Fetch the host's persisted atlas regions (the "Your Sky" browser list).
@@ -400,9 +517,34 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Callers reconstruct rows via `skyAtlasRegionFromWireJson`.
   Future<List<Map<String, dynamic>>> getAtlasRegions() async {
     final json = await _get('atlas/regions');
-    final raw = json['regions'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+    return _sessionScienceObjectList(json, 'regions', 'GET /api/atlas/regions');
+  }
+
+  /// Create or update a named region in the host-owned atlas. The companion
+  /// sends only metadata; all tile/fold data remains on the imaging host.
+  Future<int> createAtlasRegion({
+    required String name,
+    required double centerRaDeg,
+    required double centerDecDeg,
+    required double radiusDeg,
+    required String kind,
+    int? targetId,
+  }) async {
+    final response = await _post('atlas/regions', {
+      'name': name,
+      'centerRaDeg': centerRaDeg,
+      'centerDecDeg': centerDecDeg,
+      'radiusDeg': radiusDeg,
+      'kind': kind,
+      if (targetId != null) 'targetId': targetId,
+    });
+    final raw = response['id'];
+    if (raw is! num || !raw.isFinite || raw.toInt() != raw || raw <= 0) {
+      throw const FormatException(
+        'POST /api/atlas/regions returned no positive whole-number `id`',
+      );
+    }
+    return raw.toInt();
   }
 
   /// Fetch the host's per-tile atlas coverage (deepest first) — the heat-overlay
@@ -411,9 +553,7 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// `AtlasTileCoverage.fromJson`.
   Future<List<Map<String, dynamic>>> getAtlasCoverage() async {
     final json = await _get('atlas/coverage');
-    final raw = json['tiles'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+    return _sessionScienceObjectList(json, 'tiles', 'GET /api/atlas/coverage');
   }
 
   /// Fetch one region's detail from the host: its row (`region`), live native
@@ -491,13 +631,24 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Get active transient alerts
   Future<Map<String, dynamic>> getActiveTransients() async {
     final response = await _get('transients');
-    return response;
+    return {
+      ...response,
+      'alerts': _sessionScienceObjectList(
+        response,
+        'alerts',
+        'GET /api/transients',
+      ),
+    };
   }
 
   /// Get transient settings
   Future<Map<String, dynamic>> getTransientSettings() async {
     final response = await _get('transients/settings');
-    return response['settings'] as Map<String, dynamic>? ?? {};
+    return _sessionScienceObject(
+      response,
+      'settings',
+      'GET /api/transients/settings',
+    );
   }
 
   /// Update transient settings
@@ -513,6 +664,26 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Dismiss a transient
   Future<void> dismissTransient(String transientId) async {
     await _post('transients/$transientId/dismiss');
+  }
+
+  /// Get the imaging host's durable per-alert action states.
+  Future<Map<String, dynamic>> getTransientStates() async {
+    final response = await _get('transients/states');
+    return _sessionScienceObject(
+      response,
+      'states',
+      'GET /api/transients/states',
+    );
+  }
+
+  /// Persist an alert action state on the imaging host.
+  Future<void> updateTransientState(String transientId, String state) async {
+    await _post('transients/$transientId/state', {'state': state});
+  }
+
+  /// Remove all durable alert action states on the imaging host.
+  Future<void> clearTransientStates() async {
+    await _delete('transients/states');
   }
 
   /// Refresh transient alerts
@@ -533,23 +704,51 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// List available backups
   Future<List<Map<String, dynamic>>> listBackups() async {
     final response = await _get('backup/list');
-    final backupsList = response['backups'] as List? ?? [];
-    return backupsList.cast<Map<String, dynamic>>();
+    final backupsList = response['backups'];
+    if (backupsList is! List) {
+      throw const FormatException(
+        'GET /api/backup/list returned a missing or non-list `backups` field',
+      );
+    }
+    return backupsList
+        .whereType<Map>()
+        .map(
+          (row) => Map<String, dynamic>.fromEntries(
+            row.entries
+                .where((entry) => entry.key is String)
+                .map((entry) => MapEntry(entry.key as String, entry.value)),
+          ),
+        )
+        .toList(growable: false);
   }
 
   /// Create a new backup
-  Future<Map<String, dynamic>> createBackup({
-    String? customPath,
-    bool autoSave = false,
+  Future<Map<String, dynamic>> createBackup({bool autoSave = false}) async {
+    final response = await _post('backup/create', {'autoSave': autoSave});
+    return response;
+  }
+
+  /// Restore from a backup identified by its stable [backupId].
+  ///
+  /// Preferred over [restoreBackup]: the host resolves [backupId] to a file
+  /// inside its own backup directory, so no absolute server path crosses the
+  /// wire and a client cannot point the host at an arbitrary file on disk.
+  Future<Map<String, dynamic>> restoreBackupById(
+    String backupId, {
+    bool replaceExisting = false,
   }) async {
-    final response = await _post('backup/create', {
-      if (customPath != null) 'customPath': customPath,
-      'autoSave': autoSave,
+    final response = await _post('backup/restore', {
+      'id': backupId,
+      'replaceExisting': replaceExisting,
     });
     return response;
   }
 
-  /// Restore from a backup
+  /// Restore from a backup by absolute server [filePath].
+  ///
+  /// Legacy/compat entry point retained for older hosts. Newer clients should
+  /// use [restoreBackupById]; the host containment-checks any `filePath` to the
+  /// backup directory regardless, so a path outside it is rejected.
   Future<Map<String, dynamic>> restoreBackup(
     String filePath, {
     bool replaceExisting = false,
@@ -587,6 +786,34 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
       {'fileName': fileName, 'replaceExisting': replaceExisting},
       bytes,
       contentType: 'application/octet-stream',
+    );
+  }
+
+  /// Read cloud-backup status from the imaging host. Cloud sync owns the host
+  /// database and keyring; a remote controller must never inspect its own
+  /// phone-local [SyncService] for this state.
+  Future<SyncStatus> getCloudSyncStatus() async {
+    final response = await _get('sync/status');
+    return SyncStatus.fromJson(response);
+  }
+
+  /// Ask the imaging host to create and upload a configuration bundle now.
+  Future<SyncPushResult> pushCloudSyncNow() async {
+    final response = await _post('sync/push');
+    if (response['status'] != 'pushed') {
+      throw const FormatException(
+        'POST /api/sync/push returned no pushed status',
+      );
+    }
+    final rawTimestamp = response['timestamp'];
+    if (rawTimestamp is! num) {
+      throw const FormatException('POST /api/sync/push returned no timestamp');
+    }
+    return SyncPushResult(
+      success: true,
+      remotePath: response['remotePath'] as String?,
+      sizeBytes: (response['sizeBytes'] as num?)?.toInt(),
+      timestamp: DateTime.fromMillisecondsSinceEpoch(rawTimestamp.toInt()),
     );
   }
 
@@ -705,21 +932,27 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     required String filterName,
     int? equipmentProfileId,
   }) async {
-    final response = await _post('science/calibration/compute-transform', {
-      'starMatches': starMatches.map((match) => match.toJson()).toList(),
-      'filterName': filterName,
-      if (equipmentProfileId != null) 'equipmentProfileId': equipmentProfileId,
-    });
-    final coefficients = response['coefficients'];
-    if (coefficients is Map<String, dynamic>) {
-      return PhotometricTransformCoefficients.fromJson(coefficients);
-    }
-    if (coefficients is Map) {
+    try {
+      final response = await _post('science/calibration/compute-transform', {
+        'starMatches': starMatches.map((match) => match.toJson()).toList(),
+        'filterName': filterName,
+        if (equipmentProfileId != null)
+          'equipmentProfileId': equipmentProfileId,
+      });
       return PhotometricTransformCoefficients.fromJson(
-        coefficients.cast<String, dynamic>(),
+        _sessionScienceObject(
+          response,
+          'coefficients',
+          'POST /api/science/calibration/compute-transform',
+        ),
       );
+    } on ServerError catch (error) {
+      // A valid request whose fit could not converge is the one documented
+      // nullable outcome. Auth, transport, and malformed-success failures must
+      // still surface to the wizard.
+      if (error.httpStatus == 422) return null;
+      rethrow;
     }
-    return null;
   }
 
   Future<int> savePhotometricTransform(
@@ -728,7 +961,11 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     final response = await _post('science/calibration/save-transform', {
       'coefficients': coefficients.toJson(),
     });
-    return (response['id'] as num?)?.toInt() ?? 0;
+    return _sessionScienceNumber(
+      response,
+      'id',
+      'POST /api/science/calibration/save-transform',
+    ).toInt();
   }
 
   Future<Map<String, dynamic>> generateSessionLineRatios(int sessionId) async {
@@ -737,25 +974,38 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
 
   Future<Map<String, String>> getScienceSettings() async {
     final response = await _get('science/settings');
-    return (response['settings'] as Map? ?? const {})
-        .cast<String, dynamic>()
-        .map((key, value) => MapEntry(key, value.toString()));
+    return _sessionScienceObject(
+      response,
+      'settings',
+      'GET /api/science/settings',
+    ).map((key, value) => MapEntry(key, value.toString()));
   }
 
   Future<void> updateScienceSettings(Map<String, String> settings) async {
     await _post('science/settings', {'settings': settings});
   }
 
+  Future<Map<String, String>> getSmartNightSettings() async {
+    final response = await _get('smart-night/settings');
+    return _sessionScienceObject(
+      response,
+      'settings',
+      'GET /api/smart-night/settings',
+    ).map((key, value) => MapEntry(key, value.toString()));
+  }
+
+  Future<void> updateSmartNightSettings(Map<String, String> settings) async {
+    await _post('smart-night/settings', {'settings': settings});
+  }
+
   Future<ScienceSessionConfig?> getScienceSessionConfig(int sessionId) async {
     final response = await _get('science/session/$sessionId/config');
-    final config = response['config'];
-    if (config is Map<String, dynamic>) {
-      return ScienceSessionConfig.fromJson(config);
-    }
-    if (config is Map) {
-      return ScienceSessionConfig.fromJson(config.cast<String, dynamic>());
-    }
-    return null;
+    final config = _sessionScienceNullableObject(
+      response,
+      'config',
+      'GET /api/science/session/$sessionId/config',
+    );
+    return config == null ? null : ScienceSessionConfig.fromJson(config);
   }
 
   Future<void> updateScienceSessionConfig(
@@ -808,41 +1058,209 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     });
   }
 
-  PsfFieldTileRow _psfFieldTileFromJson(Map<String, dynamic> json) {
+  int _sessionScienceRowInt(
+    Map<String, dynamic> json,
+    String field,
+    String endpoint,
+    int rowIndex, {
+    int? minimum,
+  }) {
+    final raw = json[field];
+    if (raw is! num || !raw.isFinite || raw.toInt() != raw) {
+      throw FormatException(
+        '$endpoint row $rowIndex field `$field` must be a finite integer',
+      );
+    }
+    final value = raw.toInt();
+    if (minimum != null && value < minimum) {
+      throw FormatException(
+        '$endpoint row $rowIndex field `$field` must be at least $minimum',
+      );
+    }
+    return value;
+  }
+
+  int? _sessionScienceRowNullableId(
+    Map<String, dynamic> json,
+    String field,
+    String endpoint,
+    int rowIndex,
+  ) {
+    if (!json.containsKey(field) || json[field] == null) return null;
+    return _sessionScienceRowInt(json, field, endpoint, rowIndex, minimum: 1);
+  }
+
+  double _sessionScienceRowDouble(
+    Map<String, dynamic> json,
+    String field,
+    String endpoint,
+    int rowIndex, {
+    double? minimum,
+    double? maximum,
+  }) {
+    final raw = json[field];
+    if (raw is! num || !raw.isFinite) {
+      throw FormatException(
+        '$endpoint row $rowIndex field `$field` must be a finite number',
+      );
+    }
+    final value = raw.toDouble();
+    if (minimum != null && value < minimum ||
+        maximum != null && value > maximum) {
+      final range = maximum == null
+          ? 'at least $minimum'
+          : minimum == null
+          ? 'at most $maximum'
+          : 'between $minimum and $maximum';
+      throw FormatException(
+        '$endpoint row $rowIndex field `$field` must be $range',
+      );
+    }
+    return value;
+  }
+
+  DateTime _sessionScienceRowTimestamp(
+    Map<String, dynamic> json,
+    String endpoint,
+    int rowIndex,
+  ) {
+    final milliseconds = _sessionScienceRowInt(
+      json,
+      'timestamp',
+      endpoint,
+      rowIndex,
+      minimum: 0,
+    );
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds);
+  }
+
+  String? _sessionScienceRowNullableString(
+    Map<String, dynamic> json,
+    String field,
+    String endpoint,
+    int rowIndex,
+  ) {
+    if (!json.containsKey(field) || json[field] == null) return null;
+    final raw = json[field];
+    if (raw is! String || raw.trim().isEmpty) {
+      throw FormatException(
+        '$endpoint row $rowIndex field `$field` must be a non-empty string or null',
+      );
+    }
+    return raw;
+  }
+
+  PsfFieldTileRow _psfFieldTileFromJson(
+    Map<String, dynamic> json,
+    String endpoint,
+    int rowIndex,
+  ) {
     return PsfFieldTileRow(
-      id: json['id'] as int,
-      capturedImageId: json['capturedImageId'] as int?,
-      sessionId: json['sessionId'] as int?,
-      tileRow: json['tileRow'] as int? ?? 0,
-      tileCol: json['tileCol'] as int? ?? 0,
-      starCount: json['starCount'] as int? ?? 0,
-      medianFwhm: (json['medianFwhm'] as num?)?.toDouble() ?? 0.0,
-      medianHfr: (json['medianHfr'] as num?)?.toDouble() ?? 0.0,
-      medianEccentricity:
-          (json['medianEccentricity'] as num?)?.toDouble() ?? 0.0,
-      roundness: (json['roundness'] as num?)?.toDouble() ?? 0.0,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(
-        json['timestamp'] as int? ?? 0,
+      id: _sessionScienceRowInt(json, 'id', endpoint, rowIndex, minimum: 1),
+      capturedImageId: _sessionScienceRowNullableId(
+        json,
+        'capturedImageId',
+        endpoint,
+        rowIndex,
       ),
+      sessionId: _sessionScienceRowNullableId(
+        json,
+        'sessionId',
+        endpoint,
+        rowIndex,
+      ),
+      tileRow: _sessionScienceRowInt(
+        json,
+        'tileRow',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+      ),
+      tileCol: _sessionScienceRowInt(
+        json,
+        'tileCol',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+      ),
+      starCount: _sessionScienceRowInt(
+        json,
+        'starCount',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+      ),
+      medianFwhm: _sessionScienceRowDouble(
+        json,
+        'medianFwhm',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+      ),
+      medianHfr: _sessionScienceRowDouble(
+        json,
+        'medianHfr',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+      ),
+      medianEccentricity: _sessionScienceRowDouble(
+        json,
+        'medianEccentricity',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+        maximum: 1,
+      ),
+      roundness: _sessionScienceRowDouble(
+        json,
+        'roundness',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+        maximum: 1,
+      ),
+      timestamp: _sessionScienceRowTimestamp(json, endpoint, rowIndex),
     );
   }
 
   AstrometryResidualVectorRow _residualVectorFromJson(
     Map<String, dynamic> json,
+    String endpoint,
+    int rowIndex,
   ) {
     return AstrometryResidualVectorRow(
-      id: json['id'] as int,
-      capturedImageId: json['capturedImageId'] as int?,
-      sessionId: json['sessionId'] as int?,
-      x: (json['x'] as num?)?.toDouble() ?? 0.0,
-      y: (json['y'] as num?)?.toDouble() ?? 0.0,
-      dxArcsec: (json['dxArcsec'] as num?)?.toDouble() ?? 0.0,
-      dyArcsec: (json['dyArcsec'] as num?)?.toDouble() ?? 0.0,
-      magnitudeArcsec: (json['magnitudeArcsec'] as num?)?.toDouble() ?? 0.0,
-      recommendationCode: json['recommendationCode'] as String?,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(
-        json['timestamp'] as int? ?? 0,
+      id: _sessionScienceRowInt(json, 'id', endpoint, rowIndex, minimum: 1),
+      capturedImageId: _sessionScienceRowNullableId(
+        json,
+        'capturedImageId',
+        endpoint,
+        rowIndex,
       ),
+      sessionId: _sessionScienceRowNullableId(
+        json,
+        'sessionId',
+        endpoint,
+        rowIndex,
+      ),
+      x: _sessionScienceRowDouble(json, 'x', endpoint, rowIndex, minimum: 0),
+      y: _sessionScienceRowDouble(json, 'y', endpoint, rowIndex, minimum: 0),
+      dxArcsec: _sessionScienceRowDouble(json, 'dxArcsec', endpoint, rowIndex),
+      dyArcsec: _sessionScienceRowDouble(json, 'dyArcsec', endpoint, rowIndex),
+      magnitudeArcsec: _sessionScienceRowDouble(
+        json,
+        'magnitudeArcsec',
+        endpoint,
+        rowIndex,
+        minimum: 0,
+      ),
+      recommendationCode: _sessionScienceRowNullableString(
+        json,
+        'recommendationCode',
+        endpoint,
+        rowIndex,
+      ),
+      timestamp: _sessionScienceRowTimestamp(json, endpoint, rowIndex),
     );
   }
 }

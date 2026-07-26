@@ -623,8 +623,24 @@ class SkyAtlasService {
     String kind = 'custom',
     int? targetId,
   }) async {
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Region name cannot be empty');
+    }
+    if (!centerRaDeg.isFinite || centerRaDeg < 0 || centerRaDeg > 360) {
+      throw RangeError.range(centerRaDeg, 0, 360, 'centerRaDeg');
+    }
+    if (!centerDecDeg.isFinite || centerDecDeg < -90 || centerDecDeg > 90) {
+      throw RangeError.range(centerDecDeg, -90, 90, 'centerDecDeg');
+    }
+    if (!radiusDeg.isFinite || radiusDeg <= 0 || radiusDeg > 180) {
+      throw RangeError.range(radiusDeg, 0, 180, 'radiusDeg');
+    }
+    if (targetId != null && targetId <= 0) {
+      throw RangeError.value(targetId, 'targetId', 'Must be positive');
+    }
     final id = await _dao.upsertRegion(
-      name: name,
+      name: normalizedName,
       kind: kind,
       centerRaDeg: centerRaDeg,
       centerDecDeg: centerDecDeg,

@@ -280,21 +280,19 @@ class FirstLightOrchestrator {
       // ---------------------------------------------------------------------
       // STAGE 4 — plate solve, only when a usable solver is configured.
       //
-      // We gate on `hasAnySolver`, not `astapReady`: `solveWithFallback`
-      // honours the user's solver choice and will solve via astrometry.net
-      // alone. Gating on ASTAP-plus-catalog specifically would silently skip a
-      // solve for an astrometry.net-only rig that can solve perfectly well —
-      // and falsely tell the user they have no solver configured.
+      // Gate on whether the user's selected solver can actually run. Auto may
+      // use either engine; an explicit broken ASTAP selection must not be
+      // masked by an unrelated astrometry.net install.
       // ---------------------------------------------------------------------
       final plateSolve = _ref.read(plateSolveServiceProvider);
       final detection = await _detect(plateSolve);
 
-      if (!detection.hasAnySolver) {
+      if (!detection.selectedSolverReady) {
         // Legitimate positive end for a first-time user who hasn't set up a
         // solver yet. We do NOT fabricate a solve — solveResult stays null and
         // the note tells them how to unlock labelling.
         _logger.info(
-          'First-light: plate solver not configured (hasAnySolver=false); '
+          'First-light: selected plate solver is not usable; '
           'finishing without a solve.',
           source: 'FirstLight',
         );
@@ -410,9 +408,10 @@ class FirstLightOrchestrator {
   Future<PlateSolverDetectionResult> _detect(PlateSolveService service) async {
     try {
       final detection = await service.detect();
+      final preference = await service.getConfig();
       return PlateSolverDetectionResult(
         astapReady: detection.astapReady,
-        hasAnySolver: detection.hasAnySolver,
+        selectedSolverReady: detection.supports(preference.choice),
       );
     } catch (e) {
       throw _FirstLightStageError('Plate-solver detection failed: $e');
@@ -519,18 +518,16 @@ class FirstLightOrchestrator {
 class PlateSolverDetectionResult {
   /// `true` when ASTAP plus a catalog are present. Retained for callers that
   /// care specifically about ASTAP readiness; the first-light solve gate keys
-  /// off [hasAnySolver].
+  /// off [selectedSolverReady].
   final bool astapReady;
 
-  /// `true` when at least one usable solver (ASTAP or astrometry.net) is
-  /// configured. This is the signal the solve stage gates on, since
-  /// `solveWithFallback` can solve via astrometry.net even when ASTAP is
-  /// absent.
-  final bool hasAnySolver;
+  /// `true` when the user's explicit selection is usable. In Auto mode either
+  /// ASTAP or astrometry.net satisfies this.
+  final bool selectedSolverReady;
 
   const PlateSolverDetectionResult({
     required this.astapReady,
-    required this.hasAnySolver,
+    required this.selectedSolverReady,
   });
 }
 

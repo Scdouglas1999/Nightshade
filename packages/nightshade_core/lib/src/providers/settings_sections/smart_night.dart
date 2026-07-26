@@ -25,6 +25,14 @@
 //     `session_lifecycle.dart`.
 part of '../settings_provider.dart';
 
+const _allowedSmartNightStrategies = {
+  'auto_lrgb',
+  'mono_lrgb',
+  'narrowband_hoo',
+  'narrowband_sho',
+  'osc_one_shot',
+};
+
 /// Setters for Smart Night auto-builder defaults and the post-run notes
 /// prompt toggle.
 extension SmartNightSettingsSection on AppSettingsNotifier {
@@ -101,16 +109,10 @@ extension SmartNightSettingsSection on AppSettingsNotifier {
   /// `osc_one_shot`); the wizard maps them back to [SmartNightStrategy]
   /// enum values.
   Future<void> setSmartNightDefaultStrategy(String value) async {
-    const allowed = {
-      'auto_lrgb',
-      'mono_lrgb',
-      'narrowband_hoo',
-      'narrowband_sho',
-      'osc_one_shot',
-    };
-    if (!allowed.contains(value)) {
+    if (!_allowedSmartNightStrategies.contains(value)) {
       throw ArgumentError(
-        'smartNightDefaultStrategy must be one of $allowed, got: $value',
+        'smartNightDefaultStrategy must be one of '
+        '$_allowedSmartNightStrategies, got: $value',
       );
     }
     await _saveSetting('smart_night_default_strategy', value);
@@ -177,6 +179,87 @@ extension SmartNightSettingsSection on AppSettingsNotifier {
     final clamped = value < 1 ? 1 : value;
     await _saveSetting('smart_night.auto_select_count', clamped.toString());
     _patchState((s) => s.copyWith(smartNightAutoSelectCount: clamped));
+  }
+
+  /// Persist the wizard's complete working defaults as one logical update.
+  /// The dialog changes several related knobs together; issuing one full
+  /// remote settings POST per field made a single edit fan out into thirteen
+  /// queued writes and exposed partially updated defaults on failure.
+  Future<void> updateSmartNightWizardDefaults({
+    required double? maxSessionHours,
+    required int afCadenceFrames,
+    required int integrationBudgetMinsPerTarget,
+    required bool includeFlatsAtEnd,
+    required bool useSchedulerForMultiTarget,
+    required int schedulerTargetThreshold,
+    required int polarAlignmentStaleAfterDays,
+    required double subExposureFloorSecs,
+    required double subExposureCeilingSecs,
+    required double targetSnr,
+    required String strategy,
+    required bool autoSelect,
+    required int autoSelectCount,
+  }) async {
+    if (!_allowedSmartNightStrategies.contains(strategy)) {
+      throw ArgumentError(
+        'strategy must be one of $_allowedSmartNightStrategies, got: $strategy',
+      );
+    }
+    final clampedMaxHours = maxSessionHours?.clamp(1.0, 14.0);
+    final clampedAfCadence = afCadenceFrames.clamp(1, 9999);
+    final clampedBudget = integrationBudgetMinsPerTarget.clamp(1, 24 * 60);
+    final clampedThreshold = schedulerTargetThreshold.clamp(2, 20);
+    final clampedStaleDays = polarAlignmentStaleAfterDays.clamp(1, 365);
+    final clampedFloor = subExposureFloorSecs.clamp(1.0, 3600.0);
+    final clampedCeiling = subExposureCeilingSecs.clamp(1.0, 7200.0);
+    final clampedSnr = targetSnr.clamp(1.0, 500.0);
+    final clampedAutoSelectCount = autoSelectCount < 1 ? 1 : autoSelectCount;
+
+    await _saveSettings({
+      'smart_night_max_session_hours': clampedMaxHours == null
+          ? 'null'
+          : clampedMaxHours.toString(),
+      'smart_night_default_af_cadence_frames': clampedAfCadence.toString(),
+      'smart_night_default_integration_budget_mins_per_target': clampedBudget
+          .toString(),
+      'smart_night_include_flats_at_end': includeFlatsAtEnd.toString(),
+      'smart_night_use_scheduler_for_multi_target': useSchedulerForMultiTarget
+          .toString(),
+      'smart_night_scheduler_target_threshold': clampedThreshold.toString(),
+      'smart_night_polar_alignment_stale_after_days': clampedStaleDays
+          .toString(),
+      'smart_night_sub_exposure_floor_secs': clampedFloor.toString(),
+      'smart_night_sub_exposure_ceiling_secs': clampedCeiling.toString(),
+      'smart_night_target_snr': clampedSnr.toString(),
+      'smart_night_default_strategy': strategy,
+      'smart_night.auto_select': autoSelect.toString(),
+      'smart_night.auto_select_count': clampedAutoSelectCount.toString(),
+    });
+    _patchState(
+      (s) => s.copyWith(
+        smartNightMaxSessionHours: clampedMaxHours,
+        smartNightDefaultAfCadenceFrames: clampedAfCadence,
+        smartNightDefaultIntegrationBudgetMinsPerTarget: clampedBudget,
+        smartNightIncludeFlatsAtEnd: includeFlatsAtEnd,
+        smartNightUseSchedulerForMultiTarget: useSchedulerForMultiTarget,
+        smartNightSchedulerTargetThreshold: clampedThreshold,
+        smartNightPolarAlignmentStaleAfterDays: clampedStaleDays,
+        smartNightSubExposureFloorSecs: clampedFloor,
+        smartNightSubExposureCeilingSecs: clampedCeiling,
+        smartNightTargetSnr: clampedSnr,
+        smartNightDefaultStrategy: strategy,
+        smartNightAutoSelect: autoSelect,
+        smartNightAutoSelectCount: clampedAutoSelectCount,
+      ),
+    );
+  }
+
+  /// Astronomical-day key the dashboard auto-prompt was dismissed for via
+  /// "Hide for tonight". Persisted so the dismissal survives a same-night
+  /// restart; pass an empty string to clear it.
+  Future<void> setSmartNightPromptDismissedDayKey(String dayKey) async {
+    await _saveSetting('smart_night.prompt_dismissed_day_key', dayKey);
+    _patchState((s) => s.copyWith(smartNightPromptDismissedDayKey: dayKey));
   }
 
   /// Whether the auto-prompt note dialog appears after a sequence run

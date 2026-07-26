@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../theme/nightshade_colors.dart';
@@ -40,14 +42,17 @@ class BrainSettingsPanel extends StatefulWidget {
   /// Whether the panel is in edit mode
   final bool isEditing;
 
-  /// Callback when a parameter value is changed
-  final void Function(String axis, String name, double value)? onParamChanged;
+  /// Writes one changed parameter when Apply is pressed. Changes are kept as
+  /// local drafts while the user types so partial numbers and rapid keystrokes
+  /// never become out-of-order hardware commands.
+  final Future<void> Function(String axis, String name, double value)?
+  onParamChanged;
 
   /// Callback when Apply is pressed
-  final VoidCallback? onApply;
+  final Future<void> Function()? onApply;
 
   /// Callback when Reset is pressed
-  final VoidCallback? onReset;
+  final Future<void> Function()? onReset;
 
   /// Whether changes are being applied
   final bool isApplying;
@@ -70,6 +75,10 @@ class BrainSettingsPanel extends StatefulWidget {
 class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
   final Map<String, TextEditingController> _controllers = {};
   bool _hasChanges = false;
+  bool _applying = false;
+  String? _errorText;
+
+  bool get _isBusy => widget.isApplying || _applying;
 
   @override
   void initState() {
@@ -93,16 +102,39 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
   @override
   void didUpdateWidget(BrainSettingsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update controllers if params changed externally
+    final expectedKeys = <String>{};
+    for (final param in widget.raParams) {
+      final key = 'ra_${param.name}';
+      expectedKeys.add(key);
+      _controllers.putIfAbsent(
+        key,
+        () => TextEditingController(text: param.value.toStringAsFixed(2)),
+      );
+    }
+    for (final param in widget.decParams) {
+      final key = 'dec_${param.name}';
+      expectedKeys.add(key);
+      _controllers.putIfAbsent(
+        key,
+        () => TextEditingController(text: param.value.toStringAsFixed(2)),
+      );
+    }
+    for (final key in _controllers.keys.toList()) {
+      if (!expectedKeys.contains(key)) _controllers.remove(key)?.dispose();
+    }
+
+    // Update controllers if params changed externally.
     if (!_hasChanges) {
-      for (final param in widget.raParams) {
-        _controllers['ra_${param.name}']?.text = param.value.toStringAsFixed(2);
-      }
-      for (final param in widget.decParams) {
-        _controllers['dec_${param.name}']?.text = param.value.toStringAsFixed(
-          2,
-        );
-      }
+      _restoreControllers();
+    }
+  }
+
+  void _restoreControllers() {
+    for (final param in widget.raParams) {
+      _controllers['ra_${param.name}']?.text = param.value.toStringAsFixed(2);
+    }
+    for (final param in widget.decParams) {
+      _controllers['dec_${param.name}']?.text = param.value.toStringAsFixed(2);
     }
   }
 
@@ -196,7 +228,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   overflow: TextOverflow.visible,
                 ),
               ),
-              if (widget.isApplying)
+              if (_isBusy)
                 SizedBox(
                   width: 16,
                   height: 16,
@@ -290,6 +322,7 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
               height: 32,
               child: TextField(
                 controller: controller,
+                readOnly: !widget.isEditing || _isBusy,
                 style: TextStyle(
                   fontSize: 12,
                   color: colors.textPrimary,
@@ -320,11 +353,10 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
                   filled: true,
                 ),
                 onChanged: (value) {
-                  setState(() => _hasChanges = true);
-                  final doubleValue = double.tryParse(value);
-                  if (doubleValue != null) {
-                    widget.onParamChanged?.call(axis, param.name, doubleValue);
-                  }
+                  setState(() {
+                    _hasChanges = true;
+                    _errorText = null;
+                  });
                 },
               ),
             ),
@@ -345,38 +377,117 @@ class _BrainSettingsPanelState extends State<BrainSettingsPanel> {
         ),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          if (_errorText != null) ...[
+            Icon(LucideIcons.alertTriangle, size: 15, color: colors.error),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                _errorText!,
+                style: TextStyle(color: colors.error, fontSize: 11),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ] else
+            const Spacer(),
           _buildActionButton(
             label: 'Reset',
             icon: LucideIcons.rotateCcw,
             color: colors.textSecondary,
             colors: colors,
             isOutline: true,
-            onPressed: widget.isApplying
-                ? null
-                : () {
-                    setState(() => _hasChanges = false);
-                    widget.onReset?.call();
-                  },
+            onPressed: _isBusy ? null : () => unawaited(_resetChanges()),
           ),
-          const SizedBox(width: 10),
-          _buildActionButton(
-            label: 'Apply',
-            icon: LucideIcons.check,
-            color: colors.primary,
-            colors: colors,
-            isPrimary: true,
-            onPressed: widget.isApplying
-                ? null
-                : () {
-                    setState(() => _hasChanges = false);
-                    widget.onApply?.call();
-                  },
-          ),
+          if (widget.onParamChanged != null || widget.onApply != null) ...[
+            const SizedBox(width: 10),
+            _buildActionButton(
+              label: 'Apply',
+              icon: LucideIcons.check,
+              color: colors.primary,
+              colors: colors,
+              isPrimary: true,
+              onPressed: _isBusy ? null : () => unawaited(_applyChanges()),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Future<void> _applyChanges() async {
+    if (_isBusy) return;
+    final changes = <({String axis, String name, double value})>[];
+
+    bool collect(String axis, List<BrainParam> params) {
+      for (final param in params) {
+        final raw = _controllers['${axis}_${param.name}']?.text.trim() ?? '';
+        final value = double.tryParse(raw);
+        if (value == null || !value.isFinite) {
+          setState(() {
+            _errorText = '${_formatParamName(param.name)} must be a number.';
+          });
+          return false;
+        }
+        if (value != param.value) {
+          changes.add((axis: axis, name: param.name, value: value));
+        }
+      }
+      return true;
+    }
+
+    if (!collect('ra', widget.raParams) || !collect('dec', widget.decParams)) {
+      return;
+    }
+
+    setState(() {
+      _applying = true;
+      _errorText = null;
+    });
+    try {
+      final writer = widget.onParamChanged;
+      if (writer != null) {
+        // Preserve edit order and backend ordering. Parallel writes can arrive
+        // out of order on a remote host and leave PHD2 with an older value.
+        for (final change in changes) {
+          await writer(change.axis, change.name, change.value);
+        }
+      }
+      await widget.onApply?.call();
+      if (mounted) setState(() => _hasChanges = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorText = e is StateError ? e.message : e.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _applying = false);
+    }
+  }
+
+  Future<void> _resetChanges() async {
+    if (_isBusy) return;
+    setState(() {
+      _applying = true;
+      _errorText = null;
+    });
+    try {
+      await widget.onReset?.call();
+      if (!mounted) return;
+      _restoreControllers();
+      setState(() => _hasChanges = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorText = e is StateError ? e.message : e.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _applying = false);
+    }
   }
 
   Widget _buildActionButton({

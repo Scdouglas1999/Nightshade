@@ -2,6 +2,7 @@ part of '../imaging_service.dart';
 
 extension _ImagingServicePersistence on ImagingService {
   Future<void> _saveFitsFile({
+    required NightshadeBackend backend,
     required String deviceId,
     required String filePath,
     required int width,
@@ -12,13 +13,36 @@ extension _ImagingServicePersistence on ImagingService {
     String? targetName,
     required DateTime timestamp,
   }) async {
-    final backend = _ref.read(backendProvider);
+    if (!_hasBackendAuthority(backend)) return;
 
     // Get equipment states for header metadata
     final cameraState = _ref.read(cameraStateProvider);
     final mountState = _ref.read(mountStateProvider);
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
+    String? telescope;
+    double? focalLength;
+    double? aperture;
+    if (backend is NetworkBackend) {
+      final activeProfile = await backend.getActiveProfile();
+      if (!_hasBackendAuthority(backend)) return;
+      if (activeProfile != null) {
+        telescope = activeProfile.telescopeName ?? activeProfile.name;
+        focalLength = activeProfile.focalLength > 0
+            ? activeProfile.focalLength
+            : activeProfile.telescopeFocalLength;
+        aperture = activeProfile.aperture > 0
+            ? activeProfile.aperture
+            : activeProfile.telescopeAperture;
+      }
+    } else {
+      final profilesDao = _ref.read(equipmentProfilesDaoProvider);
+      final activeProfile = await profilesDao.getActiveProfile();
+      if (!_hasBackendAuthority(backend)) return;
+      telescope = activeProfile?.telescopeName ?? activeProfile?.name;
+      focalLength = activeProfile?.focalLength;
+      aperture = activeProfile?.aperture;
+    }
+    final hasConfiguredSite = appSettings?.isLocationSet ?? false;
+    final observerName = appSettings?.observerName.trim();
 
     // Build FITS header with complete metadata
     final header = FitsWriteHeader(
@@ -37,29 +61,27 @@ extension _ImagingServicePersistence on ImagingService {
       ra: mountState.ra,
       dec: mountState.dec,
       altitude: mountState.altitude,
-      telescope:
-          activeProfile?.name, // Use profile name as telescope identifier
+      telescope: telescope,
       instrument: cameraState.deviceName, // Use connected camera name
-      observer: null, // Observer name not currently stored in settings
+      observer: observerName == null || observerName.isEmpty
+          ? null
+          : observerName,
       binX: exposureSettings.binningX,
       binY: exposureSettings.binningY,
-      focalLength: activeProfile?.focalLength,
-      aperture: activeProfile?.aperture,
+      focalLength: focalLength,
+      aperture: aperture,
       pixelSizeX: null, // Pixel size not stored in profile yet
       pixelSizeY: null, // Pixel size not stored in profile yet
-      siteLatitude: appSettings != null && appSettings.latitude != 0.0
-          ? appSettings.latitude
-          : null,
-      siteLongitude: appSettings != null && appSettings.longitude != 0.0
-          ? appSettings.longitude
-          : null,
-      siteElevation: appSettings != null && appSettings.elevation != 0.0
-          ? appSettings.elevation
-          : null,
+      siteLatitude: hasConfiguredSite ? appSettings!.latitude : null,
+      siteLongitude: hasConfiguredSite ? appSettings!.longitude : null,
+      // Sea level is real metadata, not an unset sentinel. Once the lat/long
+      // pair establishes a configured site, preserve elevation even at 0 m.
+      siteElevation: hasConfiguredSite ? appSettings!.elevation : null,
     );
 
     // Use the optimized API that saves directly from Rust-side stored image data
     // This avoids the expensive raw data roundtrip (Rust -> Dart -> Rust)
+    if (!_hasBackendAuthority(backend)) return;
     await backend.saveFitsFromLastCapture(
       deviceId: deviceId,
       filePath: filePath,
@@ -68,7 +90,8 @@ extension _ImagingServicePersistence on ImagingService {
   }
 
   /// Save image metadata to database
-  Future<int> _saveToDatabase({
+  Future<int?> _saveToDatabase({
+    required NightshadeBackend backend,
     required String filePath,
     required CapturedImageResult capturedImage,
     required ExposureSettings exposureSettings,
@@ -76,6 +99,7 @@ extension _ImagingServicePersistence on ImagingService {
     String? targetName,
     required DateTime timestamp,
   }) async {
+    if (!_hasBackendAuthority(backend)) return null;
     final records = _ref.read(imagingRecordsRepositoryProvider);
 
     // Get current session ID if available
@@ -107,12 +131,14 @@ extension _ImagingServicePersistence on ImagingService {
     try {
       fileSize = await File(filePath).length();
     } catch (e) {
+      if (!_hasBackendAuthority(backend)) return null;
       _logger.warning(
         'Failed to stat captured FITS for size: $filePath ($e) — '
         'row will be inserted with NULL file_size',
         source: 'ImagingService',
       );
     }
+    if (!_hasBackendAuthority(backend)) return null;
 
     // Create image record with complete metadata
     final companion = CapturedImagesCompanion(
@@ -158,6 +184,7 @@ extension _ImagingServicePersistence on ImagingService {
     );
 
     final imageId = await records.createImage(companion);
+    if (!_hasBackendAuthority(backend)) return null;
 
     final eccentricity = capturedImage.stats.eccentricity;
     final fwhm = capturedImage.stats.fwhm;
@@ -169,11 +196,13 @@ extension _ImagingServicePersistence on ImagingService {
           fwhm: fwhm,
         );
       } catch (e) {
+        if (!_hasBackendAuthority(backend)) return null;
         _logger.warning(
           'Failed to stamp eccentricity for image $imageId ($filePath): $e',
           source: 'ImagingService',
         );
       }
+      if (!_hasBackendAuthority(backend)) return null;
     }
 
     // Schedule fire-and-forget sidecar generation for ad-hoc
@@ -186,7 +215,9 @@ extension _ImagingServicePersistence on ImagingService {
     // backend the provider still points at the local (empty) DB, but the
     // sidecar service is a no-op on an unreachable path so the
     // ergonomics are the same.
-    if (!records.isRemote && filePath.isNotEmpty) {
+    if (_hasBackendAuthority(backend) &&
+        !records.isRemote &&
+        filePath.isNotEmpty) {
       try {
         final sidecarService = _ref.read(thumbnailSidecarServiceProvider);
         final ImagesDao imagesDao = _ref.read(imagesDaoProvider);

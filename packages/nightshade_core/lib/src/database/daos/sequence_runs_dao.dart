@@ -60,6 +60,34 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     return row?.sequenceSnapshotJson;
   }
 
+  /// Snapshot JSON of the most recent run named [sequenceName] that captured
+  /// one, regardless of how that run ended.
+  ///
+  /// This is the resume path's only route back to the sequence tree. A
+  /// checkpoint stores the Rust-side definition and a name, not a Dart DB id,
+  /// so a resumed run had no `Sequence` at all: frames registered with no
+  /// exposure length, gain, binning or target, the Dashboard read "no sequence
+  /// loaded" while the run was imaging, and the run's own history entry had no
+  /// tree to show. The interrupted run itself stored a snapshot, so the tree is
+  /// already on disk — it just needs looking up.
+  ///
+  /// Unlike [previousCompletedRunSnapshot] this deliberately does NOT filter on
+  /// `status == 'completed'`: the run being resumed was interrupted, so its
+  /// status is precisely NOT completed, and it is the run whose tree we want.
+  Future<String?> latestSnapshotForSequenceName(String sequenceName) async {
+    final row =
+        await (select(sequenceRuns)
+              ..where(
+                (r) =>
+                    r.sequenceName.equals(sequenceName) &
+                    r.sequenceSnapshotJson.isNotNull(),
+              )
+              ..orderBy([(r) => OrderingTerm.desc(r.startedAt)])
+              ..limit(1))
+            .getSingleOrNull();
+    return row?.sequenceSnapshotJson;
+  }
+
   /// Finish a run with final status and statistics.
   Future<void> finishRun(int runId, String status, String statsJson) async {
     await (update(sequenceRuns)..where((r) => r.id.equals(runId))).write(

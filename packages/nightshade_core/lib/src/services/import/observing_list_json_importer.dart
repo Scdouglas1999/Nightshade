@@ -11,7 +11,7 @@ class ObservingListEntry {
   final double decDegrees;
   final double? rotation;
 
-  /// Lower = more important. Defaults to 0 (= no priority).
+  /// Higher = more important. Defaults to 0 (= no priority).
   final int priority;
 
   /// Optional free-form user notes.
@@ -280,11 +280,15 @@ class ObservingListJsonImporter {
     final doc = ObservingListDocument.fromJson(raw);
 
     final children = <CanonicalSequenceNode>[];
-    // Sort by priority so lower-priority targets execute first (consistent
-    // with target-scheduler conventions).
-    final sorted = [...doc.items]
-      ..sort((a, b) => a.priority.compareTo(b.priority));
-    for (final item in sorted) {
+    // Match the target library and native scheduler: higher numeric priority
+    // runs first. Preserve document order for equal priorities.
+    final sorted = doc.items.indexed.toList()
+      ..sort((a, b) {
+        final byPriority = b.$2.priority.compareTo(a.$2.priority);
+        if (byPriority != 0) return byPriority;
+        return a.$1.compareTo(b.$1);
+      });
+    for (final (_, item) in sorted) {
       children.add(_buildTargetNode(item));
     }
 

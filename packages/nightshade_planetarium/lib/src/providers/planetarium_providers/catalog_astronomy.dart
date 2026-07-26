@@ -149,17 +149,47 @@ final observationMinuteProvider = Provider<DateTime>((ref) {
   return ref.watch(_currentMinuteProvider);
 });
 
-/// Twilight times for current date and location
-/// Uses date-level precision since twilight only changes once per day.
-final twilightTimesProvider = Provider<TwilightTimes>((ref) {
-  final location = ref.watch(observerLocationProvider);
-  final currentDate = ref.watch(_currentDateProvider);
+/// The two night windows the current instant can belong to: the one that
+/// started on the PREVIOUS calendar evening and the one starting tonight.
+///
+/// Recomputed only when the calendar date (or the site) changes; the choice
+/// between them is made per-minute by [twilightTimesProvider].
+final _nightWindowCandidatesProvider =
+    Provider<({TwilightTimes previous, TwilightTimes today})>((ref) {
+      final location = ref.watch(observerLocationProvider);
+      final currentDate = ref.watch(_currentDateProvider);
 
-  return AstronomyCalculations.calculateTwilightTimes(
-    date: currentDate,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
-  );
+      TwilightTimes forDate(DateTime date) =>
+          AstronomyCalculations.calculateTwilightTimes(
+            date: date,
+            latitudeDeg: location.latitude,
+            longitudeDeg: location.longitude,
+          );
+
+      return (
+        previous: forDate(currentDate.subtract(const Duration(days: 1))),
+        today: forDate(currentDate),
+      );
+    });
+
+/// Twilight times for the observing night that is in progress, or — once it
+/// has ended — the one starting tonight.
+///
+/// `calculateTwilightTimes(date:)` returns a dusk-tonight → dawn-tomorrow
+/// window. Between local midnight and astronomical dawn the night actually in
+/// progress is the PREVIOUS date's window, so anchoring on the calendar date
+/// described the *next* night: at 01:04 with the sun 30° below the horizon the
+/// dashboard reported "Dark in 21h 7m" instead of "Dark 2h 59m left", and the
+/// night timeline / tonight card described a night that had not started.
+final twilightTimesProvider = Provider<TwilightTimes>((ref) {
+  final candidates = ref.watch(_nightWindowCandidatesProvider);
+  final now = ref.watch(_currentMinuteProvider);
+
+  final previousDawn = candidates.previous.astronomicalDawn;
+  if (previousDawn != null && previousDawn.isAfter(now)) {
+    return candidates.previous;
+  }
+  return candidates.today;
 });
 
 /// Moon information for current time and location

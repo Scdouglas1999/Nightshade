@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -8,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
-import '../../../widgets/remote_directory_picker_dialog.dart';
+import '../../../widgets/remote_host_path_dialog.dart';
 import 'settings_widgets.dart';
 
 class Phd2GuidingSettings extends ConsumerStatefulWidget {
@@ -24,7 +23,6 @@ class Phd2GuidingSettings extends ConsumerStatefulWidget {
 class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
   final _portController = TextEditingController();
   final _hostController = TextEditingController();
-  bool _initialized = false;
 
   @override
   void dispose() {
@@ -33,40 +31,81 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
     super.dispose();
   }
 
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _portController.text = settings.phd2Port.toString();
-      _hostController.text = settings.phd2Host;
-      _initialized = true;
+  /// Persist a PHD2 connection field and surface any failure. Mirrors the
+  /// path-selector's await+report behaviour so a host/port edit that fails to
+  /// persist (e.g. a remote write error) is reported instead of silently lost.
+  Future<void> _save(Future<void> Function() write, String what) async {
+    try {
+      await write();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not save the PHD2 $what: $e')),
+        );
+      }
+      rethrow;
     }
   }
 
   Future<void> _selectPhd2Path() async {
+    final authority = ref.read(backendProvider);
+    final isRemote = ref.read(isRemoteModeProvider);
     String? initialDir;
-    if (!ref.read(isRemoteModeProvider) && Platform.isWindows) {
+    if (!isRemote && Platform.isWindows) {
       initialDir = 'C:\\Program Files';
-    } else if (!ref.read(isRemoteModeProvider) && Platform.isMacOS) {
+    } else if (!isRemote && Platform.isMacOS) {
       initialDir = '/Applications';
     }
 
     final settings = ref.read(appSettingsProvider).valueOrNull;
-    final result = ref.read(isRemoteModeProvider)
-        ? await RemoteDirectoryPickerDialog.show(
-            context,
-            title: 'Select host PHD2 folder',
-            initialPath: settings?.phd2Path,
-          )
-        : await getDirectoryPath(
-            initialDirectory: initialDir,
-            confirmButtonText: 'Select',
-          );
+    final String? result;
+    if (isRemote) {
+      result = await RemoteHostPathDialog.show(
+        context,
+        title: 'PHD2 executable on imaging host',
+        initialPath: settings?.phd2Path,
+        hintText: r'C:\Program Files\PHD2\PHD2.exe or /usr/bin/phd2',
+        submitLabel: 'Use host path',
+        clearLabel: 'Use auto-detect',
+      );
+    } else {
+      final typeGroup = XTypeGroup(
+        label: 'PHD2 executable',
+        extensions: Platform.isWindows ? const ['exe'] : null,
+      );
+      result = (await openFile(
+        acceptedTypeGroups: [typeGroup],
+        initialDirectory: initialDir,
+        confirmButtonText: 'Use this PHD2 executable',
+      ))
+          ?.path;
+    }
 
     if (!mounted) {
       return;
     }
+    if (!identical(ref.read(backendProvider), authority)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'The imaging host changed while choosing the PHD2 path. '
+            'Choose it again for the current host.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (result != null) {
-      unawaited(ref.read(appSettingsProvider.notifier).setPhd2Path(result));
+      try {
+        await ref.read(appSettingsProvider.notifier).setPhd2Path(result);
+      } catch (e) {
+        if (mounted && identical(ref.read(backendProvider), authority)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not save the PHD2 path: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -84,7 +123,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
+        final authority = ref.watch(backendProvider);
 
         return SettingsPage(
           title: 'PHD2 Guiding',
@@ -99,10 +138,15 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                   subtitle: 'PHD2 server hostname or IP address',
                   trailing: SettingsTextInput(
                     controller: _hostController,
+                    authoritativeValue: settings.phd2Host,
+                    authorityKey: authority,
                     hint: 'localhost',
-                    onChanged: (value) {
-                      ref.read(appSettingsProvider.notifier).setPhd2Host(value);
-                    },
+                    onChanged: (value) => _save(
+                      () => ref
+                          .read(appSettingsProvider.notifier)
+                          .setPhd2Host(value),
+                      'host',
+                    ),
                   ),
                 ),
                 SettingRow(
@@ -111,15 +155,18 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                   subtitle: 'PHD2 server port (default: 4400)',
                   trailing: SettingsNumberInput(
                     controller: _portController,
+                    authoritativeValue: settings.phd2Port.toDouble(),
+                    authorityKey: authority,
                     suffix: '',
                     min: 1,
                     max: 65535,
                     decimals: 0,
-                    onChanged: (value) {
-                      ref
+                    onChanged: (value) => _save(
+                      () => ref
                           .read(appSettingsProvider.notifier)
-                          .setPhd2Port(value.toInt());
-                    },
+                          .setPhd2Port(value.toInt()),
+                      'port',
+                    ),
                   ),
                 ),
                 SettingRow(
@@ -129,7 +176,9 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                       ? 'Auto-detect (optional)'
                       : settings.phd2Path,
                   trailing: SettingsPathInput(
+                    key: const ValueKey('phd2_executable_path'),
                     path: settings.phd2Path,
+                    authorityKey: authority,
                     onBrowse: _selectPhd2Path,
                   ),
                   isLast: true,

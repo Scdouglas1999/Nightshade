@@ -14,6 +14,8 @@
 // fields without the user clicking Save so the obscure text field is a
 // no-op for the unchanged case.
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -43,6 +45,34 @@ class NotificationRoutingSettings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final backend = ref.watch(backendProvider);
+
+    if (backend is NetworkBackend) {
+      return Column(
+        children: [
+          const SettingsSection(
+            title: 'Notification routing',
+            children: [
+              SettingRow(
+                icon: LucideIcons.server,
+                title: 'Configure routing on the Nightshade host',
+                subtitle:
+                    'Email, webhook, Pushover, Telegram, Discord, and MQTT '
+                    'credentials are host-owned. This controller will not '
+                    'write a separate local configuration or duplicate the '
+                    'host’s sends.',
+                trailing: SizedBox.shrink(),
+                isLast: true,
+              ),
+            ],
+          ),
+          // Home Assistant already has strict remote host API parity, so it
+          // remains editable from a controller while the other transports are
+          // intentionally host-only.
+          _HomeAssistantSection(isMobile: isMobile),
+        ],
+      );
+    }
     final matrixAsync = ref.watch(notificationRoutingMatrixProvider);
 
     return matrixAsync.when(
@@ -52,8 +82,32 @@ class NotificationRoutingSettings extends ConsumerWidget {
       ),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('Could not load the notification routing matrix.',
-            style: TextStyle(color: colors.error)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Could not load the notification routing matrix.',
+              style: TextStyle(color: colors.error),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              e.toString(),
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            NightshadeButton(
+              label: 'Retry routing settings',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () =>
+                  ref.invalidate(notificationRoutingMatrixProvider),
+            ),
+          ],
+        ),
       ),
       data: (matrix) => _build(context, ref, matrix),
     );
@@ -75,7 +129,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: matrix.enabled,
                 onChanged: (v) {
-                  ref
+                  return ref
                       .read(notificationRoutingMatrixProvider.notifier)
                       .setEnabled(v);
                 },

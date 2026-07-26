@@ -15,6 +15,8 @@ class _PushoverRoutingSectionState
   final _user = TextEditingController();
   final _device = TextEditingController();
   bool _initialized = false;
+  bool _clearToken = false;
+  bool _clearUser = false;
 
   @override
   void dispose() {
@@ -29,17 +31,51 @@ class _PushoverRoutingSectionState
     final cfgAsync = ref.watch(pushoverTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => const NightshadeInlineBanner(
-        message: 'Could not load Pushover routing configuration.',
-        severity: NightshadeAlertSeverity.error,
-      ),
+      error: (e, _) {
+        _initialized = false;
+        return _transportErrorSection(
+          title: 'Pushover (routing matrix)',
+          error: e,
+          onRetry: () => ref.invalidate(pushoverTransportConfigProvider),
+        );
+      },
       data: (cfg) {
         if (!_initialized) {
-          _token.text = cfg.apiToken;
-          _user.text = cfg.userKey;
+          _token.clear();
+          _user.clear();
           _device.text = cfg.device ?? '';
+          _clearToken = false;
+          _clearUser = false;
           _initialized = true;
         }
+        Future<_PrepResult> saveConfig() async {
+          final token = _clearToken
+              ? ''
+              : (_token.text.trim().isEmpty
+                  ? cfg.apiToken
+                  : _token.text.trim());
+          final user = _clearUser
+              ? ''
+              : (_user.text.trim().isEmpty ? cfg.userKey : _user.text.trim());
+          if (token.isNotEmpty != user.isNotEmpty) {
+            return const _PrepResult.fail(
+              'Enter both the API token and user key.',
+            );
+          }
+          final cfg2 = PushoverTransportConfig(
+            apiToken: token,
+            userKey: user,
+            device: _device.text.trim().isEmpty ? null : _device.text.trim(),
+            priority: cfg.priority,
+          );
+          await ref.read(pushoverTransportConfigProvider.notifier).save(cfg2);
+          _token.clear();
+          _user.clear();
+          _clearToken = false;
+          _clearUser = false;
+          return const _PrepResult.ok();
+        }
+
         return SettingsSection(
           title: 'Pushover (routing matrix)',
           children: [
@@ -50,6 +86,8 @@ class _PushoverRoutingSectionState
               hasStoredValue: cfg.apiToken.isNotEmpty,
               isMobile: widget.isMobile,
               hint: 'Pushover application token',
+              onChanged: (_) => _clearToken = false,
+              onClear: () => setState(() => _clearToken = true),
             ),
             _SecretFieldRow(
               icon: LucideIcons.user,
@@ -58,38 +96,25 @@ class _PushoverRoutingSectionState
               hasStoredValue: cfg.userKey.isNotEmpty,
               isMobile: widget.isMobile,
               hint: 'Pushover user / group key',
+              onChanged: (_) => _clearUser = false,
+              onClear: () => setState(() => _clearUser = true),
             ),
             _row(LucideIcons.smartphone, 'Device (optional)', _device),
             SettingRow(
               icon: LucideIcons.save,
               title: 'Save Pushover config',
-              trailing: NightshadeButton(
-                label: 'Save',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () async {
-                  final cfg2 = PushoverTransportConfig(
-                    apiToken: _token.text.trim(),
-                    userKey: _user.text.trim(),
-                    device: _device.text.trim().isEmpty
-                        ? null
-                        : _device.text.trim(),
-                  );
-                  await ref
-                      .read(pushoverTransportConfigProvider.notifier)
-                      .save(cfg2);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Pushover (routing) saved')),
-                  );
-                },
+              trailing: _SaveButton(
+                successMessage: 'Pushover (routing) saved',
+                onSave: saveConfig,
               ),
             ),
-            const SettingRow(
+            SettingRow(
               icon: LucideIcons.send,
               title: 'Test Pushover',
-              trailing:
-                  _TestSendButton(kind: NotificationTransportKind.pushover),
+              trailing: _TestSendButton(
+                kind: NotificationTransportKind.pushover,
+                onBeforeSend: saveConfig,
+              ),
               isLast: true,
             ),
           ],

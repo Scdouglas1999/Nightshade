@@ -67,6 +67,9 @@ mod imaging_ops;
 mod real_device_ops;
 mod sequencer_api;
 mod sequencer_ops;
+/// Synthetic frame generation for the simulator camera (unit-tested against the
+/// real star detector; see the module docs for why that matters).
+mod sim_frame;
 mod stacking_api;
 mod state;
 mod storage;
@@ -373,6 +376,13 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
 
     // Ensure runtime is created - propagate errors to caller
     ensure_runtime()?;
+
+    // Start the process-wide ASCOM STA worker so the single persistent
+    // apartment + message pump exists before any device connects. Idempotent
+    // (OnceLock-guarded); headless has no Flutter event loop to provide a pump,
+    // which is the root cause of the unattended-ASCOM beta-gap bugs.
+    #[cfg(windows)]
+    crate::ascom_wrapper::sta_worker::ensure_sta_worker();
 
     Ok(())
 }

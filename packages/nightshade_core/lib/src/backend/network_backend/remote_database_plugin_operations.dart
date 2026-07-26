@@ -8,6 +8,10 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     int limit = 200,
     int offset = 0,
   }) async {
+    if (sequenceId != null && sequenceId <= 0) {
+      throw ArgumentError.value(sequenceId, 'sequenceId', 'must be positive');
+    }
+    _validateReplayPageRequest(limit: limit, offset: offset);
     final response = await _get('sequence-runs', {
       if (sequenceId != null) 'sequenceId': sequenceId.toString(),
       'limit': limit.toString(),
@@ -31,6 +35,64 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     return RemotePage.fromJson(response, RemoteNotesJournalEntry.fromJson);
   }
 
+  /// POST /api/notes-journal
+  Future<int> createObservationLog({
+    required DateTime timestamp,
+    required String objectName,
+    required double ra,
+    required double dec,
+    String? objectType,
+    String? catalogId,
+    double? altitude,
+    double? azimuth,
+    String? notes,
+    int? rating,
+    int? equipmentProfileId,
+    String? seeingConditions,
+    String? transparency,
+    String? locationName,
+    double? latitude,
+    double? longitude,
+  }) async {
+    // A create is not idempotent: retrying after an ambiguous timeout could
+    // insert the same observation twice. Let the caller retry deliberately.
+    final response = await _post(
+      'notes-journal',
+      {
+        'timestamp': timestamp.toIso8601String(),
+        'objectName': objectName,
+        'ra': ra,
+        'dec': dec,
+        if (objectType != null) 'objectType': objectType,
+        if (catalogId != null) 'catalogId': catalogId,
+        if (altitude != null) 'altitude': altitude,
+        if (azimuth != null) 'azimuth': azimuth,
+        if (notes != null) 'notes': notes,
+        if (rating != null) 'rating': rating,
+        if (equipmentProfileId != null)
+          'equipmentProfileId': equipmentProfileId,
+        if (seeingConditions != null) 'seeingConditions': seeingConditions,
+        if (transparency != null) 'transparency': transparency,
+        if (locationName != null) 'locationName': locationName,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+      },
+      null,
+      1,
+    );
+    final id = response['id'];
+    if (id is! num) {
+      throw StateError('Malformed observation-log response: missing id');
+    }
+    return id.toInt();
+  }
+
+  /// DELETE `/api/notes-journal/<id>`.
+  Future<void> deleteObservationLog(int id) => _delete('notes-journal/$id');
+
+  /// DELETE /api/notes-journal
+  Future<void> deleteAllObservationLogs() => _delete('notes-journal');
+
   /// GET /api/db/notes?targetId=&runId=
   ///
   /// The operator's per-target / per-run journal notes (the `notes_journal`
@@ -48,14 +110,83 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     return RemotePage.fromJson(response, RemoteJournalNote.fromJson);
   }
 
+  /// POST /api/db/notes
+  Future<RemoteJournalNote> createJournalNote({
+    required String targetId,
+    int? sequenceRunId,
+    required String body,
+    String? title,
+    List<String> tags = const <String>[],
+    List<String> attachments = const <String>[],
+    String? sentiment,
+  }) async {
+    // Creating a note is not idempotent because the host assigns its UUID.
+    // Avoid duplicating it after an ambiguous timeout.
+    final response = await _post(
+      'db/notes',
+      {
+        'targetId': targetId,
+        if (sequenceRunId != null) 'sequenceRunId': sequenceRunId,
+        'body': body,
+        if (title != null) 'title': title,
+        'tags': tags,
+        'attachments': attachments,
+        if (sentiment != null) 'sentiment': sentiment,
+      },
+      null,
+      1,
+    );
+    return _journalNoteFromMutationResponse(response);
+  }
+
+  /// PUT `/api/db/notes/<id>`
+  Future<RemoteJournalNote> updateJournalNote(
+    String id, {
+    String? body,
+    String? title,
+    List<String>? tags,
+    List<String>? attachments,
+    String? sentiment,
+    bool clearTitle = false,
+    bool clearSentiment = false,
+  }) async {
+    final response = await _put('db/notes/${Uri.encodeComponent(id)}', {
+      if (body != null) 'body': body,
+      if (title != null) 'title': title,
+      if (tags != null) 'tags': tags,
+      if (attachments != null) 'attachments': attachments,
+      if (sentiment != null) 'sentiment': sentiment,
+      'clearTitle': clearTitle,
+      'clearSentiment': clearSentiment,
+    });
+    return _journalNoteFromMutationResponse(response);
+  }
+
+  /// DELETE `/api/db/notes/<id>`
+  Future<void> deleteJournalNote(String id) =>
+      _delete('db/notes/${Uri.encodeComponent(id)}');
+
+  RemoteJournalNote _journalNoteFromMutationResponse(
+    Map<String, dynamic> response,
+  ) {
+    final raw = response['note'];
+    if (raw is! Map) {
+      throw StateError('Malformed journal-note response: missing note');
+    }
+    return RemoteJournalNote.fromJson(raw.cast<String, dynamic>());
+  }
+
   /// GET /api/guide-rms-history?sinceMs=&untilMs=&limit=&offset=
   Future<RemotePage<RemoteGuideRmsHistoryEntry>> fetchGuideRmsHistory({
+    String? mountId,
     int? sinceMs,
     int? untilMs,
     int limit = 200,
     int offset = 0,
   }) async {
     final response = await _get('guide-rms-history', {
+      if (mountId != null && mountId.trim().isNotEmpty)
+        'mountId': mountId.trim(),
       if (sinceMs != null) 'sinceMs': sinceMs.toString(),
       if (untilMs != null) 'untilMs': untilMs.toString(),
       'limit': limit.toString(),
@@ -132,6 +263,7 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
 
   // Replay scrubber — per-run endpoints.
   Future<RemoteSequenceRunDetail> fetchSequenceRunById(int runId) async {
+    _validateReplayRunId(runId);
     final response = await _get('sequence-runs/$runId');
     final run = response['run'];
     if (run is! Map) {
@@ -139,7 +271,44 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
         'Malformed /sequence-runs/$runId response: missing run object',
       );
     }
-    return RemoteSequenceRunDetail.fromJson(run.cast<String, dynamic>());
+    final parsed = RemoteSequenceRunDetail.fromJson(
+      run.cast<String, dynamic>(),
+    );
+    if (parsed.id != runId) {
+      throw FormatException(
+        'GET /api/sequence-runs/$runId returned run ${parsed.id}',
+      );
+    }
+    return parsed;
+  }
+
+  /// Fetch the exact current and prior completed sequence snapshots needed by
+  /// the run-history diff action. The host only includes these potentially
+  /// large documents when explicitly requested.
+  Future<RemoteSequenceRunDiffContext> fetchSequenceRunDiffContext(
+    int runId,
+  ) async {
+    _validateReplayRunId(runId);
+    final response = await _get('sequence-runs/$runId', {
+      'includeDiffContext': 'true',
+    });
+    final raw = response['diffContext'];
+    if (raw is! Map) {
+      throw StateError(
+        'Malformed /sequence-runs/$runId diff response: '
+        'missing diffContext object',
+      );
+    }
+    final parsed = RemoteSequenceRunDiffContext.fromJson(
+      raw.cast<String, dynamic>(),
+    );
+    if (parsed.runId != runId) {
+      throw FormatException(
+        'GET /api/sequence-runs/$runId returned diff context for run '
+        '${parsed.runId}',
+      );
+    }
+    return parsed;
   }
 
   Future<RemoteReplayEventsPage> fetchSequenceRunEvents(
@@ -150,6 +319,17 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     int limit = 200,
     int offset = 0,
   }) async {
+    _validateReplayRunId(runId);
+    _validateReplayPageRequest(limit: limit, offset: offset);
+    if (sinceMs != null && sinceMs <= 0) {
+      throw ArgumentError.value(sinceMs, 'sinceMs', 'must be positive');
+    }
+    if (untilMs != null && untilMs <= 0) {
+      throw ArgumentError.value(untilMs, 'untilMs', 'must be positive');
+    }
+    if (sinceMs != null && untilMs != null && sinceMs > untilMs) {
+      throw ArgumentError('sinceMs must not be after untilMs');
+    }
     final response = await _get('sequence-runs/$runId/events', {
       if (sinceMs != null) 'since': sinceMs.toString(),
       if (untilMs != null) 'until': untilMs.toString(),
@@ -166,11 +346,28 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     int limit = 200,
     int offset = 0,
   }) async {
+    _validateReplayRunId(runId);
+    _validateReplayPageRequest(limit: limit, offset: offset);
     final response = await _get('sequence-runs/$runId/frames', {
       'limit': limit.toString(),
       'offset': offset.toString(),
     });
     return RemotePage.fromJson(response, RemoteReplayFrame.fromJson);
+  }
+
+  void _validateReplayRunId(int runId) {
+    if (runId <= 0) {
+      throw ArgumentError.value(runId, 'runId', 'must be positive');
+    }
+  }
+
+  void _validateReplayPageRequest({required int limit, required int offset}) {
+    if (limit <= 0 || limit > 1000) {
+      throw ArgumentError.value(limit, 'limit', 'must be between 1 and 1000');
+    }
+    if (offset < 0) {
+      throw ArgumentError.value(offset, 'offset', 'must not be negative');
+    }
   }
 
   // =========================================================================
@@ -182,19 +379,14 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
   /// GET /api/plugins
   Future<List<RemotePluginManifest>> listPlugins() async {
     final response = await _get('plugins');
-    final raw = response['items'];
-    if (raw is! List) {
-      throw StateError('Malformed /plugins response: missing items list');
-    }
-    return raw
-        .whereType<Map>()
-        .map((m) => RemotePluginManifest.fromJson(m.cast<String, dynamic>()))
-        .toList(growable: false);
+    return _rowsFromJson(response['items'], RemotePluginManifest.fromJson);
   }
 
-  /// POST /api/plugins/upload — sends the plugin bytes with `filename` as
-  /// a query parameter. Server computes SHA-256, persists the file under
-  /// the app-data plugin directory, and returns the new manifest.
+  /// POST /api/plugins/upload.
+  ///
+  /// Current Dart AOT hosts return 501 because uploaded code cannot be loaded
+  /// safely at runtime. This method remains for wire compatibility and will
+  /// surface that HTTP failure rather than manufacturing an installed state.
   Future<RemotePluginManifest> uploadPlugin(
     List<int> bytes, {
     required String filename,

@@ -25,7 +25,7 @@ impl InstructionNode for CloseCoverInstruction {
             tracing::error!("CloseCoverInstruction received non-CloseCover variant");
             return NodeStatus::Failure;
         };
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let progress_fn = |progress: f64, detail: String| {
             if let Some(cb) = progress_cb {

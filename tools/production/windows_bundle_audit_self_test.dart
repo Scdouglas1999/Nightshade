@@ -24,6 +24,20 @@ Future<void> main() async {
       missingBundle.exitCode == 2,
       'missing bundle fixture should exit 2',
     );
+    final missingBundleReport = _readJson(
+      temp,
+      'docs/production-readiness/windows-bundle-audit.json',
+    );
+    _expect(
+      missingBundleReport['passed'] == false &&
+          missingBundleReport['bundleExists'] == false,
+      'missing bundle fixture should replace stale evidence with a failure report',
+    );
+    _expect(
+      missingBundleReport['missingRequiredFileCount'] ==
+          _requiredFiles.length + 1,
+      'missing bundle report should list every required artifact',
+    );
 
     final passingBundle = Directory('${temp.path}/passing-bundle');
     await _writePassingBundle(passingBundle);

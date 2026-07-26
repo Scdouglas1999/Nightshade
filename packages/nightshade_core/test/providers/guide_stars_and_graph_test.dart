@@ -15,6 +15,7 @@
 
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -279,6 +280,70 @@ void main() {
 
       expect(container.read(guideStarsProvider), hasLength(1));
       expect(container.read(guideStarsProvider).single.isLock, isTrue);
+    });
+
+    test(
+      'a slow status request cannot repopulate stars after mode stops',
+      () async {
+        final backend = _MockNetworkBackend();
+        final statusCompleter = Completer<Phd2Status>();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(backend.phd2GetStatus).thenAnswer((_) => statusCompleter.future);
+
+        final container = _container(backend);
+        container.read(guiderStateProvider.notifier)
+          ..setConnecting(_builtinGuiderId)
+          ..setConnected();
+        container.read(guideStarsProvider);
+        container.read(phd2StateProvider.notifier).state = Phd2State.guiding;
+        await Future<void>.delayed(Duration.zero);
+
+        container.read(phd2StateProvider.notifier).state = Phd2State.stopped;
+        statusCompleter.complete(
+          const Phd2Status(
+            state: 'Guiding',
+            connected: true,
+            trackedStars: [GuideStar(id: 7, x: 1, y: 2, snr: 20)],
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(container.read(guideStarsProvider), isEmpty);
+      },
+    );
+
+    test('timer skips ticks while a guide-star poll is still in flight', () {
+      fakeAsync((async) {
+        final backend = _MockNetworkBackend();
+        final statusCompleter = Completer<Phd2Status>();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        when(backend.phd2GetStatus).thenAnswer((_) => statusCompleter.future);
+
+        final container = _container(backend);
+        container.read(guiderStateProvider.notifier)
+          ..setConnecting(_builtinGuiderId)
+          ..setConnected();
+        container.read(guideStarsProvider);
+        container.read(phd2StateProvider.notifier).state = Phd2State.guiding;
+        async.flushMicrotasks();
+
+        verify(backend.phd2GetStatus).called(1);
+        async.elapse(const Duration(seconds: 5));
+        async.flushMicrotasks();
+        verifyNever(backend.phd2GetStatus);
+
+        statusCompleter.complete(
+          const Phd2Status(state: 'Guiding', connected: true),
+        );
+        async.flushMicrotasks();
+        async.elapse(const Duration(seconds: 1));
+        async.flushMicrotasks();
+        verify(backend.phd2GetStatus).called(1);
+      });
     });
   });
 }

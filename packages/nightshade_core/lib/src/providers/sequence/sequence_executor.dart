@@ -8,10 +8,12 @@ import 'package:path/path.dart' as p;
 import '../../backend/nightshade_backend.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../models/imaging/imaging_models.dart';
+import '../../models/sequence/active_plan_owner.dart';
 import '../../models/sequence/instruction_progress_detail.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../models/settings/app_settings.dart'
     show ObserverLocation, SafetyFailMode;
+import '../weather_providers.dart' show weatherSettingsProvider;
 import '../../services/disk_space_guard.dart';
 import '../../services/sequence_file_service.dart';
 import '../../services/live_stacking_broadcast_service.dart';
@@ -24,6 +26,7 @@ import '../thumbnail_sidecar_provider.dart';
 import '../backend_provider.dart';
 import '../database_provider.dart'
     show guideRmsHistoryDaoProvider, imagesDaoProvider;
+import '../defect_map_provider.dart' show seedDefectMapRuntimeForSequence;
 import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
@@ -42,10 +45,14 @@ import '../sequence_provider.dart'
     show
         currentSequenceProvider,
         sequenceExecutionStateProvider,
+        sequenceLaunchInFlightProvider,
         sequenceProgressProvider;
 import '../sequence_stats_provider.dart';
 import '../session_handoff_provider.dart'
-    show sessionCarryOverProvider, sessionHandoffDecisionProvider;
+    show
+        sessionCarryOverProvider,
+        sessionHandoffDecisionProvider,
+        sessionHandoffIgnoreUnavailableOnceProvider;
 import '../../services/session_handoff_service.dart'
     show SessionCarryOver, SessionHandoffDecision;
 import '../session_provider.dart';
@@ -93,13 +100,24 @@ const double kEtaEmaAlpha = 0.3;
 /// saturated, while avoiding noise from normal sub-degree sensor wobble.
 const double kCoolerSetpointBandDegC = 1.0;
 
+/// How long [SequenceExecutor._driveFinalization] waits for the native executor
+/// to report an authoritative terminal state after it accepted a stop command.
+///
+/// Generous on purpose: aborting an in-flight exposure and transitioning the
+/// native state machine takes well under a second on real hardware, so this only
+/// expires when the terminal is never coming (e.g. the broadcast event channel
+/// dropped it under load). Expiry is NOT treated as "stopped" — it settles to
+/// the controllable `stopFailed` state with everything retained.
+const Duration kNativeStopConfirmationTimeout = Duration(seconds: 30);
+
 /// Sequence executor that manages execution.
 ///
 /// The provider wires `ref.onDispose(executor.dispose)` so owned timers and
 /// the native event subscription are guaranteed to be torn down with the
 /// provider lifetime, even if a sequence is invalidated mid-run.
 final sequenceExecutorProvider = Provider<SequenceExecutor>((ref) {
-  final executor = SequenceExecutor(ref);
+  final backend = ref.watch(backendProvider);
+  final executor = SequenceExecutor(ref, backend: backend);
   // Owned timers/subscriptions must be torn down with the provider lifetime —
   // otherwise an invalidation mid-sequence leaks the periodic progress timer,
   // the checkpoint timer, and the native event stream subscription past the
@@ -108,8 +126,94 @@ final sequenceExecutorProvider = Provider<SequenceExecutor>((ref) {
   return executor;
 });
 
+/// The immutable intent + mutable progress of the ONE per-run finalization
+/// transaction (see [SequenceExecutor._driveFinalization]).
+///
+/// The intent fields are captured when teardown is first claimed and never
+/// change — a later racing caller joins the same transaction rather than
+/// re-deciding whether this run completed / failed / stopped. The progress
+/// flags let a Stop retry (from stopFailed / cleanupFailed) resume EXACTLY where
+/// the previous attempt failed, so a retry never repeats a confirmed native
+/// stop, a persisted finishRun, or the once-only post-run hooks.
+class _RunFinalization {
+  _RunFinalization({
+    required this.generation,
+    required this.runStatus,
+    required this.finalUiState,
+    required this.runId,
+    required this.dbSessionId,
+    required this.preserveCheckpoint,
+    required this.nativeStopRequired,
+    required this.nativeStopConfirmed,
+    required this.publishTerminalResult,
+    required this.discardCheckpointOnSuccess,
+    required this.isRollback,
+    this.originalError,
+    this.originalStack,
+  });
+
+  // --- Immutable intent (first-claim wins) ---------------------------------
+  /// Unique terminal id for this run's finalization.
+  final int generation;
+
+  /// Durable `sequence_runs.status` to persist (`completed` / `failed` /
+  /// `stopped` / `paused-stopped`).
+  final String runStatus;
+
+  /// The settled UI state to publish on full success (`completed` / `failed` /
+  /// `idle`).
+  final SequenceExecutionState finalUiState;
+
+  /// Snapshot of the finished run's ids, captured before cleanup clears them.
+  final int? runId;
+  final int? dbSessionId;
+
+  /// Whether the operator asked to keep the checkpoint (a UI Stop).
+  final bool preserveCheckpoint;
+
+  /// Whether a `sequencerStop()` must be issued/confirmed before cleanup. False
+  /// for a natural terminal (the hardware already terminated authoritatively)
+  /// and for a pre-native-launch rollback; true for an explicit stop and a
+  /// partial-launch rollback.
+  final bool nativeStopRequired;
+
+  /// Whether to publish a [SequenceTerminalRunResult] on success. True for
+  /// natural terminals and explicit stops (both open the Session Report); false
+  /// for a start/resume rollback (a rejected launch opens no report).
+  final bool publishTerminalResult;
+
+  /// Whether to discard the on-disk checkpoint on a clean success (a non-
+  /// preserving explicit stop). Natural terminals and rollbacks leave the
+  /// checkpoint untouched.
+  final bool discardCheckpointOnSuccess;
+
+  /// Whether this finalization is a failed-start rollback — controls the
+  /// "retain identity on persistence failure, rethrow the original launch
+  /// error" semantics.
+  final bool isRollback;
+
+  /// For a rollback, the original launch error/stack to preserve for the caller
+  /// even when cleanup itself also fails.
+  final Object? originalError;
+  final StackTrace? originalStack;
+
+  // --- Mutable progress (retry resumes here) -------------------------------
+  /// True once the native executor is confirmed stopped (or was never running).
+  bool nativeStopConfirmed;
+
+  /// Completed only by an authoritative native terminal event. The stop API
+  /// acknowledges the command path, but capture resources must remain owned
+  /// until native reports that the exposure abort has actually finished.
+  Completer<void>? nativeStopConfirmation;
+
+  /// True once per-run timers / watchdogs / settings watchers / native
+  /// subscription / live-stacking have been released (once).
+  bool resourcesReleased = false;
+}
+
 class SequenceExecutor {
   final Ref _ref;
+  final NightshadeBackend _backend;
   Timer? _progressTimer;
   DateTime? _startTime;
   bool _isPaused = false;
@@ -118,6 +222,68 @@ class SequenceExecutor {
   Timer? _checkpointTimer;
   bool _runFinalized = false;
   bool _pauseResumeInProgress = false;
+
+  /// In-flight start latch. A start (or checkpoint resume) holds this for the
+  /// whole duration of its lifecycle transaction — validation, session/run
+  /// creation, timers, watchdogs, native event subscription and native start.
+  ///
+  /// Chosen concurrency policy (pinned by tests): a second concurrent start is
+  /// **rejected** with a [StateError] rather than joined to the first future.
+  /// This guarantees two rapid Start taps can never create a second session
+  /// row, run row, event subscription, timer set or native start — the second
+  /// caller bounces off the latch before touching any resource. Reset in the
+  /// `finally` of [start] / [resumeFromCheckpoint].
+  bool _startInFlight = false;
+
+  /// The one per-run finalization transaction, or null when no teardown has
+  /// been claimed for the current run. Created by whichever path claims teardown
+  /// FIRST — a natural terminal event, an explicit [stop], or a start/resume
+  /// [_rollbackStart] — and retained across retries (its first-claimed terminal
+  /// intent is immutable; a later racing caller joins it, it does not override
+  /// it). Reset to null when a fresh run acquires its lifecycle, and cleared on
+  /// a fully-successful finalize.
+  _RunFinalization? _finalization;
+
+  /// The in-flight finalization drive, or null when no drive is currently
+  /// running. A racing [stop] / duplicate terminal event JOINS this future
+  /// instead of starting a second native stop or a duplicate cleanup, giving
+  /// exactly-once finalize / end-session / report. Cleared when the drive
+  /// settles (success OR a retryable failure), so a later Stop retry from
+  /// stopFailed / cleanupFailed can re-drive the retained [_finalization].
+  Future<void>? _finalizationFuture;
+
+  /// Monotonic per-run terminal id, stamped onto each [_RunFinalization] and the
+  /// published [SequenceTerminalRunResult]. Never reset (uniqueness across the
+  /// whole executor lifetime), so a re-mounted screen cannot mistake an old
+  /// result for a new one.
+  int _finalizationGeneration = 0;
+
+  /// The awaitable finalization future spawned by the NATURAL terminal path.
+  /// Tests await [terminalCleanupSettledForTest] on this instead of sleeping a
+  /// wall-clock margin. `null` until the first natural terminal event of a run
+  /// fires.
+  Future<void>? _terminalCleanupFuture;
+
+  /// Set the instant finalization claims the run's stats (inside [_finalizeRun],
+  /// before the final `finishRun` write). Blocks any further incremental
+  /// `updateStats` write so a late / old-generation live-stat write can never
+  /// land after the final stats JSON and clobber it. Reset when a fresh run
+  /// acquires its lifecycle.
+  bool _statsSealed = false;
+
+  /// In-flight incremental `updateStats` writes, drained before the final
+  /// `finishRun` so no stale write races the final stats JSON.
+  final Set<Future<void>> _pendingStatWrites = <Future<void>>{};
+
+  /// True once the current start/resume transaction has issued (or is about to
+  /// issue) `backend.sequencerStart()`. A throw at/after that point may mean a
+  /// PARTIAL native launch — the Rust executor may have begun imaging — so
+  /// [_rollbackStart] must best-effort `sequencerStop()` rather than tear down
+  /// blind. Reset to `false` at the top of each acquisition and consumed by
+  /// [_rollbackStart]; a failure BEFORE the native launch (validation, session/
+  /// run creation, loadJson) leaves it `false`, so those rollbacks skip the
+  /// stop and settle cleanly to `failed`.
+  bool _nativeLaunchAttempted = false;
 
   /// Guards the periodic checkpoint save against re-entrancy. A slow
   /// `saveCheckpoint()` (large sequence, slow disk) can outlive the 30 s
@@ -201,22 +367,15 @@ class SequenceExecutor {
   OpticalTrainBaseline? _sessionStartBaseline;
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
-  SequenceExecutor(this._ref);
+  SequenceExecutor(this._ref, {NightshadeBackend? backend})
+    : _backend = backend ?? _ref.read(backendProvider);
 
-  /// Check if simulation mode is enabled in settings
-  bool get _useSimulationMode {
-    if (kReleaseMode) {
-      return false;
-    }
-    try {
-      final settings = _ref.read(appSettingsProvider).valueOrNull;
-      return settings?.useSimulationMode ?? false;
-    } catch (error, stack) {
-      _logger.warning(
-        'Failed to read useSimulationMode setting; defaulting to false: $error\n$stack',
-        source: 'SequenceExecutor',
+  void _ensureBackendAuthority() {
+    if (_disposed || !identical(_ref.read(backendProvider), _backend)) {
+      throw StateError(
+        'This sequence executor belongs to an imaging host that is no longer '
+        'active. Retry the action against the current host.',
       );
-      return false;
     }
   }
 
@@ -277,6 +436,23 @@ class SequenceExecutor {
     }
   }
 
+  /// Completes when the finalization spawned by the most recent natural terminal
+  /// event (Completed / Failed / Stopped) has settled. Tests await this to
+  /// observe run/session finalization deterministically instead of sleeping.
+  /// Returns immediately when no terminal event has fired yet. A cleanup that
+  /// settled to the retryable `cleanupFailed` state completed its drive with an
+  /// error; that error is swallowed here so tests can await quiescence and then
+  /// assert on the surfaced state rather than on a thrown future.
+  @visibleForTesting
+  Future<void> get terminalCleanupSettledForTest async {
+    try {
+      await _terminalCleanupFuture;
+    } catch (_) {
+      // The truthful state (cleanupFailed) is already published; tests assert
+      // on it directly.
+    }
+  }
+
   /// Test entry point for the session-handoff carry-over
   /// seed. Lets tests exercise the `Resume` / `Restart` / `ContinueNew`
   /// branches against a mock backend without driving a full sequence
@@ -307,46 +483,123 @@ class SequenceExecutor {
       validation.validateSequence(sequence);
 
   Future<void> start() async {
-    final sequence = _ref.read(currentSequenceProvider);
-    if (sequence == null) {
-      // "Nothing loaded" is an operator/state error, not a server fault.
-      // Throw the same typed exception the validation path uses so every
-      // caller — including the headless POST /api/sequencer/start handler —
-      // surfaces it as a clean 400 with an actionable message instead of an
-      // opaque 500 a remote tablet can't interpret.
-      throw validation.SequenceValidationException(
-        validation.ValidationResult(
-          issues: const [
-            validation.ValidationIssue(
-              severity: validation.ValidationSeverity.error,
-              category: validation.ValidationCategory.structure,
-              title: 'No sequence loaded',
-              description:
-                  'Load or build a sequence before starting the sequencer.',
-              code: 'no_sequence_loaded',
-            ),
-          ],
-          validatedAt: DateTime.now(),
-        ),
+    _ensureBackendAuthority();
+    // --- A. Start serialization + admissible-state gate ------------------
+    // Reject a second concurrent start (latch) or a start while the executor
+    // is already busy (running / paused / stopping / recovering). A
+    // completed/failed prior run may start again once its cleanup has settled
+    // (idle / completed / failed are admissible). This gate mutates nothing,
+    // so a rejected concurrent caller leaves the in-flight run — and its
+    // Smart Night / mosaic handoff — completely untouched.
+    final admissionState = _ref.read(sequenceExecutionStateProvider);
+    if (_startInFlight || !_isStartAdmissible(admissionState)) {
+      throw StateError(
+        'Cannot start: a sequence start is already in flight or the executor '
+        'is not in an admissible state (state: ${admissionState.name}).',
       );
     }
+    _startInFlight = true;
+    _ref.read(sequenceLaunchInFlightProvider.notifier).state = true;
+    try {
+      final sequence = _ref.read(currentSequenceProvider);
+      if (sequence == null) {
+        // Validation rejection BEFORE any run resource exists: do not flash
+        // running or create/finalize fake rows. The one permitted ownership
+        // mutation is restoring a Smart Night / mosaic handoff the caller
+        // performed before calling start() (contract A) so the operator's
+        // stashed manual sequence is not stranded behind a rejected launch.
+        // "Nothing loaded" is an operator/state error, not a server fault, so
+        // we throw the same typed exception the validation path uses — every
+        // caller (UI button, headless POST /api/sequencer/start, scheduler)
+        // surfaces it as a clean 400 instead of an opaque 500.
+        _releaseAutomatedEditorOwnership();
+        throw validation.SequenceValidationException(
+          validation.ValidationResult(
+            issues: const [
+              validation.ValidationIssue(
+                severity: validation.ValidationSeverity.error,
+                category: validation.ValidationCategory.structure,
+                title: 'No sequence loaded',
+                description:
+                    'Load or build a sequence before starting the sequencer.',
+                code: 'no_sequence_loaded',
+              ),
+            ],
+            validatedAt: DateTime.now(),
+          ),
+        );
+      }
 
-    // Audit C3 — full pre-flight pass. Every start path (UI button via
-    // sequence_action_service, headless POST /api/sequencer/start,
-    // scheduler autopilot) now reaches this code, so they all see the
-    // same equipment / disk-space / dark-library / settings checks the
-    // pre-flight dialog already enforced.
-    final result = await validateSequenceForStart(sequence);
-    if (result.hasErrors) {
-      // Errors are a feature here. Surface the entire
-      // [ValidationResult] — counts + every issue — so the caller can
-      // render all of them. The historical
-      // `throw Exception('first error title')` silently dropped the
-      // tail and trained users to ignore validation.
-      throw validation.SequenceValidationException(result);
+      // Runtime mode, safety policy, observer location, and save path are
+      // launch-authoritative configuration. Never substitute defaults while
+      // settings are loading or failed: doing so could turn simulation off,
+      // omit the configured safety mode, and clear the native save path. Read
+      // one immutable snapshot before acquiring any run/session resource.
+      late final AppSettingsState runSettings;
+      try {
+        runSettings = await _ref.read(appSettingsProvider.future);
+      } catch (_) {
+        _releaseAutomatedEditorOwnership();
+        rethrow;
+      }
+
+      // Audit C3 — full pre-flight pass. Every start path (UI button via
+      // sequence_action_service, headless POST /api/sequencer/start,
+      // scheduler autopilot) reaches this code, so they all see the same
+      // equipment / disk-space / dark-library / settings checks the pre-flight
+      // dialog already enforced. A validation failure is a pure rejection: no
+      // run resource has been acquired yet, so we only restore a Smart Night /
+      // mosaic handoff and throw — never a fake failed run/session.
+      final result = await validateSequenceForStart(sequence);
+      if (result.hasErrors) {
+        // Errors are a feature here. Surface the entire [ValidationResult] so
+        // the caller can render all of them, not just the first.
+        _releaseAutomatedEditorOwnership();
+        throw validation.SequenceValidationException(result);
+      }
+
+      // --- B. Transactional acquisition ---------------------------------
+      // From here, every resource (UI running state, session row, run row +
+      // currentRunId, session-start hooks, timers, disk watchdog, native event
+      // subscription, native start) is part of ONE lifecycle transaction. Any
+      // failure funnels into the single [_rollbackStart] path, which cancels
+      // every acquired resource, finalizes the run failed, ends the session,
+      // clears the stale run id + transient stats, releases a Smart Night /
+      // mosaic handoff, and leaves a truthful non-running state.
+      _resetFinalizationForNewRun();
+      try {
+        await _acquireAndStartRun(sequence, runSettings);
+      } catch (e, st) {
+        await _rollbackStart(e, st);
+        rethrow;
+      }
+    } finally {
+      _startInFlight = false;
+      _ref.read(sequenceLaunchInFlightProvider.notifier).state = false;
     }
+  }
 
+  /// Acquire every run resource and hand off to the native executor as one
+  /// transaction. Each line here is a resource [_rollbackStart] knows how to
+  /// release — keep the two in sync. Throws on the first failure; [start]
+  /// funnels that into [_rollbackStart].
+  Future<void> _acquireAndStartRun(
+    Sequence sequence,
+    AppSettingsState runSettings,
+  ) async {
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
+    // Clear the PREVIOUS run's progress before seeding this one's.
+    //
+    // `completedExposures` self-corrected because both writers assign the
+    // event's absolute frame index, which masked the fact that nothing reset
+    // this provider at run start. The accumulating fields did not self-correct:
+    // measured on the live rig, two identical back-to-back runs of the same
+    // 8.0 s sequence reported `completedIntegrationSecs` 8.0 then 16.0, while
+    // both runs' own vitals and both `imaging_sessions` rows correctly said
+    // 8.0. The per-node status/progress maps leaked the same way, leaving the
+    // previous run's node badges on the canvas for a run that had not reached
+    // those nodes yet.
+    progressNotifier.reset();
     progressNotifier.setTotals(
       sequence.totalExposures,
       sequence.totalIntegrationSecs,
@@ -404,7 +657,7 @@ class SequenceExecutor {
     // for the affected rows, and our Dart-side `_persistReplayDecision`
     // falls back to `currentRunIdProvider`.
     try {
-      await _ref.read(backendProvider).sequencerSetActiveSequenceRunId(runId);
+      await _backend.sequencerSetActiveSequenceRunId(runId);
     } catch (e) {
       _logger.warning(
         'Failed to push active sequence_run_id to Rust executor: $e',
@@ -449,29 +702,483 @@ class SequenceExecutor {
     _startDiskSpaceWatchdog();
 
     // Always use backend/native sequencer engine to avoid divergent semantics.
-    //
-    // Roll the UI + run state back if the native start throws (bad runtime
-    // config seed, load-json failure, backend down). Without this the
-    // sequence is left "running" with live timers / watchers but no native
-    // execution behind it — a ghost run that never images and never
-    // finalizes. Mirrors the resume-from-checkpoint rollback below.
+    // This is the last acquisition step; it sets up the native event
+    // subscription + settings watchers and issues sequencerStart(). A throw
+    // anywhere in the transaction (including here) is rolled back by [start].
+    await _startNativeExecution(sequence, runSettings);
+  }
+
+  /// Admissible starting states: idle, completed, failed (see
+  /// [SequenceExecutionStateCapabilities.canStart]). A run may only start from
+  /// a settled state — running / paused / stopping / recovering are rejected so
+  /// a start can never overlap an in-flight or tearing-down run, and the
+  /// retryable stopFailed / cleanupFailed states are rejected so a fresh run
+  /// can never collide with live hardware or a dangling session.
+  bool _isStartAdmissible(SequenceExecutionState state) => state.canStart;
+
+  /// Reset all per-run finalization + stats-sealing state so a fresh run starts
+  /// from a clean slate. Called at the top of every start / resume acquisition.
+  void _resetFinalizationForNewRun() {
+    _finalization = null;
+    _finalizationFuture = null;
+    _terminalCleanupFuture = null;
+    _nativeLaunchAttempted = false;
+    _statsSealed = false;
+    _pendingStatWrites.clear();
+    // A fresh run has not terminated yet; clear any stale terminal result so the
+    // sequencer screen observes a clean null -> result transition (and never
+    // re-opens the previous run's report) when this run ends.
+    _ref.read(sequenceTerminalRunResultProvider.notifier).state = null;
+  }
+
+  /// Single rollback path for a failed [start] / [resumeFromCheckpoint], routed
+  /// through the SAME [_driveFinalization] transaction as a natural terminal and
+  /// an explicit stop so their ordering and guarantees can never drift.
+  ///
+  /// Builds a rollback finalization: finalize any created run as `failed`
+  /// (recording [startError]), end any created session as `failed`, clear the
+  /// transient run/live ids, release a Smart Night / mosaic handoff and settle
+  /// to a truthful `failed`. If the native launch was attempted the drive stops
+  /// the (possibly partial) native launch exactly once BEFORE any teardown; if
+  /// that stop cannot be confirmed it settles to a controllable `stopFailed`
+  /// (identity + native subscription retained). If persistence fails it settles
+  /// to the retryable `cleanupFailed` WITHOUT clearing run/session identity. In
+  /// every case the drive's own error is swallowed here so [start] rethrows the
+  /// ORIGINAL launch error while the truthful cleanup state is surfaced via the
+  /// provider. Not called for a pure pre-acquisition validation rejection (no
+  /// fake run/session).
+  Future<void> _rollbackStart(Object startError, StackTrace startStack) async {
+    _logger.error(
+      'Sequence start failed; rolling back partial acquisition: $startError\n'
+      '$startStack',
+      source: 'SequenceExecutor',
+    );
+
+    // Record the launch error onto the run stats (if a run row exists) so the
+    // failed run row + report carry the cause. Done before the drive seals the
+    // stats for the final finishRun write.
     try {
-      await _startNativeExecution(sequence);
+      _recordRunError('Failed to start sequence execution: $startError');
+    } catch (_) {
+      // Absent live stats (failure before the run row existed) — nothing to
+      // record; the drive's finalizeRun is a no-op in that case anyway.
+    }
+
+    final f = _RunFinalization(
+      generation: ++_finalizationGeneration,
+      runStatus: 'failed',
+      finalUiState: SequenceExecutionState.failed,
+      runId: _ref.read(currentRunIdProvider),
+      dbSessionId: _ref.read(sessionStateProvider).dbSessionId,
+      preserveCheckpoint: false,
+      // A throw at/after sequencerStart() may mean a partial native launch; a
+      // throw before it (validation / session-row / loadJson) leaves the flag
+      // false so the drive skips the native stop entirely and settles cleanly.
+      nativeStopRequired: _nativeLaunchAttempted,
+      nativeStopConfirmed: false,
+      // A rejected launch opens no Session Report.
+      publishTerminalResult: false,
+      discardCheckpointOnSuccess: false,
+      isRollback: true,
+      originalError: startError,
+      originalStack: startStack,
+    );
+    _nativeLaunchAttempted = false;
+    _finalization = f;
+    try {
+      await _launchDrive(f);
+    } catch (_) {
+      // The truthful stopFailed / cleanupFailed / failed state is already
+      // published inside the drive. Swallow so [start] rethrows the ORIGINAL
+      // launch error, not the secondary cleanup error.
+    }
+  }
+
+  /// Release a Smart Night / mosaic editor handoff, restoring the operator's
+  /// stashed manual sequence (and its dirty flag). Idempotent and guarded:
+  ///
+  ///  * Only fires for Smart Night / mosaic owners. Autopilot is deliberately
+  ///    left alone — SchedulerEngine owns the autopilot lifecycle and
+  ///    re-dispatches on SequenceCompleted, so releasing here would race and
+  ///    destroy a freshly dispatched target (contract E). Manual is a no-op
+  ///    (releaseOwnership itself early-returns for the manual owner).
+  ///  * A throw during provider teardown is swallowed so it can never prevent
+  ///    session / native cleanup from finishing.
+  void _releaseAutomatedEditorOwnership() {
+    try {
+      // Inferred notifier type (CurrentSequenceNotifier) — deliberately NOT a
+      // direct `import 'sequence_editor.dart'`, which created a
+      // sequence_executor <-> sequence_editor import cycle. The notifier type
+      // is reachable through currentSequenceProvider's generic, so inference
+      // resolves activeOwner / releaseOwnership without the cyclic import.
+      final notifier = _ref.read(currentSequenceProvider.notifier);
+      final owner = notifier.activeOwner;
+      if (owner == ActivePlanOwner.smartNight ||
+          owner == ActivePlanOwner.mosaic) {
+        notifier.releaseOwnership();
+      }
     } catch (e) {
-      _progressTimer?.cancel();
-      _progressTimer = null;
-      _checkpointTimer?.cancel();
-      _checkpointTimer = null;
+      _logger.warning(
+        'Failed to release automated editor ownership: $e',
+        source: 'SequenceExecutor',
+      );
+    }
+  }
+
+  /// Handle a natural terminal event (Completed / Failed / Stopped and their
+  /// aliases) — or an authoritative native terminal confirming an explicit
+  /// stop — exactly once.
+  ///
+  /// Enters the nonterminal busy `finalizing` state SYNCHRONOUSLY (before the
+  /// first await) so the executor never advertises a settled completed / failed
+  /// / idle while durable cleanup is still running: a rapid Start is rejected,
+  /// and an old cleanup can never clobber a new run's identity. The settled UI
+  /// state + the one-shot terminal result are published only AFTER cleanup
+  /// succeeds, inside [_driveFinalization].
+  void _onTerminalEvent(
+    SequenceExecutionState uiState,
+    String runStatus, {
+    String? error,
+  }) {
+    final state = _ref.read(sequenceExecutionStateProvider);
+
+    // Confirmation path: an explicit stop (including a retry after stopFailed)
+    // retains its resources until an authoritative terminal event proves the
+    // native exposure abort has completed. The stop API returning only confirms
+    // that the command was accepted; it is not the release boundary.
+    final pending = _finalization;
+    if (pending != null &&
+        pending.nativeStopRequired &&
+        !pending.nativeStopConfirmed) {
+      pending.nativeStopConfirmed = true;
+      final confirmation = pending.nativeStopConfirmation;
+      if (confirmation != null && !confirmation.isCompleted) {
+        confirmation.complete();
+      }
+      if (error != null) _recordRunError(error);
+
+      // A terminal arriving while the original drive is waiting wakes that
+      // drive above. If the command call had already failed, resume the same
+      // retained transaction without issuing a second stop.
+      if (state == SequenceExecutionState.stopFailed &&
+          _finalizationFuture == null) {
+        _setExecutionState(SequenceExecutionState.finalizing);
+        _terminalCleanupFuture = _launchDrive(pending);
+        _swallowSpawnedFinalizationError(_terminalCleanupFuture!);
+      }
+      return;
+    }
+
+    // Compatibility path for a retained stop whose command failed before this
+    // confirmation gate was created.
+    if (state == SequenceExecutionState.stopFailed && pending != null) {
+      final f = _finalization!;
+      f.nativeStopConfirmed = true;
+      if (error != null) _recordRunError(error);
+      _setExecutionState(SequenceExecutionState.finalizing);
+      _terminalCleanupFuture = _launchDrive(f);
+      _swallowSpawnedFinalizationError(_terminalCleanupFuture!);
+      return;
+    }
+
+    // Exactly-once: any already-claimed finalization (in-flight, succeeded, or
+    // awaiting a persistence retry) swallows duplicate / aliased / echo terminal
+    // events — including the `Stopped` echo emitted by a SUCCESSFUL explicit
+    // stop, whose finalization context is still set.
+    if (_finalization != null || _finalizationFuture != null) return;
+
+    if (error != null) {
+      _recordRunError(error);
+      _ref
+          .read(sequenceProgressProvider.notifier)
+          .updateProgress(message: error);
+    }
+
+    // Enter the busy finalization phase synchronously, then drive cleanup. The
+    // hardware already terminated authoritatively, so no native stop is issued.
+    _setExecutionState(SequenceExecutionState.finalizing);
+    final f = _RunFinalization(
+      generation: ++_finalizationGeneration,
+      runStatus: runStatus,
+      finalUiState: uiState,
+      runId: _ref.read(currentRunIdProvider),
+      dbSessionId: _ref.read(sessionStateProvider).dbSessionId,
+      preserveCheckpoint: false,
+      nativeStopRequired: false,
+      nativeStopConfirmed: true,
+      publishTerminalResult: true,
+      discardCheckpointOnSuccess: false,
+      isRollback: false,
+    );
+    _finalization = f;
+    _terminalCleanupFuture = _launchDrive(f);
+    _swallowSpawnedFinalizationError(_terminalCleanupFuture!);
+  }
+
+  /// Attach a no-op error handler to a spawned (un-awaited) finalization drive
+  /// so a cleanup that settles to the retryable `cleanupFailed` state does not
+  /// surface as an unhandled async error. The truthful state is already
+  /// published; tests await [terminalCleanupSettledForTest] and assert on it.
+  void _swallowSpawnedFinalizationError(Future<void> future) {
+    unawaited(future.catchError((Object _) {}));
+  }
+
+  /// Launch (or relaunch, for a Stop retry) the finalization drive, tracking it
+  /// as the in-flight future that racing callers join, and clearing that latch
+  /// when it settles so a later Stop retry from stopFailed / cleanupFailed can
+  /// re-drive the retained [_finalization].
+  Future<void> _launchDrive(_RunFinalization f) {
+    late final Future<void> wrapped;
+    wrapped = _driveFinalization(f).whenComplete(() {
+      if (identical(_finalizationFuture, wrapped)) _finalizationFuture = null;
+    });
+    _finalizationFuture = wrapped;
+    return wrapped;
+  }
+
+  /// The ONE per-run finalization transaction shared by natural terminals,
+  /// explicit stops and start/resume rollbacks. Idempotent and resumable: a Stop
+  /// retry from stopFailed / cleanupFailed re-enters here and skips every gate
+  /// whose progress flag is already set, so a confirmed native stop, a persisted
+  /// finishRun, and the once-only post-run hooks never repeat.
+  ///
+  /// Required order (contract):
+  ///   1. confirm hardware termination (a natural terminal is authoritative and
+  ///      NEVER calls sequencerStop; an explicit stop / partial-launch rollback
+  ///      call it exactly once);
+  ///   2. release per-run timers / watchdog / settings watchers / native
+  ///      subscription / live-stacking (once, idempotent);
+  ///   3. drain pending live-stat writes, then finishRun, then the once-only
+  ///      post-run hooks;
+  ///   4. end the durable session (only after finishRun succeeds);
+  ///   5. clear run/live identity, release the correct editor ownership, handle
+  ///      the checkpoint per the captured policy;
+  ///   6. publish one terminal result, then the settled UI state.
+  ///
+  /// Throws on a native-stop failure (-> stopFailed) or a persistence failure
+  /// (-> cleanupFailed) so an awaiting explicit-stop / reset caller sees the
+  /// error; the natural-terminal and rollback spawns swallow it (the truthful
+  /// state is already published).
+  Future<void> _driveFinalization(_RunFinalization f) async {
+    void secondary(String step, Object e) => _logger.warning(
+      'Finalization: $step failed: $e',
+      source: 'SequenceExecutor',
+    );
+
+    // --- 1. Hardware termination -----------------------------------------
+    if (f.nativeStopRequired && !f.nativeStopConfirmed) {
+      final confirmation = f.nativeStopConfirmation ??= Completer<void>();
+      try {
+        await _backend.sequencerStop();
+        // BOUNDED. Waiting for the authoritative terminal is correct — the stop
+        // command returning only means it was accepted, and tearing down while
+        // the camera may still be exposing is the thing this gate exists to
+        // prevent. But the wait must not be unbounded: the native event channel
+        // is a `tokio::sync::broadcast` whose receiver explicitly handles
+        // `RecvError::Lagged` by SKIPPING events (bridge/src/api/sequencer.rs),
+        // so the one terminal we are waiting on can legitimately be dropped
+        // under load. An unbounded await turns that into a Stop button that
+        // never returns and a UI parked in `stopping` for the rest of the
+        // night, with no state change and nothing logged — the app doing
+        // nothing and saying nothing.
+        //
+        // On expiry, fall through to exactly the same handling as a stop
+        // command that failed: settle to the controllable `stopFailed`
+        // (Stop re-enabled for a retry, Start blocked, checkpoint kept) with
+        // the native subscription still live, so a late terminal resumes THIS
+        // finalization through `_onTerminalEvent`. Nothing is torn down on a
+        // guess.
+        //
+        // The window is deliberately generous — an in-flight exposure abort
+        // plus the native state transition is sub-second on real hardware, so
+        // this can only fire when the terminal is genuinely never coming.
+        await confirmation.future.timeout(
+          kNativeStopConfirmationTimeout,
+          onTimeout: () => throw TimeoutException(
+            'The native executor accepted the stop command but never reported '
+            'a terminal state within '
+            '${kNativeStopConfirmationTimeout.inSeconds}s. The hardware was NOT '
+            'confirmed stopped, so nothing has been torn down.',
+            kNativeStopConfirmationTimeout,
+          ),
+        );
+      } catch (e, st) {
+        // The authoritative terminal may race a transport-level error from the
+        // command call. Once native has confirmed termination, cleanup is safe
+        // and the command-path error is secondary.
+        if (f.nativeStopConfirmed) {
+          secondary('stop command after native confirmation', e);
+        } else {
+          // NATIVE STOP FAILED. The hardware was NOT confirmed stopped and may
+          // still be imaging. Do NOT tear down / finalize / clear / release. Keep
+          // the native subscription ALIVE so a later authoritative native terminal
+          // event can confirm termination and resume THIS finalization. Expose a
+          // controllable stopFailed (Stop re-enabled for a retry, Start blocked);
+          // the checkpoint is deliberately NOT discarded.
+          _logger.error(
+            'Finalization: sequencerStop() could not confirm the native executor '
+            'stopped; retaining a controllable stopFailed state: $e\n$st',
+            source: 'SequenceExecutor',
+          );
+          _setExecutionState(SequenceExecutionState.stopFailed);
+          Error.throwWithStackTrace(e, st);
+        }
+      }
+    }
+
+    // --- 2. Release per-run resources (once, idempotent) ------------------
+    if (!f.resourcesReleased) {
+      await _releaseRunResources(secondary);
+      f.resourcesReleased = true;
+    }
+
+    // --- 3. Persistence: drain live-stat writes + finishRun + hooks -------
+    // _finalizeRun seals the stats, drains in-flight incremental writes, does
+    // the final finishRun write and fires the once-only session-end hooks. It
+    // early-returns once _runFinalized is set, so a retry never repeats the
+    // finish or the hooks; the session-end hooks read SessionState.dbSessionId,
+    // so it runs BEFORE endSession clears it.
+    try {
+      await _finalizeRun(f.runStatus);
+    } catch (e, st) {
+      // finishRun FAILED. Do NOT endSession, clear ids, release ownership,
+      // discard the checkpoint, or claim terminal. Retain a retryable
+      // cleanupFailed with enough context (the retained _finalization) to
+      // re-run.
+      secondary('finalize run', e);
+      _setExecutionState(SequenceExecutionState.cleanupFailed);
+      Error.throwWithStackTrace(e, st);
+    }
+
+    // --- 4. End the durable session (only after finishRun succeeded) ------
+    try {
+      await _ref
+          .read(sessionStateProvider.notifier)
+          .endSession(status: f.runStatus);
+    } catch (e, st) {
+      // endSession FAILED after a successful finishRun. Retain a retryable
+      // cleanupFailed; a Stop retry re-runs ONLY endSession + the later steps
+      // (finishRun and the hooks are already latched by _runFinalized, and the
+      // native stop is already confirmed).
+      secondary('end session', e);
+      _setExecutionState(SequenceExecutionState.cleanupFailed);
+      Error.throwWithStackTrace(e, st);
+    }
+
+    // --- 5. Clear identity, release ownership, handle the checkpoint ------
+    try {
+      _ref.read(currentRunIdProvider.notifier).state = null;
+    } catch (e) {
+      secondary('clear run id', e);
+    }
+    if (f.isRollback) {
+      // A rejected launch clears its transient live stats (there is no run to
+      // keep vitals for). A natural terminal / explicit stop deliberately KEEPS
+      // the live stats so the post-run notes prompt can pre-fill from them.
+      try {
+        _ref.read(liveSequenceStatsProvider.notifier).state = null;
+      } catch (e) {
+        secondary('clear live stats', e);
+      }
+    }
+    // Release a Smart Night / mosaic editor handoff (never autopilot — see
+    // [_releaseAutomatedEditorOwnership]).
+    _releaseAutomatedEditorOwnership();
+    if (f.discardCheckpointOnSuccess) {
+      // Discard the checkpoint ONLY on a clean, fully-successful stop; discarding
+      // after a failed stop / failed cleanup would destroy a live run's resume
+      // point.
+      try {
+        await _backend.discardCheckpoint();
+      } catch (e) {
+        secondary('discard checkpoint', e);
+      }
+    } else if (f.preserveCheckpoint) {
+      _logger.info(
+        'Stop with preserveCheckpoint=true: leaving checkpoint on disk so the '
+        'user can resume later',
+        source: 'SequenceExecutor',
+      );
+    }
+
+    // --- 6. Publish one terminal result, THEN the settled UI state --------
+    if (f.publishTerminalResult) {
+      _publishTerminalResult(f);
+    }
+    _setExecutionState(f.finalUiState);
+
+    // Transaction complete — drop the context so the next run starts clean and a
+    // stray late event cannot resume a finished finalization.
+    if (identical(_finalization, f)) _finalization = null;
+  }
+
+  /// Release every per-run resource: timers, disk watchdog, settings watchers,
+  /// the native event subscription, ETA state, and live-stacking. Each step is
+  /// guarded so one failure never blocks a later one; all are idempotent, so a
+  /// retry that re-enters before [_RunFinalization.resourcesReleased] is set is
+  /// safe.
+  Future<void> _releaseRunResources(
+    void Function(String, Object) secondary,
+  ) async {
+    try {
+      _resetRunTimers();
+    } catch (e) {
+      secondary('reset run timers', e);
+    }
+    try {
       _stopDiskSpaceWatchdog();
+    } catch (e) {
+      secondary('stop disk watchdog', e);
+    }
+    try {
       _stopSettingsWatchers();
-      _startTime = null;
-      _isPaused = false;
-      _recordRunError('Failed to start native execution: $e');
-      _finalizeRun('failed');
-      progressNotifier.updateState(SequenceExecutionState.failed);
-      _ref.read(sequenceExecutionStateProvider.notifier).state =
-          SequenceExecutionState.failed;
-      rethrow;
+    } catch (e) {
+      secondary('stop settings watchers', e);
+    }
+    try {
+      _resetEtaState();
+    } catch (e) {
+      secondary('reset eta state', e);
+    }
+    // Detach the reference BEFORE cancelling so no further event dispatches;
+    // when called from inside the native event callback (a natural terminal),
+    // Dart allows cancelling the subscription from within its own handler.
+    final subscription = _nativeEventSubscription;
+    _nativeEventSubscription = null;
+    if (subscription != null) {
+      try {
+        await subscription.cancel();
+      } catch (e) {
+        secondary('cancel native subscription', e);
+      }
+    }
+    try {
+      await _teardownLiveStacking();
+    } catch (e) {
+      secondary('teardown live stacking', e);
+    }
+  }
+
+  /// Publish the one-shot immutable terminal-run result carrying the finished
+  /// run's snapshot ids, so the sequencer screen opens the Session Report and
+  /// its run-scoped Journal against the completed run rather than racing the
+  /// live providers finalization has just cleared.
+  void _publishTerminalResult(_RunFinalization f) {
+    try {
+      _ref
+          .read(sequenceTerminalRunResultProvider.notifier)
+          .state = SequenceTerminalRunResult(
+        generation: f.generation,
+        outcome: f.finalUiState,
+        runStatus: f.runStatus,
+        runId: f.runId,
+        dbSessionId: f.dbSessionId,
+      );
+    } catch (e) {
+      _logger.warning(
+        'Failed to publish terminal run result: $e',
+        source: 'SequenceExecutor',
+      );
     }
   }
 
@@ -519,6 +1226,7 @@ class SequenceExecutor {
   }
 
   Future<void> pause() async {
+    _ensureBackendAuthority();
     if (_pauseResumeInProgress) {
       throw Exception('Pause/Resume operation already in progress');
     }
@@ -531,7 +1239,7 @@ class SequenceExecutor {
     _pauseResumeInProgress = true;
 
     try {
-      final backend = _ref.read(backendProvider);
+      final backend = _backend;
       await backend.sequencerPause();
 
       final confirmed = await _awaitStateChange(SequenceExecutionState.paused);
@@ -554,6 +1262,7 @@ class SequenceExecutor {
   }
 
   Future<void> resume() async {
+    _ensureBackendAuthority();
     if (_pauseResumeInProgress) {
       throw Exception('Pause/Resume operation already in progress');
     }
@@ -566,7 +1275,7 @@ class SequenceExecutor {
     _pauseResumeInProgress = true;
 
     try {
-      final backend = _ref.read(backendProvider);
+      final backend = _backend;
       await backend.sequencerResume();
 
       final confirmed = await _awaitStateChange(SequenceExecutionState.running);
@@ -612,64 +1321,75 @@ class SequenceExecutor {
   /// (the action service, the headless API, the scheduler) is updated in
   /// the same audit pass and the few remaining bare `stop()` invocations
   /// are deliberate hard-stops (e.g. reset()).
-  Future<void> stop({bool preserveCheckpoint = false}) async {
-    // Shared timer/run-state teardown — kept in lockstep with the terminal
-    // event handlers (Completed / Stopped / Failed) via `_resetRunTimers`.
-    _resetRunTimers();
-    final nativeEventSubscription = _nativeEventSubscription;
-    _nativeEventSubscription = null;
-    await nativeEventSubscription?.cancel();
-    _stopDiskSpaceWatchdog();
-    _stopSettingsWatchers();
-    _ref
-        .read(sequenceProgressProvider.notifier)
-        .updateState(SequenceExecutionState.idle);
-    _ref.read(sequenceExecutionStateProvider.notifier).state =
-        SequenceExecutionState.idle;
-    // When the operator chose to keep the checkpoint, label the run/
-    // session so the post-session reporting tells the truth instead of
-    // claiming a clean stop.
-    final runStatus = preserveCheckpoint ? 'paused-stopped' : 'stopped';
-    _finalizeRun(runStatus);
+  Future<void> stop({bool preserveCheckpoint = false}) {
+    _ensureBackendAuthority();
+    // Join an in-flight finalization — a natural terminal, another stop(), or a
+    // rollback: the caller observes the SAME outcome, and native stop + cleanup
+    // happen exactly once. The first caller's terminal intent wins (a stop that
+    // lands on an already-completing natural terminal does NOT override it).
+    final inFlight = _finalizationFuture;
+    if (inFlight != null) return inFlight;
 
-    // Live-stacking auto-feed teardown: stop the LAN broadcast and the
-    // stacking engine so a stopped public-outreach run cannot keep
-    // serving a stale stack, and the next run starts from a clean
-    // reference. Done after `_finalizeRun` (which records run stats) but
-    // before backend teardown.
-    await _teardownLiveStacking();
+    final state = _ref.read(sequenceExecutionStateProvider);
+    // Idle-stop guard: nothing to stop from a settled, non-active state (idle /
+    // completed / failed / finalizing). Returning a completed future keeps
+    // stop() a safe no-op instead of flashing a state and commanding a native
+    // stop against an executor that is not running.
+    if (!state.canStop) return Future<void>.value();
 
-    await _ref
-        .read(sessionStateProvider.notifier)
-        .endSession(status: runStatus);
-
-    final backend = _ref.read(backendProvider);
-    await backend.sequencerStop();
-
-    if (preserveCheckpoint) {
-      _logger.info(
-        'Stop with preserveCheckpoint=true: leaving checkpoint on disk so '
-        'the user can resume later',
-        source: 'SequenceExecutor',
+    // Retry path: a retained finalization is awaiting a Stop retry. Re-drive it
+    // WITHOUT rebuilding intent (its first-claimed terminal status/UI wins).
+    // From `cleanupFailed` the native stop is already confirmed so the drive
+    // skips it (pure persistence retry -> show `finalizing`); from `stopFailed`
+    // the drive retries the native stop (-> show `stopping`).
+    if (_finalization != null &&
+        (state == SequenceExecutionState.stopFailed ||
+            state == SequenceExecutionState.cleanupFailed)) {
+      final f = _finalization!;
+      _setExecutionState(
+        f.nativeStopConfirmed
+            ? SequenceExecutionState.finalizing
+            : SequenceExecutionState.stopping,
       );
-      return;
+      return _launchDrive(f);
     }
 
-    // Clear checkpoint when stopped gracefully — only when the caller
-    // confirmed this is a natural / abort stop with no intent to resume.
-    try {
-      await backend.discardCheckpoint();
-    } catch (e) {
-      // Cleanup-only error; the stop itself succeeded.
-      _logger.warning(
-        'Failed to clear checkpoint on stop: $e',
-        source: 'SequenceExecutor',
-      );
-    }
+    // Fresh explicit stop from a live state (running / paused / recovering).
+    // Command the native executor to stop FIRST (inside the drive), before any
+    // teardown or persistence.
+    final f = _RunFinalization(
+      generation: ++_finalizationGeneration,
+      runStatus: preserveCheckpoint ? 'paused-stopped' : 'stopped',
+      finalUiState: SequenceExecutionState.idle,
+      runId: _ref.read(currentRunIdProvider),
+      dbSessionId: _ref.read(sessionStateProvider).dbSessionId,
+      preserveCheckpoint: preserveCheckpoint,
+      nativeStopRequired: true,
+      nativeStopConfirmed: false,
+      publishTerminalResult: true,
+      discardCheckpointOnSuccess: !preserveCheckpoint,
+      isRollback: false,
+    );
+    _finalization = f;
+    // Enter `stopping` synchronously (before the first await) so the UI is
+    // truthful the instant Stop is pressed: not idle until the hardware has
+    // actually been commanded to stop.
+    _setExecutionState(SequenceExecutionState.stopping);
+    return _launchDrive(f);
+  }
+
+  /// Publish [state] to both the progress notifier and the execution-state
+  /// provider in lockstep. Every lifecycle transition must move the two
+  /// together; a surface that reads one and not the other must never observe a
+  /// split state.
+  void _setExecutionState(SequenceExecutionState state) {
+    _ref.read(sequenceProgressProvider.notifier).updateState(state);
+    _ref.read(sequenceExecutionStateProvider.notifier).state = state;
   }
 
   Future<void> skip() async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    final backend = _backend;
     await backend.sequencerSkip();
   }
 
@@ -678,7 +1398,8 @@ class SequenceExecutor {
   /// the sequence is running — the UI must gate the action on
   /// [SequenceExecutionState.running].
   Future<void> skipToNode(String nodeId) async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    final backend = _backend;
     await backend.sequencerSkipToNode(nodeId);
   }
 
@@ -713,6 +1434,7 @@ class SequenceExecutor {
   /// Returns the [TargetHeaderNode.id] we jumped to, or `null` when there was
   /// no next target and the run was finished instead.
   Future<String?> skipToTarget() async {
+    _ensureBackendAuthority();
     final state = _ref.read(sequenceExecutionStateProvider);
     if (state != SequenceExecutionState.running &&
         state != SequenceExecutionState.paused) {
@@ -764,7 +1486,7 @@ class SequenceExecutor {
       '"${nextTarget.id}" (${nextTarget.targetName})',
       source: 'SequenceExecutor',
     );
-    final backend = _ref.read(backendProvider);
+    final backend = _backend;
     await backend.sequencerSkipToNode(nextTarget.id);
     return nextTarget.id;
   }
@@ -792,16 +1514,39 @@ class SequenceExecutor {
   /// configuration. Clears all execution progress (completed exposures, node
   /// statuses) while preserving the sequence structure.
   Future<void> reset() async {
+    _ensureBackendAuthority();
+    // If a finalization is mid-flight (`finalizing` after a natural terminal, or
+    // an explicit stop still tearing down), let it settle first so reset() never
+    // clobbers run/session identity or races the teardown. A cleanup that
+    // settles to stopFailed / cleanupFailed is handled by the canStop retry
+    // below; its thrown error was already surfaced via the state, so we swallow
+    // it here.
+    final inFlight = _finalizationFuture;
+    if (inFlight != null) {
+      try {
+        await inFlight;
+      } catch (e) {
+        _logger.debug(
+          'Reset observed the already-surfaced finalization failure: $e',
+          source: 'SequenceExecutor',
+        );
+      }
+    }
     final currentState = _ref.read(sequenceExecutionStateProvider);
 
-    if (currentState == SequenceExecutionState.running ||
-        currentState == SequenceExecutionState.paused) {
+    // A live run — or one whose stop / persistence cleanup has not finished
+    // (stopFailed / cleanupFailed) — must be genuinely stopped before we reset.
+    // Await the canonical stop(): if the native stop or its cleanup fails it
+    // throws (leaving the truthful stopFailed / cleanupFailed state) and we do
+    // NOT continue to force idle — the hardware may still be imaging or the
+    // session record is incomplete, so a resettable idle would be a lie.
+    if (currentState.canStop) {
       await stop();
     }
 
     _ref.read(sequenceProgressProvider.notifier).reset();
 
-    final backend = _ref.read(backendProvider);
+    final backend = _backend;
     try {
       await backend.sequencerReset();
     } catch (e) {
@@ -821,8 +1566,7 @@ class SequenceExecutor {
       );
     }
 
-    _ref.read(sequenceExecutionStateProvider.notifier).state =
-        SequenceExecutionState.idle;
+    _setExecutionState(SequenceExecutionState.idle);
 
     _logger.info(
       'Sequence reset - ready to run from beginning',
@@ -836,19 +1580,22 @@ class SequenceExecutor {
 
   /// Initialize checkpoint system with app's documents directory
   Future<void> initializeCheckpoints(String documentsPath) async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    final backend = _backend;
     await backend.sequencerSetCheckpointDir(documentsPath);
   }
 
   /// Check if there's a checkpoint available to resume
   Future<bool> hasCheckpoint() async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    final backend = _backend;
     return await backend.hasCheckpoint();
   }
 
   /// Get information about the current checkpoint
   Future<CheckpointInfo?> getCheckpointInfo() async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    final backend = _backend;
     return await backend.getCheckpointInfo();
   }
 
@@ -862,7 +1609,112 @@ class SequenceExecutor {
   /// Skipping that start call leaves the executor Idle while the UI says
   /// "running" — a resumed night that silently never images.
   Future<void> resumeFromCheckpoint() async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    // Same start serialization + admissible-state gate as [start]: a resume is
+    // a form of start, so it must not overlap an in-flight start/resume or a
+    // running/paused/stopping/recovering executor.
+    final admissionState = _ref.read(sequenceExecutionStateProvider);
+    if (_startInFlight || !_isStartAdmissible(admissionState)) {
+      throw StateError(
+        'Cannot resume: a sequence start is already in flight or the executor '
+        'is not in an admissible state (state: ${admissionState.name}).',
+      );
+    }
+    _startInFlight = true;
+    _ref.read(sequenceLaunchInFlightProvider.notifier).state = true;
+    try {
+      await _resumeFromCheckpointInner();
+    } finally {
+      _startInFlight = false;
+      _ref.read(sequenceLaunchInFlightProvider.notifier).state = false;
+    }
+  }
+
+  /// Rehydrate [currentSequenceProvider] for a resumed run from the snapshot
+  /// the interrupted run stored, and return that snapshot so the resumed run
+  /// records one too.
+  ///
+  /// Returns null — leaving the executor in the previous "no Dart sequence"
+  /// behaviour — when nothing can be recovered: no matching run row (checkpoint
+  /// older than the snapshot column, or the row was pruned) or a snapshot that
+  /// no longer parses against the current node schema. A failure here must never
+  /// block the resume: imaging with degraded attribution still beats refusing to
+  /// resume the night.
+  ///
+  /// Leaves an already-loaded sequence alone. A resume triggered from a session
+  /// where the operator still has the tree open must not have it swapped for a
+  /// historical snapshot of itself.
+  Future<String?> _recoverResumedSequence(String sequenceName) async {
+    if (_ref.read(currentSequenceProvider) != null) {
+      final loaded = _ref.read(currentSequenceProvider)!;
+      try {
+        return jsonEncode(
+          _ref.read(sequenceFileServiceProvider).sequenceToMap(loaded),
+        );
+      } catch (e) {
+        _logger.warning(
+          'Could not snapshot the already-loaded sequence for the resumed '
+          'run: $e',
+          source: 'SequenceExecutor',
+        );
+        return null;
+      }
+    }
+
+    try {
+      final snapshotJson = await _ref
+          .read(sequenceRunsDaoProvider)
+          .latestSnapshotForSequenceName(sequenceName);
+      if (snapshotJson == null || snapshotJson.trim().isEmpty) {
+        _logger.warning(
+          'Resuming "$sequenceName" with no recoverable sequence tree: no '
+          'previous run stored a snapshot. Frames will register without '
+          'exposure/gain/target attribution.',
+          source: 'SequenceExecutor',
+        );
+        return null;
+      }
+      final decoded = jsonDecode(snapshotJson);
+      if (decoded is! Map<String, dynamic>) {
+        _logger.warning(
+          'Stored snapshot for "$sequenceName" is not a JSON object; '
+          'resuming without a sequence tree.',
+          source: 'SequenceExecutor',
+        );
+        return null;
+      }
+      final sequence = _ref
+          .read(sequenceFileServiceProvider)
+          .parseFromMap(decoded);
+      // `loadSequence` (not a raw state write) so the editor's own bookkeeping
+      // — saved-state, undo stack, ownership — stays consistent.
+      // `discardUnsaved` is safe here: this branch only runs when nothing is
+      // loaded, so there is no unsaved work to lose.
+      _ref
+          .read(currentSequenceProvider.notifier)
+          .loadSequence(sequence, discardUnsaved: true);
+      _logger.info(
+        'Recovered the sequence tree for resumed run "$sequenceName" from the '
+        'interrupted run\'s snapshot (${sequence.nodes.length} nodes).',
+        source: 'SequenceExecutor',
+      );
+      return snapshotJson;
+    } catch (e, st) {
+      _logger.warning(
+        'Could not recover the sequence tree for resumed run "$sequenceName": '
+        '$e\n$st',
+        source: 'SequenceExecutor',
+      );
+      return null;
+    }
+  }
+
+  Future<void> _resumeFromCheckpointInner() async {
+    // Resolve launch-authoritative settings before restoring or mutating the
+    // native checkpoint. A failed settings store must leave the checkpoint
+    // untouched instead of resuming it with fabricated defaults.
+    final settings = await _ref.read(appSettingsProvider.future);
+    final backend = _backend;
 
     final info = await backend.getCheckpointInfo();
     if (info == null || !info.canResume) {
@@ -871,16 +1723,16 @@ class SequenceExecutor {
 
     // Prepare the native executor from the snapshot first, so the
     // re-seeding below overrides snapshot values rather than being
-    // overwritten by the restore.
+    // overwritten by the restore. This preparation phase acquires no Dart-side
+    // run resource (no session/run row/timers), so a failure here needs no
+    // rollback — it just propagates.
     await backend.resumeFromCheckpoint();
 
     // The snapshot reflects the world at checkpoint time. Settings the
     // user changed since — observer location, safety fail mode, AF
     // cadence, dither, grading thresholds — must win: the W1 daylight
     // gate and meridian-flip hour-angle math run off this location.
-    final settings = _ref.read(appSettingsProvider).valueOrNull;
-    if (settings != null &&
-        (settings.latitude != 0.0 || settings.longitude != 0.0)) {
+    if (settings.latitude != 0.0 || settings.longitude != 0.0) {
       await backend.setLocation(
         ObserverLocation(
           latitude: settings.latitude,
@@ -889,21 +1741,17 @@ class SequenceExecutor {
         ),
       );
     }
-    if (kReleaseMode) {
-      await backend.sequencerSetSimulationMode(false);
-    } else {
-      await backend.sequencerSetSimulationMode(_useSimulationMode);
-    }
-    if (settings != null) {
-      await backend.sequencerSetSafetyFailMode(
-        _safetyFailModeToBackendString(settings.safetyFailMode),
-      );
-    }
+    await backend.sequencerSetSimulationMode(
+      effectiveSimulationMode(settings.useSimulationMode),
+    );
+    await backend.sequencerSetSafetyFailMode(
+      _safetyFailModeToBackendString(settings.safetyFailMode),
+    );
     // Save path: only override the checkpoint's restored path when the
     // user actually has one configured — pushing null here would clobber
     // a perfectly good snapshot path with "don't save".
-    final savePath = settings?.imageOutputPath;
-    if (savePath != null && savePath.isNotEmpty) {
+    final savePath = settings.imageOutputPath;
+    if (savePath.isNotEmpty) {
       await backend.sequencerSetSavePath(savePath);
     }
     // Device IDs: the checkpoint restored the snapshot's mapping. Only
@@ -936,106 +1784,129 @@ class SequenceExecutor {
             : null,
       );
     }
+    await seedDefectMapRuntimeForSequence(_ref);
     await _seedRuntimeConfigFromSettings(backend);
 
-    final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
-    progressNotifier.updateState(SequenceExecutionState.running);
-    _ref.read(sequenceExecutionStateProvider.notifier).state =
-        SequenceExecutionState.running;
-
-    progressNotifier.updateProgress(
-      completedExposures: info.completedExposures,
-      completedIntegrationSecs: info.completedIntegrationSecs,
-      message: 'Resuming from checkpoint...',
+    // Recover the sequence TREE from the interrupted run's stored snapshot,
+    // BEFORE the running-state flip below. The editor refuses edits once the
+    // executor reports running (`_ensureEditable` throws SequenceLockedException),
+    // so recovering any later silently fails and leaves the resumed run with no
+    // tree at all. This step touches no run resource, so it also belongs outside
+    // the acquisition transaction: a failure here needs no rollback.
+    //
+    // Without the tree, everything that reads it degrades silently: frames
+    // register with exposure_duration 0.0 and no gain/offset/binning/target
+    // (see `resolveFrameAttribution`), the Dashboard reads "no sequence loaded"
+    // while the run is imaging, and the run's history entry has no tree.
+    final recoveredSnapshotJson = await _recoverResumedSequence(
+      info.sequenceName,
     );
 
-    // A resumed run still needs a session + run row so frame stats,
-    // replay decisions and the morning report have something to attach
-    // to. sequenceId is unknown post-crash (the checkpoint stores the
-    // Rust-side definition, not the Dart DB id) — null is accepted.
-    final sessionNotifier = _ref.read(sessionStateProvider.notifier);
-    await sessionNotifier.startSession(targetName: info.sequenceName);
-    final runId = await _ref
-        .read(sequenceRunsDaoProvider)
-        .startRun(sequenceId: null, sequenceName: info.sequenceName);
-    _ref.read(currentRunIdProvider.notifier).state = runId;
-    _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
-    _runFinalized = false;
-    _liveStackingArmedForRun = false;
-    _liveStackingFeedChain = null;
+    // --- Acquisition transaction ---------------------------------------
+    // From the UI running-state flip onward every resource is part of one
+    // lifecycle transaction, protected by the same [_rollbackStart] path as
+    // start(). Previously only a sequencerStart() failure rolled back; a
+    // failure creating the session/run row left a running UI with an active
+    // session and no native run.
+    _resetFinalizationForNewRun();
     try {
-      await backend.sequencerSetActiveSequenceRunId(runId);
-    } catch (e) {
-      _logger.warning(
-        'Failed to push active sequence_run_id to Rust executor on resume: $e',
-        source: 'SequenceExecutor',
+      final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
+      progressNotifier.updateState(SequenceExecutionState.running);
+      _ref.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+
+      progressNotifier.updateProgress(
+        completedExposures: info.completedExposures,
+        completedIntegrationSecs: info.completedIntegrationSecs,
+        message: 'Resuming from checkpoint...',
       );
-    }
 
-    _startTime = DateTime.now();
-    _isPaused = false;
-    // Reset the EMA so resume samples — which start from the checkpoint
-    // mid-run cadence — aren't biased by stale samples from the original
-    // session (different exposure length, focuser, etc.). The EMA is fed
-    // from ExposureCompleted events post-resume, so no frame-counter seed
-    // is needed.
-    _resetEtaState();
-
-    _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!_isPaused && _startTime != null) {
-        final elapsed = DateTime.now()
-            .difference(_startTime!)
-            .inSeconds
-            .toDouble();
-        final progress = _ref.read(sequenceProgressProvider);
-        final eta = _computeSmoothedEta(progress);
-        progressNotifier.updateProgress(
-          elapsedSecs: elapsed,
-          estimatedRemainingSecs: eta,
+      // A resumed run still needs a session + run row so frame stats,
+      // replay decisions and the morning report have something to attach
+      // to. sequenceId is unknown post-crash (the checkpoint stores the
+      // Rust-side definition, not the Dart DB id) — null is accepted.
+      final sessionNotifier = _ref.read(sessionStateProvider.notifier);
+      await sessionNotifier.startSession(targetName: info.sequenceName);
+      final runId = await _ref
+          .read(sequenceRunsDaoProvider)
+          .startRun(
+            sequenceId: _ref.read(currentSequenceProvider)?.databaseId,
+            sequenceName: info.sequenceName,
+            sequenceSnapshotJson: recoveredSnapshotJson,
+          );
+      _ref.read(currentRunIdProvider.notifier).state = runId;
+      _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
+      _runFinalized = false;
+      _liveStackingArmedForRun = false;
+      _liveStackingFeedChain = null;
+      try {
+        await backend.sequencerSetActiveSequenceRunId(runId);
+      } catch (e) {
+        _logger.warning(
+          'Failed to push active sequence_run_id to Rust executor on '
+          'resume: $e',
+          source: 'SequenceExecutor',
         );
       }
-    });
 
-    _startCheckpointTimer();
-    _startDiskSpaceWatchdog();
-
-    await _nativeEventSubscription?.cancel();
-    _nativeEventSubscription = backend.eventStream.listen(
-      _handleSequencerEvent,
-      onError: (e) =>
-          _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
-    );
-
-    _startSettingsWatchers(backend);
-
-    // Actually begin execution: start() walks the restored tree and
-    // short-circuits already-completed nodes — that is what makes the
-    // checkpoint resume real instead of a state-only restore.
-    try {
-      await backend.sequencerStart();
-    } catch (e) {
-      // Roll the UI back so the user sees the failure instead of a
-      // permanently-"running" ghost sequence.
-      _progressTimer?.cancel();
-      _progressTimer = null;
-      _checkpointTimer?.cancel();
-      _checkpointTimer = null;
-      _stopDiskSpaceWatchdog();
-      _stopSettingsWatchers();
-      _startTime = null;
+      _startTime = DateTime.now();
       _isPaused = false;
-      _recordRunError('Failed to resume native execution: $e');
-      _finalizeRun('failed');
-      progressNotifier.updateState(SequenceExecutionState.failed);
-      _ref.read(sequenceExecutionStateProvider.notifier).state =
-          SequenceExecutionState.failed;
+      // Reset the EMA so resume samples — which start from the checkpoint
+      // mid-run cadence — aren't biased by stale samples from the original
+      // session (different exposure length, focuser, etc.). The EMA is fed
+      // from ExposureCompleted events post-resume, so no frame-counter seed
+      // is needed.
+      _resetEtaState();
+
+      _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!_isPaused && _startTime != null) {
+          final elapsed = DateTime.now()
+              .difference(_startTime!)
+              .inSeconds
+              .toDouble();
+          final progress = _ref.read(sequenceProgressProvider);
+          final eta = _computeSmoothedEta(progress);
+          progressNotifier.updateProgress(
+            elapsedSecs: elapsed,
+            estimatedRemainingSecs: eta,
+          );
+        }
+      });
+
+      _startCheckpointTimer();
+      _startDiskSpaceWatchdog();
+
+      await _nativeEventSubscription?.cancel();
+      _nativeEventSubscription = backend.eventStream.listen(
+        _handleSequencerEvent,
+        onError: (e) =>
+            _logger.error('Event stream error: $e', source: 'SequenceExecutor'),
+      );
+
+      _startSettingsWatchers(backend);
+
+      // Actually begin execution: start() walks the restored tree and
+      // short-circuits already-completed nodes — that is what makes the
+      // checkpoint resume real instead of a state-only restore. Mark the
+      // native-launch boundary so [_rollbackStart] best-effort stops a partial
+      // launch instead of tearing down blind.
+      _nativeLaunchAttempted = true;
+      await backend.sequencerStart();
+    } catch (e, st) {
+      // Single rollback path shared with start(): cancels every acquired
+      // resource, finalizes the run failed, ends the session, clears the
+      // stale run id, releases a Smart Night / mosaic handoff, and leaves a
+      // truthful failed state — so a resumed night never shows a permanently
+      // "running" ghost sequence.
+      await _rollbackStart(e, st);
       rethrow;
     }
   }
 
   /// Discard the current checkpoint
   Future<void> discardCheckpoint() async {
-    final backend = _ref.read(backendProvider);
+    _ensureBackendAuthority();
+    final backend = _backend;
     await backend.discardCheckpoint();
   }
 
@@ -1048,6 +1919,14 @@ class SequenceExecutor {
     _checkpointTimer = null;
     _nativeEventSubscription?.cancel();
     _nativeEventSubscription = null;
+    // The sky-brightness poll is a per-run resource like the two timers above,
+    // but it was only cancelled on the clean release path
+    // (`_releaseRunResources`). A run that ends in `stopFailed` /
+    // `cleanupFailed` deliberately does NOT release, so the 10-second timer
+    // outlived the executor and kept firing against a torn-down Ref — reading
+    // providers from a disposed container every tick, forever.
+    _skyBrightnessPollTimer?.cancel();
+    _skyBrightnessPollTimer = null;
     _stopDiskSpaceWatchdog();
   }
 }

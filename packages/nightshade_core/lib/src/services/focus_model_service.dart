@@ -268,15 +268,21 @@ class ProfileFocusData {
     String? profileId,
     List<FocusHistoryPoint>? dataPoints,
     FocusModel? temperatureModel,
+    bool clearTemperatureModel = false,
     Map<String, FilterOffset>? filterOffsets,
     String? referenceFilter,
+    bool clearReferenceFilter = false,
   }) {
     return ProfileFocusData(
       profileId: profileId ?? this.profileId,
       dataPoints: dataPoints ?? this.dataPoints,
-      temperatureModel: temperatureModel ?? this.temperatureModel,
+      temperatureModel: clearTemperatureModel
+          ? null
+          : (temperatureModel ?? this.temperatureModel),
       filterOffsets: filterOffsets ?? this.filterOffsets,
-      referenceFilter: referenceFilter ?? this.referenceFilter,
+      referenceFilter: clearReferenceFilter
+          ? null
+          : (referenceFilter ?? this.referenceFilter),
     );
   }
 
@@ -376,7 +382,7 @@ class FocusModelService {
     if (model != null) {
       data = data.copyWith(temperatureModel: model);
     } else {
-      data = data.copyWith(temperatureModel: null);
+      data = data.copyWith(clearTemperatureModel: true);
     }
 
     // Update filter offsets if we have a reference filter.
@@ -829,7 +835,10 @@ class FocusModelService {
   Future<void> importData(String profileId, String jsonData) async {
     await initialize();
     final json = jsonDecode(jsonData) as Map<String, dynamic>;
-    final data = ProfileFocusData.fromJson(json);
+    // An export identifies its source profile, but Import means "apply this
+    // model to the profile the operator selected." Persisting the source id
+    // caused the data to migrate back to that source key on the next launch.
+    final data = ProfileFocusData.fromJson(json).copyWith(profileId: profileId);
     _profileData[profileId] = data;
     await _saveProfile(profileId);
   }

@@ -265,17 +265,57 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 }
 
 /// Status filter chips + search field for the history list.
-class _HistoryFilterBar extends ConsumerWidget {
+class _HistoryFilterBar extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
   const _HistoryFilterBar({required this.colors});
 
-  static const _statuses = ['completed', 'failed', 'aborted', 'running'];
+  // 'interrupted' is what a run becomes when the process died mid-flight (a
+  // crash or a power cut) and the next startup reconciled the stale row. It
+  // needs a chip of its own: without one, the runs an operator most wants to
+  // find after a bad night are the only ones no filter can select.
+  // Every status the executor can durably write needs a chip, or the runs
+  // carrying it become unreachable by any filter. `stopped` /
+  // `paused-stopped` are what an operator Stop produces (the latter when a
+  // checkpoint was preserved, so the run is resumable) — on the live database
+  // that was 15 runs no filter could select.
+  static const _statuses = [
+    'completed',
+    'failed',
+    'aborted',
+    'stopped',
+    'paused-stopped',
+    'interrupted',
+    'running',
+  ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_HistoryFilterBar> createState() => _HistoryFilterBarState();
+}
+
+class _HistoryFilterBarState extends ConsumerState<_HistoryFilterBar> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final selected = ref.watch(historyStatusFilterProvider);
     final sequenceFilter = ref.watch(historyFilterSequenceIdProvider);
+
+    // Keep the text field in sync when the search query is cleared from
+    // elsewhere (e.g. the filtered empty-state "Clear filters" action).
+    ref.listen<String>(historySearchProvider, (previous, next) {
+      if (next.isEmpty && _searchController.text.isNotEmpty) {
+        _searchController.clear();
+      }
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,7 +326,7 @@ class _HistoryFilterBar extends ConsumerWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  for (final status in _statuses)
+                  for (final status in _HistoryFilterBar._statuses)
                     FilterChip(
                       label:
                           Text(status[0].toUpperCase() + status.substring(1)),
@@ -310,6 +350,7 @@ class _HistoryFilterBar extends ConsumerWidget {
             SizedBox(
               width: 220,
               child: TextField(
+                controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Search by sequence / target',
                   isDense: true,
@@ -458,21 +499,23 @@ class _RunCard extends ConsumerWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        onTap: () {
-          if (stats != null) {
-            showDialog(
-              context: context,
-              builder: (_) => PostSessionStatsDialog(
-                colors: colors,
-                sequenceName: run.sequenceName,
-                startedAt: run.startedAt,
-                endedAt: run.endedAt,
-                status: run.status,
-                stats: stats,
-              ),
-            );
-          }
-        },
+        // Legacy/corrupt runs parse to null stats; there is no dialog to open,
+        // so leave onTap null rather than rippling on a hollow control.
+        onTap: stats == null
+            ? null
+            : () {
+                showDialog(
+                  context: context,
+                  builder: (_) => PostSessionStatsDialog(
+                    colors: colors,
+                    sequenceName: run.sequenceName,
+                    startedAt: run.startedAt,
+                    endedAt: run.endedAt,
+                    status: run.status,
+                    stats: stats,
+                  ),
+                );
+              },
         child: NightshadeCard(
           variant: CardVariant.subtle,
           padding: const EdgeInsets.all(16),
@@ -570,10 +613,34 @@ class _RunCard extends ConsumerWidget {
                 final countAsync = ref.watch(
                   decisionCountForRunProvider(run.id),
                 );
-                final count = countAsync.maybeWhen(
-                  data: (n) => n,
-                  orElse: () => 0,
-                );
+                if (countAsync.isLoading) {
+                  return const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Padding(
+                      padding: EdgeInsets.all(7),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                if (countAsync.hasError) {
+                  return IconButton(
+                    onPressed: () => ref.invalidate(
+                      decisionCountForRunProvider(run.id),
+                    ),
+                    icon: Icon(
+                      LucideIcons.alertTriangle,
+                      size: 16,
+                      color: colors.warning,
+                    ),
+                    tooltip: 'Could not load replay count — retry',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                  );
+                }
+                final count = countAsync.requireValue;
                 return IconButton(
                   onPressed: () => ReplayDebugScreen.push(
                     context,

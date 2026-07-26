@@ -283,6 +283,7 @@ void main() {
           database: database,
           sequenceRepository: SequenceRepository(database.sequencesDao),
           logger: logger,
+          appVersion: '5.0.0-test',
         ),
         settingsDao: dao,
         secretsStore: SecretsStore(InMemorySecureKeyValueStore()),
@@ -324,7 +325,7 @@ void main() {
         jsonDecode(utf8.decode(manifestBytes!)) as Map<String, dynamic>,
       );
       expect(manifest.machine, 'test-machine');
-      expect(manifest.appVersion, BackupService.appVersion);
+      expect(manifest.appVersion, '5.0.0-test');
       expect(manifest.bundles, hasLength(1));
 
       final bundleBytes = remote.files[result.remotePath!];
@@ -682,6 +683,25 @@ void main() {
         isNot(contains('sk-must-not-appear')),
       );
       expect(jsonEncode(status.toJson()), isNot(contains('AKIA')));
+    });
+
+    test('status strips URL-embedded credentials and token queries', () async {
+      const config = SyncConfig(
+        provider: SyncProvider.webdav,
+        serverUrl:
+            'https://user:password@dav.example.com/remote.php/dav?token=secret#private',
+        username: 'astro',
+        machineName: 'rig',
+      );
+      await service.saveConfig(config, password: 'separate-keyring-secret');
+
+      final status = await service.status();
+
+      expect(status.serverUrl, 'https://dav.example.com/remote.php/dav');
+      final encoded = jsonEncode(status.toJson());
+      expect(encoded, isNot(contains('password')));
+      expect(encoded, isNot(contains('token')));
+      expect(encoded, isNot(contains('separate-keyring-secret')));
     });
   });
 

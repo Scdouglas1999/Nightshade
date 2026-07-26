@@ -109,6 +109,12 @@ enum FilterCalibrationStatus {
   calibrated,
   capturing,
   complete,
+
+  /// Calibration succeeded and capture ran, but fewer frames were saved than
+  /// requested (some per-frame captures/saves failed, or the run was cancelled
+  /// after at least one frame was written). Distinct from [complete] so the
+  /// filter card never claims a full set when only part of it landed on disk.
+  partial,
   failed,
   skipped,
 }

@@ -206,6 +206,16 @@ void main() {
       expect(server.webUrl, 'https://100.64.0.5:8443');
       expect(server.copyWith(scheme: 'http').webUrl, 'http://100.64.0.5:8443');
     });
+
+    test('webUrl brackets IPv6 literals', () {
+      final server = DiscoveredServer(
+        host: 'fd7a:115c:a1e0::1',
+        webPort: 8080,
+        name: 'Tailnet rig',
+      );
+
+      expect(server.webUrl, 'http://[fd7a:115c:a1e0::1]:8080');
+    });
   });
 
   group('EnhancedNightshadeDiscovery saved server persistence', () {
@@ -415,6 +425,90 @@ void main() {
           server.port,
         ),
         isTrue,
+      );
+    });
+  });
+
+  // Regression: a live host that REJECTS the credential must not be reported
+  // as unreachable. A Nightshade host invalidates every paired token when it
+  // restarts, so a stale token against a healthy host is the commonest failure
+  // an operator hits — and the saved-servers screen used to render it as
+  // "Could not reach <name> at <host>", sending people to debug their network
+  // instead of pairing again.
+  group('probeServer distinguishes auth rejection from unreachability', () {
+    Future<int> serveStatus(int statusCode, {Map<String, Object?>? info}) async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        if (request.uri.path == '/api/info' && info != null) {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode(info));
+        } else {
+          request.response.statusCode = statusCode;
+        }
+        await request.response.close();
+      });
+      return server.port;
+    }
+
+    for (final code in [401, 403]) {
+      test('$code on /api/info reports authRejected, not unreachable',
+          () async {
+        final port = await serveStatus(code);
+        expect(
+          await EnhancedNightshadeDiscovery.probeServer(
+            InternetAddress.loopbackIPv4.address,
+            port,
+            authToken: 'stale-token',
+          ),
+          ServerProbeOutcome.authRejected,
+        );
+      });
+
+      test('$code on /api/status reports authRejected, not unreachable',
+          () async {
+        final port = await serveStatus(code, info: {
+          'version': '3.0.0',
+          'apiVersion': '2.6.0',
+          'authRequired': true,
+        });
+        expect(
+          await EnhancedNightshadeDiscovery.probeServer(
+            InternetAddress.loopbackIPv4.address,
+            port,
+            authToken: 'stale-token',
+          ),
+          ServerProbeOutcome.authRejected,
+        );
+      });
+    }
+
+    test('a refused connection is still unreachable', () async {
+      final probe = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final deadPort = probe.port;
+      await probe.close(force: true);
+      expect(
+        await EnhancedNightshadeDiscovery.probeServer(
+          InternetAddress.loopbackIPv4.address,
+          deadPort,
+          timeout: const Duration(seconds: 2),
+        ),
+        ServerProbeOutcome.unreachable,
+      );
+    });
+
+    test('testServerConnection stays false for a rejected credential',
+        () async {
+      final port = await serveStatus(403);
+      expect(
+        await EnhancedNightshadeDiscovery.testServerConnection(
+          InternetAddress.loopbackIPv4.address,
+          port,
+          authToken: 'stale-token',
+        ),
+        isFalse,
       );
     });
   });

@@ -10,7 +10,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 // classification (LAN vs Tailscale tailnet vs public). Reused here so the
 // scheme/timeout tuning matches the QR/pairing validator exactly.
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
-    show TailnetDetector;
+    show PushDeliveryTargets, TailnetDetector, buildNightshadeServerUri;
 import 'package:path/path.dart' as p;
 import '../models/settings/app_settings.dart' as models;
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -23,7 +23,8 @@ import '../models/errors/nightshade_error.dart' as dart_error;
 // mobile companion can branch on the machine-readable `code` instead of
 // substring-matching the message text.
 import 'remote_display_jpeg.dart';
-import 'nightshade_exception.dart' show IoException, ValidationException;
+import 'nightshade_exception.dart'
+    show ImagingException, IoException, ValidationException;
 
 part 'network_backend/remote_operations.dart';
 part 'network_backend/remote_calibration_catalog_operations.dart';
@@ -38,6 +39,7 @@ part 'network_backend/observing_list_operations.dart';
 part 'network_backend/device_operations.dart';
 part 'network_backend/guiding_operations.dart';
 part 'network_backend/sequencer_operations.dart';
+part 'network_backend/replay_debug_operations.dart';
 part 'network_backend/stacking_operations.dart';
 part 'network_backend/post_session_operations.dart';
 part 'network_backend/imaging_profile_operations.dart';
@@ -59,6 +61,13 @@ abstract class _NetworkBackendTransport {
   final String serverHost;
   final int serverPort;
   final int webSocketPort;
+
+  /// ID returned by the most recent successful profile save. The abstract
+  /// backend role retains its historical `Future<void>` method, while the
+  /// concrete network client exposes this response metadata so remote creates
+  /// never have to rediscover a row by a non-unique profile name.
+  String? _lastSavedProfileId;
+  String? get lastSavedProfileId => _lastSavedProfileId;
 
   /// URL scheme for the REST/SSE transport: `'http'` (plaintext, the LAN
   /// default) or `'https'` (TLS, used when the server is exposed over a
@@ -310,7 +319,12 @@ abstract class _NetworkBackendTransport {
   /// change instead of a 20-site hunt, and matches the previous
   /// `Uri.parse('http://host:port/api/<endpoint>')` semantics exactly.
   Uri _apiUri(String endpoint, [Map<String, String>? queryParameters]) {
-    final base = Uri.parse('$scheme://$serverHost:$serverPort/api/$endpoint');
+    final base = buildNightshadeServerUri(
+      scheme: scheme,
+      host: serverHost,
+      port: serverPort,
+      pathAndQuery: '/api/$endpoint',
+    );
     if (queryParameters == null || queryParameters.isEmpty) {
       return base;
     }
@@ -422,12 +436,13 @@ class NetworkBackend extends _NetworkBackendTransport
         _NetworkBackendDeviceOperations,
         _NetworkBackendGuidingOperations,
         _NetworkBackendSequencerOperations,
+        _NetworkBackendReplayDebugOperations,
         _NetworkBackendStackingOperations,
         _NetworkBackendPostSessionOperations,
         _NetworkBackendImagingProfileOperations,
         _NetworkBackendPlanningDataOperations,
         _NetworkBackendObservingListOperations
-    implements NightshadeBackend {
+    implements NightshadeBackend, EnvironmentalStatusBackend {
   static const _requestIdHeader = _NetworkBackendTransport._requestIdHeader;
 
   NetworkBackend({

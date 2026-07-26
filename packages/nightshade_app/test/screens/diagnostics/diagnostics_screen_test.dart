@@ -133,6 +133,27 @@ void main() {
             'when allSessionsProvider is empty and no session is active.');
   });
 
+  testWidgets('learn-more chip opens the in-app interpretation guide',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      const DiagnosticsScreen(),
+      size: const Size(430, 820),
+      settle: false,
+      extraOverrides: _diagnosticsOverrides(),
+    );
+    await _drainAsyncFrames(tester);
+
+    await tester.tap(find.text('Learn more about optical diagnostics'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reading optical diagnostics'), findsOneWidget);
+    expect(find.text('Scores and grade'), findsOneWidget);
+    expect(find.textContaining('Tilt: star size changes'), findsOneWidget);
+    expect(find.text('Close'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   // ===========================================================================
   // DiagnosticDumpScreen — bug-report attachment surface
   // ===========================================================================

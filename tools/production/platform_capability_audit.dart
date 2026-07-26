@@ -52,8 +52,7 @@ const _requiredFiles = <_RequiredFile>[
     ],
   ),
   _RequiredFile(
-    path:
-        'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
+    path: 'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
     label: 'Headless endpoint catalog capability exposure',
     requiredText: [
       // The capability endpoints were extracted from system_handlers.dart into

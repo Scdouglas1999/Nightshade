@@ -1378,12 +1378,49 @@ mod tests {
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
 
-    fn temp_dir(tag: &str) -> std::path::PathBuf {
+    /// A scratch directory that deletes itself when the test ends.
+    ///
+    /// These used to be bare `PathBuf`s that nothing ever removed, so every run
+    /// of this module left its FITS trees behind in `/tmp`. Enough accumulated
+    /// runs filled a 16 GB tmpfs, and the bridge suite then reported EIGHT
+    /// failures that had nothing to do with the code under test — a harness
+    /// inventing its own failures is worse than no harness, because the next
+    /// person debugs the wrong thing.
+    ///
+    /// `Drop` rather than a cleanup call at the end of each test: the leak was
+    /// worst exactly when a test FAILED, and drop still runs while a panic
+    /// unwinds.
+    struct TempDir(std::path::PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn temp_dir(tag: &str) -> TempDir {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let p =
             std::env::temp_dir().join(format!("ns_atlas_ffi_{}_{}_{}", tag, std::process::id(), n));
         std::fs::create_dir_all(&p).unwrap();
-        p
+        TempDir(p)
     }
 
     fn temp_file(dir: &Path, name: &str) -> std::path::PathBuf {

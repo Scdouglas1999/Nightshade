@@ -243,6 +243,7 @@ class _CleanupHeaderRow extends ConsumerWidget {
     WidgetRef ref,
     int count,
   ) async {
+    final authority = ref.read(backendProvider);
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -277,22 +278,34 @@ class _CleanupHeaderRow extends ConsumerWidget {
 
     if (confirmed != true) return;
     if (!context.mounted) return;
+    if (!identical(ref.read(backendProvider), authority)) {
+      ref.invalidate(untrackedTargetsCountProvider);
+      context.showWarningSnackBar(
+        'Imaging host changed. Cleanup was cancelled.',
+      );
+      return;
+    }
 
     try {
-      final backend = ref.read(backendProvider);
-      final deleted = backend is NetworkBackend
-          ? await backend.removeUntrackedTargets()
+      final deleted = authority is NetworkBackend
+          ? await authority.removeUntrackedTargets()
           : await ref.read(targetsDaoProvider).deleteUntrackedTargets();
+      if (!context.mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
       // Refresh the library-backed views and this panel's count.
       ref.invalidate(allDbTargetsProvider);
       ref.invalidate(favoriteDbTargetsProvider);
       ref.invalidate(untrackedTargetsCountProvider);
-      if (!context.mounted) return;
       context.showSuccessSnackBar(
         'Removed $deleted untracked target${deleted == 1 ? '' : 's'}',
       );
     } catch (e) {
-      if (!context.mounted) return;
+      if (!context.mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
       context.showErrorSnackBar('Failed to remove untracked targets: $e');
     }
   }
@@ -548,12 +561,11 @@ class _EnhancedProjectCard extends ConsumerWidget {
       '${(seconds / 3600.0).toStringAsFixed(1)}h';
 
   Future<void> _editGoal(BuildContext context, WidgetRef ref) async {
+    final authority = ref.read(backendProvider);
     final l10n = context.l10n;
-    final controller = TextEditingController(
-      text: progress.goalIntegrationSecs > 0
-          ? (progress.goalIntegrationSecs / 3600.0).toStringAsFixed(1)
-          : '',
-    );
+    var draftGoal = progress.goalIntegrationSecs > 0
+        ? (progress.goalIntegrationSecs / 3600.0).toStringAsFixed(1)
+        : '';
     final submitted = await showDialog<double>(
       context: context,
       builder: (dialogContext) {
@@ -569,8 +581,9 @@ class _EnhancedProjectCard extends ConsumerWidget {
               dialogContext,
               designMaxWidth: 420,
             ),
-            child: TextField(
-              controller: controller,
+            child: TextFormField(
+              initialValue: draftGoal,
+              onChanged: (value) => draftGoal = value,
               autofocus: true,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
@@ -592,7 +605,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: () {
-                final hours = double.tryParse(controller.text.trim());
+                final hours = double.tryParse(draftGoal.trim());
                 if (hours == null || hours < 0) return;
                 Navigator.of(dialogContext).pop(hours);
               },
@@ -602,21 +615,39 @@ class _EnhancedProjectCard extends ConsumerWidget {
         );
       },
     );
-    controller.dispose();
 
     if (submitted == null) return;
+    if (!context.mounted) return;
+    if (!identical(ref.read(backendProvider), authority)) {
+      context.showWarningSnackBar(
+        'Imaging host changed. Goal update was cancelled.',
+      );
+      return;
+    }
 
-    final backend = ref.read(backendProvider);
-    if (backend is NetworkBackend) {
-      await backend.updateTarget(progress.target.id, {
-        'goalIntegrationSecs': submitted * 3600.0,
-      });
+    try {
+      if (authority is NetworkBackend) {
+        await authority.updateTarget(progress.target.id, {
+          'goalIntegrationSecs': submitted * 3600.0,
+        });
+      } else {
+        await ref
+            .read(targetsDaoProvider)
+            .setGoalIntegrationSecs(progress.target.id, submitted * 3600.0);
+      }
+      if (!context.mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
       ref.invalidate(allDbTargetsProvider);
       ref.invalidate(projectProgressListProvider);
-    } else {
-      await ref
-          .read(targetsDaoProvider)
-          .setGoalIntegrationSecs(progress.target.id, submitted * 3600.0);
+      context.showSuccessSnackBar('Goal updated');
+    } catch (e) {
+      if (!context.mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
+      context.showErrorSnackBar('Failed to save goal: $e');
     }
   }
 

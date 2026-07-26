@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -34,10 +36,15 @@ class _MountTabState extends ConsumerState<MountTab> {
   /// stop on pointer release, matching §2.7 ("release == stop, no implicit
   /// timeout"). Map of axis → direction.
   final Map<int, int> _activeAxes = {};
+  final Map<int, int> _axisGenerations = {};
+  final Map<int, Future<void>> _axisCommandTails = {};
+  int _pendingAxisCommands = 0;
+  bool _stoppingAll = false;
 
   /// Cached device id so the dispose hook can stop motion without
   /// re-reading the provider (provider may already be disposed).
   String? _lastDeviceId;
+  DeviceBackend? _lastBackend;
 
   Future<void> _startMove(int axis, int direction) async {
     final state = ref.read(mountStateProvider);
@@ -48,44 +55,146 @@ class _MountTabState extends ConsumerState<MountTab> {
     final id = state.deviceId;
     if (id == null) return;
     _lastDeviceId = id;
-    _activeAxes[axis] = direction;
     final backend = ref.read(deviceBackendProvider);
+    _lastBackend = backend;
+    final generation = (_axisGenerations[axis] ?? 0) + 1;
+    _axisGenerations[axis] = generation;
+    _activeAxes[axis] = direction;
     try {
-      await backend.mountMoveAxis(id, axis, _slewRate * direction);
+      await _queueAxisCommand(axis, () async {
+        // A release/cancel can arrive while a remote start command is still
+        // queued. Skip that stale start rather than sending it after the stop.
+        if (_axisGenerations[axis] != generation ||
+            _activeAxes[axis] != direction) {
+          return;
+        }
+        await backend.mountMoveAxis(id, axis, _slewRate * direction);
+      });
     } catch (e) {
+      if (_axisGenerations[axis] == generation) {
+        _activeAxes.remove(axis);
+      }
       developer.log('mountMoveAxis failed: $e', name: 'MountTab', level: 1000);
       if (mounted) _showMessage('Slew failed: $e');
     }
   }
 
-  Future<void> _stopMove(int axis) async {
-    if (!_activeAxes.containsKey(axis)) return;
+  Future<void> _stopMove(int axis, {bool force = false}) async {
+    if (!force && !_activeAxes.containsKey(axis)) return;
+    _axisGenerations[axis] = (_axisGenerations[axis] ?? 0) + 1;
     _activeAxes.remove(axis);
     final id = _lastDeviceId;
     if (id == null) return;
-    final backend = ref.read(deviceBackendProvider);
+    final DeviceBackend backend;
+    final cachedBackend = _lastBackend;
+    if (cachedBackend != null) {
+      backend = cachedBackend;
+    } else {
+      backend = ref.read(deviceBackendProvider);
+      _lastBackend = backend;
+    }
     try {
-      await backend.mountMoveAxis(id, axis, 0.0);
+      await _queueAxisCommand(
+        axis,
+        () => backend.mountMoveAxis(id, axis, 0.0),
+      ).timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      developer.log(
+        'Axis $axis stop waited too long for an earlier move command; '
+        'sending emergency abort',
+        name: 'MountTab',
+        level: 1000,
+      );
+      try {
+        await backend.mountAbort(id);
+        if (mounted) {
+          _showMessage('Axis response timed out; an emergency abort was sent.');
+        }
+      } catch (abortError) {
+        developer.log(
+          'Emergency mount abort failed: $abortError',
+          name: 'MountTab',
+          level: 1000,
+        );
+        if (mounted) {
+          _showMessage('Mount may still be moving: emergency abort failed.');
+        }
+      }
     } catch (e) {
       developer.log(
         'mountMoveAxis(0) failed: $e',
         name: 'MountTab',
         level: 1000,
       );
+      try {
+        await backend.mountAbort(id);
+        if (mounted) {
+          _showMessage('Axis stop failed; an emergency mount abort was sent.');
+        }
+      } catch (abortError) {
+        developer.log(
+          'Emergency mount abort failed: $abortError',
+          name: 'MountTab',
+          level: 1000,
+        );
+        if (mounted) {
+          _showMessage('Mount may still be moving: stop command failed.');
+        }
+      }
     }
   }
 
   Future<void> _stopAll() async {
+    if (_stoppingAll) return;
+    _stoppingAll = true;
+
+    // STOP is an observatory-wide emergency control, not just the inverse of
+    // a d-pad move started by this widget. Resolve the live mount on first use
+    // so it still works for a goto slew, a move started by another client, or
+    // immediately after opening this tab.
+    final state = ref.read(mountStateProvider);
+    final id = _lastDeviceId ?? state.deviceId;
+    if (id == null || id.isEmpty) {
+      _stoppingAll = false;
+      _showMessage('Mount not connected');
+      return;
+    }
+    final DeviceBackend backend =
+        _lastBackend ?? ref.read(deviceBackendProvider);
+    _lastDeviceId = id;
+    _lastBackend = backend;
+
     // Always stop both axes regardless of which one we think we started;
     // the pointer-leave handler can drop in mid-call and we don't want a
     // runaway slew sitting on the hardware.
-    await _stopMove(0);
-    await _stopMove(1);
     try {
-      await ref.read(deviceServiceProvider).abortMountSlew();
+      // Abort the active goto immediately instead of waiting behind manual-axis
+      // command tails. The zero-rate commands run alongside it as a backstop.
+      await Future.wait([
+        _stopMove(0, force: true),
+        _stopMove(1, force: true),
+        backend.mountAbort(id),
+      ]);
     } catch (e) {
       if (mounted) _showMessage('Stop failed: $e');
+    } finally {
+      _stoppingAll = false;
     }
+  }
+
+  Future<void> _queueAxisCommand(int axis, Future<void> Function() command) {
+    final previous = _axisCommandTails[axis] ?? Future<void>.value();
+    _pendingAxisCommands++;
+    final operation = previous.then((_) => command());
+    _axisCommandTails[axis] = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    operation.then<void>(
+      (_) => _pendingAxisCommands--,
+      onError: (Object _, StackTrace __) => _pendingAxisCommands--,
+    );
+    return operation;
   }
 
   void _showMessage(String text) {
@@ -99,18 +208,34 @@ class _MountTabState extends ConsumerState<MountTab> {
     // capture the device id and backend reference at start time because
     // reading providers in dispose isn't always safe.
     final id = _lastDeviceId;
-    if (id != null && _activeAxes.isNotEmpty) {
-      try {
-        final backend = ref.read(deviceBackendProvider);
-        backend.mountMoveAxis(id, 0, 0.0).ignore();
-        backend.mountMoveAxis(id, 1, 0.0).ignore();
-      } catch (e) {
-        developer.log(
-          'Mount stop on dispose failed: $e',
-          name: 'MountTab',
-          level: 1000,
-        );
-      }
+    final backend = _lastBackend;
+    if (id != null &&
+        backend != null &&
+        (_activeAxes.isNotEmpty || _pendingAxisCommands > 0)) {
+      _axisGenerations.updateAll((axis, generation) => generation + 1);
+      _activeAxes.clear();
+      final stopFuture = Future.wait([
+        _queueAxisCommand(0, () => backend.mountMoveAxis(id, 0, 0.0)),
+        _queueAxisCommand(1, () => backend.mountMoveAxis(id, 1, 0.0)),
+        // Do not wait behind an unresponsive start command before issuing the
+        // safety abort. The queued zero-rate commands still run afterward if
+        // that earlier command eventually returns.
+        backend.mountAbort(id),
+      ]);
+      unawaited(
+        stopFuture.then<void>(
+          (_) {},
+          onError: (Object e, StackTrace stackTrace) {
+            developer.log(
+              'Mount stop on dispose failed: $e',
+              name: 'MountTab',
+              level: 1000,
+              error: e,
+              stackTrace: stackTrace,
+            );
+          },
+        ),
+      );
     }
     super.dispose();
   }
@@ -515,15 +640,36 @@ class _DpadButtonState extends State<_DpadButton> {
   bool _pressed = false;
 
   void _start() {
-    if (!widget.enabled) return;
+    if (!widget.enabled || _pressed) return;
     setState(() => _pressed = true);
-    widget.onStart(widget.axis, widget.direction);
+    unawaited(widget.onStart(widget.axis, widget.direction));
   }
 
   void _stop() {
     if (!_pressed) return;
     setState(() => _pressed = false);
-    widget.onStop(widget.axis);
+    unawaited(widget.onStop(widget.axis));
+  }
+
+  @override
+  void didUpdateWidget(_DpadButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled && !widget.enabled && _pressed) {
+      _pressed = false;
+      unawaited(widget.onStop(widget.axis));
+    }
+  }
+
+  @override
+  void dispose() {
+    // A connected/parked state update can remove the d-pad while a finger is
+    // still down, so no pointer-up will arrive. Preserve the start/stop pairing
+    // even when the control disappears mid-gesture.
+    if (_pressed) {
+      _pressed = false;
+      unawaited(widget.onStop(widget.axis));
+    }
+    super.dispose();
   }
 
   @override
@@ -611,55 +757,85 @@ class _StopButton extends StatelessWidget {
   }
 }
 
-class _ControlsRow extends ConsumerWidget {
+class _ControlsRow extends ConsumerStatefulWidget {
   final MountState state;
   const _ControlsRow({required this.state});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final service = ref.read(deviceServiceProvider);
+  ConsumerState<_ControlsRow> createState() => _ControlsRowState();
+}
 
-    Future<void> guard(Future<void> Function() fn) async {
-      try {
-        await fn();
-      } catch (e) {
-        if (context.mounted) {
-          // [error parsing] — typed envelope so park/unpark/track
-          // failures surface the server's machine code (e.g.
-          // "Mount is currently slewing (mount_busy)").
-          showApiError(context, e);
-        }
+class _ControlsRowState extends ConsumerState<_ControlsRow> {
+  String? _pendingAction;
+
+  Future<void> _runAction(
+    String action,
+    Future<void> Function() operation,
+  ) async {
+    if (_pendingAction != null) return;
+    setState(() => _pendingAction = action);
+    try {
+      await operation();
+    } catch (e) {
+      if (mounted) {
+        // [error parsing] — typed envelope so park/unpark/track
+        // failures surface the server's machine code (e.g.
+        // "Mount is currently slewing (mount_busy)").
+        showApiError(context, e);
       }
+    } finally {
+      if (mounted) setState(() => _pendingAction = null);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = ref.read(deviceServiceProvider);
+    final state = widget.state;
+    final busy = _pendingAction != null;
+    final parkPending = _pendingAction == 'park';
+    final trackingPending = _pendingAction == 'tracking';
 
     return Row(
       children: [
         Expanded(
           child: NightshadeButton(
-            label: state.isParked ? 'Unpark' : 'Park',
+            label: parkPending
+                ? (state.isParked ? 'Unparking…' : 'Parking…')
+                : (state.isParked ? 'Unpark' : 'Park'),
             icon: state.isParked ? LucideIcons.unlock : LucideIcons.lock,
             size: ButtonSize.large,
             variant: ButtonVariant.outline,
-            onPressed: () => guard(() async {
-              if (state.isParked) {
-                await service.unparkMount();
-              } else {
-                await service.parkMount();
-              }
-            }),
+            isLoading: parkPending,
+            onPressed: busy
+                ? null
+                : () => _runAction('park', () async {
+                    if (state.isParked) {
+                      await service.unparkMount();
+                    } else {
+                      await service.parkMount();
+                    }
+                  }),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
           child: NightshadeButton(
-            label: state.isTracking ? 'Tracking on' : 'Tracking off',
+            label: trackingPending
+                ? 'Updating…'
+                : (state.isTracking ? 'Tracking on' : 'Tracking off'),
             icon: state.isTracking ? LucideIcons.zap : LucideIcons.zapOff,
             size: ButtonSize.large,
             variant: state.isTracking
                 ? ButtonVariant.primary
                 : ButtonVariant.outline,
-            onPressed: () =>
-                guard(() => service.setMountTracking(!state.isTracking)),
+            isLoading: trackingPending,
+            onPressed: busy || state.isParked
+                ? null
+                : () => _runAction(
+                    'tracking',
+                    () => service.setMountTracking(!state.isTracking),
+                  ),
           ),
         ),
       ],
@@ -681,9 +857,12 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
   List<CatalogSearchResult> _hits = [];
   bool _searching = false;
   bool _slewing = false;
+  int _searchGeneration = 0;
+  String? _activeQuery;
 
   @override
   void dispose() {
+    _searchGeneration++;
     _nameCtrl.dispose();
     _raCtrl.dispose();
     _decCtrl.dispose();
@@ -693,18 +872,29 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
   Future<void> _search() async {
     final q = _nameCtrl.text.trim();
     if (q.isEmpty) return;
-    setState(() => _searching = true);
+    if (_searching && q == _activeQuery) return;
+    final generation = ++_searchGeneration;
+    setState(() {
+      _searching = true;
+      _activeQuery = q;
+      _hits = [];
+    });
     try {
       final hits = await CatalogManager.instance.search(q);
-      if (!mounted) return;
+      if (!mounted || generation != _searchGeneration) return;
       setState(() => _hits = hits.take(8).toList());
     } catch (e) {
-      if (mounted) {
+      if (mounted && generation == _searchGeneration) {
         // [error parsing]
         showApiErrorWithPrefix(context, 'Search failed', e);
       }
     } finally {
-      if (mounted) setState(() => _searching = false);
+      if (mounted && generation == _searchGeneration) {
+        setState(() {
+          _searching = false;
+          _activeQuery = null;
+        });
+      }
     }
   }
 
@@ -731,6 +921,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
     double decDeg, {
     required String label,
   }) async {
+    if (_slewing) return;
     setState(() => _slewing = true);
     try {
       await ref

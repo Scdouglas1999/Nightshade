@@ -109,6 +109,8 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    int? gain,
+    int? offset,
     String curveFitting = 'Hyperbolic',
     int numberOfAttempts = 1,
     int exposuresPerPoint = 1,
@@ -125,15 +127,34 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
       exposureTime: exposureTime,
       stepSize: stepSize,
       stepsOut: stepsOut,
-      method: method,
+      // `AutofocusConfigApi.method` selects the curve-fitting algorithm. The
+      // separate Dart `method` value describes the star metric (historically
+      // "Star HFR") and is not a native curve enum.
+      method: autofocusCurveMethodForNativeBridge(curveFitting),
       binning: binning,
+      gain: gain,
+      offset: offset,
+      numberOfAttempts: numberOfAttempts,
+      exposuresPerPoint: exposuresPerPoint,
+      rSquaredThreshold: rSquaredThreshold,
+      outerCropRatio: outerCropRatio,
+      innerCropRatio: innerCropRatio,
+      useBrightestNStars: useBrightestNStars,
+      focuserSettleTimeMs: BigInt.from(focuserSettleTimeMs),
+      backlashCompMethod: backlashCompMethod,
+      backlashIn: backlashIn,
+      backlashOut: backlashOut,
     );
-    final bridgeResult = await bridge_api.apiRunAutofocus(
-      deviceId: deviceId,
-      cameraId: cameraId,
-      config: config,
-    );
-    return _fromBridgeAutofocusResult(bridgeResult);
+    try {
+      final bridgeResult = await bridge_api.apiRunAutofocus(
+        deviceId: deviceId,
+        cameraId: cameraId,
+        config: config,
+      );
+      return _fromBridgeAutofocusResult(bridgeResult);
+    } catch (error) {
+      throw _toNightshadeError(error, 'Autofocus failed');
+    }
   }
 
   @override
@@ -211,6 +232,14 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   @override
   Future<void> rotatorHalt(String deviceId) async {
     await bridge.NativeBridge.apiRotatorHalt(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> rotatorSetReverse(String deviceId, bool reverse) async {
+    await bridge.NativeBridge.apiRotatorSetReverse(
+      deviceId: deviceId,
+      reverse: reverse,
+    );
   }
 
   @override
@@ -605,6 +634,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
     double? ra,
     double? dec,
     double? fovDegrees,
+    int? timeoutSeconds,
   }) async {
     // `bridge.NativeBridge.plateSolve*` already returns the FRB-canonical
     // `PlateSolveResult` (see `bridge_stub.dart` typedef), so no conversion
@@ -615,8 +645,9 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
             ra,
             dec,
             fovDegrees ?? 30.0,
+            timeoutSeconds,
           )
-        : bridge.NativeBridge.plateSolveBlind(imagePath);
+        : bridge.NativeBridge.plateSolveBlind(imagePath, timeoutSeconds);
   }
 
   // =======================================================================

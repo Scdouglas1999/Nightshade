@@ -39,6 +39,36 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
     return _fromBridgeRotatorStatus(bridgeStatus);
   }
 
+  @override
+  Future<HardwareWeatherConditions> getHardwareWeatherConditions(
+    String deviceId,
+  ) async {
+    final status = await bridge_api.apiGetWeatherConditions(deviceId: deviceId);
+    return HardwareWeatherConditions(
+      temperature: status.temperature,
+      humidity: status.humidity,
+      pressure: status.pressure,
+      cloudCover: status.cloudCover,
+      dewPoint: status.dewPoint,
+      windSpeed: status.windSpeed,
+      windDirection: status.windDirection,
+      skyQuality: status.skyQuality,
+      skyTemperature: status.skyTemperature,
+      rainRate: status.rainRate,
+    );
+  }
+
+  @override
+  Future<bool> getHardwareSafetyStatus(String deviceId) async {
+    final status = await bridge_api.apiGetSafetyMonitorStatus(
+      deviceId: deviceId,
+    );
+    if (!status.connected) {
+      throw StateError('Safety monitor $deviceId reported disconnected');
+    }
+    return status.isSafe;
+  }
+
   // Status conversion helpers
   // =========================================================================
   // Device Capabilities

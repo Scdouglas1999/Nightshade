@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -34,6 +35,8 @@ class _CapturedImagesSettingsState
   bool _loading = false;
   String? _error;
   final Map<int, Uint8List> _thumbCache = {};
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _loadGeneration = 0;
 
   NetworkBackend? get _backend {
     final b = ref.read(backendProvider);
@@ -43,25 +46,66 @@ class _CapturedImagesSettingsState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _loadGeneration++;
+        setState(() {
+          _rows = const [];
+          _thumbCache.clear();
+          _error = null;
+          _loading = next is NetworkBackend;
+        });
+        if (next is NetworkBackend) unawaited(_refresh());
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_refresh());
+    });
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
     final backend = _backend;
-    if (backend == null) return;
+    final generation = ++_loadGeneration;
+    if (backend == null) {
+      if (!mounted) return;
+      setState(() {
+        _rows = const [];
+        _thumbCache.clear();
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final rows = await backend.getAllImageRows();
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _loadGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
       setState(() {
         _rows = rows;
+        _thumbCache.clear();
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _loadGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
       setState(() {
         _loading = false;
         _error = '$e';
@@ -71,9 +115,17 @@ class _CapturedImagesSettingsState
 
   int? _idOf(Map<String, dynamic> row) {
     final v = row['id'] ?? row['imageId'];
-    if (v is int) return v;
-    if (v is num) return v.toInt();
-    return int.tryParse('$v');
+    final int? id;
+    if (v is int) {
+      id = v;
+    } else if (v is num && v.isFinite && v == v.truncateToDouble()) {
+      id = v.toInt();
+    } else if (v is String && RegExp(r'^[1-9][0-9]*$').hasMatch(v)) {
+      id = int.tryParse(v);
+    } else {
+      id = null;
+    }
+    return id != null && id > 0 ? id : null;
   }
 
   String _labelOf(Map<String, dynamic> row) {
@@ -89,18 +141,19 @@ class _CapturedImagesSettingsState
     return 'Frame';
   }
 
-  Future<Uint8List?> _thumb(int id) async {
+  Future<Uint8List> _thumb(int id) async {
     final cached = _thumbCache[id];
     if (cached != null) return cached;
     final backend = _backend;
-    if (backend == null) return null;
-    try {
-      final bytes = await backend.getImageThumbnail(id);
-      _thumbCache[id] = bytes;
-      return bytes;
-    } catch (_) {
-      return null;
+    if (backend == null) {
+      throw StateError('No remote imaging host is connected');
     }
+    final bytes = await backend.getImageThumbnail(id);
+    if (!mounted || !identical(ref.read(backendProvider), backend)) {
+      throw StateError('The imaging host changed while loading the thumbnail');
+    }
+    _thumbCache[id] = bytes;
+    return bytes;
   }
 
   @override
@@ -137,6 +190,8 @@ class _CapturedImagesSettingsState
           const SizedBox(height: 12),
           if (_loading && _rows.isEmpty)
             _info(colors, LucideIcons.loader, 'Loading…')
+          else if (_error != null && _rows.isEmpty)
+            _loadError(colors)
           else if (_rows.isEmpty)
             _info(colors, LucideIcons.image,
                 'No frames captured on the appliance yet.')
@@ -160,12 +215,15 @@ class _CapturedImagesSettingsState
                   accepted: row['isAccepted'] == true,
                   thumb: id == null ? null : () => _thumb(id),
                   onTap: id == null ? null : () => _showFull(id, _labelOf(row)),
+                  unavailableReason: id == null
+                      ? 'This frame has an invalid image ID and cannot be opened.'
+                      : null,
                 );
               },
             ),
-          if (_error != null) ...[
+          if (_error != null && _rows.isNotEmpty) ...[
             const SizedBox(height: 12),
-            _info(colors, LucideIcons.alertTriangle, 'Error: $_error'),
+            _loadError(colors),
           ],
         ],
       ],
@@ -173,9 +231,13 @@ class _CapturedImagesSettingsState
   }
 
   Future<void> _showFull(int id, String label) async {
-    final bytes = await _thumb(id);
-    if (!mounted || bytes == null) {
-      if (mounted) context.showErrorSnackBar('Could not load $label');
+    final Uint8List bytes;
+    try {
+      bytes = await _thumb(id);
+    } catch (_) {
+      if (mounted) {
+        context.showErrorSnackBar('Could not load $label. Try again.');
+      }
       return;
     }
     if (!mounted) return;
@@ -188,8 +250,24 @@ class _CapturedImagesSettingsState
           children: [
             Padding(
               padding: const EdgeInsets.all(8),
-              child: Text(label,
-                  style: const TextStyle(color: Colors.white, fontSize: 13)),
+              child: Column(
+                children: [
+                  Text(label,
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  // The appliance only serves a JPEG thumbnail sidecar; the
+                  // full frame is raw FITS (`/download`) that can't render
+                  // inline. Say so rather than passing the thumbnail off as
+                  // the capture.
+                  const Text(
+                    'Full-frame preview unavailable — showing the thumbnail. '
+                    'Download the frame to inspect it at full resolution.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
             Flexible(child: InteractiveViewer(child: Image.memory(bytes))),
           ],
@@ -216,14 +294,45 @@ class _CapturedImagesSettingsState
       ),
     );
   }
+
+  Widget _loadError(NightshadeColors colors) {
+    return NightshadeCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.alertTriangle, size: 18, color: colors.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Could not load captured frames: $_error',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          NightshadeButton(
+            onPressed: _loading ? null : _refresh,
+            label: 'Retry',
+            icon: LucideIcons.rotateCw,
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _GalleryTile extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
   final bool accepted;
-  final Future<Uint8List?> Function()? thumb;
+  final Future<Uint8List> Function()? thumb;
   final VoidCallback? onTap;
+  final String? unavailableReason;
 
   const _GalleryTile({
     required this.colors,
@@ -231,11 +340,12 @@ class _GalleryTile extends StatelessWidget {
     required this.accepted,
     required this.thumb,
     required this.onTap,
+    required this.unavailableReason,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final tile = GestureDetector(
       onTap: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -244,23 +354,45 @@ class _GalleryTile extends StatelessWidget {
           children: [
             Container(color: colors.background),
             if (thumb != null)
-              FutureBuilder<Uint8List?>(
+              FutureBuilder<Uint8List>(
                 future: thumb!(),
                 builder: (context, snap) {
                   final bytes = snap.data;
                   if (bytes == null) {
                     return Center(
-                      child: snap.connectionState == ConnectionState.done
-                          ? Icon(LucideIcons.imageOff,
-                              size: 20, color: colors.textMuted)
-                          : const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: snap.hasError
+                          ? Tooltip(
+                              message:
+                                  'Thumbnail failed to load. Tap to retry.',
+                              child: Icon(
+                                LucideIcons.alertTriangle,
+                                size: 20,
+                                color: colors.error,
+                              ),
+                            )
+                          : snap.connectionState == ConnectionState.done
+                              ? Icon(
+                                  LucideIcons.imageOff,
+                                  size: 20,
+                                  color: colors.textMuted,
+                                )
+                              : const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2)),
                     );
                   }
                   return Image.memory(bytes, fit: BoxFit.cover);
                 },
+              ),
+            if (thumb == null)
+              Center(
+                child: Icon(
+                  LucideIcons.imageOff,
+                  size: 20,
+                  color: colors.textMuted,
+                ),
               ),
             Positioned(
               left: 0,
@@ -287,5 +419,7 @@ class _GalleryTile extends StatelessWidget {
         ),
       ),
     );
+    final reason = unavailableReason;
+    return reason == null ? tile : Tooltip(message: reason, child: tile);
   }
 }

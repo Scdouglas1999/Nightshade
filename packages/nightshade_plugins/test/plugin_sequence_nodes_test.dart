@@ -397,6 +397,15 @@ void main() {
       expect(node!.validate(), contains('discord'));
     });
 
+    test('rejects lookalike Discord suffix domains', () {
+      final plugin = DiscordWebhookPlugin();
+      final node = plugin.nodeDefinitions.first.createNode({
+        'webhookUrl': 'https://evil-discord.com/api/webhooks/123/abc',
+        'content': 'hi',
+      });
+      expect(node!.validate(), contains('discord'));
+    });
+
     test('requires content or embed', () {
       final plugin = DiscordWebhookPlugin();
       final node = plugin.nodeDefinitions.first.createNode({
@@ -468,6 +477,21 @@ void main() {
   });
 
   group('HomeAssistantPlugin', () {
+    test('rejects non-http connection URLs', () async {
+      final plugin = HomeAssistantPlugin();
+      final host = PluginHost();
+      addTearDown(host.dispose);
+      await host.registerPlugin(plugin);
+
+      expect(
+        () => plugin.configureConnection(
+          baseUrl: 'ftp://homeassistant.local',
+          accessToken: 'token-abc',
+        ),
+        throwsA(isA<PluginException>()),
+      );
+    });
+
     test('rejects malformed entity ids', () {
       final plugin = HomeAssistantPlugin();
       final node = plugin.nodeDefinitions.first.createNode({

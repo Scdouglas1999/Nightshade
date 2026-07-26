@@ -78,15 +78,11 @@ pub struct HeartbeatConfig {
     /// pier). For those, escalating to a real disconnect lets the auto-reconnect
     /// / recovery machinery act.
     ///
-    /// `false` for the slow, USB-contention-prone auxiliary devices (focuser,
-    /// filter wheel, rotator). A failed *liveness poll* on these almost never
-    /// means the device is gone — it means a status read lost a race with a
-    /// frame download or a momentary bus hiccup. They reconnect within seconds,
-    /// proving they were never gone, and the disconnect→reconnect cycle is
-    /// itself the disruptive event. For these we publish
-    /// `HeartbeatStatus::Degraded` (a UI-badgeable "stale" signal) and KEEP
-    /// polling; the next real *operation* (move, filter change) surfaces a
-    /// genuine failure loudly.
+    /// Slow, USB-contention-prone auxiliary devices use higher failure
+    /// thresholds, a per-poll retry, and explicit suppression during camera
+    /// USB contention. Those protections absorb transient misses; once all of
+    /// them are exhausted, keeping a dead accessory registered as Connected
+    /// is worse than reconnecting it, so those devices also escalate.
     ///
     /// Default `true` so any device type that does not explicitly opt out keeps
     /// today's fail-loud behavior (errors are a feature).
@@ -99,7 +95,9 @@ impl Default for HeartbeatConfig {
             base_interval_secs: 10,
             max_interval_secs: 60,
             failure_threshold: 3,
-            backoff_multiplier: 2.0,
+            // Default to fixed cadence; device-specific constructors may
+            // select exponential backoff when that better fits the hardware.
+            backoff_multiplier: 1.0,
             auto_reconnect: false,
             max_reconnect_attempts: 3,
             reconnect_delay_secs: 5,
@@ -173,18 +171,19 @@ impl HeartbeatConfig {
             base_interval_secs: 15,
             max_interval_secs: 60,
             // Why: tolerate transient single-client USB contention (e.g. NINA
-            // briefly holding the focuser); with 2.0 backoff + 15s base, 5
-            // failures is well over a minute of genuine unresponsiveness.
+            // briefly holding the focuser). Each poll is also retried once.
             failure_threshold: 5,
-            backoff_multiplier: 2.0,
+            // Five consecutive, double-probed misses already provide strong
+            // debounce. Keep polling at a fixed cadence so a genuinely dead
+            // focuser is recovered in ~75s instead of several minutes.
+            backoff_multiplier: 1.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
-            // A failed liveness poll on a focuser almost never means "gone" —
-            // it lost a race with a frame download or a bus hiccup. Latch a
-            // Degraded "stale" badge and keep monitoring; the next real move
-            // surfaces a genuine failure loudly. Do NOT auto-disconnect.
-            escalate_to_disconnect: false,
+            // Per-poll retry + camera-contention suppression handle transient
+            // misses. Five sustained failures mean the registry must demote
+            // the device so the Dart reconnect owner can recover it.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -194,18 +193,17 @@ impl HeartbeatConfig {
             base_interval_secs: 20,
             max_interval_secs: 120,
             // Why: tolerate transient single-client USB contention (e.g. NINA
-            // briefly holding the filter wheel); with 2.0 backoff + 20s base, 5
-            // failures is well over a minute of genuine unresponsiveness.
+            // briefly holding the filter wheel). Each poll is retried once.
             failure_threshold: 5,
-            backoff_multiplier: 2.0,
+            // Fixed cadence recovers a genuinely lost wheel in ~100s while
+            // retaining five consecutive double-probed misses as debounce.
+            backoff_multiplier: 1.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
-            // Same rationale as the focuser: a lost liveness poll on a filter
-            // wheel is almost always USB contention, not a real disconnect.
-            // Latch Degraded and keep monitoring; a real filter change surfaces
-            // any genuine fault.
-            escalate_to_disconnect: false,
+            // Do not leave an unresponsive wheel in the connected inventory
+            // indefinitely; sustained failures trigger Dart-owned reconnect.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -231,17 +229,15 @@ impl HeartbeatConfig {
             base_interval_secs: 15,
             max_interval_secs: 60,
             // Why: tolerate transient single-client USB contention (e.g. NINA
-            // briefly holding the rotator); with 2.0 backoff + 15s base, 5
-            // failures is well over a minute of genuine unresponsiveness.
+            // briefly holding the rotator). Each poll is retried once.
             failure_threshold: 5,
-            backoff_multiplier: 2.0,
+            backoff_multiplier: 1.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
-            // Same rationale as the focuser/filter wheel: a lost liveness poll
-            // on a rotator is almost always USB contention. Latch Degraded and
-            // keep monitoring; a real rotate-to surfaces any genuine fault.
-            escalate_to_disconnect: false,
+            // Sustained failures must demote stale registry state so the Dart
+            // reconnect owner can restore the rotator.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -261,19 +257,33 @@ impl HeartbeatConfig {
         }
     }
 
-    /// Create config optimized for safety monitors (critical - need responsive monitoring)
+    /// Create config for safety monitors.
+    ///
+    /// IMPORTANT: this heartbeat is only a LIVENESS ping. A SafetyMonitor's actual
+    /// safety signal (`IsSafe`) is read on its OWN paths — the Dart environment
+    /// poll and, during a run, the sequencer's fail-closed safety check — NOT via
+    /// this heartbeat. The previous config put the safety monitor on the most
+    /// aggressive escalate-to-disconnect path of any device (5s ping,
+    /// failure_threshold 2, UNLIMITED 2s-delay auto-reconnect, escalate=true), so
+    /// any flaky network hub — e.g. a JustaHub that occasionally misses a 5s
+    /// quick-timeout ping — was torn down and reconnected in an endless
+    /// disconnect -> error -> reconnect cycle, each iteration emitting fresh
+    /// "disconnected" + "heartbeat" error toasts (a new episode every ~15-25s).
+    ///
+    /// Treat liveness like the focuser/filter-wheel/rotator: latch a Degraded
+    /// "stale" badge and KEEP monitoring; never tear the device down on a missed
+    /// ping. Genuine loss of safety is still caught by the real `IsSafe` read
+    /// (fail-closed during a run), so safety is not silently lost.
     pub fn for_safety_monitor() -> Self {
         Self {
-            base_interval_secs: 5,
-            max_interval_secs: 15,
-            failure_threshold: 2, // Quick failure detection for safety
-            backoff_multiplier: 1.2,
-            auto_reconnect: true, // Safety monitors should always auto-reconnect
-            max_reconnect_attempts: 0, // Unlimited reconnect attempts
-            reconnect_delay_secs: 2,
-            // Critical safety device: a lost heartbeat must escalate so the
-            // unlimited auto-reconnect kicks in immediately.
-            escalate_to_disconnect: true,
+            base_interval_secs: 15,
+            max_interval_secs: 60,
+            failure_threshold: 4,
+            backoff_multiplier: 2.0,
+            auto_reconnect: false,
+            max_reconnect_attempts: 2,
+            reconnect_delay_secs: 10,
+            escalate_to_disconnect: false,
         }
     }
 
@@ -1051,7 +1061,12 @@ mod tests {
         assert_eq!(config.base_interval_secs, 10);
         assert_eq!(config.max_interval_secs, 60);
         assert_eq!(config.failure_threshold, 3);
-        assert!((config.backoff_multiplier - 2.0).abs() < f64::EPSILON);
+        // 1.0 = FIXED cadence. The default deliberately does not back off;
+        // exponential backoff is opted into by the device-specific constructors
+        // (see HeartbeatConfig::default and the per-device `for_*` builders),
+        // so a default multiplier of 2.0 here would silently stretch every
+        // device's poll interval that had not chosen a policy.
+        assert!((config.backoff_multiplier - 1.0).abs() < f64::EPSILON);
         assert!(!config.auto_reconnect);
         assert_eq!(config.max_reconnect_attempts, 3);
         assert_eq!(config.reconnect_delay_secs, 5);
@@ -1078,13 +1093,15 @@ mod tests {
     #[test]
     fn test_heartbeat_config_for_safety_monitor() {
         let config = HeartbeatConfig::for_safety_monitor();
-        // Safety monitors need quick failure detection
-        assert_eq!(config.base_interval_secs, 5);
-        assert_eq!(config.failure_threshold, 2);
-        // Safety monitors should always auto-reconnect
-        assert!(config.auto_reconnect);
-        // Unlimited reconnect attempts for safety
-        assert_eq!(config.max_reconnect_attempts, 0);
+        // A safety monitor's heartbeat is only a LIVENESS ping — the real IsSafe
+        // signal is read on separate paths — so it is treated like the auxiliary
+        // devices: tolerate transient misses and NEVER escalate to a disconnect
+        // (which previously flooded the UI with disconnect/error toasts on any
+        // flaky network hub). See for_safety_monitor().
+        assert_eq!(config.base_interval_secs, 15);
+        assert_eq!(config.failure_threshold, 4);
+        assert!(!config.auto_reconnect);
+        assert!(!config.escalate_to_disconnect);
     }
 
     #[test]
@@ -1107,29 +1124,38 @@ mod tests {
     #[test]
     fn test_heartbeat_config_non_critical_failure_thresholds_raised() {
         // Why: non-critical accessories tolerate transient single-client USB
-        // contention (e.g. NINA briefly holding the device). Threshold raised
-        // 3 -> 5 while intervals/backoff are unchanged, so 5 failures is still
-        // well over a minute of genuine unresponsiveness before disconnect.
+        // contention (e.g. NINA briefly holding the device). Five double-probed
+        // misses provide debounce; fixed polling cadence still disconnects a
+        // genuinely unresponsive accessory promptly enough for recovery.
         let focuser = HeartbeatConfig::for_focuser();
         assert_eq!(focuser.failure_threshold, 5);
         assert_eq!(focuser.base_interval_secs, 15);
+        assert_eq!(focuser.backoff_multiplier, 1.0);
+        assert!(focuser.escalate_to_disconnect);
 
         let filter_wheel = HeartbeatConfig::for_filter_wheel();
         assert_eq!(filter_wheel.failure_threshold, 5);
         assert_eq!(filter_wheel.base_interval_secs, 20);
+        assert_eq!(filter_wheel.backoff_multiplier, 1.0);
+        assert!(filter_wheel.escalate_to_disconnect);
 
         let rotator = HeartbeatConfig::for_rotator();
         assert_eq!(rotator.failure_threshold, 5);
         assert_eq!(rotator.base_interval_secs, 15);
+        assert_eq!(rotator.backoff_multiplier, 1.0);
+        assert!(rotator.escalate_to_disconnect);
 
         let switch = HeartbeatConfig::for_switch();
         assert_eq!(switch.failure_threshold, 5);
         assert_eq!(switch.base_interval_secs, 20);
 
+        // Safety monitors are now non-escalating liveness (see for_safety_monitor):
+        // threshold raised 2 -> 4 and they no longer tear down on a missed ping.
+        assert_eq!(HeartbeatConfig::for_safety_monitor().failure_threshold, 4);
+
         // Critical/auto-reconnecting device types are intentionally unchanged.
         assert_eq!(HeartbeatConfig::for_camera().failure_threshold, 3);
         assert_eq!(HeartbeatConfig::for_mount().failure_threshold, 2);
-        assert_eq!(HeartbeatConfig::for_safety_monitor().failure_threshold, 2);
         assert_eq!(HeartbeatConfig::for_guider().failure_threshold, 2);
         assert_eq!(HeartbeatConfig::for_dome().failure_threshold, 4);
         assert_eq!(HeartbeatConfig::for_weather().failure_threshold, 5);
@@ -1149,7 +1175,8 @@ mod tests {
         assert!(mount_config.auto_reconnect);
 
         let safety_config = HeartbeatConfig::for_device_type(&DeviceType::SafetyMonitor);
-        assert_eq!(safety_config.max_reconnect_attempts, 0);
+        assert!(!safety_config.escalate_to_disconnect);
+        assert_eq!(safety_config.max_reconnect_attempts, 2);
     }
 
     #[test]
@@ -1417,14 +1444,16 @@ mod tests {
 
     #[test]
     fn escalate_to_disconnect_is_a_per_device_type_property() {
-        // Liveness-critical devices keep today's behavior: a sustained
-        // heartbeat loss escalates to a real disconnect so recovery runs.
+        // Every operational device escalates a sustained heartbeat loss so
+        // stale registry state cannot remain advertised as connected.
         for escalating in [
             DeviceType::Camera,
             DeviceType::Mount,
+            DeviceType::Focuser,
+            DeviceType::FilterWheel,
+            DeviceType::Rotator,
             DeviceType::Dome,
             DeviceType::Weather,
-            DeviceType::SafetyMonitor,
             DeviceType::Guider,
             DeviceType::Switch,
             DeviceType::CoverCalibrator,
@@ -1436,19 +1465,9 @@ mod tests {
             );
         }
 
-        // The slow, USB-contention-prone auxiliaries do NOT: they latch a
-        // Degraded "stale" status and stay connected + monitored.
-        for non_escalating in [
-            DeviceType::Focuser,
-            DeviceType::FilterWheel,
-            DeviceType::Rotator,
-        ] {
-            assert!(
-                !HeartbeatConfig::for_device_type(&non_escalating).escalate_to_disconnect,
-                "{:?} must NOT auto-disconnect on heartbeat loss",
-                non_escalating
-            );
-        }
+        // SafetyMonitor heartbeat is only a liveness hint; the independent
+        // IsSafe signal owns enclosure safety decisions.
+        assert!(!HeartbeatConfig::for_safety_monitor().escalate_to_disconnect);
     }
 
     #[tokio::test]
@@ -1886,10 +1905,9 @@ mod tests {
         );
 
         // Unsupported device type (no simulation.rs singleton) must error.
-        // Dome/Weather/SafetyMonitor have no singleton in simulation.rs.
-        let dome = build_sim_info("sim_dome_1", DeviceType::Dome);
+        let switch = build_sim_info("sim_switch_1", DeviceType::Switch);
         let err = manager
-            .connect_simulator(&dome)
+            .connect_simulator(&switch)
             .await
             .expect_err("unsupported sim device type must fail loudly");
         assert!(
@@ -1901,6 +1919,98 @@ mod tests {
         // Cleanup: restore the singleton to the default disconnected state so
         // other tests that touch SIM_FOCUSER aren't affected.
         get_sim_focuser().write().await.status.connected = false;
+    }
+
+    #[tokio::test]
+    async fn observatory_accessory_simulators_support_status_and_safe_controls() {
+        use crate::api::devices::simulation::{
+            get_sim_dome, get_sim_safety_monitor, get_sim_weather,
+        };
+
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = build_device_manager();
+        let devices = [
+            build_sim_info("sim_dome_1", DeviceType::Dome),
+            build_sim_info("sim_weather_1", DeviceType::Weather),
+            build_sim_info("sim_safety_monitor_1", DeviceType::SafetyMonitor),
+        ];
+
+        for info in &devices {
+            manager.register_device(info.clone(), false).await;
+            manager
+                .connect_simulator(info)
+                .await
+                .expect("accessory simulator should connect");
+        }
+
+        let initial = manager
+            .dome_get_status("sim_dome_1")
+            .await
+            .expect("read initial dome status");
+        assert!(initial.connected);
+        assert_eq!(initial.shutter_status, ShutterState::Closed);
+
+        manager
+            .dome_open_shutter("sim_dome_1")
+            .await
+            .expect("open simulated shutter");
+        manager
+            .dome_slew_to_azimuth("sim_dome_1", 42.5)
+            .await
+            .expect("slew simulated dome");
+        manager
+            .dome_set_slaved("sim_dome_1", true)
+            .await
+            .expect("slave simulated dome");
+        let changed = manager
+            .dome_get_status("sim_dome_1")
+            .await
+            .expect("read changed dome status");
+        assert_eq!(changed.shutter_status, ShutterState::Open);
+        assert!((changed.azimuth - 42.5).abs() < f64::EPSILON);
+        assert!(changed.is_slaved);
+
+        manager
+            .dome_close_shutter("sim_dome_1")
+            .await
+            .expect("close simulated shutter");
+        manager
+            .dome_park("sim_dome_1")
+            .await
+            .expect("park simulated dome");
+        let parked = manager
+            .dome_get_status("sim_dome_1")
+            .await
+            .expect("read parked dome status");
+        assert_eq!(parked.shutter_status, ShutterState::Closed);
+        assert!(parked.at_park);
+
+        let weather = manager
+            .weather_get_conditions("sim_weather_1")
+            .await
+            .expect("read simulated weather");
+        assert_eq!(weather.rain_rate, Some(0.0));
+        assert!(weather.temperature.is_some());
+
+        assert!(manager
+            .safety_is_safe("sim_safety_monitor_1")
+            .await
+            .expect("read simulated safety state"));
+
+        for info in &devices {
+            assert!(manager
+                .perform_health_check(&info.id, &info.device_type, &DriverType::Simulator)
+                .await
+                .expect("accessory simulator heartbeat"));
+            manager
+                .disconnect_simulator(info)
+                .await
+                .expect("accessory simulator should disconnect");
+        }
+
+        assert!(!get_sim_dome().read().await.status.connected);
+        assert!(!get_sim_weather().read().await.connected);
+        assert!(!get_sim_safety_monitor().read().await.status.connected);
     }
 
     #[tokio::test]

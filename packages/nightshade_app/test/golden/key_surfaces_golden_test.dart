@@ -1,3 +1,6 @@
+@Tags(['golden'])
+library;
+
 // Key-surface design goldens.
 //
 // Renders a set of the most design-important, deterministically-pumpable real

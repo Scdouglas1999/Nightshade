@@ -295,14 +295,7 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
       rotatorId: p.rotatorId,
       domeId: p.domeId,
       weatherId: p.weatherId,
-      // Why no safetyMonitorId here: the bridge::EquipmentProfile FRB struct
-      // does not yet carry safety_monitor_id. Audit C1 added the field to the
-      // Drift-backed schema and to the freezed `EquipmentProfile` model. The
-      // FRB wire layout will pick it up the next time `flutter_rust_bridge_codegen
-      // generate` is run alongside the matching Rust struct field (see
-      // `bridge/src/state.rs`). Until then the FFI persistence path simply
-      // omits the field; the Drift DB (the authoritative store on desktop)
-      // already round-trips it.
+      safetyMonitorId: p.safetyMonitorId,
       coverCalibratorId: p.coverCalibratorId,
       telescopeFocalLength: p.telescopeFocalLength,
       telescopeAperture: p.telescopeAperture,
@@ -321,10 +314,16 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
       rotatorId: p.rotatorId,
       domeId: p.domeId,
       weatherId: p.weatherId,
-      // See note on `_fromBridgeProfile` re: safetyMonitorId / FRB regen.
+      safetyMonitorId: p.safetyMonitorId,
       coverCalibratorId: p.coverCalibratorId,
-      telescopeFocalLength: p.telescopeFocalLength,
-      telescopeAperture: p.telescopeAperture,
+      // The bridge schema still carries the legacy telescope* field names,
+      // while current Drift profiles store optics in focalLength/aperture.
+      // Serialize the effective values so legacy and current rows both reach
+      // FFI consumers (notably the headless planetarium FOV endpoint).
+      telescopeFocalLength: p.focalLength > 0
+          ? p.focalLength
+          : p.telescopeFocalLength,
+      telescopeAperture: p.aperture > 0 ? p.aperture : p.telescopeAperture,
     );
   }
 }

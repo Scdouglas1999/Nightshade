@@ -1,6 +1,6 @@
 //! Autofocus instruction node.
 
-use crate::instructions::execute_autofocus;
+use crate::instructions::execute_autofocus_for_node;
 use crate::node::context::ExecutionContext;
 use crate::node::progress::{ProgressDetail, ProgressUpdate};
 use crate::node::registry::InstructionNode;
@@ -26,7 +26,7 @@ impl InstructionNode for AutofocusInstruction {
             return NodeStatus::Failure;
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let steps_out = config.steps_out;
         let total_steps = steps_out.saturating_mul(2).saturating_add(1);
@@ -52,7 +52,7 @@ impl InstructionNode for AutofocusInstruction {
             }
         };
 
-        let result = execute_autofocus(config, &ctx, Some(&progress_fn)).await;
+        let result = execute_autofocus_for_node(config, &ctx, Some(&progress_fn)).await;
 
         if result.status == NodeStatus::Success {
             if let Some(trigger_state_lock) = &context.trigger_state {

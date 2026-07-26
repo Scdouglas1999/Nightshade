@@ -20,6 +20,78 @@
 
 import 'package:equatable/equatable.dart';
 
+String _stringField(
+  Map<String, dynamic> json,
+  String key, {
+  required String fallback,
+}) {
+  final value = json[key];
+  if (value == null) return fallback;
+  if (value is! String) {
+    throw FormatException('$key must be a string');
+  }
+  return value;
+}
+
+String? _nullableStringField(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value == null) return null;
+  if (value is! String) {
+    throw FormatException('$key must be a string or null');
+  }
+  return value;
+}
+
+bool _boolField(
+  Map<String, dynamic> json,
+  String key, {
+  required bool fallback,
+}) {
+  final value = json[key];
+  if (value == null) return fallback;
+  if (value is! bool) {
+    throw FormatException('$key must be a boolean');
+  }
+  return value;
+}
+
+int _intField(
+  Map<String, dynamic> json,
+  String key, {
+  required int fallback,
+  int? min,
+  int? max,
+}) {
+  final value = json[key];
+  if (value == null) return fallback;
+  if (value is! num ||
+      !value.isFinite ||
+      value.truncateToDouble() != value.toDouble()) {
+    throw FormatException('$key must be a whole number');
+  }
+  final parsed = value.toInt();
+  if ((min != null && parsed < min) || (max != null && parsed > max)) {
+    final range = min != null && max != null
+        ? '$min-$max'
+        : min != null
+        ? 'at least $min'
+        : 'at most $max';
+    throw FormatException('$key must be $range');
+  }
+  return parsed;
+}
+
+void _requireHttpUrl(String value, String key) {
+  if (value.isEmpty) return;
+  final uri = Uri.tryParse(value);
+  if (uri == null ||
+      !uri.isAbsolute ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host.isEmpty) {
+    throw FormatException('$key must be an absolute http(s) URL');
+  }
+}
+
 /// Common shape for every transport config.
 abstract class NotificationTransportConfig {
   bool get isConfigured;
@@ -85,13 +157,19 @@ class EmailTransportConfig extends Equatable
 
   factory EmailTransportConfig.fromJson(Map<String, dynamic> json) =>
       EmailTransportConfig(
-        smtpHost: json['smtpHost'] as String? ?? '',
-        smtpPort: (json['smtpPort'] as num?)?.toInt() ?? 587,
-        username: json['username'] as String? ?? '',
-        password: json['password'] as String? ?? '',
-        useTls: json['useTls'] as bool? ?? true,
-        fromAddress: json['fromAddress'] as String? ?? '',
-        toAddress: json['toAddress'] as String? ?? '',
+        smtpHost: _stringField(json, 'smtpHost', fallback: ''),
+        smtpPort: _intField(
+          json,
+          'smtpPort',
+          fallback: 587,
+          min: 1,
+          max: 65535,
+        ),
+        username: _stringField(json, 'username', fallback: ''),
+        password: _stringField(json, 'password', fallback: ''),
+        useTls: _boolField(json, 'useTls', fallback: true),
+        fromAddress: _stringField(json, 'fromAddress', fallback: ''),
+        toAddress: _stringField(json, 'toAddress', fallback: ''),
       );
 
   @override
@@ -148,15 +226,25 @@ class WebhookTransportConfig extends Equatable
   factory WebhookTransportConfig.fromJson(Map<String, dynamic> json) {
     final headersRaw = json['headers'];
     final headers = <String, String>{};
-    if (headersRaw is Map) {
-      headersRaw.forEach((k, v) {
-        if (k is String && v != null) headers[k] = v.toString();
-      });
+    if (headersRaw != null) {
+      if (headersRaw is! Map) {
+        throw const FormatException('headers must be an object');
+      }
+      for (final entry in headersRaw.entries) {
+        if (entry.key is! String || entry.value is! String) {
+          throw const FormatException(
+            'webhook header names and values must be strings',
+          );
+        }
+        headers[entry.key as String] = entry.value as String;
+      }
     }
+    final url = _stringField(json, 'url', fallback: '');
+    _requireHttpUrl(url, 'url');
     return WebhookTransportConfig(
-      url: json['url'] as String? ?? '',
+      url: url,
       headers: headers,
-      bodyTemplate: json['bodyTemplate'] as String?,
+      bodyTemplate: _nullableStringField(json, 'bodyTemplate'),
     );
   }
 
@@ -208,10 +296,10 @@ class PushoverTransportConfig extends Equatable
 
   factory PushoverTransportConfig.fromJson(Map<String, dynamic> json) =>
       PushoverTransportConfig(
-        apiToken: json['apiToken'] as String? ?? '',
-        userKey: json['userKey'] as String? ?? '',
-        device: json['device'] as String?,
-        priority: (json['priority'] as num?)?.toInt() ?? 0,
+        apiToken: _stringField(json, 'apiToken', fallback: ''),
+        userKey: _stringField(json, 'userKey', fallback: ''),
+        device: _nullableStringField(json, 'device'),
+        priority: _intField(json, 'priority', fallback: 0, min: -2, max: 2),
       );
 
   @override
@@ -256,9 +344,13 @@ class TelegramTransportConfig extends Equatable
 
   factory TelegramTransportConfig.fromJson(Map<String, dynamic> json) =>
       TelegramTransportConfig(
-        botToken: json['botToken'] as String? ?? '',
-        chatId: json['chatId'] as String? ?? '',
-        disableNotification: json['disableNotification'] as bool? ?? false,
+        botToken: _stringField(json, 'botToken', fallback: ''),
+        chatId: _stringField(json, 'chatId', fallback: ''),
+        disableNotification: _boolField(
+          json,
+          'disableNotification',
+          fallback: false,
+        ),
       );
 
   @override
@@ -303,12 +395,17 @@ class DiscordTransportConfig extends Equatable
     'avatarUrl': avatarUrl,
   };
 
-  factory DiscordTransportConfig.fromJson(Map<String, dynamic> json) =>
-      DiscordTransportConfig(
-        webhookUrl: json['webhookUrl'] as String? ?? '',
-        username: json['username'] as String?,
-        avatarUrl: json['avatarUrl'] as String?,
-      );
+  factory DiscordTransportConfig.fromJson(Map<String, dynamic> json) {
+    final webhookUrl = _stringField(json, 'webhookUrl', fallback: '');
+    _requireHttpUrl(webhookUrl, 'webhookUrl');
+    final avatarUrl = _nullableStringField(json, 'avatarUrl');
+    if (avatarUrl != null) _requireHttpUrl(avatarUrl, 'avatarUrl');
+    return DiscordTransportConfig(
+      webhookUrl: webhookUrl,
+      username: _nullableStringField(json, 'username'),
+      avatarUrl: avatarUrl,
+    );
+  }
 
   @override
   List<Object?> get props => [webhookUrl, username, avatarUrl];
@@ -325,7 +422,12 @@ class MqttTransportConfig extends Equatable
   final String? username;
   final String? password; // secret
   final String topic;
-  final int qos; // 0/1/2
+
+  /// MQTT QoS supported by Nightshade's publisher (0 or 1).
+  ///
+  /// Older builds exposed QoS 2 even though the transport silently sent those
+  /// messages at QoS 1. Legacy persisted values are migrated to 1 on decode.
+  final int qos;
   final bool retain;
   final bool useTls;
   final String clientId;
@@ -382,18 +484,20 @@ class MqttTransportConfig extends Equatable
     'clientId': clientId,
   };
 
-  factory MqttTransportConfig.fromJson(Map<String, dynamic> json) =>
-      MqttTransportConfig(
-        host: json['host'] as String? ?? '',
-        port: (json['port'] as num?)?.toInt() ?? 1883,
-        username: json['username'] as String?,
-        password: json['password'] as String?,
-        topic: json['topic'] as String? ?? 'nightshade/notifications',
-        qos: (json['qos'] as num?)?.toInt() ?? 0,
-        retain: json['retain'] as bool? ?? false,
-        useTls: json['useTls'] as bool? ?? false,
-        clientId: json['clientId'] as String? ?? 'nightshade',
-      );
+  factory MqttTransportConfig.fromJson(Map<String, dynamic> json) {
+    final persistedQos = _intField(json, 'qos', fallback: 0, min: 0, max: 2);
+    return MqttTransportConfig(
+      host: _stringField(json, 'host', fallback: ''),
+      port: _intField(json, 'port', fallback: 1883, min: 1, max: 65535),
+      username: _nullableStringField(json, 'username'),
+      password: _nullableStringField(json, 'password'),
+      topic: _stringField(json, 'topic', fallback: 'nightshade/notifications'),
+      qos: persistedQos == 2 ? 1 : persistedQos,
+      retain: _boolField(json, 'retain', fallback: false),
+      useTls: _boolField(json, 'useTls', fallback: false),
+      clientId: _stringField(json, 'clientId', fallback: 'nightshade'),
+    );
+  }
 
   @override
   List<Object?> get props => [

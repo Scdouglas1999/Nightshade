@@ -602,11 +602,42 @@ mod tests {
     use nightshade_imaging::read_fits;
     use std::path::PathBuf;
 
-    /// Deterministic temp path derived from the calling test's name (NO rng): the
-    /// per-test name plus the process id keeps parallel runs from colliding while
-    /// staying fully reproducible.
-    fn temp_path(name: &str, ext: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("ns_fe_{name}_{}.{ext}", std::process::id()))
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: the leak was worst exactly when a test FAILED, and a
+    /// trailing cleanup never runs while a panic unwinds — drop does.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Deterministic scratch directory derived from the calling test's name (NO
+    /// rng): the per-test name plus the process id keeps parallel runs from
+    /// colliding while staying fully reproducible.
+    fn temp_dir(name: &str) -> TempDir {
+        let p = std::env::temp_dir().join(format!("ns_fe_{name}_{}", std::process::id()));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
     }
 
     /// Render a synthetic mono `F32` star field: a smooth two-axis gradient sky
@@ -676,8 +707,9 @@ mod tests {
     fn extract_background_round_trip() {
         let size = 256u32;
         let field = render_field_f32(size, &field_stars(size as f64), 800.0);
-        let in_path = temp_path("extract_background_round_trip_in", "fits");
-        let out_path = temp_path("extract_background_round_trip_out", "fits");
+        let dir = temp_dir("extract_background_round_trip");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
         write_master(&in_path, &field);
 
         let args = serde_json::json!({
@@ -704,9 +736,6 @@ mod tests {
         assert_eq!(img.width, size);
         assert_eq!(img.height, size);
         assert_eq!(img.channels, 1);
-
-        let _ = std::fs::remove_file(&in_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     // -------------------------------------------------------------------------
@@ -719,8 +748,9 @@ mod tests {
     fn deconvolve_preview_explicit_psf_round_trip() {
         let size = 96u32;
         let field = render_field_f32(size, &field_stars(size as f64), 600.0);
-        let in_path = temp_path("deconvolve_preview_explicit_psf_round_trip_in", "fits");
-        let out_path = temp_path("deconvolve_preview_explicit_psf_round_trip_out", "fits");
+        let dir = temp_dir("deconvolve_preview_explicit_psf_round_trip");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
         write_master(&in_path, &field);
 
         let args = serde_json::json!({
@@ -744,9 +774,6 @@ mod tests {
         assert_eq!(img.pixel_type, PixelType::F32);
         assert_eq!(img.width, size);
         assert_eq!(img.height, size);
-
-        let _ = std::fs::remove_file(&in_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     /// The PSF-estimation path samples the frame's own injected stars and runs to
@@ -763,8 +790,9 @@ mod tests {
             (size as f64 * 0.88, size as f64 * 0.40, 15000.0),
         ]);
         let field = render_field_f32(size, &stars, 500.0);
-        let in_path = temp_path("deconvolve_preview_estimated_psf_round_trip_in", "fits");
-        let out_path = temp_path("deconvolve_preview_estimated_psf_round_trip_out", "fits");
+        let dir = temp_dir("deconvolve_preview_estimated_psf_round_trip");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
         write_master(&in_path, &field);
 
         let args = serde_json::json!({
@@ -781,9 +809,6 @@ mod tests {
         let (img, _h) = read_fits(out_path.as_path()).expect("read restored frame");
         assert_eq!(img.pixel_type, PixelType::F32);
         assert_eq!(img.width, size);
-
-        let _ = std::fs::remove_file(&in_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     // -------------------------------------------------------------------------
@@ -795,8 +820,9 @@ mod tests {
     fn reduce_stars_preview_round_trip() {
         let size = 128u32;
         let field = render_field_f32(size, &field_stars(size as f64), 700.0);
-        let in_path = temp_path("reduce_stars_preview_round_trip_in", "fits");
-        let out_path = temp_path("reduce_stars_preview_round_trip_out", "fits");
+        let dir = temp_dir("reduce_stars_preview_round_trip");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
         write_master(&in_path, &field);
 
         let args = serde_json::json!({
@@ -813,9 +839,6 @@ mod tests {
         assert_eq!(img.pixel_type, PixelType::F32);
         assert_eq!(img.width, size);
         assert_eq!(img.height, size);
-
-        let _ = std::fs::remove_file(&in_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     // -------------------------------------------------------------------------
@@ -835,8 +858,9 @@ mod tests {
         assert!(api_extract_background(r#"{"inputFits":"","outputFits":""}"#.to_string()).is_err());
 
         // Nonexistent input FITS.
-        let missing = temp_path("enhance_error_paths_missing", "fits");
-        let out = temp_path("enhance_error_paths_out", "fits");
+        let dir = temp_dir("enhance_error_paths");
+        let missing = dir.join("missing.fits");
+        let out = dir.join("out.fits");
         let args = serde_json::json!({
             "inputFits": missing.to_string_lossy(),
             "outputFits": out.to_string_lossy()
@@ -850,7 +874,7 @@ mod tests {
         // An unknown deconvolution PSF kind (estimatePsf off) is rejected.
         let size = 32u32;
         let field = render_field_f32(size, &field_stars(size as f64), 400.0);
-        let in_path = temp_path("enhance_error_paths_psf_in", "fits");
+        let in_path = dir.join("psf_in.fits");
         write_master(&in_path, &field);
         let bad_psf = serde_json::json!({
             "inputFits": in_path.to_string_lossy(),
@@ -862,8 +886,5 @@ mod tests {
             api_deconvolve_preview(bad_psf.to_string()).is_err(),
             "an unknown PSF kind must error"
         );
-
-        let _ = std::fs::remove_file(&in_path);
-        let _ = std::fs::remove_file(&out);
     }
 }

@@ -158,6 +158,56 @@ void main() {
       expect(entries.map((e) => e.message), ['good', 'also good']);
     });
 
+    test('listServerLogFiles decodes the /api/logs envelope', () async {
+      fake.setResponse(
+        '/api/logs',
+        method: 'GET',
+        body: jsonEncode({
+          'files': [
+            {
+              'name': 'nightshade.log',
+              'sizeBytes': 2048,
+              'modifiedAt': '2026-07-20T04:00:00Z',
+              'isCurrent': true,
+            },
+            {
+              'name': 'nightshade.log.2026-07-19',
+              'sizeBytes': 1024,
+              'modifiedAt': 'not-a-date', // tolerated → null modifiedAt
+              'isCurrent': false,
+            },
+          ],
+          'totalBytes': 3072,
+          'retentionDays': 0,
+        }),
+      );
+      backend = _buildBackend(fake);
+
+      final files = await backend.listServerLogFiles();
+      expect(files, hasLength(2));
+      expect(files.first.name, 'nightshade.log');
+      expect(files.first.sizeBytes, 2048);
+      expect(files.first.isCurrent, isTrue);
+      expect(files.first.modifiedAt, isNotNull);
+      expect(files.last.modifiedAt, isNull);
+      expect(files.last.isCurrent, isFalse);
+
+      final req = fake.requestsFor('/api/logs').single;
+      expect(req.method, 'GET');
+      expect(_headerValue(req.headers, 'Authorization'), 'Bearer test-token');
+    });
+
+    test('listServerLogFiles surfaces malformed bodies as an error', () async {
+      fake.setResponse(
+        '/api/logs',
+        method: 'GET',
+        body: '{"files": "not a list"}',
+      );
+      backend = _buildBackend(fake);
+
+      expect(backend.listServerLogFiles(), throwsA(isA<Object>()));
+    });
+
     test('clearServerLogs POSTs /api/logs/clear', () async {
       fake.setResponse(
         '/api/logs/clear',

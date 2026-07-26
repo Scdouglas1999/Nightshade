@@ -1,11 +1,10 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomFilterWheel};
+use nightshade_ascom::AscomFilterWheel;
 use nightshade_native::traits::{NativeDevice, NativeError, NativeFilterWheel};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -28,7 +27,6 @@ pub struct AscomFilterWheelWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomFilterWheelCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     connected: AtomicBool,
     // Cache filter count - updated after connect when we can actually read device properties.
     filter_count: AtomicI32,
@@ -48,35 +46,46 @@ impl AscomFilterWheelWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
-
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did.
+        register_device(move || {
             let mut fw = match AscomFilterWheel::new(&prog_id_clone) {
                 Ok(f) => f,
                 Err(e) => {
-                    let _ =
-                        init_tx.send(Err(format!("Failed to create ASCOM filter wheel: {}", e)));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM filter wheel: {}", e));
                 }
             };
 
             // Don't read names() here - the device isn't connected yet.
             // Filter count will be updated after connect() when we can actually
             // read device properties.
-            let _ = init_tx.send(Ok(()));
             tracing::info!(
                 "ASCOM FilterWheel COM object created for: {}",
                 prog_id_clone
             );
 
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — issue the final disconnect
+                        // on the STA worker thread that owns the apartment. The
+                        // typed `AscomFilterWheel` (and its IDispatch) is then
+                        // released when this closure is dropped, still on this
+                        // thread. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        if let Err(e) = fw.disconnect() {
+                            tracing::warn!(
+                                "ASCOM filter wheel STA-worker shutdown disconnect failed: {}",
+                                e
+                            );
+                        }
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomFilterWheelCommand::Connect(reply) => {
                         let result = fw.connect().map_err(|e| e.to_string()).and_then(|()| {
@@ -172,32 +181,15 @@ impl AscomFilterWheelWrapper {
                         let _ = reply.send(fw.heartbeat().map_err(|e| e.to_string()));
                     }
                 }
-            }
-
-            // Why: COM teardown ordering — release the typed `AscomFilterWheel`
-            // (which holds an IDispatch) BEFORE `uninit_com()`. The Drop on
-            // `AscomDeviceConnection` is intentionally a no-op so this is the
-            // only correct location to issue the final disconnect.
-            if let Err(e) = fw.disconnect() {
-                tracing::warn!(
-                    "ASCOM filter wheel STA-worker shutdown disconnect failed: {}",
-                    e
-                );
-            }
-            drop(fw);
-            uninit_com();
-        });
-
-        // Wait for initialization
-        init_rx
-            .recv()
-            .map_err(|e| format!("Failed to receive init result: {}", e))??;
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
         Ok(Self {
             id: prog_id.clone(),
             name: prog_id,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
             filter_count: AtomicI32::new(0),
         })
@@ -381,13 +373,14 @@ impl AscomFilterWheelWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomFilterWheelWrapper
     where
         F: FnMut(AscomFilterWheelCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -400,7 +393,6 @@ mod tests {
             id: "test-fw".to_string(),
             name: "Test FW".to_string(),
             sender: tx,
-            _thread_handle: Arc::new(handle),
             connected: AtomicBool::new(false),
             filter_count: AtomicI32::new(0),
         }

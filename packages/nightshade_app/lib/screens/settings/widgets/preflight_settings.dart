@@ -45,18 +45,11 @@ class PreflightSettings extends ConsumerStatefulWidget {
 
 class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
   final _polarAgeController = TextEditingController();
-  bool _initialized = false;
 
   @override
   void dispose() {
     _polarAgeController.dispose();
     super.dispose();
-  }
-
-  void _initControllers(AppSettingsState settings) {
-    if (_initialized) return;
-    _polarAgeController.text = settings.polarAlignmentMaxAgeDays.toString();
-    _initialized = true;
   }
 
   @override
@@ -72,7 +65,7 @@ class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
+        final authority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
         return SettingsPage(
           title: 'Pre-flight Checks',
@@ -81,50 +74,58 @@ class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
           isMobile: widget.isMobile,
           hideHeader: widget.isMobile,
           children: [
-            SettingsSection(
-              title: 'Strictness',
-              children: [
-                _StrictnessOption(
-                  isMobile: widget.isMobile,
-                  value: PreflightStrictness.lax,
-                  current: settings.preflightStrictness,
-                  title: 'Lax',
-                  description:
-                      'Missing darks render as info. Only critical equipment failures block the run.',
-                  icon: LucideIcons.feather,
-                  onSelected: () async {
-                    await notifier
-                        .setPreflightStrictness(PreflightStrictness.lax);
-                  },
-                ),
-                _StrictnessOption(
-                  isMobile: widget.isMobile,
-                  value: PreflightStrictness.normal,
-                  current: settings.preflightStrictness,
-                  title: 'Normal',
-                  description:
-                      'Missing darks render as warnings. Sequence starts after the user confirms the warnings list.',
-                  icon: LucideIcons.scale,
-                  onSelected: () async {
-                    await notifier
-                        .setPreflightStrictness(PreflightStrictness.normal);
-                  },
-                ),
-                _StrictnessOption(
-                  isMobile: widget.isMobile,
-                  value: PreflightStrictness.strict,
-                  current: settings.preflightStrictness,
-                  title: 'Strict',
-                  description:
-                      'Missing darks render as errors. Sequence refuses to start until every flagged issue is resolved or acknowledged.',
-                  icon: LucideIcons.shieldAlert,
-                  isLast: true,
-                  onSelected: () async {
-                    await notifier
-                        .setPreflightStrictness(PreflightStrictness.strict);
-                  },
-                ),
-              ],
+            RadioGroup<PreflightStrictness>(
+              groupValue: settings.preflightStrictness,
+              onChanged: (value) async {
+                if (value != null) {
+                  await notifier.setPreflightStrictness(value);
+                }
+              },
+              child: SettingsSection(
+                title: 'Strictness',
+                children: [
+                  _StrictnessOption(
+                    isMobile: widget.isMobile,
+                    value: PreflightStrictness.lax,
+                    current: settings.preflightStrictness,
+                    title: 'Lax',
+                    description:
+                        'Missing darks render as info. Only critical equipment failures block the run.',
+                    icon: LucideIcons.feather,
+                    onSelected: () async {
+                      await notifier
+                          .setPreflightStrictness(PreflightStrictness.lax);
+                    },
+                  ),
+                  _StrictnessOption(
+                    isMobile: widget.isMobile,
+                    value: PreflightStrictness.normal,
+                    current: settings.preflightStrictness,
+                    title: 'Normal',
+                    description:
+                        'Missing darks render as warnings. Sequence starts after the user confirms the warnings list.',
+                    icon: LucideIcons.scale,
+                    onSelected: () async {
+                      await notifier
+                          .setPreflightStrictness(PreflightStrictness.normal);
+                    },
+                  ),
+                  _StrictnessOption(
+                    isMobile: widget.isMobile,
+                    value: PreflightStrictness.strict,
+                    current: settings.preflightStrictness,
+                    title: 'Strict',
+                    description:
+                        'Missing darks render as errors. Sequence refuses to start until every flagged issue is resolved or acknowledged.',
+                    icon: LucideIcons.shieldAlert,
+                    isLast: true,
+                    onSelected: () async {
+                      await notifier
+                          .setPreflightStrictness(PreflightStrictness.strict);
+                    },
+                  ),
+                ],
+              ),
             ),
             SettingsSection(
               title: 'Polar alignment',
@@ -136,6 +137,9 @@ class _PreflightSettingsState extends ConsumerState<PreflightSettings> {
                       'Sequence pre-flight flags the polar alignment if the last recorded run is older than this. Set to 0 to disable the check.',
                   trailing: SettingsNumberInput(
                     controller: _polarAgeController,
+                    authoritativeValue:
+                        settings.polarAlignmentMaxAgeDays.toDouble(),
+                    authorityKey: authority,
                     suffix: 'days',
                     min: 0,
                     max: 90,
@@ -196,8 +200,6 @@ class _StrictnessOption extends StatelessWidget {
         subtitle: description,
         trailing: Radio<PreflightStrictness>(
           value: value,
-          groupValue: current,
-          onChanged: (_) => onSelected(),
         ),
         isLast: isLast,
         isMobile: isMobile,

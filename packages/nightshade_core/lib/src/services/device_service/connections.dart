@@ -22,6 +22,10 @@ extension _DeviceServiceConnections on DeviceService {
         DeviceType.camera,
         deviceId,
       );
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.camera, deviceId);
+
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -34,6 +38,38 @@ extension _DeviceServiceConnections on DeviceService {
         // and auto-start cooling if coolOnConnect is enabled
         try {
           final activeProfile = _ref.read(activeEquipmentProfileProvider);
+          if (activeProfile?.defaultGain != null) {
+            try {
+              await _backend.cameraSetGain(
+                deviceId,
+                activeProfile!.defaultGain!,
+              );
+            } catch (e) {
+              _safeLog(
+                (l) => l.warning(
+                  'Profile gain could not be applied on connect: $e',
+                  source: 'DeviceService',
+                ),
+                'profile-gain-on-connect',
+              );
+            }
+          }
+          if (activeProfile?.defaultOffset != null) {
+            try {
+              await _backend.cameraSetOffset(
+                deviceId,
+                activeProfile!.defaultOffset!,
+              );
+            } catch (e) {
+              _safeLog(
+                (l) => l.warning(
+                  'Profile offset could not be applied on connect: $e',
+                  source: 'DeviceService',
+                ),
+                'profile-offset-on-connect',
+              );
+            }
+          }
           if (activeProfile?.defaultCoolingTemp != null) {
             notifier.setTargetTemp(activeProfile!.defaultCoolingTemp!);
 
@@ -127,6 +163,20 @@ extension _DeviceServiceConnections on DeviceService {
     required bool enabled,
     double? targetTemp,
   }) async {
+    // Defense-in-depth: reject a non-finite setpoint before it reaches the
+    // driver. The GUI dialog already validates its text field, but non-UI
+    // callers (headless API, sequencer instructions, tests) route through here
+    // too, and a NaN/±∞ setpoint would either be silently coerced by the
+    // driver or corrupt the cooler control loop. A null target is the valid
+    // "disable cooling" / "keep current setpoint" case and is left untouched.
+    if (targetTemp != null && !targetTemp.isFinite) {
+      throw ArgumentError.value(
+        targetTemp,
+        'targetTemp',
+        'Cooling target temperature must be a finite value',
+      );
+    }
+
     final cameraState = _ref.read(cameraStateProvider);
     if (cameraState.connectionState != DeviceConnectionState.connected) {
       throw const ConnectionException(
@@ -184,8 +234,6 @@ extension _DeviceServiceConnections on DeviceService {
       }
 
       _markUserInitiatedDisconnect(deviceId);
-      _rotatorVerifyGeneration++;
-
       try {
         // Best-effort cooler shutdown: ASCOM/INDI driver-side coolers keep
         // running after the client disconnects, so an intentional
@@ -195,6 +243,7 @@ extension _DeviceServiceConnections on DeviceService {
         if (state.isCooling) {
           try {
             await _backend.cameraSetCooling(deviceId: deviceId, enabled: false);
+            notifier.setCooling(false);
             _safeLog(
               (l) => l.info(
                 'Cooler disabled as part of camera disconnect',
@@ -223,9 +272,17 @@ extension _DeviceServiceConnections on DeviceService {
 
         // Disconnect device
         await _backend.disconnectDevice(DeviceType.camera, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        _temperaturePoller.start(deviceId);
+        await _heartbeat.start(
+          deviceType: DeviceType.camera,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -244,6 +301,10 @@ extension _DeviceServiceConnections on DeviceService {
         DeviceType.mount,
         deviceId,
       );
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.mount, deviceId);
+
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -309,9 +370,16 @@ extension _DeviceServiceConnections on DeviceService {
         await _heartbeat.stop(deviceType: DeviceType.mount, deviceId: deviceId);
 
         await _backend.disconnectDevice(DeviceType.mount, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        await _heartbeat.start(
+          deviceType: DeviceType.mount,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -330,6 +398,10 @@ extension _DeviceServiceConnections on DeviceService {
         DeviceType.focuser,
         deviceId,
       );
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.focuser, deviceId);
+
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -371,7 +443,18 @@ extension _DeviceServiceConnections on DeviceService {
         if (status.temperature != null) {
           notifier.updateTemperature(status.temperature!);
         }
+        await _heartbeat.start(
+          deviceType: DeviceType.focuser,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
       } catch (e) {
+        try {
+          await _backend.disconnectDevice(DeviceType.focuser, deviceId);
+        } catch (_) {
+          // The connect itself may have failed before the backend registered
+          // the device. Preserve the original, more useful failure.
+        }
         notifier.setDisconnected();
         rethrow;
       }
@@ -394,10 +477,21 @@ extension _DeviceServiceConnections on DeviceService {
       _focuserVerifyGeneration++;
 
       try {
+        await _heartbeat.stop(
+          deviceType: DeviceType.focuser,
+          deviceId: deviceId,
+        );
         await _backend.disconnectDevice(DeviceType.focuser, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        await _heartbeat.start(
+          deviceType: DeviceType.focuser,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -422,6 +516,10 @@ extension _DeviceServiceConnections on DeviceService {
         deviceId,
       );
 
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.filterWheel, deviceId);
+
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -431,10 +529,13 @@ extension _DeviceServiceConnections on DeviceService {
         // encoder position after the USB/COM connection is established.
         // Some SDKs (ZWO EFW, ASCOM wrappers) report position 0 or -1
         // immediately after opening before the firmware has read the encoder.
-        // Poll up to 5 times over ~2.5 s to get a stable reading.
+        // Allow up to 10 s for a stable reading. Empirical testing on a ZWO
+        // EFW after an unclean process restart showed that the SDK can remain
+        // at -1 for more than 3 s even though the wheel is healthy; rejecting
+        // it that early caused a noisy disconnect/reconnect cycle at startup.
         FilterWheelStatus status;
         int pollAttempts = 0;
-        const maxPolls = 5;
+        const maxPolls = 20;
         const pollDelay = Duration(milliseconds: 500);
 
         status = await _backend.getFilterWheelStatus(deviceId);
@@ -461,11 +562,22 @@ extension _DeviceServiceConnections on DeviceService {
           'names=${status.filterNames}, position=${status.position}',
           source: 'DeviceService',
         );
+        if (status.position < 0) {
+          throw StateError(
+            'Filter wheel connected but did not report a valid position '
+            'after ${maxPolls + 1} status reads',
+          );
+        }
 
         notifier.setConnected(filterNames: status.filterNames);
         notifier.setDeviceName(deviceName);
         notifier.updatePosition(status.position);
         notifier.setMoving(status.moving);
+        await _heartbeat.start(
+          deviceType: DeviceType.filterWheel,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
 
         // Seed the per-wheel "last applied offset" baseline with the CURRENT
         // filter's configured offset. The map entry is cleared on disconnect,
@@ -484,8 +596,13 @@ extension _DeviceServiceConnections on DeviceService {
         // After connection, sync profile/session filter names to the native
         // driver so user-defined names (Ha, OIII, SII, etc.) are used in
         // sequences and UI instead of generic "Filter 1", "Filter 2".
-        await _syncFilterNamesToDriver(deviceId, status.filterNames);
+        await _syncFilterNamesToDriver(status.filterNames);
       } catch (e) {
+        try {
+          await _backend.disconnectDevice(DeviceType.filterWheel, deviceId);
+        } catch (_) {
+          // Preserve the original connect/status failure.
+        }
         notifier.setDisconnected();
         rethrow;
       }
@@ -506,18 +623,29 @@ extension _DeviceServiceConnections on DeviceService {
 
       _markUserInitiatedDisconnect(deviceId);
       _filterWheelVerifyGeneration++;
-      _lastAppliedFilterOffsetByWheel.remove(deviceId);
 
       try {
+        await _heartbeat.stop(
+          deviceType: DeviceType.filterWheel,
+          deviceId: deviceId,
+        );
         await _backend.disconnectDevice(DeviceType.filterWheel, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        await _heartbeat.start(
+          deviceType: DeviceType.filterWheel,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
+        rethrow;
       }
+      _lastAppliedFilterOffsetByWheel.remove(deviceId);
+      notifier.setDisconnected();
     });
   }
 
   /// Connect to a guider
-  Future<void> _connectGuider(String deviceId) {
+  Future<void> _connectGuider(String deviceId, {String? host, int? port}) {
     return _trackInFlight(() async {
       final notifier = _ref.read(guiderStateProvider.notifier);
       // PHD2 recognition is centralized in `utils/device_id.dart` so the
@@ -526,28 +654,39 @@ extension _DeviceServiceConnections on DeviceService {
       // everywhere.
       final isPhd2 = isPhd2DeviceId(deviceId);
 
+      // Release whatever guider currently owns the slot (see
+      // [_releaseDisplacedDevice]); PHD2 normalises to its canonical id.
+      await _releaseDisplacedDevice(
+        DeviceType.guider,
+        isPhd2 ? kPhd2CanonicalId : deviceId,
+      );
+
       // Special handling for PHD2 guider - uses different connection method
       if (isPhd2) {
         notifier.setConnecting(kPhd2CanonicalId, 'PHD2 Guiding');
         try {
           final settings = await _ref.read(appSettingsProvider.future);
+          // The caller may pin the endpoint (guiding controller's
+          // `connect(host, port)`); otherwise fall back to the configured
+          // PHD2 host/port. Either way the launch path uses `settings.phd2Path`
+          // — the override only steers where we open the socket, never whether
+          // we honour the host-authoritative NetworkBackend rule below.
+          final requestedHost = host ?? settings.phd2Host;
+          final requestedPort = port ?? settings.phd2Port;
           // Auto-launch PHD2 on the imaging host when the socket is local.
           // Remote companions (NetworkBackend) must not spawn processes here —
           // they delegate launch to the desktop via POST /api/phd2/connect.
           // For remote PHD2 hosts (host != localhost/127.0.0.1) we never spawn.
-          final connectHost = resolvePhd2ConnectHost(settings.phd2Host);
+          final connectHost = resolvePhd2ConnectHost(requestedHost);
           if (_backend is! NetworkBackend &&
-              _phd2Launcher.isLocalHost(settings.phd2Host)) {
+              _phd2Launcher.isLocalHost(requestedHost)) {
             await _phd2Launcher.ensureRunning(
               executablePath: settings.phd2Path,
               host: connectHost,
-              port: settings.phd2Port,
+              port: requestedPort,
             );
           }
-          await _backend.phd2Connect(
-            host: connectHost,
-            port: settings.phd2Port,
-          );
+          await _backend.phd2Connect(host: connectHost, port: requestedPort);
           await pollPhd2Connected(_backend);
           notifier.setConnected();
         } catch (e) {
@@ -605,9 +744,11 @@ extension _DeviceServiceConnections on DeviceService {
         } else {
           await _backend.disconnectDevice(DeviceType.guider, deviceId);
         }
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -621,6 +762,10 @@ extension _DeviceServiceConnections on DeviceService {
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('dome', deviceId);
       }
+
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.dome, deviceId);
 
       notifier.setConnecting(
         deviceId,
@@ -653,9 +798,11 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.disconnectDevice(DeviceType.dome, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -670,6 +817,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('weather station', deviceId);
       }
 
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.weather, deviceId);
+
       notifier.setConnecting(
         deviceId,
         await _resolveDeviceDisplayName(DeviceType.weather, deviceId),
@@ -677,8 +828,32 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.connectDevice(DeviceType.weather, deviceId);
+        if (_backend is EnvironmentalStatusBackend) {
+          final environmental = _backend as EnvironmentalStatusBackend;
+          final conditions = await environmental.getHardwareWeatherConditions(
+            deviceId,
+          );
+          notifier.updateConditions(
+            temperature: conditions.temperature,
+            humidity: conditions.humidity,
+            pressure: conditions.pressure,
+            cloudCover: conditions.cloudCover,
+            dewPoint: conditions.dewPoint,
+            windSpeed: conditions.windSpeed,
+            windDirection: conditions.windDirection,
+            skyQuality: conditions.skyQuality,
+            skyTemperature: conditions.skyTemperature,
+            rainRate: conditions.rainRate,
+          );
+        }
         notifier.setConnected();
+        _ensureEnvironmentPolling();
       } catch (e) {
+        try {
+          await _backend.disconnectDevice(DeviceType.weather, deviceId);
+        } catch (_) {
+          // Preserve the telemetry failure that made the connection unsafe.
+        }
         notifier.setDisconnected();
         rethrow;
       }
@@ -701,9 +876,12 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.disconnectDevice(DeviceType.weather, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
+      _stopEnvironmentPollingIfIdle();
     });
   }
 
@@ -718,6 +896,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('safety monitor', deviceId);
       }
 
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.safetyMonitor, deviceId);
+
       notifier.setConnecting(
         deviceId,
         await _resolveDeviceDisplayName(DeviceType.safetyMonitor, deviceId),
@@ -725,9 +907,25 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.connectDevice(DeviceType.safetyMonitor, deviceId);
+        if (_backend is EnvironmentalStatusBackend) {
+          final environmental = _backend as EnvironmentalStatusBackend;
+          final isSafe = await environmental.getHardwareSafetyStatus(deviceId);
+          notifier.updateSafetyStatus(isSafe);
+        }
         notifier.setConnected();
+        _ensureEnvironmentPolling();
       } catch (e) {
-        notifier.setDisconnected();
+        try {
+          await _backend.disconnectDevice(DeviceType.safetyMonitor, deviceId);
+        } catch (_) {
+          // Preserve the status-read failure; safety must fail closed.
+        }
+        // A safety-monitor transport failure is an unsafe/unknown verdict,
+        // not a clean disconnected state. `setDisconnected` resets the model
+        // to its historical `isSafe: true` default, which could briefly show
+        // a green safety result after the driver status read failed. Retain
+        // the device id and publish an explicit fail-closed error instead.
+        notifier.setError(e);
         rethrow;
       }
     });
@@ -749,10 +947,89 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.disconnectDevice(DeviceType.safetyMonitor, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
+      _stopEnvironmentPollingIfIdle();
     });
+  }
+
+  void _ensureEnvironmentPolling() {
+    if (_environmentPollTimer != null ||
+        _backend is! EnvironmentalStatusBackend) {
+      return;
+    }
+    _environmentPollTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_pollEnvironmentalStatus()),
+    );
+  }
+
+  void _stopEnvironmentPollingIfIdle() {
+    final weatherConnected =
+        _ref.read(weatherStateProvider).connectionState ==
+        DeviceConnectionState.connected;
+    final safetyConnected =
+        _ref.read(safetyMonitorStateProvider).connectionState ==
+        DeviceConnectionState.connected;
+    if (!weatherConnected && !safetyConnected) {
+      _environmentPollTimer?.cancel();
+      _environmentPollTimer = null;
+    }
+  }
+
+  Future<void> _pollEnvironmentalStatus() async {
+    if (_disposed || _environmentPollInFlight) return;
+    if (_backend is! EnvironmentalStatusBackend) return;
+    final environmental = _backend as EnvironmentalStatusBackend;
+
+    _environmentPollInFlight = true;
+    try {
+      final weather = _ref.read(weatherStateProvider);
+      final weatherId = weather.deviceId;
+      if (weather.connectionState == DeviceConnectionState.connected &&
+          weatherId != null) {
+        try {
+          final conditions = await environmental.getHardwareWeatherConditions(
+            weatherId,
+          );
+          _ref
+              .read(weatherStateProvider.notifier)
+              .updateConditions(
+                temperature: conditions.temperature,
+                humidity: conditions.humidity,
+                pressure: conditions.pressure,
+                cloudCover: conditions.cloudCover,
+                dewPoint: conditions.dewPoint,
+                windSpeed: conditions.windSpeed,
+                windDirection: conditions.windDirection,
+                skyQuality: conditions.skyQuality,
+                skyTemperature: conditions.skyTemperature,
+                rainRate: conditions.rainRate,
+              );
+        } catch (error) {
+          _ref.read(weatherStateProvider.notifier).setError(error);
+        }
+      }
+
+      final safety = _ref.read(safetyMonitorStateProvider);
+      final safetyId = safety.deviceId;
+      if (safety.connectionState == DeviceConnectionState.connected &&
+          safetyId != null) {
+        try {
+          final isSafe = await environmental.getHardwareSafetyStatus(safetyId);
+          _ref
+              .read(safetyMonitorStateProvider.notifier)
+              .updateSafetyStatus(isSafe);
+        } catch (error) {
+          _ref.read(safetyMonitorStateProvider.notifier).setError(error);
+        }
+      }
+    } finally {
+      _environmentPollInFlight = false;
+    }
   }
 
   /// Connect to a switch device.
@@ -772,6 +1049,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('switch', deviceId);
       }
 
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.switch_, deviceId);
+
       notifier.setConnecting(
         deviceId,
         await _resolveDeviceDisplayName(DeviceType.switch_, deviceId),
@@ -780,17 +1061,18 @@ extension _DeviceServiceConnections on DeviceService {
       try {
         await _backend.connectDevice(DeviceType.switch_, deviceId);
         notifier.setConnected();
-        // Best-effort: fetch the channel snapshot so the card can render
-        // per-channel toggles. Only attempted when the active backend is
-        // the local FfiBackend (NetworkBackend would need a separate REST
-        // endpoint that does not exist yet — tracked as follow-up).
-        // Failures here MUST NOT abort the connect (errors are a feature here
-        // are a feature" — surface as a warning but keep the device
-        // marked connected).
-        await _refreshSwitchChannels();
       } catch (e) {
         notifier.setDisconnected();
         rethrow;
+      }
+
+      // Best-effort snapshot after the connection itself is authoritative.
+      // Refresh errors are surfaced by SwitchChannelService but must not turn
+      // a genuinely connected power box back into a disconnected device.
+      try {
+        await _refreshSwitchChannels();
+      } on Object {
+        // The card retains a manual retry control.
       }
     });
   }
@@ -811,9 +1093,11 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.disconnectDevice(DeviceType.switch_, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -832,6 +1116,13 @@ extension _DeviceServiceConnections on DeviceService {
     return _trackInFlight(() => _switchChannels.setChannel(channelIndex, on));
   }
 
+  /// Set a numeric/PWM switch channel after validating its advertised range.
+  Future<void> _setSwitchChannelValue(int channelIndex, double value) {
+    return _trackInFlight(
+      () => _switchChannels.setChannelValue(channelIndex, value),
+    );
+  }
+
   /// Connect to a rotator
   Future<void> _connectRotator(String deviceId) {
     return _trackInFlight(() async {
@@ -843,6 +1134,10 @@ extension _DeviceServiceConnections on DeviceService {
         throw InvalidDeviceIdException('rotator', deviceId);
       }
 
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.rotator, deviceId);
+
       notifier.setConnecting(
         deviceId,
         await _resolveDeviceDisplayName(DeviceType.rotator, deviceId),
@@ -851,6 +1146,26 @@ extension _DeviceServiceConnections on DeviceService {
       try {
         await _backend.connectDevice(DeviceType.rotator, deviceId);
         notifier.setConnected();
+
+        // Seed the real angle immediately. Otherwise a newly connected local
+        // rotator displays "---" until the first movement event, even though
+        // the driver already knows its position.
+        try {
+          final status = await _backend.getRotatorStatus(deviceId);
+          notifier.updatePosition(
+            status.position,
+            mechanicalPosition: status.mechanicalPosition,
+          );
+          notifier.setMoving(status.moving || status.isMoving);
+        } catch (e) {
+          _safeLog(
+            (logger) => logger.warning(
+              'Failed to get initial rotator status for $deviceId: $e',
+              source: 'DeviceService',
+            ),
+            'rotator-initial-status-fail',
+          );
+        }
       } catch (e) {
         notifier.setDisconnected();
         rethrow;
@@ -871,12 +1186,15 @@ extension _DeviceServiceConnections on DeviceService {
       }
 
       _markUserInitiatedDisconnect(deviceId);
+      _rotatorVerifyGeneration++;
 
       try {
         await _backend.disconnectDevice(DeviceType.rotator, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
     });
   }
 
@@ -890,6 +1208,10 @@ extension _DeviceServiceConnections on DeviceService {
       if (!isValidDeviceIdFormat(deviceId)) {
         throw InvalidDeviceIdException('cover calibrator', deviceId);
       }
+
+      // Hand the type slot over cleanly rather than orphaning the
+      // incumbent's driver connection (see [_releaseDisplacedDevice]).
+      await _releaseDisplacedDevice(DeviceType.coverCalibrator, deviceId);
 
       notifier.setConnecting(
         deviceId,
@@ -922,9 +1244,120 @@ extension _DeviceServiceConnections on DeviceService {
 
       try {
         await _backend.disconnectDevice(DeviceType.coverCalibrator, deviceId);
-      } finally {
-        notifier.setDisconnected();
+      } catch (_) {
+        _clearUserInitiatedDisconnect(deviceId);
+        rethrow;
       }
+      notifier.setDisconnected();
     });
+  }
+
+  /// Release the device about to be displaced from its type slot.
+  ///
+  /// Each device type owns exactly ONE notifier slot. Connecting a second
+  /// device of the same type overwrote that slot while the incumbent's driver
+  /// connection stayed open, and because every disconnect path matches on the
+  /// slot's `deviceId`, the displaced device became unaddressable — its
+  /// ASCOM/native handle stayed open for the rest of the session. Verified on
+  /// the rig: after a simulator mount took the slot, a real NYX-101 kept
+  /// answering position polls, `/api/devices/connected` listed both mounts, and
+  /// `POST /api/devices/disconnect` for the real one returned
+  /// `device_id_mismatch` — so nothing could ever close it. The same hole is
+  /// reachable from the equipment dropdown and from activating a profile that
+  /// names a different device for a type.
+  ///
+  /// Hand the slot over through the incumbent's own `_disconnectX` so the
+  /// type-specific teardown (cooler off, heartbeat stop, pollers) still runs.
+  ///
+  /// Fail-soft: a displaced device whose cable is already gone must not block
+  /// the incoming connect, so a failed teardown is logged and swallowed.
+  Future<void> _releaseDisplacedDevice(
+    DeviceType type,
+    String incomingDeviceId,
+  ) async {
+    final currentId = _slotDeviceIdFor(type);
+    if (currentId == null ||
+        currentId.isEmpty ||
+        currentId == incomingDeviceId) {
+      return;
+    }
+    _safeLog(
+      (l) => l.info(
+        'Connecting ${type.name} $incomingDeviceId displaces $currentId; '
+        'disconnecting the incumbent first so its driver handle is released',
+        source: 'DeviceService',
+      ),
+      'device-slot-handover',
+    );
+    try {
+      await _disconnectForType(type);
+    } catch (e) {
+      _safeLog(
+        (l) => l.warning(
+          'Displaced ${type.name} $currentId did not disconnect cleanly: $e',
+          source: 'DeviceService',
+        ),
+        'device-slot-handover-failed',
+      );
+    }
+  }
+
+  /// deviceId currently held in [type]'s notifier slot, or `null` when the
+  /// slot is empty. `setDisconnected()` resets the state object, so a
+  /// non-null id here means a device still owns the slot.
+  String? _slotDeviceIdFor(DeviceType type) {
+    switch (type) {
+      case DeviceType.camera:
+        return _ref.read(cameraStateProvider).deviceId;
+      case DeviceType.mount:
+        return _ref.read(mountStateProvider).deviceId;
+      case DeviceType.focuser:
+        return _ref.read(focuserStateProvider).deviceId;
+      case DeviceType.filterWheel:
+        return _ref.read(filterWheelStateProvider).deviceId;
+      case DeviceType.guider:
+        return _ref.read(guiderStateProvider).deviceId;
+      case DeviceType.rotator:
+        return _ref.read(rotatorStateProvider).deviceId;
+      case DeviceType.dome:
+        return _ref.read(domeStateProvider).deviceId;
+      case DeviceType.weather:
+        return _ref.read(weatherStateProvider).deviceId;
+      case DeviceType.safetyMonitor:
+        return _ref.read(safetyMonitorStateProvider).deviceId;
+      case DeviceType.coverCalibrator:
+        return _ref.read(coverCalibratorStateProvider).deviceId;
+      case DeviceType.switch_:
+        return _ref.read(switchStateProvider).deviceId;
+    }
+  }
+
+  /// Route to the type-specific disconnect so the displaced device gets its
+  /// real teardown rather than a bare backend call.
+  Future<void> _disconnectForType(DeviceType type) {
+    switch (type) {
+      case DeviceType.camera:
+        return _disconnectCamera();
+      case DeviceType.mount:
+        return _disconnectMount();
+      case DeviceType.focuser:
+        return _disconnectFocuser();
+      case DeviceType.filterWheel:
+        return _disconnectFilterWheel();
+      case DeviceType.guider:
+        return _disconnectGuider();
+      case DeviceType.rotator:
+        return _disconnectRotator();
+      case DeviceType.dome:
+        return _disconnectDome();
+      case DeviceType.weather:
+        return _disconnectWeather();
+      case DeviceType.safetyMonitor:
+        return _disconnectSafetyMonitor();
+      case DeviceType.coverCalibrator:
+        return _disconnectCoverCalibrator();
+      case DeviceType.switch_:
+        return _disconnectSwitch();
+    }
   }
 }

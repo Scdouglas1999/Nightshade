@@ -19,17 +19,30 @@
 //      off-LAN, socket suspended), its remote-push delivery looks the token up
 //      and sends an APNs push.
 //
-// Platform gating: this is a no-op on every platform except iOS. Android uses
-// the FCM path (platform=fcm), wired separately; the LAN UDP receiver covers
-// both while foregrounded. Off-iOS, `ensureRegistered` returns immediately
-// without touching the (absent) `nightshade/push` channel, so a
-// `MissingPluginException` can never be thrown.
+// Android (FCM) rides the same flow through the same channel: the native
+// half is PushBridge.kt (+ NightshadePushService for token rotation), the
+// callbacks are `onFcmToken` / `getFcmToken`, and the POST registers with
+// `platform=fcm`. PROVISIONING GATE: without `android/app/google-services.json`
+// (owner's Firebase project) the native side answers
+// `registerForRemoteNotifications` with a `fcm_unconfigured` PlatformException
+// and this service logs + stays dormant — Android alerting then remains the
+// LAN UDP receiver only (see lan_push_notification_receiver.dart). The
+// server-side FCM sender (FcmRemotePushDelivery) is fully built and activates
+// via the host's push config + service-account JSON. End-to-end delivery is
+// UNVERIFIED until a real Firebase project is provisioned — the build, the
+// dormant no-op path, and the registration POST are what's tested.
+//
+// Platform gating: a no-op on every platform except iOS and Android, where
+// `ensureRegistered` returns immediately without touching the (absent)
+// `nightshade/push` channel, so a `MissingPluginException` can never be
+// thrown.
 //
 // Server contract note: the endpoint validates `platform` against the set
 // {'fcm', 'apns'} (see apps/desktop/lib/headless_api/handlers/push_handlers.dart),
-// NOT {'ios','android'} — iOS registers as `apns`. The `deviceId` MUST be the
-// same id the device paired with (MobilePairingService.deviceId()), or the
-// server returns 404 unknown_device and the token is rejected.
+// NOT {'ios','android'} — iOS registers as `apns`, Android as `fcm`. The
+// `deviceId` MUST be the same id the device paired with
+// (MobilePairingService.deviceId()), or the server returns 404 unknown_device
+// and the token is rejected.
 
 import 'dart:async';
 import 'dart:convert';
@@ -41,22 +54,25 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// Registers this device's APNs token with a paired desktop server so the
-/// server can deliver cellular critical alerts. iOS-only; a no-op elsewhere.
+/// Registers this device's push token (APNs on iOS, FCM on Android) with a
+/// paired desktop server so the server can deliver off-LAN critical alerts.
+/// A no-op on other platforms.
 class PushRegistrationService {
   PushRegistrationService({
     @visibleForTesting MethodChannel? channel,
     @visibleForTesting http.Client? httpClient,
     @visibleForTesting bool? isIosOverride,
+    @visibleForTesting bool? isAndroidOverride,
   }) : _channel = channel ?? const MethodChannel('nightshade/push'),
        _http = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null,
-       _isIos = isIosOverride ?? Platform.isIOS {
-    // The host pushes the token to us via `onApnsToken` the moment APNs issues
-    // it. We attach the handler eagerly (even before `ensureRegistered`) so a
-    // token that arrives during launch — racing our registration call — is
-    // never dropped.
-    if (_isIos) {
+       _isIos = isIosOverride ?? Platform.isIOS,
+       _isAndroid = isAndroidOverride ?? Platform.isAndroid {
+    // The host pushes the token to us via `onApnsToken` / `onFcmToken` the
+    // moment the OS issues it. We attach the handler eagerly (even before
+    // `ensureRegistered`) so a token that arrives during launch — racing our
+    // registration call — is never dropped.
+    if (_isIos || _isAndroid) {
       _channel.setMethodCallHandler(_handleHostCall);
     }
   }
@@ -65,6 +81,10 @@ class PushRegistrationService {
   final http.Client _http;
   final bool _ownsHttpClient;
   final bool _isIos;
+  final bool _isAndroid;
+
+  /// Wire platform id the server's register-token endpoint expects.
+  String get _platform => _isIos ? 'apns' : 'fcm';
 
   /// The most recent server target + identity, captured on [ensureRegistered]
   /// so a late-arriving `onApnsToken` (pushed by the host after we returned)
@@ -101,12 +121,12 @@ class PushRegistrationService {
     required NetworkBackend backend,
     required String deviceId,
   }) async {
-    if (!_isIos) {
+    if (!_isIos && !_isAndroid) {
       return;
     }
     if (deviceId.isEmpty) {
       developer.log(
-        'Skipping APNs registration: empty deviceId (not paired yet)',
+        'Skipping $_platform registration: empty deviceId (not paired yet)',
         name: 'PushRegistration',
       );
       return;
@@ -126,14 +146,25 @@ class PushRegistrationService {
       // value below if registration already completed.
       await _channel.invokeMethod<bool>('registerForRemoteNotifications');
     } on MissingPluginException {
-      // Defensive: should be unreachable on iOS (the host always registers the
-      // channel). Treat as "host has no APNs support" rather than crashing.
+      // Defensive: should be unreachable on iOS/Android (the host always
+      // registers the channel). Treat as "host has no push support" rather
+      // than crashing.
       developer.log(
-        'nightshade/push channel unavailable; APNs registration skipped',
+        'nightshade/push channel unavailable; $_platform registration skipped',
         name: 'PushRegistration',
       );
       return;
     } on PlatformException catch (e) {
+      if (e.code == 'fcm_unconfigured') {
+        // Expected on Android builds without google-services.json: the owner
+        // has not provisioned a Firebase project, so background push is
+        // dormant by design. Info-level, not an error.
+        developer.log(
+          'FCM not provisioned in this build; background push dormant',
+          name: 'PushRegistration',
+        );
+        return;
+      }
       developer.log(
         'registerForRemoteNotifications failed: ${e.message}',
         name: 'PushRegistration',
@@ -169,13 +200,14 @@ class PushRegistrationService {
   }
 
   Future<String?> _cachedToken() async {
+    final method = _isIos ? 'getApnsToken' : 'getFcmToken';
     try {
-      return await _channel.invokeMethod<String>('getApnsToken');
+      return await _channel.invokeMethod<String>(method);
     } on MissingPluginException {
       return null;
     } on PlatformException catch (e) {
       developer.log(
-        'getApnsToken failed: ${e.message}',
+        '$method failed: ${e.message}',
         name: 'PushRegistration',
         level: 900,
       );
@@ -186,14 +218,16 @@ class PushRegistrationService {
   Future<dynamic> _handleHostCall(MethodCall call) async {
     switch (call.method) {
       case 'onApnsToken':
+      case 'onFcmToken':
         final token = call.arguments as String?;
         if (token != null && token.isNotEmpty) {
           await _postToken(token);
         }
         return null;
       case 'onApnsRegistrationError':
+      case 'onFcmRegistrationError':
         developer.log(
-          'APNs registration error from host: ${call.arguments}',
+          '$_platform registration error from host: ${call.arguments}',
           name: 'PushRegistration',
           level: 900,
         );
@@ -221,7 +255,7 @@ class PushRegistrationService {
       // Token arrived before any `ensureRegistered` captured a server. Hold it
       // implicitly: the next ensureRegistered pulls it via getApnsToken.
       developer.log(
-        'APNs token received before a registration target was set; '
+        '$_platform token received before a registration target was set; '
         'will register on next connect',
         name: 'PushRegistration',
       );
@@ -256,7 +290,7 @@ class PushRegistrationService {
             },
             body: jsonEncode({
               'deviceId': target.deviceId,
-              'platform': 'apns',
+              'platform': _platform,
               'token': token,
             }),
           )
@@ -265,7 +299,7 @@ class PushRegistrationService {
       if (response.statusCode == 200) {
         _lastRegistered = registrationKey;
         developer.log(
-          'Registered APNs token with ${target.host}:${target.port}',
+          'Registered $_platform token with ${target.host}:${target.port}',
           name: 'PushRegistration',
         );
       } else {

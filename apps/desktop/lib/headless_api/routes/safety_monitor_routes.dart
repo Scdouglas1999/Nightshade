@@ -28,4 +28,9 @@ List<HeadlessRoute> buildSafetyMonitorRoutes(SafetyMonitorHandlers h) =>
         '/api/safety/acknowledge',
         h.handleAcknowledgeUnsafe,
       ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/safety/cancel-acknowledgement',
+        h.handleCancelAcknowledgement,
+      ),
     ];

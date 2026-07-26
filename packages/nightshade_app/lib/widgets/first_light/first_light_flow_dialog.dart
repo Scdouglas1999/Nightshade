@@ -54,13 +54,20 @@ class FirstLightFlowDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(firstLightControllerProvider);
 
-    return NightshadeDialog(
-      title: 'Your first light',
-      icon: LucideIcons.sparkles,
-      width: 720,
-      // No fixed height: the body is adaptive across the four flow surfaces.
-      actions: _actionsFor(context, ref, state),
-      child: _FirstLightBody(state: state),
+    // The orchestrator has no cancel path: dismissing mid-run orphans the
+    // capture and leaves the controller marked running, so a later Start
+    // would do nothing. Block back-button and barrier dismissal while a
+    // stage is active; idle/success/failed stay freely dismissible.
+    return PopScope(
+      canPop: !state.isRunning,
+      child: NightshadeDialog(
+        title: 'Your first light',
+        icon: LucideIcons.sparkles,
+        width: 720,
+        // No fixed height: the body is adaptive across the four flow surfaces.
+        actions: _actionsFor(context, ref, state),
+        child: _FirstLightBody(state: state),
+      ),
     );
   }
 

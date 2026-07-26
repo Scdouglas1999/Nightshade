@@ -1,11 +1,16 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 
+import '../backend/network_backend.dart';
 import '../database/daos/stacked_results_dao.dart';
 import '../models/imaging/stack_and_share_models.dart';
 import '../services/logging_service.dart';
 import '../services/stack_and_share_service.dart';
+import '../services/stack_share_export_service.dart';
+import 'backend_provider.dart';
 
 /// UI-facing state for the **Stack-and-Share Loop** orchestrator (component C7).
 ///
@@ -128,6 +133,7 @@ class StackAndShareNotifier extends StateNotifier<StackAndShareState> {
   StackAndShareNotifier(this._ref) : super(const StackAndShareState());
 
   final Ref _ref;
+  Future<void>? _runInFlight;
 
   StackAndShareService get _service => _ref.read(stackAndShareServiceProvider);
   LoggingService get _logger => _ref.read(loggingServiceProvider);
@@ -144,6 +150,34 @@ class StackAndShareNotifier extends StateNotifier<StackAndShareState> {
     int sessionId, {
     StackAndShareConfig? config,
   }) async {
+    final active = _runInFlight;
+    if (active != null) {
+      await active;
+      return;
+    }
+    final operation = _runForSession(sessionId, config: config);
+    _runInFlight = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_runInFlight, operation)) _runInFlight = null;
+    }
+  }
+
+  Future<void> _runForSession(
+    int sessionId, {
+    StackAndShareConfig? config,
+  }) async {
+    if (_ref.read(backendProvider) is NetworkBackend) {
+      state = const StackAndShareState(
+        progress: StackAndShareProgress(phase: StackAndSharePhase.error),
+        errorMessage:
+            'Stack & Share runs on the imaging host. Open Nightshade '
+            'on that computer to stack a completed session.',
+      );
+      return;
+    }
+
     final effectiveConfig = config ?? StackAndShareConfig.defaults;
 
     // Begin a fresh run: clear any prior result/buffers/error and start at the
@@ -154,8 +188,9 @@ class StackAndShareNotifier extends StateNotifier<StackAndShareState> {
       ),
     );
 
+    final service = _service;
     try {
-      final result = await _service.run(
+      final result = await service.run(
         sessionId: sessionId,
         config: effectiveConfig,
         onProgress: (p) {
@@ -169,8 +204,8 @@ class StackAndShareNotifier extends StateNotifier<StackAndShareState> {
       // Capture the terminal artifacts from the service's retained buffers. The
       // service guarantees [lastRawResult] is set on success; the RGBA buffer is
       // present only when the run auto-stretched.
-      final raw = _service.lastRawResult;
-      final rgba = _service.lastRgbaResult;
+      final raw = service.lastRawResult;
+      final rgba = service.lastRgbaResult;
 
       state = StackAndShareState(
         // The service emits the terminal `complete` phase via onProgress, so
@@ -224,6 +259,7 @@ final stackAndShareProvider =
       StackAndShareNotifier,
       StackAndShareState
     >((ref) {
+      ref.watch(backendProvider);
       return StackAndShareNotifier(ref);
     });
 
@@ -236,6 +272,10 @@ final stackAndShareProvider =
 /// ).
 final stackResultViewerProvider =
     FutureProvider.family<StackAndShareResult, int>((ref, id) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return (await ref.watch(remoteStackResultProvider(id).future)).result;
+      }
       final dao = ref.watch(stackedResultsDaoProvider);
       final result = await dao.getResultById(id);
       if (result == null) {
@@ -249,6 +289,88 @@ final stackResultViewerProvider =
 final recentStackedResultsProvider = FutureProvider<List<StackAndShareResult>>((
   ref,
 ) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final remote = await backend.stackingGetSavedResults();
+    return [for (final record in remote) record.result];
+  }
   final dao = ref.watch(stackedResultsDaoProvider);
   return dao.getRecentResults();
 });
+
+/// Strict remote metadata record, shared by the result and preview providers so
+/// a screen load performs only one metadata request. Watching [backendProvider]
+/// ties the request to the concrete host identity; switching hosts invalidates
+/// the old future rather than letting its response populate the new session.
+final remoteStackResultProvider =
+    FutureProvider.family<RemoteStackedResult, int>((ref, id) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is! NetworkBackend) {
+        throw StateError('Remote stack metadata requires a network backend.');
+      }
+      return backend.stackingGetSavedResult(id);
+    });
+
+/// Loads and strictly decodes the durable display preview for a saved result.
+///
+/// Local mode reads the path owned by the persisted row; remote mode downloads
+/// bytes from the authenticated host endpoint and never receives the host
+/// path. Both branches validate the decoded dimensions against the metadata so
+/// a stale or mismatched artifact cannot be displayed under the wrong stats.
+final stackResultPreviewProvider = FutureProvider.autoDispose
+    .family<Uint8List?, int>((ref, id) async {
+      final backend = ref.watch(backendProvider);
+      final result = await ref.watch(stackResultViewerProvider(id).future);
+
+      late final Uint8List encoded;
+      late final String source;
+      if (backend is NetworkBackend) {
+        final remote = await ref.watch(remoteStackResultProvider(id).future);
+        if (!remote.previewAvailable) return null;
+        encoded = await backend.stackingGetSavedResultPreview(id);
+        source = 'remote stacked-result preview $id';
+      } else {
+        final recordedPath = result.exportedImagePath;
+        if (recordedPath == null || recordedPath.trim().isEmpty) return null;
+        final resultId = result.id;
+        final canonicalPath = resultId == null
+            ? null
+            : await ref
+                  .read(stackShareExportServiceProvider)
+                  .viewerPreviewPath(resultId);
+        final canonicalFile = canonicalPath == null
+            ? null
+            : File(canonicalPath);
+        final file = canonicalFile != null && await canonicalFile.exists()
+            ? canonicalFile
+            : File(recordedPath);
+        if (!await file.exists()) {
+          throw StateError('The saved stacked-result preview is missing.');
+        }
+        final length = await file.length();
+        if (length <= 0) {
+          throw StateError('The saved stacked-result preview is empty.');
+        }
+        const maxPreviewBytes = 256 * 1024 * 1024;
+        if (length > maxPreviewBytes) {
+          throw StateError(
+            'The saved stacked-result preview is too large to open '
+            '($length bytes).',
+          );
+        }
+        encoded = await file.readAsBytes();
+        source = 'saved stacked-result preview';
+      }
+
+      final decoded = img.decodeImage(encoded);
+      if (decoded == null) {
+        throw FormatException('$source is not a supported PNG or JPEG image.');
+      }
+      if (decoded.width != result.width || decoded.height != result.height) {
+        throw FormatException(
+          '$source is ${decoded.width}x${decoded.height}, but result $id is '
+          '${result.width}x${result.height}.',
+        );
+      }
+      return decoded.getBytes(order: img.ChannelOrder.rgba);
+    });

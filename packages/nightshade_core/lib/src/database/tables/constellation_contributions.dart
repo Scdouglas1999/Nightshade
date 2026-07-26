@@ -64,6 +64,19 @@ class ConstellationContributions extends Table {
 
   /// Remote receipt id returned by the hub for this tile's contribution.
   /// Unblocks the privacy "Retract" action (subtract exactly what was shipped).
+  ///
+  /// CONSENT/LICENSE (WS4): the AUTHORITATIVE consent + license record for a
+  /// contribution lives on the hub (`consent_records`, joined to the hub's
+  /// contribution row by `consent_id`), recorded BEFORE any bytes are stored and
+  /// stamped `revoked_at` on retraction. The client transmits the user's license
+  /// + attribution-credit choice on every share (see
+  /// `ConstellationService.contributeTarget`/`contributeRawSubs` →
+  /// `ConstellationClient.pushTile`/`pushSubframe`), and this row's
+  /// [contributionId] maps back to that authoritative hub-side consent. The
+  /// local receipt therefore deliberately does NOT mirror a `license` column —
+  /// the consent contract is enforced + retained server-side, where it cannot be
+  /// edited away by a local DB tamper, and the client reads it back via the
+  /// `/v1/attribution` + hub receipt rather than trusting a local copy.
   TextColumn get contributionId => text().nullable()();
 
   /// Running tally of own-light frames / integration shipped to this hub for
@@ -80,6 +93,16 @@ class ConstellationContributions extends Table {
   IntColumn get lastPulledFrames => integer().nullable()();
   RealColumn get lastPulledIntegrationSeconds => real().nullable()();
   DateTimeColumn get lastPulledAt => dateTime().nullable()();
+
+  // --- Co-imaging session link ---------------------------------------------
+
+  /// The live co-imaging session (WS3) this tile's contributions belong to, if
+  /// any — the hub's `coimaging_sessions.id`, mirrored locally so a swarm
+  /// contribution receipt can be attributed to a coordinated session rather
+  /// than a one-off async contribution. Null for a plain (non-session) tile
+  /// contribution. The session's own membership row lives in
+  /// [CoImagingSessions], keyed by the same `(hubKey, sessionId)`.
+  TextColumn get sessionId => text().nullable()();
 
   // --- Join rehydration ----------------------------------------------------
 

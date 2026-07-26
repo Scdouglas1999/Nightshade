@@ -47,6 +47,7 @@ class FakePostSessionSeam implements PostSessionSeam {
       masterFitsPath: output['masterFitsPath'] as String,
       previewPath: output['previewPngPath'] as String?,
       rejectionMapPath: output['rejectionMapPath'] as String?,
+      rejectionMapPreviewPath: output['rejectionMapPreviewPath'] as String?,
       framesIntegrated: lights.length,
       framesRejected: 0,
       totalIntegrationSec: 0.0,
@@ -306,6 +307,7 @@ class FakePostSessionSeam implements PostSessionSeam {
     return <String, dynamic>{
       'outputPath': args['outputFits'] as String? ?? '',
       'coveragePath': args['coverageFits'],
+      'coveragePngPath': args['coveragePngPath'],
       'previewPngPath': args['previewPngPath'],
       'outWidth': (refW * scale).ceil(),
       'outHeight': (refH * scale).ceil(),
@@ -349,6 +351,33 @@ class FakePostSessionSeam implements PostSessionSeam {
 }
 
 void main() {
+  test(
+    'native integration result decodes scientific and display map paths',
+    () {
+      final result = IntegrateSessionResult.fromJson(const {
+        'masterFitsPath': '/out/master.fits',
+        'previewPath': '/out/master.png',
+        'rejectionMapPath': '/out/master_rejmap.fits',
+        'rejectionMapPreviewPath': '/out/master_rejmap.png',
+        'coverageMapPath': '/out/master_cov.fits',
+        'coverageMapPreviewPath': '/out/master_cov.png',
+        'framesIntegrated': 3,
+        'framesRejected': 1,
+        'totalIntegrationSec': 180.0,
+        'rmsResidual': 0.4,
+        'width': 100,
+        'height': 80,
+        'channels': 1,
+        'perFrameStats': <Map<String, Object?>>[],
+      });
+
+      expect(result.rejectionMapPath, '/out/master_rejmap.fits');
+      expect(result.rejectionMapPreviewPath, '/out/master_rejmap.png');
+      expect(result.coverageMapPath, '/out/master_cov.fits');
+      expect(result.coverageMapPreviewPath, '/out/master_cov.png');
+    },
+  );
+
   late NightshadeDatabase db;
   late ImagesDao imagesDao;
   late IntegratedMastersDao mastersDao;
@@ -533,6 +562,7 @@ void main() {
       expect(output['masterFitsPath'], '/out/master.fits');
       expect(output['previewPngPath'], '/out/master.png');
       expect(output['rejectionMapPath'], '/out/master_rejmap.fits');
+      expect(output['rejectionMapPreviewPath'], '/out/master_rejmap.png');
     },
   );
 
@@ -548,6 +578,7 @@ void main() {
         masterFitsPath: output['masterFitsPath'] as String,
         previewPath: output['previewPngPath'] as String?,
         rejectionMapPath: output['rejectionMapPath'] as String?,
+        rejectionMapPreviewPath: output['rejectionMapPreviewPath'] as String?,
         framesIntegrated: lights.length,
         framesRejected: 0,
         totalIntegrationSec: 120.0 * lights.length,
@@ -765,6 +796,7 @@ void main() {
         masterFitsPath: output['masterFitsPath'] as String,
         previewPath: output['previewPngPath'] as String?,
         rejectionMapPath: output['rejectionMapPath'] as String?,
+        rejectionMapPreviewPath: output['rejectionMapPreviewPath'] as String?,
         framesIntegrated: lights.length,
         framesRejected: 0,
         totalIntegrationSec: 120.0 * lights.length,
@@ -915,6 +947,7 @@ void main() {
         masterFitsPath: output['masterFitsPath'] as String,
         previewPath: output['previewPngPath'] as String?,
         rejectionMapPath: output['rejectionMapPath'] as String?,
+        rejectionMapPreviewPath: output['rejectionMapPreviewPath'] as String?,
         framesIntegrated: lights.length,
         framesRejected: 0,
         totalIntegrationSec: 120.0 * lights.length,
@@ -989,6 +1022,8 @@ void main() {
     expect(call['bayer'], isFalse);
     // A sibling preview PNG path for the drizzled master is requested.
     expect(call['previewPngPath'], '/out/master_drizzle.png');
+    expect(call['coverageFits'], '/out/master_drizzle_cov.fits');
+    expect(call['coveragePngPath'], '/out/master_drizzle_cov.png');
 
     // Config mirrors the settings knobs.
     final config = call['config'] as Map<String, dynamic>;
@@ -1009,12 +1044,20 @@ void main() {
     final master = await mastersDao.getById(outcomes.single.masterId);
     expect(master!.masterFitsPath, '/out/master_drizzle.fits');
     expect(master.previewPngPath, '/out/master_drizzle.png');
+    expect(master.rejectionMapPath, '/out/master_rejmap.fits');
+    expect(master.rejectionMapPreviewPath, '/out/master_rejmap.png');
+    expect(master.coverageMapPath, '/out/master_drizzle_cov.fits');
+    expect(master.coverageMapPreviewPath, '/out/master_drizzle_cov.png');
     expect(master.width, 200);
     expect(master.height, 160);
     // The returned outcome result reflects the drizzled master + preview too, so
     // the immediate post-integrate hero shows the drizzled image, not the 1×.
     expect(outcomes.single.result.masterFitsPath, '/out/master_drizzle.fits');
     expect(outcomes.single.result.previewPath, '/out/master_drizzle.png');
+    expect(
+      outcomes.single.result.coverageMapPreviewPath,
+      '/out/master_drizzle_cov.png',
+    );
     expect(outcomes.single.result.width, 200);
   });
 

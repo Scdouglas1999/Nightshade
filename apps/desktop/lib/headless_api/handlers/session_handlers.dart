@@ -10,7 +10,6 @@ import 'package:shelf/shelf.dart';
 import '../job_manager.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
-import 'device_handlers.dart' show requestPrefersLegacyBlocking;
 
 part 'session_handlers/thumbnail_handlers.dart';
 
@@ -18,12 +17,19 @@ part 'session_handlers/thumbnail_handlers.dart';
 class SessionHandlers {
   final ProviderContainer container;
 
-  /// optional job manager. When wired, polar-alignment
-  /// endpoints return `{jobId, status: queued}` immediately. The actual
-  /// alignment routine streams progress via WS events.
+  /// Optional job manager used by the thumbnail-backfill endpoint in the
+  /// companion part file. Polar-alignment Start is deliberately not queued:
+  /// it is a short admission command whose errors must reach the caller before
+  /// the UI claims the run started; ongoing progress already streams via WS.
   final JobManager? jobManager;
 
   SessionHandlers(this.container, {this.jobManager});
+
+  /// Upper bound for the `/api/images?producingNodeId=` thumbnail `limit`. One
+  /// sequence node produces at most a few hundred to low-thousand frames per
+  /// session; 5000 is a generous ceiling that still blocks a negative (SQLite
+  /// `LIMIT -1` = unbounded) or an absurdly large scan.
+  static const int _maxProducingNodeLimit = 5000;
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
@@ -52,55 +58,38 @@ class SessionHandlers {
   Future<Response> handleStartPolarAlignment(Request request) async {
     _logInfo('[API] POST /api/polar-alignment/start');
     final payload = await readJsonObject(request);
-    final exposureTime = requireDouble(payload, 'exposure_time');
-    final stepSize = requireDouble(payload, 'step_size');
-    final binning = requireInt(payload, 'binning');
+    // Bound every physical parameter before it reaches PolarAlignmentConfig /
+    // the native alignment routine. Without bounds a negative exposure,
+    // binning:0, or a negative timeout is admitted and produces invalid
+    // hardware work or a downstream 500 instead of a clean 400.
+    final exposureTime = requireDouble(
+      payload,
+      'exposure_time',
+      min: 0.001,
+      max: 3600,
+    );
+    final stepSize = requireDouble(payload, 'step_size', min: 0.001, max: 360);
+    final binning = requireInt(payload, 'binning', min: 1, max: 16);
     final isNorth = requireBool(payload, 'is_north');
     final manualRotation = requireBool(payload, 'manual_rotation');
     final rotateEast = requireBool(payload, 'rotate_east');
-    final gain = optionalInt(payload, 'gain');
-    final offset = optionalInt(payload, 'offset');
-    final solveTimeout = optionalDouble(payload, 'solve_timeout');
+    final gain = optionalInt(payload, 'gain', min: 0);
+    final offset = optionalInt(payload, 'offset', min: 0);
+    final solveTimeout = optionalDouble(
+      payload,
+      'solve_timeout',
+      min: 1,
+      max: 3600,
+    );
     final startFromCurrent = optionalBool(payload, 'start_from_current');
+    final autoCompleteThreshold = optionalDouble(
+      payload,
+      'auto_complete_threshold',
+      min: 0.001,
+      max: 3600,
+    );
 
-    final mgr = jobManager;
-    final preferLegacy = requestPrefersLegacyBlocking(request);
-    if (mgr != null && !preferLegacy) {
-      // The backend `startPolarAlignment` already returns immediately
-      // (it kicks off an async session). Wrapping it in a Job gives
-      // clients a stable identifier they can correlate with subsequent
-      // `polarAlignmentEvents` and use to detect session-completion via
-      // the JobCompleted broadcast.
-      final job = mgr.start(
-        operation: 'polar-alignment.start',
-        deviceId: null,
-        work: (sink, cancellation) async {
-          sink.update(null, 'Starting polar alignment');
-          final backend = container.read(imagingBackendProvider);
-          await backend.startPolarAlignment(
-            exposureTime: exposureTime,
-            stepSize: stepSize,
-            binning: binning,
-            isNorth: isNorth,
-            manualRotation: manualRotation,
-            rotateEast: rotateEast,
-            gain: gain,
-            offset: offset,
-            solveTimeout: solveTimeout,
-            startFromCurrent: startFromCurrent,
-          );
-          return {'status': 'started'};
-        },
-      );
-      return jsonOk({
-        'jobId': job.jobId,
-        'status': job.state.wireName,
-        'operation': job.operation,
-      });
-    }
-
-    final backend = container.read(imagingBackendProvider);
-    await backend.startPolarAlignment(
+    final config = PolarAlignmentConfig(
       exposureTime: exposureTime,
       stepSize: stepSize,
       binning: binning,
@@ -109,77 +98,73 @@ class SessionHandlers {
       rotateEast: rotateEast,
       gain: gain,
       offset: offset,
-      solveTimeout: solveTimeout,
-      startFromCurrent: startFromCurrent,
+      solveTimeout: solveTimeout ?? 30,
+      startFromCurrent: startFromCurrent ?? true,
+      autoCompleteThreshold: autoCompleteThreshold ?? 30,
     );
+    await container
+        .read(polarAlignmentStateProvider.notifier)
+        .startAlignment(config);
     return jsonOk({"status": "started"});
   }
 
   Future<Response> handleStopPolarAlignment(Request request) async {
     _logInfo('[API] POST /api/polar-alignment/stop');
-    final backend = container.read(imagingBackendProvider);
-    await backend.stopPolarAlignment();
+    // Force the backend stop when this process did not initiate the run (for
+    // example, a native sequencer node). Runs admitted through this handler
+    // still use the notifier's single-flight stop + history persistence.
+    await container
+        .read(polarAlignmentStateProvider.notifier)
+        .stopAlignment(forceBackend: true);
     return jsonOk({"status": "stopped"});
   }
 
   Future<Response> handleStartAllSkyPolarAlignment(Request request) async {
     _logInfo('[API] POST /api/polar-alignment/all-sky/start');
     final payload = await readJsonObject(request);
-    final exposureTime = requireDouble(payload, 'exposure_time');
-    final solveTimeout = requireDouble(payload, 'solve_timeout');
-    final binning = requireInt(payload, 'binning');
+    // Bound physical parameters (see handleStartPolarAlignment).
+    final exposureTime = requireDouble(
+      payload,
+      'exposure_time',
+      min: 0.001,
+      max: 3600,
+    );
+    final solveTimeout = requireDouble(
+      payload,
+      'solve_timeout',
+      min: 1,
+      max: 3600,
+    );
+    final binning = requireInt(payload, 'binning', min: 1, max: 16);
     final isNorth = requireBool(payload, 'is_north');
     final acceptanceThresholdArcsec = requireDouble(
       payload,
       'acceptance_threshold_arcsec',
+      min: 0.001,
+      max: 3600,
     );
     final iterationCadenceSecs = requireDouble(
       payload,
       'iteration_cadence_secs',
+      min: 0.1,
+      max: 3600,
     );
-    final gain = optionalInt(payload, 'gain');
-    final offset = optionalInt(payload, 'offset');
+    final gain = optionalInt(payload, 'gain', min: 0);
+    final offset = optionalInt(payload, 'offset', min: 0);
 
-    final mgr = jobManager;
-    final preferLegacy = requestPrefersLegacyBlocking(request);
-    if (mgr != null && !preferLegacy) {
-      final job = mgr.start(
-        operation: 'polar-alignment.all-sky.start',
-        deviceId: null,
-        work: (sink, cancellation) async {
-          sink.update(null, 'Starting all-sky polar alignment');
-          final backend = container.read(imagingBackendProvider);
-          await backend.startAllSkyPolarAlignment(
-            exposureTime: exposureTime,
-            solveTimeout: solveTimeout,
-            binning: binning,
-            isNorth: isNorth,
-            acceptanceThresholdArcsec: acceptanceThresholdArcsec,
-            iterationCadenceSecs: iterationCadenceSecs,
-            gain: gain,
-            offset: offset,
-          );
-          return {'status': 'started'};
-        },
-      );
-      return jsonOk({
-        'jobId': job.jobId,
-        'status': job.state.wireName,
-        'operation': job.operation,
-      });
-    }
-
-    final backend = container.read(imagingBackendProvider);
-    await backend.startAllSkyPolarAlignment(
+    final config = PolarAlignmentConfig(
       exposureTime: exposureTime,
       solveTimeout: solveTimeout,
       binning: binning,
       isNorth: isNorth,
-      acceptanceThresholdArcsec: acceptanceThresholdArcsec,
       iterationCadenceSecs: iterationCadenceSecs,
+      autoCompleteThreshold: acceptanceThresholdArcsec,
       gain: gain,
       offset: offset,
     );
+    await container
+        .read(polarAlignmentStateProvider.notifier)
+        .startAllSkyAlignment(config);
     return jsonOk({"status": "started"});
   }
 
@@ -202,14 +187,40 @@ class SessionHandlers {
 
   Future<Response> handleGetAllImages(Request request) async {
     _logInfo('[API] GET /api/images');
-    final database = container.read(databaseProvider);
-    final producingNodeId = request.url.queryParameters['producingNodeId'];
-    final producingRunId = request.url.queryParameters['producingRunId'];
-    final targetIdParam = request.url.queryParameters['targetId'];
-    final limitParam = request.url.queryParameters['limit'];
+    final query = request.url.queryParameters;
+    final producingNodeIdParam = query['producingNodeId'];
+    final producingRunIdParam = query['producingRunId'];
+    final targetIdParam = query['targetId'];
 
-    if (producingNodeId != null && producingNodeId.isNotEmpty) {
-      final limit = int.tryParse(limitParam ?? '') ?? 100;
+    if (producingNodeIdParam != null) {
+      final producingNodeId = producingNodeIdParam.trim();
+      if (producingNodeId.isEmpty) {
+        throw BadRequestError(
+          field: 'producingNodeId',
+          expected: 'non-blank string',
+          message: 'producingNodeId must not be blank',
+        );
+      }
+      // Absent → 100. A supplied limit must be a positive, bounded whole number:
+      // a negative maps to SQLite `LIMIT -1` (unbounded scan) and a huge value
+      // is unbounded work. Validate before even resolving the database provider.
+      final limit =
+          optionalQueryInt(
+            query,
+            'limit',
+            min: 1,
+            max: _maxProducingNodeLimit,
+          ) ??
+          100;
+      final producingRunId = producingRunIdParam?.trim();
+      if (producingRunIdParam != null && producingRunId!.isEmpty) {
+        throw BadRequestError(
+          field: 'producingRunId',
+          expected: 'non-blank string',
+          message: 'producingRunId must not be blank when supplied',
+        );
+      }
+      final database = container.read(databaseProvider);
       final thumbs = await database.imagesDao.getImagesByProducingNode(
         producingNodeId: producingNodeId,
         producingRunId: producingRunId,
@@ -227,10 +238,12 @@ class SessionHandlers {
           message: 'targetId query parameter must be a valid integer',
         );
       }
+      final database = container.read(databaseProvider);
       final images = await database.imagesDao.getImagesForTarget(targetId);
       return jsonOk({'images': images.map((image) => image.toJson()).toList()});
     }
 
+    final database = container.read(databaseProvider);
     final images = await database.imagesDao.getAllImages();
     return jsonOk({'images': images.map((image) => image.toJson()).toList()});
   }
@@ -253,8 +266,9 @@ class SessionHandlers {
 
     final capturedAtMs = payload['capturedAt'];
     final capturedAt = capturedAtMs is int
-        ? DateTime.fromMillisecondsSinceEpoch(capturedAtMs)
-        : DateTime.tryParse(capturedAtMs?.toString() ?? '') ?? DateTime.now();
+        ? DateTime.fromMillisecondsSinceEpoch(capturedAtMs, isUtc: true)
+        : (DateTime.tryParse(capturedAtMs?.toString() ?? '') ?? DateTime.now())
+              .toUtc();
 
     // #2 — honour fileSize from the payload if supplied; otherwise
     // try to stat the on-disk file. The latter only succeeds when the
@@ -290,34 +304,64 @@ class SessionHandlers {
         sessionId: Value(optionalInt(payload, 'sessionId')),
         targetId: Value(optionalInt(payload, 'targetId')),
         frameType: Value(requireString(payload, 'frameType')),
-        exposureDuration: requireDouble(payload, 'exposureDuration'),
-        gain: Value(optionalInt(payload, 'gain')),
-        offset: Value(optionalInt(payload, 'offset')),
-        binX: Value(optionalInt(payload, 'binX') ?? 1),
-        binY: Value(optionalInt(payload, 'binY') ?? 1),
+        // Every numeric below is PERSISTED into captured_images and then read by
+        // analytics, image grading, the dark/flat matcher and plate-solve
+        // history. Unbounded, this endpoint accepted (and would have stored)
+        // mountRa 9999, mountAltitude -4000, coolerPower 5000, binX 0,
+        // exposureDuration -60 and gain -500 — execution ran past all of them
+        // and only tripped on an unrelated FK. Bounds mirror the ones already
+        // applied to the same quantities elsewhere in this file (gain/offset
+        // min: 0) and in db_read_handlers (ra 0..24, dec -90..90).
+        exposureDuration: requireDouble(payload, 'exposureDuration', min: 0),
+        gain: Value(optionalInt(payload, 'gain', min: 0)),
+        offset: Value(optionalInt(payload, 'offset', min: 0)),
+        binX: Value(optionalInt(payload, 'binX', min: 1, max: 16) ?? 1),
+        binY: Value(optionalInt(payload, 'binY', min: 1, max: 16) ?? 1),
         filter: Value(optionalString(payload, 'filter')),
-        sensorTemp: Value(optionalDouble(payload, 'sensorTemp')),
-        coolerPower: Value(optionalDouble(payload, 'coolerPower')),
-        hfr: Value(optionalDouble(payload, 'hfr')),
-        starCount: Value(optionalInt(payload, 'starCount')),
-        background: Value(optionalDouble(payload, 'background')),
-        noise: Value(optionalDouble(payload, 'noise')),
-        qualityScore: Value(optionalDouble(payload, 'qualityScore')),
-        guidingRmsRa: Value(optionalDouble(payload, 'guidingRmsRa')),
-        guidingRmsDec: Value(optionalDouble(payload, 'guidingRmsDec')),
-        guidingRmsTotal: Value(optionalDouble(payload, 'guidingRmsTotal')),
-        mountRa: Value(optionalDouble(payload, 'mountRa')),
-        mountDec: Value(optionalDouble(payload, 'mountDec')),
-        mountAltitude: Value(optionalDouble(payload, 'mountAltitude')),
-        mountAzimuth: Value(optionalDouble(payload, 'mountAzimuth')),
-        focuserPosition: Value(optionalInt(payload, 'focuserPosition')),
-        focuserTemp: Value(optionalDouble(payload, 'focuserTemp')),
-        rotatorAngle: Value(optionalDouble(payload, 'rotatorAngle')),
+        sensorTemp: Value(
+          optionalDouble(payload, 'sensorTemp', min: -100, max: 100),
+        ),
+        coolerPower: Value(
+          optionalDouble(payload, 'coolerPower', min: 0, max: 100),
+        ),
+        hfr: Value(optionalDouble(payload, 'hfr', min: 0, max: 1000)),
+        starCount: Value(optionalInt(payload, 'starCount', min: 0)),
+        background: Value(optionalDouble(payload, 'background', min: 0)),
+        noise: Value(optionalDouble(payload, 'noise', min: 0)),
+        qualityScore: Value(
+          optionalDouble(payload, 'qualityScore', min: 0, max: 100),
+        ),
+        guidingRmsRa: Value(optionalDouble(payload, 'guidingRmsRa', min: 0)),
+        guidingRmsDec: Value(optionalDouble(payload, 'guidingRmsDec', min: 0)),
+        guidingRmsTotal: Value(
+          optionalDouble(payload, 'guidingRmsTotal', min: 0),
+        ),
+        mountRa: Value(optionalDouble(payload, 'mountRa', min: 0, max: 24)),
+        mountDec: Value(optionalDouble(payload, 'mountDec', min: -90, max: 90)),
+        mountAltitude: Value(
+          optionalDouble(payload, 'mountAltitude', min: -90, max: 90),
+        ),
+        mountAzimuth: Value(
+          optionalDouble(payload, 'mountAzimuth', min: 0, max: 360),
+        ),
+        focuserPosition: Value(optionalInt(payload, 'focuserPosition', min: 0)),
+        focuserTemp: Value(
+          optionalDouble(payload, 'focuserTemp', min: -100, max: 100),
+        ),
+        rotatorAngle: Value(
+          optionalDouble(payload, 'rotatorAngle', min: -360, max: 360),
+        ),
         isPlateSolved: Value(optionalBool(payload, 'isPlateSolved') ?? false),
-        solvedRa: Value(optionalDouble(payload, 'solvedRa')),
-        solvedDec: Value(optionalDouble(payload, 'solvedDec')),
-        solvedRotation: Value(optionalDouble(payload, 'solvedRotation')),
-        solvedPixelScale: Value(optionalDouble(payload, 'solvedPixelScale')),
+        solvedRa: Value(optionalDouble(payload, 'solvedRa', min: 0, max: 24)),
+        solvedDec: Value(
+          optionalDouble(payload, 'solvedDec', min: -90, max: 90),
+        ),
+        solvedRotation: Value(
+          optionalDouble(payload, 'solvedRotation', min: -360, max: 360),
+        ),
+        solvedPixelScale: Value(
+          optionalDouble(payload, 'solvedPixelScale', min: 0),
+        ),
         capturedAt: capturedAt,
         isAccepted: Value(optionalBool(payload, 'isAccepted') ?? true),
         rejectionReason: Value(optionalString(payload, 'rejectionReason')),
@@ -385,11 +429,15 @@ class SessionHandlers {
       );
     }
 
-    if (payload.containsKey('isAccepted') && payload['isAccepted'] == false) {
-      await imagesDao.rejectImage(
-        iid,
-        optionalString(payload, 'rejectionReason') ?? 'rejected',
-      );
+    if (payload.containsKey('isAccepted')) {
+      if (payload['isAccepted'] == false) {
+        await imagesDao.rejectImage(
+          iid,
+          optionalString(payload, 'rejectionReason') ?? 'rejected',
+        );
+      } else if (payload['isAccepted'] == true) {
+        await imagesDao.acceptImage(iid);
+      }
     }
 
     if (payload.containsKey('isPlateSolved') &&
@@ -450,16 +498,16 @@ class SessionHandlers {
   Future<Response> handleGetRecentImages(Request request) async {
     _logInfo('[API] GET /api/images/recent');
     final limitParam = request.url.queryParameters['limit'];
+    final limit = limitParam == null
+        ? null
+        : requireQueryInt(
+            request.url.queryParameters,
+            'limit',
+            min: 1,
+            max: 1000,
+          );
     final database = container.read(databaseProvider);
-    if (limitParam != null) {
-      final limit = int.tryParse(limitParam);
-      if (limit == null || limit <= 0) {
-        throw BadRequestError(
-          field: 'limit',
-          expected: 'positive integer',
-          message: 'limit query parameter must be a positive integer',
-        );
-      }
+    if (limit != null) {
       final images = await database.imagesDao.getAllImagesPaginated(
         limit: limit,
         offset: 0,

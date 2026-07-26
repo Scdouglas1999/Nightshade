@@ -190,8 +190,16 @@ class VisualTimeline extends ConsumerWidget {
       );
     }
 
+    // Each target header gets its own timeline row. The default 140px panel
+    // holds up to 6 rows; grow it past that so 7+ targets (e.g. a 3x3
+    // distributed mosaic = 9 panels) all render instead of being clipped below
+    // the canvas.
+    final targetRowCount = segments.map((s) => s.targetHeaderId).toSet().length;
+    final panelHeight =
+        targetRowCount <= 6 ? 140.0 : 140.0 + (targetRowCount - 6) * 22.0;
+
     return Container(
-      height: 140,
+      height: panelHeight,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(top: BorderSide(color: colors.border)),
@@ -344,7 +352,7 @@ class _TimelinePainter extends CustomPainter {
       targetGroups.putIfAbsent(segment.targetHeaderId, () => []).add(segment);
     }
 
-    final rowCount = targetGroups.length.clamp(1, 6);
+    final rowCount = targetGroups.isEmpty ? 1 : targetGroups.length;
     final rowHeight = (barAreaHeight / rowCount).clamp(12.0, 30.0);
     const barGap = 1.0;
 

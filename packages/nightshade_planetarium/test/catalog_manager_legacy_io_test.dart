@@ -104,5 +104,26 @@ void main() {
       expect(CatalogManager.instance.activeDownloads, isEmpty);
       expect(CatalogManager.instance.isDownloading('stars'), isFalse);
     });
+
+    test(
+      'deleteCatalogs removes data and metadata for both legacy catalogs',
+      () async {
+        final files = [
+          File(CatalogManager.instance.starCatalogPath),
+          File(CatalogManager.instance.dsoCatalogPath),
+          File('${tempDir.path}/stars_metadata.json'),
+          File('${tempDir.path}/dso_metadata.json'),
+        ];
+        for (final file in files) {
+          await file.writeAsString('installed');
+        }
+
+        await CatalogManager.instance.deleteCatalogs();
+
+        for (final file in files) {
+          expect(await file.exists(), isFalse, reason: file.path);
+        }
+      },
+    );
   });
 }

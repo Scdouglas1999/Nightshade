@@ -11,8 +11,12 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
+import 'package:nightshade_core/src/database/daos/settings_dao.dart';
 import 'package:nightshade_core/src/services/predictive_af_service.dart';
+
+class _MockSettingsDao extends Mock implements SettingsDao {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -99,6 +103,43 @@ void main() {
       expect(model.confidenceScore, 0.0);
     });
   });
+
+  test(
+    'config persistence commits the complete threshold set atomically',
+    () async {
+      final settings = _MockSettingsDao();
+      when(() => settings.getSetting(any())).thenAnswer((_) async => null);
+      when(() => settings.setSettings(any())).thenAnswer((_) async {});
+      final persistingService = PredictiveAfService(
+        database,
+        settingsDao: settings,
+      );
+      addTearDown(persistingService.dispose);
+      await persistingService.hydrated;
+
+      const config = PredictiveAfConfig(
+        enabled: false,
+        minSamplesForTrust: 9,
+        highConfidenceThreshold: 0.91,
+        lowConfidenceThreshold: 0.61,
+        driftThresholdSteps: 275,
+        driftRunsBeforeWarn: 4,
+      );
+      await persistingService.updateConfig(config);
+
+      final values =
+          verify(() => settings.setSettings(captureAny())).captured.single
+              as Map<String, String>;
+      expect(values, hasLength(6));
+      expect(values['predictive_af.enabled'], 'false');
+      expect(values['predictive_af.min_samples_for_trust'], '9');
+      expect(values['predictive_af.high_confidence_threshold'], '0.91');
+      expect(values['predictive_af.low_confidence_threshold'], '0.61');
+      expect(values['predictive_af.drift_threshold_steps'], '275');
+      expect(values['predictive_af.drift_runs_before_warn'], '4');
+      verifyNever(() => settings.setSetting(any(), any()));
+    },
+  );
 
   group('PredictiveAfService - confidence gates', () {
     Future<void> seedHighConfidence(String filter) async {

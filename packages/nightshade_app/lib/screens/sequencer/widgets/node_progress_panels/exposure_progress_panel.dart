@@ -47,12 +47,22 @@ class _ExposureProgressPanel extends StatelessWidget {
             children: [
               Icon(NightshadeIcons.camera, size: 16, color: colors.success),
               const SizedBox(width: 8),
-              Text(
-                'Exposure: ${node.filter ?? 'No Filter'}',
-                style: NightshadeTypography.labelStrongSm
-                    .copyWith(color: colors.textPrimary),
+              // The filter name is the elastic half of this header: the frame
+              // counter is the number the operator is watching and must never
+              // be the thing that gets pushed off the panel. Both were rigid,
+              // so a long filter name or a scaled-up font size overflowed the
+              // row instead of truncating the title.
+              Expanded(
+                child: Text(
+                  'Exposure: ${node.filter ?? 'No Filter'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: colors.textPrimary),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 '$currentFrame / $totalFrames frames',
                 style: TextStyle(

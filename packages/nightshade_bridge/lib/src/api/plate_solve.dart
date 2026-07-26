@@ -7,7 +7,7 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_saved_preference_to_imaging`, `into_pref`
+// These functions are ignored because they are not marked as `pub`: `apply_saved_preference_to_imaging`, `into_pref`, `plate_solve_gate`, `validate_solver_timeout`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
 /// Check if a plate solver is available
@@ -19,10 +19,13 @@ String? apiGetPlateSolverPath() =>
     RustLib.instance.api.crateApiPlateSolveApiGetPlateSolverPath();
 
 /// Plate solve an image file (blind solve)
-Future<PlateSolveResult> apiPlateSolveBlind({required String filePath}) =>
-    RustLib.instance.api.crateApiPlateSolveApiPlateSolveBlind(
-      filePath: filePath,
-    );
+Future<PlateSolveResult> apiPlateSolveBlind({
+  required String filePath,
+  int? timeoutSecs,
+}) => RustLib.instance.api.crateApiPlateSolveApiPlateSolveBlind(
+  filePath: filePath,
+  timeoutSecs: timeoutSecs,
+);
 
 /// Plate solve an image with hint coordinates
 Future<PlateSolveResult> apiPlateSolveNear({
@@ -30,11 +33,13 @@ Future<PlateSolveResult> apiPlateSolveNear({
   required double hintRa,
   required double hintDec,
   required double searchRadius,
+  int? timeoutSecs,
 }) => RustLib.instance.api.crateApiPlateSolveApiPlateSolveNear(
   filePath: filePath,
   hintRa: hintRa,
   hintDec: hintDec,
   searchRadius: searchRadius,
+  timeoutSecs: timeoutSecs,
 );
 
 /// Detect installed plate solvers and catalogs. Honours the user-configured

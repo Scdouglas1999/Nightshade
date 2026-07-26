@@ -18,6 +18,7 @@ export 'src/enhanced_discovery.dart';
 export 'src/tailnet_detector.dart';
 export 'src/server_compatibility.dart';
 export 'src/server_identity.dart';
+export 'src/network_uri.dart';
 export 'src/remote_pairing_client.dart';
 export 'src/collaboration/live_collaboration_session.dart';
 
@@ -42,6 +43,7 @@ export 'src/database/pairing_database.dart';
 // of lan_push_broadcaster.dart for the wire format + threat model.
 export 'src/push/lan_push_broadcaster.dart';
 export 'src/push/push_config.dart';
+export 'src/push/push_delivery_targets.dart';
 export 'src/push/push_jwt.dart';
 export 'src/push/push_token_store.dart';
 export 'src/push/remote_push_delivery.dart';

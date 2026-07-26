@@ -93,7 +93,8 @@ class ImagingPreviewToolbar extends ConsumerWidget {
       onZoom1to1: onZoom1to1,
       onFitToWindow: onFitToWindow,
       onAbortCapture: onAbortCapture,
-      showAbort: exposureProgress.percent > 0 && exposureProgress.percent < 1.0,
+      showAbort:
+          exposureProgress.remaining > 0 && !exposureProgress.isDownloading,
     );
 
     final trailing = <Widget>[
@@ -280,9 +281,8 @@ class OverlaysMenuButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final annotationSettings =
-        ref.watch(annotationSettingsProvider).valueOrNull ??
-            const AnnotationSettings();
-    final gridType = annotationSettings.gridType;
+        ref.watch(annotationSettingsProvider).valueOrNull;
+    final gridType = annotationSettings?.gridType ?? GridType.none;
     final annotationPanelVisible = ref.watch(annotationPanelVisibleProvider);
     final catalogEnabled = ref.watch(catalogOverlayEnabledProvider);
     final scienceMode = ref.watch(scienceModeStateProvider);
@@ -326,13 +326,17 @@ class OverlaysMenuButton extends ConsumerWidget {
                 : NightshadeIcons.grid,
             label: 'Grid',
             subtitle: switch (gridType) {
-              GridType.none => 'Off',
+              GridType.none =>
+                annotationSettings == null ? 'Settings unavailable' : 'Off',
               GridType.pixel => 'Pixel',
               GridType.celestial => 'RA / Dec',
             },
             active: gridType != GridType.none,
-            onTap: () =>
-                ref.read(annotationSettingsProvider.notifier).cycleGridType(),
+            onTap: annotationSettings == null
+                ? null
+                : () => ref
+                    .read(annotationSettingsProvider.notifier)
+                    .cycleGridType(),
           ),
           _overlayItem(
             value: 2,
@@ -390,11 +394,12 @@ class OverlaysMenuButton extends ConsumerWidget {
     required IconData icon,
     required String label,
     required bool active,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
     String? subtitle,
   }) {
     return PopupMenuItem<int>(
       value: value,
+      enabled: onTap != null,
       // The list/catalog/grid rows also have their own deeper config elsewhere;
       // here a tap simply flips/cycles the same provider the old icon did.
       onTap: onTap,

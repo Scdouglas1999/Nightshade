@@ -5,6 +5,199 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
   // Defect maps
   // ===========================================================================
 
+  Map<String, dynamic> _defectMapStatusJson(DefectMapStatus status) => {
+    'cameraId': status.cameraId,
+    'width': status.width,
+    'height': status.height,
+    'temperatureBucketDecicelsius': status.temperatureBucket.decicelsius,
+    'defectivePixelCount': status.defectivePixelCount,
+    'lastRebuiltUnixSeconds': status.lastRebuiltUnixSeconds,
+    'applyDuringCapture': status.applyDuringCapture,
+    'storedOnDisk': status.storedOnDisk,
+  };
+
+  Future<Map<String, dynamic>> _defectMapSettingsJson() async {
+    final stored = await container.read(settingsDaoProvider).getAllSettings();
+    return {
+      'autoApply': stored[DefectMapSettingsKeys.autoApply] == 'true',
+      'method': DefectMapMethod.fromWire(
+        stored[DefectMapSettingsKeys.method],
+      ).wireValue,
+      'kernelDiameter': DefectMapKernelSize.fromDiameter(
+        int.tryParse(stored[DefectMapSettingsKeys.kernel] ?? '') ?? 3,
+      ).diameter,
+      'saveOriginal': stored[DefectMapSettingsKeys.saveOriginal] == 'true',
+    };
+  }
+
+  Future<Response> handleGetDefectMapSettings(Request request) async {
+    _logInfo('[API] GET /api/calibration/defect-maps/settings');
+    return jsonOk(await _defectMapSettingsJson());
+  }
+
+  Future<Response> handleUpdateDefectMapSettings(Request request) async {
+    _logInfo('[API] POST /api/calibration/defect-maps/settings');
+    final payload = await readJsonObject(request);
+    final updates = <String, String>{};
+
+    if (payload.containsKey('autoApply')) {
+      updates[DefectMapSettingsKeys.autoApply] = requireBool(
+        payload,
+        'autoApply',
+      ).toString();
+    }
+    if (payload.containsKey('saveOriginal')) {
+      updates[DefectMapSettingsKeys.saveOriginal] = requireBool(
+        payload,
+        'saveOriginal',
+      ).toString();
+    }
+    if (payload.containsKey('method')) {
+      final value = requireString(payload, 'method');
+      if (!DefectMapMethod.values.any((method) => method.wireValue == value)) {
+        throw BadRequestError(
+          field: 'method',
+          expected: 'one_of:median,mean,gaussian',
+          message: 'Unknown defect-map replacement method',
+        );
+      }
+      updates[DefectMapSettingsKeys.method] = value;
+    }
+    if (payload.containsKey('kernelDiameter')) {
+      final value = requireInt(payload, 'kernelDiameter');
+      if (!DefectMapKernelSize.values.any(
+        (kernel) => kernel.diameter == value,
+      )) {
+        throw BadRequestError(
+          field: 'kernelDiameter',
+          expected: 'one_of:3,5,7',
+          message: 'Defect-map kernel must be 3, 5, or 7 pixels',
+        );
+      }
+      updates[DefectMapSettingsKeys.kernel] = value.toString();
+    }
+
+    if (updates.isEmpty) {
+      throw BadRequestError(
+        field: 'body',
+        expected: 'at_least_one_defect_map_setting',
+        message: 'At least one defect-map setting is required',
+      );
+    }
+    await container.read(settingsDaoProvider).setSettings(updates);
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.updated,
+      extra: const {'namespace': 'defect-map'},
+    );
+    return jsonOk(await _defectMapSettingsJson());
+  }
+
+  /// GET /api/calibration/defect-maps/status
+  Future<Response> handleGetDefectMapStatus(Request request) async {
+    _logInfo('[API] GET /api/calibration/defect-maps/status');
+    final payload = request.url.queryParameters;
+    final cameraId = requireString(payload, 'cameraId');
+    final width = requireInt(payload, 'width', min: 1);
+    final height = requireInt(payload, 'height', min: 1);
+    final temperature = requireDouble(
+      payload,
+      'sensorTemperatureCelsius',
+      min: -273.15,
+      max: 100,
+    );
+    final status = await container
+        .read(defectMapServiceProvider)
+        .getStatus(
+          cameraId: cameraId,
+          width: width,
+          height: height,
+          sensorTemperatureCelsius: temperature,
+        );
+    return jsonOk({
+      'status': status == null ? null : _defectMapStatusJson(status),
+    });
+  }
+
+  /// POST /api/calibration/defect-maps/clear
+  Future<Response> handleClearDefectMap(Request request) async {
+    _logInfo('[API] POST /api/calibration/defect-maps/clear');
+    final payload = await readJsonObject(request);
+    final cameraId = requireString(payload, 'cameraId');
+    final width = requireInt(payload, 'width', min: 1);
+    final height = requireInt(payload, 'height', min: 1);
+    final temperature = requireDouble(
+      payload,
+      'sensorTemperatureCelsius',
+      min: -273.15,
+      max: 100,
+    );
+    await container
+        .read(defectMapServiceProvider)
+        .clear(
+          cameraId: cameraId,
+          width: width,
+          height: height,
+          sensorTemperatureCelsius: temperature,
+        );
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.updated,
+      extra: const {'namespace': 'defect-map'},
+    );
+    return jsonOk({'status': 'cleared'});
+  }
+
+  /// POST /api/calibration/defect-maps/sequencer-apply
+  Future<Response> handleApplyDefectMapToSequencer(Request request) async {
+    _logInfo('[API] POST /api/calibration/defect-maps/sequencer-apply');
+    final payload = await readJsonObject(request);
+    final cameraId = requireString(payload, 'cameraId');
+    final width = requireInt(payload, 'width', min: 1);
+    final height = requireInt(payload, 'height', min: 1);
+    final temperature = requireDouble(
+      payload,
+      'sensorTemperatureCelsius',
+      min: -273.15,
+      max: 100,
+    );
+    final enabled = requireBool(payload, 'enabled');
+    final methodRaw = requireString(payload, 'method');
+    final method = DefectMapMethod.values
+        .where((value) => value.wireValue == methodRaw)
+        .firstOrNull;
+    if (method == null) {
+      throw BadRequestError(
+        field: 'method',
+        expected: 'one_of:median,mean,gaussian',
+      );
+    }
+    final kernelRaw = requireInt(payload, 'kernelDiameter');
+    final kernel = DefectMapKernelSize.values
+        .where((value) => value.diameter == kernelRaw)
+        .firstOrNull;
+    if (kernel == null) {
+      throw BadRequestError(field: 'kernelDiameter', expected: 'one_of:3,5,7');
+    }
+    final saveOriginal = requireBool(payload, 'saveOriginal');
+
+    await container
+        .read(defectMapServiceProvider)
+        .applyToSequencer(
+          cameraId: cameraId,
+          width: width,
+          height: height,
+          sensorTemperatureCelsius: temperature,
+          enabled: enabled,
+          method: method,
+          kernel: kernel,
+          saveOriginal: saveOriginal,
+        );
+    return jsonOk({'status': 'applied'});
+  }
+
   /// GET /api/calibration/defect-maps
   Future<Response> handleListDefectMaps(Request request) async {
     _logInfo('[API] GET /api/calibration/defect-maps');
@@ -158,6 +351,12 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
         message: 'Failed to read back newly-registered defect map',
       );
     }
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.created,
+      extra: const {'namespace': 'defect-map'},
+    );
     return jsonCreated({'defectMap': await _defectMapMetadataToJson(row)});
   }
 
@@ -210,6 +409,12 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
       darkFramePaths: darkFramePaths,
       sensorTemperatureCelsius: temperatureCelsius,
     );
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.updated,
+      extra: const {'namespace': 'defect-map'},
+    );
 
     return jsonOk({
       'status': {
@@ -241,6 +446,12 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     await service.apply(
       cameraId: cameraId,
       applyDuringCapture: applyDuringCapture,
+    );
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.updated,
+      extra: const {'namespace': 'defect-map'},
     );
 
     return jsonOk({
@@ -311,6 +522,12 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
           'Failed to delete defect-map $iid source file: ${e.message}',
         );
         await (db.delete(db.defectMaps)..where((t) => t.id.equals(iid))).go();
+        publishHostMutationFromContainer(
+          container,
+          entityType: HostMutationEntity.settings,
+          action: HostMutationAction.deleted,
+          extra: const {'namespace': 'defect-map'},
+        );
         return jsonOk({
           'deleted': true,
           'fileDeleted': false,
@@ -322,6 +539,14 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     final rowsAffected = await (db.delete(
       db.defectMaps,
     )..where((t) => t.id.equals(iid))).go();
+    if (rowsAffected > 0) {
+      publishHostMutationFromContainer(
+        container,
+        entityType: HostMutationEntity.settings,
+        action: HostMutationAction.deleted,
+        extra: const {'namespace': 'defect-map'},
+      );
+    }
     return jsonOk({'deleted': rowsAffected > 0, 'fileDeleted': fileDeleted});
   }
 
@@ -378,6 +603,12 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     final refreshed = await (db.select(
       db.defectMaps,
     )..where((t) => t.id.equals(iid))).getSingleOrNull();
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.settings,
+      action: HostMutationAction.updated,
+      extra: const {'namespace': 'defect-map'},
+    );
     return jsonOk({
       'status': {
         'cameraId': status.cameraId,

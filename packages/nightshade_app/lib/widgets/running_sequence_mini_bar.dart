@@ -35,13 +35,11 @@ class RunningSequenceMiniBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final executionState = ref.watch(sequenceExecutionStateProvider);
 
-    // Mirror the in-page controls' visibility: show only while running, paused,
-    // or stopping. Idle and the terminal completed/failed states hide the bar.
-    final isActive = executionState == SequenceExecutionState.running ||
-        executionState == SequenceExecutionState.paused ||
-        executionState == SequenceExecutionState.stopping ||
-        executionState == SequenceExecutionState.recovering;
-    if (!isActive) return const SizedBox.shrink();
+    // Stay reachable across every non-settled state — running, paused,
+    // stopping, recovering, AND the retryable stopFailed / cleanupFailed — so
+    // navigating away never strands a run without a Stop retry. Idle and the
+    // terminal completed/failed states hide the bar.
+    if (!executionState.isBusy) return const SizedBox.shrink();
 
     // On the sequencer route the full controls are already on screen.
     if (currentLocation.split('?').first == kSequencerRoutePath) {
@@ -143,9 +141,11 @@ class RunningSequenceMiniBar extends ConsumerWidget {
                 },
               ),
               const SizedBox(width: 6),
-              // Stop — hold-to-confirm to avoid accidental aborts.
+              // Stop — hold-to-confirm to avoid accidental aborts. Enabled
+              // wherever a stop is meaningful, including a retry from
+              // stopFailed / cleanupFailed.
               HoldToConfirmButton(
-                enabled: canDrive,
+                enabled: executionState.canStop,
                 holdColor: colors.error,
                 confirmText: 'Hold to stop',
                 semanticsLabel: 'Press and hold to stop the sequence',
@@ -155,18 +155,21 @@ class RunningSequenceMiniBar extends ConsumerWidget {
                     colors: colors,
                     icon: LucideIcons.square,
                     tooltip: 'Stop',
-                    isEnabled: canDrive,
+                    isEnabled: executionState.canStop,
                     onPressed: stopSequence,
                   ),
                 ),
               ),
               const SizedBox(width: 6),
-              // Skip current item
+              // Skip current item — valid while the run is live OR paused
+              // (== canDrive above). Route through the canonical [canSkip] so
+              // this matches the toolbar / mobile playback bar instead of
+              // open-coding `isRunning`, which wrongly hid Skip while paused.
               _MiniControlButton(
                 colors: colors,
                 icon: LucideIcons.skipForward,
                 tooltip: 'Skip',
-                isEnabled: isRunning,
+                isEnabled: executionState.canSkip,
                 onPressed: () async {
                   final result =
                       await ref.read(sequenceActionServiceProvider).skip();

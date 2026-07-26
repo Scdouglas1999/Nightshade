@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/snackbar_helper.dart';
 import 'adaptive_chart_container.dart';
 
 part 'period_analysis_panel/result_widgets.dart';
@@ -155,7 +156,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
   Widget _buildPeriodField({
     required TextEditingController controller,
-    required ValueChanged<String> onChanged,
+    ValueChanged<String>? onChanged,
     double width = 70,
   }) {
     return SizedBox(
@@ -274,7 +275,6 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
         final customField = _buildPeriodField(
           controller: _customPeriodController,
           width: 100,
-          onChanged: (_) {},
         );
         Widget foldButton = NightshadeButton(
           label: 'Fold',
@@ -286,6 +286,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                     periodDays: period,
                     lightCurve: widget.lightCurve,
                   );
+            } else {
+              context
+                  .showErrorSnackBar('Enter a period in days greater than 0');
             }
           },
         );
@@ -359,7 +362,11 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
     final pointCount = widget.lightCurve.length;
     final tooFew = pointCount < 10;
     return AdaptiveChartContainer.fixed(
-      height: 120,
+      // The guidance body needs more vertical room than the ready-to-run
+      // prompt. At 120px the compact empty state had only 94px after padding
+      // and border, so its icon, wrapped title, and body overflowed in valid
+      // early-session layouts.
+      height: tooFew ? 190 : 120,
       child: Container(
         decoration: BoxDecoration(
           color: colors.surfaceAlt,

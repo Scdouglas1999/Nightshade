@@ -1,37 +1,39 @@
 {
   "metadataSchemaVersion": 2,
-  "generatedAt": "2026-06-16T19:49:49.405009Z",
+  "generatedAt": "2026-07-21T15:07:02.013296Z",
   "platform": "linux",
   "buildCommand": "dart run melos run build:desktop:linux --no-select",
   "toolVersions": {
     "operatingSystem": "linux",
-    "operatingSystemVersion": "Linux 7.0.11-1-cachyos #1 SMP PREEMPT_DYNAMIC Fri, 05 Jun 2026 09:37:35 +0000",
+    "operatingSystemVersion": "Linux 7.1.2-3-cachyos #1 SMP PREEMPT_DYNAMIC Mon, 29 Jun 2026 14:34:35 +0000",
     "dartVersion": "3.12.1 (stable) (Tue May 26 01:02:21 2026 -0700) on \"linux_x64\"",
-    "flutterVersion": "Flutter 3.44.1 • channel stable • https://github.com/flutter/flutter.git\nFramework • revision 924134a44c (3 weeks ago) • 2026-05-29 12:13:22 -0400\nEngine • hash 39b1f7043775b9578bbb26a1676e79c4e31c8b5e (revision c416acfeb8) (19 days ago) • 2026-05-27 20:19:31.000Z\nTools • Dart 3.12.1 • DevTools 2.57.0",
+    "flutterVersion": "Flutter 3.44.1 • channel stable • https://github.com/flutter/flutter.git\nFramework • revision 924134a44c (8 weeks ago) • 2026-05-29 12:13:22 -0400\nEngine • hash 39b1f7043775b9578bbb26a1676e79c4e31c8b5e (revision c416acfeb8) (1 months ago) • 2026-05-27 20:19:31.000Z\nTools • Dart 3.12.1 • DevTools 2.57.0",
     "rustcVersion": "rustc 1.96.0 (ac68faa20 2026-05-25)",
     "tarVersion": "tar (GNU tar) 1.35\nCopyright (C) 2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\n\nWritten by John Gilmore and Jay Fenlason."
   },
   "bundleDirectory": "/home/scdouglas/Documents/Nightshade2/apps/desktop/build/linux/x64/release/bundle",
   "artifactPath": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz",
   "artifactName": "nightshade-linux-x64.tar.gz",
-  "artifactSizeBytes": 47982077,
-  "artifactSha256": "e17f2862ba778eaa5e7cd4e0b58f90536759131dfc67824bf3d9d718734f6d62",
+  "artifactSizeBytes": 49021744,
+  "artifactSha256": "74d5ad3295f82506a60eca90f1861f4e13f7b65f18ac1bb519143f2fdc8b3735",
   "artifactSha256Path": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz.sha256",
-  "sourceGitHead": "d8f8f443c1e2a69d88aed10544aa346b88217a72",
+  "sourceGitHead": "250049463f0df7c0f2e0cd4392d606ba6163c7cf",
   "githubRunId": null,
   "githubRepository": null,
   "githubSha": null,
-  "fileCount": 830,
-  "bundleSizeBytes": 128744022,
-  "runtimeSmokePassed": false,
-  "runtimeSmokeArtifact": null,
+  "fileCount": 829,
+  "bundleSizeBytes": 131833120,
+  "runtimeSmokePassed": true,
+  "runtimeSmokeArtifact": "/home/scdouglas/Documents/Nightshade2/docs/production-readiness/linux-runtime-smoke.log",
   "nativeLibraryNotes": [
     "Verify native shared libraries with ldd against the packaged Linux bundle.",
-    "Record bundled or runtime-provided vendor SDK libraries before claiming native SDK support."
+    "Record runtime/user-provided vendor SDK libraries before claiming native SDK support; official artifacts do not bundle vendor SDKs.",
+    "ldd resolved the packaged executable and libnightshade_bridge.so dependencies on this Linux host; vendor camera SDK libraries were not installed and remain capability-gated."
   ],
   "linuxPermissionNotes": [
     "Verify USB/serial access with udev rules and dialout, plugdev, or video group membership as needed.",
-    "Record INDI server package/source and whether the smoke used a local or remote INDI server."
+    "Record INDI server package/source and whether the smoke used a local or remote INDI server.",
+    "The package includes packaging/appliance/systemd/99-nightshade-astro.rules; live USB users still require the appropriate dialout, plugdev, or video group membership."
   ],
   "files": [
     {
@@ -46,8 +48,8 @@
     },
     {
       "path": "data/flutter_assets/NOTICES.Z",
-      "sizeBytes": 116029,
-      "sha256": "9ba287fa1905a26dbb5a65514f60f056ebc057fe9d2c37c647e8d0a41946a037"
+      "sizeBytes": 116119,
+      "sha256": "e0ffc2aa88822738a80b19e7bc2c1d2b64fb98c19db64933b546db9a22f063ea"
     },
     {
       "path": "data/flutter_assets/NativeAssetsManifest.json",
@@ -56,8 +58,8 @@
     },
     {
       "path": "data/flutter_assets/assets/planetarium/catalogs/README.md",
-      "sizeBytes": 3089,
-      "sha256": "0b8d7adcd9cb70ba8915dda101fae885112a2e35b7beb62c71772d797044d475"
+      "sizeBytes": 3907,
+      "sha256": "27ea0569c3b4fa34bd34e4d7e9c7d43b2425da18e2f9f27e46677dfeeef79c68"
     },
     {
       "path": "data/flutter_assets/assets/planetarium/catalogs/core/dso-opengnc-v1.bin",
@@ -3997,7 +3999,7 @@
     {
       "path": "data/flutter_assets/version.json",
       "sizeBytes": 107,
-      "sha256": "057b9bab3da0f4bc649ace4e8c1cf1fca69253beb030b326a952395251d664ef"
+      "sha256": "5cf378a3e6320a28cf3f53a72e0357938798dfcbb7d245b915f89b74436cee23"
     },
     {
       "path": "data/flutter_assets/web_dashboard/README.md",
@@ -4006,23 +4008,23 @@
     },
     {
       "path": "data/flutter_assets/web_dashboard/css/dashboard.css",
-      "sizeBytes": 49627,
-      "sha256": "4d7976a6e658806b20dce7cb359180156a87e4f760b5eb677aa72f6e7c74090b"
+      "sizeBytes": 52201,
+      "sha256": "b4968e9b10faafec3c5396809db1f898f4778730d312f762b75b32f8872d214a"
     },
     {
       "path": "data/flutter_assets/web_dashboard/index.html",
-      "sizeBytes": 77771,
-      "sha256": "08203e13a57f178f44d2dcaec01ee5582da85710f06a648c1202612177242e0d"
+      "sizeBytes": 78120,
+      "sha256": "84d6c2bdf489de569578945409ae0d69af6992c2b0f3b48b1a0d7678db274def"
     },
     {
       "path": "data/flutter_assets/web_dashboard/js/api.js",
-      "sizeBytes": 56263,
-      "sha256": "a2ecdfe3b71c24e34ff7e485fc5dbcb8f7550081061540b3dff9bde8ac2e7453"
+      "sizeBytes": 56646,
+      "sha256": "976eb76e3e43be969b0a3ec2d8488258d950bd6243d65c789d998f97e2501b1f"
     },
     {
       "path": "data/flutter_assets/web_dashboard/js/app.js",
-      "sizeBytes": 235027,
-      "sha256": "51f617a17c5b460ab70afae376a3032326724b95204bf7a4b8510c060b9b7bfa"
+      "sizeBytes": 246999,
+      "sha256": "6e9c9e7aaa5935cd5a1b1bf27dd92b88ca7be56374a334688242826920094243"
     },
     {
       "path": "data/flutter_assets/web_run_watch/css/style.css",
@@ -4111,13 +4113,13 @@
     },
     {
       "path": "lib/libapp.so",
-      "sizeBytes": 35996560,
-      "sha256": "2ba74b5ea168ac880987d56382b338f82797c635f5d64adf3d24f3b8b874dc9f"
+      "sizeBytes": 40305552,
+      "sha256": "9f83d95dea3e037aa85f7ca2bbb8fae3f03a7b7b5791cb599d1f3777a8ea4b47"
     },
     {
       "path": "lib/libfile_selector_linux_plugin.so",
       "sizeBytes": 42048,
-      "sha256": "3756d205972bb4e56d7a514ba74b20139c41bb6dde18e4d709c9c710ffa7444c"
+      "sha256": "91b927b42178ca238c6d64536317045cff5cc8baa5b404dd3030a90adc510642"
     },
     {
       "path": "lib/libflutter_linux_gtk.so",
@@ -4127,27 +4129,27 @@
     {
       "path": "lib/libflutter_secure_storage_linux_plugin.so",
       "sizeBytes": 170344,
-      "sha256": "ba7fa935f0c666c678de1427548467aae4588ad0b54ef1ca861fc2d1e0918bd9"
+      "sha256": "d1978cacbf888ef8f654089ee4edb3888f97081bc2ef96558cc2b3d5ebe7a515"
     },
     {
       "path": "lib/libflutter_webrtc_plugin.so",
-      "sizeBytes": 1077944,
-      "sha256": "3705bd8f8eede1e76d753d305cc8d034ceaf8194b22bdd0dd38fd3777e6c769c"
+      "sizeBytes": 1077968,
+      "sha256": "e6f1a6ee86a125ecb197d96b4b563f509d491043b4e8fb02bf148c2ec7f889c5"
     },
     {
       "path": "lib/libirondash_engine_context_plugin.so",
       "sizeBytes": 23880,
-      "sha256": "4f7094dc89247acf86943c1e9395aff9950da2e5813bda6fbe820fa388a70eb6"
+      "sha256": "0841d4864f0e876fa8f13c125cca2e0df2c400ea15d586572dd011089786c6ac"
     },
     {
       "path": "lib/libnightshade_bridge.so",
-      "sizeBytes": 37800248,
-      "sha256": "8e4d9484def1f4efd6e721f7a13e47eb61e4d202ca1da9acda8be48ee526d43b"
+      "sizeBytes": 38391120,
+      "sha256": "39da19b36829f63012fc694a8a60019a713c9ed2ccf85786b98e6a0bc8854b6d"
     },
     {
       "path": "lib/libscreen_retriever_plugin.so",
       "sizeBytes": 23552,
-      "sha256": "c4bcb87d1c6574a5a2f4d34b6970e91fcb7d1e67740a2d423d173be5d7a87628"
+      "sha256": "6bf3c0cafa7ce988e94085ea83904011e86f8f8cc0ab255a5cb4f29bcb6114aa"
     },
     {
       "path": "lib/libsqlite3.so",
@@ -4155,14 +4157,9 @@
       "sha256": "9b1c8c24c3cec49156bd8458e2c4eb01401a8a98375df1396ebb657c1e78512b"
     },
     {
-      "path": "lib/libsqlite3_flutter_libs_plugin.so",
-      "sizeBytes": 1826920,
-      "sha256": "714630b8648916bf2052674245d1bcfac36f55d6989ab7c9f8bca399f407aa30"
-    },
-    {
       "path": "lib/liburl_launcher_linux_plugin.so",
       "sizeBytes": 30800,
-      "sha256": "287b4ee199575e2115e3f971ab7880c4e96e7e3ec839b1f3730d1d3544896aba"
+      "sha256": "a60b6bed2135d7c2d1871dd4fa319177bed4108e09dc3b95b2157c097cfb1672"
     },
     {
       "path": "lib/libwebrtc.so",
@@ -4172,7 +4169,7 @@
     {
       "path": "lib/libwindow_manager_plugin.so",
       "sizeBytes": 63168,
-      "sha256": "0166fce4cc4f67e0944753fb2be302ec098e9a887e89672c9de9ff4aabb40075"
+      "sha256": "c8b5b85a153ad4390de3464f975ca3432f9c20d17b72a6e61b5910f255efa8ff"
     },
     {
       "path": "lib/native_assets.json",
@@ -4181,8 +4178,8 @@
     },
     {
       "path": "nightshade_desktop",
-      "sizeBytes": 24920,
-      "sha256": "4e08bb5bf24d8cee8f5c9a72551e6ff6451c86cf79051f965ba1e5da07988e3b"
+      "sizeBytes": 24864,
+      "sha256": "9ea7bd5765ba8587f37d39d9dbf66bd65f92cf49fe66a3b80bd5f65866213629"
     }
   ],
   "notes": [

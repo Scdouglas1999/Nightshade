@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +7,38 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../utils/snackbar_helper.dart';
 import 'dialogs/import_summary_dialog.dart';
+
+typedef SequenceImportFilePicker = Future<file_selector.XFile?> Function();
+
+Future<file_selector.XFile?> _pickSequenceImportFile() {
+  return file_selector.openFile(
+    acceptedTypeGroups: const [
+      file_selector.XTypeGroup(
+        label: 'Sequences & target lists',
+        extensions: ['json', 'sgf', 'csv', 'ics'],
+      ),
+      file_selector.XTypeGroup(
+        label: 'NINA / SGP sequence',
+        extensions: ['json', 'sgf'],
+      ),
+      file_selector.XTypeGroup(
+        label: 'Telescopius / Astrobin CSV',
+        extensions: ['csv'],
+      ),
+      file_selector.XTypeGroup(
+        label: 'Nightshade observing list',
+        extensions: ['json'],
+      ),
+      file_selector.XTypeGroup(
+        label: 'iCalendar',
+        extensions: ['ics'],
+      ),
+    ],
+  );
+}
+
+final sequenceImportFilePickerProvider =
+    Provider<SequenceImportFilePicker>((ref) => _pickSequenceImportFile);
 
 /// Top-level entry point for importing a NINA / SGP sequence.
 ///
@@ -22,47 +52,48 @@ import 'dialogs/import_summary_dialog.dart';
 class ImportSequenceFlow {
   ImportSequenceFlow._();
 
+  static bool _running = false;
+
   /// Run the full flow. Returns `true` if a sequence was imported (and saved
   /// and/or loaded into the editor), `false` if the user cancelled or an
   /// error occurred.
   static Future<bool> run(BuildContext context, WidgetRef ref) async {
-    // Loop until the user either picks a file or explicitly cancels via the
-    // "No file selected" prompt — silently aborting on first dismissal made
-    // it look like the menu item was broken.
-    file_selector.XFile? file;
-    while (file == null) {
-      file = await file_selector.openFile(
-        acceptedTypeGroups: const [
-          file_selector.XTypeGroup(
-            label: 'Sequences & target lists',
-            extensions: ['json', 'sgf', 'csv', 'ics'],
-          ),
-          file_selector.XTypeGroup(
-            label: 'NINA / SGP sequence',
-            extensions: ['json', 'sgf'],
-          ),
-          file_selector.XTypeGroup(
-            label: 'Telescopius / Astrobin CSV',
-            extensions: ['csv'],
-          ),
-          file_selector.XTypeGroup(
-            label: 'Nightshade observing list',
-            extensions: ['json'],
-          ),
-          file_selector.XTypeGroup(
-            label: 'iCalendar',
-            extensions: ['ics'],
-          ),
-        ],
-      );
-      if (file != null) break;
-      if (!context.mounted) return false;
-      final retry = await _promptNoFileSelected(context);
-      if (retry != true) return false;
-      if (!context.mounted) return false;
+    if (_running) return false;
+    _running = true;
+    try {
+      return await _run(context, ref);
+    } finally {
+      _running = false;
     }
+  }
 
-    final content = await File(file.path).readAsString();
+  static Future<bool> _run(BuildContext context, WidgetRef ref) async {
+    final authority = ref.read(backendProvider);
+    final file_selector.XFile? file;
+    try {
+      file = await ref.read(sequenceImportFilePickerProvider)();
+    } catch (e) {
+      if (!context.mounted) return false;
+      if (!_requireCurrentAuthority(context, ref, authority)) return false;
+      context.showErrorSnackBar('Could not open the file picker: $e');
+      return false;
+    }
+    // Dismissing a platform file picker is the conventional Cancel action.
+    if (file == null) return false;
+    if (!context.mounted) return false;
+    if (!_requireCurrentAuthority(context, ref, authority)) return false;
+
+    final String content;
+    try {
+      content = await file.readAsString();
+    } catch (e) {
+      if (!context.mounted) return false;
+      if (!_requireCurrentAuthority(context, ref, authority)) return false;
+      context.showErrorSnackBar('Could not read "${file.name}": $e');
+      return false;
+    }
+    if (!context.mounted) return false;
+    if (!_requireCurrentAuthority(context, ref, authority)) return false;
     final importer = ref.read(sequenceImporterProvider);
     final defaultName = _basename(file.name);
 
@@ -73,28 +104,45 @@ class ImportSequenceFlow {
     // surface format-specific summaries (e.g. "12 resolved, 3 unresolved").
     // For everything else, fall through to the standard synchronous
     // importFromString pipeline.
-    final detected = importer.detectFormatOrNull(content);
     ImportResult? result;
-    if (detected == SourceFormat.astrobinCsv) {
-      result = await _importAstrobinWithRetry(
-          context, importer, content, defaultName);
-    } else if (detected == SourceFormat.icsCalendar) {
-      result =
-          await _importIcsWithRetry(context, importer, content, defaultName);
-    } else {
-      // First, try a strict (no-force) import.
-      result = await _parseWithRetry(context, importer, content, defaultName);
+    try {
+      final detected = importer.detectFormatOrNull(content);
+      if (detected == SourceFormat.astrobinCsv) {
+        result = await _importAstrobinWithRetry(
+          context,
+          importer,
+          content,
+          defaultName,
+        );
+      } else if (detected == SourceFormat.icsCalendar) {
+        result = await _importIcsWithRetry(
+          context,
+          importer,
+          content,
+          defaultName,
+        );
+      } else {
+        result = await _parseWithRetry(context, importer, content, defaultName);
+      }
+    } catch (e) {
+      if (!context.mounted) return false;
+      if (!_requireCurrentAuthority(context, ref, authority)) return false;
+      context.showErrorSnackBar('Import failed unexpectedly: $e');
+      return false;
     }
     if (result == null) return false;
-
     if (!context.mounted) return false;
+    if (!_requireCurrentAuthority(context, ref, authority)) return false;
+
     final decision = await ImportSummaryDialog.show(context, result: result);
     if (decision == null || decision.cancelled) return false;
+    if (!context.mounted) return false;
+    if (!_requireCurrentAuthority(context, ref, authority)) return false;
 
     var sequence = result.sequence;
-    if (decision.sequenceName.isNotEmpty &&
-        decision.sequenceName != sequence.name) {
-      sequence = sequence.copyWith(name: decision.sequenceName);
+    final requestedName = decision.sequenceName.trim();
+    if (requestedName.isNotEmpty && requestedName != sequence.name) {
+      sequence = sequence.copyWith(name: requestedName);
     }
 
     // Record dropped/unsupported nodes in the sequence description so the
@@ -109,13 +157,49 @@ class ImportSequenceFlow {
       sequence = sequence.copyWith(description: combined);
     }
 
+    var discardUnsaved = false;
+    if (decision.destination == ImportDestination.openInEditor) {
+      if (!ref.read(canEditSequenceProvider)) {
+        context.showErrorSnackBar(
+          'Stop the active sequence before opening an imported sequence.',
+        );
+        return false;
+      }
+      final editor = ref.read(currentSequenceProvider.notifier);
+      if (editor.isDirty) {
+        final currentName =
+            ref.read(currentSequenceProvider)?.name ?? 'Current sequence';
+        if (!context.mounted) return false;
+        final confirmed = await _confirmDiscardUnsaved(
+          context,
+          UnsavedChangesException(
+            attemptedOperation: 'open imported sequence',
+            currentSequenceName: currentName,
+          ),
+        );
+        if (confirmed != true || !context.mounted) return false;
+        if (!_requireCurrentAuthority(context, ref, authority)) return false;
+        discardUnsaved = true;
+      }
+    }
+
     // Persist to library. Both destinations save — the only difference is
     // whether we also load the imported sequence into the editor.
+    if (!context.mounted) return false;
+    if (!_requireCurrentAuthority(context, ref, authority)) return false;
     final repo = ref.read(sequenceRepositoryProvider);
     final int dbId;
     try {
       dbId = await repo.saveSequence(sequence);
       sequence = sequence.copyWith(databaseId: dbId);
+      if (!context.mounted) return true;
+      if (!identical(ref.read(backendProvider), authority)) {
+        context.showWarningSnackBar(
+          'The sequence was saved to the previous host, but the imaging host '
+          'changed before the editor could be updated.',
+        );
+        return true;
+      }
       notifySequenceCatalogChanged(
         ref,
         sequenceId: dbId,
@@ -124,19 +208,31 @@ class ImportSequenceFlow {
       );
     } catch (e) {
       if (!context.mounted) return false;
+      if (!_requireCurrentAuthority(context, ref, authority)) return false;
       context.showErrorSnackBar('Failed to save imported sequence: $e');
       return false;
     }
 
     final fmt = result.sourceFormat.displayName;
+    if (!context.mounted) return true;
     switch (decision.destination!) {
       case ImportDestination.openInEditor:
         final loaded = await _loadSequenceWithDirtyCheck(
           context,
           ref,
           sequence,
+          discardUnsaved: discardUnsaved,
+          authority: authority,
         );
-        if (!loaded) return false;
+        if (!loaded) {
+          if (context.mounted) {
+            context.showWarningSnackBar(
+              'Imported "${sequence.name}" to the library, but the editor '
+              'could not be replaced.',
+            );
+          }
+          return true;
+        }
         if (!context.mounted) return true;
         context.showSuccessSnackBar(
             'Imported "${sequence.name}" ($fmt) and opened in editor');
@@ -477,95 +573,23 @@ class ImportSequenceFlow {
     }
   }
 
-  /// Shown after the user dismisses the file picker without selecting a
-  /// file. Returns `true` if the user wants to reopen the picker, `false`
-  /// if they want to cancel the import entirely.
-  static Future<bool?> _promptNoFileSelected(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-            top: Radius.circular(NightshadeTokens.radiusLg)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(LucideIcons.fileX, size: 18, color: colors.warning),
-                    const SizedBox(width: 8),
-                    Text(
-                      'No file selected',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize15,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Choose a sequence or target-list file to import.\n'
-                  'Supported formats: NINA (.json), SGP (.sgf), Telescopius / '
-                  'Astrobin (.csv), Nightshade observing list (.json), '
-                  'iCalendar (.ics).',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    color: colors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    NightshadeButton(
-                      label: 'Cancel',
-                      variant: ButtonVariant.ghost,
-                      size: ButtonSize.small,
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                    ),
-                    const SizedBox(width: 8),
-                    NightshadeButton(
-                      label: 'Pick a file',
-                      icon: LucideIcons.folderOpen,
-                      size: ButtonSize.small,
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   /// Loads [sequence] into the editor via `loadSequence`. If the editor
   /// has unsaved edits, prompts the user before discarding them. Returns
   /// `true` on success, `false` if the user cancelled.
   static Future<bool> _loadSequenceWithDirtyCheck(
-    BuildContext context,
-    WidgetRef ref,
-    Sequence sequence,
-  ) async {
+      BuildContext context, WidgetRef ref, Sequence sequence,
+      {bool discardUnsaved = false,
+      required NightshadeBackend authority}) async {
     final editor = ref.read(currentSequenceProvider.notifier);
     try {
-      editor.loadSequence(sequence);
+      editor.loadSequence(sequence, discardUnsaved: discardUnsaved);
       return true;
     } on UnsavedChangesException catch (e) {
       if (!context.mounted) return false;
       final confirmed = await _confirmDiscardUnsaved(context, e);
       if (confirmed != true) return false;
+      if (!context.mounted) return false;
+      if (!_requireCurrentAuthority(context, ref, authority)) return false;
       editor.loadSequence(sequence, discardUnsaved: true);
       return true;
     } on SequenceLockedException catch (e) {
@@ -647,6 +671,20 @@ class ImportSequenceFlow {
     final base = lastSep >= 0 ? path.substring(lastSep + 1) : path;
     final dot = base.lastIndexOf('.');
     return dot > 0 ? base.substring(0, dot) : base;
+  }
+
+  static bool _requireCurrentAuthority(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeBackend authority,
+  ) {
+    if (!context.mounted) return false;
+    if (identical(ref.read(backendProvider), authority)) return true;
+    context.showWarningSnackBar(
+      'The imaging host changed while importing that sequence. Import it '
+      'again for the current host.',
+    );
+    return false;
   }
 
   static Future<bool?> _confirmForceImport(

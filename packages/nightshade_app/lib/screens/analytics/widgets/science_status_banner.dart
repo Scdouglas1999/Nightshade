@@ -28,10 +28,41 @@ class ScienceStatusBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final snapshot = ref.watch(scienceProcessingStatusProvider).valueOrNull;
+    final statusAsync = ref.watch(scienceProcessingStatusProvider);
+    final error = statusAsync.error;
+
+    if (statusAsync.hasError && error != null) {
+      final style = _BannerStyle.error(colors);
+      return _StatusContainer(
+        style: style,
+        colors: colors,
+        icon: LucideIcons.alertTriangle,
+        headline: 'Science status unavailable',
+        subtitle: error.toString(),
+        trailing: TextButton(
+          onPressed: () => ref.invalidate(scienceProcessingStatusProvider),
+          child: const Text('Retry'),
+        ),
+      );
+    }
+
+    final snapshot = statusAsync.valueOrNull;
 
     if (snapshot == null) {
-      return const SizedBox.shrink();
+      final style = _BannerStyle.busy(colors);
+      return _StatusContainer(
+        style: style,
+        colors: colors,
+        leading: SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.6,
+            valueColor: AlwaysStoppedAnimation<Color>(style.accent),
+          ),
+        ),
+        headline: 'Loading science status…',
+      );
     }
 
     final inflight = snapshot.inflight;
@@ -93,6 +124,57 @@ class ScienceStatusBanner extends ConsumerWidget {
       icon = LucideIcons.flaskConical;
     }
 
+    return _StatusContainer(
+      style: style,
+      colors: colors,
+      icon: icon,
+      leading: leadingProgress,
+      headline: headline,
+      subtitle: subtitle,
+      trailing: inflight != null && inflight.stages.isNotEmpty
+          ? _StageTicker(
+              statuses: inflight.stages.values.toList(growable: false),
+              colors: colors,
+            )
+          : null,
+    );
+  }
+
+  bool _isRecent(DateTime ts) =>
+      DateTime.now().difference(ts) < const Duration(minutes: 10);
+
+  String _relativeTime(DateTime ts) {
+    final delta = DateTime.now().difference(ts);
+    if (delta.inSeconds < 30) return 'just now';
+    if (delta.inSeconds < 60) return '${delta.inSeconds}s ago';
+    if (delta.inMinutes < 60) return '${delta.inMinutes}m ago';
+    if (delta.inHours < 24) return '${delta.inHours}h ago';
+    return '${delta.inDays}d ago';
+  }
+}
+
+class _StatusContainer extends StatelessWidget {
+  const _StatusContainer({
+    required this.style,
+    required this.colors,
+    required this.headline,
+    this.icon,
+    this.leading,
+    this.subtitle,
+    this.trailing,
+  }) : assert(icon != null || leading != null);
+
+  final _BannerStyle style;
+  final NightshadeColors colors;
+  final String headline;
+  final IconData? icon;
+  final Widget? leading;
+  final String? subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitleText = subtitle;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -102,10 +184,10 @@ class ScienceStatusBanner extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          if (leadingProgress != null)
-            leadingProgress
+          if (leading != null)
+            leading!
           else
-            Icon(icon, size: 16, color: style.accent),
+            Icon(icon!, size: 16, color: style.accent),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -120,11 +202,11 @@ class ScienceStatusBanner extends ConsumerWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (subtitle != null && subtitle.isNotEmpty)
+                if (subtitleText != null && subtitleText.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      subtitle,
+                      subtitleText,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -137,26 +219,10 @@ class ScienceStatusBanner extends ConsumerWidget {
               ],
             ),
           ),
-          if (inflight != null && inflight.stages.isNotEmpty)
-            _StageTicker(
-              statuses: inflight.stages.values.toList(growable: false),
-              colors: colors,
-            ),
+          if (trailing != null) trailing!,
         ],
       ),
     );
-  }
-
-  bool _isRecent(DateTime ts) =>
-      DateTime.now().difference(ts) < const Duration(minutes: 10);
-
-  String _relativeTime(DateTime ts) {
-    final delta = DateTime.now().difference(ts);
-    if (delta.inSeconds < 30) return 'just now';
-    if (delta.inSeconds < 60) return '${delta.inSeconds}s ago';
-    if (delta.inMinutes < 60) return '${delta.inMinutes}m ago';
-    if (delta.inHours < 24) return '${delta.inHours}h ago';
-    return '${delta.inDays}d ago';
   }
 }
 

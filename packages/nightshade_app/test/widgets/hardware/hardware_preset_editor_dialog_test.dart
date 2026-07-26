@@ -132,6 +132,75 @@ void main() {
       expect(saved.focalRatio, closeTo(5.0, 1e-9));
     });
 
+    // Regression: the editor validated optics only against `> 0`, so a custom
+    // telescope preset could carry 999999999 mm at 0.0001 mm (f/9999999990000).
+    // A preset prefills the equipment profile editor and drives the planetarium
+    // FOV overlay, so it needs the same bounds a profile has.
+    testWidgets('rejects an implausible focal length / aperture pair',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      Object? result = 'unset';
+
+      await _pumpHost(
+        tester,
+        db: db,
+        open: (context) => HardwarePresetEditorDialog.editTelescope(context),
+        onResult: (r) => result = r,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. Sky-Watcher'), 'Acme');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. Esprit 100ED'), 'Absurd');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. 550'), '999999999');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. 100'), '0.0001');
+
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Focal length must be between 1 and 50000 mm'),
+          findsOneWidget);
+      expect(
+          find.text('Aperture must be between 1 and 5000 mm'), findsOneWidget);
+      expect(result, 'unset', reason: 'nothing may be persisted or returned');
+    });
+
+    testWidgets('rejects an impossible f-ratio built from in-range fields',
+        (tester) async {
+      final db = _newDb();
+      addTearDown(db.close);
+      Object? result = 'unset';
+
+      await _pumpHost(
+        tester,
+        db: db,
+        open: (context) => HardwarePresetEditorDialog.editTelescope(context),
+        onResult: (r) => result = r,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. Sky-Watcher'), 'Acme');
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. Esprit 100ED'), 'Ratio');
+      // Both numbers are individually in range; only f/20000 is impossible.
+      await tester.enterText(
+          find.widgetWithText(TextField, 'e.g. 550'), '40000');
+      await tester.enterText(find.widgetWithText(TextField, 'e.g. 100'), '2');
+
+      await tester.tap(find.widgetWithText(NightshadeButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('f/20000'), findsOneWidget);
+      expect(result, 'unset');
+    });
+
     testWidgets('editing a built-in stores a user override under its id',
         (tester) async {
       final db = _newDb();

@@ -11,16 +11,123 @@ class AnnotationSettingsPage extends ConsumerWidget {
 
   const AnnotationSettingsPage({super.key, this.isMobile = false});
 
+  SettingsPage _authorityState({
+    required BuildContext context,
+    required String authority,
+    required VoidCallback onRetry,
+    Object? error,
+  }) {
+    return SettingsPage(
+      title: 'Annotations',
+      description: 'Configure object annotations on captured images',
+      isMobile: isMobile,
+      hideHeader: isMobile,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Column(
+            children: [
+              if (error == null)
+                const CircularProgressIndicator()
+              else
+                Icon(
+                  LucideIcons.alertTriangle,
+                  color: NightshadeColors.of(context).error,
+                ),
+              const SizedBox(height: 12),
+              Text(
+                error == null
+                    ? 'Loading $authority…'
+                    : 'Could not load $authority',
+                textAlign: TextAlign.center,
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  error.toString(),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                NightshadeButton(
+                  label: 'Retry annotation settings',
+                  icon: LucideIcons.refreshCw,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: onRetry,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _resetAuthority(
+    BuildContext context, {
+    required String label,
+    required Future<void> Function() reset,
+  }) async {
+    try {
+      await reset();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$label reset to defaults')),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not reset $label: $error'),
+            backgroundColor: NightshadeColors.of(context).error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(annotationSettingsProvider);
     final markerStyleAsync = ref.watch(annotationMarkerStyleProvider);
+
+    if (settingsAsync.hasError) {
+      return _authorityState(
+        context: context,
+        authority: 'annotation display settings',
+        error: settingsAsync.error,
+        onRetry: () => ref.invalidate(annotationSettingsProvider),
+      );
+    }
+    if (!settingsAsync.hasValue) {
+      return _authorityState(
+        context: context,
+        authority: 'annotation display settings',
+        onRetry: () => ref.invalidate(annotationSettingsProvider),
+      );
+    }
+    if (markerStyleAsync.hasError) {
+      return _authorityState(
+        context: context,
+        authority: 'annotation marker styles',
+        error: markerStyleAsync.error,
+        onRetry: () => ref.invalidate(annotationMarkerStyleProvider),
+      );
+    }
+    if (!markerStyleAsync.hasValue) {
+      return _authorityState(
+        context: context,
+        authority: 'annotation marker styles',
+        onRetry: () => ref.invalidate(annotationMarkerStyleProvider),
+      );
+    }
+
     final settingsNotifier = ref.read(annotationSettingsProvider.notifier);
     final markerNotifier = ref.read(annotationMarkerStyleProvider.notifier);
 
-    final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
-    final markerStyle =
-        markerStyleAsync.valueOrNull ?? const AnnotationMarkerStyle();
+    final settings = settingsAsync.requireValue;
+    final markerStyle = markerStyleAsync.requireValue;
 
     return SettingsPage(
       title: 'Annotations',
@@ -97,7 +204,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
                     'RA/Dec' => GridType.celestial,
                     _ => GridType.none,
                   };
-                  settingsNotifier.setGridType(type);
+                  return settingsNotifier.setGridType(type);
                 },
                 isMobile: isMobile,
               ),
@@ -401,17 +508,41 @@ class AnnotationSettingsPage extends ConsumerWidget {
         ),
         const SizedBox(height: 20),
 
-        // Reset Button
+        // Each persisted authority resets independently so a failed marker
+        // write cannot masquerade as a successful all-settings reset.
         Center(
-          child: NightshadeButton(
-            label: 'Reset to Defaults',
-            icon: LucideIcons.rotateCcw,
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () {
-              settingsNotifier.reset();
-              markerNotifier.reset();
-            },
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              NightshadeButton(
+                label: 'Reset display settings',
+                icon: LucideIcons.rotateCcw,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () {
+                  _resetAuthority(
+                    context,
+                    label: 'Annotation display settings',
+                    reset: settingsNotifier.reset,
+                  );
+                },
+              ),
+              NightshadeButton(
+                label: 'Reset marker styles',
+                icon: LucideIcons.rotateCcw,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () {
+                  _resetAuthority(
+                    context,
+                    label: 'Annotation marker styles',
+                    reset: markerNotifier.reset,
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ],

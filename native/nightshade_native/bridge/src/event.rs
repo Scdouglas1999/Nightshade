@@ -428,6 +428,21 @@ pub enum SequencerEvent {
     Resumed,
     Stopped,
     Completed,
+    /// The run ended in FAILURE. Terminal, and the counterpart of
+    /// [`SequencerEvent::Completed`] / [`SequencerEvent::Stopped`].
+    ///
+    /// `ExecutorEvent::SequenceFailed` used to be flattened onto
+    /// `SequencerEvent::Error`, which the Dart executor handles as a
+    /// *non-terminal* mid-run error. The consequence was that Dart's
+    /// `case 'SequenceFailed'` branch — the one that drives
+    /// `_onTerminalEvent` — was unreachable dead code, so a failed run NEVER
+    /// finalized: `sequence_runs.status` stayed `'running'` with a null
+    /// `ended_at`, the imaging session stayed active, and the next start was
+    /// refused with `active_session_exists` until the operator manually reset
+    /// the sequencer.
+    Failed {
+        error: String,
+    },
     NodeStarted {
         node_id: String,
         node_type: String,
@@ -464,6 +479,35 @@ pub enum SequencerEvent {
     },
     Error {
         message: String,
+    },
+    /// A meridian flip finished. Mirrors
+    /// `ExecutorEvent::MeridianFlipOutcome`.
+    ///
+    /// The flip is the single most dangerous thing the app does unattended and
+    /// it used to be entirely absent from the wire: the run vitals reported
+    /// `meridianFlips: 0` after a flip that had physically swapped pier sides,
+    /// and a flip whose post-flip plate-solve recenter FAILED left
+    /// `errorMessages: []` on a run reported as `completed`. This variant is
+    /// the typed verdict the Dart run-stats layer consumes — deliberately
+    /// typed rather than string-sniffed off the log, matching the Pack-H
+    /// migration away from regex-parsed `detail` strings.
+    MeridianFlipOutcome {
+        /// `"success"`, `"failed"`, or `"aborted"`.
+        outcome: String,
+        /// Target the flip was performed for.
+        target_name: String,
+        /// Pier side reported after the flip (`East` / `West` / `Unknown`).
+        new_pier_side: String,
+        /// Wall-clock seconds for the whole flip, retries included.
+        duration_secs: f64,
+        /// Attempts made; `> 1` means the flip was DEGRADED.
+        attempts: u32,
+        /// One `"<step>: <error>"` per failed attempt, oldest first.
+        failed_steps: Vec<String>,
+        /// Terminal error. `None` on a clean success.
+        error: Option<String>,
+        /// Failure action executed (`"PauseAndAlert"` / `"AbortAndPark"`).
+        action_taken: Option<String>,
     },
     /// A trigger watchdog fired during sequence execution
     TriggerFired {

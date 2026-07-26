@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
+import '../backend/ffi_backend.dart';
 import '../database/daos/sky_atlas_dao.dart';
 import '../database/database.dart';
 import '../database/tables/sky_atlas_tables.dart' show skyAtlasHealpixOrder;
@@ -51,6 +52,70 @@ final skyAtlasServiceProvider = Provider<SkyAtlasService>((ref) {
     },
   );
 });
+
+/// Authority-aware writer for the atlas's named-region metadata.
+///
+/// A desktop host writes its local atlas service; a companion writes through
+/// the active NetworkBackend. A disconnected client fails explicitly instead
+/// of populating its throwaway local database and pretending the host changed.
+final skyAtlasRegionWriterProvider = Provider<SkyAtlasRegionWriter>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return SkyAtlasRegionWriter.remote(backend);
+  }
+  if (backend is FfiBackend) {
+    return SkyAtlasRegionWriter.local(ref.watch(skyAtlasServiceProvider));
+  }
+  return const SkyAtlasRegionWriter.unavailable();
+});
+
+class SkyAtlasRegionWriter {
+  final SkyAtlasService? _local;
+  final NetworkBackend? _remote;
+
+  const SkyAtlasRegionWriter.local(SkyAtlasService service)
+    : _local = service,
+      _remote = null;
+
+  const SkyAtlasRegionWriter.remote(NetworkBackend backend)
+    : _local = null,
+      _remote = backend;
+
+  const SkyAtlasRegionWriter.unavailable() : _local = null, _remote = null;
+
+  Future<int> ensureRegion({
+    required String name,
+    required double centerRaDeg,
+    required double centerDecDeg,
+    required double radiusDeg,
+    String kind = 'custom',
+    int? targetId,
+  }) {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.createAtlasRegion(
+        name: name,
+        centerRaDeg: centerRaDeg,
+        centerDecDeg: centerDecDeg,
+        radiusDeg: radiusDeg,
+        kind: kind,
+        targetId: targetId,
+      );
+    }
+    final local = _local;
+    if (local != null) {
+      return local.ensureRegion(
+        name: name,
+        centerRaDeg: centerRaDeg,
+        centerDecDeg: centerDecDeg,
+        radiusDeg: radiusDeg,
+        kind: kind,
+        targetId: targetId,
+      );
+    }
+    throw StateError('Connect to an imaging host before naming a sky region.');
+  }
+}
 
 /// Per-tile coverage rows (deepest first) for the heat overlay / gallery.
 /// Remote (companion) mode reads the host's coverage over REST, refreshed when
@@ -125,15 +190,25 @@ Stream<List<T>> _remoteAtlasSnapshotStream<T>(
   final controller = StreamController<List<T>>();
   final logger = ref.read(loggingServiceProvider);
   Timer? debounce;
+  var emittedOnce = false;
 
   Future<void> refetch() async {
     try {
       final raw = await fetch();
       final rows = raw.map(fromJson).toList(growable: false);
-      if (!controller.isClosed) controller.add(rows);
+      if (!controller.isClosed) {
+        controller.add(rows);
+        emittedOnce = true;
+      }
     } catch (e) {
-      // Transient (reconnect / host busy): keep the last good snapshot rather
-      // than flashing empty. Logged at debug so the swallow stays observable.
+      // After a prior good snapshot this is transient (reconnect / host busy):
+      // keep the last snapshot rather than flashing empty. But if the very
+      // first fetch fails the StreamProvider would hang in loading forever, so
+      // surface the error to drive the view's error + Retry state.
+      if (!emittedOnce) {
+        if (!controller.isClosed) controller.addError(e);
+        return;
+      }
       logger.debug(
         'Remote atlas snapshot refetch failed; keeping last good snapshot: $e',
         source: 'SkyAtlasProvider',

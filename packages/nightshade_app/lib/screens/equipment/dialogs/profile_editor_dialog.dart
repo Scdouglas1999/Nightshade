@@ -11,6 +11,7 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../utils/profile_save_errors.dart';
+import '../../../utils/count_label.dart';
 
 part 'profile_editor_dialog/profile_data_operations.dart';
 part 'profile_editor_dialog/shell_and_identity.dart';
@@ -58,6 +59,12 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
+  // Inline validation error for the Profile Name field. Set by [_validateForm]
+  // when the trimmed name is blank or too long, cleared as soon as the user
+  // edits the field. Replaces the old `_isSaving`-keyed errorText, which never
+  // produced a stable inline correction.
+  String? _nameError;
+
   // Track which sections are expanded
   final Map<String, bool> _expandedSections = {
     'identity': true,
@@ -85,11 +92,10 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   final _filterWheelNameController = TextEditingController();
   final _guiderNameController = TextEditingController();
   final _rotatorNameController = TextEditingController();
-  final _domeNameController = TextEditingController();
-  final _weatherNameController = TextEditingController();
+  // Dome/weather/cover-calibrator have no persisted friendly-name column, so
+  // their rows show only the device id (no name controller).
   final _safetyMonitorNameController = TextEditingController();
   final _switchNameController = TextEditingController();
-  final _coverCalibratorNameController = TextEditingController();
 
   String? _cameraId;
   String? _mountId;
@@ -191,15 +197,12 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       _rotatorId = profile.rotatorId;
       _rotatorNameController.text = profile.rotatorName ?? '';
       _domeId = profile.domeId;
-      _domeNameController.text = profile.domeId ?? '';
       _weatherId = profile.weatherId;
-      _weatherNameController.text = profile.weatherId ?? '';
       _safetyMonitorId = profile.safetyMonitorId;
-      _safetyMonitorNameController.text = profile.safetyMonitorId ?? '';
+      _safetyMonitorNameController.text = profile.safetyMonitorName ?? '';
       _switchId = profile.switchId;
-      _switchNameController.text = profile.switchId ?? '';
+      _switchNameController.text = profile.switchName ?? '';
       _coverCalibratorId = profile.coverCalibratorId;
-      _coverCalibratorNameController.text = profile.coverCalibratorId ?? '';
 
       // Section 4: Filters
       for (int i = 0; i < profile.filterNames.length; i++) {
@@ -241,11 +244,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     _filterWheelNameController.dispose();
     _guiderNameController.dispose();
     _rotatorNameController.dispose();
-    _domeNameController.dispose();
-    _weatherNameController.dispose();
     _safetyMonitorNameController.dispose();
     _switchNameController.dispose();
-    _coverCalibratorNameController.dispose();
     _gainController.dispose();
     _offsetController.dispose();
     _coolingTargetController.dispose();
@@ -303,34 +303,40 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     // Phone: the editor is presented as a full-screen route (see [show]). Fill
     // the screen with a Scaffold + SafeArea instead of a small centered card.
     if (isPhone) {
-      return Scaffold(
-        backgroundColor: colors.background,
-        body: SafeArea(child: content),
+      return PopScope(
+        canPop: !_isSaving,
+        child: Scaffold(
+          backgroundColor: colors.background,
+          body: SafeArea(child: content),
+        ),
       );
     }
 
     // Tablet/desktop: a centered, viewport-capped dialog card.
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        width: dialogMaxWidth(context, 600),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+    return PopScope(
+      canPop: !_isSaving,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          width: dialogMaxWidth(context, 600),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+          ),
+          decoration: BoxDecoration(
+            color: colors.background,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            border: Border.all(color: colors.border),
+            boxShadow: [
+              BoxShadow(
+                // absolute: drop-shadow tone is a theme-independent black scrim
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: content,
         ),
-        decoration: BoxDecoration(
-          color: colors.background,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(color: colors.border),
-          boxShadow: [
-            BoxShadow(
-              // absolute: drop-shadow tone is a theme-independent black scrim
-              color: Colors.black.withValues(alpha: 0.5),
-              blurRadius: 24,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: content,
       ),
     );
   }

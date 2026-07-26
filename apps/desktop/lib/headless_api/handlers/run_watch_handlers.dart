@@ -41,6 +41,7 @@ import 'package:shelf/shelf.dart';
 
 import '../display_buffer_jpeg.dart';
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// Handlers for the Run-Watch web monitoring surface.
 ///
@@ -211,18 +212,29 @@ class RunWatchHandlers {
     try {
       final alertService = container.read(weatherAlertServiceProvider);
       final alert = alertService.currentAlert;
-      final isSafe = alert == null || alert.level == AlertLevel.clear;
+      final safety = container.read(weatherSafetyProvider);
+      final message =
+          alert?.message ??
+          safety.actions.reason ??
+          safety.failModeWarning ??
+          (safety.isSafe
+              ? 'Conditions are safe for imaging'
+              : 'Weather safety has not been evaluated');
       weatherBlock = {
-        'safeToImage': isSafe,
-        'alertLevel': alert?.level.name ?? 'none',
-        'message': alert?.message ?? 'No weather data available',
+        'safeToImage': safety.isSafe,
+        'alertLevel': alert?.level.name ?? safety.currentAlertLevel.name,
+        'message': message,
+        'dataSource': safety.dataSource.name,
+        'lastEvaluation': safety.lastEvaluation?.toIso8601String(),
       };
     } catch (e) {
       _logWarning('snapshot: weather service read failed: $e');
       weatherBlock = {
-        'safeToImage': true,
+        'safeToImage': false,
         'alertLevel': 'unknown',
         'message': 'Weather service unavailable',
+        'dataSource': 'unavailable',
+        'lastEvaluation': null,
       };
     }
 
@@ -485,9 +497,13 @@ class RunWatchHandlers {
   ///               the payload phone-friendly.
   ///   quality   — optional JPEG quality 1..100, default 75.
   Future<Response> handleFrameThumbnail(Request request) async {
+    final query = request.url.queryParameters;
+    final maxWidth =
+        optionalQueryInt(query, 'maxWidth', min: 1, max: 16384) ?? 1024;
+    final quality = optionalQueryInt(query, 'quality', min: 1, max: 100) ?? 75;
     final backend = container.read(deviceBackendProvider);
 
-    final queryDeviceId = request.url.queryParameters['deviceId']?.trim();
+    final queryDeviceId = query['deviceId']?.trim();
     String? deviceId = (queryDeviceId == null || queryDeviceId.isEmpty)
         ? null
         : queryDeviceId;
@@ -514,12 +530,6 @@ class RunWatchHandlers {
       });
     }
 
-    final maxWidth =
-        int.tryParse(request.url.queryParameters['maxWidth'] ?? '') ?? 1024;
-    final quality =
-        (int.tryParse(request.url.queryParameters['quality'] ?? '') ?? 75)
-            .clamp(1, 100);
-
     CapturedImageResult? image;
     try {
       image = await backend.cameraGetLastImage(deviceId);
@@ -527,7 +537,10 @@ class RunWatchHandlers {
       _logWarning('frame-thumbnail: cameraGetLastImage($deviceId) failed: $e');
       return jsonNotFound({
         'error': 'image_unavailable',
-        'message': 'Failed to fetch last image: $e',
+        // `$e` here shipped the freezed constructor form to the client
+        // ("Failed to fetch last image: NightshadeError.noImageAvailable()",
+        // observed live). See [describeBackendError].
+        'message': 'Failed to fetch last image: ${describeBackendError(e)}',
       });
     }
 
@@ -554,6 +567,7 @@ class RunWatchHandlers {
       });
     }
 
+    final timestamp = capturedImageTimestampUtc(image.timestamp);
     return contentResponse(
       encoded.bytes,
       contentType: 'image/jpeg',
@@ -562,7 +576,7 @@ class RunWatchHandlers {
         // Strong no-cache: the frame is constantly changing; an
         // intermediary cache would freeze the phone display.
         'cache-control': 'no-store, no-cache, must-revalidate',
-        'x-frame-timestamp': image.timestamp,
+        'x-frame-timestamp': timestamp,
         'x-frame-exposure-secs': image.exposureTime.toString(),
         if (image.stats.hfr != null) 'x-frame-hfr': image.stats.hfr!.toString(),
         'x-frame-star-count': image.stats.starCount.toString(),

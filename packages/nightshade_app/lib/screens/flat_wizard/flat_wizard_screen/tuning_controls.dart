@@ -4,15 +4,28 @@ class _HistogramTargetSlider extends StatelessWidget {
   final double value;
   final ValueChanged<double> onChanged;
 
+  /// Effective, capability-resolved camera config. The target is shown as an
+  /// absolute ADU against the DETECTED full scale (e.g. 4095 for a 12-bit
+  /// camera) so the operator never targets an impossible level.
+  final FlatCaptureConfig config;
+
   const _HistogramTargetSlider({
     super.key,
     required this.value,
     required this.onChanged,
+    required this.config,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    final targetAdu = config.targetAduFor(value).round();
+    final depthLabel =
+        config.bitDepth != null ? ' · ${config.bitDepth}-bit' : '';
+    // "of the detected range": target ADU shown against the effective full
+    // scale, so the percentage's real meaning is explicit for any bit depth.
+    final aduLabel = '~$targetAdu / ${config.maxAdu} ADU$depthLabel';
 
     return Column(
       children: [
@@ -27,12 +40,16 @@ class _HistogramTargetSlider extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            Text(
-              '~${FlatExposureCalculator.histogramPercentToAdu(value)} ADU',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontFamily: 'monospace',
+            Flexible(
+              child: Text(
+                aduLabel,
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted,
+                  fontFamily: 'monospace',
+                ),
               ),
             ),
           ],

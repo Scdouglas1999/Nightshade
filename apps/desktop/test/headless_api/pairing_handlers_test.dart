@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/auth/pairing_service.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+
+import 'handler_test_helpers.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
 void main() {
@@ -20,7 +22,7 @@ void main() {
     setUp(() async {
       final database = PairingDatabase.forTesting(NativeDatabase.memory());
       pairingService = PairingService(database: database);
-      container = ProviderContainer(
+      container = createHeadlessTestContainer(
         overrides: [
           appVersionProvider.overrideWithValue(
             const AppVersionInfo(version: '2.5.0', buildNumber: 5),
@@ -105,6 +107,41 @@ void main() {
       );
 
       expect(allowed.statusCode, HttpStatus.ok);
+    });
+
+    test('verify honors a fine-grained requestedScope', () async {
+      final start = await pairingService.startPairing();
+
+      final verify = await _request(
+        client,
+        baseUri,
+        '/api/pairing/verify',
+        method: 'POST',
+        body: {
+          'code': start.code,
+          'deviceId': 'scoped-phone',
+          'deviceName': 'Scoped Phone',
+          'deviceType': 'mobile',
+          'requestedScope': 'camera:control,mount:view',
+        },
+      );
+
+      expect(verify.statusCode, HttpStatus.ok);
+      expect(verify.body['tokenScope'], 'camera:control,mount:view');
+      final token = verify.body['token'] as String;
+
+      // The grant lets it read mount status but not slew.
+      final slew = await _request(
+        client,
+        baseUri,
+        '/api/mount/slew',
+        method: 'POST',
+        token: token,
+        body: {'ra': 1.0, 'dec': 1.0},
+      );
+      expect(slew.statusCode, HttpStatus.forbidden);
+      expect(slew.body['requiredResource'], 'mount');
+      expect(slew.body['requiredLevel'], 'control');
     });
 
     test('info advertises fingerprint', () async {
@@ -223,6 +260,166 @@ void main() {
       },
     );
   });
+
+  test(
+    'admin and fine-grained grants survive restart; malformed grants do not',
+    () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'nightshade_pairing_restart_',
+      );
+      addTearDown(() async {
+        if (await dir.exists()) await dir.delete(recursive: true);
+      });
+      final dbFile = File('${dir.path}/pairing.db');
+      final client = HttpClient();
+      addTearDown(() => client.close(force: true));
+
+      final firstContainer = createHeadlessTestContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(
+            const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+          ),
+        ],
+      );
+      final firstPairing = PairingService(
+        database: PairingDatabase.forTesting(NativeDatabase(dbFile)),
+      );
+      final firstServer = HeadlessApiServer(
+        port: 0,
+        container: firstContainer,
+        bindLocalOnly: true,
+        authToken: 'host-admin-token',
+        pairingService: firstPairing,
+      );
+      await firstServer.start();
+      final firstUri = Uri.parse('http://127.0.0.1:${firstServer.actualPort}');
+
+      String adminToken;
+      String scopedToken;
+      try {
+        final adminStart = await firstPairing.startPairing();
+        final adminVerify = await _request(
+          client,
+          firstUri,
+          '/api/pairing/verify',
+          method: 'POST',
+          body: {
+            'code': adminStart.code,
+            'deviceId': 'restart-admin',
+            'deviceName': 'Restart Admin',
+            'requestedScope': 'admin',
+          },
+        );
+        expect(adminVerify.statusCode, HttpStatus.ok);
+        adminToken = adminVerify.body['token'] as String;
+
+        final scopedStart = await firstPairing.startPairing();
+        final scopedVerify = await _request(
+          client,
+          firstUri,
+          '/api/pairing/verify',
+          method: 'POST',
+          body: {
+            'code': scopedStart.code,
+            'deviceId': 'restart-scoped',
+            'deviceName': 'Restart Scoped',
+            'requestedScope': 'camera:control,mount:view',
+          },
+        );
+        expect(scopedVerify.statusCode, HttpStatus.ok);
+        scopedToken = scopedVerify.body['token'] as String;
+
+        expect(
+          (await firstPairing.database.getPairedDevice(
+            'restart-admin',
+          ))!.authGrantSpec,
+          'admin',
+        );
+        expect(
+          (await firstPairing.database.getPairedDevice(
+            'restart-scoped',
+          ))!.authGrantSpec,
+          'camera:control,mount:view',
+        );
+      } finally {
+        await firstServer.stop();
+        firstContainer.dispose();
+      }
+
+      // A damaged authorization record must never be guessed back into a
+      // broad grant. Seed one directly so startup hydration exercises its
+      // fail-closed path alongside the valid persisted rows.
+      final seedDb = PairingDatabase.forTesting(NativeDatabase(dbFile));
+      await seedDb.addPairedDevice(
+        deviceId: 'restart-malformed',
+        deviceName: 'Malformed Grant',
+        sessionToken: 'malformed-session-token',
+        deviceType: 'mobile',
+        expiresAt: DateTime.now().add(const Duration(days: 1)),
+        authGrantSpec: 'definitely-not-a-grant',
+      );
+      await seedDb.close();
+
+      final secondContainer = createHeadlessTestContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(
+            const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+          ),
+        ],
+      );
+      final secondServer = HeadlessApiServer(
+        port: 0,
+        container: secondContainer,
+        bindLocalOnly: true,
+        authToken: 'host-admin-token',
+        pairingService: PairingService(
+          database: PairingDatabase.forTesting(NativeDatabase(dbFile)),
+        ),
+      );
+      await secondServer.start();
+      final secondUri = Uri.parse(
+        'http://127.0.0.1:${secondServer.actualPort}',
+      );
+      try {
+        final adminAllowed = await _request(
+          client,
+          secondUri,
+          '/api/openapi.json',
+          token: adminToken,
+        );
+        expect(adminAllowed.statusCode, HttpStatus.ok);
+
+        final scopedReadAllowed = await _request(
+          client,
+          secondUri,
+          '/api/mount/status',
+          token: scopedToken,
+        );
+        expect(scopedReadAllowed.statusCode, isNot(HttpStatus.forbidden));
+
+        final scopedWriteBlocked = await _request(
+          client,
+          secondUri,
+          '/api/mount/slew',
+          method: 'POST',
+          token: scopedToken,
+          body: {'ra': 1.0, 'dec': 1.0},
+        );
+        expect(scopedWriteBlocked.statusCode, HttpStatus.forbidden);
+
+        final malformedBlocked = await _request(
+          client,
+          secondUri,
+          '/api/mount/status',
+          token: 'malformed-session-token',
+        );
+        expect(malformedBlocked.statusCode, HttpStatus.forbidden);
+      } finally {
+        await secondServer.stop();
+        secondContainer.dispose();
+      }
+    },
+  );
 }
 
 Future<_TestResponse> _request(

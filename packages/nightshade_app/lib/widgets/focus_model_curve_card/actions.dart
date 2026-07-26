@@ -1,18 +1,49 @@
 part of '../focus_model_curve_card.dart';
 
-class _ActionRow extends ConsumerWidget {
+class _ActionRow extends ConsumerStatefulWidget {
   final String profileId;
   final FocuserState focuserState;
   final NightshadeColors colors;
+  final VoidCallback onChanged;
 
   const _ActionRow({
     required this.profileId,
     required this.focuserState,
     required this.colors,
+    required this.onChanged,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ActionRow> createState() => _ActionRowState();
+}
+
+class _ActionRowState extends ConsumerState<_ActionRow> {
+  bool _busy = false;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _operationGeneration++;
+        if (mounted && _busy) setState(() => _busy = false);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       children: [
         NightshadeButton(
@@ -20,110 +51,18 @@ class _ActionRow extends ConsumerWidget {
           icon: LucideIcons.plus,
           size: ButtonSize.small,
           variant: ButtonVariant.outline,
-          onPressed: () => _showAddPointDialog(context, ref),
+          onPressed: _busy ? null : () => _runAction('add'),
+          isLoading: _busy,
         ),
         const Spacer(),
         PopupMenuButton<String>(
+          enabled: !_busy,
           tooltip: 'More',
-          icon: Icon(LucideIcons.moreHorizontal, color: colors.textSecondary),
-          onSelected: (value) async {
-            final focusService = ref.read(focusModelServiceProvider);
-            switch (value) {
-              case 'export':
-                final json = focusService.exportData(profileId);
-                if (context.mounted) {
-                  await showDialog<void>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Export focus data'),
-                      content: SingleChildScrollView(
-                        child: SelectableText(json),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Close'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                break;
-              case 'import':
-                final controller = TextEditingController();
-                final result = await showDialog<String>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Import focus data'),
-                    content: TextField(
-                      controller: controller,
-                      maxLines: 8,
-                      decoration: const InputDecoration(
-                        hintText: 'Paste JSON exported from another device',
-                      ),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () =>
-                            Navigator.of(context).pop(controller.text),
-                        child: const Text('Import'),
-                      ),
-                    ],
-                  ),
-                );
-                if (result != null && result.trim().isNotEmpty) {
-                  try {
-                    await focusService.importData(profileId, result);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Focus data imported')),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Import failed: $e')),
-                      );
-                    }
-                  }
-                }
-                break;
-              case 'clear':
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Clear focus model?'),
-                    content: const Text(
-                      'This deletes all collected focus data points and the '
-                      'fitted model. This cannot be undone.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Clear'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await focusService.clearProfileData(profileId);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Focus model cleared')),
-                    );
-                  }
-                }
-                break;
-            }
-          },
+          icon: Icon(
+            LucideIcons.moreHorizontal,
+            color: widget.colors.textSecondary,
+          ),
+          onSelected: _runAction,
           itemBuilder: (_) => const [
             PopupMenuItem(value: 'export', child: Text('Export JSON')),
             PopupMenuItem(value: 'import', child: Text('Import JSON')),
@@ -135,118 +74,391 @@ class _ActionRow extends ConsumerWidget {
     );
   }
 
-  Future<void> _showAddPointDialog(BuildContext context, WidgetRef ref) async {
+  Future<void> _runAction(String action) async {
+    if (_busy) return;
+    final backend = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
+    setState(() => _busy = true);
+
+    try {
+      switch (action) {
+        case 'add':
+          await _addPoint(backend, generation);
+        case 'export':
+          await _exportData(backend, generation);
+        case 'import':
+          await _importData(backend, generation);
+        case 'clear':
+          await _clearData(backend, generation);
+      }
+    } catch (error) {
+      if (_isCurrent(backend, generation)) {
+        _showMessage('Focus model action failed: $error');
+      }
+    } finally {
+      if (_isCurrent(backend, generation)) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _addPoint(
+    NightshadeBackend backend,
+    int generation,
+  ) async {
     final focuserState = ref.read(focuserStateProvider);
     final filterWheel = ref.read(filterWheelStateProvider);
-
-    final positionCtrl = TextEditingController(
-      text: focuserState.position?.toString() ?? '',
-    );
-    final hfrCtrl = TextEditingController();
-    final tempCtrl = TextEditingController(
-      text: focuserState.temperature?.toStringAsFixed(2) ?? '',
-    );
-    String? selectedFilter = filterWheel.currentFilterName;
-
-    final saved = await showDialog<bool>(
+    final draft = await showDialog<_FocusPointDraft>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Add focus data point'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: positionCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Focuser position (steps)',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: hfrCtrl,
-                  decoration: const InputDecoration(labelText: 'HFR'),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: tempCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Temperature (°C)',
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(
-                    signed: true,
-                    decimal: true,
-                  ),
-                ),
-                if (filterWheel.filterNames.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  StatefulBuilder(builder: (ctx, setState) {
-                    return DropdownButtonFormField<String>(
-                      initialValue: selectedFilter,
-                      decoration: const InputDecoration(labelText: 'Filter'),
-                      items: filterWheel.filterNames
-                          .map(
-                              (n) => DropdownMenuItem(value: n, child: Text(n)))
-                          .toList(),
-                      onChanged: (v) => setState(() => selectedFilter = v),
-                    );
-                  }),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _AddFocusPointDialog(
+        initialPosition: focuserState.position,
+        initialTemperature: focuserState.temperature,
+        filterNames: filterWheel.filterNames,
+        initialFilter: filterWheel.currentFilterName,
+      ),
     );
+    if (draft == null || !_ensureCurrent(backend, generation)) return;
 
-    if (saved != true) return;
-    final position = int.tryParse(positionCtrl.text.trim());
-    final hfr = double.tryParse(hfrCtrl.text.trim());
-    final temp = double.tryParse(tempCtrl.text.trim());
-    if (position == null || hfr == null || temp == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Position, HFR and temperature are required'),
+    if (backend is NetworkBackend) {
+      await backend.addFocusDataPoint(
+        temperature: draft.temperature,
+        position: draft.position,
+        hfr: draft.hfr,
+        filter: draft.filter,
+      );
+    } else {
+      await ref.read(focusModelServiceProvider).addDataPoint(
+            profileId: widget.profileId,
+            temperatureCelsius: draft.temperature,
+            focusPosition: draft.position,
+            hfr: draft.hfr,
+            filterName: draft.filter,
+          );
+    }
+    await _refreshAfterMutation(backend, generation);
+    if (_isCurrent(backend, generation)) _showMessage('Focus point added');
+  }
+
+  Future<void> _exportData(
+    NightshadeBackend backend,
+    int generation,
+  ) async {
+    final exported = backend is NetworkBackend
+        ? const JsonEncoder.withIndent('  ')
+            .convert(await backend.exportFocusModel())
+        : ref.read(focusModelServiceProvider).exportData(widget.profileId);
+    if (!_ensureCurrent(backend, generation)) return;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Export focus data'),
+        content: SingleChildScrollView(child: SelectableText(exported)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
           ),
-        );
-      }
+        ],
+      ),
+    );
+  }
+
+  Future<void> _importData(
+    NightshadeBackend backend,
+    int generation,
+  ) async {
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => const _FocusImportDialog(),
+    );
+    if (data == null || !_ensureCurrent(backend, generation)) return;
+
+    if (backend is NetworkBackend) {
+      await backend.importFocusModel(data);
+    } else {
+      await ref
+          .read(focusModelServiceProvider)
+          .importData(widget.profileId, jsonEncode(data));
+    }
+    await _refreshAfterMutation(backend, generation);
+    if (_isCurrent(backend, generation)) _showMessage('Focus data imported');
+  }
+
+  Future<void> _clearData(
+    NightshadeBackend backend,
+    int generation,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Clear focus model?'),
+        content: const Text(
+          'This deletes all collected focus data points and the fitted model. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !_ensureCurrent(backend, generation)) return;
+
+    if (backend is NetworkBackend) {
+      await backend.clearFocusModelData();
+    } else {
+      await ref
+          .read(focusModelServiceProvider)
+          .clearProfileData(widget.profileId);
+    }
+    await _refreshAfterMutation(backend, generation);
+    if (_isCurrent(backend, generation)) _showMessage('Focus model cleared');
+  }
+
+  Future<void> _refreshAfterMutation(
+    NightshadeBackend backend,
+    int generation,
+  ) async {
+    if (!_isCurrent(backend, generation)) return;
+    ref.invalidate(focusProfileDataProvider(widget.profileId));
+    if (backend is! NetworkBackend) widget.onChanged();
+    await ref.read(filterOffsetProvider.notifier).reload();
+  }
+
+  bool _ensureCurrent(NightshadeBackend backend, int generation) {
+    if (_isCurrent(backend, generation)) return true;
+    if (mounted) {
+      _showMessage('The imaging host changed. Focus action cancelled.');
+    }
+    return false;
+  }
+
+  bool _isCurrent(NightshadeBackend backend, int generation) {
+    return mounted &&
+        generation == _operationGeneration &&
+        identical(ref.read(backendProvider), backend);
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
+
+class _FocusPointDraft {
+  final int position;
+  final double hfr;
+  final double temperature;
+  final String? filter;
+
+  const _FocusPointDraft({
+    required this.position,
+    required this.hfr,
+    required this.temperature,
+    required this.filter,
+  });
+}
+
+class _AddFocusPointDialog extends StatefulWidget {
+  final int? initialPosition;
+  final double? initialTemperature;
+  final List<String> filterNames;
+  final String? initialFilter;
+
+  const _AddFocusPointDialog({
+    required this.initialPosition,
+    required this.initialTemperature,
+    required this.filterNames,
+    required this.initialFilter,
+  });
+
+  @override
+  State<_AddFocusPointDialog> createState() => _AddFocusPointDialogState();
+}
+
+class _AddFocusPointDialogState extends State<_AddFocusPointDialog> {
+  late final TextEditingController _positionController;
+  late final TextEditingController _hfrController;
+  late final TextEditingController _temperatureController;
+  String? _selectedFilter;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _positionController = TextEditingController(
+      text: widget.initialPosition?.toString() ?? '',
+    );
+    _hfrController = TextEditingController();
+    _temperatureController = TextEditingController(
+      text: widget.initialTemperature?.toStringAsFixed(2) ?? '',
+    );
+    _selectedFilter = widget.filterNames.contains(widget.initialFilter)
+        ? widget.initialFilter
+        : null;
+  }
+
+  @override
+  void dispose() {
+    _positionController.dispose();
+    _hfrController.dispose();
+    _temperatureController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final position = int.tryParse(_positionController.text.trim());
+    final hfr = double.tryParse(_hfrController.text.trim());
+    final temperature = double.tryParse(_temperatureController.text.trim());
+    if (position == null || position < 0) {
+      setState(() => _error = 'Enter a non-negative focuser position.');
       return;
     }
-    try {
-      await ref.read(focusModelServiceProvider).addDataPoint(
-            profileId: profileId,
-            temperatureCelsius: temp,
-            focusPosition: position,
-            hfr: hfr,
-            filterName: selectedFilter,
-          );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Focus point added')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to add point: $e')),
-        );
-      }
+    if (hfr == null || !hfr.isFinite || hfr <= 0) {
+      setState(() => _error = 'Enter an HFR greater than zero.');
+      return;
     }
+    if (temperature == null || !temperature.isFinite) {
+      setState(() => _error = 'Enter a valid temperature.');
+      return;
+    }
+    Navigator.of(context).pop(
+      _FocusPointDraft(
+        position: position,
+        hfr: hfr,
+        temperature: temperature,
+        filter: _selectedFilter,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add focus data point'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _positionController,
+              decoration: const InputDecoration(
+                labelText: 'Focuser position (steps)',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _hfrController,
+              decoration: const InputDecoration(labelText: 'HFR'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _temperatureController,
+              decoration: const InputDecoration(labelText: 'Temperature (°C)'),
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: true,
+                decimal: true,
+              ),
+            ),
+            if (widget.filterNames.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedFilter,
+                decoration: const InputDecoration(labelText: 'Filter'),
+                items: widget.filterNames
+                    .map((name) => DropdownMenuItem(
+                          value: name,
+                          child: Text(name),
+                        ))
+                    .toList(),
+                onChanged: (value) => setState(() => _selectedFilter = value),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(onPressed: _submit, child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+class _FocusImportDialog extends StatefulWidget {
+  const _FocusImportDialog();
+
+  @override
+  State<_FocusImportDialog> createState() => _FocusImportDialogState();
+}
+
+class _FocusImportDialogState extends State<_FocusImportDialog> {
+  final _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    try {
+      final decoded = jsonDecode(_controller.text.trim());
+      if (decoded is! Map) {
+        throw const FormatException('Expected a JSON object');
+      }
+      Navigator.of(context).pop(Map<String, dynamic>.from(decoded));
+    } catch (error) {
+      setState(() => _error = 'Invalid focus-data JSON: $error');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Import focus data'),
+      content: TextField(
+        controller: _controller,
+        maxLines: 8,
+        onChanged: (_) {
+          if (_error != null) setState(() => _error = null);
+        },
+        decoration: InputDecoration(
+          hintText: 'Paste JSON exported from another device',
+          errorText: _error,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(onPressed: _submit, child: const Text('Import')),
+      ],
+    );
   }
 }
 

@@ -150,7 +150,11 @@ class _AddConstraintWizardDialogState
   }
 
   Widget _buildFooter(NightshadeColors colors) {
-    final canAdvance = _step == 1 ? _kind != null : true;
+    final canAdvance = _step == 1
+        ? _kind != null
+        : !(_step == 2 &&
+            _kind == TargetConstraintKind.customHorizon &&
+            (widget.horizonProfiles.isEmpty || _horizonId == null));
     return Row(
       children: [
         NightshadeButton(

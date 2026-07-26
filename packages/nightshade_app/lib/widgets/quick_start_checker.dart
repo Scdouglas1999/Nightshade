@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../utils/authority_bound_dialog.dart';
+import '../utils/startup_surface_coordinator.dart';
+import '../utils/startup_ui_context.dart';
 import 'quick_start_dialog.dart';
 import 'session_recovery_dialog.dart';
 
@@ -27,6 +32,7 @@ class QuickStartChecker extends ConsumerStatefulWidget {
 
 class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
   bool _hasChecked = false;
+  bool _recheckScheduled = false;
 
   @override
   void initState() {
@@ -41,6 +47,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     if (_hasChecked || !mounted) return;
 
     _hasChecked = true;
+    final authority = ref.read(backendProvider);
 
     try {
       // First priority: Check for crashed/interrupted sessions
@@ -48,19 +55,32 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
           await ref.read(incompleteSessionsProvider.future);
 
       if (!mounted) return;
+      if (!_isCurrentAuthority(authority)) {
+        _scheduleRecheck();
+        return;
+      }
 
       if (incompleteSessions.isNotEmpty && mounted) {
         // Show recovery dialog for interrupted sessions (takes priority)
         await Future.delayed(const Duration(milliseconds: 500));
 
-        if (mounted) {
-          await showDialog(
-            context: context,
+        if (mounted && _isCurrentAuthority(authority)) {
+          final uiContext = _uiContext;
+          if (uiContext == null || !uiContext.mounted) {
+            _scheduleRecheck();
+            return;
+          }
+          await _showAuthorityDialog<void>(
+            authority: authority,
+            context: uiContext,
             barrierDismissible: false,
             builder: (context) => SessionRecoveryDialog(
               incompleteSessions: incompleteSessions,
             ),
           );
+        }
+        if (mounted && !_isCurrentAuthority(authority)) {
+          _scheduleRecheck();
         }
         return;
       }
@@ -70,38 +90,165 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
           await ref.read(quickStartContextProvider.future);
 
       if (!mounted) return;
+      if (!_isCurrentAuthority(authority)) {
+        _scheduleRecheck();
+        return;
+      }
 
       if (quickStartContext != null && quickStartContext.isRecent && mounted) {
         // Show quick start dialog
         await Future.delayed(const Duration(milliseconds: 500));
 
-        if (mounted) {
-          await QuickStartDialog.show(
-            context,
-            quickStartContext: quickStartContext,
-            onStartFresh: () => _handleStartFresh(quickStartContext),
-            onResumeProgress: () => _handleResumeProgress(quickStartContext),
-            onSkip: () {
-              // Just dismiss - user chose to skip
-              ref
-                  .read(loggingServiceProvider)
-                  .info('User skipped quick start', source: 'QuickStart');
-            },
+        if (mounted && _isCurrentAuthority(authority)) {
+          final uiContext = _uiContext;
+          if (uiContext == null || !uiContext.mounted) {
+            _scheduleRecheck();
+            return;
+          }
+          await _showAuthorityDialog<void>(
+            authority: authority,
+            context: uiContext,
+            builder: (dialogContext) => QuickStartDialog(
+              quickStartContext: quickStartContext,
+              onStartFresh: () {
+                Navigator.of(dialogContext).pop();
+                unawaited(_handleStartFresh(quickStartContext, authority));
+              },
+              onResumeProgress: () {
+                Navigator.of(dialogContext).pop();
+                unawaited(_handleResumeProgress(quickStartContext, authority));
+              },
+              onSkip: () {
+                Navigator.of(dialogContext).pop();
+                ref.read(loggingServiceProvider).info(
+                      'User skipped quick start',
+                      source: 'QuickStart',
+                    );
+              },
+            ),
           );
+        }
+        if (mounted && !_isCurrentAuthority(authority)) {
+          _scheduleRecheck();
         }
       }
     } catch (e, st) {
-      // Caught and degraded: background startup check should not surface an
-      // error to the user, but we MUST keep the failure visible in logs.
+      if (mounted && !_isCurrentAuthority(authority)) {
+        _scheduleRecheck();
+        return;
+      }
       ref.read(loggingServiceProvider).warning(
         'Error checking startup options: $e',
         source: 'QuickStart',
         fields: {'stackTrace': st.toString()},
       );
+      if (!mounted) return;
+
+      // Recovery discovery is data-protection work, not an ignorable
+      // background refresh. Keep the app usable, but make the uncertainty
+      // explicit and give the operator a one-tap retry. Do not continue into
+      // Quick Start after this failure: that would imply the recovery scan
+      // completed and found nothing.
+      final uiContext = _uiContext;
+      final messenger = uiContext != null && uiContext.mounted
+          ? ScaffoldMessenger.maybeOf(uiContext)
+          : null;
+      messenger?.clearSnackBars();
+      messenger?.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Nightshade could not check for an interrupted imaging session. '
+            'Recovery status is unknown.',
+          ),
+          duration: const Duration(days: 1),
+          action: SnackBarAction(
+            label: 'Retry',
+            onPressed: () {
+              _hasChecked = false;
+              ref.invalidate(incompleteSessionsProvider);
+              unawaited(_checkForStartupOptions());
+            },
+          ),
+        ),
+      );
     }
   }
 
-  Future<void> _handleStartFresh(QuickStartContext context) async {
+  bool _isCurrentAuthority(NightshadeBackend authority) =>
+      mounted && identical(ref.read(backendProvider), authority);
+
+  BuildContext? get _uiContext => resolveStartupUiContext(ref, context);
+
+  void _scheduleRecheck() {
+    if (!mounted || _recheckScheduled) return;
+    _recheckScheduled = true;
+    _hasChecked = false;
+    ref.invalidate(incompleteSessionsProvider);
+    ref.invalidate(quickStartContextProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _recheckScheduled = false;
+      if (mounted) unawaited(_checkForStartupOptions());
+    });
+  }
+
+  Future<T?> _showAuthorityDialog<T>({
+    required NightshadeBackend authority,
+    required BuildContext context,
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+  }) async {
+    return ref.read(startupSurfaceCoordinatorProvider).run<T?>(() async {
+      if (!mounted || !context.mounted || !_isCurrentAuthority(authority)) {
+        return null;
+      }
+
+      BuildContext? dialogContext;
+      final subscription = ref.listenManual<NightshadeBackend>(
+        backendProvider,
+        (previous, next) {
+          if (identical(next, authority)) return;
+          final routeContext = dialogContext;
+          if (routeContext != null && routeContext.mounted) {
+            closeAuthorityBoundDialog(routeContext);
+          }
+        },
+      );
+      try {
+        return await showDialog<T>(
+          context: context,
+          barrierDismissible: barrierDismissible,
+          builder: (routeContext) {
+            dialogContext = routeContext;
+            return builder(routeContext);
+          },
+        );
+      } finally {
+        subscription.close();
+      }
+    });
+  }
+
+  void _showAuthorityChanged() {
+    if (!mounted) return;
+    final uiContext = _uiContext;
+    if (uiContext == null) return;
+    ScaffoldMessenger.of(uiContext).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'The imaging host changed. Quick Start was cancelled.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleStartFresh(
+    QuickStartContext context,
+    NightshadeBackend authority,
+  ) async {
+    if (!_isCurrentAuthority(authority)) {
+      _showAuthorityChanged();
+      return;
+    }
     final logger = ref.read(loggingServiceProvider);
     logger.info(
       'Starting fresh with context: ${context.displayDescription}',
@@ -109,23 +256,34 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     );
 
     try {
+      if (context.canResumeFromCheckpoint) {
+        await authority.discardCheckpoint();
+        if (!_isCurrentAuthority(authority)) return;
+        logger.info(
+          'Discarded resumable checkpoint before loading a fresh setup',
+          source: 'QuickStart',
+        );
+      }
+
       // Load the equipment profile
       if (context.profileId != null) {
         final profilesNotifier = ref.read(equipmentProfilesProvider.notifier);
         await profilesNotifier.setActiveProfile(context.profileId!);
+        if (!_isCurrentAuthority(authority)) return;
         logger.info('Activated profile ${context.profileId}',
             source: 'QuickStart');
       }
 
       // Load the sequence (reset to beginning)
       if (context.sequenceId != null) {
-        final sequencesDao = ref.read(sequencesDaoProvider);
-        final sequence =
-            await sequencesDao.getSequenceById(context.sequenceId!);
+        final sequence = await ref
+            .read(sequenceRepositoryProvider)
+            .loadSequence(context.sequenceId!);
+        if (!_isCurrentAuthority(authority)) return;
         if (sequence != null) {
-          // Reset sequence checkpoint to start from beginning
-          final checkpointsDao = ref.read(sequenceCheckpointsDaoProvider);
-          await checkpointsDao.deleteCheckpoint(context.sequenceId!);
+          ref
+              .read(currentSequenceProvider.notifier)
+              .loadSequence(sequence, discardUnsaved: true);
           logger.info(
             'Loaded sequence ${context.sequenceId}, reset to frame 1',
             source: 'QuickStart',
@@ -134,19 +292,30 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       }
 
       // Apply equipment settings from snapshot
-      await _applyEquipmentSnapshot(context.equipmentSnapshot);
+      final failures = await _applyEquipmentSnapshot(
+        context.equipmentSnapshot,
+        authority,
+      );
+      if (!_isCurrentAuthority(authority)) return;
 
-      if (mounted) {
-        final colors = NightshadeColors.of(this.context);
-        ScaffoldMessenger.of(this.context).showSnackBar(
+      final uiContext = _uiContext;
+      if (mounted && uiContext != null && uiContext.mounted) {
+        final colors = NightshadeColors.of(uiContext);
+        final base =
+            'Loaded previous setup for ${context.targetName ?? "previous target"} from frame 1';
+        ScaffoldMessenger.of(uiContext).showSnackBar(
           SnackBar(
             content: Text(
-                'Starting fresh session for ${context.targetName ?? "previous target"}'),
-            backgroundColor: colors.success,
+              failures.isEmpty
+                  ? base
+                  : '$base, but could not restore: ${failures.join(', ')}',
+            ),
+            backgroundColor: failures.isEmpty ? colors.success : colors.warning,
           ),
         );
       }
     } catch (e, st) {
+      if (!_isCurrentAuthority(authority)) return;
       // Caught + surfaced to user via SnackBar; the failure is not fatal but
       // is user-visible, so log as error and include stack for diagnostics.
       ref.read(loggingServiceProvider).error(
@@ -154,9 +323,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         source: 'QuickStart',
         fields: {'stackTrace': st.toString()},
       );
-      if (mounted) {
-        final colors = NightshadeColors.of(this.context);
-        ScaffoldMessenger.of(this.context).showSnackBar(
+      final uiContext = _uiContext;
+      if (mounted && uiContext != null && uiContext.mounted) {
+        final colors = NightshadeColors.of(uiContext);
+        ScaffoldMessenger.of(uiContext).showSnackBar(
           SnackBar(
             content: Text('Failed to start fresh: $e'),
             backgroundColor: colors.error,
@@ -166,51 +336,56 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     }
   }
 
-  Future<void> _handleResumeProgress(QuickStartContext context) async {
+  Future<void> _handleResumeProgress(
+    QuickStartContext context,
+    NightshadeBackend authority,
+  ) async {
+    if (!_isCurrentAuthority(authority)) {
+      _showAuthorityChanged();
+      return;
+    }
     final logger = ref.read(loggingServiceProvider);
+    final executor = ref.read(sequenceExecutorProvider);
     logger.info(
       'Resuming progress with context: ${context.displayDescription}',
       source: 'QuickStart',
     );
 
     try {
+      if (!context.canResumeFromCheckpoint) {
+        throw StateError('No resumable execution checkpoint is available');
+      }
+
       // Load the equipment profile
       if (context.profileId != null) {
         final profilesNotifier = ref.read(equipmentProfilesProvider.notifier);
         await profilesNotifier.setActiveProfile(context.profileId!);
+        if (!_isCurrentAuthority(authority)) return;
         logger.info('Activated profile ${context.profileId}',
             source: 'QuickStart');
       }
 
-      // Load the sequence (keep checkpoint for resumption)
-      if (context.sequenceId != null) {
-        final sequencesDao = ref.read(sequencesDaoProvider);
-        final sequence =
-            await sequencesDao.getSequenceById(context.sequenceId!);
-        if (sequence != null) {
-          logger.info(
-            'Loaded sequence ${context.sequenceId}, '
-            'resuming from frame ${context.completedFrames}',
-            source: 'QuickStart',
-          );
-        }
-      }
+      // The executor restores the checkpointed sequence, runtime state, and
+      // device mapping, then starts execution. Merely loading the editor copy
+      // would leave the backend idle while the UI claimed a resume occurred.
+      await executor.resumeFromCheckpoint();
+      if (!_isCurrentAuthority(authority)) return;
 
-      // Apply equipment settings from snapshot
-      await _applyEquipmentSnapshot(context.equipmentSnapshot);
-
-      if (mounted) {
-        final colors = NightshadeColors.of(this.context);
-        ScaffoldMessenger.of(this.context).showSnackBar(
+      final uiContext = _uiContext;
+      if (mounted && uiContext != null && uiContext.mounted) {
+        final colors = NightshadeColors.of(uiContext);
+        final message =
+            'Resuming session for ${context.targetName ?? "previous target"} '
+            'from frame ${context.completedFrames}';
+        ScaffoldMessenger.of(uiContext).showSnackBar(
           SnackBar(
-            content: Text(
-                'Resuming session for ${context.targetName ?? "previous target"} '
-                'from frame ${context.completedFrames}'),
+            content: Text(message),
             backgroundColor: colors.success,
           ),
         );
       }
     } catch (e, st) {
+      if (!_isCurrentAuthority(authority)) return;
       // Caught + surfaced to user via SnackBar; the failure is not fatal but
       // is user-visible, so log as error and include stack for diagnostics.
       ref.read(loggingServiceProvider).error(
@@ -218,9 +393,10 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         source: 'QuickStart',
         fields: {'stackTrace': st.toString()},
       );
-      if (mounted) {
-        final colors = NightshadeColors.of(this.context);
-        ScaffoldMessenger.of(this.context).showSnackBar(
+      final uiContext = _uiContext;
+      if (mounted && uiContext != null && uiContext.mounted) {
+        final colors = NightshadeColors.of(uiContext);
+        ScaffoldMessenger.of(uiContext).showSnackBar(
           SnackBar(
             content: Text('Failed to resume progress: $e'),
             backgroundColor: colors.error,
@@ -230,14 +406,23 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
     }
   }
 
-  Future<void> _applyEquipmentSnapshot(EquipmentSnapshot? snapshot) async {
+  /// Applies the snapshot best-effort and returns the human-readable names of
+  /// any device restores that failed (so callers can warn instead of claiming
+  /// success).
+  Future<List<String>> _applyEquipmentSnapshot(
+    EquipmentSnapshot? snapshot,
+    NightshadeBackend authority,
+  ) async {
     final logger = ref.read(loggingServiceProvider);
     if (snapshot == null || !snapshot.hasEquipmentData) {
       logger.info('No equipment snapshot to apply', source: 'QuickStart');
-      return;
+      return const <String>[];
     }
 
     logger.info('Applying equipment snapshot...', source: 'QuickStart');
+
+    final failures = <String>[];
+    if (!_isCurrentAuthority(authority)) return failures;
 
     // Apply camera settings
     final cameraNotifier = ref.read(cameraStateProvider.notifier);
@@ -249,11 +434,24 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       );
     }
 
-    // Note: gain/offset/binning are typically applied when starting an exposure,
-    // not on camera state directly. The snapshot stores them for reference.
+    // Restore gain/offset into the exposure controls and mark them dirty so the
+    // profile sync does not overwrite the restored values on the next build.
+    if (snapshot.cameraGain != null || snapshot.cameraOffset != null) {
+      final exposure = ref.read(exposureSettingsProvider);
+      ref.read(exposureSettingsProvider.notifier).state = exposure.copyWith(
+        gain: snapshot.cameraGain ?? exposure.gain,
+        offset: snapshot.cameraOffset ?? exposure.offset,
+      );
+      ref.read(exposureSettingsUserDirtyProvider.notifier).state = true;
+      logger.info(
+        'Restored gain ${snapshot.cameraGain} / offset ${snapshot.cameraOffset}',
+        source: 'QuickStart',
+      );
+    }
 
     // Apply filter position
     if (snapshot.filterPosition != null) {
+      if (!_isCurrentAuthority(authority)) return failures;
       final filterWheelState = ref.read(filterWheelStateProvider);
       if (filterWheelState.connectionState == DeviceConnectionState.connected) {
         final deviceService = ref.read(deviceServiceProvider);
@@ -266,14 +464,22 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         } catch (e) {
           // Caught + degraded: user gets a partial restore; warn so the
           // snapshot-application gap is visible in logs.
+          failures.add('filter wheel');
           logger.warning('Failed to move filter wheel: $e',
               source: 'QuickStart');
         }
+      } else {
+        failures.add('filter wheel (not connected)');
+        logger.warning(
+          'Could not restore the filter position because no filter wheel is connected',
+          source: 'QuickStart',
+        );
       }
     }
 
     // Apply focus position
     if (snapshot.focuserPosition != null) {
+      if (!_isCurrentAuthority(authority)) return failures;
       final focuserState = ref.read(focuserStateProvider);
       if (focuserState.connectionState == DeviceConnectionState.connected) {
         final deviceService = ref.read(deviceServiceProvider);
@@ -286,10 +492,19 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
         } catch (e) {
           // Caught + degraded: user gets a partial restore; warn so the
           // snapshot-application gap is visible in logs.
+          failures.add('focuser');
           logger.warning('Failed to move focuser: $e', source: 'QuickStart');
         }
+      } else {
+        failures.add('focuser (not connected)');
+        logger.warning(
+          'Could not restore the focus position because no focuser is connected',
+          source: 'QuickStart',
+        );
       }
     }
+
+    return failures;
   }
 
   @override

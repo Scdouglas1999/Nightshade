@@ -10,9 +10,21 @@ class ScienceSessionConfigController {
     final resolved = config.copyWith(sessionId: sessionId);
     if (backend is NetworkBackend) {
       await backend.updateScienceSessionConfig(sessionId, resolved);
+      if (!identical(_ref.read(backendProvider), backend)) {
+        throw StateError(
+          'The imaging host changed while saving the science session.',
+        );
+      }
       return;
     }
-    await _ref.read(scienceDaoProvider).upsertSessionConfig(resolved);
+    final dao = _ref.read(scienceDaoProvider);
+    await dao.upsertSessionConfig(resolved);
+    if (!identical(_ref.read(backendProvider), backend) ||
+        !identical(_ref.read(scienceDaoProvider), dao)) {
+      throw StateError(
+        'The imaging host changed while saving the science session.',
+      );
+    }
   }
 }
 
@@ -25,7 +37,11 @@ final scienceSessionConfigProvider =
     StreamProvider.family<ScienceSessionConfig?, int>((ref, sessionId) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return _pollRemoteScienceSessionConfig(backend, sessionId);
+        return _pollRemoteScienceSessionConfig(
+          backend,
+          sessionId,
+          interval: ref.watch(remoteSciencePollIntervalProvider),
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionConfig(sessionId).map((
         row,
@@ -58,37 +74,50 @@ final activeScienceSessionConfigProvider =
       return ref.watch(scienceSessionConfigProvider(sessionId));
     });
 
+/// Remote science catalogs are low-churn and do not need to hammer the host.
+/// Exposed so the recovery/distinct behavior can be tested without a 10s wait.
+final remoteSciencePollIntervalProvider = Provider<Duration>(
+  (ref) => const Duration(seconds: 10),
+);
+
 final _remoteScienceSessionBundleProvider =
-    FutureProvider.family<RemoteScienceBundle, int>((ref, sessionId) async {
+    StreamProvider.family<RemoteScienceBundle, int>((ref, sessionId) {
       final backend = ref.watch(backendProvider);
       if (backend is! NetworkBackend) {
         throw StateError('Remote science bundle requested in local mode');
       }
-      final bundle = await backend.getScienceSessionBundle(sessionId);
-      Timer? timer;
-      ref.onDispose(() => timer?.cancel());
-      timer = Timer.periodic(const Duration(seconds: 10), (_) {
-        ref.invalidateSelf();
-      });
-      return bundle;
+      return _pollRemoteScienceBundle(
+        () => backend.getScienceSessionBundle(sessionId),
+        _scienceBundlesEqual,
+        interval: ref.watch(remoteSciencePollIntervalProvider),
+      );
     });
 
 final _remoteSessionlessScienceBundleProvider =
-    FutureProvider<RemoteScienceBundle>((ref) async {
+    StreamProvider<RemoteScienceBundle>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is! NetworkBackend) {
         throw StateError(
           'Remote sessionless science bundle requested in local mode',
         );
       }
-      final bundle = await backend.getSessionlessScienceBundle();
-      Timer? timer;
-      ref.onDispose(() => timer?.cancel());
-      timer = Timer.periodic(const Duration(seconds: 10), (_) {
-        ref.invalidateSelf();
-      });
-      return bundle;
+      return _pollRemoteScienceBundle(
+        backend.getSessionlessScienceBundle,
+        _scienceBundlesEqual,
+        interval: ref.watch(remoteSciencePollIntervalProvider),
+      );
     });
+
+Stream<T> _remoteScienceSlice<T>(
+  Ref ref,
+  StreamProvider<RemoteScienceBundle> provider,
+  T Function(RemoteScienceBundle bundle) select,
+) {
+  // Riverpod 2.x exposes no other lossless way to derive a StreamProvider
+  // from a shared StreamProvider without replaying the first value twice.
+  // ignore: deprecated_member_use
+  return ref.watch(provider.stream).map(select);
+}
 
 final sessionPhotometryProvider =
     StreamProvider.family<List<PhotometryMeasurementRow>, int>((
@@ -97,14 +126,11 @@ final sessionPhotometryProvider =
     ) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.photometry),
-              loading: () => Stream.value(const <PhotometryMeasurementRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <PhotometryMeasurementRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.photometry,
+        );
       }
       return ref.watch(scienceDaoProvider).watchPhotometryForSession(sessionId);
     });
@@ -116,15 +142,11 @@ final sessionFrameCalibrationsProvider =
     ) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.calibrations),
-              loading: () =>
-                  Stream.value(const <FramePhotometricCalibrationRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <FramePhotometricCalibrationRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.calibrations,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -135,13 +157,11 @@ final sessionTransparencySamplesProvider =
     StreamProvider.family<List<TransparencySampleRow>, int>((ref, sessionId) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.transparency),
-              loading: () => Stream.value(const <TransparencySampleRow>[]),
-              error: (_, __) => Stream.value(const <TransparencySampleRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.transparency,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -152,13 +172,11 @@ final sessionPsfTilesProvider =
     StreamProvider.family<List<PsfFieldTileRow>, int>((ref, sessionId) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.psfTiles),
-              loading: () => Stream.value(const <PsfFieldTileRow>[]),
-              error: (_, __) => Stream.value(const <PsfFieldTileRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.psfTiles,
+        );
       }
       return ref.watch(scienceDaoProvider).watchPsfTilesForSession(sessionId);
     });
@@ -170,15 +188,11 @@ final sessionFrameQualityMetricsProvider =
     ) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.frameQuality),
-              loading: () =>
-                  Stream.value(const <ScienceFrameQualityMetricsRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <ScienceFrameQualityMetricsRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.frameQuality,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -189,13 +203,11 @@ final sessionTileMetricsProvider =
     StreamProvider.family<List<ScienceTileMetricRow>, int>((ref, sessionId) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.tileMetrics),
-              loading: () => Stream.value(const <ScienceTileMetricRow>[]),
-              error: (_, __) => Stream.value(const <ScienceTileMetricRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.tileMetrics,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -209,15 +221,11 @@ final sessionResidualVectorsProvider =
     ) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.residuals),
-              loading: () =>
-                  Stream.value(const <AstrometryResidualVectorRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <AstrometryResidualVectorRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.residuals,
+        );
       }
       return ref.watch(scienceDaoProvider).watchResidualsForSession(sessionId);
     });
@@ -229,14 +237,11 @@ final sessionMovingObjectCandidatesProvider =
     ) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.movingObjects),
-              loading: () => Stream.value(const <MovingObjectCandidateRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <MovingObjectCandidateRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.movingObjects,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -247,13 +252,11 @@ final sessionLineRatioProductsProvider =
     StreamProvider.family<List<LineRatioProductRow>, int>((ref, sessionId) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteScienceSessionBundleProvider(sessionId))
-            .when(
-              data: (bundle) => Stream.value(bundle.lineRatios),
-              loading: () => Stream.value(const <LineRatioProductRow>[]),
-              error: (_, __) => Stream.value(const <LineRatioProductRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteScienceSessionBundleProvider(sessionId),
+          (bundle) => bundle.lineRatios,
+        );
       }
       return ref.watch(scienceDaoProvider).watchLineRatiosForSession(sessionId);
     });
@@ -332,15 +335,11 @@ final sessionlessCalibrationsProvider =
     StreamProvider<List<FramePhotometricCalibrationRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.calibrations),
-              loading: () =>
-                  Stream.value(const <FramePhotometricCalibrationRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <FramePhotometricCalibrationRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.calibrations,
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionlessCalibrationsRecent();
     });
@@ -349,13 +348,11 @@ final sessionlessTransparencySamplesProvider =
     StreamProvider<List<TransparencySampleRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.transparency),
-              loading: () => Stream.value(const <TransparencySampleRow>[]),
-              error: (_, __) => Stream.value(const <TransparencySampleRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.transparency,
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionlessTransparencyRecent();
     });
@@ -365,13 +362,11 @@ final sessionlessPsfTilesProvider = StreamProvider<List<PsfFieldTileRow>>((
 ) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
-    return ref
-        .watch(_remoteSessionlessScienceBundleProvider)
-        .when(
-          data: (bundle) => Stream.value(bundle.psfTiles),
-          loading: () => Stream.value(const <PsfFieldTileRow>[]),
-          error: (_, __) => Stream.value(const <PsfFieldTileRow>[]),
-        );
+    return _remoteScienceSlice(
+      ref,
+      _remoteSessionlessScienceBundleProvider,
+      (bundle) => bundle.psfTiles,
+    );
   }
   return ref.watch(scienceDaoProvider).watchSessionlessPsfTilesRecent();
 });
@@ -380,15 +375,11 @@ final sessionlessFrameQualityMetricsProvider =
     StreamProvider<List<ScienceFrameQualityMetricsRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.frameQuality),
-              loading: () =>
-                  Stream.value(const <ScienceFrameQualityMetricsRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <ScienceFrameQualityMetricsRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.frameQuality,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -399,13 +390,11 @@ final sessionlessTileMetricsProvider =
     StreamProvider<List<ScienceTileMetricRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.tileMetrics),
-              loading: () => Stream.value(const <ScienceTileMetricRow>[]),
-              error: (_, __) => Stream.value(const <ScienceTileMetricRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.tileMetrics,
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionlessTileMetricsRecent();
     });
@@ -414,15 +403,11 @@ final sessionlessResidualVectorsProvider =
     StreamProvider<List<AstrometryResidualVectorRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.residuals),
-              loading: () =>
-                  Stream.value(const <AstrometryResidualVectorRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <AstrometryResidualVectorRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.residuals,
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionlessResidualsRecent();
     });
@@ -431,14 +416,11 @@ final sessionlessMovingObjectCandidatesProvider =
     StreamProvider<List<MovingObjectCandidateRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.movingObjects),
-              loading: () => Stream.value(const <MovingObjectCandidateRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <MovingObjectCandidateRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.movingObjects,
+        );
       }
       return ref
           .watch(scienceDaoProvider)
@@ -449,14 +431,11 @@ final sessionlessPhotometryProvider =
     StreamProvider<List<PhotometryMeasurementRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.photometry),
-              loading: () => Stream.value(const <PhotometryMeasurementRow>[]),
-              error: (_, __) =>
-                  Stream.value(const <PhotometryMeasurementRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.photometry,
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionlessPhotometryRecent();
     });
@@ -465,13 +444,11 @@ final sessionlessLineRatioProductsProvider =
     StreamProvider<List<LineRatioProductRow>>((ref) {
       final backend = ref.watch(backendProvider);
       if (backend is NetworkBackend) {
-        return ref
-            .watch(_remoteSessionlessScienceBundleProvider)
-            .when(
-              data: (bundle) => Stream.value(bundle.lineRatios),
-              loading: () => Stream.value(const <LineRatioProductRow>[]),
-              error: (_, __) => Stream.value(const <LineRatioProductRow>[]),
-            );
+        return _remoteScienceSlice(
+          ref,
+          _remoteSessionlessScienceBundleProvider,
+          (bundle) => bundle.lineRatios,
+        );
       }
       return ref.watch(scienceDaoProvider).watchSessionlessLineRatiosRecent();
     });
@@ -582,11 +559,110 @@ final currentScienceFrameProductsProvider =
     });
 
 Future<Map<String, String>> _loadScienceSettingsMap(Ref ref) async {
-  final backend = ref.read(backendProvider);
+  final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
     return backend.getScienceSettings();
   }
   return ref.read(settingsDaoProvider).getAllSettings();
+}
+
+/// Raw `science.*` values that are not part of [ScienceSettings], sourced
+/// from the imaging host while connected remotely.
+///
+/// Camera sensor values and the online-catalog toggle are intentionally kept
+/// as strings because that is their persisted representation and the settings
+/// UI must preserve the host's exact committed text.
+final scienceRawSettingsProvider =
+    FutureProvider.autoDispose<Map<String, String>>((ref) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        final settings = await backend.getScienceSettings();
+        Timer? refreshTimer;
+        ref.onDispose(() => refreshTimer?.cancel());
+        refreshTimer = Timer(const Duration(seconds: 10), ref.invalidateSelf);
+        return Map.unmodifiable(settings);
+      }
+
+      final settings = await ref.watch(allSettingsProvider.future);
+      return Map.unmodifiable({
+        for (final entry in settings.entries)
+          if (entry.key.startsWith('science.')) entry.key: entry.value,
+      });
+    });
+
+final scienceRawSettingsActionsProvider = Provider((ref) {
+  final backend = ref.watch(backendProvider);
+  return ScienceRawSettingsActions(
+    ref,
+    remote: backend is NetworkBackend ? backend : null,
+    localSettings: backend is NetworkBackend
+        ? null
+        : ref.read(settingsDaoProvider),
+    localCameraAutoConfig: backend is NetworkBackend
+        ? null
+        : ref.read(scienceCameraAutoConfigProvider),
+  );
+});
+
+/// Writes auxiliary science settings to the same authority from which the
+/// corresponding action object was obtained. Capturing the backend prevents a
+/// connection-mode change during an awaited UI action from redirecting the
+/// second half of the write to a different database.
+class ScienceRawSettingsActions {
+  static const _manualCameraKeys = {
+    ScienceCameraAutoConfig.readNoiseKey,
+    ScienceCameraAutoConfig.gainKey,
+    ScienceCameraAutoConfig.saturationKey,
+  };
+
+  final Ref _ref;
+  final NetworkBackend? _remote;
+  final SettingsDao? _localSettings;
+  final ScienceCameraAutoConfig? _localCameraAutoConfig;
+
+  ScienceRawSettingsActions(
+    this._ref, {
+    required NetworkBackend? remote,
+    required SettingsDao? localSettings,
+    required ScienceCameraAutoConfig? localCameraAutoConfig,
+  }) : _remote = remote,
+       _localSettings = localSettings,
+       _localCameraAutoConfig = localCameraAutoConfig;
+
+  Future<void> setOnlineCatalogEnabled(bool enabled) async {
+    await _write({
+      PhotometricCatalogService.onlineEnabledSettingKey: enabled.toString(),
+    });
+  }
+
+  Future<void> setCameraAutoManaged(bool enabled) async {
+    await _write({ScienceCameraAutoConfig.autoManagedKey: enabled.toString()});
+    if (enabled && _localCameraAutoConfig != null) {
+      await _localCameraAutoConfig.maybeSync(
+        reason: 'auto-config re-enabled',
+        force: true,
+      );
+      _ref.invalidate(scienceRawSettingsProvider);
+    }
+  }
+
+  /// Save a manual sensor value and disable auto-management in one host/local
+  /// transaction so a camera event cannot overwrite the value in between.
+  Future<void> setManualCameraValue(String key, String value) async {
+    if (!_manualCameraKeys.contains(key)) {
+      throw ArgumentError.value(key, 'key', 'Unsupported science camera key');
+    }
+    await _write({key: value, ScienceCameraAutoConfig.autoManagedKey: 'false'});
+  }
+
+  Future<void> _write(Map<String, String> settings) async {
+    if (_remote != null) {
+      await _remote.updateScienceSettings(settings);
+    } else {
+      await _localSettings!.setSettings(settings);
+    }
+    _ref.invalidate(scienceRawSettingsProvider);
+  }
 }
 
 Future<void> _writeScienceSettings(
@@ -596,21 +672,72 @@ Future<void> _writeScienceSettings(
   final backend = ref.read(backendProvider);
   if (backend is NetworkBackend) {
     await backend.updateScienceSettings(settings);
-    ref.invalidate(scienceSettingsProvider);
-    ref.invalidate(sciencePhotometrySelectionProvider);
-    ref.invalidate(scienceVisualizationPrefsProvider);
+    if (!identical(ref.read(backendProvider), backend)) {
+      throw StateError(
+        'The imaging host changed while saving science settings.',
+      );
+    }
+    ref.invalidate(scienceRawSettingsProvider);
     return;
   }
-  await ref.read(settingsDaoProvider).setSettings(settings);
+  final dao = ref.read(settingsDaoProvider);
+  await dao.setSettings(settings);
+  if (!identical(ref.read(backendProvider), backend) ||
+      !identical(ref.read(settingsDaoProvider), dao)) {
+    throw StateError('The imaging host changed while saving science settings.');
+  }
+  ref.invalidate(scienceRawSettingsProvider);
 }
 
 Stream<ScienceSessionConfig?> _pollRemoteScienceSessionConfig(
   NetworkBackend backend,
-  int sessionId,
-) async* {
-  yield await backend.getScienceSessionConfig(sessionId);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await backend.getScienceSessionConfig(sessionId);
+  int sessionId, {
+  required Duration interval,
+}) => _pollRemoteScienceBundle(
+  () => backend.getScienceSessionConfig(sessionId),
+  _scienceSessionConfigsEqual,
+  interval: interval,
+);
+
+Stream<T> _pollRemoteScienceBundle<T>(
+  Future<T> Function() fetch,
+  bool Function(T previous, T next) unchanged, {
+  required Duration interval,
+}) => resilientDistinctPoll(
+  fetch: fetch,
+  unchanged: unchanged,
+  interval: interval,
+  onRetainedError: (error, stackTrace) {
+    developer.log(
+      'Remote science poll failed; retaining last value',
+      name: 'ScienceProvider',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  },
+);
+
+bool _scienceBundlesEqual(
+  RemoteScienceBundle previous,
+  RemoteScienceBundle next,
+) =>
+    listEquals(previous.photometry, next.photometry) &&
+    listEquals(previous.calibrations, next.calibrations) &&
+    listEquals(previous.transparency, next.transparency) &&
+    listEquals(previous.psfTiles, next.psfTiles) &&
+    listEquals(previous.frameQuality, next.frameQuality) &&
+    listEquals(previous.tileMetrics, next.tileMetrics) &&
+    listEquals(previous.residuals, next.residuals) &&
+    listEquals(previous.movingObjects, next.movingObjects) &&
+    listEquals(previous.lineRatios, next.lineRatios);
+
+bool _scienceSessionConfigsEqual(
+  ScienceSessionConfig? previous,
+  ScienceSessionConfig? next,
+) {
+  if (previous == null || next == null) {
+    return previous == next;
   }
+  return mapEquals(previous.toJson(), next.toJson());
 }

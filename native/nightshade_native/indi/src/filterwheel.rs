@@ -172,7 +172,30 @@ impl IndiFilterWheel {
                     names.push(elem.clone());
                 }
             }
-            return Ok(names);
+            if !names.is_empty() {
+                return Ok(names);
+            }
+        }
+
+        // Fallback: the driver did not publish a FILTER_NAME property (it is
+        // OPTIONAL in INDI) or published it empty. Synthesize generic names from
+        // the physical slot count reported by FILTER_SLOT's numeric limits,
+        // mirroring the native vendor drivers (ZWO/QHY). Without this, a filter
+        // wheel on a fresh install (no saved profile to fall back on) shows an
+        // EMPTY filter list even though the wheel's slot count is known.
+        if let Some(limits) = client
+            .get_number_limits(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE")
+            .await
+        {
+            if let (Some(min), Some(max)) = (limits.min, limits.max) {
+                // FILTER_SLOT is inclusive [min, max] (1-based on most drivers,
+                // 0-based on some); the slot count is max - min + 1. Guard against
+                // a driver reporting an absurd range (real wheels are small).
+                let count = (max - min + 1.0).max(0.0) as usize;
+                if (1..=64).contains(&count) {
+                    return Ok((1..=count).map(|i| format!("Filter {i}")).collect());
+                }
+            }
         }
 
         Ok(Vec::new())

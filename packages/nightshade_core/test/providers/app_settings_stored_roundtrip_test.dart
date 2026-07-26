@@ -77,9 +77,9 @@ void main() {
       timezone: 'America/New_York',
       useSystemTime: false,
       // Imaging
-      imageFormat: 'TIFF',
+      imageFormat: kCaptureImageFormat,
       fileNamingPattern: r'$SEQ_$FILTER',
-      bitDepth: '8-bit',
+      bitDepth: kCaptureBitDepth,
       // Sequencer
       parkOnUnsafeWeather: false,
       parkBeforeDawn: false,
@@ -141,6 +141,8 @@ void main() {
       ditherScale: 'Large',
       settleThreshold: 1.5,
       settleTimeout: 45,
+      settleTime: 30,
+      ditherRaOnly: true,
       // Environment
       bortleClass: 8,
       horizonProfileJson:

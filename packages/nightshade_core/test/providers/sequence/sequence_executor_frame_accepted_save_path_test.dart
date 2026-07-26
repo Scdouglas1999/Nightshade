@@ -134,6 +134,93 @@ void main() {
     },
   );
 
+  /// The Dashboard's Recent Frames tile renders
+  /// `recentSessionFramesProvider`, which on the host IS the in-memory
+  /// `sessionImagesProvider` list. Only the ad-hoc capture loop appended to it,
+  /// so a sequenced night showed "No frames captured this session yet" from dusk
+  /// to dawn while frames were landing on disk and in the database.
+  test('accepted sequence frame also lands in the live session list', () async {
+    final container = buildContainer();
+    final executor = container.read(sequenceExecutorProvider);
+
+    expect(container.read(sessionImagesProvider), isEmpty);
+
+    executor.handleSequencerEventForTest(
+      bridge_event.NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: bridge_event.EventSeverity.info,
+        category: bridge_event.EventCategory.sequencer,
+        eventType: 'FrameAccepted',
+        data: const {
+          'node_id': 'exposure-node-live',
+          'frame': 1,
+          'total': 3,
+          'hfr': 3.1,
+          'star_count': 88,
+          'accepted_total': 1,
+          'rejected_total': 0,
+          'save_path': '/captures/m42/L_0007.fits',
+        },
+      ),
+    );
+
+    for (var i = 0; i < 40; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final live = container.read(sessionImagesProvider);
+      if (live.isNotEmpty) {
+        expect(live, hasLength(1));
+        expect(live.single.filePath, equals('/captures/m42/L_0007.fits'));
+        return;
+      }
+    }
+    fail(
+      'accepted sequence frame never reached sessionImagesProvider, so the '
+      'Dashboard Recent Frames tile would stay empty for the whole run',
+    );
+  });
+
+  test(
+    'rejected sequence frame is NOT added to the live session list',
+    () async {
+      final container = buildContainer();
+      final executor = container.read(sequenceExecutorProvider);
+
+      executor.handleSequencerEventForTest(
+        bridge_event.NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: bridge_event.EventSeverity.warning,
+          category: bridge_event.EventCategory.sequencer,
+          eventType: 'FrameRejected',
+          data: const {
+            'node_id': 'exposure-node-reject',
+            'frame': 2,
+            'total': 3,
+            'reason': 'HFR 6.2 above limit',
+            'accepted_total': 1,
+            'rejected_total': 1,
+            'reject_path': '/captures/m42/Reject/L_0008.fits',
+          },
+        ),
+      );
+
+      // Wait for the row to persist, then assert the live list stayed empty: a
+      // reject has no "rejected" affordance in the plain strip, so showing it
+      // there would read as a good frame.
+      for (var i = 0; i < 40; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final rows = await imagesDao.getImagesByProducingNode(
+          producingNodeId: 'exposure-node-reject',
+        );
+        if (rows.isNotEmpty) {
+          expect(rows.single.isAccepted, isFalse);
+          expect(container.read(sessionImagesProvider), isEmpty);
+          return;
+        }
+      }
+      fail('captured_images row for rejected frame was never written');
+    },
+  );
+
   test(
     'FrameAccepted without save_path falls back to empty file_path (legacy)',
     () async {

@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/pill_tab.dart';
+import '../../../widgets/touch_target_floor.dart';
 
 /// Builds an imaging-panel row label, optionally appending a [helpAffordance]
 /// when [helpId] is supplied.
@@ -422,7 +423,16 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
           child: Container(
             width: widget.isMobile ? 70 : 90,
             constraints: BoxConstraints(
-              minHeight: widget.isMobile ? 32 : 34,
+              // The tap box IS the painted box here, so the floor has to go on
+              // the box itself rather than on an invisible wrapper: a
+              // `TouchTargetFloor` would centre this fixed-width field inside
+              // its (wider) parent slot and shift it off the label. Measured at
+              // 70.0x32.0 on every phone width before this. Desktop keeps 34 —
+              // `floorFor` returns 0 there, so dense panels do not reflow.
+              minHeight: math.max(
+                widget.isMobile ? 32 : 34,
+                TouchTargetFloor.floorFor(context),
+              ),
             ),
             padding: EdgeInsets.symmetric(
               horizontal: widget.isMobile ? 8 : 10,
@@ -594,7 +604,7 @@ class InputRow extends StatelessWidget {
   }
 }
 
-class InputRowEditable extends StatelessWidget {
+class InputRowEditable extends StatefulWidget {
   final String label;
   final String value;
   final String? suffix;
@@ -617,19 +627,49 @@ class InputRowEditable extends StatelessWidget {
   });
 
   @override
+  State<InputRowEditable> createState() => _InputRowEditableState();
+}
+
+class _InputRowEditableState extends State<InputRowEditable> {
+  late TextEditingController _controller;
+  final _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(InputRowEditable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && widget.value != _controller.text) {
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final colors = widget.colors;
     return Row(
       children: [
         Expanded(
           flex: NightshadeTokens.panelRowLabelFlex,
           child: _panelRowLabel(
             context,
-            label: label,
+            label: widget.label,
             style: TextStyle(
               fontSize: NightshadeTokens.fontSizePanelLabel,
               color: colors.textSecondary,
             ),
-            helpId: helpId,
+            helpId: widget.helpId,
           ),
         ),
         Expanded(
@@ -641,7 +681,8 @@ class InputRowEditable extends StatelessWidget {
               border: Border.all(color: colors.border),
             ),
             child: TextField(
-              controller: TextEditingController(text: value),
+              controller: _controller,
+              focusNode: _focusNode,
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
@@ -651,14 +692,14 @@ class InputRowEditable extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: InputBorder.none,
                 isDense: true,
-                suffixText: suffix,
+                suffixText: widget.suffix,
                 suffixStyle: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
-              onSubmitted: onChanged,
-              onChanged: onChanged,
+              onSubmitted: widget.onChanged,
+              onChanged: widget.onChanged,
             ),
           ),
         ),

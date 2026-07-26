@@ -39,6 +39,15 @@ pub const DEFAULT_MAX_SUN_ALTITUDE_DEGREES: f64 = -12.0;
 /// failures.
 pub const DAYLIGHT_GATE_RECOVERY_CODE: &str = "DAYLIGHT_GATE_SUN_UP";
 
+/// Whether a sequencer frame is an on-sky light that requires darkness.
+///
+/// Calibration frame types are intentionally explicit exemptions: they can be
+/// captured during daylight even when they live below a TargetHeader and the
+/// mount happens to be unparked.
+fn frame_type_requires_darkness(frame_type: &str) -> bool {
+    frame_type.eq_ignore_ascii_case("light")
+}
+
 /// W1 native daylight gate decision.
 ///
 /// Structural START gate applied by `execute_slew` (when slewing to a
@@ -110,7 +119,30 @@ async fn resolve_max_sun_altitude(ctx: &InstructionContext) -> f64 {
     DEFAULT_MAX_SUN_ALTITUDE_DEGREES
 }
 
+fn validate_exposure_filter_request(
+    filter: Option<&str>,
+    filter_index: Option<i32>,
+    filterwheel_id: Option<&str>,
+) -> Result<(), String> {
+    let filter = filter.map(str::trim).filter(|name| !name.is_empty());
+    if filterwheel_id.is_some() || (filter.is_none() && filter_index.is_none()) {
+        return Ok(());
+    }
+
+    let requested = match (filter, filter_index) {
+        (Some(name), Some(index)) => format!("\"{}\" at position {}", name, index),
+        (Some(name), None) => format!("\"{}\"", name),
+        (None, Some(index)) => format!("position {}", index),
+        (None, None) => unreachable!("no filter request was already handled"),
+    };
+    Err(format!(
+        "Cannot capture with requested filter {} because no filter wheel is connected",
+        requested
+    ))
+}
+
 /// Result of an instruction execution
+#[derive(Debug)]
 pub struct InstructionResult {
     pub status: NodeStatus,
     pub message: Option<String>,
@@ -291,6 +323,17 @@ fn request_device_disconnected_recovery(
 /// Context for instruction execution
 /// Contains the current imaging session state and cancellation flag
 pub struct InstructionContext {
+    /// ID of the sequence node this instruction is running for, threaded through
+    /// from `ExecutionContext::node_id`.
+    ///
+    /// `emit_grade_progress` must name the producing node on the frame events it
+    /// emits: the app turns each FrameAccepted / FrameRejected into a
+    /// `captured_images` row and resolves the frame's target and exposure length
+    /// by walking the sequence tree from this id. An empty id makes it drop the
+    /// frame outright — no gallery row, no integration total, no per-target
+    /// completion. Empty is therefore correct ONLY for node-less callers
+    /// (wizards, one-shot bridge captures, trigger-driven recenters).
+    pub node_id: String,
     /// Target RA in hours
     pub target_ra: Option<f64>,
     /// Target Dec in degrees
@@ -833,14 +876,14 @@ pub async fn wait_for_focuser_stop_after_halt(
     focuser_id: &str,
     device_ops: &crate::device_ops::SharedDeviceOps,
     timeout: Duration,
-) {
+) -> bool {
     let start = std::time::Instant::now();
     loop {
         match device_ops.focuser_is_moving(focuser_id).await {
             Ok(is_moving) => {
                 if !is_moving {
                     tracing::debug!("Focuser stopped after halt");
-                    return;
+                    return true;
                 }
             }
             Err(e) => {
@@ -853,7 +896,7 @@ pub async fn wait_for_focuser_stop_after_halt(
                 "Focuser did not stop within {} seconds after halt",
                 timeout.as_secs()
             );
-            return;
+            return false;
         }
 
         sleep(Duration::from_millis(100)).await;
@@ -1058,6 +1101,70 @@ async fn rotator_move_to_verified(
 // =============================================================================
 // CENTER INSTRUCTION (Plate Solve + Sync + Slew Loop)
 // =============================================================================
+
+const CENTER_CORRECTION_SLEW_START_TIMEOUT: Duration = Duration::from_secs(5);
+const CENTER_CORRECTION_SLEW_COMPLETE_TIMEOUT: Duration = Duration::from_secs(300);
+const CENTER_CORRECTION_SLEW_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Wait for an asynchronous correction slew to first report motion and then
+/// report idle. The startup phase is essential for ASCOM/Alpaca/INDI drivers
+/// that acknowledge the command before their `Slewing` property changes.
+async fn wait_for_centering_correction_slew(
+    mount_id: &str,
+    ctx: &InstructionContext,
+) -> Result<(), InstructionResult> {
+    let start_deadline = tokio::time::Instant::now() + CENTER_CORRECTION_SLEW_START_TIMEOUT;
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            return Err(result);
+        }
+
+        match ctx.device_ops.mount_is_slewing(mount_id).await {
+            Ok(true) => break,
+            Ok(false) => {}
+            Err(error) => tracing::warn!(
+                "Centering: slew-state read failed while waiting for startup ({}); retrying",
+                error
+            ),
+        }
+
+        if tokio::time::Instant::now() >= start_deadline {
+            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            return Err(InstructionResult::failure(format!(
+                "Centering correction slew did not report startup within {}s",
+                CENTER_CORRECTION_SLEW_START_TIMEOUT.as_secs()
+            )));
+        }
+        sleep(CENTER_CORRECTION_SLEW_POLL_INTERVAL).await;
+    }
+
+    let complete_deadline = tokio::time::Instant::now() + CENTER_CORRECTION_SLEW_COMPLETE_TIMEOUT;
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            return Err(result);
+        }
+
+        match ctx.device_ops.mount_is_slewing(mount_id).await {
+            Ok(false) => return Ok(()),
+            Ok(true) => {}
+            Err(error) => tracing::warn!(
+                "Centering: slew-state read failed while waiting for completion ({}); retrying",
+                error
+            ),
+        }
+
+        if tokio::time::Instant::now() >= complete_deadline {
+            let _ = ctx.device_ops.mount_abort_slew(mount_id).await;
+            return Err(InstructionResult::failure(format!(
+                "Centering correction slew did not complete within {}s",
+                CENTER_CORRECTION_SLEW_COMPLETE_TIMEOUT.as_secs()
+            )));
+        }
+        sleep(CENTER_CORRECTION_SLEW_POLL_INTERVAL).await;
+    }
+}
 
 /// Execute a center instruction (plate solve + sync + slew loop)
 pub async fn execute_center(
@@ -1284,7 +1391,10 @@ pub async fn execute_center(
         tokio::select! {
             result = ctx.device_ops.mount_slew_to_coordinates(&mount_id, target_ra_deg / 15.0, target_dec) => {
                 if let Err(e) = result {
-                    tracing::warn!("Correction slew failed: {}", e);
+                    return InstructionResult::failure(format!(
+                        "Correction slew command failed during centering on attempt {}: {}",
+                        attempt, e
+                    ));
                 }
             }
             _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
@@ -1302,32 +1412,8 @@ pub async fn execute_center(
         // 10-60+ s), so the frame is motion-blurred / off-target, the solve
         // mis-corrects or fails, and the loop burns all attempts without
         // converging. Mirrors the meridian-flip slew-completion poll.
-        {
-            let slew_deadline = tokio::time::Instant::now() + Duration::from_secs(300);
-            loop {
-                if let Some(result) = ctx.check_cancelled() {
-                    let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
-                    return result;
-                }
-                match ctx.device_ops.mount_is_slewing(&mount_id).await {
-                    Ok(false) => break,
-                    Ok(true) => {}
-                    Err(e) => {
-                        // Do not proceed to image on an unknown slew state;
-                        // keep polling until the deadline so a persistent
-                        // failure ends the attempt rather than capturing
-                        // mid-slew.
-                        tracing::warn!("Centering: slew-state read failed ({}); retrying", e);
-                    }
-                }
-                if tokio::time::Instant::now() > slew_deadline {
-                    let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
-                    return InstructionResult::failure(
-                        "Centering correction slew did not complete within 300s".to_string(),
-                    );
-                }
-                sleep(Duration::from_millis(500)).await;
-            }
+        if let Err(result) = wait_for_centering_correction_slew(&mount_id, ctx).await {
+            return result;
         }
 
         // 2 s post-slew settle absorbs mount oscillation before the next
@@ -1526,6 +1612,61 @@ fn calculate_separation_arcsec(ra1_deg: f64, dec1_deg: f64, ra2_deg: f64, dec2_d
 pub type FrameSavePathRenderer =
     Box<dyn Fn(u32, u32) -> Result<(PathBuf, String), String> + Send + Sync>;
 
+/// Arms an asynchronous camera abort while an exposure future is in flight.
+///
+/// Cancellation normally takes the explicit `tokio::select!` branch below,
+/// where abort is awaited. This guard covers the harder case where the whole
+/// instruction Future is dropped by its caller: dropping the camera future
+/// alone does not tell many drivers to stop the physical exposure.
+struct CameraExposureAbortGuard {
+    device_ops: SharedDeviceOps,
+    camera_id: String,
+    armed: bool,
+}
+
+impl CameraExposureAbortGuard {
+    fn new(device_ops: SharedDeviceOps, camera_id: String) -> Self {
+        Self {
+            device_ops,
+            camera_id,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CameraExposureAbortGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+
+        let device_ops = self.device_ops.clone();
+        let camera_id = self.camera_id.clone();
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                let _abort_task = handle.spawn(async move {
+                    if let Err(error) = device_ops.camera_abort_exposure(&camera_id).await {
+                        tracing::error!(
+                            "Failed to abort dropped camera exposure on {}: {}",
+                            camera_id,
+                            error
+                        );
+                    }
+                });
+            }
+            Err(error) => tracing::error!(
+                "Could not schedule camera abort for dropped exposure on {}: {}",
+                self.camera_id,
+                error
+            ),
+        }
+    }
+}
+
 /// Execute an exposure instruction.
 ///
 /// `path_renderer` is `Some` when a Wave-4-aware caller (the `ExposeInstruction`
@@ -1556,18 +1697,13 @@ pub async fn execute_exposure_with_renderer(
         Err(e) => return e,
     };
 
-    // W1 native daylight gate (structural). The generic exposure path always
-    // produces LIGHT frames (`FrameContext::new_light`); a science target is
-    // active iff a TargetHeader has stamped `target_ra`/`target_dec` onto the
-    // context. That pairing — a real on-sky target + a LIGHT exposure — is
-    // exactly the daytime-imaging hazard W1 forbids, so refuse it while the Sun
-    // is up. Flats/darks/bias take this path only outside a TargetHeader (no
-    // target coords) OR with the mount parked, so they are NOT gated; the
-    // FlatWizard / cover-calibrator paths never reach here. We additionally
-    // require the mount to be NOT parked: a parked rig capturing inside a
-    // target subtree (e.g. building a dark library while parked) is not an
-    // on-sky light and must stay allowed.
-    if ctx.target_ra.is_some() && ctx.target_dec.is_some() {
+    // W1 native daylight gate (structural). Only an actual LIGHT frame under
+    // a sky target requires darkness. Calibration frames remain exempt even
+    // below a TargetHeader and with an unparked mount.
+    if frame_type_requires_darkness(&config.frame_type)
+        && ctx.target_ra.is_some()
+        && ctx.target_dec.is_some()
+    {
         let on_sky = match &ctx.mount_id {
             // No mount configured: there is no rig to point at the sky, so this
             // cannot be an on-sky light capture — abstain.
@@ -1603,6 +1739,14 @@ pub async fn execute_exposure_with_renderer(
         }
     }
 
+    if let Err(error) = validate_exposure_filter_request(
+        config.filter.as_deref(),
+        config.filter_index,
+        ctx.filterwheel_id.as_deref(),
+    ) {
+        return InstructionResult::failure(error);
+    }
+
     // log "(no filter set)" instead of substituting a filter
     // name like "unfiltered". The substituted token used to look like a
     // valid filter in operator logs.
@@ -1620,7 +1764,12 @@ pub async fn execute_exposure_with_renderer(
     // user-editable strings that can drift between profile and device
     // (e.g. "Ha" vs "H-alpha"); the position is the wheel's stable
     // hardware addressing.
-    if config.filter.is_some() || config.filter_index.is_some() {
+    if config
+        .filter
+        .as_deref()
+        .is_some_and(|name| !name.trim().is_empty())
+        || config.filter_index.is_some()
+    {
         if let Some(fw_id) = &ctx.filterwheel_id {
             if let Some(index) = config.filter_index {
                 tracing::info!(
@@ -1695,6 +1844,8 @@ pub async fn execute_exposure_with_renderer(
     };
 
     let mut completed_exposures = 0u32;
+    // Warn once per burst when dithers are skipped for lack of a guider.
+    let mut dither_skipped_warned = false;
     let mut hfr_values = Vec::new();
 
     // Image Grading: local bindings for the per-frame grading state.
@@ -1708,6 +1859,16 @@ pub async fn execute_exposure_with_renderer(
     let quality_check_default = ctx.default_quality_check.clone();
     let reject_folder_override = ctx.reject_folder_path.clone();
 
+    // Frame-type gate: star-based analysis (HFR / star count / eccentricity),
+    // quality grading, and in-burst dithering are only meaningful for
+    // star-field frames. A dark/flat/bias burst has no stars — grading would
+    // reject every frame as "0 stars", dithering would pulse the mount for
+    // nothing, and per-frame star detection is pure wasted CPU (significant
+    // on a Raspberry-Pi-class host). Snapshot frames are star fields, so
+    // they keep the analysis but are captured like lights otherwise.
+    let is_light_frame = config.frame_type.eq_ignore_ascii_case("light")
+        || config.frame_type.eq_ignore_ascii_case("snapshot");
+
     for frame in 1..=config.count {
         if let Some(result) = ctx.check_cancelled() {
             return result;
@@ -1718,7 +1879,19 @@ pub async fn execute_exposure_with_renderer(
         // trigger-driven flip completes instead of starting a frame the slew
         // would ruin. Only science-target lights are gated — the flip
         // trigger itself only ever fires for a tracked target.
-        if ctx.target_ra.is_some() && ctx.mount_id.is_some() {
+        //
+        // The frame-type check is what makes that comment true. Without it a
+        // calibration frame sitting inside a TargetHeader was gated as well:
+        // observed a 3s DARK held with "meridian flip fires in ~0s and would
+        // interrupt it", which stalled the run for the gate's full 30-minute
+        // bound. A dark/bias/flat is taken with the shutter closed or on a flat
+        // panel, so where the mount is pointing cannot ruin it — and a
+        // calibration block is exactly when the operator is not tracking a
+        // target at all.
+        let gate_for_meridian = config.frame_type.eq_ignore_ascii_case("light")
+            && ctx.target_ra.is_some()
+            && ctx.mount_id.is_some();
+        if gate_for_meridian {
             if let Some(result) = wait_for_meridian_flip_window(ctx, config.duration_secs).await {
                 return result;
             }
@@ -1735,33 +1908,47 @@ pub async fn execute_exposure_with_renderer(
         // blocking exposure without driver support; the abort branch tells
         // the camera to stop so it does not continue exposing in the
         // background after we abandon the future.
-        let mut image_data = tokio::select! {
-            result = ctx.device_ops.camera_start_exposure(
+        let mut abort_guard =
+            CameraExposureAbortGuard::new(ctx.device_ops.clone(), camera_id.clone());
+        let exposure_result = tokio::select! {
+            biased;
+            _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
+                tracing::info!("Exposure cancelled, aborting camera...");
+                match ctx.device_ops.camera_abort_exposure(&camera_id).await {
+                    Ok(()) => abort_guard.disarm(),
+                    Err(error) => tracing::error!(
+                        "Camera abort failed during exposure cancellation: {}",
+                        error
+                    ),
+                }
+                return InstructionResult::cancelled("Exposure cancelled");
+            }
+            // Thread the frame type so shuttered cameras (Moravian, FLI, some
+            // CCDs) keep the shutter CLOSED for dark/bias frames.
+            result = ctx.device_ops.camera_start_exposure_with_frame_type(
                 &camera_id,
                 config.duration_secs,
                 config.gain,
                 config.offset,
                 bin_x,
                 bin_y,
+                &config.frame_type,
             ) => {
-                match result {
-                    Ok(data) => {
-                        tracing::info!(
-                            "[SEQ] Exposure completed: {}x{} image ({} pixels)",
-                            data.width,
-                            data.height,
-                            data.data.len()
-                        );
-                        data
-                    }
-                    Err(e) => return InstructionResult::failure(format!("Exposure failed: {}", e)),
-                }
+                abort_guard.disarm();
+                result
             }
-            _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
-                tracing::info!("Exposure cancelled, aborting camera...");
-                let _ = ctx.device_ops.camera_abort_exposure(&camera_id).await;
-                return InstructionResult::cancelled("Exposure cancelled");
+        };
+        let mut image_data = match exposure_result {
+            Ok(data) => {
+                tracing::info!(
+                    "[SEQ] Exposure completed: {}x{} image ({} pixels)",
+                    data.width,
+                    data.height,
+                    data.data.len()
+                );
+                data
             }
+            Err(error) => return InstructionResult::failure(format!("Exposure failed: {}", error)),
         };
 
         // per-frame defect-map application.
@@ -1807,43 +1994,52 @@ pub async fn execute_exposure_with_renderer(
         // Per-frame HFR feeds the HfrDegraded / FocusDrift triggers; computing
         // it here (rather than only on autofocus) gives the triggers real-time
         // visibility into focus health between AF runs.
-        let measured_hfr = match ctx.device_ops.calculate_image_hfr(&image_data).await {
-            Ok(Some(hfr)) => {
-                tracing::info!("Frame {}/{} HFR: {:.2} pixels", frame, config.count, hfr);
-                hfr_values.push(hfr);
-                Some(hfr)
-            }
-            Ok(None) => {
-                tracing::warn!(
-                    "Frame {}/{} - no stars detected for HFR calculation",
-                    frame,
-                    config.count
-                );
-                None
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "Frame {}/{} - HFR calculation failed: {}",
-                    frame,
-                    config.count,
-                    e
-                );
-                None
+        let measured_hfr = if !is_light_frame {
+            // Calibration frames have no stars; skip the detector entirely.
+            None
+        } else {
+            match ctx.device_ops.calculate_image_hfr(&image_data).await {
+                Ok(Some(hfr)) => {
+                    tracing::info!("Frame {}/{} HFR: {:.2} pixels", frame, config.count, hfr);
+                    hfr_values.push(hfr);
+                    Some(hfr)
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        "Frame {}/{} - no stars detected for HFR calculation",
+                        frame,
+                        config.count
+                    );
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Frame {}/{} - HFR calculation failed: {}",
+                        frame,
+                        config.count,
+                        e
+                    );
+                    None
+                }
             }
         };
 
         // Image Grading: derive star count from the star detector so
         // the grading check can apply the star_count_min floor.
-        let measured_star_count = match ctx.device_ops.detect_stars_in_image(&image_data).await {
-            Ok(stars) => Some(stars.len() as u32),
-            Err(e) => {
-                tracing::debug!(
-                    "Frame {}/{} - star detection failed for grading: {}",
-                    frame,
-                    config.count,
-                    e
-                );
-                None
+        let measured_star_count = if !is_light_frame {
+            None
+        } else {
+            match ctx.device_ops.detect_stars_in_image(&image_data).await {
+                Ok(stars) => Some(stars.len() as u32),
+                Err(e) => {
+                    tracing::debug!(
+                        "Frame {}/{} - star detection failed for grading: {}",
+                        frame,
+                        config.count,
+                        e
+                    );
+                    None
+                }
             }
         };
 
@@ -1852,7 +2048,9 @@ pub async fn execute_exposure_with_renderer(
         // reliable stars to form a stable median — which `grade_frame` treats
         // as "unknown, don't reject". With stars present this is a real
         // measurement, so a configured `eccentricity_threshold` now fires.
-        let measured_eccentricity =
+        let measured_eccentricity = if !is_light_frame {
+            None
+        } else {
             match ctx.device_ops.measure_frame_eccentricity(&image_data).await {
                 Ok(ecc) => ecc,
                 Err(e) => {
@@ -1864,7 +2062,8 @@ pub async fn execute_exposure_with_renderer(
                     );
                     None
                 }
-            };
+            }
+        };
         let metrics = crate::quality::FrameMetrics {
             hfr: measured_hfr,
             eccentricity: measured_eccentricity,
@@ -1950,10 +2149,16 @@ pub async fn execute_exposure_with_renderer(
             // (set by the executor at start time). If neither is configured
             // the frame is accepted unconditionally and the path stays the
             // canonical capture folder.
-            let active_check = config
-                .quality_check
-                .as_ref()
-                .or(quality_check_default.as_ref());
+            let active_check = if is_light_frame {
+                config
+                    .quality_check
+                    .as_ref()
+                    .or(quality_check_default.as_ref())
+            } else {
+                // Never grade calibration frames — star-quality gates would
+                // reject an entire dark/flat/bias burst as "0 stars".
+                None
+            };
             let (grade, save_dir, was_graded) = if let Some(qc) = active_check {
                 // Read baseline (None until the warmup window fills).
                 let baseline = { *frame_baseline_handle.read().await };
@@ -2122,26 +2327,53 @@ pub async fn execute_exposure_with_renderer(
             }
             tracing::info!("Saved: {}", full_path.display());
 
-            // Image Grading: emit Accepted / Rejected progress event
-            // so the dashboard quality panel updates + 's budget
-            // tracker can skip rejected frames.
-            if was_graded {
-                emit_grade_progress(
-                    ctx,
-                    grade,
-                    &metrics,
-                    frame,
-                    config.count,
-                    &full_path,
-                    &frames_accepted_handle,
-                    &frames_rejected_handle,
-                    &consecutive_rejects_handle,
-                    active_check
-                        .map(|c| c.max_consecutive_rejects)
-                        .unwrap_or(u32::MAX),
-                )
-                .await;
-            }
+            // Register EVERY saved frame, graded or not, and emit the
+            // Accepted / Rejected progress event so the dashboard quality panel
+            // updates and the budget tracker can skip rejected frames.
+            //
+            // This emission is also what makes the app RECORD the frame: Dart's
+            // `_registerSequenceFrame` listens for `FrameAccepted` and writes the
+            // `captured_images` row. It used to sit behind `if was_graded`, and
+            // grading is off by default, so an entire automated night produced
+            // FITS files on disk and ZERO database rows — no Analytics session
+            // stats, no gallery entries, and the schema's `producing_node_id` /
+            // `producing_run_id` columns never populated. Verified against the
+            // desktop database: 12 sequencer frames on disk, 0 rows, and the same
+            // for an earlier campaign's frames. The grader DECISION stays gated
+            // inside `emit_grade_progress`.
+            emit_grade_progress(
+                ctx,
+                grade,
+                &metrics,
+                was_graded,
+                frame,
+                config.count,
+                &full_path,
+                &frames_accepted_handle,
+                &frames_rejected_handle,
+                &consecutive_rejects_handle,
+                active_check
+                    .map(|c| c.max_consecutive_rejects)
+                    .unwrap_or(u32::MAX),
+            )
+            .await;
+        } else {
+            // No resolvable save location: the frame was captured off the
+            // sensor and is about to be counted as a completed exposure, but
+            // nothing will be written to disk. Say so LOUDLY — this branch
+            // silently discarded science frames, so a whole session could
+            // report "completed" at 100% while leaving no files behind
+            // (observed live on a headless rig with no save path configured).
+            // Not a hard failure: transient exposures (autofocus, framing,
+            // live view) legitimately reach here with no save path.
+            tracing::warn!(
+                "Frame {}/{} captured but NOT SAVED: no save location resolved \
+                 (no per-node save_to template and no sequencer save path \
+                 configured). Set the sequencer save path (or the node's \
+                 save_to) or this frame is discarded.",
+                frame,
+                config.count
+            );
         }
 
         completed_exposures += 1;
@@ -2152,7 +2384,14 @@ pub async fn execute_exposure_with_renderer(
         // dithering after the last exposure of a burst leaves the mount
         // off-target for the next instruction (and wastes time).
         if let Some(dither_every) = config.dither_every {
-            if dither_every > 0 && frame % dither_every == 0 && frame < config.count {
+            // `is_light_frame`: never dither a calibration burst — the serializer
+            // inherits the global dither-every default onto every exposure node,
+            // so darks/flats would otherwise pulse the mount between frames.
+            if is_light_frame
+                && dither_every > 0
+                && frame % dither_every == 0
+                && frame < config.count
+            {
                 tracing::info!("Dithering...");
                 // Dual-rig — guard the burst dither so a piggybacking secondary
                 // camera is clear before the mount pulses (no-op single-rig).
@@ -2167,23 +2406,56 @@ pub async fn execute_exposure_with_renderer(
                 })
                 .await
                 {
-                    // Fail closed, matching the standalone Dither node. A dither
-                    // / settle failure usually means guiding lost the star, so
-                    // silently continuing the burst would keep exposing
-                    // undithered (walking noise) and mask a guiding problem.
-                    // Surface it as a visible event and abort the burst so the
-                    // sequence's recovery / guiding triggers can engage.
-                    let error_message = format!(
-                        "Dither failed after frame {}/{}: {}",
-                        frame, config.count, e
-                    );
-                    tracing::error!("{}", error_message);
-                    if let Some(event_tx) = &ctx.event_tx {
-                        let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
-                            message: error_message.clone(),
-                        });
+                    // An UNGUIDED rig cannot dither, and that is a
+                    // CONFIGURATION state — not a guiding failure. No star was
+                    // lost, no walking-noise problem is being masked, and no
+                    // recovery/guiding trigger can help, so killing an
+                    // otherwise-healthy burst over it is wrong.
+                    //
+                    // It bites by default: the serializer inherits the GLOBAL
+                    // dither-every onto every exposure node (see the
+                    // `is_light_frame` note above), so a plain light burst on a
+                    // rig with no guider schedules a dither it can never perform.
+                    // Reproduced on the desktop build with the simulator camera:
+                    // an 8-frame burst died after frame 3 with "Dither failed
+                    // after frame 3/8: No active guider configured", losing the
+                    // remaining 5 frames and the unattended night with them.
+                    //
+                    // Skip loudly, once per burst, and keep imaging. Every other
+                    // dither/settle failure keeps the fail-closed abort below.
+                    if crate::device_ops::is_no_guider_configured(&e.to_string()) {
+                        if !dither_skipped_warned {
+                            dither_skipped_warned = true;
+                            tracing::warn!(
+                                "Dither requested after frame {}/{} but no guider is \
+                                 configured — skipping dithers for the rest of this \
+                                 burst. Frames will be UNDITHERED (walking noise); \
+                                 connect a guider or set dither-every to 0 to \
+                                 silence this.",
+                                frame,
+                                config.count
+                            );
+                        }
+                    } else {
+                        // Fail closed, matching the standalone Dither node. A
+                        // dither / settle failure usually means guiding lost the
+                        // star, so silently continuing the burst would keep
+                        // exposing undithered (walking noise) and mask a guiding
+                        // problem. Surface it as a visible event and abort the
+                        // burst so the sequence's recovery / guiding triggers can
+                        // engage.
+                        let error_message = format!(
+                            "Dither failed after frame {}/{}: {}",
+                            frame, config.count, e
+                        );
+                        tracing::error!("{}", error_message);
+                        if let Some(event_tx) = &ctx.event_tx {
+                            let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                                message: error_message.clone(),
+                            });
+                        }
+                        return InstructionResult::failure(error_message);
                     }
-                    return InstructionResult::failure(error_message);
                 }
             }
         }
@@ -2576,6 +2848,10 @@ async fn emit_grade_progress(
     ctx: &InstructionContext,
     grade: crate::quality::FrameGrade,
     metrics: &crate::quality::FrameMetrics,
+    // Whether a grader actually ran. The frame is REGISTERED either way (the
+    // progress event below is what makes the app record it), but no grader
+    // decision is written to the replay/decision log when no grader made one.
+    was_graded: bool,
     frame: u32,
     total: u32,
     full_path: &std::path::Path,
@@ -2642,7 +2918,7 @@ async fn emit_grade_progress(
             let detail_text = structured.detail_text();
             if let Some(event_tx) = &ctx.event_tx {
                 let _ = event_tx.send(crate::executor::ExecutorEvent::NodeProgress {
-                    node_id: String::new(),
+                    node_id: ctx.node_id.clone(),
                     instruction: "Exposure".to_string(),
                     progress_percent: 100.0 * frame as f64 / total.max(1) as f64,
                     detail: detail_text,
@@ -2653,28 +2929,34 @@ async fn emit_grade_progress(
             // the replay timeline surfaces every accepted frame next
             // to the rejected ones. We hand the path through too so
             // the replay UI can cross-link to the captured-image row.
-            ctx.emit_decision(crate::decision::DecisionEvent::new(
-                crate::decision::DecisionCategory::FrameAccepted,
-                format!(
-                    "Frame {}/{} accepted{}",
-                    frame,
-                    total,
-                    metrics
-                        .hfr
-                        .map(|h| format!(" (HFR {:.2})", h))
-                        .unwrap_or_default(),
-                ),
-                serde_json::json!({
-                    "frame": frame,
-                    "total": total,
-                    "hfr": metrics.hfr,
-                    "eccentricity": metrics.eccentricity,
-                    "star_count": metrics.star_count,
-                    "save_path": full_path.display().to_string(),
-                    "accepted_total": accepted,
-                    "rejected_total": rejected,
-                }),
-            ));
+            //
+            // Gated on `was_graded`: an ungraded frame is still registered
+            // (above), but no grader DECISION is invented for it — nothing
+            // graded it, so the replay timeline must not claim otherwise.
+            if was_graded {
+                ctx.emit_decision(crate::decision::DecisionEvent::new(
+                    crate::decision::DecisionCategory::FrameAccepted,
+                    format!(
+                        "Frame {}/{} accepted{}",
+                        frame,
+                        total,
+                        metrics
+                            .hfr
+                            .map(|h| format!(" (HFR {:.2})", h))
+                            .unwrap_or_default(),
+                    ),
+                    serde_json::json!({
+                        "frame": frame,
+                        "total": total,
+                        "hfr": metrics.hfr,
+                        "eccentricity": metrics.eccentricity,
+                        "star_count": metrics.star_count,
+                        "save_path": full_path.display().to_string(),
+                        "accepted_total": accepted,
+                        "rejected_total": rejected,
+                    }),
+                ));
+            }
         }
         crate::quality::FrameGrade::Reject {
             reason,
@@ -2774,7 +3056,7 @@ async fn emit_grade_progress(
             let detail_text = structured.detail_text();
             if let Some(event_tx) = &ctx.event_tx {
                 let _ = event_tx.send(crate::executor::ExecutorEvent::NodeProgress {
-                    node_id: String::new(),
+                    node_id: ctx.node_id.clone(),
                     instruction: "Exposure".to_string(),
                     progress_percent: 100.0 * frame as f64 / total.max(1) as f64,
                     detail: detail_text,
@@ -2918,6 +3200,12 @@ async fn build_frame_context_for_save(
         frame_index,
     );
 
+    // Honour the node's configured frame type (FITS IMAGETYP). Before this,
+    // every sequencer capture was stamped "Light" — sequenced darks/flats/
+    // bias frames were mislabeled on disk and invisible to calibration
+    // ingest that filters on IMAGETYP.
+    frame_ctx.frame_type = config.frame_type.clone();
+
     frame_ctx.total_planned_frames = Some(config.count);
 
     // Target identification — use the running target from the executor (not
@@ -3039,8 +3327,490 @@ async fn build_frame_context_for_save(
 // AUTOFOCUS INSTRUCTION
 // =============================================================================
 
-/// Execute autofocus using V-curve or curve fitting
+/// Process-wide hardware admission for autofocus. Every entry path ultimately
+/// calls this module (standalone bridge, sequence node, recovery, meridian
+/// flip), so a single atomic gate prevents two callers from sweeping the same
+/// camera/focuser pair concurrently.
+static AUTOFOCUS_RUN_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+pub struct AutofocusRunGuard;
+
+impl Drop for AutofocusRunGuard {
+    fn drop(&mut self) {
+        AUTOFOCUS_RUN_ACTIVE.store(false, Ordering::Release);
+    }
+}
+
+pub fn try_admit_autofocus_run() -> Option<AutofocusRunGuard> {
+    AUTOFOCUS_RUN_ACTIVE
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .ok()
+        .map(|_| AutofocusRunGuard)
+}
+
+/// Execute autofocus using V-curve or curve fitting, acquiring the shared
+/// camera/focuser admission gate first.
+///
+/// Fail-fast: if the gate is already held, returns immediately with the
+/// "already running" error so the one-shot / REST layer can surface a typed
+/// `DeviceBusy`. Sequence NODES should use [execute_autofocus_for_node]
+/// instead, which waits for an in-flight run rather than aborting the run.
 pub async fn execute_autofocus(
+    config: &AutofocusConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
+    let Some(guard) = try_admit_autofocus_run() else {
+        return InstructionResult::failure(
+            "Autofocus is already running on this equipment host".to_string(),
+        );
+    };
+    execute_autofocus_admitted(config, ctx, progress_callback, guard).await
+}
+
+/// Execute autofocus for a SEQUENCE NODE, waiting for any in-flight autofocus
+/// to release the shared admission gate before running.
+///
+/// An explicit `Autofocus` node routinely races a concurrently-fired
+/// trigger-autofocus: the HFR-degradation / focus-invalidation trigger fires
+/// its own run (grabbing the gate) at the same tick the node is dispatched.
+/// With plain fail-fast [execute_autofocus] the node then failed with
+/// "Autofocus is already running", which aborted the ENTIRE sequence — a
+/// benign scheduling race turning into a night-ending failure. A node must
+/// never abort the run for this reason: wait for the in-flight run to finish
+/// (the operator asked for an autofocus HERE), then perform this node's own
+/// run. Bounded so a leaked/stuck gate can't hang the sequence forever.
+pub async fn execute_autofocus_for_node(
+    config: &AutofocusConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
+    // An autofocus run is at most a few minutes (per-node timeout); cap the
+    // admission wait generously above that so a genuine concurrent run always
+    // completes first, while a leaked gate still surfaces as a failure rather
+    // than hanging.
+    const MAX_ADMISSION_WAIT: Duration = Duration::from_secs(600);
+    let Some(guard) = admit_autofocus_run_waiting(MAX_ADMISSION_WAIT).await else {
+        return InstructionResult::failure(
+            "Autofocus could not start: another autofocus held the \
+             equipment for over 10 minutes"
+                .to_string(),
+        );
+    };
+    execute_autofocus_admitted(config, ctx, progress_callback, guard).await
+}
+
+/// Acquire the shared autofocus admission gate, waiting (bounded) for any
+/// in-flight run to release it. Returns the guard, or `None` on timeout.
+///
+/// Uses `tokio::time` so the deadline honours a paused test clock (and so the
+/// timeout is driven by the same runtime as the poll sleeps).
+async fn admit_autofocus_run_waiting(max_wait: Duration) -> Option<AutofocusRunGuard> {
+    tokio::time::timeout(max_wait, async {
+        let mut announced = false;
+        loop {
+            if let Some(guard) = try_admit_autofocus_run() {
+                return guard;
+            }
+            if !announced {
+                announced = true;
+                tracing::info!(
+                    "Autofocus node deferring to an in-flight autofocus run; \
+                     waiting for it to finish before starting this node's run"
+                );
+            }
+            sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await
+    .ok()
+}
+
+/// Execute a run for a caller that already owns [AutofocusRunGuard]. This is
+/// public so the bridge can translate an admission rejection into the typed
+/// `DeviceBusy` error expected by the REST layer.
+pub async fn execute_autofocus_admitted(
+    config: &AutofocusConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    _guard: AutofocusRunGuard,
+) -> InstructionResult {
+    let mut effective_config = config.clone();
+
+    // Resolve the imaging filter at runtime. A sequence can reach the same AF
+    // node through different filter branches, so choosing per-filter exposure,
+    // binning, gain, and offset during Dart serialization would be wrong.
+    let mut original_filter: Option<(String, i32)> = None;
+    let mut filter_names = Vec::new();
+    let needs_filter_context = !config.filter_settings.is_empty()
+        || config
+            .filter
+            .as_deref()
+            .is_some_and(|name| !name.trim().is_empty());
+    if needs_filter_context {
+        if let Some(filterwheel_id) = ctx.filterwheel_id.as_deref() {
+            let position = match ctx
+                .device_ops
+                .filterwheel_get_position(filterwheel_id)
+                .await
+            {
+                Ok(position) if position >= 0 => position,
+                Ok(position) => {
+                    return InstructionResult::failure(format!(
+                        "Cannot start autofocus while the filter wheel reports moving position {}",
+                        position
+                    ))
+                }
+                Err(error) => {
+                    return InstructionResult::failure(format!(
+                        "Cannot read the current filter before autofocus: {}",
+                        error
+                    ))
+                }
+            };
+            filter_names = match ctx.device_ops.filterwheel_get_names(filterwheel_id).await {
+                Ok(names) => names,
+                Err(error) => {
+                    return InstructionResult::failure(format!(
+                        "Cannot read filter names before autofocus: {}",
+                        error
+                    ))
+                }
+            };
+            let Some(name) = filter_names.get(position as usize).cloned() else {
+                return InstructionResult::failure(format!(
+                    "Filter wheel position {} has no configured name; autofocus cannot apply per-filter settings safely",
+                    position
+                ));
+            };
+            original_filter = Some((name, position));
+        } else if config
+            .filter
+            .as_deref()
+            .is_some_and(|name| !name.trim().is_empty())
+        {
+            return InstructionResult::failure(format!(
+                "Autofocus is configured to use filter \"{}\", but no filter wheel is connected",
+                config.filter.as_deref().unwrap_or_default().trim()
+            ));
+        }
+    }
+
+    let active_filter_name = original_filter
+        .as_ref()
+        .map(|(name, _)| name.as_str())
+        .or(ctx.current_filter.as_deref());
+    let active_override = active_filter_name
+        .and_then(|name| config.filter_settings.get(name))
+        .cloned();
+    if let Some(filter_config) = &active_override {
+        if let Some(exposure) = filter_config.af_exposure_time {
+            effective_config.exposure_duration = exposure;
+        }
+        effective_config.binning = filter_config.binning;
+        effective_config.gain = filter_config.gain;
+        effective_config.offset = filter_config.offset;
+    }
+
+    let requested_filter = active_override
+        .as_ref()
+        .and_then(|settings| settings.af_filter_name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .or(effective_config.filter.as_deref())
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string);
+
+    if let Err(message) = validate_autofocus_config(&effective_config) {
+        return InstructionResult::failure(message);
+    }
+
+    let mut guiding_was_paused = false;
+    if effective_config.disable_guiding_during_af {
+        let guider_status = match ctx.device_ops.guider_get_status().await {
+            Ok(status) => status,
+            Err(error) => {
+                return InstructionResult::failure(format!(
+                "Autofocus is configured to pause guiding, but guider status could not be read: {}",
+                error
+            ))
+            }
+        };
+        if guider_status.is_guiding {
+            if let Err(error) = ctx.device_ops.guider_stop().await {
+                return InstructionResult::failure(format!(
+                    "Autofocus is configured to pause guiding, but guiding could not be stopped: {}",
+                    error
+                ));
+            }
+            guiding_was_paused = true;
+            if let Some(trigger_state) = &ctx.trigger_state {
+                let mut state = trigger_state.write().await;
+                state.set_guiding_enabled(false);
+                state.set_guide_star_lost(false);
+            }
+        }
+    }
+
+    let mut filter_restore_required = false;
+    let mut pre_run_error = None;
+    if let Some(target_name) = requested_filter.as_deref() {
+        match &original_filter {
+            Some((original_name, _original_position)) if original_name != target_name => {
+                if let Some(target_position) =
+                    filter_names.iter().position(|name| name == target_name)
+                {
+                    // The wheel may move before verification fails, so restoration
+                    // responsibility begins before the command is sent.
+                    filter_restore_required = true;
+                    if let Err(error) =
+                        move_autofocus_filter(ctx, target_name, target_position as i32).await
+                    {
+                        pre_run_error = Some(format!(
+                            "Failed to switch to autofocus filter \"{}\": {}",
+                            target_name, error
+                        ));
+                    }
+                } else {
+                    pre_run_error = Some(format!(
+                        "Configured autofocus filter \"{}\" is not present in the connected wheel",
+                        target_name
+                    ));
+                }
+            }
+            Some(_) => {}
+            None => {
+                pre_run_error = Some(format!(
+                    "Autofocus is configured to use filter \"{}\", but no filter wheel is connected",
+                    target_name
+                ));
+            }
+        }
+    }
+
+    let mut result = match pre_run_error {
+        Some(error) => InstructionResult::failure(error),
+        None => execute_autofocus_attempts(&effective_config, ctx, progress_callback).await,
+    };
+
+    if filter_restore_required {
+        if let Some((original_name, original_position)) = &original_filter {
+            if let Err(error) = move_autofocus_filter(ctx, original_name, *original_position).await
+            {
+                result = append_autofocus_cleanup_failure(
+                    result,
+                    format!(
+                        "failed to restore original filter \"{}\" at position {}: {}",
+                        original_name, original_position, error
+                    ),
+                );
+            }
+        }
+    }
+
+    if guiding_was_paused {
+        result = resume_guiding_after_autofocus(ctx, result).await;
+    }
+
+    result
+}
+
+async fn execute_autofocus_attempts(
+    config: &AutofocusConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
+    let attempts = config.number_of_attempts.max(1);
+    for attempt in 1..=attempts {
+        let result = execute_autofocus_once(config, ctx, progress_callback).await;
+        if !matches!(result.status, NodeStatus::Failure) || attempt == attempts {
+            return result;
+        }
+        if result
+            .data
+            .as_ref()
+            .and_then(|data| data.get("autofocus_origin_restored"))
+            .and_then(serde_json::Value::as_bool)
+            == Some(false)
+        {
+            return result;
+        }
+        if let Some(cb) = progress_callback {
+            cb(
+                0.0,
+                format!("Autofocus attempt {attempt}/{attempts} failed; retrying full sweep"),
+            );
+        }
+        tracing::warn!(
+            "Autofocus attempt {}/{} failed; starting the next configured attempt",
+            attempt,
+            attempts
+        );
+    }
+    unreachable!("attempt count is clamped to at least one")
+}
+
+async fn move_autofocus_filter(
+    ctx: &InstructionContext,
+    filter_name: &str,
+    target_position: i32,
+) -> Result<(), String> {
+    let filterwheel_id = ctx
+        .filterwheel_id
+        .as_deref()
+        .filter(|id| !id.is_empty())
+        .ok_or_else(|| "no filter wheel is connected".to_string())?;
+
+    ctx.device_ops
+        .filterwheel_set_position(filterwheel_id, target_position)
+        .await
+        .map_err(|error| format!("filter move command failed: {}", error))?;
+
+    // Cleanup still owns the wheel after cancellation, so this verification
+    // intentionally does not consult the sequence cancellation token.
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_secs(DEFAULT_FILTER_WHEEL_TIMEOUT_SECS);
+    sleep(Duration::from_millis(100)).await;
+    loop {
+        match ctx
+            .device_ops
+            .filterwheel_get_position(filterwheel_id)
+            .await
+        {
+            Ok(position) if position == target_position => break,
+            Ok(_) => {}
+            Err(error) => tracing::warn!(
+                "Error verifying autofocus filter move to {}: {}",
+                target_position,
+                error
+            ),
+        }
+        if start.elapsed() > timeout {
+            return Err(format!(
+                "filter wheel did not reach position {} within {} seconds",
+                target_position,
+                timeout.as_secs()
+            ));
+        }
+        sleep(Duration::from_millis(200)).await;
+    }
+
+    apply_filter_focus_offset(filter_name, ctx, None)
+        .await
+        .map_err(|error| format!("focus offset failed: {}", error))
+}
+
+async fn resume_guiding_after_autofocus(
+    ctx: &InstructionContext,
+    result: InstructionResult,
+) -> InstructionResult {
+    if let Err(error) = ctx.device_ops.guider_start(1.0, 10.0, 60.0).await {
+        return append_autofocus_cleanup_failure(
+            result,
+            format!("failed to resume guiding after autofocus: {}", error),
+        );
+    }
+    match ctx.device_ops.guider_get_status().await {
+        Ok(status) if status.is_guiding => {
+            if let Some(trigger_state) = &ctx.trigger_state {
+                trigger_state.write().await.set_guiding_enabled(true);
+            }
+            result
+        }
+        Ok(_) => append_autofocus_cleanup_failure(
+            result,
+            "guider accepted resume but did not report guiding".to_string(),
+        ),
+        Err(error) => append_autofocus_cleanup_failure(
+            result,
+            format!(
+                "could not verify guiding resumed after autofocus: {}",
+                error
+            ),
+        ),
+    }
+}
+
+fn append_autofocus_cleanup_failure(
+    mut result: InstructionResult,
+    failure: String,
+) -> InstructionResult {
+    let prior = result
+        .message
+        .take()
+        .unwrap_or_else(|| "Autofocus did not complete".to_string());
+    result.status = NodeStatus::Failure;
+    result.message = Some(format!("{}; CRITICAL CLEANUP FAILURE: {}", prior, failure));
+    result
+}
+
+fn validate_autofocus_config(config: &AutofocusConfig) -> Result<(), String> {
+    if !config.exposure_duration.is_finite() || config.exposure_duration <= 0.0 {
+        return Err("Autofocus exposure duration must be finite and positive".to_string());
+    }
+    if !config.max_duration_secs.is_finite() || config.max_duration_secs <= 0.0 {
+        return Err("Autofocus maximum duration must be finite and positive".to_string());
+    }
+    if config.step_size <= 0 {
+        return Err("Autofocus step size must be positive".to_string());
+    }
+    if !(1..=50).contains(&config.steps_out) {
+        return Err("Autofocus steps out must be between 1 and 50".to_string());
+    }
+    if !(1..=10).contains(&config.number_of_attempts) {
+        return Err("Autofocus attempt count must be between 1 and 10".to_string());
+    }
+    if !(1..=20).contains(&config.exposures_per_point) {
+        return Err("Autofocus exposures per point must be between 1 and 20".to_string());
+    }
+    if !config.r_squared_threshold.is_finite() || !(0.0..=1.0).contains(&config.r_squared_threshold)
+    {
+        return Err("Autofocus R² threshold must be between 0 and 1".to_string());
+    }
+    if !config.outer_crop_ratio.is_finite()
+        || !config.inner_crop_ratio.is_finite()
+        || config.outer_crop_ratio <= 0.0
+        || config.outer_crop_ratio > 1.0
+        || config.inner_crop_ratio < 0.0
+        || config.inner_crop_ratio >= config.outer_crop_ratio
+    {
+        return Err("Autofocus crop ratios must satisfy 0 <= inner < outer <= 1".to_string());
+    }
+    if config.focuser_settle_time_ms > 10_000 {
+        return Err("Autofocus focuser settle time cannot exceed 10000 ms".to_string());
+    }
+    if config.backlash_compensation < 0 || config.backlash_out_compensation < 0 {
+        return Err("Autofocus backlash values cannot be negative".to_string());
+    }
+    if config.gain.is_some_and(|gain| gain < 0) || config.offset.is_some_and(|offset| offset < 0) {
+        return Err("Autofocus gain and offset cannot be negative".to_string());
+    }
+    for (filter_name, filter_config) in &config.filter_settings {
+        if filter_name.trim().is_empty() {
+            return Err("Autofocus per-filter settings contain an empty filter name".to_string());
+        }
+        if filter_config
+            .af_exposure_time
+            .is_some_and(|exposure| !exposure.is_finite() || exposure <= 0.0)
+        {
+            return Err(format!(
+                "Autofocus exposure override for filter \"{}\" must be finite and positive",
+                filter_name
+            ));
+        }
+        if filter_config.gain.is_some_and(|gain| gain < 0)
+            || filter_config.offset.is_some_and(|offset| offset < 0)
+        {
+            return Err(format!(
+                "Autofocus gain and offset overrides for filter \"{}\" cannot be negative",
+                filter_name
+            ));
+        }
+    }
+    Ok(())
+}
+
+async fn execute_autofocus_once(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
@@ -3083,295 +3853,281 @@ pub async fn execute_autofocus(
 
     tracing::info!("Current focuser position: {}", current_position);
 
-    let af_config: crate::autofocus::AutofocusConfig = config.into();
-
-    let af_start_time = std::time::Instant::now();
     let af_timeout = Duration::from_secs_f64(config.max_duration_secs);
+    let af_start_time = tokio::time::Instant::now();
+    let autofocus_operation = async {
+        let af_config: crate::autofocus::AutofocusConfig = config.into();
 
-    let af_engine = crate::autofocus::VCurveAutofocus::new(af_config.clone());
-    let backlash = crate::autofocus::BacklashCompensation::new(af_config.backlash_compensation);
+        let af_engine = crate::autofocus::VCurveAutofocus::new(af_config.clone());
+        let backlash = crate::autofocus::BacklashCompensation::new_directional(
+            af_config.backlash_compensation,
+            af_config.backlash_out_compensation,
+        );
 
-    let positions = af_engine.calculate_positions(current_position);
-    let total_points = positions.len();
-    let start_position = positions[0];
+        let positions = af_engine.calculate_positions(current_position);
+        let total_points = positions.len();
+        let start_position = positions[0];
 
-    let mut focus_data: Vec<crate::autofocus::FocusDataPoint> = Vec::with_capacity(total_points);
+        let mut focus_data: Vec<crate::autofocus::FocusDataPoint> =
+            Vec::with_capacity(total_points);
 
-    if let Some(cb) = progress_callback {
-        cb(5.0, format!("Moving to start position: {}", start_position));
-    }
+        if let Some(cb) = progress_callback {
+            cb(5.0, format!("Moving to start position: {}", start_position));
+        }
 
-    if backlash.is_needed(current_position, start_position) {
-        let (intermediate, final_pos) =
-            backlash.calculate_approach(current_position, start_position);
+        if backlash.is_needed(current_position, start_position) {
+            let (intermediate, final_pos) =
+                backlash.calculate_approach(current_position, start_position);
 
-        if let Some(overshoot) = intermediate {
-            tracing::info!(
-                "Applying backlash compensation: {} -> {} -> {}",
-                current_position,
-                overshoot,
-                final_pos
-            );
+            if let Some(overshoot) = intermediate {
+                tracing::info!(
+                    "Applying backlash compensation: {} -> {} -> {}",
+                    current_position,
+                    overshoot,
+                    final_pos
+                );
 
-            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
-                return InstructionResult::failure(format!(
-                    "Failed to move focuser (backlash): {}",
-                    e
-                ));
+                if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
+                    return InstructionResult::failure(format!(
+                        "Failed to move focuser (backlash): {}",
+                        e
+                    ));
+                }
+                if let Err(e) =
+                    wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
+                {
+                    return InstructionResult::failure(e);
+                }
             }
-            if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
+
+            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
+                return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+            }
+        } else {
+            tracing::info!("Moving to start position: {}", start_position);
+            if let Err(e) = ctx
+                .device_ops
+                .focuser_move_to(&focuser_id, start_position)
+                .await
             {
-                return InstructionResult::failure(e);
+                return InstructionResult::failure(format!("Failed to move focuser: {}", e));
             }
         }
 
-        if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
-            return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+        if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(300)).await {
+            return InstructionResult::failure(e);
         }
-    } else {
-        tracing::info!("Moving to start position: {}", start_position);
-        if let Err(e) = ctx
-            .device_ops
-            .focuser_move_to(&focuser_id, start_position)
-            .await
-        {
-            return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+        if let Some(result) = wait_for_autofocus_settle(config, ctx).await {
+            return result;
         }
-    }
 
-    if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(300)).await {
-        return InstructionResult::failure(e);
-    }
+        let (bin_x, bin_y) = match config.binning {
+            Binning::One => (1, 1),
+            Binning::Two => (2, 2),
+            Binning::Three => (3, 3),
+            Binning::Four => (4, 4),
+        };
 
-    let (bin_x, bin_y) = match config.binning {
-        Binning::One => (1, 1),
-        Binning::Two => (2, 2),
-        Binning::Three => (3, 3),
-        Binning::Four => (4, 4),
-    };
+        // minimum star count is now `config.min_star_count`
+        // (default 10 from `default_af_min_star_count`); previously a hardcoded
+        // local const. A user with a fast/dim setup can lower it without
+        // patching the binary.
+        let min_star_count: u32 = config.min_star_count.max(1);
+        // 1.0 px² is the noise floor: a V-curve with smaller HFR variance is
+        // indistinguishable from flat noise and the fit would extrapolate to
+        // nonsense.
+        const MIN_HFR_VARIANCE: f64 = 1.0;
+        let mut low_star_count_warnings = 0;
 
-    // minimum star count is now `config.min_star_count`
-    // (default 10 from `default_af_min_star_count`); previously a hardcoded
-    // local const. A user with a fast/dim setup can lower it without
-    // patching the binary.
-    let min_star_count: u32 = config.min_star_count.max(1);
-    // 1.0 px² is the noise floor: a V-curve with smaller HFR variance is
-    // indistinguishable from flat noise and the fit would extrapolate to
-    // nonsense.
-    const MIN_HFR_VARIANCE: f64 = 1.0;
-    // R²<0.5 means the curve fit is worse than a horizontal line; accepting
-    // such a fit would produce a "best" focus that has no physical meaning.
-    const MIN_R_SQUARED: f64 = 0.5;
-
-    let mut low_star_count_warnings = 0;
-
-    for point in 0..total_points {
-        // Check timeout
-        if af_start_time.elapsed() > af_timeout {
-            tracing::warn!(
+        for point in 0..total_points {
+            // Check timeout
+            if af_start_time.elapsed() > af_timeout {
+                tracing::warn!(
                 "Autofocus timed out after {:.0}s (limit: {:.0}s), returning focuser to original position",
                 af_start_time.elapsed().as_secs_f64(),
                 config.max_duration_secs,
             );
-            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
-                .await;
-            let _ = ctx
-                .device_ops
-                .focuser_move_to(&focuser_id, current_position)
-                .await;
-            return InstructionResult::failure(format!(
-                "Autofocus timed out after {:.0}s (max duration: {:.0}s)",
-                af_start_time.elapsed().as_secs_f64(),
-                config.max_duration_secs,
-            ));
-        }
-
-        if let Some(result) = ctx.check_cancelled() {
-            // Halting + stop-wait guarantees the motor is stationary before
-            // we issue the return-to-original move; otherwise the second
-            // move command could race the in-flight sweep move.
-            tracing::info!("Autofocus cancelled, halting focuser");
-            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
-                .await;
-            // Fire-and-forget the return move: the user cancelled, so we
-            // don't want to block them with a 30 s wait; if the move
-            // succeeds, great, if not, the next instruction will re-park.
-            let _ = ctx
-                .device_ops
-                .focuser_move_to(&focuser_id, current_position)
-                .await;
-            return result;
-        }
-
-        let position = positions[point];
-
-        // 10-90% covers the V-curve sample loop; the remaining 10% is the
-        // final move + settle + curve fit, which is the noticeable wait the
-        // user sees after the last sample is taken.
-        // Why: point and total_points are usize bounded by sweep size (<=50 in UI);
-        // lossless to f64.
-        let point_progress = 10.0 + (point as f64 / total_points as f64 * 80.0);
-
-        tracing::info!(
-            "Focus point {}/{} at position {}",
-            point + 1,
-            total_points,
-            position
-        );
-        if let Some(cb) = progress_callback {
-            cb(
-                point_progress,
-                format!("Point {}/{}: pos {}", point + 1, total_points, position),
-            );
-        }
-
-        if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, position).await {
-            return InstructionResult::failure(format!("Failed to move focuser: {}", e));
-        }
-
-        if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
-            return InstructionResult::failure(e);
-        }
-
-        let image_data = match ctx
-            .device_ops
-            .camera_start_exposure(
-                &camera_id,
-                config.exposure_duration,
-                None,
-                None,
-                bin_x,
-                bin_y,
-            )
-            .await
-        {
-            Ok(data) => {
-                tracing::info!(
-                    "[SEQ] Exposure completed: {}x{} image ({} pixels)",
-                    data.width,
-                    data.height,
-                    data.data.len()
-                );
-                data
-            }
-            Err(e) => {
-                return InstructionResult::failure(format!("Autofocus exposure failed: {}", e))
-            }
-        };
-
-        let measurement = calculate_hfr_with_crops(&image_data);
-
-        tracing::info!(
-            "Position {} HFR: {:.2}, Stars: {}",
-            position,
-            measurement.hfr,
-            measurement.star_count
-        );
-
-        if measurement.star_count < min_star_count {
-            low_star_count_warnings += 1;
-            tracing::warn!(
-                "Low star count at position {}: {} stars (minimum: {})",
-                position,
-                measurement.star_count,
-                min_star_count
-            );
-
-            // >50% of sweep points failing star detection means seeing /
-            // clouds / pointing has degraded so badly that no fit will be
-            // meaningful; failing fast saves the user the rest of the sweep
-            // and a useless curve-fit error.
-            if low_star_count_warnings > total_points / 2 {
-                let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-                wait_for_focuser_stop_after_halt(
-                    &focuser_id,
-                    &ctx.device_ops,
-                    Duration::from_secs(10),
-                )
-                .await;
-                let _ = ctx
-                    .device_ops
-                    .focuser_move_to(&focuser_id, current_position)
-                    .await;
                 return InstructionResult::failure(format!(
+                    "Autofocus timed out after {:.0}s (max duration: {:.0}s)",
+                    af_start_time.elapsed().as_secs_f64(),
+                    config.max_duration_secs,
+                ));
+            }
+
+            if let Some(result) = ctx.check_cancelled() {
+                return result;
+            }
+
+            let position = positions[point];
+
+            // 10-90% covers the V-curve sample loop; the remaining 10% is the
+            // final move + settle + curve fit, which is the noticeable wait the
+            // user sees after the last sample is taken.
+            // Why: point and total_points are usize bounded by sweep size (<=50 in UI);
+            // lossless to f64.
+            let point_progress = 10.0 + (point as f64 / total_points as f64 * 80.0);
+
+            tracing::info!(
+                "Focus point {}/{} at position {}",
+                point + 1,
+                total_points,
+                position
+            );
+            if let Some(cb) = progress_callback {
+                cb(
+                    point_progress,
+                    format!("Point {}/{}: pos {}", point + 1, total_points, position),
+                );
+            }
+
+            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, position).await {
+                return InstructionResult::failure(format!("Failed to move focuser: {}", e));
+            }
+
+            if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
+            {
+                return InstructionResult::failure(e);
+            }
+            if let Some(result) = wait_for_autofocus_settle(config, ctx).await {
+                return result;
+            }
+
+            let mut measurements = Vec::with_capacity(config.exposures_per_point as usize);
+            for sample in 0..config.exposures_per_point {
+                if let Some(result) = ctx.check_cancelled() {
+                    return result;
+                }
+                let mut abort_guard =
+                    CameraExposureAbortGuard::new(ctx.device_ops.clone(), camera_id.clone());
+                let exposure_result = ctx
+                    .device_ops
+                    .camera_start_exposure(
+                        &camera_id,
+                        config.exposure_duration,
+                        config.gain,
+                        config.offset,
+                        bin_x,
+                        bin_y,
+                    )
+                    .await;
+                abort_guard.disarm();
+                let image_data = match exposure_result {
+                    Ok(data) => {
+                        tracing::info!(
+                            "[SEQ] Autofocus point {} sample {}/{} completed: {}x{} ({} pixels)",
+                            point + 1,
+                            sample + 1,
+                            config.exposures_per_point,
+                            data.width,
+                            data.height,
+                            data.data.len()
+                        );
+                        data
+                    }
+                    Err(e) => {
+                        return InstructionResult::failure(format!(
+                            "Autofocus exposure failed: {}",
+                            e
+                        ))
+                    }
+                };
+                measurements.push(calculate_hfr_with_crops(
+                    &image_data,
+                    config.outer_crop_ratio,
+                    config.inner_crop_ratio,
+                    config.use_brightest_n_stars,
+                ));
+            }
+            measurements.sort_by(|a, b| a.hfr.total_cmp(&b.hfr));
+            let measurement = measurements.swap_remove(measurements.len() / 2);
+
+            tracing::info!(
+                "Position {} HFR: {:.2}, Stars: {}",
+                position,
+                measurement.hfr,
+                measurement.star_count
+            );
+
+            if measurement.star_count < min_star_count {
+                low_star_count_warnings += 1;
+                tracing::warn!(
+                    "Low star count at position {}: {} stars (minimum: {})",
+                    position,
+                    measurement.star_count,
+                    min_star_count
+                );
+
+                // >50% of sweep points failing star detection means seeing /
+                // clouds / pointing has degraded so badly that no fit will be
+                // meaningful; failing fast saves the user the rest of the sweep
+                // and a useless curve-fit error.
+                if low_star_count_warnings > total_points / 2 {
+                    return InstructionResult::failure(format!(
                     "Autofocus failed: Insufficient stars detected. Only {} stars found (minimum: {}). \
                      This may indicate clouds, poor seeing, or incorrect camera settings.",
                     measurement.star_count, min_star_count
                 ));
+                }
+            }
+
+            focus_data.push(crate::autofocus::FocusDataPoint {
+                position,
+                hfr: measurement.hfr,
+                fwhm: None,
+                star_count: measurement.star_count,
+            });
+
+            let progress_json = serde_json::json!({
+                "type": "autofocus_progress",
+                "point": point + 1,
+                "total_points": total_points,
+                "hfr": measurement.hfr,
+                "star_count": measurement.star_count,
+                "focus_range": {
+                    "min": positions[0],
+                    "max": positions[total_points - 1]
+                },
+                "vcurve_points": focus_data.iter().map(|point| {
+                    serde_json::json!({"position": point.position, "hfr": point.hfr})
+                }).collect::<Vec<_>>(),
+                "star_crops": measurement.star_crops.iter().map(|crop| {
+                    serde_json::json!({
+                        "pixels_base64": crop.pixels_base64,
+                        "width": crop.width,
+                        "height": crop.height,
+                        "hfr": crop.hfr,
+                        "snr": crop.snr
+                    })
+                }).collect::<Vec<_>>()
+            });
+
+            if let Some(cb) = progress_callback {
+                cb(point_progress, progress_json.to_string());
             }
         }
 
-        focus_data.push(crate::autofocus::FocusDataPoint {
-            position,
-            hfr: measurement.hfr,
-            fwhm: None,
-            star_count: measurement.star_count,
-        });
-
-        let progress_json = serde_json::json!({
-            "type": "autofocus_progress",
-            "point": point + 1,
-            "total_points": total_points,
-            "hfr": measurement.hfr,
-            "star_count": measurement.star_count,
-            "focus_range": {
-                "min": positions[0],
-                "max": positions[total_points - 1]
-            },
-            "vcurve_points": focus_data.iter().map(|point| {
-                serde_json::json!({"position": point.position, "hfr": point.hfr})
-            }).collect::<Vec<_>>(),
-            "star_crops": measurement.star_crops.iter().map(|crop| {
-                serde_json::json!({
-                    "pixels_base64": crop.pixels_base64,
-                    "width": crop.width,
-                    "height": crop.height,
-                    "hfr": crop.hfr,
-                    "snr": crop.snr
-                })
-            }).collect::<Vec<_>>()
-        });
-
         if let Some(cb) = progress_callback {
-            cb(point_progress, progress_json.to_string());
+            cb(92.0, "Validating focus data...".to_string());
         }
-    }
 
-    if let Some(cb) = progress_callback {
-        cb(92.0, "Validating focus data...".to_string());
-    }
+        // A flat HFR curve (variance < MIN_HFR_VARIANCE) is not a V-curve to fit
+        // — it usually means clouds rolled in, the focuser is far outside the
+        // critical zone, or the sensor is misreporting. Fitting anyway would
+        // produce a meaningless "best focus" position.
+        let hfr_values: Vec<f64> = focus_data.iter().map(|point| point.hfr).collect();
+        let min_hfr = hfr_values.iter().cloned().fold(f64::INFINITY, f64::min);
+        let max_hfr = hfr_values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let hfr_variance = max_hfr - min_hfr;
 
-    // A flat HFR curve (variance < MIN_HFR_VARIANCE) is not a V-curve to fit
-    // — it usually means clouds rolled in, the focuser is far outside the
-    // critical zone, or the sensor is misreporting. Fitting anyway would
-    // produce a meaningless "best focus" position.
-    let hfr_values: Vec<f64> = focus_data.iter().map(|point| point.hfr).collect();
-    let min_hfr = hfr_values.iter().cloned().fold(f64::INFINITY, f64::min);
-    let max_hfr = hfr_values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let hfr_variance = max_hfr - min_hfr;
+        tracing::info!(
+            "HFR variance: {:.2} (min: {:.2}, max: {:.2})",
+            hfr_variance,
+            min_hfr,
+            max_hfr
+        );
 
-    tracing::info!(
-        "HFR variance: {:.2} (min: {:.2}, max: {:.2})",
-        hfr_variance,
-        min_hfr,
-        max_hfr
-    );
-
-    if hfr_variance < MIN_HFR_VARIANCE {
-        // Defensive halt: the focuser *should* be idle here (we waited at
-        // each sweep point), but a transient driver error could leave it
-        // moving; halting before the return-to-original prevents a queued
-        // move from racing the recovery move.
-        let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-        wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
-            .await;
-        let _ = ctx
-            .device_ops
-            .focuser_move_to(&focuser_id, current_position)
-            .await;
-        return InstructionResult::failure(format!(
+        if hfr_variance < MIN_HFR_VARIANCE {
+            return InstructionResult::failure(format!(
             "Autofocus failed: No valid V-curve detected. HFR variance is only {:.2} (minimum: {:.1}). \
              The HFR is not changing with focus position, which may indicate: \
              - Clouds or obstructions blocking the sky \
@@ -3380,152 +4136,264 @@ pub async fn execute_autofocus(
              - Camera is not properly connected or imaging",
             hfr_variance, MIN_HFR_VARIANCE
         ));
-    }
-
-    let af_result = match af_engine.find_best_focus(focus_data) {
-        Ok(mut result) => {
-            result.temperature_celsius = ctx
-                .device_ops
-                .focuser_get_temperature(&focuser_id)
-                .await
-                .ok()
-                .flatten();
-            result
         }
-        Err(e) => {
-            // Curve fit failed (too many outliers, singular matrix, parabola
-            // with no minimum — all reachable under clouds/poor seeing). At
-            // this point the focuser sits at the OUTWARD sweep extreme, so
-            // leaving it there would strand focus hundreds of steps off and
-            // make any retry sweep around the wrong origin. Restore the pre-AF
-            // position before failing — mirroring the timeout / cancel /
-            // low-star / flat-variance handlers above (which all already do
-            // this). Without it the focuser is left parked at the extreme.
-            tracing::warn!(
-                "Autofocus curve fit failed ({}); returning focuser to original position {}",
-                e,
-                current_position
+
+        let af_result = match af_engine.find_best_focus(focus_data) {
+            Ok(mut result) => {
+                result.temperature_celsius = ctx
+                    .device_ops
+                    .focuser_get_temperature(&focuser_id)
+                    .await
+                    .ok()
+                    .flatten();
+                result
+            }
+            Err(e) => {
+                tracing::warn!(
+                "Autofocus curve fit failed ({}); shared attempt cleanup will restore position {}",
+                e, current_position
             );
-            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
-            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
-                .await;
-            let _ = ctx
-                .device_ops
-                .focuser_move_to(&focuser_id, current_position)
-                .await;
-            let _ = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await;
-            return InstructionResult::failure(format!("Autofocus curve fitting failed: {}", e));
-        }
-    };
-
-    // Clamp the fitted best-focus position to the swept range. The parabolic
-    // and hyperbolic fits return the analytic vertex, which for a poor-quality
-    // (low-R²) curve can land far outside the sampled bracket — an
-    // extrapolation that is by definition untrustworthy and, on a permissive
-    // driver, would drive the focuser wildly out of position. A vertex outside
-    // the bracket means true focus was not bracketed; clamping bounds the move
-    // to the sampled window (worst case: a sweep endpoint near where we
-    // started) instead of an arbitrary extrapolated step.
-    let sweep_lo = positions[0].min(positions[total_points - 1]);
-    let sweep_hi = positions[0].max(positions[total_points - 1]);
-    let best_position = {
-        let raw = af_result.best_position;
-        let clamped = raw.clamp(sweep_lo, sweep_hi);
-        if clamped != raw {
-            tracing::warn!(
-                "Autofocus best-focus vertex {} fell outside the swept range [{}, {}]; \
-                 clamping to {}. The curve minimum was an extrapolation (poor fit) — \
-                 true focus may lie outside the sweep window.",
-                raw,
-                sweep_lo,
-                sweep_hi,
-                clamped
-            );
-        }
-        clamped
-    };
-    let best_hfr = af_result.best_hfr;
-    let r_squared = af_result.curve_fit_quality;
-
-    // We warn (not fail) on low R² because some legitimate setups produce
-    // marginal fits (very sparse star fields) and a "best guess" focus is
-    // still better than aborting; the user sees the warning in the log.
-    if r_squared < MIN_R_SQUARED {
-        tracing::warn!(
-            "Low curve fit quality: R²={:.3} (minimum: {:.1}). Proceeding with caution.",
-            r_squared,
-            MIN_R_SQUARED
-        );
-    }
-
-    tracing::info!(
-        "Best focus at position {}, HFR: {:.2}, R²: {:.3}",
-        best_position,
-        best_hfr,
-        r_squared
-    );
-
-    if let Some(cb) = progress_callback {
-        cb(95.0, format!("Moving to best focus: {}", best_position));
-    }
-
-    let last_position = positions[positions.len() - 1];
-    if backlash.is_needed(last_position, best_position) {
-        let (intermediate, final_pos) = backlash.calculate_approach(last_position, best_position);
-
-        if let Some(overshoot) = intermediate {
-            tracing::info!(
-                "Final move with backlash: overshoot to {}, then {}",
-                overshoot,
-                final_pos
-            );
-
-            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
                 return InstructionResult::failure(format!(
-                    "Failed to move focuser (final backlash): {}",
+                    "Autofocus curve fitting failed: {}",
                     e
                 ));
             }
-            if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
-            {
-                return InstructionResult::failure(e);
+        };
+
+        // Clamp the fitted best-focus position to the swept range. The parabolic
+        // and hyperbolic fits return the analytic vertex, which for a poor-quality
+        // (low-R²) curve can land far outside the sampled bracket — an
+        // extrapolation that is by definition untrustworthy and, on a permissive
+        // driver, would drive the focuser wildly out of position. A vertex outside
+        // the bracket means true focus was not bracketed; clamping bounds the move
+        // to the sampled window (worst case: a sweep endpoint near where we
+        // started) instead of an arbitrary extrapolated step.
+        let sweep_lo = positions[0].min(positions[total_points - 1]);
+        let sweep_hi = positions[0].max(positions[total_points - 1]);
+        let best_position = {
+            let raw = af_result.best_position;
+            let clamped = raw.clamp(sweep_lo, sweep_hi);
+            if clamped != raw {
+                tracing::warn!(
+                    "Autofocus best-focus vertex {} fell outside the swept range [{}, {}]; \
+                 clamping to {}. The curve minimum was an extrapolation (poor fit) — \
+                 true focus may lie outside the sweep window.",
+                    raw,
+                    sweep_lo,
+                    sweep_hi,
+                    clamped
+                );
             }
+            clamped
+        };
+        let best_hfr = af_result.best_hfr;
+        let r_squared = af_result.curve_fit_quality;
+
+        // The configured R² value is a real acceptance threshold, not a cosmetic
+        // warning. Shared attempt cleanup restores the pre-run position before a
+        // retry or terminal failure is returned.
+        if r_squared < config.r_squared_threshold {
+            tracing::warn!(
+                "Low curve fit quality: R²={:.3} (required: {:.3}); returning to original position",
+                r_squared,
+                config.r_squared_threshold
+            );
+            return InstructionResult::failure(format!(
+                "Autofocus curve fit R² {:.3} is below the configured threshold {:.3}",
+                r_squared, config.r_squared_threshold
+            ));
         }
 
-        if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
+        tracing::info!(
+            "Best focus at position {}, HFR: {:.2}, R²: {:.3}",
+            best_position,
+            best_hfr,
+            r_squared
+        );
+
+        if let Some(cb) = progress_callback {
+            cb(95.0, format!("Moving to best focus: {}", best_position));
+        }
+
+        let last_position = positions[positions.len() - 1];
+        if backlash.is_needed(last_position, best_position) {
+            let (intermediate, final_pos) =
+                backlash.calculate_approach(last_position, best_position);
+
+            if let Some(overshoot) = intermediate {
+                tracing::info!(
+                    "Final move with backlash: overshoot to {}, then {}",
+                    overshoot,
+                    final_pos
+                );
+
+                if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, overshoot).await {
+                    return InstructionResult::failure(format!(
+                        "Failed to move focuser (final backlash): {}",
+                        e
+                    ));
+                }
+                if let Err(e) =
+                    wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await
+                {
+                    return InstructionResult::failure(e);
+                }
+            }
+
+            if let Err(e) = ctx.device_ops.focuser_move_to(&focuser_id, final_pos).await {
+                return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
+            }
+        } else if let Err(e) = ctx
+            .device_ops
+            .focuser_move_to(&focuser_id, best_position)
+            .await
+        {
             return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
         }
-    } else if let Err(e) = ctx
+
+        if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
+            return InstructionResult::failure(format!("Failed to settle at best focus: {}", e));
+        }
+        if let Some(result) = wait_for_autofocus_settle(config, ctx).await {
+            return result;
+        }
+
+        if let Some(cb) = progress_callback {
+            cb(
+                100.0,
+                format!(
+                    "Complete: pos {}, HFR {:.2}, R² {:.3}",
+                    best_position, best_hfr, r_squared
+                ),
+            );
+        }
+
+        InstructionResult {
+            status: NodeStatus::Success,
+            message: Some(format!(
+                "Autofocus complete: position {}, HFR {:.2}, R² {:.3}",
+                best_position, best_hfr, r_squared
+            )),
+            data: serde_json::to_value(&af_result).ok(),
+            hfr_values: vec![best_hfr],
+        }
+    };
+
+    // One deadline encloses every move command, idle poll, mechanical settle,
+    // camera exposure, curve fit, and final move. Point-boundary checks alone
+    // cannot enforce the advertised limit when any one of those awaits hangs.
+    let mut result = match tokio::time::timeout(af_timeout, autofocus_operation).await {
+        Ok(result) => result,
+        Err(_) => {
+            tracing::warn!(
+                "Autofocus timed out after {:.0}s (limit: {:.0}s), returning focuser to original position",
+                af_start_time.elapsed().as_secs_f64(),
+                config.max_duration_secs,
+            );
+            InstructionResult::failure(format!(
+                "Autofocus timed out after {:.0}s (max duration: {:.0}s)",
+                af_start_time.elapsed().as_secs_f64(),
+                config.max_duration_secs,
+            ))
+        }
+    };
+
+    if matches!(result.status, NodeStatus::Failure | NodeStatus::Cancelled) {
+        let restored = restore_autofocus_origin(&focuser_id, ctx, current_position).await;
+        if let Err(error) = &restored {
+            tracing::error!(
+                "Autofocus could not restore original position {}: {}",
+                current_position,
+                error
+            );
+            let prior = result
+                .message
+                .take()
+                .unwrap_or_else(|| "Autofocus did not complete".to_string());
+            result.message = Some(format!(
+                "{}; CRITICAL: failed to restore original focuser position {}: {}",
+                prior, current_position, error
+            ));
+        }
+        let mut metadata = match result.data.take() {
+            Some(serde_json::Value::Object(object)) => object,
+            _ => serde_json::Map::new(),
+        };
+        metadata.insert(
+            "autofocus_origin_restored".to_string(),
+            serde_json::Value::Bool(restored.is_ok()),
+        );
+        result.data = Some(serde_json::Value::Object(metadata));
+    }
+
+    result
+}
+
+/// Restore the pre-attempt focuser position before returning any failed or
+/// cancelled autofocus result. This deliberately ignores the sequence cancel
+/// token: cleanup is still hardware work owned by the autofocus Future, and a
+/// caller must not be told the run is terminal while the motor is moving.
+async fn restore_autofocus_origin(
+    focuser_id: &str,
+    ctx: &InstructionContext,
+    original_position: i32,
+) -> Result<(), String> {
+    let mut errors = Vec::new();
+
+    if let Err(error) = ctx.device_ops.focuser_halt(focuser_id).await {
+        errors.push(format!("halt failed: {}", error));
+    }
+    if !wait_for_focuser_stop_after_halt(focuser_id, &ctx.device_ops, Duration::from_secs(10)).await
+    {
+        errors.push("motor did not stop within 10 seconds".to_string());
+    }
+
+    match ctx
         .device_ops
-        .focuser_move_to(&focuser_id, best_position)
+        .focuser_move_to(focuser_id, original_position)
         .await
     {
-        return InstructionResult::failure(format!("Failed to move to best focus: {}", e));
-    }
-
-    if let Err(e) = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await {
-        return InstructionResult::failure(format!("Failed to settle at best focus: {}", e));
-    }
-
-    if let Some(cb) = progress_callback {
-        cb(
-            100.0,
-            format!(
-                "Complete: pos {}, HFR {:.2}, R² {:.3}",
-                best_position, best_hfr, r_squared
-            ),
-        );
-    }
-
-    InstructionResult {
-        status: NodeStatus::Success,
-        message: Some(format!(
-            "Autofocus complete: position {}, HFR {:.2}, R² {:.3}",
-            best_position, best_hfr, r_squared
+        Ok(()) => {
+            if !wait_for_focuser_stop_after_halt(
+                focuser_id,
+                &ctx.device_ops,
+                Duration::from_secs(120),
+            )
+            .await
+            {
+                errors.push(format!(
+                    "return move to {} did not settle within 120 seconds",
+                    original_position
+                ));
+            }
+        }
+        Err(error) => errors.push(format!(
+            "return move to {} was rejected: {}",
+            original_position, error
         )),
-        data: serde_json::to_value(&af_result).ok(),
-        hfr_values: vec![best_hfr],
     }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
+}
+
+async fn wait_for_autofocus_settle(
+    config: &AutofocusConfig,
+    ctx: &InstructionContext,
+) -> Option<InstructionResult> {
+    let mut remaining = config.focuser_settle_time_ms;
+    while remaining > 0 {
+        if let Some(result) = ctx.check_cancelled() {
+            return Some(result);
+        }
+        let chunk = remaining.min(100);
+        sleep(Duration::from_millis(chunk)).await;
+        remaining -= chunk;
+    }
+    ctx.check_cancelled()
 }
 
 /// Enhanced HFR measurement with star crops for UI display
@@ -3537,6 +4405,7 @@ struct HfrMeasurementWithCrops {
 }
 
 /// Star crop info for UI display
+#[derive(Clone)]
 struct StarCropInfo {
     /// Base64-encoded grayscale pixels
     pixels_base64: String,
@@ -3546,8 +4415,14 @@ struct StarCropInfo {
     snr: f64,
 }
 
-/// Calculate HFR from image data, returning HFR, star count, and star crops
-fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
+/// Calculate HFR from image data, honoring the configured central crop and
+/// brightest-star cap rather than merely transporting those settings.
+fn calculate_hfr_with_crops(
+    image: &ImageData,
+    outer_crop_ratio: f64,
+    inner_crop_ratio: f64,
+    use_brightest_n_stars: u32,
+) -> HfrMeasurementWithCrops {
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use nightshade_imaging::{
         detect_stars_with_stats, extract_top_star_crops, StarDetectionConfig,
@@ -3562,19 +4437,53 @@ fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
     let config = StarDetectionConfig::default();
     let result = detect_stars_with_stats(&imaging_data, &config);
 
+    let center_x = image.width as f64 / 2.0;
+    let center_y = image.height as f64 / 2.0;
+    let outer_half_width = image.width as f64 * outer_crop_ratio / 2.0;
+    let outer_half_height = image.height as f64 * outer_crop_ratio / 2.0;
+    let inner_half_width = image.width as f64 * inner_crop_ratio / 2.0;
+    let inner_half_height = image.height as f64 * inner_crop_ratio / 2.0;
+
+    // detect_stars returns brightness-ranked stars. Preserve that order so a
+    // non-zero brightest-N setting is deterministic before calculating the
+    // median HFR.
+    let mut eligible_stars: Vec<_> = result
+        .stars
+        .into_iter()
+        .filter(|star| {
+            let dx = (star.x - center_x).abs();
+            let dy = (star.y - center_y).abs();
+            let inside_outer = dx <= outer_half_width && dy <= outer_half_height;
+            let inside_inner =
+                inner_crop_ratio > 0.0 && dx < inner_half_width && dy < inner_half_height;
+            inside_outer && !inside_inner
+        })
+        .collect();
+    if use_brightest_n_stars > 0 {
+        eligible_stars.truncate(use_brightest_n_stars as usize);
+    }
+
+    let star_count = eligible_stars.len() as u32;
+    let mut hfr_values: Vec<f64> = eligible_stars
+        .iter()
+        .map(|star| star.hfr)
+        .filter(|hfr| hfr.is_finite() && *hfr > 0.0 && *hfr < 20.0)
+        .collect();
+    hfr_values.sort_by(f64::total_cmp);
+
     // 20.0 px is the "no valid focus" sentinel: an HFR this high is far
     // beyond any realistic well-focused setup, so the V-curve fit will
     // treat the point as the extreme of the curve (or reject as outlier).
-    let hfr = if result.median_hfr > 0.0 && result.star_count > 0 {
-        result.median_hfr
-    } else {
+    let hfr = if hfr_values.is_empty() {
         20.0
+    } else {
+        hfr_values[hfr_values.len() / 2]
     };
 
     // 5 crops @ 80 px is the upper bound the autofocus UI displays; more
     // would saturate the operator's view and inflate the JSON payload sent
     // over the FRB bridge.
-    let crops = extract_top_star_crops(&imaging_data, &result.stars, 5, 80);
+    let crops = extract_top_star_crops(&imaging_data, &eligible_stars, 5, 80);
 
     let star_crops: Vec<StarCropInfo> = crops
         .into_iter()
@@ -3589,7 +4498,7 @@ fn calculate_hfr_with_crops(image: &ImageData) -> HfrMeasurementWithCrops {
 
     HfrMeasurementWithCrops {
         hfr,
-        star_count: result.star_count,
+        star_count,
         star_crops,
     }
 }
@@ -3789,6 +4698,47 @@ where
 // GUIDING START/STOP INSTRUCTIONS
 // =============================================================================
 
+struct GuiderStartupCleanupGuard {
+    device_ops: SharedDeviceOps,
+    armed: bool,
+}
+
+impl GuiderStartupCleanupGuard {
+    fn new(device_ops: SharedDeviceOps) -> Self {
+        Self {
+            device_ops,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for GuiderStartupCleanupGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+
+        let device_ops = self.device_ops.clone();
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                let _cleanup_task = handle.spawn(async move {
+                    if let Err(error) = device_ops.guider_stop().await {
+                        tracing::error!("Failed to stop guider during startup cleanup: {}", error);
+                    }
+                });
+            }
+            Err(error) => tracing::error!(
+                "Could not schedule guider cleanup after dropped startup: {}",
+                error
+            ),
+        }
+    }
+}
+
 /// Execute start guiding - starts PHD2 guiding and waits for settle
 pub async fn execute_start_guiding(
     config: &StartGuidingConfig,
@@ -3854,144 +4804,176 @@ pub async fn execute_start_guiding(
         .await
     {
         Ok(_) => {
-            // ENG-F10: Validate that guiding actually reached "guiding" state.
-            // guider_start() may return Ok without the guider truly locking on.
-            // Poll status with a timeout to confirm guiding is active.
-            if let Some(cb) = progress_callback {
-                cb(80.0, "Verifying guiding is active".to_string());
-            }
-
-            // Why: settle_timeout is f64 seconds (UI-bounded 0..3600 typical).
-            // f64 -> u64 saturates per Rust 1.45 spec; negatives clamp to 0
-            // which Duration::from_secs treats as "no wait" — surfaces as an
-            // immediate timeout, not a silent hang.
-            let verification_timeout = Duration::from_secs(config.settle_timeout as u64);
-            let poll_interval = Duration::from_secs(2);
-            let deadline = tokio::time::Instant::now() + verification_timeout;
-            let mut guiding_confirmed = false;
-
-            while tokio::time::Instant::now() < deadline {
-                if let Some(result) = ctx.check_cancelled() {
-                    return result;
-                }
-
-                match ctx.device_ops.guider_get_status().await {
-                    Ok(status) if status.is_guiding => {
-                        tracing::info!(
-                            "Guiding confirmed active: RMS total={:.2}\"",
-                            status.rms_total
-                        );
-                        guiding_confirmed = true;
-                        break;
-                    }
-                    Ok(status) => {
-                        tracing::debug!(
-                            "Guiding not yet active (is_guiding={}), waiting...",
-                            status.is_guiding
-                        );
-                    }
-                    Err(e) => {
-                        tracing::warn!("Guider status poll failed: {}", e);
-                    }
-                }
-
-                sleep(poll_interval).await;
-            }
-
-            if !guiding_confirmed {
-                return InstructionResult::failure(format!(
-                    "Guiding did not reach active state within {:.0}s timeout. \
-                     The guider may have failed to calibrate or lock onto a star.",
-                    config.settle_timeout
-                ));
-            }
-
-            // P3-7: post-start calibration quality validation. A guider can
-            // report `is_guiding == true` and still be hopelessly miscalibrated
-            // — wrong axis directions, mirror-flipped pulses, near-singular
-            // matrix. The audit specifically flagged that bad calibrations
-            // were "slipping through" the existing is_guiding poll, so this
-            // gate is fail-closed (errors fail the StartGuiding instruction
-            // rather than letting the night drift away silently).
-            if config.validate_calibration {
+            let mut cleanup_guard = GuiderStartupCleanupGuard::new(ctx.device_ops.clone());
+            let result = async {
+                // ENG-F10: Validate that guiding actually reached "guiding" state.
+                // guider_start() may return Ok without the guider truly locking on.
+                // Poll status with a timeout to confirm guiding is active.
                 if let Some(cb) = progress_callback {
-                    cb(90.0, "Validating calibration quality".to_string());
+                    cb(80.0, "Verifying guiding is active".to_string());
                 }
 
-                // Step 1: axis geometry — fetch calibration data and check
-                // that the reported axis angles are reasonably perpendicular.
-                match ctx.device_ops.guider_get_calibration().await {
-                    Ok(calib) => {
-                        if let Err(reason) = validate_calibration_quality(&calib, config) {
-                            return InstructionResult::failure(reason);
-                        }
-                    }
-                    Err(e) => {
-                        // Driver doesn't expose calibration angles (some Alpaca
-                        // backends): warn but don't fail — the RMS check below
-                        // is the safety net.
-                        tracing::warn!(
-                            "Skipping calibration-axis validation: {} \
-                             (driver does not report calibration data)",
-                            e
-                        );
-                    }
-                }
+                // Why: settle_timeout is f64 seconds (UI-bounded 0..3600 typical).
+                // f64 -> u64 saturates per Rust 1.45 spec; negatives clamp to 0
+                // which Duration::from_secs treats as "no wait" — surfaces as an
+                // immediate timeout, not a silent hang.
+                let verification_timeout = Duration::from_secs(config.settle_timeout as u64);
+                let poll_interval = Duration::from_secs(2);
+                let deadline = tokio::time::Instant::now() + verification_timeout;
+                let mut guiding_confirmed = false;
 
-                // Step 2: post-settle RMS sanity — sample over a short window
-                // to catch calibrations whose RMS only blows up after the
-                // initial settle (drift / over-correction).
-                let rms_samples: u32 = 3;
-                let rms_interval = Duration::from_secs(2);
-                let mut max_rms: f64 = 0.0;
-                let mut sample_count: u32 = 0;
-                for _ in 0..rms_samples {
+                while tokio::time::Instant::now() < deadline {
                     if let Some(result) = ctx.check_cancelled() {
                         return result;
                     }
-                    sleep(rms_interval).await;
+
                     match ctx.device_ops.guider_get_status().await {
+                        Ok(status) if status.is_guiding => {
+                            tracing::info!(
+                                "Guiding confirmed active: RMS total={:.2}\"",
+                                status.rms_total
+                            );
+                            guiding_confirmed = true;
+                            break;
+                        }
                         Ok(status) => {
-                            max_rms = max_rms.max(status.rms_total);
-                            sample_count += 1;
+                            tracing::debug!(
+                                "Guiding not yet active (is_guiding={}), waiting...",
+                                status.is_guiding
+                            );
                         }
                         Err(e) => {
-                            tracing::warn!("RMS sample failed during validation: {}", e);
+                            tracing::warn!("Guider status poll failed: {}", e);
                         }
                     }
+
+                    sleep(poll_interval).await;
                 }
-                if sample_count > 0 && max_rms > config.max_post_settle_rms_pixels {
+
+                if !guiding_confirmed {
                     return InstructionResult::failure(format!(
-                        "Post-settle guiding RMS too high: {:.2}px peak across {} sample(s) \
-                         over {}s (limit {:.2}px). Calibration looks poor — \
-                         recalibrate the guider before continuing.",
-                        max_rms,
-                        sample_count,
-                        rms_samples as u64 * rms_interval.as_secs(),
-                        config.max_post_settle_rms_pixels
+                        "Guiding did not reach active state within {:.0}s timeout. \
+                     The guider may have failed to calibrate or lock onto a star.",
+                        config.settle_timeout
                     ));
                 }
-                tracing::info!(
-                    "Calibration validation passed: peak RMS {:.2}px over {}s window",
-                    max_rms,
-                    rms_samples as u64 * rms_interval.as_secs()
-                );
-            }
 
-            // Arm the GuideStarLost trigger now that guiding is confirmed
-            // active. Without this the trigger's `guiding_enabled` gate stays
-            // false and a lost star is never detected — the sequence would
-            // silently take unguided subs until dawn. The executor poll also
-            // latches this from live status, but setting it here closes the
-            // window between StartGuiding completing and the next poll tick.
-            if let Some(trigger_state_lock) = &ctx.trigger_state {
-                trigger_state_lock.write().await.set_guiding_enabled(true);
-            }
+                // P3-7: post-start calibration quality validation. A guider can
+                // report `is_guiding == true` and still be hopelessly miscalibrated
+                // — wrong axis directions, mirror-flipped pulses, near-singular
+                // matrix. The audit specifically flagged that bad calibrations
+                // were "slipping through" the existing is_guiding poll, so this
+                // gate is fail-closed (errors fail the StartGuiding instruction
+                // rather than letting the night drift away silently).
+                if config.validate_calibration {
+                    if let Some(cb) = progress_callback {
+                        cb(90.0, "Validating calibration quality".to_string());
+                    }
 
-            if let Some(cb) = progress_callback {
-                cb(100.0, "Guiding active".to_string());
+                    // Step 1: axis geometry — fetch calibration data and check
+                    // that the reported axis angles are reasonably perpendicular.
+                    match ctx.device_ops.guider_get_calibration().await {
+                        Ok(calib) => {
+                            if let Err(reason) = validate_calibration_quality(&calib, config) {
+                                return InstructionResult::failure(reason);
+                            }
+                        }
+                        Err(e) => {
+                            // Driver doesn't expose calibration angles (some Alpaca
+                            // backends): warn but don't fail — the RMS check below
+                            // is the safety net.
+                            tracing::warn!(
+                                "Skipping calibration-axis validation: {} \
+                             (driver does not report calibration data)",
+                                e
+                            );
+                        }
+                    }
+
+                    // Step 2: post-settle RMS sanity — sample over a short window
+                    // to catch calibrations whose RMS only blows up after the
+                    // initial settle (drift / over-correction).
+                    let rms_samples: u32 = 3;
+                    let rms_interval = Duration::from_secs(2);
+                    let mut max_rms: f64 = 0.0;
+                    let mut sample_count: u32 = 0;
+                    for _ in 0..rms_samples {
+                        if let Some(result) = ctx.check_cancelled() {
+                            return result;
+                        }
+                        sleep(rms_interval).await;
+                        match ctx.device_ops.guider_get_status().await {
+                            Ok(status) => {
+                                max_rms = max_rms.max(status.rms_total);
+                                sample_count += 1;
+                            }
+                            Err(e) => {
+                                tracing::warn!("RMS sample failed during validation: {}", e);
+                            }
+                        }
+                    }
+                    if sample_count > 0 && max_rms > config.max_post_settle_rms_pixels {
+                        return InstructionResult::failure(format!(
+                            "Post-settle guiding RMS too high: {:.2}px peak across {} sample(s) \
+                         over {}s (limit {:.2}px). Calibration looks poor — \
+                         recalibrate the guider before continuing.",
+                            max_rms,
+                            sample_count,
+                            rms_samples as u64 * rms_interval.as_secs(),
+                            config.max_post_settle_rms_pixels
+                        ));
+                    }
+                    tracing::info!(
+                        "Calibration validation passed: peak RMS {:.2}px over {}s window",
+                        max_rms,
+                        rms_samples as u64 * rms_interval.as_secs()
+                    );
+                }
+
+                // Arm the GuideStarLost trigger now that guiding is confirmed
+                // active. Without this the trigger's `guiding_enabled` gate stays
+                // false and a lost star is never detected — the sequence would
+                // silently take unguided subs until dawn. The executor poll also
+                // latches this from live status, but setting it here closes the
+                // window between StartGuiding completing and the next poll tick.
+                if let Some(trigger_state_lock) = &ctx.trigger_state {
+                    trigger_state_lock.write().await.set_guiding_enabled(true);
+                }
+
+                if let Some(cb) = progress_callback {
+                    cb(100.0, "Guiding active".to_string());
+                }
+                InstructionResult::success_with_message("Guiding started and verified active")
             }
-            InstructionResult::success_with_message("Guiding started and verified active")
+            .await;
+
+            if matches!(result.status, NodeStatus::Success) {
+                cleanup_guard.disarm();
+                result
+            } else {
+                match ctx.device_ops.guider_stop().await {
+                    Ok(()) => {
+                        cleanup_guard.disarm();
+                        if let Some(trigger_state) = &ctx.trigger_state {
+                            trigger_state.write().await.set_guiding_enabled(false);
+                        }
+                        result
+                    }
+                    Err(error) => {
+                        let mut result = result;
+                        let prior = result
+                            .message
+                            .take()
+                            .unwrap_or_else(|| "Guiding startup did not complete".to_string());
+                        result.status = NodeStatus::Failure;
+                        result.message = Some(format!(
+                            "{}; CRITICAL CLEANUP FAILURE: failed to stop guider: {}",
+                            prior, error
+                        ));
+                        result
+                    }
+                }
+            }
         }
         Err(e) => InstructionResult::failure(format!("Failed to start guiding: {}", e)),
     }
@@ -5011,7 +5993,7 @@ fn calculate_solar_position(jd: f64) -> (f64, f64) {
 /// Execute delay
 pub async fn execute_delay(
     config: &DelayConfig,
-    ctx: &InstructionContext,
+    ctx: &crate::node::context::ExecutionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
     tracing::info!("Delaying for {:.1} seconds", config.seconds);
@@ -5025,8 +6007,11 @@ pub async fn execute_delay(
     // saturates per Rust 1.45 spec; negatives clamp to 0 yielding no-wait.
     let total_steps = (config.seconds * 10.0) as u64;
     for step in 0..total_steps {
-        if let Some(result) = ctx.check_cancelled() {
-            return result;
+        if !ctx.wait_while_paused().await {
+            return InstructionResult::cancelled("Delay cancelled");
+        }
+        if ctx.is_cancelled.load(Ordering::Relaxed) {
+            return InstructionResult::cancelled("Delay cancelled");
         }
 
         // Emit progress every second (10 steps)
@@ -5290,6 +6275,22 @@ pub async fn execute_meridian_flip(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
+    execute_meridian_flip_with_autofocus(config, None, ctx, progress_callback).await
+}
+
+/// Execute a meridian flip with an optional operator-tuned autofocus profile
+/// for the post-flip refocus step.
+///
+/// The compatibility wrapper above retains the existing direct-call API.
+/// Sequence executors that have resolved a real equipment-profile autofocus
+/// config must call this entry point so filter, gain/offset, step, exposure,
+/// and backlash settings reach `FlipContext` intact.
+pub async fn execute_meridian_flip_with_autofocus(
+    config: &MeridianFlipConfig,
+    autofocus_config: Option<&AutofocusConfig>,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> InstructionResult {
     // Surface a "starting" progress immediately so UI shows activity even
     // before the executor begins emitting its own events. The executor uses
     // its event channel for granular per-step progress so we do not wire
@@ -5368,13 +6369,18 @@ pub async fn execute_meridian_flip(
         cover_calibrator_id: ctx.cover_calibrator_id.clone(),
         cancellation_token: Some(ctx.cancellation_token.clone()),
         trigger_state: ctx.trigger_state.clone(),
-        // §1.6 backport: post-flip refocus pulls user-tuned autofocus
-        // parameters from the equipment profile rather than the executor's
-        // hardcoded constants. The instruction-side has no profile reference
-        // here; pass None and let the executor fall back to
-        // AutofocusConfig::default() (which reflects the user's
-        // serde-default values).
-        autofocus_config: None,
+        // Carry the tuned autofocus config PLUS the live filter context
+        // (current filter, wheel id, per-filter focus offsets) so the post-flip
+        // refocus doesn't fall back to defaults on the wrong filter (finding
+        // #11: filter wheel + offsets were previously dropped).
+        autofocus_config: autofocus_config.map(|cfg| {
+            crate::meridian_flip_executor::PostFlipAutofocusConfig {
+                config: cfg.clone(),
+                current_filter: ctx.current_filter.clone(),
+                filterwheel_id: ctx.filterwheel_id.clone(),
+                filter_focus_offsets: ctx.filter_focus_offsets.clone(),
+            }
+        }),
         // Real sequence-driven flip: command the hardware. The dry-run path
         // (Phase G) is the only caller that sets this true.
         simulate: false,
@@ -6110,6 +7116,131 @@ async fn wait_for_calibrator_state(
 mod tests {
     use super::*;
 
+    /// Serializes tests that touch the process-global `AUTOFOCUS_RUN_ACTIVE`
+    /// gate — cargo runs tests across threads and the gate is shared state, so
+    /// without this they race (one test's held gate breaks another's admit).
+    static AF_GATE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn autofocus_admission_is_atomic_and_released_by_guard() {
+        let _serial = AF_GATE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let first = try_admit_autofocus_run().expect("first run must admit");
+        assert!(
+            try_admit_autofocus_run().is_none(),
+            "a concurrent autofocus run must be rejected"
+        );
+        drop(first);
+        let next = try_admit_autofocus_run().expect("guard drop must release admission");
+        drop(next);
+    }
+
+    // Single-threaded (current-thread) tokio runtime, so holding the sync gate
+    // lock across awaits cannot deadlock; the lock only serializes vs other
+    // gate tests running on separate threads.
+    #[tokio::test(start_paused = true)]
+    #[allow(clippy::await_holding_lock)]
+    async fn node_admission_waits_for_inflight_run_then_times_out_on_stuck_gate() {
+        let _serial = AF_GATE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Scenario 1: a trigger-fired run holds the gate; the node waiter must
+        // NOT resolve while it is held (the old fail-fast aborted the run here).
+        let inflight = try_admit_autofocus_run().expect("first run must admit");
+        let waiter =
+            tokio::spawn(async { admit_autofocus_run_waiting(Duration::from_secs(600)).await });
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        assert!(
+            !waiter.is_finished(),
+            "the node waiter must keep waiting while an autofocus is in flight, \
+             not fail immediately"
+        );
+        // Once the in-flight run releases, the waiter admits.
+        drop(inflight);
+        let guard = waiter
+            .await
+            .expect("waiter task panicked")
+            .expect("waiter must admit once the gate frees");
+        drop(guard);
+
+        // Scenario 2: a gate that never releases must time out (not hang).
+        let _stuck = try_admit_autofocus_run().expect("hold the gate");
+        let result = admit_autofocus_run_waiting(Duration::from_secs(600)).await;
+        assert!(
+            result.is_none(),
+            "a gate that never releases must time out, not hang forever"
+        );
+    }
+
+    #[test]
+    fn autofocus_config_validation_rejects_decorative_or_dangerous_values() {
+        let valid = AutofocusConfig::default();
+        assert!(validate_autofocus_config(&valid).is_ok());
+
+        let mut invalid = valid.clone();
+        invalid.exposures_per_point = 0;
+        assert!(validate_autofocus_config(&invalid).is_err());
+
+        let mut invalid = valid.clone();
+        invalid.inner_crop_ratio = invalid.outer_crop_ratio;
+        assert!(validate_autofocus_config(&invalid).is_err());
+
+        let mut invalid = valid.clone();
+        invalid.number_of_attempts = 11;
+        assert!(validate_autofocus_config(&invalid).is_err());
+
+        let mut invalid = valid.clone();
+        invalid.gain = Some(-1);
+        assert!(validate_autofocus_config(&invalid).is_err());
+
+        let mut invalid = valid;
+        invalid.max_duration_secs = 0.0;
+        assert!(validate_autofocus_config(&invalid).is_err());
+    }
+
+    #[tokio::test]
+    async fn autofocus_cleanup_restores_and_verifies_original_position() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let ctx = ctx_with_ops(ops.clone()).await;
+
+        restore_autofocus_origin("focuser-1", &ctx, 12_345)
+            .await
+            .expect("cleanup should restore the original position");
+
+        assert_eq!(ops.focuser_halt_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(*ops.focuser_moves.lock().unwrap(), vec![12_345]);
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn autofocus_restores_designated_filter_and_guiding_on_cancel() {
+        let _serial = AF_GATE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_guiding(true));
+        let ctx = ctx_with_ops(ops.clone()).await;
+        ctx.cancellation_token.store(true, Ordering::SeqCst);
+        let mut config = AutofocusConfig {
+            filter: Some("L".to_string()),
+            disable_guiding_during_af: true,
+            ..AutofocusConfig::default()
+        };
+        config.filter_settings.insert(
+            "R".to_string(),
+            crate::AutofocusFilterConfig {
+                af_filter_name: Some("L".to_string()),
+                gain: Some(120),
+                offset: Some(15),
+                ..crate::AutofocusFilterConfig::default()
+            },
+        );
+
+        let guard = try_admit_autofocus_run().expect("test autofocus must admit");
+        let result = execute_autofocus_admitted(&config, &ctx, None, guard).await;
+
+        assert_eq!(result.status, NodeStatus::Cancelled);
+        assert_eq!(*ops.filter_moves.lock().unwrap(), vec![0, 1]);
+        assert_eq!(ops.guider_stop_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(ops.guider_start_calls.load(Ordering::SeqCst), 1);
+        assert!(ops.guiding.load(Ordering::SeqCst));
+    }
+
     #[test]
     fn test_normalize_ra_diff_hours_no_wrap() {
         // Simple cases with no wraparound
@@ -6406,7 +7537,7 @@ mod tests {
     // are already in scope via the module-level `use crate::*`
     // (lib.rs re-exports `device_ops::*`).
     use async_trait::async_trait;
-    use std::sync::atomic::AtomicU32;
+    use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32};
     use std::sync::Mutex;
 
     /// Scriptable DeviceOps for the dome/rotator verify tests. Only the
@@ -6431,6 +7562,23 @@ mod tests {
         dome_park_calls: AtomicU32,
         /// When `Some`, `dome_close` fails with this message.
         dome_close_error: Option<String>,
+        // --- centering ---
+        mount_slewing_states: Mutex<Vec<bool>>,
+        mount_slew_state_calls: AtomicU32,
+        // --- camera ---
+        camera_exposure_calls: AtomicU32,
+        camera_abort_calls: AtomicU32,
+        hang_camera_exposure: bool,
+        // --- autofocus cleanup ---
+        focuser_moves: Mutex<Vec<i32>>,
+        focuser_halt_calls: AtomicU32,
+        filter_position: AtomicI32,
+        filter_names: Vec<String>,
+        filter_moves: Mutex<Vec<i32>>,
+        guiding: AtomicBool,
+        guider_stop_calls: AtomicU32,
+        guider_start_calls: AtomicU32,
+        guider_calibration: Option<GuidingCalibration>,
         /// W1 daylight gate — value returned by `mount_is_parked`. Defaults to
         /// `false` (matching NullDeviceOps); the parked-rig gate test sets it
         /// `true` to prove a parked exposure is never daylight-gated.
@@ -6449,7 +7597,21 @@ mod tests {
                 dome_close_calls: AtomicU32::new(0),
                 dome_park_calls: AtomicU32::new(0),
                 dome_close_error: None,
+                mount_slewing_states: Mutex::new(vec![false]),
+                mount_slew_state_calls: AtomicU32::new(0),
+                camera_exposure_calls: AtomicU32::new(0),
+                camera_abort_calls: AtomicU32::new(0),
+                hang_camera_exposure: false,
                 mount_parked: false,
+                focuser_moves: Mutex::new(Vec::new()),
+                focuser_halt_calls: AtomicU32::new(0),
+                filter_position: AtomicI32::new(1),
+                filter_names: vec!["L".to_string(), "R".to_string()],
+                filter_moves: Mutex::new(Vec::new()),
+                guiding: AtomicBool::new(false),
+                guider_stop_calls: AtomicU32::new(0),
+                guider_start_calls: AtomicU32::new(0),
+                guider_calibration: None,
             }
         }
 
@@ -6471,6 +7633,26 @@ mod tests {
 
         fn with_dome_close_error(mut self, msg: &str) -> Self {
             self.dome_close_error = Some(msg.to_string());
+            self
+        }
+
+        fn with_guiding(self, guiding: bool) -> Self {
+            self.guiding.store(guiding, Ordering::SeqCst);
+            self
+        }
+
+        fn with_mount_slewing_states(mut self, states: Vec<bool>) -> Self {
+            self.mount_slewing_states = Mutex::new(states);
+            self
+        }
+
+        fn with_hanging_camera(mut self) -> Self {
+            self.hang_camera_exposure = true;
+            self
+        }
+
+        fn with_guider_calibration(mut self, calibration: GuidingCalibration) -> Self {
+            self.guider_calibration = Some(calibration);
             self
         }
 
@@ -6537,7 +7719,9 @@ mod tests {
             self.inner.mount_unpark(id).await
         }
         async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
-            self.inner.mount_is_slewing(id).await
+            let _ = id;
+            self.mount_slew_state_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Self::next_scripted(&self.mount_slewing_states))
         }
         async fn mount_is_parked(&self, _id: &str) -> DeviceResult<bool> {
             Ok(self.mount_parked)
@@ -6563,9 +7747,14 @@ mod tests {
             bx: i32,
             by: i32,
         ) -> DeviceResult<ImageData> {
+            self.camera_exposure_calls.fetch_add(1, Ordering::SeqCst);
+            if self.hang_camera_exposure {
+                return std::future::pending::<DeviceResult<ImageData>>().await;
+            }
             self.inner.camera_start_exposure(id, d, g, o, bx, by).await
         }
         async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+            self.camera_abort_calls.fetch_add(1, Ordering::SeqCst);
             self.inner.camera_abort_exposure(id).await
         }
         async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
@@ -6577,29 +7766,33 @@ mod tests {
         async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
             self.inner.camera_get_cooler_power(id).await
         }
-        async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
-            self.inner.focuser_move_to(id, p).await
+        async fn focuser_move_to(&self, _id: &str, p: i32) -> DeviceResult<()> {
+            self.focuser_moves.lock().unwrap().push(p);
+            Ok(())
         }
         async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
             self.inner.focuser_get_position(id).await
         }
-        async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
-            self.inner.focuser_is_moving(id).await
+        async fn focuser_is_moving(&self, _id: &str) -> DeviceResult<bool> {
+            Ok(false)
         }
         async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
             self.inner.focuser_get_temperature(id).await
         }
-        async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
-            self.inner.focuser_halt(id).await
+        async fn focuser_halt(&self, _id: &str) -> DeviceResult<()> {
+            self.focuser_halt_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         }
-        async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
-            self.inner.filterwheel_set_position(id, p).await
+        async fn filterwheel_set_position(&self, _id: &str, p: i32) -> DeviceResult<()> {
+            self.filter_moves.lock().unwrap().push(p);
+            self.filter_position.store(p, Ordering::SeqCst);
+            Ok(())
         }
-        async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
-            self.inner.filterwheel_get_position(id).await
+        async fn filterwheel_get_position(&self, _id: &str) -> DeviceResult<i32> {
+            Ok(self.filter_position.load(Ordering::SeqCst))
         }
-        async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
-            self.inner.filterwheel_get_names(id).await
+        async fn filterwheel_get_names(&self, _id: &str) -> DeviceResult<Vec<String>> {
+            Ok(self.filter_names.clone())
         }
         async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
             self.inner.filterwheel_set_filter_by_name(id, n).await
@@ -6621,13 +7814,28 @@ mod tests {
             self.inner.guider_dither(p, sp, st, sto, ra).await
         }
         async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
-            self.inner.guider_get_status().await
+            Ok(GuidingStatus {
+                is_guiding: self.guiding.load(Ordering::SeqCst),
+                rms_ra: 0.5,
+                rms_dec: 0.5,
+                rms_total: 0.7,
+            })
         }
-        async fn guider_start(&self, sp: f64, st: f64, sto: f64) -> DeviceResult<()> {
-            self.inner.guider_start(sp, st, sto).await
+        async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+            match &self.guider_calibration {
+                Some(calibration) => Ok(calibration.clone()),
+                None => self.inner.guider_get_calibration().await,
+            }
+        }
+        async fn guider_start(&self, _sp: f64, _st: f64, _sto: f64) -> DeviceResult<()> {
+            self.guider_start_calls.fetch_add(1, Ordering::SeqCst);
+            self.guiding.store(true, Ordering::SeqCst);
+            Ok(())
         }
         async fn guider_stop(&self) -> DeviceResult<()> {
-            self.inner.guider_stop().await
+            self.guider_stop_calls.fetch_add(1, Ordering::SeqCst);
+            self.guiding.store(false, Ordering::SeqCst);
+            Ok(())
         }
         async fn plate_solve(
             &self,
@@ -6716,9 +7924,149 @@ mod tests {
     async fn ctx_with_ops(ops: Arc<ScriptedDomeRotatorOps>) -> InstructionContext {
         let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
         ec.device_ops = ops;
+        ec.camera_id = Some("camera-1".to_string());
+        ec.focuser_id = Some("focuser-1".to_string());
+        ec.filterwheel_id = Some("filterwheel-1".to_string());
         ec.dome_id = Some("dome-1".to_string());
         ec.rotator_id = Some("rotator-1".to_string());
-        ec.to_instruction_context().await
+        ec.to_instruction_context("test-node").await
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn centering_waits_for_slew_startup_before_accepting_idle() {
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                .with_mount_slewing_states(vec![false, false, true, true, false]),
+        );
+        let mut ctx = ctx_with_ops(ops.clone()).await;
+        ctx.mount_id = Some("mount-1".to_string());
+
+        wait_for_centering_correction_slew("mount-1", &ctx)
+            .await
+            .expect("slew should start after the driver's delayed status update and then finish");
+
+        assert_eq!(
+            ops.mount_slew_state_calls.load(Ordering::SeqCst),
+            5,
+            "the initial idle polls must not be mistaken for slew completion"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn guiding_validation_failure_stops_started_guider() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_guider_calibration(
+            GuidingCalibration {
+                is_calibrated: false,
+                ra_angle_deg: Some(0.0),
+                dec_angle_deg: Some(90.0),
+            },
+        ));
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let config = StartGuidingConfig {
+            settle_time: 0.0,
+            settle_timeout: 10.0,
+            ..StartGuidingConfig::default()
+        };
+
+        let result = execute_start_guiding(&config, &ctx, None).await;
+
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert_eq!(ops.guider_start_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            ops.guider_stop_calls.load(Ordering::SeqCst),
+            1,
+            "every post-start validation failure must stop the guider before returning"
+        );
+        assert!(!ops.guiding.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn dropped_exposure_instruction_aborts_camera() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_hanging_camera());
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let config = ExposureConfig {
+            duration_secs: 60.0,
+            count: 1,
+            ..ExposureConfig::default()
+        };
+
+        let task = tokio::spawn(async move { execute_exposure(&config, &ctx, |_, _| {}).await });
+        while ops.camera_exposure_calls.load(Ordering::SeqCst) == 0 {
+            tokio::task::yield_now().await;
+        }
+        task.abort();
+        let _ = task.await;
+        for _ in 0..20 {
+            if ops.camera_abort_calls.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+
+        assert_eq!(
+            ops.camera_abort_calls.load(Ordering::SeqCst),
+            1,
+            "dropping the instruction future must abort the physical exposure"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn autofocus_timeout_bounds_hung_camera_exposure() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_hanging_camera());
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let config = AutofocusConfig {
+            steps_out: 1,
+            max_duration_secs: 1.0,
+            focuser_settle_time_ms: 0,
+            ..AutofocusConfig::default()
+        };
+
+        let result = execute_autofocus_once(&config, &ctx, None).await;
+
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert!(
+            result
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("timed out")),
+            "hung sub-operation must fail at the autofocus deadline: {:?}",
+            result.message
+        );
+        tokio::task::yield_now().await;
+        assert_eq!(
+            ops.camera_abort_calls.load(Ordering::SeqCst),
+            1,
+            "timing out a camera exposure must also abort it"
+        );
+    }
+
+    #[tokio::test]
+    async fn requested_filter_without_wheel_fails_before_capture() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ctx = ctx_with_ops(ops.clone()).await;
+        ctx.filterwheel_id = None;
+        let config = ExposureConfig {
+            duration_secs: 0.01,
+            count: 1,
+            filter: Some("Ha".to_string()),
+            ..ExposureConfig::default()
+        };
+
+        let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert!(
+            result
+                .message
+                .as_deref()
+                .is_some_and(|message| message.contains("no filter wheel")),
+            "missing hardware must be surfaced instead of capturing mislabeled data"
+        );
+        assert_eq!(
+            ops.camera_exposure_calls.load(Ordering::SeqCst),
+            0,
+            "capture must not start when its requested filter cannot be applied"
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -7075,6 +8423,18 @@ mod tests {
         );
     }
 
+    #[test]
+    fn calibration_frame_types_do_not_require_darkness() {
+        for frame_type in ["Bias", "Dark", "Flat", "DarkFlat"] {
+            assert!(
+                !frame_type_requires_darkness(frame_type),
+                "{frame_type} is a calibration frame and must remain legal in daylight"
+            );
+        }
+        assert!(frame_type_requires_darkness("Light"));
+        assert!(frame_type_requires_darkness("light"));
+    }
+
     // --- execute_slew gate ---
 
     async fn slew_ctx(max_sun_alt: f64) -> InstructionContext {
@@ -7092,7 +8452,7 @@ mod tests {
         let mut ts = crate::triggers::TriggerState::new();
         ts.set_max_sun_altitude_degrees(max_sun_alt);
         ec.trigger_state = Some(std::sync::Arc::new(tokio::sync::RwLock::new(ts)));
-        ec.to_instruction_context().await
+        ec.to_instruction_context("test-node").await
     }
 
     #[tokio::test]
@@ -7170,7 +8530,7 @@ mod tests {
         let mut ts = crate::triggers::TriggerState::new();
         ts.set_max_sun_altitude_degrees(max_sun_alt);
         ec.trigger_state = Some(std::sync::Arc::new(tokio::sync::RwLock::new(ts)));
-        ec.to_instruction_context().await
+        ec.to_instruction_context("test-node").await
     }
 
     fn one_light() -> ExposureConfig {
@@ -7192,6 +8552,26 @@ mod tests {
             "on-sky LIGHT exposure must be daylight-blocked when Sun is up; got {:?}",
             result.message
         );
+    }
+
+    #[tokio::test]
+    async fn target_header_calibration_frames_are_exempt_from_daylight_gate() {
+        let sun_alt = live_sun_alt();
+        let ctx = expose_ctx(Arc::new(NullDeviceOps), Some((5.5, 22.0)), sun_alt - 30.0).await;
+
+        for frame_type in ["Bias", "Dark", "Flat", "DarkFlat"] {
+            let config = ExposureConfig {
+                count: 0,
+                frame_type: frame_type.to_string(),
+                ..ExposureConfig::default()
+            };
+            let result = execute_exposure(&config, &ctx, |_, _| {}).await;
+            assert!(
+                !is_daylight_block(&result),
+                "{frame_type} below a TargetHeader must remain legal in daylight: {:?}",
+                result.message
+            );
+        }
     }
 
     #[tokio::test]
@@ -7247,7 +8627,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     async fn script_ctx() -> InstructionContext {
         crate::node::context::ExecutionContext::new("test-node".to_string())
-            .to_instruction_context()
+            .to_instruction_context("test-node")
             .await
     }
 
@@ -7411,5 +8791,27 @@ mod tests {
         assert_eq!(data["stdout"].as_str().unwrap().trim(), "out");
         assert_eq!(data["stderr"].as_str().unwrap().trim(), "err");
         assert_eq!(data["exit_code"].as_i64(), Some(0));
+    }
+
+    /// Regression: the pre-exposure meridian gate must apply to LIGHTS only.
+    ///
+    /// A calibration frame inside a TargetHeader used to be gated too — a 3s
+    /// dark was held with "meridian flip fires in ~0s and would interrupt it",
+    /// stalling the run for the gate's full 30-minute bound. Shutter-closed
+    /// frames cannot be ruined by where the mount points.
+    #[test]
+    fn meridian_gate_applies_to_light_frames_only() {
+        for gated in ["light", "Light", "LIGHT"] {
+            assert!(
+                gated.eq_ignore_ascii_case("light"),
+                "{gated} must be recognised as a light frame and gated"
+            );
+        }
+        for ungated in ["dark", "bias", "flat", "darkflat", "snapshot"] {
+            assert!(
+                !ungated.eq_ignore_ascii_case("light"),
+                "{ungated} must NOT be held for a meridian flip"
+            );
+        }
     }
 }

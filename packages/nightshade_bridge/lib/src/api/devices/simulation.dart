@@ -8,8 +8,11 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_sim_camera`, `get_sim_filterwheel`, `get_sim_mount`
+// These functions are ignored because they are not marked as `pub`: `advance_sim_cooler`, `advance_sim_guide_pulse`, `apply_offset_delta`, `begin_sim_exposure`, `clear_sim_exposure`, `drift_step_secs`, `filter_wheel_status_poll_states`, `get_sim_camera`, `get_sim_dome`, `get_sim_filterwheel`, `get_sim_last_exposure_secs`, `get_sim_mount`, `get_sim_safety_monitor`, `get_sim_weather`, `poll_filter_wheel_position`, `reset_sim_guide_offset`, `sim_cooler_last_tick`, `sim_drift_last_tick`, `sim_exposure_elapsed_is_complete`, `sim_exposure_is_complete`, `sim_exposure_start`, `sim_guide_offset_px`, `sim_guide_offset`, `sim_pulse_delta`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FilterWheelStatusPollState`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `get_sim_focuser`, `get_sim_rotator`
+// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`
 
 /// Get camera status
 Future<CameraStatus> apiGetCameraStatus({required String deviceId}) => RustLib
@@ -210,6 +213,16 @@ Future<void> apiRotatorMoveRelative({
   delta: delta,
 );
 
+/// Set the rotator's reverse-direction flag (IRotatorV3 `Reverse`, Alpaca
+/// `reverse`, INDI `ROTATOR_REVERSE`).
+Future<void> apiRotatorSetReverse({
+  required String deviceId,
+  required bool reverse,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiRotatorSetReverse(
+  deviceId: deviceId,
+  reverse: reverse,
+);
+
 /// Halt rotator
 Future<void> apiRotatorHalt({required String deviceId}) => RustLib.instance.api
     .crateApiDevicesSimulationApiRotatorHalt(deviceId: deviceId);
@@ -242,6 +255,25 @@ class SimulatedCamera {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is SimulatedCamera &&
+          runtimeType == other.runtimeType &&
+          status == other.status;
+}
+
+class SimulatedDome {
+  final DomeStatus status;
+
+  const SimulatedDome({required this.status});
+
+  static Future<SimulatedDome> default_() =>
+      RustLib.instance.api.crateApiDevicesSimulationSimulatedDomeDefault();
+
+  @override
+  int get hashCode => status.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SimulatedDome &&
           runtimeType == other.runtimeType &&
           status == other.status;
 }
@@ -320,4 +352,44 @@ class SimulatedRotator {
       other is SimulatedRotator &&
           runtimeType == other.runtimeType &&
           status == other.status;
+}
+
+class SimulatedSafetyMonitor {
+  final SafetyStatus status;
+
+  const SimulatedSafetyMonitor({required this.status});
+
+  static Future<SimulatedSafetyMonitor> default_() => RustLib.instance.api
+      .crateApiDevicesSimulationSimulatedSafetyMonitorDefault();
+
+  @override
+  int get hashCode => status.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SimulatedSafetyMonitor &&
+          runtimeType == other.runtimeType &&
+          status == other.status;
+}
+
+class SimulatedWeather {
+  final bool connected;
+  final WeatherConditions conditions;
+
+  const SimulatedWeather({required this.connected, required this.conditions});
+
+  static Future<SimulatedWeather> default_() =>
+      RustLib.instance.api.crateApiDevicesSimulationSimulatedWeatherDefault();
+
+  @override
+  int get hashCode => connected.hashCode ^ conditions.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SimulatedWeather &&
+          runtimeType == other.runtimeType &&
+          connected == other.connected &&
+          conditions == other.conditions;
 }

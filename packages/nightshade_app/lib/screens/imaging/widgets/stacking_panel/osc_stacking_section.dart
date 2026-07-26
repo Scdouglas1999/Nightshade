@@ -59,7 +59,7 @@ class _OscStackingSection extends StatelessWidget {
     if (value == null) return;
     onConfigChanged(
       value == oscBayerAutoValue
-          ? config.copyWith(bayerPattern: null)
+          ? config.copyWith(clearBayerPattern: true)
           : config.copyWith(bayerPattern: value),
     );
   }

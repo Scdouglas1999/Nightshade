@@ -18,6 +18,47 @@ bool methodCanHaveBody(String method) {
   return method == 'POST' || method == 'PUT' || method == 'PATCH';
 }
 
+Map<String, dynamic> openApiRequestBodyFor({required String path}) {
+  final schema = <String, dynamic>{
+    'type': 'object',
+    'additionalProperties': true,
+  };
+  var required = false;
+
+  if (path == '/api/devices/connect' || path == '/api/devices/disconnect') {
+    required = true;
+    schema
+      ..['additionalProperties'] = false
+      ..['required'] = <String>['deviceId', 'deviceType']
+      ..['properties'] = <String, dynamic>{
+        'deviceId': {'type': 'string', 'minLength': 1},
+        'deviceType': {
+          'type': 'string',
+          'enum': const <String>[
+            'camera',
+            'mount',
+            'focuser',
+            'filterWheel',
+            'guider',
+            'rotator',
+            'dome',
+            'weather',
+            'safetyMonitor',
+            'switch_',
+            'coverCalibrator',
+          ],
+        },
+      };
+  }
+
+  return {
+    'required': required,
+    'content': {
+      'application/json': {'schema': schema},
+    },
+  };
+}
+
 int requestBodyLimitForPath(String path) {
   if (path == '/api/backup/upload-restore') {
     return backupUploadMaxRequestBodyBytes;
@@ -101,6 +142,7 @@ Map<String, dynamic> buildOpenApiSpec({
       operation['x-max-request-body-bytes'] = requestBodyLimitForPath(
         routePath,
       );
+      operation['requestBody'] = openApiRequestBodyFor(path: routePath);
     }
 
     if (rateLimit != null) {
@@ -213,7 +255,12 @@ EndpointRateLimit? endpointRateLimitFor({
     return null;
   }
 
-  if (_highRiskControlPaths.contains(path)) {
+  if (_highRiskControlPaths.contains(path) ||
+      _isMosaicPanelUploadPath(path) ||
+      _isMosaicAssemblePath(path) ||
+      _isMosaicForceReleasePath(path) ||
+      _isMosaicOutputDownloadPath(path) ||
+      _isCoImagingContributePath(path)) {
     return const EndpointRateLimit(
       maxRequests: highRiskControlRateLimitMaxRequests,
       window: defaultControlRateLimitWindow,
@@ -282,6 +329,37 @@ String? highRiskAuditActionFor({required String method, required String path}) {
   // because it does a one-shot FFI re-encode per call.
   if (_isRegenerateThumbnailPath(path)) {
     return 'image_regenerate_thumbnail';
+  }
+
+  // collaborative-mosaic data egress + heavy compute. The panel upload
+  // ships a full-resolution master off the device to a remote hub, and
+  // assemble kicks off a native gnomonic stitch — both warrant an audit
+  // row recording who triggered them. The project id / panel index are
+  // parameterised so they are matched via the path helpers rather than the
+  // concrete `_highRiskAuditActions` table.
+  if (_isMosaicPanelUploadPath(path)) {
+    return 'mosaic_panel_upload';
+  }
+  if (_isMosaicAssemblePath(path)) {
+    return 'mosaic_assemble';
+  }
+  if (_isMosaicForceReleasePath(path)) {
+    return 'mosaic_force_release';
+  }
+  // the finished-mosaic download pulls hub-served bytes and writes them to the
+  // appliance filesystem, so it is audited (an operator can trace who pulled a
+  // mosaic output after an incident) and throttled in the high-risk tier.
+  if (_isMosaicOutputDownloadPath(path)) {
+    return 'mosaic_output_download';
+  }
+
+  // live co-imaging data egress: sub-complete + contribute fold this rig's
+  // additive sums off-device to a remote hub (and sub-complete also drives heavy
+  // native fusion), so both are audited — an operator can trace which co-imaging
+  // contributions left the appliance after an incident — and throttled in the
+  // high-risk tier.
+  if (_isCoImagingContributePath(path)) {
+    return 'coimaging_sub_contribute';
   }
 
   return _highRiskAuditActions[path];
@@ -356,11 +434,88 @@ bool _isCatalogNamedPath(String path) {
   return !concreteEndpoints.contains(tail);
 }
 
+/// matches the parameterised
+/// `/api/mosaic/projects/<projectId>/panels/<panelIndex>/upload` route and
+/// its concrete request paths
+/// (`/api/mosaic/projects/7/panels/3/upload`). This ships a full-resolution
+/// integrated panel master off the device to a remote third-party hub, so it
+/// is audited (data egress) and throttled in the high-risk tier. We accept
+/// both the templated form (route-enumeration list) and the instantiated form
+/// (request time).
+bool _isMosaicPanelUploadPath(String path) {
+  if (path == '/api/mosaic/projects/<projectId>/panels/<panelIndex>/upload') {
+    return true;
+  }
+  if (!path.startsWith('/api/mosaic/projects/')) return false;
+  return path.contains('/panels/') && path.endsWith('/upload');
+}
+
+/// matches the parameterised `/api/mosaic/projects/<projectId>/assemble`
+/// route and its concrete request paths (`/api/mosaic/projects/7/assemble`).
+/// Assemble kicks off a heavy native gnomonic stitch over every panel master,
+/// so it is audited and throttled in the high-risk tier to deny a CPU-
+/// exhaustion DoS. Accepts both the templated and instantiated forms.
+bool _isMosaicAssemblePath(String path) {
+  if (path == '/api/mosaic/projects/<projectId>/assemble') return true;
+  if (!path.startsWith('/api/mosaic/projects/')) return false;
+  return path.endsWith('/assemble');
+}
+
+/// matches the parameterised `/api/mosaic/projects/<projectId>/output` route
+/// and its concrete request paths (`/api/mosaic/projects/7/output`). The
+/// download pulls the finished mosaic FITS from the hub and writes it to the
+/// appliance, so it is audited (egress + disk write) and throttled in the
+/// high-risk tier. Accepts both the templated and instantiated forms.
+bool _isMosaicOutputDownloadPath(String path) {
+  if (path == '/api/mosaic/projects/<projectId>/output') return true;
+  if (!path.startsWith('/api/mosaic/projects/')) return false;
+  return path.endsWith('/output');
+}
+
+/// matches the parameterised
+/// `/api/mosaic/projects/<projectId>/panels/<panelIndex>/force-release` route
+/// and its concrete request paths
+/// (`/api/mosaic/projects/7/panels/3/force-release`). Owner/admin eviction of a
+/// squatting claim or a poisoned upload is a destructive recovery action, so it
+/// is audited (who evicted which panel) and throttled in the high-risk tier
+/// alongside assemble. Accepts both the templated and instantiated forms.
+bool _isMosaicForceReleasePath(String path) {
+  if (path ==
+      '/api/mosaic/projects/<projectId>/panels/<panelIndex>/force-release') {
+    return true;
+  }
+  if (!path.startsWith('/api/mosaic/projects/')) return false;
+  return path.contains('/panels/') && path.endsWith('/force-release');
+}
+
+/// matches the parameterised live co-imaging data-egress endpoints
+/// `/api/coimaging/sessions/<sessionId>/sub-complete` and
+/// `/api/coimaging/sessions/<sessionId>/contribute` (and their concrete request
+/// paths, e.g. `/api/coimaging/sessions/abc123/sub-complete`). Both fold this
+/// rig's additive sums off the device to a remote hub — sub-complete also drives
+/// heavy native fusion — so they are audited (egress) and throttled in the
+/// high-risk tier to bound an unattended contribute loop. Accepts both the
+/// templated form (route-enumeration list) and the instantiated form (request
+/// time).
+bool _isCoImagingContributePath(String path) {
+  if (path == '/api/coimaging/sessions/<sessionId>/sub-complete' ||
+      path == '/api/coimaging/sessions/<sessionId>/contribute') {
+    return true;
+  }
+  if (!path.startsWith('/api/coimaging/sessions/')) return false;
+  return path.endsWith('/sub-complete') || path.endsWith('/contribute');
+}
+
 /// Whether [path] is in the high-risk control allow-list (used by CORS
 /// policy and rate-limit tier selection). Why exposed: the CORS middleware
 /// needs to apply a stricter origin allow-list rule for these endpoints.
 bool isHighRiskControlPath(String path) {
-  return _highRiskControlPaths.contains(path);
+  return _highRiskControlPaths.contains(path) ||
+      _isMosaicPanelUploadPath(path) ||
+      _isMosaicAssemblePath(path) ||
+      _isMosaicForceReleasePath(path) ||
+      _isMosaicOutputDownloadPath(path) ||
+      _isCoImagingContributePath(path);
 }
 
 bool isPublicEndpoint({required String method, required String path}) {
@@ -388,6 +543,24 @@ String requiredAuthScopeNameForEndpoint({
     return 'admin';
   }
 
+  // Host settings. Paired controllers MIRROR these by design — the
+  // guiding screen reads settle/dither defaults, the phone-side sequence
+  // serializer bakes the host's dither/AF/meridian defaults, and the
+  // slave sync re-pulls the snapshot every 30s. Blanket-admin (the
+  // previous shape, via `_adminOnlyPathPrefixes`) broke all of that for
+  // every default-scope pairing: the phone showed "Guiding defaults
+  // unavailable: Access denied" and silently serialized fallback defaults
+  // into sequences it started. GET serves the curated
+  // `exportRemoteSettings()` wire model (no credentials), so read is
+  // control-scope; every mutation stays admin. The Home Assistant
+  // sub-route carries a bearer token and stays admin for ALL methods.
+  if (normalizedPath.startsWith('/api/settings')) {
+    if (normalizedPath.startsWith('/api/settings/home-assistant')) {
+      return 'admin';
+    }
+    return normalizedMethod == 'GET' ? 'control' : 'admin';
+  }
+
   if (_adminOnlyPathPrefixes.any(normalizedPath.startsWith) ||
       _adminOnlyPaths.contains(normalizedPath)) {
     return 'admin';
@@ -407,6 +580,7 @@ String requiredAuthScopeNameForEndpoint({
   //   GET   /api/calibration/...                  → view
   //   POST  /api/calibration/darks/upload          → admin (file upload)
   //   POST  /api/calibration/darks/backfill-sizes  → admin (mutating sweep)
+  //   POST  /api/calibration/darks/{maintenance}   → admin (files/heavy I/O)
   //   POST  /api/calibration/.../* (others)        → control
   //   DELETE /api/calibration/...                  → admin (destructive)
   if (normalizedPath.startsWith('/api/calibration/')) {
@@ -418,7 +592,11 @@ String requiredAuthScopeNameForEndpoint({
     }
     if (normalizedMethod == 'POST') {
       if (normalizedPath == '/api/calibration/darks/upload' ||
-          normalizedPath == '/api/calibration/darks/backfill-sizes') {
+          normalizedPath == '/api/calibration/darks/backfill-sizes' ||
+          normalizedPath == '/api/calibration/darks/create-master' ||
+          normalizedPath == '/api/calibration/darks/clean-orphans' ||
+          normalizedPath == '/api/calibration/darks/clear' ||
+          normalizedPath == '/api/calibration/darks/delete-group') {
         return 'admin';
       }
       return 'control';
@@ -481,6 +659,91 @@ String requiredAuthScopeNameForEndpoint({
   return 'control';
 }
 
+/// Resource axis (string key) the fine-grained auth grant model tags an
+/// endpoint with. Returns the canonical resource name (see
+/// `headlessResourceName` in auth_policy.dart) so the policy layer can resolve
+/// it to a `HeadlessResource` without route_metadata depending on auth_policy.
+///
+/// Coarse `view`/`control` tokens cover EVERY resource, so this tagging only
+/// changes behaviour for fine-grained tokens. Anything unmapped falls back to
+/// `system`, which a fine-grained token must hold explicitly — fail closed.
+String resourceKeyForEndpoint({required String method, required String path}) {
+  final normalizedPath = _normalizePath(path);
+
+  // Info / status surface (public + read-only system probes).
+  if (normalizedPath == '/api/info' ||
+      normalizedPath == '/api/status' ||
+      normalizedPath == '/api/openapi.json') {
+    return 'info';
+  }
+
+  for (final entry in _resourcePrefixKeys.entries) {
+    if (normalizedPath.startsWith(entry.key)) {
+      return entry.value;
+    }
+  }
+
+  // Calibration library (hyphenated) shares the calibration resource but does
+  // not match the `/api/calibration/` prefix above.
+  if (normalizedPath == '/api/calibration-library' ||
+      normalizedPath.startsWith('/api/calibration-library/')) {
+    return 'calibration';
+  }
+
+  return 'system';
+}
+
+/// Ordered prefix → resource-key table for [resourceKeyForEndpoint]. Order
+/// matters only where one prefix is a prefix of another; none here are, but the
+/// map is iterated in insertion order for determinism.
+const Map<String, String> _resourcePrefixKeys = {
+  '/api/devices/': 'devices',
+  '/api/camera/': 'camera',
+  '/api/mount/': 'mount',
+  '/api/focuser/': 'focuser',
+  '/api/filter-wheel/': 'filter-wheel',
+  '/api/rotator/': 'rotator',
+  '/api/dome/': 'dome',
+  '/api/cover/': 'cover',
+  '/api/phd2/': 'guiding',
+  '/api/guider/': 'guiding',
+  '/api/builtin-guider/': 'guiding',
+  '/api/guiding/': 'guiding',
+  '/api/safety/': 'safety',
+  '/api/weather/': 'safety',
+  '/api/switch/': 'switch',
+  '/api/sequencer/': 'sequencer',
+  '/api/framing/': 'framing',
+  '/api/calibration/': 'calibration',
+  // Collaborative Sky (6.0) routes. Without these entries
+  // `/api/mosaic/collaborative/*` and `/api/coimaging/sessions/*` fell through
+  // to the `system` catch-all, so a fine-grained token needed `system` (admin-
+  // adjacent) to use them and any `system` grant silently gained collaborative
+  // access. Tag them with their own resource so a fine-grained token scopes to
+  // the collaborative surface, not system administration.
+  '/api/mosaic/': 'mosaic',
+  '/api/coimaging/': 'coimaging',
+  '/api/constellation/': 'constellation',
+  // The live collaboration surface (shared-viewer join/leave, broadcast
+  // preview, in-session chat + annotations) is a collaborative resource too —
+  // it previously fell through to the `system` catch-all with `/api/mosaic/`
+  // and `/api/coimaging/` before those were mapped, so a fine-grained token
+  // needed `system` (admin-adjacent) to run a shared viewing session and any
+  // `system` grant silently gained it. Tag it with the collaborative
+  // `constellation` resource so a fine-grained token scopes to the
+  // collaborative surface, not system administration. (`/api/session-handoff`
+  // is deliberately NOT here: it transfers session ownership and stays
+  // admin-only via `_adminOnlyPaths`, where the resource is irrelevant.)
+  '/api/collaboration/': 'constellation',
+  '/api/catalog/': 'catalog',
+  '/api/files/': 'filesystem',
+  '/api/backup/': 'backup',
+  '/api/sync/': 'backup',
+  '/api/settings/': 'settings',
+  '/api/plugins/': 'plugins',
+  '/api/system/': 'system',
+};
+
 String _normalizePath(String path) {
   if (path.startsWith('/')) {
     return path;
@@ -496,7 +759,10 @@ const _adminOnlyPathPrefixes = {
   // bundle off-box, so mutating sync calls are admin-only like backup.
   '/api/sync',
   '/api/files',
-  '/api/settings',
+  // NOTE: /api/settings is handled explicitly above the prefix check —
+  // GET is control-scope (paired controllers mirror host settings by
+  // design); mutations and the token-bearing home-assistant sub-route
+  // stay admin.
   // plugin management. List (GET /api/plugins) is admin-scope
   // because it exposes installed-plugin metadata that a paired control
   // phone shouldn't see; every mutating method is destructive by design
@@ -568,6 +834,38 @@ const _controlPathPrefixes = [
   // the rest of the control surface so a runaway client cannot pummel
   // the DB with delete loops or upload-and-delete cycles.
   '/api/calibration/',
+  // unified Calibration Library Manager mutating endpoints (match /
+  // accept / publish / retract / tags / delete). The prefix is hyphenated
+  // so it does NOT match `/api/calibration/` above; enroll it here so the
+  // write surface (including the off-device publish) gets the same
+  // per-endpoint window as its per-table counterpart.
+  '/api/calibration-library/',
+  // collaborative-mosaic mutating endpoints (publish / join / claim /
+  // upload / assemble / output). Rate-limited like the rest of the
+  // control surface so a `mosaic:control` token cannot hammer the
+  // distributed flow. The data-egress panel upload and heavy-compute
+  // assemble are escalated to the high-risk tier in `endpointRateLimitFor`
+  // via the parameterised matchers below.
+  '/api/mosaic/',
+  // live co-imaging (WS3) + the underlying Constellation swarm mutating
+  // endpoints (create / join / leave / close / contribute / sub-complete /
+  // baton). Rate-limited like the rest of the control surface so an unattended
+  // rig's contribute/baton loop is bounded. The data-egress sub-complete +
+  // contribute calls (which fold off-device additive sums to a remote hub and
+  // drive heavy native fusion) are escalated to the high-risk tier in
+  // `endpointRateLimitFor` via `_isCoImagingContributePath` below.
+  '/api/coimaging/',
+  '/api/constellation/',
+  // live collaboration mutating endpoints (viewer join/leave, broadcast
+  // preview, chat, annotations). Rate-limited like the rest of the
+  // collaborative control surface so a joined viewer cannot flood chat /
+  // preview / annotation posts on an unattended rig.
+  '/api/collaboration/',
+  // planetarium mount-control mutating endpoints (slew-to / sync-to /
+  // center-on). Rate-limited like the rest of the control surface; the
+  // three motion endpoints are additionally escalated to the high-risk
+  // tier via `_highRiskControlPaths`.
+  '/api/planetarium/',
 ];
 
 const _rateLimitedReadPaths = {'/api/files/browse'};
@@ -600,6 +898,12 @@ const _highRiskControlPaths = {
   '/api/framing/center-on-target',
   '/api/framing/park',
   '/api/framing/unpark',
+  // planetarium mount control moves real hardware (slew / sync /
+  // iterative center), so it sits in the high-risk tier and is audited
+  // like the mount/framing motion endpoints.
+  '/api/planetarium/slew-to',
+  '/api/planetarium/sync-to',
+  '/api/planetarium/center-on',
   '/api/dome/open',
   '/api/dome/close',
   '/api/dome/slew',
@@ -627,6 +931,12 @@ const _highRiskControlPaths = {
   // being enumerated here, because each id-bearing instance is unique.
   '/api/calibration/darks/upload',
   '/api/calibration/darks/backfill-sizes',
+  // Dark-library maintenance can remove rows/files, while create-master runs
+  // heavy native I/O and writes to a caller-selected host path.
+  '/api/calibration/darks/create-master',
+  '/api/calibration/darks/clean-orphans',
+  '/api/calibration/darks/clear',
+  '/api/calibration/darks/delete-group',
   // sidecar thumbnail backfill: heavy-I/O FFI walk over every
   // captured-image row. 12 calls/min is plenty for legitimate retries.
   '/api/images/backfill-thumbnails',
@@ -651,6 +961,9 @@ const _highRiskAuditActions = {
   '/api/framing/center-on-target': 'framing_center_on_target',
   '/api/framing/park': 'framing_park',
   '/api/framing/unpark': 'framing_unpark',
+  '/api/planetarium/slew-to': 'planetarium_slew_to',
+  '/api/planetarium/sync-to': 'planetarium_sync_to',
+  '/api/planetarium/center-on': 'planetarium_center_on',
   '/api/dome/open': 'dome_open',
   '/api/dome/close': 'dome_close',
   '/api/dome/slew': 'dome_slew',
@@ -675,6 +988,10 @@ const _highRiskAuditActions = {
   // in this table.
   '/api/calibration/darks/upload': 'calibration_dark_upload',
   '/api/calibration/darks/backfill-sizes': 'calibration_backfill',
+  '/api/calibration/darks/create-master': 'calibration_dark_create_master',
+  '/api/calibration/darks/clean-orphans': 'calibration_dark_clean_orphans',
+  '/api/calibration/darks/clear': 'calibration_dark_clear',
+  '/api/calibration/darks/delete-group': 'calibration_dark_delete_group',
   // catalog mutating endpoints. The DELETE audit action is
   // resolved via `_isCatalogNamedPath` above because the path is
   // parameterised.

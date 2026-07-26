@@ -26,17 +26,21 @@
 //       and calibration-on uses the data path (startFromData / addFrameFromData
 //       fed by readLinearFrame).
 
+import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/database/daos/sessions_dao.dart';
 import 'package:nightshade_core/src/database/daos/stacked_results_dao.dart';
-import 'package:nightshade_core/src/models/backend/device_capabilities.dart';
 import 'package:nightshade_core/src/models/imaging/stack_and_share_models.dart';
 import 'package:nightshade_core/src/providers/auto_stretch_provider.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/capability_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/services/live_stacking_service.dart';
@@ -307,6 +311,31 @@ class _FakeSelector implements StackLightSelector {
   );
 }
 
+class _ControlledSelector implements StackLightSelector {
+  final result = Completer<StackSelectionSummary>();
+
+  @override
+  Future<StackSelectionSummary> selectForSession({
+    required int sessionId,
+    required StackAndShareConfig config,
+  }) => result.future;
+
+  @override
+  noSuchMethod(Invocation invocation) => throw UnimplementedError(
+    '${invocation.memberName} not used in this test',
+  );
+}
+
+class _MockBackend extends Mock implements NightshadeBackend {}
+
+class _ReplaceableBackendNotifier extends BackendNotifier {
+  _ReplaceableBackendNotifier(super.ref, NightshadeBackend initial) : super() {
+    state = initial;
+  }
+
+  void replaceWith(NightshadeBackend next) => state = next;
+}
+
 /// Build a selection with [followerCount] followers after a single reference.
 /// Frame ids run 1..N; frame 1 is the reference. Paths are `/lights/N.fits`.
 StackSelectionSummary _selection({
@@ -424,6 +453,72 @@ void main() {
         expect(engine.stopCount, 0);
       },
     );
+
+    test(
+      'preparation is single-flight and a host switch discards the old run',
+      () async {
+        final oldBackend = _MockBackend();
+        final newBackend = _MockBackend();
+        final selector = _ControlledSelector();
+        final live = _FakeLiveStacking(
+          followerCounts: const [],
+          finalResult: _integrated(stackedFrameCount: 1),
+        );
+        late _ReplaceableBackendNotifier backendNotifier;
+        final c = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            stackLightSelectorProvider.overrideWithValue(selector),
+            liveStackingServiceProvider.overrideWithValue(live),
+            backendProvider.overrideWith((ref) {
+              backendNotifier = _ReplaceableBackendNotifier(ref, oldBackend);
+              return backendNotifier;
+            }),
+          ],
+        );
+        addTearDown(c.dispose);
+        final engine = _FakeStackingEngine();
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          backend: oldBackend,
+          engine: engine,
+        );
+
+        final first = service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(applyCalibration: false),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        await expectLater(
+          service.run(
+            sessionId: sessionId,
+            config: const StackAndShareConfig(applyCalibration: false),
+          ),
+          throwsA(isA<LiveStackBusyException>()),
+        );
+
+        backendNotifier.replaceWith(newBackend);
+        selector.result.complete(_selection(followerCount: 0));
+        await expectLater(
+          first,
+          throwsA(
+            isA<StateError>().having(
+              (error) => error.message,
+              'message',
+              contains('host changed'),
+            ),
+          ),
+        );
+
+        expect(engine.stopCount, 1);
+        expect(live.addCalls, isEmpty);
+        expect(
+          await c.read(stackedResultsDaoProvider).getRecentResults(),
+          isEmpty,
+        );
+      },
+    );
   });
 
   group('happy path (calibration off → file path)', () {
@@ -531,6 +626,88 @@ void main() {
       expect(service.lastRawResult, isNotNull);
       expect(service.lastRgbaResult, isNull);
     });
+
+    test('persists a viewer preview before reporting completion', () async {
+      final engine = _FakeStackingEngine();
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: _FakeLiveStacking(
+          followerCounts: const [2],
+          finalResult: _integrated(stackedFrameCount: 2),
+        ),
+      );
+      addTearDown(c.dispose);
+      Uint8List? persistedRgba;
+      final progress = <StackAndShareProgress>[];
+      final service = StackAndShareService(
+        c.read(_refProvider),
+        engine: engine,
+        persistPreview: ({required result, required rgba}) async {
+          expect(result.id, isNotNull);
+          persistedRgba = Uint8List.fromList(rgba);
+          return '/support/result_${result.id}.png';
+        },
+      );
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: false,
+        ),
+        onProgress: progress.add,
+      );
+
+      expect(result.exportedImagePath, '/support/result_${result.id}.png');
+      expect(persistedRgba, hasLength(16));
+      expect(
+        progress.map((event) => event.phase),
+        contains(StackAndSharePhase.exporting),
+      );
+      expect(progress.last.phase, StackAndSharePhase.complete);
+      // The preview gets a display STF, but autoStretch=false still leaves the
+      // run's in-memory RGBA artifact unset.
+      expect(engine.calls.where((call) => call == 'stretch'), hasLength(1));
+      expect(service.lastRgbaResult, isNull);
+    });
+
+    test(
+      'removes the metadata row when durable preview persistence fails',
+      () async {
+        final engine = _FakeStackingEngine();
+        final c = container(
+          selection: _selection(followerCount: 0),
+          liveStacking: _FakeLiveStacking(
+            followerCounts: const [],
+            finalResult: _integrated(stackedFrameCount: 1),
+          ),
+        );
+        addTearDown(c.dispose);
+        final service = StackAndShareService(
+          c.read(_refProvider),
+          engine: engine,
+          persistPreview: ({required result, required rgba}) async {
+            throw const FileSystemException('disk full');
+          },
+        );
+
+        await expectLater(
+          service.run(
+            sessionId: sessionId,
+            config: const StackAndShareConfig(applyCalibration: false),
+          ),
+          throwsA(isA<FileSystemException>()),
+        );
+
+        expect(
+          await c.read(stackedResultsDaoProvider).getRecentResults(),
+          isEmpty,
+        );
+        expect(engine.stopCount, 1);
+        expect(service.lastRawResult, isNull);
+        expect(service.lastRgbaResult, isNull);
+      },
+    );
   });
 
   group('frame rejection accounting (c)', () {

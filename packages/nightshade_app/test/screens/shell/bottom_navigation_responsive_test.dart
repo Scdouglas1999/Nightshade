@@ -70,10 +70,12 @@ void main() {
         expect(tester.takeException(), isNull);
 
         // All six fixed destinations lay out at once (no horizontal scroll).
+        // The bar renders the SHORT label forms — the full labels
+        // ("Dashboard", "Plan Tonight") ellipsized at seven ~60dp slots.
         expect(find.byType(NightshadeBottomNavigation), findsOneWidget);
-        expect(find.text('Dashboard'), findsOneWidget);
+        expect(find.text('Home'), findsOneWidget);
         expect(find.text('Guiding'), findsOneWidget);
-        expect(find.text('Plan Tonight'), findsOneWidget);
+        expect(find.text('Plan'), findsOneWidget);
         expect(find.byType(Scrollable), findsNothing);
       });
 

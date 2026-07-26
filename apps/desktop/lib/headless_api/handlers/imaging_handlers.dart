@@ -11,6 +11,7 @@ import '../job_manager.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
 import 'device_handlers.dart' show requestPrefersLegacyBlocking;
+import 'filesystem_handlers.dart';
 
 /// Handlers for imaging and plate solve endpoints
 class ImagingHandlers {
@@ -23,6 +24,12 @@ class ImagingHandlers {
   final JobManager? jobManager;
 
   ImagingHandlers(this.container, {this.jobManager});
+
+  /// Upper bound for `/api/imaging/star-crops` `maxCrops`. Crops are the top-N
+  /// stars by SNR, each carrying base64 pixels; the value is encoded to a native
+  /// `u32`. 200 is generous for a "cycle through stars" UI while bounding memory
+  /// and blocking a negative (which would wrap to a huge count).
+  static const int _maxStarCrops = 200;
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
@@ -55,9 +62,29 @@ class ImagingHandlers {
     _logInfo('[API] POST /api/plate-solve');
     final payload = await readJsonObject(request);
     final imagePath = requireString(payload, 'imagePath');
-    final ra = optionalDouble(payload, 'ra');
-    final dec = optionalDouble(payload, 'dec');
-    final fovDegrees = optionalDouble(payload, 'fov');
+    final ra = optionalDouble(payload, 'ra', min: 0, max: 360);
+    final dec = optionalDouble(payload, 'dec', min: -90, max: 90);
+    final fovDegrees = optionalDouble(payload, 'fov', min: 0.01, max: 180);
+    final timeoutSeconds = optionalInt(
+      payload,
+      'timeoutSeconds',
+      min: 1,
+      max: 3600,
+    );
+
+    Future<PlateSolveResult> runSolve() {
+      return container
+          .read(plateSolveServiceProvider)
+          .solveWithFallback(
+            imagePath: imagePath,
+            // The wire/native backend contract is degrees; PlateSolveService's
+            // public hint contract is hours.
+            hintRaHours: ra == null ? null : ra / 15.0,
+            hintDecDegrees: dec,
+            searchRadiusDegrees: fovDegrees,
+            timeoutSeconds: timeoutSeconds,
+          );
+    }
 
     final mgr = jobManager;
     final preferLegacy = requestPrefersLegacyBlocking(request);
@@ -67,25 +94,16 @@ class ImagingHandlers {
         deviceId: null,
         work: (sink, cancellation) async {
           sink.update(null, 'Solving $imagePath');
-          final backend = container.read(imagingBackendProvider);
-          final workFuture = backend.plateSolve(
-            imagePath: imagePath,
-            ra: ra,
-            dec: dec,
-            fovDegrees: fovDegrees,
-          );
-          final result = await Future.any<dynamic>([
-            workFuture,
-            cancellation.whenCancelled.then(
-              (_) => _PlateSolveCancelled.instance,
-            ),
-          ]);
-          if (result is _PlateSolveCancelled) {
+          final solve = await runSolve();
+          // There is no solver-process cancellation hook yet. Keep the job
+          // running until the solver really exits; JobManager observes the
+          // cancellation flag after this callback returns and transitions it
+          // to cancelled instead of falsely orphaning live host work.
+          if (cancellation.isCancelled) {
             throw const JobCancelledException(
               'Plate-solve cancellation requested by client',
             );
           }
-          final solve = result as PlateSolveResult;
           return _plateSolveJson(solve);
         },
       );
@@ -96,13 +114,7 @@ class ImagingHandlers {
       });
     }
 
-    final backend = container.read(imagingBackendProvider);
-    final result = await backend.plateSolve(
-      imagePath: imagePath,
-      ra: ra,
-      dec: dec,
-      fovDegrees: fovDegrees,
-    );
+    final result = await runSolve();
 
     return jsonOk(_plateSolveJson(result));
   }
@@ -164,10 +176,11 @@ class ImagingHandlers {
       );
     }
     if (!await File(filePath).exists()) {
-      return jsonNotFound({
-        'error': 'fits_not_found',
-        'message': 'No FITS file at host path: $filePath',
-      });
+      return jsonError(
+        code: 'fits_not_found',
+        message: 'No FITS file at the requested host path',
+        statusCode: HttpStatus.notFound,
+      );
     }
     final fits = await bridge.apiReadFitsFile(filePath: filePath);
     return jsonOk({'width': fits.width, 'height': fits.height});
@@ -243,11 +256,15 @@ class ImagingHandlers {
 
   Future<Response> handleGetStarCrops(Request request) async {
     _logInfo('[API] GET /api/imaging/star-crops');
-    final deviceId = request.url.queryParameters['deviceId'];
+    final query = request.url.queryParameters;
+    final deviceId = query['deviceId']?.trim();
+    // Absent → 5. A supplied maxCrops must be a positive, bounded whole number:
+    // it is encoded to a native u32, so a negative wraps to a huge count and an
+    // unbounded value means unbounded base64 crops. Validate before the backend
+    // read so an invalid request does no work. It's a GET, so we validate inline
+    // rather than via readJsonObject.
     final maxCrops =
-        int.tryParse(request.url.queryParameters['maxCrops'] ?? '') ?? 5;
-    // Why: query param is required for this endpoint, but it's a GET so we
-    // validate inline rather than via readJsonObject.
+        optionalQueryInt(query, 'maxCrops', min: 1, max: _maxStarCrops) ?? 5;
     if (deviceId == null || deviceId.isEmpty) {
       throw BadRequestError(
         field: 'deviceId',
@@ -289,11 +306,23 @@ class ImagingHandlers {
     final data = await backend.getLastRawImageData(deviceId);
 
     // Why: raw image data is returned as a binary stream rather than JSON
-    // to avoid base64 encoding overhead for large frames.
+    // to avoid base64 encoding overhead for large frames. The backend values
+    // are 16-bit pixels, so serialize each sample explicitly as little-endian
+    // u16. Uint8List.fromList(data) would truncate every pixel to its low byte
+    // and advertise half the required payload length.
+    final bytes = Uint8List(data.length * Uint16List.bytesPerElement);
+    final byteData = ByteData.sublistView(bytes);
+    for (var i = 0; i < data.length; i++) {
+      byteData.setUint16(
+        i * Uint16List.bytesPerElement,
+        data[i],
+        Endian.little,
+      );
+    }
     return contentResponse(
-      Uint8List.fromList(data),
+      bytes,
       contentType: 'application/octet-stream',
-      contentLength: data.length,
+      contentLength: bytes.length,
     );
   }
 
@@ -307,12 +336,44 @@ class ImagingHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final filePath = requireString(payload, 'filePath');
     final headerJson = requireObject(payload, 'headerData');
-    final headerData = FitsWriteHeader.fromJson(headerJson);
+    // FitsWriteHeader.fromJson hard-casts exposureTime/captureTimestamp/
+    // frameType, so omitting (or mis-casing) any one of them turned into a 500
+    // "type 'Null' is not a subtype of type 'num'/'String' in type cast".
+    // Same defensive shape as profile_handlers.
+    final FitsWriteHeader headerData;
+    try {
+      headerData = FitsWriteHeader.fromJson(headerJson);
+    } on Object {
+      throw BadRequestError(
+        field: 'headerData',
+        expected: 'fits_header with exposureTime, captureTimestamp, frameType',
+        message: 'Malformed FITS header payload',
+      );
+    }
+
+    final canonicalFilePath = await FileSystemHandlers(
+      container,
+    ).canonicalizeAllowedPath(filePath);
+    if (canonicalFilePath == null) {
+      throw HandlerFailure(
+        code: 'path_not_allowed',
+        message:
+            'The FITS output path is outside Nightshade\'s configured '
+            'filesystem roots',
+        statusCode: HttpStatus.forbidden,
+      );
+    }
+
+    // Remote workflows (notably Flat Wizard) compose date/filter subfolders on
+    // the controller, but the path belongs to this host. Create the parent here
+    // at the authority boundary rather than asking the controller filesystem to
+    // mirror a host path.
+    await Directory(path.dirname(canonicalFilePath)).create(recursive: true);
 
     final backend = container.read(imagingBackendProvider);
     await backend.saveFitsFromLastCapture(
       deviceId: deviceId,
-      filePath: filePath,
+      filePath: canonicalFilePath,
       headerData: headerData,
     );
     return jsonOk({'status': 'saved'});
@@ -393,13 +454,4 @@ class ImagingHandlers {
       'biasUsed': biasPath,
     });
   }
-}
-
-/// Sentinel marking the cancellation branch of a Future.any race against
-/// a long-running plate-solve. Library-private to this file; the analogous
-/// sentinel in device_handlers is similarly private (a shared one would
-/// pull device_handlers into the imaging-only test path).
-class _PlateSolveCancelled {
-  const _PlateSolveCancelled._();
-  static const _PlateSolveCancelled instance = _PlateSolveCancelled._();
 }

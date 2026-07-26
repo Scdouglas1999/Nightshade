@@ -264,26 +264,69 @@ class _NightStoryTimelineState extends ConsumerState<NightStoryTimeline> {
     }
 
     final feedAsync = ref.watch(narratorFeedProvider(sessionId));
-    final allEvents = feedAsync.valueOrNull ?? const <NarratorEvent>[];
-    final summary = summarizeNightStory(allEvents);
-    final filtered = filterNightStoryEvents(allEvents, _active);
-    final groups = groupNightStoryByHour(filtered);
 
-    return _StoryShell(
-      colors: colors,
+    return feedAsync.when(
+      loading: () => _StoryShell(
+        colors: colors,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 32),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+      error: (_, __) => _StoryShell(
+        colors: colors,
+        child: _errorState(colors, sessionId),
+      ),
+      data: (allEvents) {
+        final summary = summarizeNightStory(allEvents);
+        final filtered = filterNightStoryEvents(allEvents, _active);
+        final groups = groupNightStoryByHour(filtered);
+
+        return _StoryShell(
+          colors: colors,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SummaryStrip(summary: summary, colors: colors),
+              const SizedBox(height: 12),
+              _FilterChipRow(active: _active, onTapped: _onChipTapped),
+              const SizedBox(height: 12),
+              if (allEvents.isEmpty)
+                _emptyState()
+              else if (groups.isEmpty)
+                _filteredEmptyState(colors)
+              else
+                _Timeline(groups: groups, colors: colors),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _errorState(NightshadeColors colors, int sessionId) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _SummaryStrip(summary: summary, colors: colors),
+          Icon(LucideIcons.alertTriangle, color: colors.error, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            "Couldn't load the night story.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12,
+            ),
+          ),
           const SizedBox(height: 12),
-          _FilterChipRow(active: _active, onTapped: _onChipTapped),
-          const SizedBox(height: 12),
-          if (allEvents.isEmpty)
-            _emptyState()
-          else if (groups.isEmpty)
-            _filteredEmptyState(colors)
-          else
-            _Timeline(groups: groups, colors: colors),
+          NightshadeButton(
+            label: 'Retry',
+            icon: LucideIcons.refreshCw,
+            size: ButtonSize.small,
+            onPressed: () => ref.invalidate(narratorFeedProvider(sessionId)),
+          ),
         ],
       ),
     );

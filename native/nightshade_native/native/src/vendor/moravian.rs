@@ -1,7 +1,23 @@
 //! Moravian Instruments Camera Native Driver
 //!
-//! Provides FFI bindings to the Moravian gXusb SDK (gXusb.dll).
-//! Moravian Instruments manufactures CCD cameras for astronomy.
+//! Provides FFI bindings to the current Moravian gxccd SDK (`libgxccd.so` /
+//! `gxccd.dll`) used by G2/G3/G4/C-series cameras.
+//!
+//! ABI ground truth is the vendor header `gxccd.h`. The snake_case `gxccd_*`
+//! API is handle-based: `gxccd_enumerate_usb(callback)` yields integer camera
+//! IDs, `gxccd_initialize_usb(id)` returns an opaque `camera_t*` (NULL on
+//! error), and `gxccd_release(cam)` tears it down. Every other call takes the
+//! handle and returns `0` on success / `-1` on error (NOT a boolean TRUE); on
+//! `-1` the human-readable reason is fetched with `gxccd_get_last_error()`.
+//!
+//! Capture model (gxccd.h:365-435): the ROI is supplied to
+//! `gxccd_start_exposure(cam, seconds, use_shutter, x, y, w, h)` in *binned*
+//! coordinates, the exposure is polled with `gxccd_image_ready(cam, &ready)`,
+//! and the digitized frame is copied out with `gxccd_read_image(cam, buf, size)`
+//! where `size = binned_w * binned_h * 2` bytes. The returned buffer is
+//! bottom-up (pixel [0,0] at bottom-left, gxccd.h:416-434); we vertically mirror
+//! it to the top-down orientation the rest of the pipeline expects, mirroring
+//! the reference driver (indi-mi/mi_ccd.cpp `mirror_image`, lines 609-627,657).
 
 use crate::camera::{
     BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
@@ -9,103 +25,130 @@ use crate::camera::{
 };
 use crate::sync::moravian_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError};
+use crate::utils::CleanupGuard;
 use crate::NativeVendor;
 use async_trait::async_trait;
 use libloading::Library;
-use std::ffi::{c_char, c_float, c_int, c_uint, c_void};
+use std::ffi::{c_char, c_double, c_float, c_int, c_void};
 use std::sync::{Arc, Mutex, OnceLock};
 
 // ============================================================================
 // SDK Types and Constants
 // ============================================================================
 
-/// Camera handle type (opaque pointer)
+/// Camera handle type (opaque `camera_t`, gxccd.h:66).
 type CCamera = c_void;
 type PCCamera = *mut CCamera;
 
-type Cardinal = c_uint;
-type Integer = c_int;
-type Boolean = u8;
-type Real = c_float;
+/// C `bool` (stdbool.h) is a single byte. We bind it as `u8` rather than Rust
+/// `bool` so that reading an out-parameter the SDK may have written with any
+/// non-`{0,1}` byte is never undefined behaviour; we treat `!= 0` as true and
+/// pass `1`/`0` for in-parameters (ABI-identical 1-byte value).
+type GxBool = u8;
 
-// GetBooleanParameter indexes
-const GBP_SUBFRAME: Cardinal = 1;
-const GBP_SHUTTER: Cardinal = 3;
-const GBP_COOLER: Cardinal = 4;
-const GBP_GUIDE: Cardinal = 7;
-const GBP_GAIN: Cardinal = 13;
-const GBP_RGB: Cardinal = 128;
+// gxccd_get_boolean_parameter() indexes (gxccd.h:221-257).
+const GBP_SUB_FRAME: c_int = 1;
+const GBP_SHUTTER: c_int = 3;
+const GBP_COOLER: c_int = 4;
+const GBP_GUIDE: c_int = 7;
+const GBP_GAIN: c_int = 13;
+const GBP_RGB: c_int = 128;
+const GBP_CMY: c_int = 129;
+const GBP_CMYG: c_int = 130;
+const GBP_DEBAYER_X_ODD: c_int = 131;
+const GBP_DEBAYER_Y_ODD: c_int = 132;
 
-// GetIntegerParameter indexes
-const GIP_CHIP_W: Cardinal = 1;
-const GIP_CHIP_D: Cardinal = 2;
-const GIP_PIXEL_W: Cardinal = 3;
-const GIP_PIXEL_D: Cardinal = 4;
-const GIP_MAX_BINNING_X: Cardinal = 5;
-const GIP_MAX_BINNING_Y: Cardinal = 6;
-const GIP_READ_MODES: Cardinal = 7;
+// gxccd_get_integer_parameter() indexes (gxccd.h:262-293).
+const GIP_CHIP_W: c_int = 1;
+const GIP_CHIP_D: c_int = 2;
+const GIP_PIXEL_W: c_int = 3;
+const GIP_PIXEL_D: c_int = 4;
+const GIP_MAX_BINNING_X: c_int = 5;
+const GIP_MAX_BINNING_Y: c_int = 6;
+const GIP_READ_MODES: c_int = 7;
+const GIP_MAX_PIXEL_VALUE: c_int = 17;
 
-// GetStringParameter indexes
-const GSP_CAMERA_DESCRIPTION: Cardinal = 0;
-const GSP_CAMERA_SERIAL: Cardinal = 2;
+// gxccd_get_string_parameter() indexes (gxccd.h:298-304).
+const GSP_CAMERA_DESCRIPTION: c_int = 0;
+const GSP_CAMERA_SERIAL: c_int = 2;
 
-// GetValue indexes
-const GV_CHIP_TEMPERATURE: Cardinal = 0;
-const GV_POWER_UTILIZATION: Cardinal = 11;
+// gxccd_get_value() indexes (gxccd.h:313-326).
+const GV_CHIP_TEMPERATURE: c_int = 0;
+const GV_POWER_UTILIZATION: c_int = 11;
+
+/// Warm-up target (deg C) high enough for the cooler to turn fully off.
+/// Matches the reference driver's `TEMP_COOLER_OFF` (mi_ccd.cpp:35).
+const TEMP_COOLER_OFF: c_float = 100.0;
+
+/// Upper bound on how long we wait for the chip to finish digitizing after the
+/// exposure integration elapses (readout can take many seconds on large CCDs).
+const READOUT_TIMEOUT_SECS: u64 = 120;
+/// Poll interval for `gxccd_image_ready` during readout. Kept coarse per the
+/// header's admonition against busy-spinning (gxccd.h:400-404).
+const READOUT_POLL_MS: u64 = 200;
+
+/// Candidate shared-library names, tried in order. The reference driver links
+/// `libgxccd`; Windows ships `gxccd.dll`.
+const LIB_CANDIDATES: &[&str] = &[
+    "gxccd.dll",
+    "libgxccd.so",
+    "libgxccd.so.2",
+    "libgxccd.so.1",
+    "libgxccd.dylib",
+];
 
 // ============================================================================
-// SDK Function Types
+// SDK Function Types (signatures verbatim from gxccd.h)
 // ============================================================================
 
-type EnumerateCallback = unsafe extern "C" fn(Cardinal);
-type Enumerate = unsafe extern "C" fn(callback: EnumerateCallback);
-type Initialize = unsafe extern "C" fn(id: Cardinal) -> PCCamera;
+/// `typedef void (*enum_callback_t)(int device_id);` (gxccd.h:63)
+type EnumCallback = unsafe extern "C" fn(camera_id: c_int);
+/// `void gxccd_enumerate_usb(enum_callback_t callback);` (gxccd.h:188)
+type EnumerateUsb = unsafe extern "C" fn(callback: EnumCallback);
+/// `camera_t *gxccd_initialize_usb(int camera_id);` (gxccd.h:202)
+type InitializeUsb = unsafe extern "C" fn(camera_id: c_int) -> PCCamera;
+/// `void gxccd_release(camera_t *camera);` (gxccd.h:211)
 type Release = unsafe extern "C" fn(camera: PCCamera);
+/// `int gxccd_get_boolean_parameter(camera_t*, int index, bool *value);` (gxccd.h:260)
 type GetBooleanParameter =
-    unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Boolean) -> Boolean;
+    unsafe extern "C" fn(camera: PCCamera, index: c_int, value: *mut GxBool) -> c_int;
+/// `int gxccd_get_integer_parameter(camera_t*, int index, int *value);` (gxccd.h:296)
 type GetIntegerParameter =
-    unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Cardinal) -> Boolean;
-type GetStringParameter = unsafe extern "C" fn(
+    unsafe extern "C" fn(camera: PCCamera, index: c_int, value: *mut c_int) -> c_int;
+/// `int gxccd_get_string_parameter(camera_t*, int index, char *buf, size_t size);` (gxccd.h:310)
+type GetStringParameter =
+    unsafe extern "C" fn(camera: PCCamera, index: c_int, buf: *mut c_char, size: usize) -> c_int;
+/// `int gxccd_get_value(camera_t*, int index, float *value);` (gxccd.h:329)
+type GetValue = unsafe extern "C" fn(camera: PCCamera, index: c_int, value: *mut c_float) -> c_int;
+/// `int gxccd_set_temperature(camera_t*, float temp);` (gxccd.h:336)
+type SetTemperature = unsafe extern "C" fn(camera: PCCamera, temp: c_float) -> c_int;
+/// `int gxccd_set_binning(camera_t*, int x, int y);` (gxccd.h:349)
+type SetBinning = unsafe extern "C" fn(camera: PCCamera, x: c_int, y: c_int) -> c_int;
+/// `int gxccd_set_gain(camera_t*, uint16_t gain);` (gxccd.h:478)
+type SetGain = unsafe extern "C" fn(camera: PCCamera, gain: u16) -> c_int;
+/// `int gxccd_set_read_mode(camera_t*, int mode);` (gxccd.h:469)
+type SetReadMode = unsafe extern "C" fn(camera: PCCamera, mode: c_int) -> c_int;
+/// `int gxccd_enumerate_read_modes(camera_t*, int index, char *buf, size_t size);` (gxccd.h:462)
+type EnumerateReadModes =
+    unsafe extern "C" fn(camera: PCCamera, index: c_int, buf: *mut c_char, size: usize) -> c_int;
+/// `int gxccd_start_exposure(camera_t*, double exp_time, bool use_shutter, int x, int y, int w, int h);` (gxccd.h:374)
+type StartExposure = unsafe extern "C" fn(
     camera: PCCamera,
-    index: Cardinal,
-    len: Cardinal,
-    buf: *mut c_char,
-) -> Boolean;
-type GetValue =
-    unsafe extern "C" fn(camera: PCCamera, index: Cardinal, value: *mut Real) -> Boolean;
-type SetTemperature = unsafe extern "C" fn(camera: PCCamera, temp: Real) -> Boolean;
-type SetBinning = unsafe extern "C" fn(camera: PCCamera, x: Cardinal, y: Cardinal) -> Boolean;
-type SetGain = unsafe extern "C" fn(camera: PCCamera, gain: Cardinal) -> Boolean;
-type SetReadMode = unsafe extern "C" fn(camera: PCCamera, mode: Cardinal) -> Boolean;
-type SetFilter = unsafe extern "C" fn(camera: PCCamera, filter: Cardinal) -> Boolean;
-type EnumerateReadModes = unsafe extern "C" fn(
-    camera: PCCamera,
-    index: Cardinal,
-    len: Cardinal,
-    desc: *mut c_char,
-) -> Boolean;
-type ClearSensor = unsafe extern "C" fn(camera: PCCamera) -> Boolean;
-type Open_ = unsafe extern "C" fn(camera: PCCamera) -> Boolean;
-type Close_ = unsafe extern "C" fn(camera: PCCamera) -> Boolean;
-type BeginExposure = unsafe extern "C" fn(camera: PCCamera, use_shutter: Boolean) -> Boolean;
-type EndExposure =
-    unsafe extern "C" fn(camera: PCCamera, use_shutter: Boolean, abort: Boolean) -> Boolean;
-type GetImage16b = unsafe extern "C" fn(
-    camera: PCCamera,
-    x: Integer,
-    y: Integer,
-    w: Integer,
-    d: Integer,
-    buffer_len: Cardinal,
-    buffer: *mut c_void,
-) -> Boolean;
-type AdjustSubFrame = unsafe extern "C" fn(
-    camera: PCCamera,
-    x: *mut Integer,
-    y: *mut Integer,
-    w: *mut Integer,
-    d: *mut Integer,
-) -> Boolean;
+    exp_time: c_double,
+    use_shutter: GxBool,
+    x: c_int,
+    y: c_int,
+    w: c_int,
+    h: c_int,
+) -> c_int;
+/// `int gxccd_abort_exposure(camera_t*, bool download);` (gxccd.h:391)
+type AbortExposure = unsafe extern "C" fn(camera: PCCamera, download: GxBool) -> c_int;
+/// `int gxccd_image_ready(camera_t*, bool *ready);` (gxccd.h:405)
+type ImageReady = unsafe extern "C" fn(camera: PCCamera, ready: *mut GxBool) -> c_int;
+/// `int gxccd_read_image(camera_t*, void *buf, size_t size);` (gxccd.h:435)
+type ReadImage = unsafe extern "C" fn(camera: PCCamera, buf: *mut c_void, size: usize) -> c_int;
+/// `void gxccd_get_last_error(camera_t*, char *buf, size_t size);` (gxccd.h:583)
+type GetLastError = unsafe extern "C" fn(camera: PCCamera, buf: *mut c_char, size: usize);
 
 // ============================================================================
 // SDK Singleton
@@ -114,8 +157,8 @@ type AdjustSubFrame = unsafe extern "C" fn(
 static SDK: OnceLock<Result<MoravianSdk, String>> = OnceLock::new();
 
 struct MoravianSdk {
-    enumerate: Enumerate,
-    initialize: Initialize,
+    enumerate_usb: EnumerateUsb,
+    initialize_usb: InitializeUsb,
     release: Release,
     get_boolean_parameter: GetBooleanParameter,
     get_integer_parameter: GetIntegerParameter,
@@ -125,98 +168,96 @@ struct MoravianSdk {
     set_binning: SetBinning,
     set_gain: SetGain,
     set_read_mode: SetReadMode,
-    #[allow(dead_code)]
-    set_filter: Option<SetFilter>,
     enumerate_read_modes: EnumerateReadModes,
-    clear_sensor: ClearSensor,
-    open: Open_,
-    close: Close_,
-    begin_exposure: BeginExposure,
-    end_exposure: EndExposure,
-    get_image_16b: GetImage16b,
-    adjust_subframe: AdjustSubFrame,
+    start_exposure: StartExposure,
+    abort_exposure: AbortExposure,
+    image_ready: ImageReady,
+    read_image: ReadImage,
+    get_last_error: GetLastError,
     _library: Library,
 }
 
-// SAFETY: MoravianSdk holds only function pointers and a `libloading::Library` (memory-mapped DLL handle). The function pointers reference code in a shared library that lives for the whole program (we store the Library to keep it loaded). All actual SDK calls go through `moravian_mutex()` which serializes access, so the underlying gXusb SDK never sees concurrent invocation.
+// SAFETY: MoravianSdk holds only function pointers and a `libloading::Library` (memory-mapped shared object). The function pointers reference code in a library kept alive for the program's lifetime (we store the Library). Every actual SDK call is serialized through `moravian_mutex()`, so the underlying gxccd SDK never sees concurrent invocation.
 unsafe impl Send for MoravianSdk {}
 // SAFETY: Same justification as `impl Send`: pointer-and-handle aggregate that becomes safe under the moravian_mutex serialization used by every call site.
 unsafe impl Sync for MoravianSdk {}
 
 impl MoravianSdk {
     fn load() -> Result<Self, String> {
-        // SAFETY: libloading::Library::new performs platform dynamic loading; the lib name "gXusb.dll" is a compile-time constant and the resulting Library is moved into the returned MoravianSdk so the function-pointer references remain valid for the program's lifetime — no memory access happens here.
-        let library = unsafe { Library::new("gXusb.dll") }
-            .map_err(|e| format!("Failed to load gXusb.dll: {}", e))?;
+        // Try each candidate library name; the first that loads wins.
+        let mut last_err = String::new();
+        let mut loaded: Option<Library> = None;
+        for name in LIB_CANDIDATES {
+            // SAFETY: libloading::Library::new performs platform dynamic loading; `name` is a compile-time constant and the resulting Library is moved into the returned MoravianSdk so the function-pointer references remain valid for the program's lifetime — no memory access happens here.
+            match unsafe { Library::new(name) } {
+                Ok(lib) => {
+                    loaded = Some(lib);
+                    break;
+                }
+                Err(e) => last_err = format!("{}: {}", name, e),
+            }
+        }
+        let library = loaded.ok_or_else(|| {
+            format!(
+                "Failed to load Moravian gxccd library (tried {:?}); last error: {}",
+                LIB_CANDIDATES, last_err
+            )
+        })?;
 
-        // SAFETY: each `library.get::<FnType>(b"symbol\0")` followed by `*sym` dereferences a libloading::Symbol to its function-pointer ABI only after a successful name lookup; the FFI signatures (Enumerate/Initialize/Release/Get*Parameter/etc.) match the gXusb SDK header signatures exactly — verified against the gXusb.h definitions on which the type aliases above were modelled.
+        // SAFETY: each `library.get::<FnType>(b"symbol\0")` followed by `*sym` dereferences a libloading::Symbol to its function-pointer ABI only after a successful name lookup; the FFI signatures are transcribed verbatim from the gxccd.h prototypes cited above the corresponding type aliases.
         unsafe {
             Ok(Self {
-                enumerate: *library
-                    .get::<Enumerate>(b"Enumerate\0")
-                    .map_err(|e| format!("Failed to get Enumerate: {}", e))?,
-                initialize: *library
-                    .get::<Initialize>(b"Initialize\0")
-                    .map_err(|e| format!("Failed to get Initialize: {}", e))?,
+                enumerate_usb: *library
+                    .get::<EnumerateUsb>(b"gxccd_enumerate_usb\0")
+                    .map_err(|e| format!("Failed to get gxccd_enumerate_usb: {}", e))?,
+                initialize_usb: *library
+                    .get::<InitializeUsb>(b"gxccd_initialize_usb\0")
+                    .map_err(|e| format!("Failed to get gxccd_initialize_usb: {}", e))?,
                 release: *library
-                    .get::<Release>(b"Release\0")
-                    .map_err(|e| format!("Failed to get Release: {}", e))?,
+                    .get::<Release>(b"gxccd_release\0")
+                    .map_err(|e| format!("Failed to get gxccd_release: {}", e))?,
                 get_boolean_parameter: *library
-                    .get::<GetBooleanParameter>(b"GetBooleanParameter\0")
-                    .map_err(|e| format!("Failed to get GetBooleanParameter: {}", e))?,
+                    .get::<GetBooleanParameter>(b"gxccd_get_boolean_parameter\0")
+                    .map_err(|e| format!("Failed to get gxccd_get_boolean_parameter: {}", e))?,
                 get_integer_parameter: *library
-                    .get::<GetIntegerParameter>(b"GetIntegerParameter\0")
-                    .map_err(|e| format!("Failed to get GetIntegerParameter: {}", e))?,
+                    .get::<GetIntegerParameter>(b"gxccd_get_integer_parameter\0")
+                    .map_err(|e| format!("Failed to get gxccd_get_integer_parameter: {}", e))?,
                 get_string_parameter: *library
-                    .get::<GetStringParameter>(b"GetStringParameter\0")
-                    .map_err(|e| {
-                    format!("Failed to get GetStringParameter: {}", e)
-                })?,
+                    .get::<GetStringParameter>(b"gxccd_get_string_parameter\0")
+                    .map_err(|e| format!("Failed to get gxccd_get_string_parameter: {}", e))?,
                 get_value: *library
-                    .get::<GetValue>(b"GetValue\0")
-                    .map_err(|e| format!("Failed to get GetValue: {}", e))?,
+                    .get::<GetValue>(b"gxccd_get_value\0")
+                    .map_err(|e| format!("Failed to get gxccd_get_value: {}", e))?,
                 set_temperature: *library
-                    .get::<SetTemperature>(b"SetTemperature\0")
-                    .map_err(|e| format!("Failed to get SetTemperature: {}", e))?,
+                    .get::<SetTemperature>(b"gxccd_set_temperature\0")
+                    .map_err(|e| format!("Failed to get gxccd_set_temperature: {}", e))?,
                 set_binning: *library
-                    .get::<SetBinning>(b"SetBinning\0")
-                    .map_err(|e| format!("Failed to get SetBinning: {}", e))?,
+                    .get::<SetBinning>(b"gxccd_set_binning\0")
+                    .map_err(|e| format!("Failed to get gxccd_set_binning: {}", e))?,
                 set_gain: *library
-                    .get::<SetGain>(b"SetGain\0")
-                    .map_err(|e| format!("Failed to get SetGain: {}", e))?,
+                    .get::<SetGain>(b"gxccd_set_gain\0")
+                    .map_err(|e| format!("Failed to get gxccd_set_gain: {}", e))?,
                 set_read_mode: *library
-                    .get::<SetReadMode>(b"SetReadMode\0")
-                    .map_err(|e| format!("Failed to get SetReadMode: {}", e))?,
-                set_filter: library
-                    .get::<SetFilter>(b"SetFilter\0")
-                    .ok()
-                    .map(|sym| *sym),
+                    .get::<SetReadMode>(b"gxccd_set_read_mode\0")
+                    .map_err(|e| format!("Failed to get gxccd_set_read_mode: {}", e))?,
                 enumerate_read_modes: *library
-                    .get::<EnumerateReadModes>(b"EnumerateReadModes\0")
-                    .map_err(|e| {
-                    format!("Failed to get EnumerateReadModes: {}", e)
-                })?,
-                clear_sensor: *library
-                    .get::<ClearSensor>(b"ClearSensor\0")
-                    .map_err(|e| format!("Failed to get ClearSensor: {}", e))?,
-                open: *library
-                    .get::<Open_>(b"Open\0")
-                    .map_err(|e| format!("Failed to get Open: {}", e))?,
-                close: *library
-                    .get::<Close_>(b"Close\0")
-                    .map_err(|e| format!("Failed to get Close: {}", e))?,
-                begin_exposure: *library
-                    .get::<BeginExposure>(b"BeginExposure\0")
-                    .map_err(|e| format!("Failed to get BeginExposure: {}", e))?,
-                end_exposure: *library
-                    .get::<EndExposure>(b"EndExposure\0")
-                    .map_err(|e| format!("Failed to get EndExposure: {}", e))?,
-                get_image_16b: *library
-                    .get::<GetImage16b>(b"GetImage16b\0")
-                    .map_err(|e| format!("Failed to get GetImage16b: {}", e))?,
-                adjust_subframe: *library
-                    .get::<AdjustSubFrame>(b"AdjustSubFrame\0")
-                    .map_err(|e| format!("Failed to get AdjustSubFrame: {}", e))?,
+                    .get::<EnumerateReadModes>(b"gxccd_enumerate_read_modes\0")
+                    .map_err(|e| format!("Failed to get gxccd_enumerate_read_modes: {}", e))?,
+                start_exposure: *library
+                    .get::<StartExposure>(b"gxccd_start_exposure\0")
+                    .map_err(|e| format!("Failed to get gxccd_start_exposure: {}", e))?,
+                abort_exposure: *library
+                    .get::<AbortExposure>(b"gxccd_abort_exposure\0")
+                    .map_err(|e| format!("Failed to get gxccd_abort_exposure: {}", e))?,
+                image_ready: *library
+                    .get::<ImageReady>(b"gxccd_image_ready\0")
+                    .map_err(|e| format!("Failed to get gxccd_image_ready: {}", e))?,
+                read_image: *library
+                    .get::<ReadImage>(b"gxccd_read_image\0")
+                    .map_err(|e| format!("Failed to get gxccd_read_image: {}", e))?,
+                get_last_error: *library
+                    .get::<GetLastError>(b"gxccd_get_last_error\0")
+                    .map_err(|e| format!("Failed to get gxccd_get_last_error: {}", e))?,
                 _library: library,
             })
         }
@@ -229,15 +270,142 @@ fn get_sdk() -> Result<&'static MoravianSdk, NativeError> {
         .map_err(|e| NativeError::SdkError(e.clone()))
 }
 
+/// Fetch the SDK's human-readable description of the last failing call.
+///
+/// SAFETY: caller must hold `moravian_mutex()` and pass a valid, initialized
+/// camera handle. `gxccd_get_last_error` writes a NUL-terminated string of at
+/// most `size` bytes into `buf`.
+unsafe fn sdk_last_error(sdk: &MoravianSdk, handle: PCCamera) -> String {
+    let mut buf = [0 as c_char; 256];
+    (sdk.get_last_error)(handle, buf.as_mut_ptr(), buf.len());
+    std::ffi::CStr::from_ptr(buf.as_ptr())
+        .to_string_lossy()
+        .trim()
+        .to_string()
+}
+
+// ============================================================================
+// Pure helpers (unit-tested)
+// ============================================================================
+
+/// Binned ROI in the coordinate system `gxccd_start_exposure` expects: origin
+/// is bottom-up (y grows up), matching `gxccd_read_image`'s Cartesian output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BinnedRoi {
+    x: c_int,
+    y: c_int,
+    w: c_int,
+    h: c_int,
+}
+
+/// Convert a top-down, unbinned subframe (or full frame) into the binned,
+/// y-flipped ROI `gxccd_start_exposure` requires.
+///
+/// The reference driver does exactly this at mi_ccd.cpp:510-517:
+/// send binned coords, then `fy = (YRes / binY) - y - h` because "libgxccd has
+/// 0 on the bottom". The full-frame case collapses to `fy = 0` (unaffected).
+fn compute_binned_roi(
+    sensor_w: u32,
+    sensor_h: u32,
+    bin_x: u32,
+    bin_y: u32,
+    subframe: Option<(u32, u32, u32, u32)>,
+) -> Result<BinnedRoi, String> {
+    if bin_x == 0 || bin_y == 0 {
+        return Err("binning must be >= 1".to_string());
+    }
+    let full_bw = sensor_w / bin_x;
+    let full_bh = sensor_h / bin_y;
+
+    // Subframe origin/size are top-down and in UNBINNED sensor pixels; divide by
+    // the bin factor to reach binned coordinates (mi_ccd.cpp:510-513).
+    let (xb, yb_top, wb, hb) = match subframe {
+        Some((sx, sy, sw, sh)) => (sx / bin_x, sy / bin_y, sw / bin_x, sh / bin_y),
+        None => (0, 0, full_bw, full_bh),
+    };
+
+    if wb == 0 || hb == 0 {
+        return Err("ROI width/height must be > 0 after binning".to_string());
+    }
+    let x_end = xb
+        .checked_add(wb)
+        .ok_or_else(|| "ROI x extent overflow".to_string())?;
+    let y_end = yb_top
+        .checked_add(hb)
+        .ok_or_else(|| "ROI y extent overflow".to_string())?;
+    if x_end > full_bw || y_end > full_bh {
+        return Err(format!(
+            "ROI {}x{}+{}+{} exceeds binned sensor {}x{}",
+            wb, hb, xb, yb_top, full_bw, full_bh
+        ));
+    }
+
+    // Top-down y origin -> bottom-up y origin.
+    let fy = full_bh - yb_top - hb;
+
+    let to_i32 = |v: u32, what: &str| {
+        i32::try_from(v).map_err(|_| format!("Moravian ROI {} value {} exceeds i32", what, v))
+    };
+    Ok(BinnedRoi {
+        x: to_i32(xb, "x")?,
+        y: to_i32(fy, "y")?,
+        w: to_i32(wb, "w")?,
+        h: to_i32(hb, "h")?,
+    })
+}
+
+/// Vertically mirror a tightly-packed 16-bit image in place (row 0 <-> last
+/// row). `gxccd_read_image` returns rows bottom-up (gxccd.h:416-434); the rest
+/// of the pipeline expects top-down. Equivalent to mi_ccd.cpp `mirror_image`.
+fn mirror_vertical_u16(buf: &mut [u16], width: usize, height: usize) {
+    if width == 0 || height < 2 {
+        return;
+    }
+    // Only touch the region we actually own; never index past the slice.
+    if width.saturating_mul(height) > buf.len() {
+        return;
+    }
+    for row in 0..(height / 2) {
+        let top = row * width;
+        let bot = (height - 1 - row) * width;
+        for col in 0..width {
+            buf.swap(top + col, bot + col);
+        }
+    }
+}
+
+/// RGB Bayer pattern implied by the debayer phase bits, expressed in the SDK's
+/// *native* (bottom-up) orientation. `x_odd`/`y_odd` are `GBP_DEBAYER_X_ODD` /
+/// `GBP_DEBAYER_Y_ODD` (gxccd.h:249-252).
+fn native_bayer(x_odd: bool, y_odd: bool) -> BayerPattern {
+    match (x_odd, y_odd) {
+        (false, false) => BayerPattern::Rggb,
+        (true, false) => BayerPattern::Grbg,
+        (false, true) => BayerPattern::Gbrg,
+        (true, true) => BayerPattern::Bggr,
+    }
+}
+
+/// Adjust a Bayer pattern for the vertical mirror we apply to every frame.
+/// Reversing the row order of an even-height frame swaps the two Bayer rows.
+fn flip_bayer_vertical(p: BayerPattern) -> BayerPattern {
+    match p {
+        BayerPattern::Rggb => BayerPattern::Gbrg,
+        BayerPattern::Gbrg => BayerPattern::Rggb,
+        BayerPattern::Grbg => BayerPattern::Bggr,
+        BayerPattern::Bggr => BayerPattern::Grbg,
+    }
+}
+
 // ============================================================================
 // Device Discovery
 // ============================================================================
 
 /// Active enumeration sink for SDK callbacks.
-static ACTIVE_ENUMERATION_IDS: Mutex<Option<Arc<Mutex<Vec<Cardinal>>>>> = Mutex::new(None);
+static ACTIVE_ENUMERATION_IDS: Mutex<Option<Arc<Mutex<Vec<c_int>>>>> = Mutex::new(None);
 
-/// Callback for camera enumeration
-unsafe extern "C" fn enumerate_callback(id: Cardinal) {
+/// Callback for camera enumeration (`enum_callback_t`, gxccd.h:63).
+unsafe extern "C" fn enumerate_callback(id: c_int) {
     let target = ACTIVE_ENUMERATION_IDS
         .lock()
         .ok()
@@ -252,7 +420,7 @@ unsafe extern "C" fn enumerate_callback(id: Cardinal) {
 /// Discovered Moravian camera info
 #[derive(Debug, Clone)]
 pub struct MoravianCameraInfo {
-    pub camera_id: Cardinal,
+    pub camera_id: c_int,
     pub name: String,
     pub serial_number: Option<String>,
     pub discovery_index: usize,
@@ -271,47 +439,59 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
         .unwrap_or_else(|e| e.into_inner()) = Some(ids_sink.clone());
 
     // Enumerate cameras
-    // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); ACTIVE_ENUMERATION_IDS has been set to `ids_sink` above so the callback has a sink to push to; `enumerate_callback` is a properly declared `unsafe extern "C" fn(Cardinal)` matching the EnumerateCallback typedef.
-    unsafe { (sdk.enumerate)(enumerate_callback) };
+    // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); ACTIVE_ENUMERATION_IDS has been set to `ids_sink` so the callback has a sink to push to; `enumerate_callback` is a properly declared `unsafe extern "C" fn(c_int)` matching the enum_callback_t typedef.
+    unsafe { (sdk.enumerate_usb)(enumerate_callback) };
     *ACTIVE_ENUMERATION_IDS
         .lock()
         .unwrap_or_else(|e| e.into_inner()) = None;
 
     // Collect results
-    let ids: Vec<Cardinal> = ids_sink.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let ids: Vec<c_int> = ids_sink.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
     let mut devices = Vec::new();
 
     for (index, &id) in ids.iter().enumerate() {
-        // Temporarily initialize to get camera info
-        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); `id` was just emitted by Enumerate via enumerate_callback so it is a valid camera ID for Initialize.
-        let handle = unsafe { (sdk.initialize)(id) };
+        // Temporarily initialize to read camera info, then release.
+        // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); `id` was just emitted by gxccd_enumerate_usb via enumerate_callback so it is a valid camera ID for gxccd_initialize_usb.
+        let handle = unsafe { (sdk.initialize_usb)(id) };
         if handle.is_null() {
             continue;
         }
 
         // Get camera description
         let mut name_buf = [0 as c_char; 256];
-        // SAFETY: moravian_mutex held; `handle` was just successfully initialized (non-null check above); name_buf is a 256-byte stack array and we pass `256` as the truthful length so the SDK cannot overrun.
+        // SAFETY: moravian_mutex held; `handle` was just successfully initialized (non-null check above); name_buf is a 256-byte stack array and we pass its truthful length as `size_t` so the SDK cannot overrun.
         if unsafe {
-            (sdk.get_string_parameter)(handle, GSP_CAMERA_DESCRIPTION, 256, name_buf.as_mut_ptr())
-        } != 0
+            (sdk.get_string_parameter)(
+                handle,
+                GSP_CAMERA_DESCRIPTION,
+                name_buf.as_mut_ptr(),
+                name_buf.len(),
+            )
+        } >= 0
         {
-            // SAFETY: name_buf is 256 bytes and the SDK guarantees NUL-termination within the buffer on success (return != 0) per gXusb.h.
+            // SAFETY: name_buf is 256 bytes and the SDK guarantees NUL-termination within the buffer on success (>= 0) per gxccd.h:306-311.
             let name = unsafe { std::ffi::CStr::from_ptr(name_buf.as_ptr()) }
                 .to_string_lossy()
+                .trim()
                 .to_string();
 
             // Get serial number
             let mut serial_buf = [0 as c_char; 64];
-            // SAFETY: moravian_mutex held; `handle` is still the successfully-initialized one from above; serial_buf is 64 bytes and the truthful length is passed.
+            // SAFETY: moravian_mutex held; `handle` is still the successfully-initialized one from above; serial_buf is 64 bytes and its truthful length is passed as `size_t`.
             let serial_number = if unsafe {
-                (sdk.get_string_parameter)(handle, GSP_CAMERA_SERIAL, 64, serial_buf.as_mut_ptr())
-            } != 0
+                (sdk.get_string_parameter)(
+                    handle,
+                    GSP_CAMERA_SERIAL,
+                    serial_buf.as_mut_ptr(),
+                    serial_buf.len(),
+                )
+            } >= 0
             {
-                // SAFETY: serial_buf is 64 bytes; gXusb SDK guarantees NUL-termination on success.
+                // SAFETY: serial_buf is 64 bytes; the SDK guarantees NUL-termination on success.
                 let serial = unsafe { std::ffi::CStr::from_ptr(serial_buf.as_ptr()) }
                     .to_string_lossy()
+                    .trim()
                     .to_string();
                 if !serial.is_empty() {
                     Some(serial)
@@ -331,7 +511,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
         }
 
         // Release temporary handle
-        // SAFETY: moravian_mutex held; `handle` was successfully initialized at the top of this iteration; Release pairs with Initialize per gXusb.h.
+        // SAFETY: moravian_mutex held; `handle` was successfully initialized at the top of this iteration; gxccd_release pairs with gxccd_initialize_usb per gxccd.h:206-211.
         unsafe { (sdk.release)(handle) };
     }
 
@@ -343,7 +523,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
 // ============================================================================
 
 struct HandleWrapper(PCCamera);
-// SAFETY: HandleWrapper wraps a raw `*mut c_void` camera handle. The handle is opaque to us — we never deref it. It is only handed back to the gXusb SDK functions, which serialize through `moravian_mutex()`, so no concurrent access ever happens to the underlying SDK state via this pointer.
+// SAFETY: HandleWrapper wraps a raw `*mut c_void` camera handle. The handle is opaque to us — we never deref it. It is only handed back to the gxccd SDK functions, which serialize through `moravian_mutex()`, so no concurrent access ever happens to the underlying SDK state via this pointer.
 unsafe impl Send for HandleWrapper {}
 // SAFETY: Same justification as `impl Send`. The pointer is opaque and access to it is gated by both the wrapping `Mutex<HandleWrapper>` (held inside MoravianCamera) and the global `moravian_mutex()`.
 unsafe impl Sync for HandleWrapper {}
@@ -354,7 +534,7 @@ unsafe impl Sync for HandleWrapper {}
 
 /// Moravian camera instance
 pub struct MoravianCamera {
-    camera_id: Cardinal,
+    camera_id: c_int,
     device_id: String,
     name: String,
     handle: Mutex<HandleWrapper>,
@@ -371,7 +551,9 @@ pub struct MoravianCamera {
     target_temp: f64,
     exposure_duration: f64,
     exposure_started_at: Option<std::time::Instant>,
-    use_shutter: bool,
+    /// Binned (width, height) requested at the last `start_exposure`; used to
+    /// size the `gxccd_read_image` buffer (which takes no ROI of its own).
+    last_frame_dims: Option<(u32, u32)>,
 }
 
 impl std::fmt::Debug for MoravianCamera {
@@ -385,7 +567,7 @@ impl std::fmt::Debug for MoravianCamera {
 
 impl MoravianCamera {
     /// Create a new Moravian camera instance
-    pub fn new(camera_id: Cardinal) -> Self {
+    pub fn new(camera_id: c_int) -> Self {
         Self {
             camera_id,
             device_id: format!("moravian_{}", camera_id),
@@ -404,7 +586,7 @@ impl MoravianCamera {
             target_temp: 0.0,
             exposure_duration: 0.0,
             exposure_started_at: None,
-            use_shutter: true,
+            last_frame_dims: None,
         }
     }
 }
@@ -437,110 +619,181 @@ impl NativeDevice for MoravianCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = moravian_mutex().lock().await;
 
-        // Initialize camera
-        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); `self.camera_id` was set at construction (passed in from MoravianCameraInfo.camera_id which was emitted by Enumerate); Initialize takes the camera ID by value and returns a fresh handle (NULL on failure, checked below).
-        let handle = unsafe { (sdk.initialize)(self.camera_id) };
+        // Initialize camera (gxccd_initialize_usb returns NULL on failure).
+        // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); `self.camera_id` was set at construction (from MoravianCameraInfo.camera_id emitted by gxccd_enumerate_usb); gxccd_initialize_usb takes the camera ID by value and returns a fresh handle (NULL on failure, checked below).
+        let handle = unsafe { (sdk.initialize_usb)(self.camera_id) };
         if handle.is_null() {
             tracing::error!(
-                "Moravian Initialize() returned NULL for camera ID {}. Check USB connection and driver installation.",
+                "Moravian gxccd_initialize_usb() returned NULL for camera ID {}. Check USB connection and driver installation.",
                 self.camera_id
             );
             return Err(NativeError::SdkError(format!(
-                "Failed to initialize Moravian camera ID {} - SDK returned NULL handle. Ensure camera is connected and gXusb driver is installed.",
+                "Failed to initialize Moravian camera ID {} - SDK returned NULL handle. Ensure camera is connected and the gxccd driver is installed.",
                 self.camera_id
             )));
         }
 
-        // Store handle
-        {
-            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
-            *h = HandleWrapper(handle);
-        }
+        let cleanup_guard = CleanupGuard::new(|| {
+            // SAFETY: moravian_mutex remains held for this guard's lifetime and
+            // handle was returned by the successful gxccd_initialize_usb call above.
+            unsafe { (sdk.release)(handle) };
+        });
 
-        // Get camera info using the stored handle (synchronous operations)
+        // Probe camera info before publishing the handle as connected.
         {
-            let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
-
-            // Get name
+            // Name
             let mut name_buf = [0 as c_char; 256];
-            // SAFETY: moravian_mutex held above; `handle` is the just-successfully-initialized camera handle stored in self.handle; name_buf is 256 bytes and the truthful length is passed so the SDK cannot overrun.
+            // SAFETY: moravian_mutex held above; `handle` is the
+            // just-successfully-initialized camera handle; name_buf is 256 bytes and
+            // its truthful length is passed as `size_t`.
             if unsafe {
                 (sdk.get_string_parameter)(
                     handle,
                     GSP_CAMERA_DESCRIPTION,
-                    256,
                     name_buf.as_mut_ptr(),
+                    name_buf.len(),
                 )
-            } != 0
+            } >= 0
             {
-                // SAFETY: name_buf is 256 bytes; gXusb SDK guarantees NUL-termination within on success.
+                // SAFETY: name_buf is 256 bytes; the SDK guarantees NUL-termination within on success.
                 self.name = unsafe { std::ffi::CStr::from_ptr(name_buf.as_ptr()) }
                     .to_string_lossy()
+                    .trim()
                     .to_string();
             }
 
-            // Get sensor dimensions
-            let mut width: Cardinal = 0;
-            let mut height: Cardinal = 0;
-            // SAFETY: moravian_mutex held; `handle` is the successfully-initialized handle; both out-pointers are valid stack POD references.
-            unsafe {
-                (sdk.get_integer_parameter)(handle, GIP_CHIP_W, &mut width);
-                (sdk.get_integer_parameter)(handle, GIP_CHIP_D, &mut height);
-            }
+            // Integer + boolean parameters. Every status must be checked: a
+            // failed SDK query leaves its out-parameter unchanged.
+            let mut width_i: c_int = 0;
+            let mut height_i: c_int = 0;
+            let mut pixel_w: c_int = 0;
+            let mut pixel_d: c_int = 0;
+            let mut max_bin_x: c_int = 1;
+            let mut max_bin_y: c_int = 1;
+            let mut max_pixel_value: c_int = 0;
+            let mut is_rgb: GxBool = 0;
+            let mut is_cmy: GxBool = 0;
+            let mut is_cmyg: GxBool = 0;
+            let mut deb_x_odd: GxBool = 0;
+            let mut deb_y_odd: GxBool = 0;
+            let mut has_cooler: GxBool = 0;
+            let mut has_shutter: GxBool = 0;
+            let mut has_guide: GxBool = 0;
+            let mut has_gain: GxBool = 0;
+            let mut has_subframe: GxBool = 0;
 
-            // Get pixel size (in 0.01 microns per SDK docs)
-            let mut pixel_w: Cardinal = 0;
-            let mut pixel_d: Cardinal = 0;
-            // SAFETY: moravian_mutex held; `handle` is the successfully-initialized handle; both out-pointers are valid stack POD references.
-            unsafe {
-                (sdk.get_integer_parameter)(handle, GIP_PIXEL_W, &mut pixel_w);
-                (sdk.get_integer_parameter)(handle, GIP_PIXEL_D, &mut pixel_d);
-            }
-
-            // Check if color camera
-            let mut is_color: Boolean = 0;
-            // SAFETY: moravian_mutex held; `handle` is the successfully-initialized handle; `&mut is_color` is a valid stack out-pointer to a u8.
-            let color =
-                if unsafe { (sdk.get_boolean_parameter)(handle, GBP_RGB, &mut is_color) } != 0 {
-                    is_color != 0
-                } else {
-                    false
+            let query_integer =
+                |index: c_int, value: &mut c_int, name: &str| -> Result<(), NativeError> {
+                    // SAFETY: moravian_mutex held; handle is initialized and value is a
+                    // valid c_int out-pointer for gxccd_get_integer_parameter.
+                    let result = unsafe { (sdk.get_integer_parameter)(handle, index, value) };
+                    if result < 0 {
+                        // SAFETY: handle remains valid on this error path.
+                        let detail = unsafe { sdk_last_error(sdk, handle) };
+                        return Err(NativeError::SdkError(format!(
+                            "Moravian failed to query {}: {}",
+                            name, detail
+                        )));
+                    }
+                    Ok(())
                 };
+            let query_boolean =
+                |index: c_int, value: &mut GxBool, name: &str| -> Result<(), NativeError> {
+                    // SAFETY: moravian_mutex held; handle is initialized and value is a
+                    // valid GxBool out-pointer for gxccd_get_boolean_parameter.
+                    let result = unsafe { (sdk.get_boolean_parameter)(handle, index, value) };
+                    if result < 0 {
+                        // SAFETY: handle remains valid on this error path.
+                        let detail = unsafe { sdk_last_error(sdk, handle) };
+                        return Err(NativeError::SdkError(format!(
+                            "Moravian failed to query {}: {}",
+                            name, detail
+                        )));
+                    }
+                    Ok(())
+                };
+
+            query_integer(GIP_CHIP_W, &mut width_i, "sensor width")?;
+            query_integer(GIP_CHIP_D, &mut height_i, "sensor height")?;
+            query_integer(GIP_PIXEL_W, &mut pixel_w, "pixel width")?;
+            query_integer(GIP_PIXEL_D, &mut pixel_d, "pixel height")?;
+            query_integer(GIP_MAX_BINNING_X, &mut max_bin_x, "maximum X binning")?;
+            query_integer(GIP_MAX_BINNING_Y, &mut max_bin_y, "maximum Y binning")?;
+            query_integer(
+                GIP_MAX_PIXEL_VALUE,
+                &mut max_pixel_value,
+                "maximum pixel value",
+            )?;
+            query_boolean(GBP_RGB, &mut is_rgb, "RGB sensor capability")?;
+            query_boolean(GBP_CMY, &mut is_cmy, "CMY sensor capability")?;
+            query_boolean(GBP_CMYG, &mut is_cmyg, "CMYG sensor capability")?;
+            query_boolean(GBP_DEBAYER_X_ODD, &mut deb_x_odd, "horizontal Bayer phase")?;
+            query_boolean(GBP_DEBAYER_Y_ODD, &mut deb_y_odd, "vertical Bayer phase")?;
+            query_boolean(GBP_COOLER, &mut has_cooler, "cooler capability")?;
+            query_boolean(GBP_SHUTTER, &mut has_shutter, "shutter capability")?;
+            query_boolean(GBP_GUIDE, &mut has_guide, "guider capability")?;
+            query_boolean(GBP_GAIN, &mut has_gain, "gain capability")?;
+            query_boolean(GBP_SUB_FRAME, &mut has_subframe, "subframe capability")?;
+
+            if width_i <= 0
+                || height_i <= 0
+                || pixel_w <= 0
+                || pixel_d <= 0
+                || max_bin_x <= 0
+                || max_bin_y <= 0
+                || max_pixel_value <= 0
+            {
+                return Err(NativeError::SdkError(format!(
+                    "Moravian reported invalid camera parameters: sensor={}x{}, pixel={}x{}nm, max_bin={}x{}, max_adu={}",
+                    width_i,
+                    height_i,
+                    pixel_w,
+                    pixel_d,
+                    max_bin_x,
+                    max_bin_y,
+                    max_pixel_value
+                )));
+            }
+
+            let width = width_i as u32;
+            let height = height_i as u32;
+
+            // GIP_PIXEL_W/D are in NANOMETERS (gxccd.h:267-268); the reference
+            // converts to microns with /1000.0 (mi_ccd.cpp:435).
+            let pixel_size_x = pixel_w.max(0) as f64 / 1000.0;
+            let pixel_size_y = pixel_d.max(0) as f64 / 1000.0;
+
+            // GIP_MAX_PIXEL_VALUE is the saturation ADU (gxccd.h:282). Data is
+            // always delivered 16-bit (gxccd_read_image), so bit_depth stays 16.
+            let max_adu = max_pixel_value as u32;
+
+            // Color: only RGB Bayer is representable by BayerPattern. For CMY/CMYG
+            // we flag color but leave the pattern None (an honest "unknown CFA"
+            // rather than a wrong RGGB).
+            let color = is_rgb != 0 || is_cmy != 0 || is_cmyg != 0;
+            let bayer_pattern = if is_rgb != 0 {
+                let native = native_bayer(deb_x_odd != 0, deb_y_odd != 0);
+                // We vertically mirror every frame; for even sensor height that
+                // mirror swaps the two Bayer rows, so report the flipped phase.
+                if height % 2 == 0 {
+                    Some(flip_bayer_vertical(native))
+                } else {
+                    Some(native)
+                }
+            } else {
+                None
+            };
 
             self.sensor_info = SensorInfo {
                 width,
                 height,
-                pixel_size_x: pixel_w as f64 / 100.0, // Convert from 0.01 microns
-                pixel_size_y: pixel_d as f64 / 100.0,
-                max_adu: 65535,
+                pixel_size_x,
+                pixel_size_y,
+                max_adu,
                 bit_depth: 16,
                 color,
-                bayer_pattern: if color {
-                    Some(BayerPattern::Rggb)
-                } else {
-                    None
-                },
+                bayer_pattern,
             };
-
-            // Get capabilities
-            let mut has_cooler: Boolean = 0;
-            let mut has_shutter: Boolean = 0;
-            let mut has_guide: Boolean = 0;
-            let mut has_gain: Boolean = 0;
-            let mut has_subframe: Boolean = 0;
-            let mut max_bin_x: Cardinal = 1;
-            let mut max_bin_y: Cardinal = 1;
-
-            // SAFETY: moravian_mutex held above; `handle` is the successfully-initialized handle; every out-pointer here is a valid stack POD reference (u8 or Cardinal) — the SDK writes at most one POD value into each.
-            unsafe {
-                (sdk.get_boolean_parameter)(handle, GBP_COOLER, &mut has_cooler);
-                (sdk.get_boolean_parameter)(handle, GBP_SHUTTER, &mut has_shutter);
-                (sdk.get_boolean_parameter)(handle, GBP_GUIDE, &mut has_guide);
-                (sdk.get_boolean_parameter)(handle, GBP_GAIN, &mut has_gain);
-                (sdk.get_boolean_parameter)(handle, GBP_SUBFRAME, &mut has_subframe);
-                (sdk.get_integer_parameter)(handle, GIP_MAX_BINNING_X, &mut max_bin_x);
-                (sdk.get_integer_parameter)(handle, GIP_MAX_BINNING_Y, &mut max_bin_y);
-            }
 
             self.capabilities = CameraCapabilities {
                 can_cool: has_cooler != 0,
@@ -550,34 +803,20 @@ impl NativeDevice for MoravianCamera {
                 can_subframe: has_subframe != 0,
                 has_shutter: has_shutter != 0,
                 has_guider_port: has_guide != 0,
-                // Why: Cardinal (u32) -> i32. Moravian's max binning is hardware-bounded
-                // to <= 16; any value approaching i32::MAX indicates SDK corruption. We
-                // saturate via try_into.unwrap_or(i32::MAX) so callers see a defensible
-                // upper bound rather than a wrapped negative.
-                max_bin_x: i32::try_from(max_bin_x).unwrap_or(i32::MAX),
-                max_bin_y: i32::try_from(max_bin_y).unwrap_or(i32::MAX),
-                supports_readout_modes: true, // Moravian supports readout modes
+                max_bin_x: max_bin_x.max(1),
+                max_bin_y: max_bin_y.max(1),
+                supports_readout_modes: true,
             };
-
-            self.use_shutter = has_shutter != 0;
         }
 
-        // Open camera for imaging
         {
-            let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
-            // SAFETY: moravian_mutex held above; `handle` is the just-initialized non-null camera handle (verified non-null when stored above); gXusb Open() takes the handle and opens the device for imaging.
-            if unsafe { (sdk.open)(handle) } == 0 {
-                tracing::error!(
-                    "Moravian Open() failed for camera '{}' (ID {}). Camera may be in use by another application.",
-                    self.name, self.camera_id
-                );
-                return Err(NativeError::SdkError(format!(
-                    "Failed to open Moravian camera '{}' - SDK Open() returned false. Check if camera is in use by another application.",
-                    self.name
-                )));
-            }
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
+            *h = HandleWrapper(handle);
         }
+        cleanup_guard.defuse();
 
+        // The current gxccd SDK has no separate Open() step — the handle from
+        // gxccd_initialize_usb is ready for imaging.
         self.connected = true;
         self.state = CameraState::Idle;
 
@@ -603,12 +842,8 @@ impl NativeDevice for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Close camera
-        // SAFETY: moravian_mutex held above; we only enter this branch when self.connected == true, so the handle was previously opened via Open(); Close() pairs with Open().
-        unsafe { (sdk.close)(handle) };
-
-        // Release camera
-        // SAFETY: moravian_mutex held; handle was previously Initialize()'d (we're on the connected path); Release() pairs with Initialize() and is the required final cleanup per gXusb.h.
+        // Release camera (no separate Close() in the current SDK).
+        // SAFETY: moravian_mutex held above; handle was previously Initialize()'d (we're on the connected path); gxccd_release() pairs with gxccd_initialize_usb() and is the required final cleanup per gxccd.h:206-211.
         unsafe { (sdk.release)(handle) };
 
         {
@@ -618,6 +853,7 @@ impl NativeDevice for MoravianCamera {
         self.connected = false;
         self.state = CameraState::Idle;
         self.exposure_started_at = None;
+        self.last_frame_dims = None;
 
         tracing::info!("Disconnected from Moravian camera: {}", self.name);
 
@@ -649,9 +885,9 @@ impl NativeCamera for MoravianCamera {
 
         // Get temperature
         let current_temp = {
-            let mut value: Real = 0.0;
-            // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; `&mut value` is a valid stack out-pointer to a c_float.
-            if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
+            let mut value: c_float = 0.0;
+            // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so the handle is open; `&mut value` is a valid stack out-pointer to a c_float.
+            if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } >= 0 {
                 Some(value as f64)
             } else {
                 None
@@ -660,9 +896,9 @@ impl NativeCamera for MoravianCamera {
 
         // Get cooler power
         let cooler_power = {
-            let mut value: Real = 0.0;
+            let mut value: c_float = 0.0;
             // SAFETY: moravian_mutex held; self.connected was checked at entry; `&mut value` is a valid stack out-pointer to a c_float.
-            if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } != 0 {
+            if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } >= 0 {
                 Some(value as f64)
             } else {
                 None
@@ -712,53 +948,91 @@ impl NativeCamera for MoravianCamera {
 
         let sdk = get_sdk()?;
 
-        // Use a scoped block for mutex to ensure it's released before sleeping
+        // Compute the binned, y-flipped ROI the current SDK expects on
+        // start_exposure (the legacy SDK applied the ROI at download time).
+        let bin_x = u32::try_from(self.current_bin_x).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "Moravian current_bin_x not representable as u32: {}",
+                self.current_bin_x
+            ))
+        })?;
+        let bin_y = u32::try_from(self.current_bin_y).map_err(|_| {
+            NativeError::InvalidParameter(format!(
+                "Moravian current_bin_y not representable as u32: {}",
+                self.current_bin_y
+            ))
+        })?;
+        let subframe = self
+            .subframe
+            .as_ref()
+            .map(|sf| (sf.start_x, sf.start_y, sf.width, sf.height));
+        let roi = compute_binned_roi(
+            self.sensor_info.width,
+            self.sensor_info.height,
+            bin_x,
+            bin_y,
+            subframe,
+        )
+        .map_err(NativeError::InvalidParameter)?;
+
+        // Shutter policy lives on this ONE line: Light/Flat open the mechanical
+        // shutter; Dark/Bias/DarkFlat keep it closed so calibration frames are not
+        // contaminated (camera.rs `FrameType::opens_shutter`, whose doc names the
+        // Moravian G-series). Bodies without a shutter simply ignore the flag.
+        let use_shutter: GxBool = params.frame_type.opens_shutter() as GxBool;
+
         {
             // Acquire global SDK mutex for thread safety
             let _lock = moravian_mutex().lock().await;
 
             let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-            // Clear sensor first
-            // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; ClearSensor takes just the handle.
-            if unsafe { (sdk.clear_sensor)(handle) } == 0 {
+            // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so the handle is open; exp_time/use_shutter/x/y/w/h are passed by value and the ROI was bounds-checked by compute_binned_roi against the binned sensor extent.
+            let ret = unsafe {
+                (sdk.start_exposure)(
+                    handle,
+                    params.duration_secs,
+                    use_shutter,
+                    roi.x,
+                    roi.y,
+                    roi.w,
+                    roi.h,
+                )
+            };
+            if ret < 0 {
+                // SAFETY: moravian_mutex held; handle is the open camera handle.
+                let msg = unsafe { sdk_last_error(sdk, handle) };
                 tracing::error!(
-                    "Moravian ClearSensor() failed for camera '{}'. Sensor may be busy or hardware error occurred.",
-                    self.name
+                    "Moravian gxccd_start_exposure() failed for camera '{}': {} (duration {:.3}s, ROI {}x{}+{}+{})",
+                    self.name, msg, params.duration_secs, roi.w, roi.h, roi.x, roi.y
                 );
                 return Err(NativeError::SdkError(format!(
-                    "Failed to clear sensor on Moravian camera '{}'. Sensor may be busy.",
-                    self.name
-                )));
-            }
-
-            // Start exposure (use shutter if available)
-            let use_shutter = if self.use_shutter { 1 } else { 0 };
-
-            // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); use_shutter is a 0/1 Boolean derived from cached SDK capability.
-            if unsafe { (sdk.begin_exposure)(handle, use_shutter) } == 0 {
-                tracing::error!(
-                    "Moravian BeginExposure() failed for camera '{}'. Duration: {:.3}s, UseShutter: {}",
-                    self.name, params.duration_secs, self.use_shutter
-                );
-                return Err(NativeError::SdkError(format!(
-                    "Failed to start exposure on Moravian camera '{}'. The camera may be busy or disconnected.",
-                    self.name
+                    "Failed to start exposure on Moravian camera '{}': {}",
+                    self.name, msg
                 )));
             }
 
             self.exposure_duration = params.duration_secs;
             self.exposure_started_at = Some(std::time::Instant::now());
+            self.last_frame_dims = Some((roi.w as u32, roi.h as u32));
             self.state = CameraState::Exposing;
 
             tracing::info!(
-                "Started {:.3}s exposure on Moravian camera",
-                params.duration_secs
+                "Started {:.3}s exposure on Moravian camera '{}' (ROI {}x{})",
+                params.duration_secs,
+                self.name,
+                roi.w,
+                roi.h
             );
         } // Mutex released here BEFORE sleeping
 
-        // Wait for exposure duration (mutex is NOT held during this sleep)
-        tokio::time::sleep(tokio::time::Duration::from_secs_f64(params.duration_secs)).await;
+        // Wait for the exposure integration (mutex is NOT held during this sleep).
+        // The chip readout that follows is awaited via gxccd_image_ready in
+        // download_image.
+        tokio::time::sleep(tokio::time::Duration::from_secs_f64(
+            params.duration_secs.max(0.0),
+        ))
+        .await;
 
         Ok(())
     }
@@ -775,13 +1049,25 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // End exposure with abort
-        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry; EndExposure takes the handle plus two Boolean values (use_shutter=0, abort=1) by value.
-        unsafe { (sdk.end_exposure)(handle, 0, 1) };
+        // Abort, discarding the frame (download = false), matching the reference
+        // (mi_ccd.cpp:534). Abort is a best-effort cleanup path: log a failure
+        // but still reset local state so the orchestrator is not wedged.
+        // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so the handle is open; gxccd_abort_exposure takes the handle plus a GxBool (download=0) by value.
+        let ret = unsafe { (sdk.abort_exposure)(handle, 0) };
+        if ret < 0 {
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
+            tracing::warn!(
+                "Moravian gxccd_abort_exposure() failed for camera '{}': {}",
+                self.name,
+                msg
+            );
+        }
 
         self.state = CameraState::Idle;
         self.exposure_started_at = None;
-        tracing::info!("Aborted exposure on Moravian camera");
+        self.last_frame_dims = None;
+        tracing::info!("Aborted exposure on Moravian camera '{}'", self.name);
 
         Ok(())
     }
@@ -793,75 +1079,18 @@ impl NativeCamera for MoravianCamera {
 
         let sdk = get_sdk()?;
 
-        // Acquire global SDK mutex for thread safety
-        let _lock = moravian_mutex().lock().await;
-
-        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
-
-        // End exposure
-        // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; EndExposure takes handle plus two Booleans (use_shutter, abort=0) by value to finalize the exposure.
-        if unsafe { (sdk.end_exposure)(handle, if self.use_shutter { 1 } else { 0 }, 0) } == 0 {
-            tracing::error!(
-                "Moravian EndExposure() failed for camera '{}'. Exposure may not have completed properly.",
-                self.name
-            );
-            return Err(NativeError::SdkError(format!(
-                "Failed to end exposure on Moravian camera '{}'. Exposure may not have completed.",
-                self.name
-            )));
-        }
-
-        self.state = CameraState::Downloading;
-
-        // Calculate image dimensions.
-        // Why: SubFrame.start_x/start_y are u32; the Moravian SDK consumes i32 (c_int).
-        // We surface a u32 > i32::MAX as InvalidParameter rather than wrap into a
-        // negative ROI origin.
-        let (x, y, width, height) = if let Some(ref sf) = self.subframe {
-            let sx = i32::try_from(sf.start_x).map_err(|_| {
-                NativeError::InvalidParameter(format!(
-                    "Moravian subframe start_x exceeds i32: {}",
-                    sf.start_x
-                ))
-            })?;
-            let sy = i32::try_from(sf.start_y).map_err(|_| {
-                NativeError::InvalidParameter(format!(
-                    "Moravian subframe start_y exceeds i32: {}",
-                    sf.start_y
-                ))
-            })?;
-            (sx, sy, sf.width, sf.height)
-        } else {
-            (0, 0, self.sensor_info.width, self.sensor_info.height)
-        };
-
-        // Why: current_bin_x is i32 stored from validated set_binning(); we must convert
-        // to u32 for the division. A negative bin or zero would cause divide-by-zero or
-        // wrap, so we reject explicitly.
-        let bin_x_u32 = u32::try_from(self.current_bin_x).map_err(|_| {
-            NativeError::InvalidParameter(format!(
-                "Moravian current_bin_x not representable as u32: {}",
-                self.current_bin_x
-            ))
+        // Binned dimensions requested at start_exposure. gxccd_read_image takes
+        // no ROI of its own; the buffer must match exactly what start_exposure
+        // requested.
+        let (binned_width, binned_height) = self.last_frame_dims.ok_or_else(|| {
+            NativeError::SdkError(
+                "Moravian download_image called without an active exposure".into(),
+            )
         })?;
-        let bin_y_u32 = u32::try_from(self.current_bin_y).map_err(|_| {
-            NativeError::InvalidParameter(format!(
-                "Moravian current_bin_y not representable as u32: {}",
-                self.current_bin_y
-            ))
-        })?;
-        if bin_x_u32 == 0 || bin_y_u32 == 0 {
-            return Err(NativeError::InvalidParameter(
-                "Moravian binning must be >= 1".into(),
-            ));
-        }
-        let binned_width = width / bin_x_u32;
-        let binned_height = height / bin_y_u32;
-        // Why: buffer_size is in *pixels* (u16 each), and `buffer_size * 2` is bytes.
-        // For a 32K x 32K mono camera this is 2 GB — fits in u64 but not in c_uint
-        // (Cardinal = u32). Promote to u64 for the byte count and refuse to call the
-        // SDK if it would not fit in Cardinal.
-        let buffer_size_u64 = u64::from(binned_width)
+
+        // Buffer sizing, overflow-guarded. size is a size_t (usize); on 64-bit
+        // targets the pixel/byte counts fit comfortably.
+        let pixel_count_u64 = u64::from(binned_width)
             .checked_mul(u64::from(binned_height))
             .ok_or_else(|| {
                 NativeError::SdkError(format!(
@@ -869,76 +1098,103 @@ impl NativeCamera for MoravianCamera {
                     binned_width, binned_height
                 ))
             })?;
-        let byte_count_u64 = buffer_size_u64
+        let byte_count_u64 = pixel_count_u64
             .checked_mul(2)
             .ok_or_else(|| NativeError::SdkError("Moravian byte count overflow u64".into()))?;
-        let buffer_size = usize::try_from(buffer_size_u64).map_err(|_| {
+        let buffer_size = usize::try_from(pixel_count_u64).map_err(|_| {
             NativeError::SdkError(format!(
                 "Moravian buffer pixel count {} does not fit in usize",
-                buffer_size_u64
+                pixel_count_u64
             ))
         })?;
-        let byte_count_cardinal = Cardinal::try_from(byte_count_u64).map_err(|_| {
+        let byte_count = usize::try_from(byte_count_u64).map_err(|_| {
             NativeError::SdkError(format!(
-                "Moravian byte count {} exceeds SDK Cardinal limit ({})",
-                byte_count_u64,
-                Cardinal::MAX
-            ))
-        })?;
-        let binned_width_i32 = i32::try_from(binned_width).map_err(|_| {
-            NativeError::SdkError(format!(
-                "Moravian binned width {} does not fit in i32",
-                binned_width
-            ))
-        })?;
-        let binned_height_i32 = i32::try_from(binned_height).map_err(|_| {
-            NativeError::SdkError(format!(
-                "Moravian binned height {} does not fit in i32",
-                binned_height
+                "Moravian byte count {} does not fit in usize",
+                byte_count_u64
             ))
         })?;
 
-        // Allocate buffer
+        // Wait for the chip to finish digitizing (readout follows the exposure
+        // integration). gxccd_read_image fails if called before the image is
+        // ready, so we poll gxccd_image_ready with a bounded timeout, releasing
+        // the SDK mutex between polls (mi_ccd.cpp:682-700).
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_secs(READOUT_TIMEOUT_SECS);
+        loop {
+            let ready = {
+                let _lock = moravian_mutex().lock().await;
+                let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+                let mut ready: GxBool = 0;
+                // SAFETY: moravian_mutex held; self.connected was checked at entry so the handle is open; `&mut ready` is a valid stack out-pointer to a GxBool.
+                let ret = unsafe { (sdk.image_ready)(handle, &mut ready) };
+                if ret < 0 {
+                    // SAFETY: moravian_mutex held; handle is the open camera handle.
+                    let msg = unsafe { sdk_last_error(sdk, handle) };
+                    self.state = CameraState::Error;
+                    return Err(NativeError::SdkError(format!(
+                        "Moravian gxccd_image_ready() failed for camera '{}': {}",
+                        self.name, msg
+                    )));
+                }
+                ready != 0
+            };
+            if ready {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                self.state = CameraState::Error;
+                return Err(NativeError::SdkError(format!(
+                    "Timed out after {}s waiting for Moravian camera '{}' image readout",
+                    READOUT_TIMEOUT_SECS, self.name
+                )));
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(READOUT_POLL_MS)).await;
+        }
+
+        self.state = CameraState::Downloading;
+
+        // Read the frame and capture temperature under a single mutex hold.
+        let _lock = moravian_mutex().lock().await;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+
+        // Allocate the exact buffer (binned_w * binned_h pixels, 16-bit each).
         let mut data: Vec<u16> = vec![0u16; buffer_size];
 
-        // Download image
-        // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); `data` was `vec![0u16; buffer_size]` where buffer_size = binned_width * binned_height, so `byte_count_cardinal = buffer_size * 2` bytes is the exact length we pass — the SDK cannot overrun; `data.as_mut_ptr() as *mut c_void` provides a valid non-null buffer pointer.
-        let result = unsafe {
-            (sdk.get_image_16b)(
-                handle,
-                x,
-                y,
-                binned_width_i32,
-                binned_height_i32,
-                byte_count_cardinal,
-                data.as_mut_ptr() as *mut c_void,
-            )
-        };
-
-        if result == 0 {
+        // Download image.
+        // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); `data` is `vec![0u16; buffer_size]` where buffer_size = binned_width * binned_height, so `byte_count = buffer_size * 2` is the exact byte length passed as `size_t` — the SDK cannot overrun; `data.as_mut_ptr() as *mut c_void` provides a valid non-null buffer pointer.
+        let ret = unsafe { (sdk.read_image)(handle, data.as_mut_ptr() as *mut c_void, byte_count) };
+        if ret < 0 {
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
             tracing::error!(
-                "Moravian GetImage16b() failed for camera '{}'. Requested {}x{} pixels at ({}, {})",
+                "Moravian gxccd_read_image() failed for camera '{}': {} ({}x{} pixels, {} bytes)",
                 self.name,
+                msg,
                 binned_width,
                 binned_height,
-                x,
-                y
+                byte_count
             );
+            self.state = CameraState::Error;
             return Err(NativeError::SdkError(format!(
-                "Failed to download image from Moravian camera '{}'. Buffer size: {} bytes",
-                self.name,
-                buffer_size * 2
+                "Failed to download image from Moravian camera '{}': {}",
+                self.name, msg
             )));
         }
 
+        // gxccd_read_image returns rows bottom-up (gxccd.h:416-434). Flip to
+        // top-down so orientation matches the sky and every other vendor
+        // (mi_ccd.cpp:657 `mirror_image`).
+        mirror_vertical_u16(&mut data, binned_width as usize, binned_height as usize);
+
         self.state = CameraState::Idle;
         self.exposure_started_at = None;
+        self.last_frame_dims = None;
 
-        // Get temperature while we still hold the mutex
+        // Get temperature while we still hold the mutex.
         let temperature = {
-            let mut value: Real = 0.0;
+            let mut value: c_float = 0.0;
             // SAFETY: moravian_mutex still held (same scope as the download above); handle is still open; `&mut value` is a valid stack out-pointer to a c_float.
-            if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
+            if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } >= 0 {
                 Some(value as f64)
             } else {
                 None
@@ -1001,30 +1257,34 @@ impl NativeCamera for MoravianCamera {
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
         if enabled {
-            // Set target temperature
-            // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so handle is open; SetTemperature takes the handle plus a c_float by value.
-            if unsafe { (sdk.set_temperature)(handle, target_temp as f32) } == 0 {
+            // Set target temperature.
+            // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so handle is open; gxccd_set_temperature takes the handle plus a c_float by value.
+            let ret = unsafe { (sdk.set_temperature)(handle, target_temp as c_float) };
+            if ret < 0 {
+                // SAFETY: moravian_mutex held; handle is the open camera handle.
+                let msg = unsafe { sdk_last_error(sdk, handle) };
                 tracing::error!(
-                    "Moravian SetTemperature() failed for camera '{}'. Target: {:.1}°C",
+                    "Moravian gxccd_set_temperature() failed for camera '{}': {} (target {:.1} C)",
                     self.name,
+                    msg,
                     target_temp
                 );
                 return Err(NativeError::SdkError(format!(
-                    "Failed to set cooler temperature to {:.1}°C on Moravian camera '{}'. Camera may not have a cooler.",
-                    target_temp, self.name
+                    "Failed to set cooler temperature to {:.1} C on Moravian camera '{}': {}",
+                    target_temp, self.name, msg
                 )));
             }
             self.cooler_on = true;
             self.target_temp = target_temp;
         } else {
-            // Warm up to ambient (set high temperature target)
-            // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); SetTemperature accepts the handle and a c_float (25.0°C warm-up target) by value.
-            unsafe { (sdk.set_temperature)(handle, 25.0) };
+            // Warm up: a high setpoint turns the cooler fully off (mi_ccd.cpp:35).
+            // SAFETY: moravian_mutex held above; handle is open (self.connected checked at entry); gxccd_set_temperature accepts the handle and a c_float by value.
+            unsafe { (sdk.set_temperature)(handle, TEMP_COOLER_OFF) };
             self.cooler_on = false;
         }
 
         tracing::info!(
-            "Moravian cooler {}: target {}°C",
+            "Moravian cooler {}: target {} C",
             if enabled { "enabled" } else { "disabled" },
             target_temp
         );
@@ -1044,12 +1304,17 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        let mut value: Real = 0.0;
+        let mut value: c_float = 0.0;
         // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a c_float.
-        if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } != 0 {
+        if unsafe { (sdk.get_value)(handle, GV_CHIP_TEMPERATURE, &mut value) } >= 0 {
             Ok(value as f64)
         } else {
-            Err(NativeError::SdkError("Failed to get temperature".into()))
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
+            Err(NativeError::SdkError(format!(
+                "Failed to get temperature: {}",
+                msg
+            )))
         }
     }
 
@@ -1065,12 +1330,17 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        let mut value: Real = 0.0;
+        let mut value: c_float = 0.0;
         // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a c_float.
-        if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } != 0 {
+        if unsafe { (sdk.get_value)(handle, GV_POWER_UTILIZATION, &mut value) } >= 0 {
             Ok(value as f64)
         } else {
-            Err(NativeError::SdkError("Failed to get cooler power".into()))
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
+            Err(NativeError::SdkError(format!(
+                "Failed to get cooler power: {}",
+                msg
+            )))
         }
     }
 
@@ -1083,6 +1353,11 @@ impl NativeCamera for MoravianCamera {
             return Err(NativeError::NotSupported);
         }
 
+        // gxccd_set_gain takes a uint16_t register value (gxccd.h:472-478).
+        let gain_u16 = u16::try_from(gain).map_err(|_| {
+            NativeError::InvalidParameter(format!("Moravian gain {} out of range 0..=65535", gain))
+        })?;
+
         let sdk = get_sdk()?;
 
         // Acquire global SDK mutex for thread safety
@@ -1090,16 +1365,20 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected and capabilities.can_set_gain were checked at entry so the handle is open and the camera supports gain; SetGain takes the handle and a Cardinal by value.
-        if unsafe { (sdk.set_gain)(handle, gain as Cardinal) } == 0 {
+        // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected and capabilities.can_set_gain were checked at entry so the handle is open and the camera supports gain; gxccd_set_gain takes the handle and a u16 by value.
+        let ret = unsafe { (sdk.set_gain)(handle, gain_u16) };
+        if ret < 0 {
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
             tracing::error!(
-                "Moravian SetGain() failed for camera '{}'. Requested gain: {}",
+                "Moravian gxccd_set_gain() failed for camera '{}': {} (requested {})",
                 self.name,
+                msg,
                 gain
             );
             return Err(NativeError::SdkError(format!(
-                "Failed to set gain to {} on Moravian camera '{}'. Value may be out of range.",
-                gain, self.name
+                "Failed to set gain to {} on Moravian camera '{}': {}",
+                gain, self.name, msg
             )));
         }
 
@@ -1127,19 +1406,28 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; SetBinning takes the handle plus two Cardinals by value — caller-validated against capabilities.max_bin_x/max_bin_y in the error message below if rejected.
-        if unsafe { (sdk.set_binning)(handle, bin_x as Cardinal, bin_y as Cardinal) } == 0 {
+        // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so the handle is open; gxccd_set_binning takes the handle plus two c_int values by value.
+        let ret = unsafe { (sdk.set_binning)(handle, bin_x as c_int, bin_y as c_int) };
+        if ret < 0 {
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
             tracing::error!(
-                "Moravian SetBinning() failed for camera '{}'. Requested: {}x{}. Max: {}x{}",
+                "Moravian gxccd_set_binning() failed for camera '{}': {} (requested {}x{}, max {}x{})",
                 self.name,
+                msg,
                 bin_x,
                 bin_y,
                 self.capabilities.max_bin_x,
                 self.capabilities.max_bin_y
             );
             return Err(NativeError::SdkError(format!(
-                "Failed to set binning to {}x{} on Moravian camera '{}'. Max supported: {}x{}",
-                bin_x, bin_y, self.name, self.capabilities.max_bin_x, self.capabilities.max_bin_y
+                "Failed to set binning to {}x{} on Moravian camera '{}': {} (max {}x{})",
+                bin_x,
+                bin_y,
+                self.name,
+                msg,
+                self.capabilities.max_bin_x,
+                self.capabilities.max_bin_y
             )));
         }
 
@@ -1153,73 +1441,42 @@ impl NativeCamera for MoravianCamera {
             return Err(NativeError::NotConnected);
         }
 
-        let sdk = get_sdk()?;
-
-        // Acquire global SDK mutex for thread safety
-        let _lock = moravian_mutex().lock().await;
-
-        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
-
-        if let Some(ref sf) = subframe {
-            if !self.capabilities.can_subframe {
-                return Err(NativeError::NotSupported);
+        // The current SDK validates the ROI on gxccd_start_exposure, so there is
+        // no separate "adjust subframe" call. We validate the top-down, unbinned
+        // request against the sensor extent and store it; the binned, y-flipped
+        // ROI is derived at start_exposure (compute_binned_roi).
+        match subframe {
+            Some(sf) => {
+                if !self.capabilities.can_subframe {
+                    return Err(NativeError::NotSupported);
+                }
+                if sf.width == 0 || sf.height == 0 {
+                    return Err(NativeError::InvalidParameter(
+                        "Moravian subframe width/height must be > 0".into(),
+                    ));
+                }
+                let x_end = sf.start_x.checked_add(sf.width).ok_or_else(|| {
+                    NativeError::InvalidParameter("Moravian subframe x extent overflow".into())
+                })?;
+                let y_end = sf.start_y.checked_add(sf.height).ok_or_else(|| {
+                    NativeError::InvalidParameter("Moravian subframe y extent overflow".into())
+                })?;
+                if x_end > self.sensor_info.width || y_end > self.sensor_info.height {
+                    return Err(NativeError::InvalidParameter(format!(
+                        "Moravian subframe ({}, {}) {}x{} exceeds sensor {}x{}",
+                        sf.start_x,
+                        sf.start_y,
+                        sf.width,
+                        sf.height,
+                        self.sensor_info.width,
+                        self.sensor_info.height
+                    )));
+                }
+                self.subframe = Some(sf);
             }
-
-            // Validate subframe bounds with SDK.
-            // Why: SubFrame fields are u32 sensor coordinates; Integer (c_int = i32) is
-            // what AdjustSubFrame expects. A u32 > i32::MAX would wrap to a negative
-            // coordinate and bypass the SDK's bounds check. Surface as error instead.
-            let mut x = Integer::try_from(sf.start_x).map_err(|_| {
-                NativeError::InvalidParameter(format!(
-                    "Moravian subframe start_x exceeds Integer: {}",
-                    sf.start_x
-                ))
-            })?;
-            let mut y = Integer::try_from(sf.start_y).map_err(|_| {
-                NativeError::InvalidParameter(format!(
-                    "Moravian subframe start_y exceeds Integer: {}",
-                    sf.start_y
-                ))
-            })?;
-            let mut w = Integer::try_from(sf.width).map_err(|_| {
-                NativeError::InvalidParameter(format!(
-                    "Moravian subframe width exceeds Integer: {}",
-                    sf.width
-                ))
-            })?;
-            let mut d = Integer::try_from(sf.height).map_err(|_| {
-                NativeError::InvalidParameter(format!(
-                    "Moravian subframe height exceeds Integer: {}",
-                    sf.height
-                ))
-            })?;
-
-            // SAFETY: moravian_mutex held above; self.connected and capabilities.can_subframe were checked at entry so the handle is open and supports subframes; all four out-pointers are valid stack POD Integer references that the SDK clamps in-place to valid sensor bounds.
-            if unsafe { (sdk.adjust_subframe)(handle, &mut x, &mut y, &mut w, &mut d) } == 0 {
-                tracing::error!(
-                    "Moravian AdjustSubFrame() failed for camera '{}'. Requested: ({}, {}) {}x{}. Sensor: {}x{}",
-                    self.name, sf.start_x, sf.start_y, sf.width, sf.height,
-                    self.sensor_info.width, self.sensor_info.height
-                );
-                return Err(NativeError::SdkError(format!(
-                    "Failed to set subframe ({}, {}) {}x{} on Moravian camera '{}'. Check bounds vs sensor size {}x{}",
-                    sf.start_x, sf.start_y, sf.width, sf.height, self.name,
-                    self.sensor_info.width, self.sensor_info.height
-                )));
+            None => {
+                self.subframe = None;
             }
-
-            // Store adjusted subframe.
-            // Why: AdjustSubFrame clamps x/y/w/d to the sensor's valid bounds (all non-negative
-            // and <= sensor_width/height which are u32). Sign loss is impossible by SDK
-            // contract; widening to u32 is value-preserving for the clamped range.
-            self.subframe = Some(SubFrame {
-                start_x: x as u32,
-                start_y: y as u32,
-                width: w as u32,
-                height: d as u32,
-            });
-        } else {
-            self.subframe = None;
         }
 
         Ok(())
@@ -1249,11 +1506,11 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Get number of readout modes
+        // Number of read modes.
         let num_modes = {
-            let mut value: Cardinal = 0;
-            // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a Cardinal.
-            if unsafe { (sdk.get_integer_parameter)(handle, GIP_READ_MODES, &mut value) } != 0 {
+            let mut value: c_int = 0;
+            // SAFETY: moravian_mutex held above; self.connected was checked at entry so handle is open; `&mut value` is a valid stack out-pointer to a c_int.
+            if unsafe { (sdk.get_integer_parameter)(handle, GIP_READ_MODES, &mut value) } >= 0 {
                 value
             } else {
                 1
@@ -1261,22 +1518,27 @@ impl NativeCamera for MoravianCamera {
         };
 
         let mut modes = Vec::new();
-        for i in 0..num_modes {
+        for i in 0..num_modes.max(0) {
             let mut desc_buf = [0 as c_char; 256];
-            // SAFETY: moravian_mutex held; handle is open; `i` is in the range [0, num_modes) as reported by the SDK above; desc_buf is 256 bytes and the truthful length is passed so the SDK cannot overrun.
-            if unsafe { (sdk.enumerate_read_modes)(handle, i, 256, desc_buf.as_mut_ptr()) } != 0 {
-                // SAFETY: desc_buf is 256 bytes; gXusb SDK guarantees NUL-termination within the buffer on success.
+            // SAFETY: moravian_mutex held; handle is open; `i` is in [0, num_modes) as reported above; desc_buf is 256 bytes and its truthful length is passed as `size_t`. gxccd_enumerate_read_modes returns -1 once the index is past the end.
+            if unsafe {
+                (sdk.enumerate_read_modes)(handle, i, desc_buf.as_mut_ptr(), desc_buf.len())
+            } >= 0
+            {
+                // SAFETY: desc_buf is 256 bytes; the SDK guarantees NUL-termination within the buffer on success.
                 let description = unsafe { std::ffi::CStr::from_ptr(desc_buf.as_ptr()) }
                     .to_string_lossy()
+                    .trim()
                     .to_string();
 
                 modes.push(ReadoutMode {
-                    name: format!("Mode {}", i),
+                    name: if description.is_empty() {
+                        format!("Mode {}", i)
+                    } else {
+                        description.clone()
+                    },
                     description,
-                    // Why: `i` iterates `0..num_modes` where num_modes is a Cardinal (u32).
-                    // Moravian readout modes are tiny (<= 4 known modes across all G4/G2
-                    // SKUs), so `as i32` is widening with verified non-negative range.
-                    index: i as i32,
+                    index: i,
                     gain_min: None,
                     gain_max: None,
                     offset_min: None,
@@ -1312,17 +1574,21 @@ impl NativeCamera for MoravianCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // SAFETY: moravian_mutex held above (single-threaded gXusb SDK access); self.connected was checked at entry so the handle is open; SetReadMode takes the handle plus a Cardinal index by value.
-        if unsafe { (sdk.set_read_mode)(handle, mode.index as Cardinal) } == 0 {
+        // SAFETY: moravian_mutex held above (single-threaded gxccd SDK access); self.connected was checked at entry so the handle is open; gxccd_set_read_mode takes the handle plus a c_int index by value.
+        let ret = unsafe { (sdk.set_read_mode)(handle, mode.index as c_int) };
+        if ret < 0 {
+            // SAFETY: moravian_mutex held; handle is the open camera handle.
+            let msg = unsafe { sdk_last_error(sdk, handle) };
             tracing::error!(
-                "Moravian SetReadMode() failed for camera '{}'. Mode index: {} ('{}')",
+                "Moravian gxccd_set_read_mode() failed for camera '{}': {} (mode {} '{}')",
                 self.name,
+                msg,
                 mode.index,
                 mode.name
             );
             return Err(NativeError::SdkError(format!(
-                "Failed to set readout mode '{}' (index {}) on Moravian camera '{}'. Mode may not be supported.",
-                mode.name, mode.index, self.name
+                "Failed to set readout mode '{}' (index {}) on Moravian camera '{}': {}",
+                mode.name, mode.index, self.name, msg
             )));
         }
 
@@ -1381,5 +1647,156 @@ mod tests {
 
         assert!(matches!(err, NativeError::NotSupported));
         assert_eq!(camera.current_gain, 11);
+    }
+
+    // ---- ROI / bin math ----------------------------------------------------
+
+    #[test]
+    fn full_frame_roi_has_zero_origin_and_full_binned_size() {
+        // Full frame (no subframe): origin (0,0), y-flip collapses to fy=0.
+        let roi = compute_binned_roi(4032, 2688, 1, 1, None).unwrap();
+        assert_eq!(
+            roi,
+            BinnedRoi {
+                x: 0,
+                y: 0,
+                w: 4032,
+                h: 2688
+            }
+        );
+    }
+
+    #[test]
+    fn full_frame_roi_binned_divides_by_bin() {
+        let roi = compute_binned_roi(4032, 2688, 2, 2, None).unwrap();
+        assert_eq!(
+            roi,
+            BinnedRoi {
+                x: 0,
+                y: 0,
+                w: 2016,
+                h: 1344
+            }
+        );
+    }
+
+    #[test]
+    fn subframe_roi_flips_y_origin_bottom_up() {
+        // Sensor 100x100, bin 1, top-down subframe at (10,20) size 30x40.
+        // Bottom-up y origin = 100 - 20 - 40 = 40.
+        let roi = compute_binned_roi(100, 100, 1, 1, Some((10, 20, 30, 40))).unwrap();
+        assert_eq!(
+            roi,
+            BinnedRoi {
+                x: 10,
+                y: 40,
+                w: 30,
+                h: 40
+            }
+        );
+    }
+
+    #[test]
+    fn subframe_roi_binned_origin_and_flip() {
+        // Sensor 100x100, bin 2. Top-down subframe (unbinned) at (20,40) size 40x20.
+        // Binned: x=10, y_top=20, w=20, h=10; full_bh=50; fy = 50 - 20 - 10 = 20.
+        let roi = compute_binned_roi(100, 100, 2, 2, Some((20, 40, 40, 20))).unwrap();
+        assert_eq!(
+            roi,
+            BinnedRoi {
+                x: 10,
+                y: 20,
+                w: 20,
+                h: 10
+            }
+        );
+    }
+
+    #[test]
+    fn subframe_top_row_maps_to_correct_bottom_up_region() {
+        // A subframe starting at the very top (y=0) must map to the top of the
+        // bottom-up frame: fy = H - 0 - h = H - h.
+        let roi = compute_binned_roi(64, 48, 1, 1, Some((0, 0, 64, 10))).unwrap();
+        assert_eq!(roi.y, 48 - 10);
+    }
+
+    #[test]
+    fn roi_rejects_out_of_bounds_subframe() {
+        // Extends past the right edge.
+        assert!(compute_binned_roi(100, 100, 1, 1, Some((80, 0, 40, 10))).is_err());
+        // Extends past the bottom edge.
+        assert!(compute_binned_roi(100, 100, 1, 1, Some((0, 80, 10, 40))).is_err());
+    }
+
+    #[test]
+    fn roi_rejects_zero_binning() {
+        assert!(compute_binned_roi(100, 100, 0, 1, None).is_err());
+        assert!(compute_binned_roi(100, 100, 1, 0, None).is_err());
+    }
+
+    // ---- orientation -------------------------------------------------------
+
+    #[test]
+    fn mirror_vertical_reverses_row_order() {
+        // width=2, height=3: rows [0,1] [2,3] [4,5] -> [4,5] [2,3] [0,1].
+        let mut buf = vec![0u16, 1, 2, 3, 4, 5];
+        mirror_vertical_u16(&mut buf, 2, 3);
+        assert_eq!(buf, vec![4, 5, 2, 3, 0, 1]);
+    }
+
+    #[test]
+    fn mirror_vertical_even_height() {
+        // width=3, height=2: rows [1,2,3] [4,5,6] -> [4,5,6] [1,2,3].
+        let mut buf = vec![1u16, 2, 3, 4, 5, 6];
+        mirror_vertical_u16(&mut buf, 3, 2);
+        assert_eq!(buf, vec![4, 5, 6, 1, 2, 3]);
+    }
+
+    #[test]
+    fn mirror_vertical_is_involutive() {
+        // Applying the flip twice returns the original image.
+        let original = vec![9u16, 8, 7, 6, 5, 4, 3, 2, 1, 0, 11, 12];
+        let mut buf = original.clone();
+        mirror_vertical_u16(&mut buf, 4, 3);
+        mirror_vertical_u16(&mut buf, 4, 3);
+        assert_eq!(buf, original);
+    }
+
+    #[test]
+    fn mirror_vertical_ignores_undersized_buffer() {
+        // Never panic / index OOB if the buffer is smaller than claimed dims.
+        let mut buf = vec![1u16, 2, 3];
+        mirror_vertical_u16(&mut buf, 4, 4);
+        assert_eq!(buf, vec![1, 2, 3]);
+    }
+
+    // ---- Bayer phase -------------------------------------------------------
+
+    #[test]
+    fn native_bayer_phase_table() {
+        assert_eq!(native_bayer(false, false), BayerPattern::Rggb);
+        assert_eq!(native_bayer(true, false), BayerPattern::Grbg);
+        assert_eq!(native_bayer(false, true), BayerPattern::Gbrg);
+        assert_eq!(native_bayer(true, true), BayerPattern::Bggr);
+    }
+
+    #[test]
+    fn flip_bayer_vertical_swaps_rows() {
+        assert_eq!(flip_bayer_vertical(BayerPattern::Rggb), BayerPattern::Gbrg);
+        assert_eq!(flip_bayer_vertical(BayerPattern::Gbrg), BayerPattern::Rggb);
+        assert_eq!(flip_bayer_vertical(BayerPattern::Grbg), BayerPattern::Bggr);
+        assert_eq!(flip_bayer_vertical(BayerPattern::Bggr), BayerPattern::Grbg);
+    }
+
+    #[test]
+    fn flip_bayer_vertical_is_involutive() {
+        for p in [
+            BayerPattern::Rggb,
+            BayerPattern::Grbg,
+            BayerPattern::Gbrg,
+            BayerPattern::Bggr,
+        ] {
+            assert_eq!(flip_bayer_vertical(flip_bayer_vertical(p)), p);
+        }
     }
 }

@@ -762,13 +762,44 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// Unique temp path so parallel test runs don't collide.
-    fn temp_path(prefix: &str, ext: &str) -> PathBuf {
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: the leak was worst exactly when a test FAILED, and a
+    /// trailing cleanup never runs while a panic unwinds — drop does.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Unique scratch directory so parallel test runs don't collide.
+    fn temp_dir(prefix: &str) -> TempDir {
         let n = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("ns_fa_{prefix}_{}_{n}.{ext}", std::process::id()))
+        let p = std::env::temp_dir().join(format!("ns_fa_{prefix}_{}_{n}", std::process::id()));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
     }
 
     /// Render a synthetic mono U16 star field with Gaussian PSFs on a flat,
@@ -938,7 +969,8 @@ mod tests {
             (210.0, 210.0, 24000.0),
         ];
         let field = render_field(size, &stars, 400.0);
-        let path = temp_path("phot_mono", "fits");
+        let dir = temp_dir("phot_mono");
+        let path = dir.join("field.fits");
         write_fits_file(&path, &field);
 
         let args = serde_json::json!({
@@ -976,8 +1008,6 @@ mod tests {
         let resp2 = api_detect_stars_photometry(capped.to_string()).expect("photometry capped");
         let result2: DetectStarsPhotometryResult = serde_json::from_str(&resp2).unwrap();
         assert!(result2.stars.len() <= 2);
-
-        let _ = std::fs::remove_file(&path);
     }
 
     /// RGB master: each detected star carries a 3-entry per-channel flux vector.
@@ -997,7 +1027,8 @@ mod tests {
             rgb[i * 3 + 2] = (v * 0.6).min(65535.0) as u16;
         }
         let rgb_image = ImageData::from_u16(size, size, 3, &rgb);
-        let path = temp_path("phot_rgb", "fits");
+        let dir = temp_dir("phot_rgb");
+        let path = dir.join("field.fits");
         write_fits_file(&path, &rgb_image);
 
         let args = serde_json::json!({
@@ -1013,7 +1044,6 @@ mod tests {
             // The tint makes R > G > B for a positive source.
             assert!(s.channel_flux[0] >= s.channel_flux[2]);
         }
-        let _ = std::fs::remove_file(&path);
     }
 
     /// A missing input path is an error.
@@ -1060,8 +1090,9 @@ mod tests {
         let locs = (size * size) as usize;
         let data: Vec<f32> = (0..locs * 3).map(|i| 0.1 + (i % 7) as f32 * 0.01).collect();
         let master = ImageData::from_f32(size, size, 3, &data);
-        let in_path = temp_path("cc_in", "fits");
-        let out_path = temp_path("cc_out", "fits");
+        let dir = temp_dir("cc");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
         write_fits_file(&in_path, &master);
 
         let args = serde_json::json!({
@@ -1088,9 +1119,6 @@ mod tests {
         assert_eq!(img.pixel_type, PixelType::F32);
         assert_eq!(img.width, size);
         assert_eq!(img.channels, 3);
-
-        let _ = std::fs::remove_file(&in_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     /// Too few matched stars is a loud error (never a silent tint).
@@ -1099,8 +1127,9 @@ mod tests {
         let size = 8u32;
         let data: Vec<f32> = vec![0.5; (size * size * 3) as usize];
         let master = ImageData::from_f32(size, size, 3, &data);
-        let in_path = temp_path("cc_few_in", "fits");
-        let out_path = temp_path("cc_few_out", "fits");
+        let dir = temp_dir("cc_few");
+        let in_path = dir.join("in.fits");
+        let out_path = dir.join("out.fits");
         write_fits_file(&in_path, &master);
 
         let matched: Vec<serde_json::Value> = (0..4)
@@ -1119,7 +1148,5 @@ mod tests {
         });
         assert!(api_color_calibrate(args.to_string()).is_err());
         assert!(!out_path.exists(), "no output written on a failed solve");
-
-        let _ = std::fs::remove_file(&in_path);
     }
 }

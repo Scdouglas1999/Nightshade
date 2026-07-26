@@ -9,6 +9,8 @@ import 'package:nightshade_desktop/headless_api_server.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
+import 'handler_test_helpers.dart';
+
 /// Phase D — end-to-end `/api/push/*` endpoint tests. Boots a real
 /// [HeadlessApiServer] over an in-memory pairing DB, pairs a device, then
 /// drives the token + preference endpoints over HTTP. Covers:
@@ -29,7 +31,7 @@ void main() {
     setUp(() async {
       database = PairingDatabase.forTesting(NativeDatabase.memory());
       pairingService = PairingService(database: database);
-      container = ProviderContainer(
+      container = createHeadlessTestContainer(
         overrides: [
           appVersionProvider.overrideWithValue(
             const AppVersionInfo(version: '4.0.0', buildNumber: 1),

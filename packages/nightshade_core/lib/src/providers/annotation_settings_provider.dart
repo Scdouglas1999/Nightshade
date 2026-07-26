@@ -60,7 +60,8 @@ final annotationHoverStateProvider = StateProvider<bool>((ref) => false);
 /// Provider for current annotation opacity (animated)
 final annotationOpacityProvider = Provider<double>((ref) {
   final settingsAsync = ref.watch(annotationSettingsProvider);
-  final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
+  final settings = settingsAsync.valueOrNull;
+  if (settings == null) return 0.0;
   final isHovering = ref.watch(annotationHoverStateProvider);
 
   if (!settings.fadeWhenNotHovering) {
@@ -73,6 +74,7 @@ final annotationOpacityProvider = Provider<double>((ref) {
 /// Notifier for annotation settings with database persistence
 class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
   static const _settingsKey = 'annotation_settings';
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<AnnotationSettings> build() async {
@@ -83,9 +85,17 @@ class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
       try {
         final json = jsonDecode(jsonStr) as Map<String, dynamic>;
         return AnnotationSettings.fromJson(json);
-      } catch (e) {
-        // If parsing fails, return defaults
-        return const AnnotationSettings();
+      } catch (e, stackTrace) {
+        ref
+            .read(loggingServiceProvider)
+            .error(
+              'Failed to decode annotation settings: $e',
+              source: 'AnnotationSettingsNotifier',
+            );
+        Error.throwWithStackTrace(
+          StateError('Annotation settings are corrupt: $e'),
+          stackTrace,
+        );
       }
     }
     return const AnnotationSettings();
@@ -95,191 +105,135 @@ class AnnotationSettingsNotifier extends AsyncNotifier<AnnotationSettings> {
     final dao = ref.read(settingsDaoProvider);
     final jsonStr = jsonEncode(settings.toJson());
     await dao.setSetting(_settingsKey, jsonStr);
-  }
-
-  Future<void> setEnabled(bool enabled) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(enabled: enabled);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setMagnitudeCutoff(double magnitude) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(
-      magnitudeCutoff: magnitude.clamp(0.0, 25.0),
-    );
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setMinMagnitude(double magnitude) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(
-      minMagnitude: magnitude.clamp(-10.0, 20.0),
-    );
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> toggleObjectType(AnnotationObjectFilter type) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final types = Set<AnnotationObjectFilter>.from(current.visibleTypes);
-    if (types.contains(type)) {
-      types.remove(type);
-    } else {
-      types.add(type);
+    if (!identical(ref.read(settingsDaoProvider), dao)) {
+      throw StateError(
+        'The settings database changed while saving annotation settings.',
+      );
     }
-    final updated = current.copyWith(visibleTypes: types);
-    await _save(updated);
-    state = AsyncData(updated);
   }
 
-  Future<void> setObjectTypes(Set<AnnotationObjectFilter> types) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(visibleTypes: types);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setShowLabels(bool show) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(showLabels: show);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setShowMagnitudes(bool show) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(showMagnitudes: show);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setFadeWhenNotHovering(bool fade) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(fadeWhenNotHovering: fade);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setHoverOpacity(double opacity) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(hoverOpacity: opacity.clamp(0.0, 1.0));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setIdleOpacity(double opacity) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(idleOpacity: opacity.clamp(0.0, 1.0));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setFadeAnimationMs(int ms) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(fadeAnimationMs: ms.clamp(0, 2000));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setClickToIdentify(bool enabled) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(clickToIdentify: enabled);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
-
-  Future<void> setClickSearchRadius(double arcsec) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(
-      clickSearchRadiusArcsec: arcsec.clamp(1.0, 300.0),
+  Future<void> _update(
+    AnnotationSettings Function(AnnotationSettings current) change,
+  ) {
+    final operation = _writeTail.then((_) async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError(
+          'Annotation settings are not loaded; refusing to overwrite them '
+          'with defaults.',
+        );
+      }
+      final updated = change(current);
+      await _save(updated);
+      state = AsyncData(updated);
+    });
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
     );
-    await _save(updated);
-    state = AsyncData(updated);
+    return operation;
   }
 
-  Future<void> setAutoAnnotate(bool auto) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(autoAnnotate: auto);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setEnabled(bool enabled) =>
+      _update((current) => current.copyWith(enabled: enabled));
 
-  Future<void> setMaxObjectsToDisplay(int max) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(maxObjectsToDisplay: max.clamp(10, 5000));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setMagnitudeCutoff(double magnitude) => _update(
+    (current) => current.copyWith(magnitudeCutoff: magnitude.clamp(0.0, 25.0)),
+  );
 
-  Future<void> setCompassEnabled(bool enabled) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(compassEnabled: enabled);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setMinMagnitude(double magnitude) => _update(
+    (current) => current.copyWith(minMagnitude: magnitude.clamp(-10.0, 20.0)),
+  );
 
-  Future<void> setScaleBarEnabled(bool enabled) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(scaleBarEnabled: enabled);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> toggleObjectType(AnnotationObjectFilter type) =>
+      _update((current) {
+        final types = Set<AnnotationObjectFilter>.from(current.visibleTypes);
+        if (!types.remove(type)) types.add(type);
+        return current.copyWith(visibleTypes: types);
+      });
 
-  Future<void> setGridType(GridType gridType) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(gridType: gridType);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setObjectTypes(Set<AnnotationObjectFilter> types) => _update(
+    (current) =>
+        current.copyWith(visibleTypes: Set<AnnotationObjectFilter>.from(types)),
+  );
 
-  Future<void> setShowSolveResiduals(bool show) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(showSolveResiduals: show);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setShowLabels(bool show) =>
+      _update((current) => current.copyWith(showLabels: show));
+
+  Future<void> setShowMagnitudes(bool show) =>
+      _update((current) => current.copyWith(showMagnitudes: show));
+
+  Future<void> setFadeWhenNotHovering(bool fade) =>
+      _update((current) => current.copyWith(fadeWhenNotHovering: fade));
+
+  Future<void> setHoverOpacity(double opacity) => _update(
+    (current) => current.copyWith(hoverOpacity: opacity.clamp(0.0, 1.0)),
+  );
+
+  Future<void> setIdleOpacity(double opacity) => _update(
+    (current) => current.copyWith(idleOpacity: opacity.clamp(0.0, 1.0)),
+  );
+
+  Future<void> setFadeAnimationMs(int ms) => _update(
+    (current) => current.copyWith(fadeAnimationMs: ms.clamp(0, 2000)),
+  );
+
+  Future<void> setClickToIdentify(bool enabled) =>
+      _update((current) => current.copyWith(clickToIdentify: enabled));
+
+  Future<void> setClickSearchRadius(double arcsec) => _update(
+    (current) =>
+        current.copyWith(clickSearchRadiusArcsec: arcsec.clamp(1.0, 300.0)),
+  );
+
+  Future<void> setAutoAnnotate(bool auto) =>
+      _update((current) => current.copyWith(autoAnnotate: auto));
+
+  Future<void> setMaxObjectsToDisplay(int max) => _update(
+    (current) => current.copyWith(maxObjectsToDisplay: max.clamp(10, 5000)),
+  );
+
+  Future<void> setCompassEnabled(bool enabled) =>
+      _update((current) => current.copyWith(compassEnabled: enabled));
+
+  Future<void> setScaleBarEnabled(bool enabled) =>
+      _update((current) => current.copyWith(scaleBarEnabled: enabled));
+
+  Future<void> setGridType(GridType gridType) =>
+      _update((current) => current.copyWith(gridType: gridType));
+
+  Future<void> setShowSolveResiduals(bool show) =>
+      _update((current) => current.copyWith(showSolveResiduals: show));
 
   /// Apply an annotation preset to current settings
-  Future<void> applyPreset(AnnotationPreset preset) async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
-    final updated = current.copyWith(
-      visibleTypes: preset.visibleTypes,
+  Future<void> applyPreset(AnnotationPreset preset) => _update(
+    (current) => current.copyWith(
+      visibleTypes: Set<AnnotationObjectFilter>.from(preset.visibleTypes),
       minMagnitude: preset.minMagnitude,
       magnitudeCutoff: preset.magnitudeCutoff,
       showLabels: preset.showLabels,
       showMagnitudes: preset.showMagnitudes,
-    );
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+    ),
+  );
 
   /// Cycle through grid types: none -> pixel -> celestial -> none
-  Future<void> cycleGridType() async {
-    final current = state.valueOrNull ?? const AnnotationSettings();
+  Future<void> cycleGridType() => _update((current) {
     final next = switch (current.gridType) {
       GridType.none => GridType.pixel,
       GridType.pixel => GridType.celestial,
       GridType.celestial => GridType.none,
     };
-    final updated = current.copyWith(gridType: next);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+    return current.copyWith(gridType: next);
+  });
 
-  Future<void> reset() async {
-    const defaults = AnnotationSettings();
-    await _save(defaults);
-    state = const AsyncData(defaults);
-  }
+  Future<void> reset() => _update((_) => const AnnotationSettings());
 }
 
 /// Notifier for annotation marker styles with database persistence
 class AnnotationMarkerStyleNotifier
     extends AsyncNotifier<AnnotationMarkerStyle> {
   static const _settingsKey = 'annotation_marker_style';
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<AnnotationMarkerStyle> build() async {
@@ -290,9 +244,17 @@ class AnnotationMarkerStyleNotifier
       try {
         final json = jsonDecode(jsonStr) as Map<String, dynamic>;
         return AnnotationMarkerStyle.fromJson(json);
-      } catch (e) {
-        // If parsing fails, return defaults
-        return const AnnotationMarkerStyle();
+      } catch (e, stackTrace) {
+        ref
+            .read(loggingServiceProvider)
+            .error(
+              'Failed to decode annotation marker style: $e',
+              source: 'AnnotationMarkerStyleNotifier',
+            );
+        Error.throwWithStackTrace(
+          StateError('Annotation marker style is corrupt: $e'),
+          stackTrace,
+        );
       }
     }
     return const AnnotationMarkerStyle();
@@ -302,90 +264,73 @@ class AnnotationMarkerStyleNotifier
     final dao = ref.read(settingsDaoProvider);
     final jsonStr = jsonEncode(style.toJson());
     await dao.setSetting(_settingsKey, jsonStr);
+    if (!identical(ref.read(settingsDaoProvider), dao)) {
+      throw StateError(
+        'The settings database changed while saving annotation marker style.',
+      );
+    }
   }
 
-  Future<void> setGalaxyColor(int color) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(galaxyColor: color);
-    await _save(updated);
-    state = AsyncData(updated);
+  Future<void> _update(
+    AnnotationMarkerStyle Function(AnnotationMarkerStyle current) change,
+  ) {
+    final operation = _writeTail.then((_) async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError(
+          'Annotation marker style is not loaded; refusing to overwrite it '
+          'with defaults.',
+        );
+      }
+      final updated = change(current);
+      await _save(updated);
+      state = AsyncData(updated);
+    });
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
   }
 
-  Future<void> setNebulaColor(int color) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(nebulaColor: color);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setGalaxyColor(int color) =>
+      _update((current) => current.copyWith(galaxyColor: color));
 
-  Future<void> setClusterColor(int color) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(clusterColor: color);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setNebulaColor(int color) =>
+      _update((current) => current.copyWith(nebulaColor: color));
 
-  Future<void> setPlanetaryNebulaColor(int color) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(planetaryNebulaColor: color);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setClusterColor(int color) =>
+      _update((current) => current.copyWith(clusterColor: color));
 
-  Future<void> setStarColor(int color) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(starColor: color);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setPlanetaryNebulaColor(int color) =>
+      _update((current) => current.copyWith(planetaryNebulaColor: color));
 
-  Future<void> setOtherColor(int color) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(otherColor: color);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setStarColor(int color) =>
+      _update((current) => current.copyWith(starColor: color));
 
-  Future<void> setStrokeWidth(double width) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(strokeWidth: width.clamp(0.5, 5.0));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setOtherColor(int color) =>
+      _update((current) => current.copyWith(otherColor: color));
 
-  Future<void> setLabelFontSize(double size) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(labelFontSize: size.clamp(8.0, 24.0));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setStrokeWidth(double width) => _update(
+    (current) => current.copyWith(strokeWidth: width.clamp(0.5, 5.0)),
+  );
 
-  Future<void> setScaleBySize(bool scale) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(scaleBySize: scale);
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setLabelFontSize(double size) => _update(
+    (current) => current.copyWith(labelFontSize: size.clamp(8.0, 24.0)),
+  );
 
-  Future<void> setMinMarkerSize(double size) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(minMarkerSize: size.clamp(5.0, 50.0));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setScaleBySize(bool scale) =>
+      _update((current) => current.copyWith(scaleBySize: scale));
 
-  Future<void> setMaxMarkerSize(double size) async {
-    final current = state.valueOrNull ?? const AnnotationMarkerStyle();
-    final updated = current.copyWith(maxMarkerSize: size.clamp(20.0, 200.0));
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> setMinMarkerSize(double size) => _update(
+    (current) => current.copyWith(minMarkerSize: size.clamp(5.0, 50.0)),
+  );
 
-  Future<void> reset() async {
-    const defaults = AnnotationMarkerStyle();
-    await _save(defaults);
-    state = const AsyncData(defaults);
-  }
+  Future<void> setMaxMarkerSize(double size) => _update(
+    (current) => current.copyWith(maxMarkerSize: size.clamp(20.0, 200.0)),
+  );
+
+  Future<void> reset() => _update((_) => const AnnotationMarkerStyle());
 }
 
 /// Provider for user-created annotation presets (persisted to database)
@@ -398,6 +343,7 @@ final annotationPresetsProvider =
 
 class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
   static const _settingsKey = 'annotation_presets';
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<List<AnnotationPreset>> build() async {
@@ -410,19 +356,17 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
         return jsonList
             .map((e) => AnnotationPreset.fromJson(e as Map<String, dynamic>))
             .toList();
-      } catch (e) {
-        // Corrupt preset JSON is a real data-corruption bug, not an expected
-        // empty state. Surface it loudly (per project "errors are a feature"
-        // policy) while still degrading gracefully to an empty preset list so
-        // the UI remains usable.
+      } catch (e, stackTrace) {
         ref
             .read(loggingServiceProvider)
-            .warning(
-              'Failed to decode annotation presets; returning empty list. '
-              'Stored value may be corrupt: $e',
+            .error(
+              'Failed to decode annotation presets: $e',
               source: 'AnnotationPresetsNotifier',
             );
-        return const [];
+        Error.throwWithStackTrace(
+          StateError('Annotation presets are corrupt: $e'),
+          stackTrace,
+        );
       }
     }
     return const [];
@@ -432,13 +376,47 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
     final dao = ref.read(settingsDaoProvider);
     final jsonStr = jsonEncode(presets.map((p) => p.toJson()).toList());
     await dao.setSetting(_settingsKey, jsonStr);
+    if (!identical(ref.read(settingsDaoProvider), dao)) {
+      throw StateError(
+        'The settings database changed while saving annotation presets.',
+      );
+    }
+  }
+
+  Future<void> _update(
+    List<AnnotationPreset> Function(List<AnnotationPreset> current) change,
+  ) {
+    final operation = _writeTail.then((_) async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError(
+          'Annotation presets are not loaded; refusing to overwrite them '
+          'with an empty list.',
+        );
+      }
+      final updated = List<AnnotationPreset>.unmodifiable(change(current));
+      await _save(updated);
+      state = AsyncData(updated);
+    });
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
   }
 
   /// Save the current annotation settings as a named preset
-  Future<void> saveCurrentAsPreset(String name) async {
+  Future<void> saveCurrentAsPreset(String name) {
     final settingsNotifier = ref.read(annotationSettingsProvider.notifier);
-    final settings =
-        settingsNotifier.state.valueOrNull ?? const AnnotationSettings();
+    final settings = settingsNotifier.state.valueOrNull;
+    if (settings == null) {
+      return Future<void>.error(
+        StateError(
+          'Annotation settings are not loaded; refusing to save a preset '
+          'from defaults.',
+        ),
+      );
+    }
 
     final preset = AnnotationPreset(
       name: name,
@@ -450,19 +428,13 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
       isBuiltIn: false,
     );
 
-    final current = state.valueOrNull ?? [];
-    // Replace existing preset with same name, or append
-    final updated = current.where((p) => p.name != name).toList()..add(preset);
-    await _save(updated);
-    state = AsyncData(updated);
+    return _update(
+      (current) => current.where((p) => p.name != name).toList()..add(preset),
+    );
   }
 
-  Future<void> deletePreset(String name) async {
-    final current = state.valueOrNull ?? [];
-    final updated = current.where((p) => p.name != name).toList();
-    await _save(updated);
-    state = AsyncData(updated);
-  }
+  Future<void> deletePreset(String name) =>
+      _update((current) => current.where((p) => p.name != name).toList());
 }
 
 /// Provider for custom user-drawn annotations on the current image.

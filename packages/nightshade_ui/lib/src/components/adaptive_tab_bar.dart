@@ -133,31 +133,42 @@ class _AdaptiveTabBarState extends State<AdaptiveTabBar> {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 480.0;
-    final collapseLabels = widget.collapseLabelsWhenTight && compact;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // This bar frequently lives inside a split pane. MediaQuery reports
+        // the whole window, which made a 320px side panel render the wide
+        // labelled variant on a landscape phone and pushed later tabs
+        // offscreen. Respond to the space the bar actually receives.
+        final availableWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final collapseLabels =
+            widget.collapseLabelsWhenTight && availableWidth < 480.0;
 
-    return SingleChildScrollView(
-      controller: _scrollController,
-      scrollDirection: Axis.horizontal,
-      physics: const ClampingScrollPhysics(),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < widget.tabs.length; i++)
-              _AdaptiveTabButton(
-                key: _tabKeys.length > i ? _tabKeys[i] : null,
-                buttonKey: widget.tabs[i].buttonKey,
-                tab: widget.tabs[i],
-                isSelected: i == widget.selectedIndex,
-                hideLabel: collapseLabels && widget.tabs[i].icon != null,
-                onTap: () => widget.onSelected(i),
-              ),
-            ...widget.trailing,
-          ],
-        ),
-      ),
+        return SingleChildScrollView(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          physics: const ClampingScrollPhysics(),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < widget.tabs.length; i++)
+                  _AdaptiveTabButton(
+                    key: _tabKeys.length > i ? _tabKeys[i] : null,
+                    buttonKey: widget.tabs[i].buttonKey,
+                    tab: widget.tabs[i],
+                    isSelected: i == widget.selectedIndex,
+                    hideLabel: collapseLabels && widget.tabs[i].icon != null,
+                    onTap: () => widget.onSelected(i),
+                  ),
+                ...widget.trailing,
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -117,6 +117,10 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     final templateColor = _getTemplateColor();
+    // Touch devices have no hover state. Keeping every secondary action
+    // behind `_isHovered` made customize/duplicate/delete desktop-only even
+    // though the Templates tab is shipped on mobile.
+    final showActions = Responsive.isMobile(context) || _isHovered;
     // Trust-patch §B: "Use Template" calls mergeTemplateNodes /
     // loadSequence — both replace tree state and must be gated. "Edit"
     // also calls loadSequence, "Duplicate" goes through the repository
@@ -176,7 +180,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                         ),
                       ),
                       const Spacer(),
-                      if (_isHovered) ...[
+                      if (showActions) ...[
                         // "Duplicate" operates on the template DB row,
                         // not the active sequence — stays enabled.
                         _SmallIconButton(
@@ -192,21 +196,26 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           colors: widget.colors,
                           icon: LucideIcons.pencil,
                           tooltip: canEdit
-                              ? 'Edit'
+                              ? widget.template.databaseId == null
+                                  ? 'Customize a copy'
+                                  : 'Edit template'
                               : 'Edit (locked while sequence is running)',
                           onPressed:
                               canEdit ? () => _editTemplate(context) : null,
                         ),
-                        const SizedBox(width: 4),
-                        // Delete removes the template from the library,
-                        // not the active sequence — stays enabled.
-                        _SmallIconButton(
-                          colors: widget.colors,
-                          icon: LucideIcons.trash2,
-                          tooltip: 'Delete',
-                          color: widget.colors.error,
-                          onPressed: () => _deleteTemplate(context),
-                        ),
+                        if (widget.template.databaseId != null) ...[
+                          const SizedBox(width: 4),
+                          // Bundled templates are immutable and expose no
+                          // pretend delete action. A custom template has a
+                          // real backing row and can be removed.
+                          _SmallIconButton(
+                            colors: widget.colors,
+                            icon: LucideIcons.trash2,
+                            tooltip: 'Delete',
+                            color: widget.colors.error,
+                            onPressed: () => _deleteTemplate(context),
+                          ),
+                        ],
                       ],
                     ],
                   ),
@@ -255,7 +264,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                               size: 12, color: widget.colors.textMuted),
                           const SizedBox(width: 4),
                           Text(
-                            '${widget.template.nodes.length} nodes',
+                            countLabel(widget.template.nodes.length, 'node'),
                             style: TextStyle(
                               fontSize: NightshadeTypography.fontSize11,
                               color: widget.colors.textMuted,
@@ -283,7 +292,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
 
                       // Use button
                       AnimatedOpacity(
-                        opacity: _isHovered ? 1.0 : 0.0,
+                        opacity: showActions ? 1.0 : 0.0,
                         duration: const Duration(milliseconds: 150),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -420,7 +429,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         'Added "${widget.template.name}" to ${target.targetName}');
   }
 
-  void _createNewSequenceFromTemplate(BuildContext context) {
+  Future<void> _createNewSequenceFromTemplate(BuildContext context) async {
+    final authority = ref.read(backendProvider);
     final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
     final newNodes = <String, SequenceNode>{};
     final idMapping = <String, String>{};
@@ -460,10 +470,47 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       isTemplate: false,
     );
 
-    // Load the sequence. Template instantiation is an explicit user
-    // action ("Use Template" button); the editor's unsaved-changes guard
-    // would be noise here, so we discard any in-flight edits.
-    sequenceNotifier.loadSequence(newSequence, discardUnsaved: true);
+    try {
+      sequenceNotifier.loadSequence(newSequence);
+    } on UnsavedChangesException catch (e) {
+      if (!context.mounted) return;
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard unsaved changes?'),
+          content: ConstrainedBox(
+            constraints:
+                AdaptiveDialogConstraints.hybrid(ctx, designMaxWidth: 440),
+            child: Text('"${e.currentSequenceName}" has unsaved changes. '
+                'Creating a sequence from "${widget.template.name}" will '
+                'discard them.'),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Discard and create',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (discard != true ||
+          !context.mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
+      sequenceNotifier.loadSequence(newSequence, discardUnsaved: true);
+    } on SequenceLockedException catch (e) {
+      if (context.mounted) context.showErrorSnackBar(e.message);
+      return;
+    }
 
     // Switch to the Builder tab so user can see the loaded sequence
     ref.read(sequencerTabProvider.notifier).state = 0;
@@ -472,9 +519,50 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         .showSuccessSnackBar('Created sequence from "${widget.template.name}"');
   }
 
-  void _editTemplate(BuildContext context) {
-    // Load the template for editing and switch to Builder tab
-    // Create a copy so we don't modify the original template
+  Future<void> _editTemplate(BuildContext context) async {
+    final authority = ref.read(backendProvider);
+    final editor = ref.read(currentSequenceProvider.notifier);
+
+    if (editor.isDirty) {
+      final currentName = ref.read(currentSequenceProvider)?.name ?? 'sequence';
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard unsaved changes?'),
+          content: ConstrainedBox(
+            constraints:
+                AdaptiveDialogConstraints.hybrid(ctx, designMaxWidth: 440),
+            child: Text('"$currentName" has unsaved changes. Opening '
+                '"${widget.template.name}" for editing will discard them.'),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Discard and edit',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (discard != true || !context.mounted) return;
+    }
+
+    if (!identical(ref.read(backendProvider), authority)) {
+      context.showWarningSnackBar(
+        'The connected host changed. Reopen the template catalog.',
+      );
+      return;
+    }
+
+    // Re-key the node graph for the editor while retaining the backing row.
+    // The row identity is what lets "Update Template" persist in place.
     final newNodes = <String, SequenceNode>{};
     final idMapping = <String, String>{};
 
@@ -502,32 +590,77 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         ? idMapping[widget.template.rootNodeId]
         : null;
 
-    final editableSequence = Sequence.create(
-      name: widget.template.name,
+    var editableTemplate = Sequence.create(
+      databaseId: widget.template.databaseId,
+      name: widget.template.databaseId == null
+          ? '${widget.template.name} (Custom)'
+          : widget.template.name,
       description: widget.template.description,
       nodes: newNodes,
       rootNodeId: newRootId,
-      isTemplate: false,
+      isTemplate: true,
     );
 
-    // "Edit Template" is a destructive switch from whatever the user was
-    // working on; treat the click as confirmation per the wizard pattern.
-    ref
-        .read(currentSequenceProvider.notifier)
-        .loadSequence(editableSequence, discardUnsaved: true);
+    // A bundled template is immutable. "Customize" first creates a real user
+    // row, then opens that row so subsequent updates never mutate the bundled
+    // catalog or pretend to save an unaddressable template.
+    if (editableTemplate.databaseId == null) {
+      final repository = ref.read(sequenceRepositoryProvider);
+      try {
+        final savedId = await repository.saveSequence(
+          editableTemplate,
+          isTemplate: true,
+        );
+        if (!context.mounted ||
+            !identical(ref.read(backendProvider), authority)) {
+          return;
+        }
+        editableTemplate = editableTemplate.copyWith(databaseId: savedId);
+        notifySequenceCatalogChanged(
+          ref,
+          sequenceId: savedId,
+          action: 'created',
+          name: editableTemplate.name,
+          isTemplate: true,
+        );
+        ref.invalidate(sequenceTemplatesProvider);
+      } catch (e) {
+        if (context.mounted &&
+            identical(ref.read(backendProvider), authority)) {
+          context.showErrorSnackBar('Could not create template copy: $e');
+        }
+        return;
+      }
+    }
+
+    try {
+      editor.loadSequence(editableTemplate, discardUnsaved: true);
+    } on SequenceLockedException catch (e) {
+      if (context.mounted) context.showErrorSnackBar(e.message);
+      return;
+    }
     ref.read(sequencerTabProvider.notifier).state = 0;
 
-    context.showInfoSnackBar('Editing "${widget.template.name}"');
+    context.showInfoSnackBar(
+      'Editing "${editableTemplate.name}" — use Update Template in the '
+      'Templates tab to save changes.',
+    );
   }
 
   Future<void> _duplicateTemplate(BuildContext context) async {
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
     // Check if template has a database ID
     final dbId = widget.template.databaseId;
     if (dbId != null) {
       try {
-        final repository = ref.read(sequenceRepositoryProvider);
         final duplicated = await repository.duplicateSequence(
             dbId, '${widget.template.name} (Copy)');
+
+        if (!context.mounted ||
+            !identical(ref.read(backendProvider), authority)) {
+          return;
+        }
 
         if (duplicated?.databaseId != null) {
           notifySequenceCatalogChanged(
@@ -540,18 +673,16 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         }
         ref.invalidate(sequenceTemplatesProvider);
 
-        if (context.mounted) {
-          context.showSuccessSnackBar('Duplicated "${widget.template.name}"');
-        }
+        context.showSuccessSnackBar('Duplicated "${widget.template.name}"');
       } catch (e) {
-        if (context.mounted) {
+        if (context.mounted &&
+            identical(ref.read(backendProvider), authority)) {
           context.showErrorSnackBar('Failed to duplicate template: $e');
         }
       }
     } else {
       // Built-in template - save a copy to database
       try {
-        final repository = ref.read(sequenceRepositoryProvider);
         final newTemplate = Sequence.create(
           name: '${widget.template.name} (Copy)',
           description: widget.template.description,
@@ -562,6 +693,11 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         final savedId =
             await repository.saveSequence(newTemplate, isTemplate: true);
 
+        if (!context.mounted ||
+            !identical(ref.read(backendProvider), authority)) {
+          return;
+        }
+
         notifySequenceCatalogChanged(
           ref,
           sequenceId: savedId,
@@ -571,88 +707,127 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         );
         ref.invalidate(sequenceTemplatesProvider);
 
-        if (context.mounted) {
-          context.showSuccessSnackBar('Duplicated "${widget.template.name}"');
-        }
+        context.showSuccessSnackBar('Duplicated "${widget.template.name}"');
       } catch (e) {
-        if (context.mounted) {
+        if (context.mounted &&
+            identical(ref.read(backendProvider), authority)) {
           context.showErrorSnackBar('Failed to duplicate template: $e');
         }
       }
     }
   }
 
-  void _deleteTemplate(BuildContext context) {
-    // Check if this is a built-in template (no database ID)
+  Future<void> _deleteTemplate(BuildContext context) async {
     final dbId = widget.template.databaseId;
-    if (dbId == null) {
-      context.showInfoSnackBar('Built-in templates cannot be deleted');
-      return;
-    }
-
-    // Show confirmation dialog
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(NightshadeTokens.radiusInline8)),
-        title: Text(
-          'Delete Template',
-          style: TextStyle(color: widget.colors.textPrimary),
-        ),
-        content: ConstrainedBox(
-          constraints: AdaptiveDialogConstraints.hybrid(
-            dialogContext,
-            designMaxWidth: 400,
-          ),
-          child: Text(
-            'Are you sure you want to delete "${widget.template.name}"? This action cannot be undone.',
-            style: TextStyle(color: widget.colors.textSecondary),
-          ),
-        ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () async {
-              Navigator.of(dialogContext).pop();
-
-              try {
-                final repository = ref.read(sequenceRepositoryProvider);
-                await repository.deleteSequence(dbId);
-
-                notifySequenceCatalogChanged(
-                  ref,
-                  sequenceId: dbId,
-                  action: 'deleted',
-                  name: widget.template.name,
-                  isTemplate: true,
-                );
-                ref.invalidate(sequenceTemplatesProvider);
-
-                if (context.mounted) {
-                  context
-                      .showSuccessSnackBar('Deleted "${widget.template.name}"');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  context.showErrorSnackBar('Failed to delete template: $e');
-                }
-              }
-            },
-            label: 'Delete',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-          ),
-        ],
-      ),
+    if (dbId == null) return;
+    final authority = ref.read(backendProvider);
+    final repository = ref.read(sequenceRepositoryProvider);
+    var isDeleting = false;
+    BuildContext? routeContext;
+    final subscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        final dialogContext = routeContext;
+        if (dialogContext != null && dialogContext.mounted) {
+          dialogContext.showWarningSnackBar(
+            'The connected host changed. Template deletion cancelled.',
+          );
+          closeAuthorityBoundDialog(dialogContext);
+        }
+      },
     );
+
+    try {
+      // Show confirmation dialog
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          routeContext = dialogContext;
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) => PopScope(
+              canPop: !isDeleting,
+              child: AlertDialog(
+                backgroundColor: widget.colors.surface,
+                shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8)),
+                title: Text(
+                  'Delete Template',
+                  style: TextStyle(color: widget.colors.textPrimary),
+                ),
+                content: ConstrainedBox(
+                  constraints: AdaptiveDialogConstraints.hybrid(
+                    dialogContext,
+                    designMaxWidth: 400,
+                  ),
+                  child: Text(
+                    'Are you sure you want to delete "${widget.template.name}"? This action cannot be undone.',
+                    style: TextStyle(color: widget.colors.textSecondary),
+                  ),
+                ),
+                actions: [
+                  NightshadeButton(
+                    onPressed: isDeleting
+                        ? null
+                        : () => Navigator.of(dialogContext).pop(),
+                    label: 'Cancel',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                  ),
+                  NightshadeButton(
+                    onPressed: isDeleting
+                        ? null
+                        : () async {
+                            setDialogState(() => isDeleting = true);
+                            try {
+                              if (!identical(
+                                  ref.read(backendProvider), authority)) {
+                                Navigator.of(dialogContext).pop();
+                                return;
+                              }
+                              await repository.deleteSequence(dbId);
+
+                              if (!dialogContext.mounted ||
+                                  !identical(
+                                      ref.read(backendProvider), authority)) {
+                                return;
+                              }
+
+                              notifySequenceCatalogChanged(
+                                ref,
+                                sequenceId: dbId,
+                                action: 'deleted',
+                                name: widget.template.name,
+                                isTemplate: true,
+                              );
+                              ref.invalidate(sequenceTemplatesProvider);
+
+                              if (!dialogContext.mounted) return;
+                              dialogContext.showSuccessSnackBar(
+                                  'Deleted "${widget.template.name}"');
+                              Navigator.of(dialogContext).pop();
+                            } catch (e) {
+                              if (!dialogContext.mounted) return;
+                              setDialogState(() => isDeleting = false);
+                              dialogContext.showErrorSnackBar(
+                                  'Failed to delete template: $e');
+                            }
+                          },
+                    label: 'Delete',
+                    variant: ButtonVariant.destructive,
+                    size: ButtonSize.small,
+                    isLoading: isDeleting,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } finally {
+      subscription.close();
+    }
   }
 }
 

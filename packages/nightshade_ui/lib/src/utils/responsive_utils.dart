@@ -204,14 +204,20 @@ abstract final class Responsive {
     final size = MediaQuery.sizeOf(context);
     final maxW = size.width * maxWidthPercent;
     final maxH = size.height * maxHeightPercent;
+    final resolvedMaxWidth = preferredWidth != null
+        ? math.min(preferredWidth, maxW)
+        : maxW;
+    final resolvedMaxHeight = preferredHeight != null
+        ? math.min(preferredHeight, maxH)
+        : maxH;
 
     return BoxConstraints(
-      minWidth: minWidth ?? 0.0,
-      minHeight: minHeight ?? 0.0,
-      maxWidth: preferredWidth != null ? math.min(preferredWidth, maxW) : maxW,
-      maxHeight: preferredHeight != null
-          ? math.min(preferredHeight, maxH)
-          : maxH,
+      // A desktop-oriented minimum must never make the constraints invalid on
+      // a viewport whose responsive maximum is smaller than that minimum.
+      minWidth: math.min(minWidth ?? 0.0, resolvedMaxWidth),
+      minHeight: math.min(minHeight ?? 0.0, resolvedMaxHeight),
+      maxWidth: resolvedMaxWidth,
+      maxHeight: resolvedMaxHeight,
     );
   }
 

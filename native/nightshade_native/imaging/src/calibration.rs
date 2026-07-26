@@ -221,12 +221,13 @@ pub fn subtract_bias(frame: &ImageData, bias: &ImageData) -> Result<ImageData, C
 pub fn divide_flat(light: &ImageData, flat: &ImageData) -> Result<ImageData, CalibrationError> {
     validate_frames(light, flat, "flat frame")?;
 
+    let channels = (light.channels as usize).max(1);
     let result_data = match light.pixel_type {
-        PixelType::U8 => divide_flat_u8(&light.data, &flat.data),
-        PixelType::U16 => divide_flat_u16(&light.data, &flat.data),
-        PixelType::U32 => divide_flat_u32(&light.data, &flat.data),
-        PixelType::F32 => divide_flat_f32(&light.data, &flat.data),
-        PixelType::F64 => divide_flat_f64(&light.data, &flat.data),
+        PixelType::U8 => divide_flat_u8(&light.data, &flat.data, channels),
+        PixelType::U16 => divide_flat_u16(&light.data, &flat.data, channels),
+        PixelType::U32 => divide_flat_u32(&light.data, &flat.data, channels),
+        PixelType::F32 => divide_flat_f32(&light.data, &flat.data, channels),
+        PixelType::F64 => divide_flat_f64(&light.data, &flat.data, channels),
     };
 
     Ok(ImageData {
@@ -243,9 +244,13 @@ pub fn divide_flat(light: &ImageData, flat: &ImageData) -> Result<ImageData, Cal
 /// The order of operations:
 /// 1. If bias is provided: subtract bias from the dark (if dark provided)
 /// 2. If bias is provided: subtract bias from the flat (if flat provided)
-/// 3. If bias is provided (and no dark absorbs it): subtract bias from the light
+/// 3. If bias is provided: subtract bias from the light (always — see below)
 /// 4. If dark is provided: subtract (bias-corrected) dark from the light
 /// 5. If flat is provided: divide light by normalized (bias-corrected) flat
+///
+/// Bias must be removed from the light whenever it is provided; because step 1
+/// already removed bias from the dark, subtracting bias from the light too makes
+/// the pedestal cancel: `(light - bias) - (dark - bias) = light - dark`.
 ///
 /// Any combination of calibration frames can be None. If all are None,
 /// the light frame is returned unchanged (cloned).
@@ -287,11 +292,18 @@ pub fn calibrate_frame(
         _ => None,
     };
 
-    // Step 3: Start with the light frame, apply bias if no dark already absorbed it
+    // Step 3: Start with the light frame. When a bias frame is provided we must
+    // subtract it from the light as well — step 1 already removed the bias from
+    // the dark, so subtracting only the bias-corrected dark would leave a full
+    // bias pedestal in the result:
+    //   light - (dark - bias) = signal + bias   (WRONG)
+    // Removing bias from BOTH light and dark cancels it correctly:
+    //   (light - bias) - (dark - bias) = light - dark = signal
+    // The previous `if dark.is_none()` guard skipped the light bias-subtraction
+    // whenever a dark was present, which is exactly the pedestal-leaking case.
     let mut result = match bias {
-        // Bias without dark: subtract bias directly from light
-        Some(b) if dark.is_none() => subtract_bias(light, b)?,
-        _ => light.clone(),
+        Some(b) => subtract_bias(light, b)?,
+        None => light.clone(),
     };
 
     // Step 4: Subtract dark from light
@@ -307,6 +319,32 @@ pub fn calibrate_frame(
     Ok(result)
 }
 
+/// Per-channel mean of interleaved samples, where `values[i]` belongs to
+/// channel `i % channels`. Flat-field normalisation must be done per channel:
+/// a colour (interleaved RGB) flat with different per-channel levels would
+/// otherwise be normalised by one global mean, injecting a colour cast into
+/// otherwise-uniform light. For `channels == 1` this is a single global mean,
+/// identical to the previous behaviour.
+fn per_channel_means(values: &[f64], channels: usize) -> Vec<f64> {
+    let channels = channels.max(1);
+    let mut sums = vec![0.0f64; channels];
+    let mut counts = vec![0u64; channels];
+    for (i, &v) in values.iter().enumerate() {
+        let c = i % channels;
+        sums[c] += v;
+        counts[c] += 1;
+    }
+    (0..channels)
+        .map(|c| {
+            if counts[c] == 0 {
+                0.0
+            } else {
+                sums[c] / counts[c] as f64
+            }
+        })
+        .collect()
+}
+
 // =============================================================================
 // U8 pixel operations
 // =============================================================================
@@ -319,23 +357,25 @@ fn subtract_u8(light: &[u8], dark: &[u8]) -> Vec<u8> {
         .collect()
 }
 
-fn divide_flat_u8(light: &[u8], flat: &[u8]) -> Vec<u8> {
-    // Calculate flat mean
-    let sum: u64 = flat.par_iter().map(|&v| v as u64).sum();
-    let count = flat.len();
-    if count == 0 {
+fn divide_flat_u8(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
+    if flat.is_empty() {
         return light.to_vec();
     }
-    let mean = sum as f64 / count as f64;
-    if mean == 0.0 {
+    let flat_f64: Vec<f64> = flat.iter().map(|&v| v as f64).collect();
+    let means = per_channel_means(&flat_f64, channels);
+    if means.iter().all(|&m| m == 0.0) {
         return vec![0u8; light.len()];
     }
 
     light
         .par_iter()
-        .zip(flat.par_iter())
-        .map(|(&l, &f)| {
-            let normalized_flat = f as f64 / mean;
+        .enumerate()
+        .map(|(i, &l)| {
+            let mean = means[i % channels];
+            if mean == 0.0 {
+                return 0u8;
+            }
+            let normalized_flat = flat[i] as f64 / mean;
             if normalized_flat <= 0.0 {
                 0u8
             } else {
@@ -369,7 +409,7 @@ fn subtract_u16(light: &[u8], dark: &[u8]) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-fn divide_flat_u16(light: &[u8], flat: &[u8]) -> Vec<u8> {
+fn divide_flat_u16(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<u16> = light
         .chunks_exact(2)
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
@@ -379,22 +419,24 @@ fn divide_flat_u16(light: &[u8], flat: &[u8]) -> Vec<u8> {
         .map(|c| u16::from_le_bytes([c[0], c[1]]))
         .collect();
 
-    // Calculate flat mean
-    let sum: u64 = flat_pixels.par_iter().map(|&v| v as u64).sum();
-    let count = flat_pixels.len();
-    if count == 0 {
+    if flat_pixels.is_empty() {
         return light.to_vec();
     }
-    let mean = sum as f64 / count as f64;
-    if mean == 0.0 {
+    let flat_f64: Vec<f64> = flat_pixels.iter().map(|&v| v as f64).collect();
+    let means = per_channel_means(&flat_f64, channels);
+    if means.iter().all(|&m| m == 0.0) {
         return vec![0u8; light.len()];
     }
 
     let result: Vec<u16> = light_pixels
         .par_iter()
-        .zip(flat_pixels.par_iter())
-        .map(|(&l, &f)| {
-            let normalized_flat = f as f64 / mean;
+        .enumerate()
+        .map(|(i, &l)| {
+            let mean = means[i % channels];
+            if mean == 0.0 {
+                return 0u16;
+            }
+            let normalized_flat = flat_pixels[i] as f64 / mean;
             if normalized_flat <= 0.0 {
                 0u16
             } else {
@@ -430,7 +472,7 @@ fn subtract_u32(light: &[u8], dark: &[u8]) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-fn divide_flat_u32(light: &[u8], flat: &[u8]) -> Vec<u8> {
+fn divide_flat_u32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<u32> = light
         .chunks_exact(4)
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
@@ -440,22 +482,24 @@ fn divide_flat_u32(light: &[u8], flat: &[u8]) -> Vec<u8> {
         .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 
-    // Calculate flat mean
-    let sum: u64 = flat_pixels.par_iter().map(|&v| v as u64).sum();
-    let count = flat_pixels.len();
-    if count == 0 {
+    if flat_pixels.is_empty() {
         return light.to_vec();
     }
-    let mean = sum as f64 / count as f64;
-    if mean == 0.0 {
+    let flat_f64: Vec<f64> = flat_pixels.iter().map(|&v| v as f64).collect();
+    let means = per_channel_means(&flat_f64, channels);
+    if means.iter().all(|&m| m == 0.0) {
         return vec![0u8; light.len()];
     }
 
     let result: Vec<u32> = light_pixels
         .par_iter()
-        .zip(flat_pixels.par_iter())
-        .map(|(&l, &f)| {
-            let normalized_flat = f as f64 / mean;
+        .enumerate()
+        .map(|(i, &l)| {
+            let mean = means[i % channels];
+            if mean == 0.0 {
+                return 0u32;
+            }
+            let normalized_flat = flat_pixels[i] as f64 / mean;
             if normalized_flat <= 0.0 {
                 0u32
             } else {
@@ -498,7 +542,7 @@ fn subtract_f32(light: &[u8], dark: &[u8]) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-fn divide_flat_f32(light: &[u8], flat: &[u8]) -> Vec<u8> {
+fn divide_flat_f32(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<f32> = light
         .chunks_exact(4)
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
@@ -508,22 +552,24 @@ fn divide_flat_f32(light: &[u8], flat: &[u8]) -> Vec<u8> {
         .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 
-    // Calculate flat mean
-    let sum: f64 = flat_pixels.par_iter().map(|&v| v as f64).sum();
-    let count = flat_pixels.len();
-    if count == 0 {
+    if flat_pixels.is_empty() {
         return light.to_vec();
     }
-    let mean = sum / count as f64;
-    if mean == 0.0 {
+    let flat_f64: Vec<f64> = flat_pixels.iter().map(|&v| v as f64).collect();
+    let means = per_channel_means(&flat_f64, channels);
+    if means.iter().all(|&m| m == 0.0) {
         return vec![0u8; light.len()];
     }
 
     let result: Vec<f32> = light_pixels
         .par_iter()
-        .zip(flat_pixels.par_iter())
-        .map(|(&l, &f)| {
-            let normalized_flat = f as f64 / mean;
+        .enumerate()
+        .map(|(i, &l)| {
+            let mean = means[i % channels];
+            if mean == 0.0 {
+                return 0.0f32;
+            }
+            let normalized_flat = flat_pixels[i] as f64 / mean;
             if normalized_flat <= 0.0 {
                 0.0f32
             } else {
@@ -572,7 +618,7 @@ fn subtract_f64(light: &[u8], dark: &[u8]) -> Vec<u8> {
     result.iter().flat_map(|&v| v.to_le_bytes()).collect()
 }
 
-fn divide_flat_f64(light: &[u8], flat: &[u8]) -> Vec<u8> {
+fn divide_flat_f64(light: &[u8], flat: &[u8], channels: usize) -> Vec<u8> {
     let light_pixels: Vec<f64> = light
         .chunks_exact(8)
         .map(|c| f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
@@ -582,22 +628,23 @@ fn divide_flat_f64(light: &[u8], flat: &[u8]) -> Vec<u8> {
         .map(|c| f64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
         .collect();
 
-    // Calculate flat mean
-    let sum: f64 = flat_pixels.par_iter().copied().sum();
-    let count = flat_pixels.len();
-    if count == 0 {
+    if flat_pixels.is_empty() {
         return light.to_vec();
     }
-    let mean = sum / count as f64;
-    if mean == 0.0 {
+    let means = per_channel_means(&flat_pixels, channels);
+    if means.iter().all(|&m| m == 0.0) {
         return vec![0u8; light.len()];
     }
 
     let result: Vec<f64> = light_pixels
         .par_iter()
-        .zip(flat_pixels.par_iter())
-        .map(|(&l, &f)| {
-            let normalized_flat = f / mean;
+        .enumerate()
+        .map(|(i, &l)| {
+            let mean = means[i % channels];
+            if mean == 0.0 {
+                return 0.0f64;
+            }
+            let normalized_flat = flat_pixels[i] / mean;
             if normalized_flat <= 0.0 {
                 0.0f64
             } else {
@@ -702,6 +749,35 @@ mod tests {
     }
 
     #[test]
+    fn test_divide_flat_per_channel_no_color_cast() {
+        // Regression (#4): an interleaved RGB flat with different per-channel
+        // levels but no spatial variation must not tint uniform RGB light. A
+        // single global mean would scale the three channels differently and
+        // inject a colour cast; per-channel means leave uniform light unchanged.
+        let light = ImageData::from_u16(2, 2, 3, &[10000; 12]);
+        let flat = ImageData::from_u16(
+            2,
+            2,
+            3,
+            &[
+                30000, 40000, 50000, 30000, 40000, 50000, 30000, 40000, 50000, 30000, 40000, 50000,
+            ],
+        );
+        let result = divide_flat(&light, &flat).unwrap();
+        let px = read_u16_pixels(&result);
+        for (i, &v) in px.iter().enumerate() {
+            assert_eq!(
+                v,
+                10000,
+                "channel {} pixel {} tinted to {}",
+                i % 3,
+                i / 3,
+                v
+            );
+        }
+    }
+
+    #[test]
     fn test_dimension_mismatch() {
         let light = make_u16_image(4, 4, &[0; 16]);
         let dark = make_u16_image(2, 2, &[0; 4]);
@@ -725,17 +801,19 @@ mod tests {
         let result = calibrate_frame(&light, Some(&dark), Some(&flat), Some(&bias)).unwrap();
         let pixels = read_u16_pixels(&result);
 
-        // Corrected dark = dark - bias = [100, 100, 100, 100]
+        // Corrected dark = dark - bias = [100, 100, 100, 100]  (thermal only)
         // Corrected flat = flat - bias = [3000, 5000, 5000, 3000]
-        // After bias subtraction from light (bias already used in dark): skipped because dark is present
-        // After dark subtraction: light - corrected_dark = [5000, 7100, 7100, 5000]
+        // Bias IS subtracted from the light too (so the pedestal cancels):
+        //   light - bias        = [5000, 7100, 7100, 5000]
+        //   - corrected_dark    = [4900, 7000, 7000, 4900]  (== pure signal;
+        //     signal = light - thermal(100) - bias(100) = 5100-200 = 4900)
         // Flat mean = (3000+5000+5000+3000)/4 = 4000
-        // After flat division:
-        //   5000 / (3000/4000) = 5000/0.75 = 6667
-        //   7100 / (5000/4000) = 7100/1.25 = 5680
-        //   7100 / (5000/4000) = 7100/1.25 = 5680
-        //   5000 / (3000/4000) = 5000/0.75 = 6667
-        assert_eq!(pixels, vec![6667, 5680, 5680, 6667]);
+        // After flat division (restores vignetting):
+        //   4900 / (3000/4000) = 4900/0.75 = 6533
+        //   7000 / (5000/4000) = 7000/1.25 = 5600
+        //   7000 / (5000/4000) = 7000/1.25 = 5600
+        //   4900 / (3000/4000) = 4900/0.75 = 6533
+        assert_eq!(pixels, vec![6533, 5600, 5600, 6533]);
     }
 
     #[test]
@@ -744,6 +822,21 @@ mod tests {
         let dark = make_u16_image(2, 2, &[100, 100, 100, 100]);
         let result = calibrate_frame(&light, Some(&dark), None, None).unwrap();
         let pixels = read_u16_pixels(&result);
+        assert_eq!(pixels, vec![900, 1900, 2900, 3900]);
+    }
+
+    #[test]
+    fn test_calibrate_frame_bias_dark_pedestal_cancels() {
+        // Regression: with bias + dark (no flat) the bias pedestal must cancel,
+        // so the result equals (light - bias) - (dark - bias) = light - dark.
+        // The previous code skipped subtracting bias from the light whenever a
+        // dark was present, leaving `light - (dark - bias) = signal + bias`.
+        let light = make_u16_image(2, 2, &[1000, 2000, 3000, 4000]);
+        let dark = make_u16_image(2, 2, &[100, 100, 100, 100]); // thermal + bias
+        let bias = make_u16_image(2, 2, &[50, 50, 50, 50]);
+        let result = calibrate_frame(&light, Some(&dark), None, Some(&bias)).unwrap();
+        let pixels = read_u16_pixels(&result);
+        // == light - dark, identical to the dark-only case above (bias cancels).
         assert_eq!(pixels, vec![900, 1900, 2900, 3900]);
     }
 

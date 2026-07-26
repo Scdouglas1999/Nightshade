@@ -58,6 +58,22 @@
 //! - **Julian Day chrono fields** (lines 1396-1410): per-site Why comments
 //!   in `sequencer/src/meridian.rs::julian_day` apply identically here.
 
+/// Prefix marking a capture that failed *image validation* rather than failing
+/// in the driver or the transport.
+///
+/// The `DeviceOps` trait signs its errors as bare `String` (`DeviceResult<T> =
+/// Result<T, String>`), so a caller cannot otherwise tell "the camera worked and
+/// the frame is unusable" apart from "the camera broke". That distinction
+/// matters at the HTTP boundary: a completely saturated frame is a normal,
+/// operator-actionable outcome (shorten the exposure) and must not be reported
+/// as an internal server fault. `api::imaging` matches this prefix to promote
+/// the error to [`NightshadeError::ExposureFailed`], which the headless API maps
+/// to 422 instead of 500.
+///
+/// Producer and consumer live in the same crate and share this constant so the
+/// two cannot drift apart.
+pub(crate) const IMAGE_VALIDATION_FAILED_PREFIX: &str = "Image validation failed: ";
+
 fn median_from_sorted_f64(sorted: &[f64]) -> Option<f64> {
     if sorted.is_empty() {
         return None;
@@ -80,12 +96,39 @@ use crate::state::SharedAppState;
 use crate::FitsWriteHeader;
 use async_trait::async_trait;
 use nightshade_sequencer::{
-    DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData, PlateSolveResult,
-    PolarAlignResult,
+    CameraSubframe, DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData,
+    PlateSolveResult, PolarAlignResult,
 };
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex;
 
 const EXPOSURE_COMPLETION_MARGIN: std::time::Duration = std::time::Duration::from_secs(60);
+
+static EXPOSURE_ABORT_GENERATIONS: OnceLock<Mutex<HashMap<String, u64>>> = OnceLock::new();
+
+fn exposure_abort_generations() -> &'static Mutex<HashMap<String, u64>> {
+    EXPOSURE_ABORT_GENERATIONS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+async fn exposure_abort_generation(camera_id: &str) -> u64 {
+    *exposure_abort_generations()
+        .lock()
+        .await
+        .get(camera_id)
+        .unwrap_or(&0)
+}
+
+/// Invalidate the in-flight acquisition before issuing a hardware abort.
+///
+/// Some camera SDKs report a terminal Success immediately after StopExposure.
+/// Without a generation check the original task then downloads and publishes
+/// that aborted buffer as a valid image.
+pub(crate) async fn mark_camera_exposure_aborted(camera_id: &str) {
+    let mut generations = exposure_abort_generations().lock().await;
+    let entry = generations.entry(camera_id.to_string()).or_default();
+    *entry = entry.wrapping_add(1);
+}
 
 fn exposure_completion_timeout(duration_secs: f64) -> std::time::Duration {
     std::time::Duration::from_secs_f64(duration_secs.max(0.0)) + EXPOSURE_COMPLETION_MARGIN
@@ -466,6 +509,57 @@ impl DeviceOps for UnifiedDeviceOps {
         bin_x: i32,
         bin_y: i32,
     ) -> DeviceResult<ImageData> {
+        // Frame-type-agnostic entry point → Light (shutter open). Dark/bias is
+        // carried by the frame-type-aware method below (shared body).
+        self.camera_start_exposure_configured(
+            camera_id,
+            duration_secs,
+            gain,
+            offset,
+            bin_x,
+            bin_y,
+            None,
+            "Light",
+        )
+        .await
+    }
+
+    async fn camera_start_exposure_with_frame_type(
+        &self,
+        camera_id: &str,
+        duration_secs: f64,
+        gain: Option<i32>,
+        offset: Option<i32>,
+        bin_x: i32,
+        bin_y: i32,
+        frame_type: &str,
+    ) -> DeviceResult<ImageData> {
+        self.camera_start_exposure_configured(
+            camera_id,
+            duration_secs,
+            gain,
+            offset,
+            bin_x,
+            bin_y,
+            None,
+            frame_type,
+        )
+        .await
+    }
+
+    async fn camera_start_exposure_configured(
+        &self,
+        camera_id: &str,
+        duration_secs: f64,
+        gain: Option<i32>,
+        offset: Option<i32>,
+        bin_x: i32,
+        bin_y: i32,
+        subframe: Option<CameraSubframe>,
+        frame_type: &str,
+    ) -> DeviceResult<ImageData> {
+        let acquisition_generation = exposure_abort_generation(camera_id).await;
+        let native_frame_type = nightshade_native::camera::FrameType::from_str_lenient(frame_type);
         tracing::info!(
             "Starting {:.1}s exposure on camera {}",
             duration_secs,
@@ -490,7 +584,15 @@ impl DeviceOps for UnifiedDeviceOps {
         self.app_state.publish_imaging_event(
             ImagingEvent::ExposureStarted {
                 duration_secs,
-                frame_type: crate::device::FrameType::Light,
+                frame_type: match native_frame_type {
+                    nightshade_native::camera::FrameType::Dark => crate::device::FrameType::Dark,
+                    nightshade_native::camera::FrameType::Flat => crate::device::FrameType::Flat,
+                    nightshade_native::camera::FrameType::Bias => crate::device::FrameType::Bias,
+                    nightshade_native::camera::FrameType::DarkFlat => {
+                        crate::device::FrameType::DarkFlat
+                    }
+                    nightshade_native::camera::FrameType::Light => crate::device::FrameType::Light,
+                },
             },
             EventSeverity::Info,
         );
@@ -499,18 +601,32 @@ impl DeviceOps for UnifiedDeviceOps {
         // camera's current value, don't change it" and is threaded through to
         // each driver branch so the setter is genuinely skipped (rather than
         // the old `unwrap_or(0)` which silently commanded gain/offset 0).
-        mgr.camera_start_exposure(camera_id, duration_secs, gain, offset, bin_x, bin_y)
-            .await
-            .inspect_err(|_e| {
-                // Publish failure event
-                self.app_state.publish_imaging_event(
-                    ImagingEvent::ExposureComplete { success: false },
-                    EventSeverity::Error,
-                );
-            })
-            .map_err(|e| format!("Exposure failed: {}", e))?;
+        mgr.camera_start_exposure_configured(
+            camera_id,
+            duration_secs,
+            gain,
+            offset,
+            bin_x,
+            bin_y,
+            subframe.map(|roi| nightshade_native::camera::SubFrame {
+                start_x: roi.start_x,
+                start_y: roi.start_y,
+                width: roi.width,
+                height: roi.height,
+            }),
+            native_frame_type,
+        )
+        .await
+        .inspect_err(|_e| {
+            // Publish failure event
+            self.app_state.publish_imaging_event(
+                ImagingEvent::ExposureComplete { success: false },
+                EventSeverity::Error,
+            );
+        })
+        .map_err(|e| format!("Exposure failed: {}", e))?;
 
-        wait_for_camera_exposure_complete(
+        if let Err(e) = wait_for_camera_exposure_complete(
             camera_id,
             duration_secs,
             exposure_completion_timeout(duration_secs),
@@ -522,12 +638,27 @@ impl DeviceOps for UnifiedDeviceOps {
             },
         )
         .await
-        .inspect_err(|_e| {
+        {
+            // The wait failed (status-poll error or the completion deadline)
+            // while the camera is still physically exposing. Abort it so the
+            // sensor is left idle — otherwise the sequencer's retry races a
+            // still-running exposure and fails with "exposure already in
+            // progress". Abort is best-effort; the original error is returned.
+            let _ = mgr.camera_abort_exposure(camera_id).await;
             self.app_state.publish_imaging_event(
                 ImagingEvent::ExposureComplete { success: false },
                 EventSeverity::Error,
             );
-        })?;
+            return Err(e);
+        }
+
+        if exposure_abort_generation(camera_id).await != acquisition_generation {
+            self.app_state.publish_imaging_event(
+                ImagingEvent::ExposureComplete { success: false },
+                EventSeverity::Info,
+            );
+            return Err("Exposure cancelled".to_string());
+        }
 
         // Download image under a hard ceiling so a stalled download cannot
         // hang the whole sequence indefinitely. A USB stall / hub brown-out /
@@ -567,6 +698,14 @@ impl DeviceOps for UnifiedDeviceOps {
                 ));
             }
         };
+
+        if exposure_abort_generation(camera_id).await != acquisition_generation {
+            self.app_state.publish_imaging_event(
+                ImagingEvent::ExposureComplete { success: false },
+                EventSeverity::Info,
+            );
+            return Err("Exposure cancelled".to_string());
+        }
 
         tracing::info!(
             "[EXPOSURE] Download complete: {}x{} ({} pixels)",
@@ -610,12 +749,12 @@ impl DeviceOps for UnifiedDeviceOps {
             // Fail on validation errors (corrupted/unusable images)
             if !validation.is_valid {
                 let error_msg = validation.errors.join("; ");
-                tracing::error!("[CAMERA] Image validation failed: {}", error_msg);
+                tracing::error!("[CAMERA] {IMAGE_VALIDATION_FAILED_PREFIX}{error_msg}");
                 self.app_state.publish_imaging_event(
                     ImagingEvent::ExposureComplete { success: false },
                     EventSeverity::Error,
                 );
-                return Err(format!("Image validation failed: {}", error_msg));
+                return Err(format!("{IMAGE_VALIDATION_FAILED_PREFIX}{error_msg}"));
             }
         }
         let (sensor_type, bayer_offset) = match &native_image.bayer_pattern {
@@ -780,8 +919,18 @@ impl DeviceOps for UnifiedDeviceOps {
             } else {
                 duration_secs
             },
-            gain: Some(native_image.metadata.gain),
-            offset: Some(native_image.metadata.offset),
+            // Blindly wrapping in Some() meant an unreadable gain/offset (which
+            // the Alpaca/INDI paths recorded as a placeholder) presented as a real
+            // measurement and short-circuited `image_data.gain.or(config.gain)`
+            // downstream, so the placeholder beat the operator's configured value
+            // and was written into the frame's FITS header. Mapping the
+            // unknown marker back to None restores the intended fallback.
+            gain: crate::device_manager::ops::camera::camera_setting_or_unknown(
+                native_image.metadata.gain,
+            ),
+            offset: crate::device_manager::ops::camera::camera_setting_or_unknown(
+                native_image.metadata.offset,
+            ),
             temperature: native_image.metadata.temperature,
             filter: None,
             timestamp: native_image.metadata.timestamp.timestamp(),
@@ -793,6 +942,7 @@ impl DeviceOps for UnifiedDeviceOps {
     async fn camera_abort_exposure(&self, camera_id: &str) -> DeviceResult<()> {
         tracing::info!("Aborting exposure on camera {}", camera_id);
 
+        mark_camera_exposure_aborted(camera_id).await;
         get_device_manager()
             .camera_abort_exposure(camera_id)
             .await
@@ -980,12 +1130,13 @@ impl DeviceOps for UnifiedDeviceOps {
         let index = find_filter_match(&names, name)
             .ok_or_else(|| format!("Filter '{}' not found", name))?;
 
-        // INDI filter slots are 1-based; ASCOM/Alpaca/Native use 0-based positions
-        let position = if fw_id.starts_with("indi:") {
-            (index + 1) as i32
-        } else {
-            index as i32
-        };
+        // Pass Nightshade's canonical 0-based index for EVERY driver. The INDI
+        // path (DeviceManager::filter_wheel_set_position -> IndiFilterWheel::
+        // set_position) already takes a 0-based index and converts it to the
+        // driver's native wire slot (0- or 1-based, auto-detected). The previous
+        // INDI-only `index + 1` therefore double-counted the slot base, shifting
+        // every filter by one and running the last filter off the end of the wheel.
+        let position = index as i32;
 
         self.filterwheel_set_position(fw_id, position).await?;
         Ok(position)
@@ -1195,9 +1346,9 @@ impl DeviceOps for UnifiedDeviceOps {
         // default for "near solve" when the caller does not specify a
         // scale hint — matches the plate-solve UI slider default.
         let result = if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
-            api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0)).await
+            api_plate_solve_near(temp_path.clone(), ra, dec, hint_scale.unwrap_or(5.0), None).await
         } else {
-            api_plate_solve_blind(temp_path.clone()).await
+            api_plate_solve_blind(temp_path.clone(), None).await
         };
 
         // Clean up temp file

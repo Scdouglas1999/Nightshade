@@ -198,7 +198,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(context).pop();
-      context.go('/stack-result?id=$id');
+      context.push('/stack-result?id=$id');
     });
   }
 

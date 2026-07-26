@@ -11,7 +11,8 @@
 //!    brightness.
 //! 4. Binary-search the exposure time, optionally adjusting brightness
 //!    if the search hits the configured exposure bounds.
-//! 5. Turn off the panel and close the cover.
+//! 5. Capture the requested flat frames at the converged exposure.
+//! 6. Turn off the panel and close the cover.
 //!
 //! ## Implementation
 //!
@@ -20,18 +21,18 @@
 //! mid-search resumes on the next iteration. The cover/calibrator
 //! device dance lives in [`panel`].
 //!
-//! User-visible behavior (FITS files, log lines, return payload) is
-//! identical to the pre-refactor implementation.
+//! Final frames use the sequencer's normal exposure pipeline so their
+//! FITS files and metadata match ordinary calibration captures.
 
 mod panel;
 
-use crate::instructions::{InstructionContext, InstructionResult};
+use crate::instructions::{execute_exposure, InstructionContext, InstructionResult};
 use crate::wizard::{
     BorrowedProgressReporter, Wizard, WizardExecutor, WizardProgressReporter, WizardRunStatus,
     WizardStepOutcome,
 };
 use crate::NodeStatus;
-use crate::{FlatWizardConfig, PanelLocation};
+use crate::{ExposureConfig, FlatWizardConfig, PanelLocation};
 use async_trait::async_trait;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -53,9 +54,10 @@ enum FlatStep {
 
 /// Internal state for the flat-wizard run.
 ///
-/// `panel_setup_completed` is shared with the outer wrapper via an
+/// `panel_cleanup_required` is shared with the outer wrapper via an
 /// `Arc<AtomicBool>` so that wrapper can run the panel teardown step
-/// regardless of how the wizard exited (success, failure, cancel).
+/// after any panel resource is acquired, regardless of how the wizard
+/// exited (success, failure, cancel).
 struct FlatWizardRun<'a> {
     config: &'a FlatWizardConfig,
     /// Current brightness; mutated when auto-adjust kicks in.
@@ -68,7 +70,7 @@ struct FlatWizardRun<'a> {
     last_adu: Option<u16>,
     /// On success: the converged (exposure, adu, brightness) triple.
     converged: Option<(f64, u16, i32)>,
-    panel_setup_completed: Arc<AtomicBool>,
+    panel_cleanup_required: Arc<AtomicBool>,
 }
 
 #[async_trait]
@@ -146,11 +148,15 @@ impl<'a> Wizard for FlatWizardRun<'a> {
                     return WizardStepOutcome::Completed;
                 }
                 progress.report(0.2, "Setting up flat panel".to_string());
-                match panel::setup_flat_panel(ctx, self.current_brightness, progress).await {
-                    Ok(()) => {
-                        self.panel_setup_completed.store(true, Ordering::Relaxed);
-                        WizardStepOutcome::Completed
-                    }
+                match panel::setup_flat_panel(
+                    ctx,
+                    self.current_brightness,
+                    progress,
+                    self.panel_cleanup_required.as_ref(),
+                )
+                .await
+                {
+                    Ok(()) => WizardStepOutcome::Completed,
                     Err(e) => WizardStepOutcome::Failed(e),
                 }
             }
@@ -173,13 +179,14 @@ impl<'a> Wizard for FlatWizardRun<'a> {
                 InstructionResult {
                     status: NodeStatus::Success,
                     message: Some(format!(
-                        "Optimal flat exposure: {:.3}s (ADU: {}, brightness: {})",
-                        optimal_exposure, actual_adu, final_brightness
+                        "Captured {} flat frames at {:.3}s (ADU: {}, brightness: {})",
+                        self.config.flat_count, optimal_exposure, actual_adu, final_brightness
                     )),
                     data: Some(serde_json::json!({
                         "optimal_exposure_secs": optimal_exposure,
                         "actual_adu": actual_adu,
                         "target_adu": self.config.target_adu,
+                        "flat_count": self.config.flat_count,
                         "filter": self.config.filter,
                         "brightness": final_brightness,
                         "panel_location": format!("{:?}", self.config.panel_location),
@@ -281,16 +288,18 @@ impl<'a> FlatWizardRun<'a> {
         );
 
         tracing::info!(
-            "Iteration {}/{}: testing {:.3}s exposure at brightness {}",
+            "Iteration {}/{}: testing {:.3}s exposure at brightness {}, binning {}",
             iteration,
             MAX_BINARY_SEARCH_ITERATIONS,
             test_exposure,
-            self.current_brightness
+            self.current_brightness,
+            ctx.current_binning.as_str()
         );
 
+        let (bin_x, bin_y) = binning_dimensions(ctx.current_binning);
         let image_data = match ctx
             .device_ops
-            .camera_start_exposure(camera_id, test_exposure, None, None, 1, 1)
+            .camera_start_exposure(camera_id, test_exposure, None, None, bin_x, bin_y)
             .await
         {
             Ok(data) => data,
@@ -311,8 +320,38 @@ impl<'a> FlatWizardRun<'a> {
                 tolerance,
                 self.current_brightness
             );
-            self.converged = Some((test_exposure, median_adu, self.current_brightness));
-            return WizardStepOutcome::Done;
+            let capture_config =
+                final_flat_exposure_config(self.config, ctx.current_binning, test_exposure);
+            let capture_result = execute_exposure(&capture_config, ctx, |frame, total| {
+                let capture_fraction = if total == 0 {
+                    1.0
+                } else {
+                    f64::from(frame) / f64::from(total)
+                };
+                progress.report(
+                    0.85 + capture_fraction * 0.05,
+                    format!(
+                        "Capturing final flat frame {}/{} at {:.3}s",
+                        frame, total, test_exposure
+                    ),
+                );
+            })
+            .await;
+
+            match capture_result.status {
+                NodeStatus::Success => {
+                    self.converged = Some((test_exposure, median_adu, self.current_brightness));
+                    return WizardStepOutcome::Done;
+                }
+                NodeStatus::Cancelled => return WizardStepOutcome::Cancelled,
+                _ => {
+                    return WizardStepOutcome::Failed(
+                        capture_result
+                            .message
+                            .unwrap_or_else(|| "Final flat capture failed".to_string()),
+                    );
+                }
+            }
         }
 
         // Adjust search range / brightness.
@@ -385,11 +424,48 @@ Try adjusting panel brightness or widening exposure limits.",
     }
 }
 
-/// Execute the flat wizard to determine optimal flat exposure.
+fn binning_dimensions(binning: crate::Binning) -> (i32, i32) {
+    let dimension = match binning {
+        crate::Binning::One => 1,
+        crate::Binning::Two => 2,
+        crate::Binning::Three => 3,
+        crate::Binning::Four => 4,
+    };
+    (dimension, dimension)
+}
+
+fn final_flat_exposure_config(
+    config: &FlatWizardConfig,
+    binning: crate::Binning,
+    exposure_secs: f64,
+) -> ExposureConfig {
+    ExposureConfig {
+        duration_secs: exposure_secs,
+        count: config.flat_count,
+        filter: config.filter.clone(),
+        filter_index: config.filter_index,
+        binning,
+        dither_every: None,
+        frame_type: "Flat".to_string(),
+        ..ExposureConfig::default()
+    }
+}
+
+fn surface_cleanup_failure(result: &mut InstructionResult, cleanup_error: String) {
+    let run_message = result.message.take();
+    result.message = Some(match run_message {
+        Some(message) => format!("{}; flat panel cleanup failed: {}", message, cleanup_error),
+        None => format!("Flat panel cleanup failed: {}", cleanup_error),
+    });
+    if result.status == NodeStatus::Success {
+        result.status = NodeStatus::Failure;
+    }
+}
+
+/// Execute the flat wizard and capture flats at the optimal exposure.
 ///
 /// This is the public entry point invoked from the sequencer node
-/// dispatch ([`crate::NodeType::FlatWizard`]). Observable behavior
-/// matches the pre-refactor implementation.
+/// dispatch ([`crate::NodeType::FlatWizard`]).
 pub async fn execute_flat_wizard(
     config: &FlatWizardConfig,
     ctx: &InstructionContext,
@@ -416,7 +492,7 @@ pub async fn execute_flat_wizard(
 
     borrow_reporter.report(0.0, "Starting flat wizard".to_string());
 
-    let panel_setup_completed = Arc::new(AtomicBool::new(false));
+    let panel_cleanup_required = Arc::new(AtomicBool::new(false));
     let wizard = FlatWizardRun {
         config,
         current_brightness: config.brightness,
@@ -424,17 +500,18 @@ pub async fn execute_flat_wizard(
         max_exp: config.max_exposure,
         last_adu: None,
         converged: None,
-        panel_setup_completed: panel_setup_completed.clone(),
+        panel_cleanup_required: panel_cleanup_required.clone(),
     };
-    let (result, _status) = executor.run(wizard, ctx).await;
+    let (mut result, _status) = executor.run(wizard, ctx).await;
 
-    // Cleanup on exit: if the panel was set up, clean it up regardless
-    // of how the run ended (matches pre-refactor `finally`-style
-    // behavior in the original monolithic function).
-    if panel_setup_completed.load(Ordering::Relaxed) {
+    // Cleanup on exit after any panel resource was acquired, including
+    // partial setup. A teardown error makes an otherwise successful run
+    // fail: success must guarantee that the lamp is off and cover closed.
+    if panel_cleanup_required.load(Ordering::Relaxed) {
         borrow_reporter.report(0.9, "Cleaning up flat panel".to_string());
         if let Err(e) = panel::cleanup_flat_panel(ctx).await {
-            tracing::warn!("Failed to cleanup flat panel: {}", e);
+            tracing::error!("Failed to cleanup flat panel: {}", e);
+            surface_cleanup_failure(&mut result, e);
         }
     }
 
@@ -551,7 +628,7 @@ mod tests {
             max_exp: config.max_exposure,
             last_adu: None,
             converged: None,
-            panel_setup_completed: Arc::new(AtomicBool::new(false)),
+            panel_cleanup_required: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -633,5 +710,37 @@ mod tests {
         let run = make_run(&config);
         let plan = run.plan_steps(1);
         assert_eq!(plan.len(), 4);
+    }
+
+    #[test]
+    fn final_flat_capture_uses_requested_count_and_flat_frame_type() {
+        let mut config = test_config();
+        config.flat_count = 17;
+        config.filter = Some("Ha".to_string());
+        config.filter_index = Some(3);
+
+        let exposure = final_flat_exposure_config(&config, crate::Binning::Two, 2.5);
+
+        assert_eq!(exposure.duration_secs, 2.5);
+        assert_eq!(exposure.count, 17);
+        assert_eq!(exposure.filter.as_deref(), Some("Ha"));
+        assert_eq!(exposure.filter_index, Some(3));
+        assert_eq!(exposure.binning, crate::Binning::Two);
+        assert_eq!(exposure.dither_every, None);
+        assert_eq!(exposure.frame_type, "Flat");
+        assert_eq!(binning_dimensions(exposure.binning), (2, 2));
+    }
+
+    #[test]
+    fn cleanup_failure_turns_success_into_failure_and_preserves_context() {
+        let mut result = InstructionResult::success_with_message("Captured 30 flat frames");
+
+        surface_cleanup_failure(&mut result, "calibrator stayed on".to_string());
+
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert_eq!(
+            result.message.as_deref(),
+            Some("Captured 30 flat frames; flat panel cleanup failed: calibrator stayed on")
+        );
     }
 }

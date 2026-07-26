@@ -2,10 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
+import 'package:nightshade_core/src/services/sequence_diff_service.dart';
 
 /// Coverage for [CurrentSequenceNotifier.loadCopyForEditing] — the copy-on-open
-/// helper the Framing "add target to an existing sequence" flow uses to load a
-/// chosen library sequence under fresh node IDs before appending a target.
+/// helper used to load a chosen library sequence (Framing's "add target to an
+/// existing sequence", and the headless `load-and-start` route) before editing
+/// or running it.
+///
+/// This file used to assert the opposite of what it asserts now: that the copy
+/// arrived under FRESH node IDs and "no original ID survives". That was measured
+/// on the running app to be a defect, not an invariant — see
+/// `preserves node IDs` below for what it broke.
 
 ProviderContainer _newContainer() {
   final container = ProviderContainer();
@@ -43,7 +50,7 @@ Sequence _sourceSequence() {
 
 void main() {
   group('loadCopyForEditing', () {
-    test('loads a deep copy under fresh node IDs, preserving topology', () {
+    test('preserves node IDs and topology when opening a saved row', () {
       final c = _newContainer();
       final source = _sourceSequence();
 
@@ -55,9 +62,19 @@ void main() {
       expect(loaded!.databaseId, 42);
       expect(loaded.name, 'My Manual Sequence');
 
-      // Every node was re-keyed: no original ID survives.
-      expect(loaded.nodes.containsKey('root-original'), isFalse);
-      expect(loaded.nodes.containsKey('target-original'), isFalse);
+      // Node IDs are the durable identity of a node. Re-keying them here broke
+      // two subsystems that key on them:
+      //   * SequenceRepository.saveSequence upserts by ID, so an emptied update
+      //     set made every save delete and re-insert every node row.
+      //   * SequenceDiffService matches by ID, so re-running an UNTOUCHED
+      //     sequence reported every node as both removed and added ("+2 -2",
+      //     identical labels on both sides) and a real field edit could never
+      //     render as "modified".
+      expect(
+        loaded.nodes.keys,
+        containsAll(['root-original', 'target-original']),
+      );
+      expect(loaded.rootNodeId, 'root-original');
       expect(loaded.nodes, hasLength(2));
 
       // Topology preserved: the root has one child and it is the target.
@@ -69,6 +86,58 @@ void main() {
       expect(child, isA<TargetHeaderNode>());
       expect((child as TargetHeaderNode).targetName, 'M31');
       expect(child.parentId, loaded.rootNodeId);
+    });
+
+    test('two opens of the same row produce an EMPTY diff', () {
+      // The user-visible symptom: the pre-flight card claimed "Sequence has
+      // changed since last successful run — 4 changes across 2 added, 2 removed"
+      // for a sequence nobody had touched between two runs.
+      final first = _newContainer();
+      _notifier(first).loadCopyForEditing(_sourceSequence());
+      final a = first.read(currentSequenceProvider)!;
+
+      final second = _newContainer();
+      _notifier(second).loadCopyForEditing(_sourceSequence());
+      final b = second.read(currentSequenceProvider)!;
+
+      final diff = const SequenceDiffService().diff(previous: a, current: b);
+      expect(
+        diff.isEmpty,
+        isTrue,
+        reason:
+            'nothing changed between the two opens, but the diff reported '
+            '${diff.summary} (+${diff.added.length} -${diff.removed.length} '
+            '~${diff.modified.length})',
+      );
+    });
+
+    test('a real edit still shows up as a MODIFIED node, not remove+add', () {
+      // The other half of the regression: with fresh IDs the ID intersection was
+      // always empty, so SequenceDiffService's per-field comparison — every node
+      // subtype, hundreds of lines of it — could never run.
+      final before = _newContainer();
+      _notifier(before).loadCopyForEditing(_sourceSequence());
+      final a = before.read(currentSequenceProvider)!;
+
+      final after = _newContainer();
+      _notifier(after).loadCopyForEditing(_sourceSequence());
+      final loaded = after.read(currentSequenceProvider)!;
+      final target = loaded.nodes['target-original']! as TargetHeaderNode;
+      final b = loaded.copyWith(
+        nodes: {
+          ...loaded.nodes,
+          'target-original': target.copyWith(targetName: 'NGC 891'),
+        },
+      );
+
+      final diff = const SequenceDiffService().diff(previous: a, current: b);
+      expect(diff.added, isEmpty);
+      expect(diff.removed, isEmpty);
+      expect(diff.modified, hasLength(1));
+      expect(
+        diff.modified.single.changes.map((c) => c.describe()),
+        contains('Target name: M31 → NGC 891'),
+      );
     });
 
     test(

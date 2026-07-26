@@ -23,21 +23,46 @@ class AuxiliaryHandlers {
     String deviceName,
   ) async {
     final caps = await bridge.apiGetSwitchCapabilities(deviceId: deviceId);
-    final switches = caps.switches
-        .map(
-          (s) => {
-            'id': s.index,
-            'name': s.name,
-            'type': s.isBoolean ? 'boolean' : 'analog',
-            'value': s.isBoolean ? (s.value > 0.5) : s.value,
-            'minValue': s.isBoolean ? null : s.minValue,
-            'maxValue': s.isBoolean ? null : s.maxValue,
-            'step': s.isBoolean ? null : s.step,
-            'canWrite': s.canWrite,
-            'description': s.description,
-          },
-        )
-        .toList();
+    final logger = container.read(loggingServiceProvider);
+    final switches = await Future.wait(
+      caps.switches.map((s) async {
+        double? liveValue;
+        try {
+          liveValue = await bridge.apiSwitchGetValue(
+            deviceId: deviceId,
+            switchId: s.index,
+          );
+        } catch (error, stackTrace) {
+          logger.warning(
+            'Live switch value read failed for $deviceId channel ${s.index}: '
+            '$error',
+            source: 'AuxiliaryHandlers',
+            fields: {
+              'deviceId': deviceId,
+              'switchId': s.index,
+              'stack': stackTrace.toString(),
+            },
+          );
+        }
+
+        return <String, dynamic>{
+          'id': s.index,
+          'name': s.name,
+          'type': s.isBoolean ? 'boolean' : 'analog',
+          'value': liveValue == null
+              ? null
+              : s.isBoolean
+              ? liveValue > 0.5
+              : liveValue,
+          'minValue': s.isBoolean ? null : s.minValue,
+          'maxValue': s.isBoolean ? null : s.maxValue,
+          'step': s.isBoolean ? null : s.step,
+          'canWrite': s.canWrite,
+          'description': s.description,
+          if (liveValue == null) 'readError': 'read_failed',
+        };
+      }),
+    );
 
     return {
       'connected': true,

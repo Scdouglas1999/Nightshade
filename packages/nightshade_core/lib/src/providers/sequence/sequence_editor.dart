@@ -6,6 +6,7 @@ import '../../models/imaging/imaging_models.dart';
 import '../../models/sequence/active_plan_owner.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../models/sequence/template_snippet.dart';
+import '../../services/sequence_file_service.dart';
 import '../sequence_provider.dart' show sequenceExecutionStateProvider;
 import 'sequence_editor_exceptions.dart';
 import 'sequence_undo_batch.dart';
@@ -57,6 +58,16 @@ bool _isEditable(SequenceExecutionState state) {
     // running/paused. The Run Dashboard banner is the right place for
     // operator action during recovery.
     case SequenceExecutionState.recovering:
+      return false;
+    // A failed stop (hardware possibly still imaging) or a pending persistence
+    // cleanup (dangling session) both keep the executor in charge of the run
+    // lifecycle, so the tree stays locked until the stop / cleanup completes.
+    case SequenceExecutionState.stopFailed:
+    case SequenceExecutionState.cleanupFailed:
+    // Finalizing — the run has ended and durable cleanup is in flight. The
+    // executor still owns the run lifecycle, so keep the tree locked until it
+    // settles.
+    case SequenceExecutionState.finalizing:
       return false;
   }
 }
@@ -149,14 +160,70 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     _dirty = false;
   }
 
-  /// Apply a successful remote/host persist without marking the editor dirty.
+  /// Mark an exported snapshot clean only if it is still the exact document
+  /// in the editor.
+  ///
+  /// Native save dialogs can remain open while the user continues editing.
+  /// An export that writes the older snapshot must not clear the dirty flag
+  /// for those newer edits merely because both snapshots share a sequence id.
+  bool markSavedIfCurrent(Sequence expectedSnapshot) {
+    if (!identical(state, expectedSnapshot)) return false;
+    _dirty = false;
+    return true;
+  }
+
+  /// Apply a successful remote/host persist without letting an older response
+  /// mark newer edits as saved.
   ///
   /// Used by [remoteSequenceEditorSyncProvider] after debounced auto-save so
   /// newly created sequences receive their host `databaseId` and subsequent
-  /// edits update the same row.
-  void applyRemoteSave(int databaseId) {
-    if (state == null) return;
-    state = state!.copyWith(databaseId: databaseId);
+  /// edits update the same row. Returns `true` only when [expectedSnapshot] is
+  /// still the exact document in the editor and was therefore marked clean.
+  ///
+  /// If the same new sequence was edited while the request was in flight, its
+  /// assigned host id is applied but the dirty flag stays armed so the newer
+  /// document is sent next. If another sequence was opened, the stale result
+  /// is ignored completely.
+  bool applyRemoteSave(int databaseId, {required Sequence expectedSnapshot}) {
+    final current = state;
+    if (current == null || current.id != expectedSnapshot.id) return false;
+
+    if (identical(current, expectedSnapshot)) {
+      state = current.copyWith(databaseId: databaseId);
+      _dirty = false;
+      return true;
+    }
+
+    if (_dirty && current.databaseId == null) {
+      state = current.copyWith(databaseId: databaseId);
+    }
+    return false;
+  }
+
+  /// Re-anchor the open editor document after an explicit library save.
+  ///
+  /// Save dialogs can change the row identity ("Save as new"), name,
+  /// description, and whether the row is a template. Leaving the editor on
+  /// its pre-save identity makes the next save overwrite the wrong row and
+  /// leaves the unsaved-change guard armed even though persistence succeeded.
+  /// [expectedSequenceId] prevents a delayed save from rewriting a different
+  /// document that was opened while the request was in flight.
+  void applyPersistedSave({
+    required String expectedSequenceId,
+    required int databaseId,
+    required String name,
+    required String description,
+    required bool isTemplate,
+  }) {
+    final current = state;
+    if (current == null || current.id != expectedSequenceId) return;
+    state = current.copyWith(
+      databaseId: databaseId,
+      name: name,
+      description: description,
+      isTemplate: isTemplate,
+      modifiedAt: DateTime.now(),
+    );
     _dirty = false;
   }
 
@@ -269,6 +336,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   /// [UnsavedChangesException] unless [discardUnsaved] is true. Used by
   /// the import flow, library-open path, and recently-opened menu.
   void loadSequence(Sequence sequence, {bool discardUnsaved = false}) {
+    _ensureEditable('open another sequence');
     _guardUnsavedClobber(
       attemptedOperation: 'open another sequence',
       discardUnsaved: discardUnsaved,
@@ -351,13 +419,32 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   /// path. The slave never stashes/restores — it follows the host.
   void adoptOwner(ActivePlanOwner owner) => _setOwner(owner);
 
-  /// Load a deep copy of [source] into the editor under fresh node IDs.
+  /// Load a fresh copy of [source] into the editor, PRESERVING node IDs.
   ///
-  /// Opening a saved/library sequence for editing must not alias the persisted
-  /// node IDs — otherwise subsequent edits would mutate the on-disk row's
-  /// identity and two "copies" could collide. This re-keys every node with a
-  /// new UUID (preserving the parent/child topology) and keeps the original
-  /// [Sequence.databaseId] so a later Save updates the same library row.
+  /// The copy keeps [Sequence.databaseId], so a later Save updates the same
+  /// library row — which is exactly why the node IDs have to survive too. Two
+  /// subsystems treat a node's UUID as its durable identity:
+  ///
+  ///  * [SequenceRepository.saveSequence] upserts incrementally, partitioning
+  ///    nodes into update/insert/delete BY ID. Re-keying on open emptied the
+  ///    update set, so every save deleted and re-inserted every node row of the
+  ///    sequence being edited.
+  ///  * [SequenceDiffService] matches nodes by ID to produce "modified" entries.
+  ///    With fresh IDs on every load, the run-history and pre-flight diffs could
+  ///    never report a field change — an untouched sequence re-run reported every
+  ///    node as removed AND added ("+2 -2" with identical labels on both sides),
+  ///    and a real edit (60s -> 300s) showed as a remove/add pair instead of
+  ///    "Exposure duration: 60.0s -> 300.0s".
+  ///
+  /// This method previously re-keyed, reasoning that editing must not "alias the
+  /// persisted node IDs — two copies could collide". That does not apply: the
+  /// copy deliberately points at the SAME row, so sharing identity with it is
+  /// the intent, not a collision. Producing a genuinely independent sequence is
+  /// duplication, which is [SequencesDao.duplicateSequence]'s job and does mint
+  /// new UUIDs.
+  ///
+  /// Nodes are immutable, so rebuilding the map is copy enough — nothing the
+  /// editor does afterwards can write through to [source].
   ///
   /// Centralises the copy-on-open dance that the Sequence Library tab performs
   /// inline so other entry points (e.g. Framing's "Add target to an existing
@@ -368,36 +455,11 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   void loadCopyForEditing(Sequence source, {bool discardUnsaved = false}) {
     _ensureEditable('open a sequence for editing');
 
-    final idMapping = <String, String>{
-      for (final oldId in source.nodes.keys) oldId: const Uuid().v4(),
-    };
-
-    final newNodes = <String, SequenceNode>{};
-    for (final entry in source.nodes.entries) {
-      final oldNode = entry.value;
-      final newId = idMapping[entry.key]!;
-      final newParentId = oldNode.parentId != null
-          ? idMapping[oldNode.parentId]
-          : null;
-      final newChildIds = oldNode.childIds
-          .map((id) => idMapping[id] ?? id)
-          .toList();
-      newNodes[newId] = oldNode.copyWith(
-        id: newId,
-        parentId: newParentId,
-        childIds: newChildIds,
-      );
-    }
-
-    final newRootId = source.rootNodeId != null
-        ? idMapping[source.rootNodeId]
-        : null;
-
     final copy = Sequence.create(
       name: source.name,
       description: source.description,
-      nodes: newNodes,
-      rootNodeId: newRootId,
+      nodes: Map<String, SequenceNode>.of(source.nodes),
+      rootNodeId: source.rootNodeId,
       isTemplate: false,
       databaseId: source.databaseId,
     );
@@ -407,6 +469,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
 
   /// Clear the current sequence
   void clearSequence({bool discardUnsaved = false}) {
+    _ensureEditable('clear the sequence');
     _guardUnsavedClobber(
       attemptedOperation: 'clear the sequence',
       discardUnsaved: discardUnsaved,

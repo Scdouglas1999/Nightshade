@@ -6,6 +6,31 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   // Remote calibration library management.
   // =========================================================================
 
+  /// Read the complete automatic-calibration configuration owned by the
+  /// imaging host. This is intentionally separate from the app-settings wire
+  /// model because the master-frame paths are host filesystem resources.
+  Future<Map<String, dynamic>> getCalibrationSettings() {
+    return _get('calibration/settings');
+  }
+
+  /// Apply a partial automatic-calibration configuration on the imaging host.
+  /// A null path explicitly clears that master-frame selection.
+  Future<Map<String, dynamic>> updateCalibrationSettings(
+    Map<String, dynamic> patch,
+  ) {
+    return _post('calibration/settings', patch);
+  }
+
+  Future<Map<String, dynamic>> getDefectMapSettings() {
+    return _get('calibration/defect-maps/settings');
+  }
+
+  Future<Map<String, dynamic>> updateDefectMapSettings(
+    Map<String, dynamic> patch,
+  ) {
+    return _post('calibration/defect-maps/settings', patch);
+  }
+
   /// GET /api/calibration-library — the appliance's master calibration
   /// library (darks/flats/biases/defect maps). Returns the raw master maps
   /// (the server serializes `CalibrationMasterRecord.toJson`); callers read the
@@ -17,9 +42,10 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     final response = await _get('calibration-library', {
       if (type != null && type.isNotEmpty) 'type': type,
     });
-    final raw = response['masters'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+    return _rowsFromJson<Map<String, dynamic>>(
+      response['masters'],
+      (row) => row,
+    );
   }
 
   /// PUT `/api/calibration-library/<type>/<id>/tags` — replace the user tags
@@ -78,6 +104,47 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
     return CalibrationMatchSet.fromJson(response);
   }
 
+  /// POST /api/calibration-library/accept — download a REMOTE shared master
+  /// surfaced by [matchCalibrationMasters] and merge it into the appliance's
+  /// local library (WS1 download-on-accept). [remote] must be a REMOTE record
+  /// (carry `remoteId`); the appliance re-applies the consent + quality gates.
+  /// Returns the raw acceptance outcome (`kind`, plus `mergedId`/`filePath`/
+  /// `existingId`/`reason` as applicable).
+  Future<Map<String, dynamic>> acceptRemoteCalibrationMaster(
+    CalibrationMasterRecord remote,
+  ) async {
+    return _post('calibration-library/accept', remote.toJson());
+  }
+
+  /// POST /api/calibration-library/publish — publish one LOCAL appliance master
+  /// to the configured hub under an explicit [license] + consent (WS1 share).
+  Future<Map<String, dynamic>> publishCalibrationMaster({
+    required String type,
+    required int id,
+    required String license,
+    String? attributionName,
+    double? darkCurrent,
+  }) async {
+    return _post('calibration-library/publish', {
+      'type': type,
+      'id': id,
+      'license': license,
+      if (attributionName != null) 'attributionName': attributionName,
+      if (darkCurrent != null) 'darkCurrent': darkCurrent,
+    });
+  }
+
+  /// POST /api/calibration-library/retract — retract (un-share) one LOCAL
+  /// appliance master the user previously published to the hub (WS1 owner-scoped
+  /// retract). The appliance resolves the hub master id it recorded at publish
+  /// time and issues the owner-scoped delete.
+  Future<Map<String, dynamic>> retractCalibrationMaster({
+    required String type,
+    required int id,
+  }) async {
+    return _post('calibration-library/retract', {'type': type, 'id': id});
+  }
+
   /// GET /api/calibration/darks — filtered listing.
   Future<List<RemoteDarkLibraryEntry>> listDarks({
     double? exposureSeconds,
@@ -107,6 +174,24 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
       throw StateError('Malformed darks/{id} response: missing `dark` field');
     }
     return RemoteDarkLibraryEntry.fromJson(row.cast<String, dynamic>());
+  }
+
+  /// GET `/api/calibration/darks/{id}/download` — stream the on-disk
+  /// dark/master file for entry [id] to [localPath] so a paired device can
+  /// pull a calibration frame off the appliance.
+  Future<void> downloadDark(
+    int id,
+    String localPath, {
+    void Function(double)? onProgress,
+  }) {
+    if (id <= 0) {
+      throw ArgumentError.value(id, 'id', 'must be positive');
+    }
+    return _downloadToFile(
+      'calibration/darks/$id/download',
+      localPath,
+      onProgress: onProgress,
+    );
   }
 
   /// POST /api/calibration/darks — register an already-on-disk file.
@@ -237,6 +322,74 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
       for (final entry in response.entries)
         if (entry.value is num) entry.key: (entry.value as num).toInt(),
     };
+  }
+
+  Future<Map<String, dynamic>> getDarkLibrarySettings() async {
+    return _get('calibration/darks/settings');
+  }
+
+  Future<Map<String, dynamic>> updateDarkLibrarySettings({
+    bool? autoCalibrate,
+    double? temperatureTolerance,
+  }) async {
+    return _post('calibration/darks/settings', {
+      if (autoCalibrate != null) 'autoCalibrate': autoCalibrate,
+      if (temperatureTolerance != null)
+        'temperatureTolerance': temperatureTolerance,
+    });
+  }
+
+  Future<Map<String, dynamic>> createDarkLibraryMaster({
+    required double exposureTime,
+    required int gain,
+    required int offset,
+    required int binX,
+    required int binY,
+    required String outputPath,
+    required String frameType,
+  }) async {
+    return _post('calibration/darks/create-master', {
+      'exposureTime': exposureTime,
+      'gain': gain,
+      'offset': offset,
+      'binX': binX,
+      'binY': binY,
+      'outputPath': outputPath,
+      'frameType': frameType,
+    });
+  }
+
+  Future<int> cleanDarkLibraryOrphans() async {
+    final response = await _post('calibration/darks/clean-orphans');
+    return (response['removed'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<int> clearDarkLibrary({bool deleteFiles = false}) async {
+    final response = await _post('calibration/darks/clear', {
+      'deleteFiles': deleteFiles,
+    });
+    return (response['removed'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<int> deleteDarkLibraryGroup({
+    required double exposureTime,
+    required int gain,
+    required int offset,
+    required int binX,
+    required int binY,
+    required String frameType,
+    bool deleteFiles = false,
+  }) async {
+    final response = await _post('calibration/darks/delete-group', {
+      'exposureTime': exposureTime,
+      'gain': gain,
+      'offset': offset,
+      'binX': binX,
+      'binY': binY,
+      'frameType': frameType,
+      'deleteFiles': deleteFiles,
+    });
+    return (response['removed'] as num?)?.toInt() ?? 0;
   }
 
   /// GET /api/calibration/flats — filtered listing.
@@ -415,14 +568,10 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   /// server knows how to download. Cached server-side for 1 hour.
   Future<List<RemoteAvailableCatalog>> listAvailableCatalogs() async {
     final response = await _get('catalog/available');
-    final raw = response['available'];
-    if (raw is! List) {
-      throw StateError('Malformed /catalog/available response: missing list');
-    }
-    return raw
-        .whereType<Map>()
-        .map((m) => RemoteAvailableCatalog.fromJson(m.cast<String, dynamic>()))
-        .toList(growable: false);
+    return _rowsFromJson(
+      response['available'],
+      RemoteAvailableCatalog.fromJson,
+    );
   }
 
   /// POST /api/catalog/download. Returns the job handle; the actual
@@ -430,7 +579,7 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   /// `catalog`-category events on the WS stream.
   Future<RemoteJob> downloadCatalog(String name) async {
     final response = await _post('catalog/download', {'name': name});
-    return RemoteJob.fromJson(response);
+    return RemoteJob.fromJson(response, fallbackOperation: 'catalog.download');
   }
 
   /// POST /api/catalog/upload. Sends the file body with `name` + `sha256`

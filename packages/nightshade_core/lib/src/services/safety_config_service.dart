@@ -234,9 +234,16 @@ class SafetyConfigStore {
 
   // --- Write path: each setter routes to the field's owning store ----------
 
-  /// Persist the auto-park-on-unsafe policy. This is the single fan-out point
-  /// that writes BOTH the app-settings `park_on_unsafe_weather` policy and the
-  /// weather-side `autoParkEnabled` toggle, exactly as the safety endpoint did.
+  /// Persist the weather-side half of the auto-park-on-unsafe policy
+  /// (`autoParkEnabled` in the WeatherSettings table).
+  ///
+  /// NOT the whole fan-out: the derived [SafetyConfig.autoParkOnUnsafe] is
+  /// `parkOnUnsafeWeather && autoParkEnabled`, and the app-settings
+  /// `park_on_unsafe_weather` half is notifier-owned — the safety endpoint
+  /// (safety_monitor_handlers) writes it via
+  /// `AppSettingsNotifier.setParkOnUnsafeWeather` alongside this call. A
+  /// caller that writes only this half can leave the derived flag off even
+  /// after "enabling" it.
   Future<void> setAutoParkOnUnsafe(bool value) async {
     await _db.weatherSettingsDao.updateSettings(autoParkEnabled: value);
   }

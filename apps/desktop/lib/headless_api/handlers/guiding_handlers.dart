@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
@@ -10,8 +11,18 @@ import '../validation.dart';
 /// Handlers for PHD2 guiding endpoints
 class GuidingHandlers {
   final ProviderContainer container;
+  Future<void>? _phd2StartDrain;
+  bool _phd2StopInFlight = false;
 
   GuidingHandlers(this.container);
+
+  /// Upper bound for a guide-star crop edge (pixels). The built-in guider clamps
+  /// the crop to the frame, but the PHD2 RPC path (`get_star_image`, min 15 /
+  /// default 32) and the returned width×height×2 byte buffer are driven by this
+  /// value — so an unbounded `size` is a memory-abuse vector. 2048 comfortably
+  /// exceeds any real guide-camera sensor edge while capping a single crop at
+  /// ~8 MB of raw pixels.
+  static const int _maxStarImageSize = 2048;
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
@@ -22,9 +33,31 @@ class GuidingHandlers {
     // Probe whether a PHD2 event server is reachable. This runs on the host,
     // so the loopback PHD2 socket (or any host-reachable host:port) the
     // remote client can't touch directly is probed here on its behalf.
-    final host = request.url.queryParameters['host'] ?? 'localhost';
-    final port =
-        int.tryParse(request.url.queryParameters['port'] ?? '') ?? 4400;
+    //
+    // Fail closed on supplied-but-invalid values so a garbage port never gets
+    // silently probed as 4400 (masking the client's typo as a real result).
+    // Validate before the backend read so an invalid request does no work.
+    final query = request.url.queryParameters;
+    final hostParam = query['host'];
+    final String host;
+    if (hostParam == null) {
+      host = 'localhost';
+    } else if (hostParam.trim().isEmpty) {
+      throw BadRequestError(
+        field: 'host',
+        expected: 'string',
+        message: 'host must not be blank',
+      );
+    } else if (hostParam.trim().length > 253) {
+      throw BadRequestError(
+        field: 'host',
+        expected: 'string',
+        message: 'host exceeds maximum length of 253',
+      );
+    } else {
+      host = hostParam.trim();
+    }
+    final port = optionalQueryInt(query, 'port', min: 1, max: 65535) ?? 4400;
 
     final backend = container.read(guidingBackendProvider);
     final running = await backend.isPhd2Running(host: host, port: port);
@@ -34,11 +67,14 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2Connect(Request request) async {
     _logInfo('[API] POST /api/phd2/connect');
+    final payload = await readJsonObject(request);
+    final host = optionalString(payload, 'host', maxLength: 253) ?? 'localhost';
+    final port = optionalInt(payload, 'port', min: 1, max: 65535) ?? 4400;
     // Route through DeviceService so the host auto-launches PHD2 when
     // configured, matching the desktop Equipment → Guider connect path.
     // Raw backend.phd2Connect skips _ensurePhd2Running on the desktop.
     final deviceService = container.read(deviceServiceProvider);
-    await deviceService.connectGuider('phd2_guider');
+    await deviceService.connectGuider(kPhd2CanonicalId, host: host, port: port);
 
     // Mobile companions verify GET /api/phd2/status immediately after POST
     // connect. Block until PHD2 RPC is live so we do not return success early.
@@ -58,7 +94,17 @@ class GuidingHandlers {
   Future<Response> handlePhd2Disconnect(Request request) async {
     _logInfo('[API] POST /api/phd2/disconnect');
     final backend = container.read(guidingBackendProvider);
-    await backend.phd2Disconnect();
+    final status = await readPhd2StatusOrDisconnected(backend);
+    if (_phd2StartDrain != null ||
+        (status.connected && status.state.toLowerCase() != 'stopped')) {
+      await _runPhd2Stop(backend.phd2StopGuiding);
+    }
+    final deviceService = container.read(deviceServiceProvider);
+    try {
+      await deviceService.disconnectGuider();
+    } on DeviceNotConnectedException {
+      await backend.phd2Disconnect();
+    }
 
     publishHostMutationFromContainer(
       container,
@@ -72,15 +118,15 @@ class GuidingHandlers {
   Future<Response> handlePhd2StartGuiding(Request request) async {
     _logInfo('[API] POST /api/phd2/start-guiding');
     final payload = await readJsonObject(request);
-    final settlePixels = optionalDouble(payload, 'settlePixels') ?? 1.0;
-    final settleTime = optionalDouble(payload, 'settleTime') ?? 10.0;
-    final settleTimeout = optionalDouble(payload, 'settleTimeout') ?? 60.0;
+    final settle = _readSettle(payload);
 
     final backend = container.read(guidingBackendProvider);
-    await backend.phd2StartGuiding(
-      settlePixels: settlePixels,
-      settleTime: settleTime,
-      settleTimeout: settleTimeout,
+    await _runPhd2Start(
+      () => backend.phd2StartGuiding(
+        settlePixels: settle.pixels,
+        settleTime: settle.time,
+        settleTimeout: settle.timeout,
+      ),
     );
 
     publishHostMutationFromContainer(
@@ -96,7 +142,7 @@ class GuidingHandlers {
   Future<Response> handlePhd2StopGuiding(Request request) async {
     _logInfo('[API] POST /api/phd2/stop-guiding');
     final backend = container.read(guidingBackendProvider);
-    await backend.phd2StopGuiding();
+    await _runPhd2Stop(backend.phd2StopGuiding);
 
     publishHostMutationFromContainer(
       container,
@@ -112,18 +158,22 @@ class GuidingHandlers {
     _logInfo('[API] POST /api/phd2/dither');
     final payload = await readJsonObject(request);
     final amount = optionalDouble(payload, 'amount') ?? 5.0;
+    if (!amount.isFinite || amount < 0.1 || amount > 100) {
+      throw BadRequestError(
+        field: 'amount',
+        expected: 'finite number from 0.1 to 100',
+      );
+    }
     final raOnly = optionalBool(payload, 'raOnly') ?? false;
-    final settlePixels = optionalDouble(payload, 'settlePixels') ?? 1.0;
-    final settleTime = optionalDouble(payload, 'settleTime') ?? 10.0;
-    final settleTimeout = optionalDouble(payload, 'settleTimeout') ?? 60.0;
+    final settle = _readSettle(payload);
 
     final backend = container.read(guidingBackendProvider);
     await backend.phd2Dither(
       amount: amount,
       raOnly: raOnly,
-      settlePixels: settlePixels,
-      settleTime: settleTime,
-      settleTimeout: settleTimeout,
+      settlePixels: settle.pixels,
+      settleTime: settle.time,
+      settleTimeout: settle.timeout,
     );
 
     return jsonOk({"status": "dithering"});
@@ -222,9 +272,20 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2GetLockPosition(Request request) async {
     final backend = container.read(guidingBackendProvider);
-    final (x, y) = await backend.phd2GetLockPosition();
+    try {
+      final (x, y) = await backend.phd2GetLockPosition();
 
-    return jsonOk({"x": x, "y": y});
+      return jsonOk({"x": x, "y": y});
+    } catch (error) {
+      if (_isPhd2NoLockPosition(error)) {
+        return jsonError(
+          code: 'no_lock_position',
+          message: 'PHD2 has no guide-star lock position.',
+          statusCode: 409,
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<Response> handlePhd2Loop(Request request) async {
@@ -244,11 +305,32 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2GetStarImage(Request request) async {
-    final sizeStr = request.url.queryParameters['size'];
-    final size = sizeStr != null ? int.tryParse(sizeStr) ?? 50 : 50;
+    // Absent → the 50 px default thumbnail. A supplied value must be a positive
+    // whole integer bounded by [_maxStarImageSize]; validate before the backend
+    // read so a malformed size does no work and never reaches the RPC.
+    final size =
+        optionalQueryInt(
+          request.url.queryParameters,
+          'size',
+          min: 1,
+          max: _maxStarImageSize,
+        ) ??
+        50;
 
     final backend = container.read(guidingBackendProvider);
-    final starImage = await backend.phd2GetStarImage(size: size);
+    final Phd2StarImage starImage;
+    try {
+      starImage = await backend.phd2GetStarImage(size: size);
+    } catch (error) {
+      if (_isPhd2NoStarSelected(error)) {
+        return jsonError(
+          code: 'no_star_selected',
+          message: 'PHD2 has no guide star selected.',
+          statusCode: 409,
+        );
+      }
+      rethrow;
+    }
 
     // Return the star image data as JSON with base64-encoded pixels
     return jsonOk({
@@ -259,6 +341,32 @@ class GuidingHandlers {
       "starY": starImage.starY,
       "pixels": base64Encode(starImage.pixels),
     });
+  }
+
+  static bool _isPhd2NoLockPosition(Object error) {
+    if (error is bridge.NightshadeError) {
+      return error.maybeMap(
+        operationFailed: (failure) {
+          final message = failure.field0.toLowerCase();
+          return message.contains('get_lock_position') &&
+              (message.contains('got null') ||
+                  message.contains('missing or non-numeric'));
+        },
+        orElse: () => false,
+      );
+    }
+    return false;
+  }
+
+  static bool _isPhd2NoStarSelected(Object error) {
+    if (error is bridge.NightshadeError) {
+      return error.maybeMap(
+        operationFailed: (failure) =>
+            failure.field0.toLowerCase().contains('no star selected'),
+        orElse: () => false,
+      );
+    }
+    return false;
   }
 
   Future<Response> handlePhd2GetAlgoParamNames(Request request) async {
@@ -323,14 +431,20 @@ class GuidingHandlers {
     _logInfo('[API] POST /api/guider/start-guiding');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
+    final settle = _readSettle(payload);
 
     final backend = container.read(guidingBackendProvider);
-    await backend.guiderStartGuiding(
+    Future<void> start() => backend.guiderStartGuiding(
       deviceId: deviceId,
-      settlePixels: optionalDouble(payload, 'settlePixels') ?? 1.0,
-      settleTime: optionalDouble(payload, 'settleTime') ?? 10.0,
-      settleTimeout: optionalDouble(payload, 'settleTimeout') ?? 60.0,
+      settlePixels: settle.pixels,
+      settleTime: settle.time,
+      settleTimeout: settle.timeout,
     );
+    if (isPhd2DeviceId(deviceId)) {
+      await _runPhd2Start(start);
+    } else {
+      await start();
+    }
 
     return jsonOk({"status": "guiding", "deviceId": deviceId});
   }
@@ -341,7 +455,12 @@ class GuidingHandlers {
     final deviceId = requireString(payload, 'deviceId');
 
     final backend = container.read(guidingBackendProvider);
-    await backend.guiderStopGuiding(deviceId: deviceId);
+    Future<void> stop() => backend.guiderStopGuiding(deviceId: deviceId);
+    if (isPhd2DeviceId(deviceId)) {
+      await _runPhd2Stop(stop);
+    } else {
+      await stop();
+    }
 
     return jsonOk({"status": "stopped", "deviceId": deviceId});
   }
@@ -350,15 +469,23 @@ class GuidingHandlers {
     _logInfo('[API] POST /api/guider/dither');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
+    final amount = optionalDouble(payload, 'amount') ?? 5.0;
+    if (!amount.isFinite || amount < 0.1 || amount > 100) {
+      throw BadRequestError(
+        field: 'amount',
+        expected: 'finite number from 0.1 to 100',
+      );
+    }
+    final settle = _readSettle(payload);
 
     final backend = container.read(guidingBackendProvider);
     await backend.guiderDither(
       deviceId: deviceId,
-      amount: optionalDouble(payload, 'amount') ?? 5.0,
+      amount: amount,
       raOnly: optionalBool(payload, 'raOnly') ?? false,
-      settlePixels: optionalDouble(payload, 'settlePixels') ?? 1.0,
-      settleTime: optionalDouble(payload, 'settleTime') ?? 10.0,
-      settleTimeout: optionalDouble(payload, 'settleTimeout') ?? 60.0,
+      settlePixels: settle.pixels,
+      settleTime: settle.time,
+      settleTimeout: settle.timeout,
     );
 
     return jsonOk({"status": "dithering", "deviceId": deviceId});
@@ -381,7 +508,30 @@ class GuidingHandlers {
     final deviceId = requireString(payload, 'deviceId');
 
     final backend = container.read(guidingBackendProvider);
-    final (x, y) = await backend.guiderFindStar(deviceId: deviceId);
+    final double x;
+    final double y;
+    try {
+      (x, y) = await backend.guiderFindStar(deviceId: deviceId);
+    } catch (e) {
+      // "No guide star found" is an ordinary outcome — a sparse field, clouds,
+      // or a defocused frame — not a server fault. The native layer raises it as
+      // an unstructured `OperationFailed`, which the error translator maps to
+      // `500 internal_error` (observed live against the built-in guider). A 500
+      // tells a remote client the HOST broke and invites a retry storm, so
+      // answer 404 with a code the caller can branch on.
+      if (e.toString().toLowerCase().contains('no guide star found')) {
+        throw HandlerFailure(
+          code: 'guide_star_not_found',
+          message:
+              'No guide star found in the current frame. Check focus, '
+              'exposure length, and that the guide camera is on sky.',
+          statusCode: 404,
+          details: {'deviceId': deviceId},
+          cause: e,
+        );
+      }
+      rethrow;
+    }
 
     return jsonOk({"x": x, "y": y, "deviceId": deviceId});
   }
@@ -405,7 +555,8 @@ class GuidingHandlers {
   }
 
   Future<Response> handleGuiderGetLockPosition(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'];
+    final rawDeviceId = request.url.queryParameters['deviceId'];
+    final deviceId = rawDeviceId?.trim();
     if (deviceId == null || deviceId.isEmpty) {
       throw BadRequestError(
         field: 'deviceId',
@@ -438,7 +589,16 @@ class GuidingHandlers {
         message: "Missing 'deviceId' query parameter",
       );
     }
-    final size = int.tryParse(request.url.queryParameters['size'] ?? '') ?? 50;
+    // Same contract as PHD2 star-image: absent → 50; supplied must be a
+    // positive whole integer bounded by [_maxStarImageSize].
+    final size =
+        optionalQueryInt(
+          request.url.queryParameters,
+          'size',
+          min: 1,
+          max: _maxStarImageSize,
+        ) ??
+        50;
 
     final backend = container.read(guidingBackendProvider);
     final image = await backend.guiderGetStarImage(
@@ -470,5 +630,77 @@ class GuidingHandlers {
     final backend = container.read(guidingBackendProvider);
     await backend.builtinGuiderSetConfig(BuiltinGuiderConfig.fromJson(payload));
     return jsonOk({"status": "ok"});
+  }
+
+  ({double pixels, double time, double timeout}) _readSettle(
+    Map<String, dynamic> payload,
+  ) {
+    final pixels = optionalDouble(payload, 'settlePixels') ?? 1.0;
+    final time = optionalDouble(payload, 'settleTime') ?? 10.0;
+    final requestedTimeout = optionalDouble(payload, 'settleTimeout') ?? 60.0;
+    if (!pixels.isFinite || pixels < 0.05 || pixels > 20) {
+      throw BadRequestError(
+        field: 'settlePixels',
+        expected: 'finite number from 0.05 to 20',
+      );
+    }
+    if (!time.isFinite || time < 0 || time > 120) {
+      throw BadRequestError(
+        field: 'settleTime',
+        expected: 'finite number from 0 to 120',
+      );
+    }
+    if (!requestedTimeout.isFinite ||
+        requestedTimeout < 1 ||
+        requestedTimeout > 600) {
+      throw BadRequestError(
+        field: 'settleTimeout',
+        expected: 'finite number from 1 to 600',
+      );
+    }
+    return (
+      pixels: pixels,
+      time: time,
+      timeout: requestedTimeout < time + 1 ? time + 1 : requestedTimeout,
+    );
+  }
+
+  Future<void> _runPhd2Start(Future<void> Function() start) async {
+    if (_phd2StartDrain != null || _phd2StopInFlight) {
+      throw HandlerFailure(
+        code: 'guiding_command_busy',
+        message: 'Another PHD2 start/stop command is already in progress.',
+        statusCode: 409,
+      );
+    }
+    final operation = Future<void>.sync(start);
+    final drain = operation.then<void>((_) {}, onError: (_, __) {});
+    _phd2StartDrain = drain;
+    try {
+      await operation;
+    } finally {
+      if (identical(_phd2StartDrain, drain)) _phd2StartDrain = null;
+    }
+  }
+
+  Future<void> _runPhd2Stop(Future<void> Function() stop) async {
+    if (_phd2StopInFlight) {
+      throw HandlerFailure(
+        code: 'guiding_command_busy',
+        message: 'A PHD2 stop command is already in progress.',
+        statusCode: 409,
+      );
+    }
+    _phd2StopInFlight = true;
+    try {
+      final start = _phd2StartDrain;
+      await stop();
+      if (start != null) {
+        await start;
+        await stop();
+      }
+    } finally {
+      _phd2StopInFlight = false;
+    }
   }
 }

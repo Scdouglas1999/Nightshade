@@ -51,14 +51,36 @@ void main() {
       expect(decoded.transports, const [NotificationTransportKind.inApp]);
     });
 
-    test('drops unknown transport names quietly', () {
-      final decoded = NotificationRoutingRule.fromJson(const {
-        'transports': ['pushover', 'not_real', 'discord'],
-      });
-      expect(decoded.transports, const [
-        NotificationTransportKind.pushover,
-        NotificationTransportKind.discord,
-      ]);
+    test('rejects unknown and duplicate transport names', () {
+      expect(
+        () => NotificationRoutingRule.fromJson(const {
+          'transports': ['pushover', 'not_real'],
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => NotificationRoutingRule.fromJson(const {
+          'transports': ['discord', 'discord'],
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects invalid severity and negative/fractional limits', () {
+      expect(
+        () => NotificationRoutingRule.fromJson(const {
+          'minSeverity': 'catastrophic',
+        }),
+        throwsFormatException,
+      );
+      expect(
+        () => NotificationRoutingRule.fromJson(const {'maxPerHour': -1}),
+        throwsFormatException,
+      );
+      expect(
+        () => NotificationRoutingRule.fromJson(const {'debounceSeconds': 1.5}),
+        throwsFormatException,
+      );
     });
   });
 

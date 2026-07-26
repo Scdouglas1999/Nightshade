@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -118,34 +119,55 @@ void main() {
         expect(alerts, isEmpty);
       });
 
-      test('returns empty list on HTTP error', () async {
+      test('throws on HTTP error instead of reporting an empty feed', () async {
         when(
           () => mockHttpClient.get(any()),
         ).thenAnswer((_) async => http.Response('Server Error', 500));
 
-        final alerts = await service.fetchAavsoAlerts();
-
-        expect(alerts, isEmpty);
+        await expectLater(
+          service.fetchAavsoAlerts(),
+          throwsA(isA<TransientAlertFetchException>()),
+        );
       });
 
-      test('returns empty list on network failure', () async {
+      test('throws on network failure instead of reporting empty', () async {
         when(
           () => mockHttpClient.get(any()),
         ).thenThrow(http.ClientException('Connection refused'));
 
-        final alerts = await service.fetchAavsoAlerts();
-
-        expect(alerts, isEmpty);
+        await expectLater(
+          service.fetchAavsoAlerts(),
+          throwsA(isA<TransientAlertFetchException>()),
+        );
       });
 
-      test('returns empty list on invalid JSON', () async {
+      test('throws on invalid JSON instead of reporting empty', () async {
         when(
           () => mockHttpClient.get(any()),
         ).thenAnswer((_) async => http.Response('not valid json', 200));
 
-        final alerts = await service.fetchAavsoAlerts();
+        await expectLater(
+          service.fetchAavsoAlerts(),
+          throwsA(isA<TransientAlertFetchException>()),
+        );
+      });
 
-        expect(alerts, isEmpty);
+      test('throws when every returned object is malformed', () async {
+        when(() => mockHttpClient.get(any())).thenAnswer(
+          (_) async => http.Response(
+            jsonEncode({
+              'VSXObjects': [
+                {'Name': 'Missing coordinates'},
+              ],
+            }),
+            200,
+          ),
+        );
+
+        await expectLater(
+          service.fetchAavsoAlerts(),
+          throwsA(isA<TransientAlertFetchException>()),
+        );
       });
 
       test('skips objects with missing required fields', () async {
@@ -172,6 +194,45 @@ void main() {
         expect(alerts, hasLength(1));
         expect(alerts[0].name, equals('Good Star'));
       });
+
+      test('skips non-finite and out-of-range catalog coordinates', () async {
+        final responseBody = createAavsoResponse([
+          createAavsoObject(name: 'Good Star'),
+          createAavsoObject(name: 'RA 24', ra: '24:00:00'),
+          createAavsoObject(name: 'Bad RA minutes', ra: '12:60:00'),
+          createAavsoObject(name: 'NaN RA', ra: 'NaN'),
+          createAavsoObject(name: 'Dec 91', dec: '+91:00:00'),
+          createAavsoObject(name: 'Bad Dec minutes', dec: '+45:60:00'),
+          createAavsoObject(name: 'Past pole', dec: '+90:00:01'),
+        ]);
+
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(responseBody, 200));
+
+        final alerts = await service.fetchAavsoAlerts();
+
+        expect(alerts.map((alert) => alert.name), ['Good Star']);
+      });
+
+      test(
+        'drops non-finite magnitudes instead of poisoning filters',
+        () async {
+          final responseBody = createAavsoResponse([
+            createAavsoObject(maxMag: 'NaN', minMag: 'Infinity'),
+          ]);
+
+          when(
+            () => mockHttpClient.get(any()),
+          ).thenAnswer((_) async => http.Response(responseBody, 200));
+
+          final alerts = await service.fetchAavsoAlerts();
+
+          expect(alerts, hasLength(1));
+          expect(alerts.single.magnitude, isNull);
+          expect(alerts.single.peakMagnitude, isNull);
+        },
+      );
 
       test('maps AAVSO variable types correctly', () async {
         final responseBody = createAavsoResponse([
@@ -322,10 +383,8 @@ void main() {
           () => mockHttpClient.get(any()),
         ).thenAnswer((_) async => http.Response(responseBody, 200));
 
-        // Settings that disable AAVSO
-        const settings = TransientAlertSettings(
-          enabledSources: {TransientSource.tns}, // Only TNS, not AAVSO
-        );
+        // No implemented source is enabled, so no upstream request is made.
+        const settings = TransientAlertSettings(enabledSources: {});
 
         final alerts = await service.getAllAlerts(settings);
 
@@ -602,6 +661,181 @@ void main() {
 
         // Should return empty list with empty API key
         expect(alerts, isEmpty);
+      });
+
+      test('rejects a key without the required bot identity', () async {
+        await expectLater(
+          service.fetchTnsAlerts(apiKey: 'secret'),
+          throwsA(isA<TransientAlertFetchException>()),
+        );
+      });
+
+      test(
+        'throws when an authenticated search response is malformed',
+        () async {
+          final client = MockClient(
+            (_) async => http.Response(jsonEncode({'data': {}}), 200),
+          );
+          final realService = TransientAlertService(
+            httpClient: client,
+            logger: mockLogger,
+          );
+          addTearDown(realService.dispose);
+
+          await expectLater(
+            realService.fetchTnsAlerts(
+              apiKey: 'secret',
+              botId: 42,
+              botName: 'Nightshade Bot',
+            ),
+            throwsA(isA<TransientAlertFetchException>()),
+          );
+        },
+      );
+
+      test('an enabled TNS-only feed requires configuration', () async {
+        await expectLater(
+          service.getAllAlerts(
+            const TransientAlertSettings(enabledSources: {TransientSource.tns}),
+          ),
+          throwsA(isA<TransientAlertFetchException>()),
+        );
+        expect(service.isCacheValid, isFalse);
+      });
+
+      test(
+        'retains AAVSO results when an independent TNS source fails',
+        () async {
+          when(() => mockHttpClient.get(any())).thenAnswer(
+            (_) async => http.Response(
+              createAavsoResponse([createAavsoObject(name: 'AAVSO survivor')]),
+              200,
+            ),
+          );
+
+          final alerts = await service.getAllAlerts(
+            const TransientAlertSettings(
+              enabledSources: {TransientSource.aavso, TransientSource.tns},
+            ),
+          );
+
+          expect(alerts.map((alert) => alert.name), ['AAVSO survivor']);
+        },
+      );
+
+      test('uses the official Search then Get Object wire contract', () async {
+        final requests = <http.Request>[];
+        final client = MockClient((request) async {
+          requests.add(request);
+          if (request.url.path.endsWith('/get/search')) {
+            return http.Response(
+              jsonEncode({
+                'id_code': 200,
+                'data': {
+                  'reply': [
+                    {'objname': '2026abc', 'prefix': 'SN', 'objid': 91},
+                  ],
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/get/object')) {
+            return http.Response(
+              jsonEncode({
+                'id_code': 200,
+                'data': {
+                  'reply': {
+                    'objid': 91,
+                    'objname': '2026abc',
+                    'name_prefix': 'SN',
+                    'ra': '12:30:00.0',
+                    'dec': '-20:15:00.0',
+                    'discoverydate': '2026-07-10 03:04:05.000',
+                    'lastmodified': '2026-07-11 05:00:00.000',
+                    'discoverymag': 13.4,
+                    'object_type': {'id': 3, 'name': 'SN Ia'},
+                  },
+                },
+              }),
+              200,
+            );
+          }
+          return http.Response('not found', 404);
+        });
+        final realService = TransientAlertService(
+          httpClient: client,
+          logger: mockLogger,
+        );
+        addTearDown(realService.dispose);
+
+        final alerts = await realService.fetchTnsAlerts(
+          apiKey: 'secret',
+          botId: 42,
+          botName: 'Nightshade Bot',
+        );
+
+        expect(alerts, hasLength(1));
+        expect(alerts.single.id, 'tns_91');
+        expect(alerts.single.name, 'SN2026abc');
+        expect(alerts.single.type, TransientType.supernova);
+        expect(alerts.single.raHours, 12.5);
+        expect(alerts.single.decDegrees, -20.25);
+        expect(requests, hasLength(2));
+        expect(
+          requests.first.headers['user-agent'],
+          contains('tns_marker{"tns_id":42'),
+        );
+        final searchData =
+            jsonDecode(requests.first.bodyFields['data']!)
+                as Map<String, dynamic>;
+        expect(searchData['discovered_period_value'], '30');
+        final objectData =
+            jsonDecode(requests.last.bodyFields['data']!)
+                as Map<String, dynamic>;
+        expect(objectData['objname'], '2026abc');
+      });
+
+      test('enabling TNS does not reuse an AAVSO-only cache', () async {
+        var aavsoCalls = 0;
+        var tnsSearchCalls = 0;
+        final client = MockClient((request) async {
+          if (request.method == 'GET') {
+            aavsoCalls++;
+            return http.Response(jsonEncode({'VSXObjects': []}), 200);
+          }
+          if (request.url.path.endsWith('/get/search')) {
+            tnsSearchCalls++;
+            return http.Response(
+              jsonEncode({
+                'id_code': 200,
+                'data': {'reply': []},
+              }),
+              200,
+            );
+          }
+          return http.Response('not found', 404);
+        });
+        final realService = TransientAlertService(
+          httpClient: client,
+          logger: mockLogger,
+        );
+        addTearDown(realService.dispose);
+
+        await realService.getAllAlerts(
+          const TransientAlertSettings(enabledSources: {TransientSource.aavso}),
+        );
+        await realService.getAllAlerts(
+          const TransientAlertSettings(
+            enabledSources: {TransientSource.tns},
+            tnsApiKey: 'secret',
+          ),
+          tnsBotId: 42,
+          tnsBotName: 'Nightshade Bot',
+        );
+
+        expect(aavsoCalls, 1);
+        expect(tnsSearchCalls, 1);
       });
     });
   });

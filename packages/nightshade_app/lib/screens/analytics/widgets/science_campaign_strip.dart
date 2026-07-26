@@ -18,7 +18,10 @@ class ScienceCampaignStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final sessionId = ref.watch(sessionStateProvider).dbSessionId;
+    final active = ref.watch(sessionStateProvider).dbSessionId;
+    final sessions = ref.watch(allSessionsProvider).valueOrNull;
+    final sessionId = active ??
+        ((sessions == null || sessions.isEmpty) ? null : sessions.first.id);
     final targetId = sessionId == null
         ? null
         : ref.watch(scienceSessionTargetIdProvider(sessionId)).valueOrNull;

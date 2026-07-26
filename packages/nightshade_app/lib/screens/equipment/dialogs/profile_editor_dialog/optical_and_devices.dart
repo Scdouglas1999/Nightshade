@@ -206,6 +206,12 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
     final coverCalibrators =
         discovery.getDevicesByType(DeviceType.coverCalibrator);
 
+    // Fire-and-forget backend scan; the watch on unifiedDiscoveryProvider above
+    // rebuilds this section (and its dropdowns) when results arrive.
+    void onScan() {
+      ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
+    }
+
     return _SectionCard(
       title: 'Devices',
       icon: LucideIcons.plugZap,
@@ -236,6 +242,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _cameraId = null;
               _cameraNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -257,6 +264,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _mountId = null;
               _mountNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -278,6 +286,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _focuserId = null;
               _focuserNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -299,6 +308,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _filterWheelId = null;
               _filterWheelNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -320,6 +330,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _guiderId = null;
               _guiderNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -341,6 +352,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _rotatorId = null;
               _rotatorNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -348,19 +360,16 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           _DeviceRow(
             type: 'Dome',
             icon: LucideIcons.home,
-            nameController: _domeNameController,
+            nameController: null,
             deviceId: _domeId,
             discoveredDevices: domes,
             onDeviceSelected: (id, name) => setState(() {
               _domeId = id;
-              if (name != null && _domeNameController.text.isEmpty) {
-                _domeNameController.text = name;
-              }
             }),
             onClear: () => setState(() {
               _domeId = null;
-              _domeNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -368,19 +377,16 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           _DeviceRow(
             type: 'Weather',
             icon: LucideIcons.cloud,
-            nameController: _weatherNameController,
+            nameController: null,
             deviceId: _weatherId,
             discoveredDevices: weatherStations,
             onDeviceSelected: (id, name) => setState(() {
               _weatherId = id;
-              if (name != null && _weatherNameController.text.isEmpty) {
-                _weatherNameController.text = name;
-              }
             }),
             onClear: () => setState(() {
               _weatherId = null;
-              _weatherNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -401,6 +407,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _safetyMonitorId = null;
               _safetyMonitorNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -421,6 +428,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
               _switchId = null;
               _switchNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 12),
@@ -428,19 +436,16 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           _DeviceRow(
             type: 'Cover / Calibrator',
             icon: LucideIcons.sunMedium,
-            nameController: _coverCalibratorNameController,
+            nameController: null,
             deviceId: _coverCalibratorId,
             discoveredDevices: coverCalibrators,
             onDeviceSelected: (id, name) => setState(() {
               _coverCalibratorId = id;
-              if (name != null && _coverCalibratorNameController.text.isEmpty) {
-                _coverCalibratorNameController.text = name;
-              }
             }),
             onClear: () => setState(() {
               _coverCalibratorId = null;
-              _coverCalibratorNameController.clear();
             }),
+            onScan: onScan,
             colors: colors,
           ),
           const SizedBox(height: 16),

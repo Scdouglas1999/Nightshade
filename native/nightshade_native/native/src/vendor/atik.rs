@@ -11,6 +11,7 @@ use crate::sync::atik_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError, NativeFilterWheel};
 use crate::NativeVendor;
 use async_trait::async_trait;
+use std::collections::HashMap;
 use std::ffi::{c_char, c_float, c_int, c_void, CStr};
 use std::sync::{Mutex, OnceLock};
 
@@ -103,6 +104,9 @@ const ARTEMIS_COLOUR_RGGB: c_int = 2;
 // =============================================================================
 
 type ArtemisDeviceCount = unsafe extern "C" fn() -> c_int;
+// Forces a fresh device re-enumeration and returns the count. Absent on older
+// SDK builds, so it is loaded optionally.
+type ArtemisRefreshDevicesCount = unsafe extern "C" fn() -> c_int;
 type ArtemisDevicePresent = unsafe extern "C" fn(device: c_int) -> c_int;
 type ArtemisDeviceName = unsafe extern "C" fn(device: c_int, name: *mut c_char) -> c_int;
 type ArtemisDeviceSerial = unsafe extern "C" fn(device: c_int, serial: *mut c_char) -> c_int;
@@ -186,6 +190,7 @@ type ArtemisEightBitMode = unsafe extern "C" fn(handle: ArtemisHandle, eightbit:
 struct AtikSdk {
     _library: libloading::Library,
     device_count: ArtemisDeviceCount,
+    refresh_devices_count: Option<ArtemisRefreshDevicesCount>,
     device_present: ArtemisDevicePresent,
     device_name: ArtemisDeviceName,
     device_serial: ArtemisDeviceSerial,
@@ -287,6 +292,12 @@ impl AtikSdk {
                     .map_err(|e| {
                         NativeError::SdkError(format!("Failed to load ArtemisDeviceCount: {}", e))
                     })?,
+                // Optional: absent on older SDK builds → discovery falls back to
+                // the passive ArtemisDeviceCount.
+                refresh_devices_count: library
+                    .get::<ArtemisRefreshDevicesCount>(b"ArtemisRefreshDevicesCount\0")
+                    .ok()
+                    .map(|s| *s),
                 device_present: *library
                     .get::<ArtemisDevicePresent>(b"ArtemisDevicePresent\0")
                     .map_err(|e| {
@@ -517,6 +528,84 @@ fn atik_efw_type_name(efw_type: c_int) -> String {
     }
 }
 
+static DISCOVERED_CAMERA_SERIALS: OnceLock<Mutex<HashMap<c_int, String>>> = OnceLock::new();
+static DISCOVERED_EFW_SERIALS: OnceLock<Mutex<HashMap<c_int, String>>> = OnceLock::new();
+
+fn discovered_camera_serials() -> &'static Mutex<HashMap<c_int, String>> {
+    DISCOVERED_CAMERA_SERIALS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn discovered_efw_serials() -> &'static Mutex<HashMap<c_int, String>> {
+    DISCOVERED_EFW_SERIALS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn camera_index_for_serial(sdk: &AtikSdk, serial_number: &str) -> Result<c_int, NativeError> {
+    // SAFETY: caller holds atik_mutex; refresh/device-count take no arguments.
+    let count = match sdk.refresh_devices_count {
+        Some(refresh) => unsafe { refresh() },
+        None => unsafe { (sdk.device_count)() },
+    };
+
+    for index in 0..count {
+        // SAFETY: caller holds atik_mutex; index is inside the SDK enumeration range.
+        if unsafe { (sdk.device_present)(index) } == 0
+            || unsafe { (sdk.device_is_camera)(index) } == 0
+        {
+            continue;
+        }
+
+        let mut serial_buf = [0 as c_char; 100];
+        // SAFETY: caller holds atik_mutex; index is present and serial_buf is a valid
+        // 100-byte output buffer.
+        if unsafe { (sdk.device_serial)(index, serial_buf.as_mut_ptr()) } == 0 {
+            continue;
+        }
+        // SAFETY: ArtemisDeviceSerial guarantees NUL-termination on success.
+        let current_serial = unsafe { CStr::from_ptr(serial_buf.as_ptr()) }.to_string_lossy();
+        if current_serial == serial_number {
+            return Ok(index);
+        }
+    }
+
+    Err(NativeError::DeviceNotFound(format!(
+        "Atik camera serial {}",
+        serial_number
+    )))
+}
+
+fn efw_index_for_serial(sdk: &AtikSdk, serial_number: &str) -> Result<c_int, NativeError> {
+    let efw_is_present = sdk.efw_is_present.unwrap();
+    let efw_get_device_details = sdk.efw_get_device_details.unwrap();
+
+    // SAFETY: caller holds atik_mutex; ArtemisDeviceCount takes no arguments.
+    let count = unsafe { (sdk.device_count)() };
+    for index in 0..count {
+        // SAFETY: caller holds atik_mutex; index is inside the SDK enumeration range.
+        if unsafe { efw_is_present(index) } == 0 {
+            continue;
+        }
+
+        let mut efw_type: c_int = 0;
+        let mut serial_buf = [0 as c_char; 100];
+        // SAFETY: caller holds atik_mutex; index is present and both out-pointers are valid.
+        if unsafe { efw_get_device_details(index, &mut efw_type, serial_buf.as_mut_ptr()) }
+            != ArtemisError::Ok as c_int
+        {
+            continue;
+        }
+        // SAFETY: ArtemisEFWGetDeviceDetails documents a 100-byte, NUL-terminated serial.
+        let current_serial = unsafe { CStr::from_ptr(serial_buf.as_ptr()) }.to_string_lossy();
+        if current_serial == serial_number {
+            return Ok(index);
+        }
+    }
+
+    Err(NativeError::DeviceNotFound(format!(
+        "Atik EFW serial {}",
+        serial_number
+    )))
+}
+
 // =============================================================================
 // Discovery
 // =============================================================================
@@ -550,13 +639,21 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
     // Acquire global SDK mutex for thread safety
     let _lock = atik_mutex().lock().await;
 
-    // SAFETY: atik_mutex held above ensuring single-threaded SDK access; ArtemisDeviceCount
-    // takes no arguments and returns a c_int — no pointers involved.
-    // SAFETY: atik_mutex held; ArtemisDeviceCount takes no arguments and is
-    // safe to call whenever the SDK library is loaded.
-    let count = unsafe { (sdk.device_count)() };
+    // Prefer ArtemisRefreshDevicesCount: it forces a synchronous re-enumeration,
+    // so a camera that hasn't finished USB enumeration on a cold scan (the Atik
+    // SDK can report 0 for a brief window right after the library loads) is picked
+    // up on the FIRST scan instead of needing a manual rescan. Falls back to the
+    // passive ArtemisDeviceCount on older SDKs. This is the correct fix over a
+    // blanket retry-sleep, which would slow discovery for the common no-Atik case.
+    // SAFETY: atik_mutex held above ensuring single-threaded SDK access; both
+    // entry points take no arguments and return a c_int (no pointers involved).
+    let count = match sdk.refresh_devices_count {
+        Some(refresh) => unsafe { refresh() },
+        None => unsafe { (sdk.device_count)() },
+    };
     let sdk_version = sdk_version_from_sdk(sdk);
     let mut devices = Vec::new();
+    let mut serials_by_index = HashMap::new();
 
     for i in 0..count {
         // SAFETY: atik_mutex held; `i` is in `0..count` returned by the SDK above, so it is a
@@ -604,6 +701,9 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
             None
         };
 
+        if let Some(ref serial_number) = serial {
+            serials_by_index.insert(i, serial_number.clone());
+        }
         devices.push(AtikDiscoveryInfo {
             device_index: i,
             name,
@@ -611,6 +711,10 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
             sdk_version: sdk_version.clone(),
         });
     }
+
+    *discovered_camera_serials()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = serials_by_index;
 
     Ok(devices)
 }
@@ -640,6 +744,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<AtikFilterWheelDiscoveryInfo
     // safe to call whenever the SDK library is loaded.
     let count = unsafe { (sdk.device_count)() };
     let mut devices = Vec::new();
+    let mut serials_by_index = HashMap::new();
 
     for i in 0..count {
         // SAFETY: atik_mutex held; `i` is in the bounded SDK enumeration range.
@@ -674,6 +779,9 @@ pub async fn discover_filter_wheels() -> Result<Vec<AtikFilterWheelDiscoveryInfo
             }
         };
 
+        if let Some(ref serial_number) = serial {
+            serials_by_index.insert(i, serial_number.clone());
+        }
         devices.push(AtikFilterWheelDiscoveryInfo {
             device_index: i,
             name: atik_efw_type_name(efw_type),
@@ -682,6 +790,10 @@ pub async fn discover_filter_wheels() -> Result<Vec<AtikFilterWheelDiscoveryInfo
             efw_type,
         });
     }
+
+    *discovered_efw_serials()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = serials_by_index;
 
     Ok(devices)
 }
@@ -721,6 +833,7 @@ pub fn sdk_version() -> Option<String> {
 /// Atik camera native driver
 pub struct AtikCamera {
     device_index: i32,
+    serial_number: Option<String>,
     device_id: String,
     name: String,
     handle: Mutex<HandleWrapper>,
@@ -746,6 +859,7 @@ impl std::fmt::Debug for AtikCamera {
             .field("device_id", &self.device_id)
             .field("name", &self.name)
             .field("device_index", &self.device_index)
+            .field("serial_number", &self.serial_number)
             .finish()
     }
 }
@@ -753,8 +867,14 @@ impl std::fmt::Debug for AtikCamera {
 impl AtikCamera {
     /// Create a new Atik camera instance
     pub fn new(device_index: i32) -> Self {
+        let serial_number = discovered_camera_serials()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&device_index)
+            .cloned();
         Self {
             device_index,
+            serial_number,
             device_id: format!("atik_{}", device_index),
             name: format!("Atik Camera {}", device_index),
             handle: Mutex::new(HandleWrapper(std::ptr::null_mut())),
@@ -802,40 +922,44 @@ impl NativeDevice for AtikCamera {
         // Acquire global SDK mutex for thread safety
         let _lock = atik_mutex().lock().await;
 
-        // Connect to camera
-        // SAFETY: atik_mutex held above ensuring exclusive Atik SDK access; self.device_index
-        // came from a prior discover_devices() call where ArtemisDevicePresent confirmed it.
-        // ArtemisConnect returns a handle that we null-check immediately below.
-        let new_handle = unsafe { (sdk.connect)(self.device_index) };
-        if new_handle.is_null() {
-            tracing::error!(
-                "Atik ArtemisConnect() returned NULL for device index {}. Check USB connection.",
+        let serial_number = self.serial_number.as_deref().ok_or_else(|| {
+            NativeError::DeviceNotFound(format!(
+                "No discovery serial recorded for Atik camera index {}",
                 self.device_index
+            ))
+        })?;
+        let device_index = camera_index_for_serial(sdk, serial_number)?;
+
+        // Connect to camera
+        // SAFETY: atik_mutex held above ensuring exclusive Atik SDK access; device_index was
+        // resolved from the discovery-time serial against the current SDK enumeration.
+        // ArtemisConnect returns a handle that we null-check immediately below.
+        let handle = unsafe { (sdk.connect)(device_index) };
+        if handle.is_null() {
+            tracing::error!(
+                "Atik ArtemisConnect() returned NULL for camera serial {} at current index {}. Check USB connection.",
+                serial_number,
+                device_index
             );
             return Err(NativeError::SdkError(format!(
-                "Failed to connect to Atik camera at index {}. SDK returned NULL handle. Ensure camera is connected and not in use.",
-                self.device_index
+                "Failed to connect to Atik camera serial {}. SDK returned NULL handle. Ensure camera is connected and not in use.",
+                serial_number
             )));
         }
 
-        // Store handle
-        {
-            let mut handle = self.handle.lock().unwrap_or_else(|e| e.into_inner());
-            *handle = HandleWrapper(new_handle);
-        }
-
         // Check connection
-        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
         // SAFETY: atik_mutex held; `handle` is the non-null pointer returned by ArtemisConnect
         // above (null check passed); ArtemisIsConnected only reads the handle's internal flag.
         if unsafe { (sdk.is_connected)(handle) } == 0 {
             tracing::error!(
-                "Atik camera at index {} - ArtemisIsConnected() returned false after successful connect.",
-                self.device_index
+                "Atik camera serial {} - ArtemisIsConnected() returned false after successful connect.",
+                serial_number
             );
+            // SAFETY: atik_mutex held; handle was successfully opened above.
+            unsafe { (sdk.disconnect)(handle) };
             return Err(NativeError::SdkError(format!(
-                "Atik camera connection verification failed for index {}. Device may have disconnected.",
-                self.device_index
+                "Atik camera connection verification failed for serial {}. Device may have disconnected.",
+                serial_number
             )));
         }
 
@@ -925,18 +1049,29 @@ impl NativeDevice for AtikCamera {
         // Why: `props.pixels_x` / `props.pixels_y` are `c_int` (i32) populated by ArtemisProperties.
         // A negative value would be a malformed SDK response, not a real sensor; we surface
         // it as an SdkError rather than silently re-interpreting the bit pattern via `as u32`.
-        let pixels_x_u32 = u32::try_from(props.pixels_x).map_err(|_| {
-            NativeError::SdkError(format!(
-                "Atik reported invalid sensor width: pixels_x={}",
-                props.pixels_x
-            ))
-        })?;
-        let pixels_y_u32 = u32::try_from(props.pixels_y).map_err(|_| {
-            NativeError::SdkError(format!(
-                "Atik reported invalid sensor height: pixels_y={}",
-                props.pixels_y
-            ))
-        })?;
+        let sensor_dimensions: Result<(u32, u32), NativeError> = (|| {
+            let width = u32::try_from(props.pixels_x).map_err(|_| {
+                NativeError::SdkError(format!(
+                    "Atik reported invalid sensor width: pixels_x={}",
+                    props.pixels_x
+                ))
+            })?;
+            let height = u32::try_from(props.pixels_y).map_err(|_| {
+                NativeError::SdkError(format!(
+                    "Atik reported invalid sensor height: pixels_y={}",
+                    props.pixels_y
+                ))
+            })?;
+            Ok((width, height))
+        })();
+        let (pixels_x_u32, pixels_y_u32) = match sensor_dimensions {
+            Ok(dimensions) => dimensions,
+            Err(error) => {
+                // SAFETY: atik_mutex held; handle was successfully opened above.
+                unsafe { (sdk.disconnect)(handle) };
+                return Err(error);
+            }
+        };
         self.sensor_info = SensorInfo {
             width: pixels_x_u32,
             height: pixels_y_u32,
@@ -976,6 +1111,11 @@ impl NativeDevice for AtikCamera {
             self.current_offset = offset;
         }
 
+        {
+            let mut stored_handle = self.handle.lock().unwrap_or_else(|e| e.into_inner());
+            *stored_handle = HandleWrapper(handle);
+        }
+        self.device_index = device_index;
         self.connected = true;
         self.state = CameraState::Idle;
 
@@ -1159,10 +1299,16 @@ impl NativeCamera for AtikCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Set dark mode (normal mode by default - dark frames handled at higher level)
+        let dark_mode = if params.frame_type.opens_shutter() {
+            0
+        } else {
+            1
+        };
+        // Dark, bias, and dark-flat frames must keep a mechanical shutter closed.
         // SAFETY: atik_mutex held; self.connected was true (checked at entry); handle is valid;
         // ArtemisSetDarkMode takes pass-by-value c_int with no out-pointers.
-        let _ = unsafe { (sdk.set_dark_mode)(handle, 0) };
+        let result = unsafe { (sdk.set_dark_mode)(handle, dark_mode) };
+        check_artemis_error(result, "set dark mode")?;
 
         // Start exposure
         // SAFETY: atik_mutex held; handle is valid (connected=true); duration is pass-by-value
@@ -1696,6 +1842,7 @@ impl NativeCamera for AtikCamera {
 /// Atik standalone EFW filter wheel native driver.
 pub struct AtikFilterWheel {
     device_index: c_int,
+    serial_number: Option<String>,
     device_id: String,
     name: String,
     handle: Mutex<HandleWrapper>,
@@ -1707,6 +1854,7 @@ impl std::fmt::Debug for AtikFilterWheel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AtikFilterWheel")
             .field("device_index", &self.device_index)
+            .field("serial_number", &self.serial_number)
             .field("name", &self.name)
             .field("connected", &self.connected)
             .field("filter_count", &self.filter_count)
@@ -1717,8 +1865,14 @@ impl std::fmt::Debug for AtikFilterWheel {
 impl AtikFilterWheel {
     /// Create a new Atik EFW filter wheel instance from a discovery index.
     pub fn new(device_index: i32) -> Self {
+        let serial_number = discovered_efw_serials()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&device_index)
+            .cloned();
         Self {
             device_index,
+            serial_number,
             device_id: format!("atik_efw_{}", device_index),
             name: format!("Atik EFW {}", device_index),
             handle: Mutex::new(HandleWrapper(std::ptr::null_mut())),
@@ -1755,26 +1909,37 @@ impl NativeDevice for AtikFilterWheel {
         require_efw_api(sdk)?;
         let efw_connect = sdk.efw_connect.unwrap();
         let efw_is_connected = sdk.efw_is_connected.unwrap();
+        let efw_disconnect = sdk.efw_disconnect.unwrap();
         let efw_nmr_position = sdk.efw_nmr_position.unwrap();
         let efw_get_device_details = sdk.efw_get_device_details.unwrap();
 
         let _lock = atik_mutex().lock().await;
 
-        // SAFETY: atik_mutex held; device_index comes from Atik EFW discovery or caller input;
-        // NULL is checked below.
-        let handle = unsafe { efw_connect(self.device_index) };
+        let serial_number = self.serial_number.as_deref().ok_or_else(|| {
+            NativeError::DeviceNotFound(format!(
+                "No discovery serial recorded for Atik EFW index {}",
+                self.device_index
+            ))
+        })?;
+        let device_index = efw_index_for_serial(sdk, serial_number)?;
+
+        // SAFETY: atik_mutex held; device_index was resolved from the discovery-time serial
+        // against the current SDK enumeration; NULL is checked below.
+        let handle = unsafe { efw_connect(device_index) };
         if handle.is_null() {
             return Err(NativeError::SdkError(format!(
-                "Failed to connect to Atik EFW at index {}",
-                self.device_index
+                "Failed to connect to Atik EFW serial {}",
+                serial_number
             )));
         }
 
         // SAFETY: handle was just returned by ArtemisEFWConnect and checked non-null.
         if !unsafe { efw_is_connected(handle) } {
+            // SAFETY: atik_mutex held; handle was successfully opened above.
+            unsafe { efw_disconnect(handle) };
             return Err(NativeError::SdkError(format!(
-                "Atik EFW index {} did not report connected after connect",
-                self.device_index
+                "Atik EFW serial {} did not report connected after connect",
+                serial_number
             )));
         }
 
@@ -1782,24 +1947,27 @@ impl NativeDevice for AtikFilterWheel {
         let mut serial_buf = [0 as c_char; 100];
         // SAFETY: atik_mutex held; out-pointers are valid. Failure is non-fatal for connect:
         // the wheel handle is already valid, and type/name are display metadata.
-        if unsafe {
-            efw_get_device_details(self.device_index, &mut efw_type, serial_buf.as_mut_ptr())
-        } == ArtemisError::Ok as c_int
+        if unsafe { efw_get_device_details(device_index, &mut efw_type, serial_buf.as_mut_ptr()) }
+            == ArtemisError::Ok as c_int
         {
             self.name = atik_efw_type_name(efw_type);
         }
 
         let mut filter_count: c_int = 0;
         // SAFETY: atik_mutex held; handle is connected and `filter_count` is a valid out-pointer.
-        check_artemis_error(
-            // SAFETY: atik_mutex held; handle is connected, out-pointer valid.
-            unsafe { efw_nmr_position(handle, &mut filter_count) },
-            "get EFW filter count",
-        )?;
+        // SAFETY: atik_mutex held; handle is connected, out-pointer valid.
+        let result = unsafe { efw_nmr_position(handle, &mut filter_count) };
+        if let Err(error) = check_artemis_error(result, "get EFW filter count") {
+            // SAFETY: atik_mutex held; handle was successfully opened above.
+            unsafe { efw_disconnect(handle) };
+            return Err(error);
+        }
         if filter_count <= 0 {
+            // SAFETY: atik_mutex held; handle was successfully opened above.
+            unsafe { efw_disconnect(handle) };
             return Err(NativeError::SdkError(format!(
-                "Atik EFW index {} reported invalid filter count {}",
-                self.device_index, filter_count
+                "Atik EFW serial {} reported invalid filter count {}",
+                serial_number, filter_count
             )));
         }
 
@@ -1807,6 +1975,7 @@ impl NativeDevice for AtikFilterWheel {
             let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
             *h = HandleWrapper(handle);
         }
+        self.device_index = device_index;
         self.filter_count = filter_count;
         self.connected = true;
         Ok(())

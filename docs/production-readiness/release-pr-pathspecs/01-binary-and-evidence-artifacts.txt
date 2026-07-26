@@ -1,1 +1,0 @@
-docs/design/goldens/surface-run-session-progress.png

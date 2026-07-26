@@ -16,8 +16,11 @@
 // slider: the load-bearing behavior of C9 is the *range wiring*, and asserting
 // on the widget's resolved min/max is a direct, non-flaky check of exactly that.
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/imaging/widgets/camera_panel.dart';
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -40,6 +43,14 @@ class _ConnectedCameraNotifier extends CameraStateNotifier {
       temperature: -5.0,
     );
   }
+}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void switchTo(NightshadeBackend backend) => state = backend;
 }
 
 /// Locate the target-temperature [SliderRowInteractive] (the only slider the
@@ -172,5 +183,198 @@ void main() {
         reason:
             'Read Mode row must be hidden entirely when the camera reports no '
             'readout modes (hide-when-unsupported pattern).');
+  });
+
+  testWidgets('read mode selection persists only when the driver accepts it',
+      (tester) async {
+    final backend = mockBackend();
+    when(
+      () => backend.cameraSetReadoutMode(_kDeviceId, 1),
+    ).thenAnswer((_) async {});
+    final handle = await pumpAppScreen(
+      tester,
+      const CameraPanel(colors: NightshadeColors.dark),
+      backend: backend,
+      extraOverrides: _overrides(
+        _caps(readoutModes: const ['Mode A', 'Mode B']),
+      ),
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+
+    final row = tester
+        .widgetList<DropdownRow>(find.byType(DropdownRow))
+        .singleWhere((widget) => widget.label == 'Read Mode');
+    row.onChanged!('Mode B');
+    await tester.pump();
+
+    verify(() => backend.cameraSetReadoutMode(_kDeviceId, 1)).called(1);
+    final settings = handle.container.read(exposureSettingsProvider);
+    expect(settings.readoutModeIndex, 1);
+    expect(settings.fastReadout, isTrue);
+    expect(
+      handle.container.read(exposureSettingsUserDirtyProvider),
+      isTrue,
+    );
+  });
+
+  testWidgets('rejected read mode rolls settings back and surfaces the error',
+      (tester) async {
+    final backend = mockBackend();
+    when(
+      () => backend.cameraSetReadoutMode(_kDeviceId, 1),
+    ).thenThrow(Exception('unsupported mode'));
+    final handle = await pumpAppScreen(
+      tester,
+      const CameraPanel(colors: NightshadeColors.dark),
+      backend: backend,
+      extraOverrides: _overrides(
+        _caps(readoutModes: const ['Mode A', 'Mode B']),
+      ),
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+
+    final row = tester
+        .widgetList<DropdownRow>(find.byType(DropdownRow))
+        .singleWhere((widget) => widget.label == 'Read Mode');
+    row.onChanged!('Mode B');
+    await tester.pump();
+
+    final settings = handle.container.read(exposureSettingsProvider);
+    expect(settings.readoutModeIndex, isNull);
+    expect(settings.fastReadout, isFalse);
+    expect(
+      handle.container.read(exposureSettingsUserDirtyProvider),
+      isFalse,
+    );
+    expect(find.textContaining('Failed to set read mode'), findsOneWidget);
+  });
+
+  testWidgets('stale saved read mode is shown as unselected, not remapped',
+      (tester) async {
+    final handle = await pumpAppScreen(
+      tester,
+      const CameraPanel(colors: NightshadeColors.dark),
+      extraOverrides: [
+        ..._overrides(_caps(readoutModes: const ['Mode A', 'Mode B'])),
+        exposureSettingsProvider.overrideWith(
+          (ref) => const ExposureSettings(
+            exposureTime: 120,
+            gain: 100,
+            offset: 50,
+            readoutModeIndex: 4,
+          ),
+        ),
+      ],
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+
+    final row = tester
+        .widgetList<DropdownRow>(find.byType(DropdownRow))
+        .singleWhere((widget) => widget.label == 'Read Mode');
+    expect(row.value, isNull);
+    expect(
+      handle.container.read(exposureSettingsProvider).readoutModeIndex,
+      4,
+    );
+  });
+
+  testWidgets('Warm Up starts the gradual ramp instead of disabling cooling',
+      (tester) async {
+    final backend = mockBackend();
+    when(
+      () => backend.cameraSetCooling(
+        deviceId: any(named: 'deviceId'),
+        enabled: any(named: 'enabled'),
+        targetTemp: any(named: 'targetTemp'),
+      ),
+    ).thenAnswer((_) async {});
+
+    final handle = await pumpAppScreen(
+      tester,
+      const CameraPanel(colors: NightshadeColors.dark),
+      backend: backend,
+      extraOverrides: _overrides(_caps()),
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+
+    await tester.tap(find.text('Warm Up'));
+    await tester.pump();
+
+    verify(
+      () => backend.cameraSetCooling(
+        deviceId: _kDeviceId,
+        enabled: true,
+        targetTemp: -5,
+      ),
+    ).called(1);
+    verifyNever(
+      () => backend.cameraSetCooling(
+        deviceId: any(named: 'deviceId'),
+        enabled: false,
+        targetTemp: any(named: 'targetTemp'),
+      ),
+    );
+    expect(handle.container.read(cameraStateProvider).isWarming, isTrue);
+    expect(find.text('Cancel Warm'), findsOneWidget);
+
+    handle.container.read(deviceServiceProvider).cancelWarmCamera();
+    await tester.pump();
+  });
+
+  testWidgets('late cooling result from the old host is discarded',
+      (tester) async {
+    final hostA = mockBackend();
+    final hostB = mockBackend();
+    final resultA = Completer<void>();
+    when(
+      () => hostA.cameraSetCooling(
+        deviceId: _kDeviceId,
+        enabled: true,
+        targetTemp: any(named: 'targetTemp'),
+      ),
+    ).thenAnswer((_) => resultA.future);
+    late _SwappableBackendNotifier notifier;
+
+    final handle = await pumpAppScreen(
+      tester,
+      const CameraPanel(colors: NightshadeColors.dark),
+      extraOverrides: [
+        backendProvider.overrideWith((ref) {
+          notifier = _SwappableBackendNotifier(ref, hostA);
+          return notifier;
+        }),
+        ..._overrides(_caps()),
+      ],
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+
+    await tester.tap(find.text('Cool Down'));
+    await tester.pump();
+    expect(find.text('Setting...'), findsOneWidget);
+
+    notifier.switchTo(hostB);
+    await tester.pump();
+    expect(find.text('Cool Down'), findsOneWidget);
+
+    resultA.complete();
+    await tester.pump();
+    expect(handle.container.read(coolingSettingsProvider).enabled, isFalse);
+    expect(handle.container.read(cameraStateProvider).isCooling, isFalse);
+    expect(find.text('Cool Down'), findsOneWidget);
   });
 }

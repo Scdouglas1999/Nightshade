@@ -46,9 +46,9 @@ class MobilePreferences {
 
   final SharedPreferences _prefs;
 
-  /// When true, hide the status bar and use [SystemUiMode.immersiveSticky].
-  /// When false, use [SystemUiMode.leanBack] so the clock and battery stay
-  /// visible — astrophotographers monitor those during long sequences.
+  /// When true, hide the status bar with Android immersive-sticky mode.
+  /// When false, use edge-to-edge mode so the clock and battery stay visible —
+  /// astrophotographers monitor those during long sequences.
   /// Default: false.
   bool get androidImmersiveSticky =>
       _prefs.getBool(_kAndroidImmersiveSticky) ?? false;

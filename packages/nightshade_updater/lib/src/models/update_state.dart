@@ -72,6 +72,10 @@ abstract class UpdateState with _$UpdateState {
     /// Version user chose to skip
     String? skippedVersion,
 
+    /// Whether the offered update is below the minimum version for OTA and
+    /// must be installed manually (no download/apply path).
+    @Default(false) bool requiresManualUpgrade,
+
     /// Update server URL
     String? updateServerUrl,
 

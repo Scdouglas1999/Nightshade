@@ -37,8 +37,15 @@ abstract class WeatherSettings with _$WeatherSettings {
     /// Lead time for alerts in minutes
     @Default(15) int leadTimeMinutes,
 
-    /// Enable weather safety monitoring
-    @Default(true) bool weatherSafetyEnabled,
+    /// Enable weather safety monitoring.
+    ///
+    /// Defaults OFF: with no weather source or hardware safety monitor
+    /// configured (the out-of-box state), an enabled monitor fails closed and
+    /// aborts every automated sequence within seconds — the flagship use case
+    /// broken on night one for the majority of rigs. Weather gating is now
+    /// opt-in; a user connects a weather source / safety monitor and turns
+    /// this on. Existing installs keep their persisted value.
+    @Default(false) bool weatherSafetyEnabled,
 
     /// Maximum safe humidity before weather safety pauses imaging
     @Default(90.0) double maxHumidityPercent,

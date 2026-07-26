@@ -3,9 +3,8 @@
 // Sits in the dashboard AppBar action row alongside NetworkStatusIndicator
 // so the operator can glance at their phone's battery without leaving the
 // app. When [PhoneBatteryState.isLowPower] is true, the badge flips to a
-// red tint and the tooltip explicitly says "Power saving on" so the
-// operator knows live-preview polling has been throttled (BatteryService
-// + shouldThrottlePolling consumers).
+// red tint so the operator can see at a glance that the phone is running
+// low on battery.
 //
 // The widget intentionally renders nothing on cold start (before the first
 // sample lands) to avoid a flash of "-1%" or a placeholder shimmer; the
@@ -24,8 +23,7 @@ import '../services/battery_service.dart';
 ///
 /// Renders:
 ///   * "75%" with a battery glyph at normal levels.
-///   * "75%" tinted red with "Power saving on" tooltip when [isLowPower]
-///     fires.
+///   * "75%" tinted red when [isLowPower] fires.
 ///   * Same percentage with a small zap glyph overlaid when charging.
 ///   * Nothing when the OS has not yet delivered a sample (level < 0).
 class PhoneBatteryIndicator extends ConsumerWidget {
@@ -54,7 +52,6 @@ class PhoneBatteryIndicator extends ConsumerWidget {
 
     final tooltip = StringBuffer('Battery: ${state.level}%');
     if (state.isCharging) tooltip.write(' (charging)');
-    if (isLowPower) tooltip.write('\nPower saving on');
 
     final icon = state.isCharging
         ? LucideIcons.batteryCharging
@@ -87,10 +84,6 @@ class PhoneBatteryIndicator extends ConsumerWidget {
                 color: tint,
               ),
             ),
-            if (!compact && isLowPower) ...[
-              const SizedBox(width: 6),
-              Text('Power saving', style: TextStyle(fontSize: 11, color: tint)),
-            ],
           ],
         ),
       ),

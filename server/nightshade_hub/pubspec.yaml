@@ -3,7 +3,7 @@ description: >-
   Nightshade Constellation hub — a self-hostable, multi-tenant community service
   that fuses additive sky-atlas tile contributions from many imagers into shared
   deeper stacks. Pure Dart, runs anywhere a Dart runtime + libsqlite3 do.
-version: 5.0.0
+version: 6.0.0
 publish_to: 'none'
 
 environment:

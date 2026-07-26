@@ -21,12 +21,12 @@ extension ClickIdentifyService on AnnotationService {
     );
 
     // Search for object at these coordinates
-    final settings = _ref.read(annotationSettingsProvider).valueOrNull;
-    final effectiveRadiusArcsec =
-        (searchRadiusArcsec ??
-                settings?.clickSearchRadiusArcsec ??
-                const AnnotationSettings().clickSearchRadiusArcsec)
-            .clamp(1.0, 600.0);
+    final configuredRadius =
+        searchRadiusArcsec ??
+        (await _ref.read(
+          annotationSettingsProvider.future,
+        )).clickSearchRadiusArcsec;
+    final effectiveRadiusArcsec = configuredRadius.clamp(1.0, 600.0);
 
     final ObjectData? details;
     try {

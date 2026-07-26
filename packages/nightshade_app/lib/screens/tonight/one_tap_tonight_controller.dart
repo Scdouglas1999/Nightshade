@@ -129,38 +129,52 @@ class OneTapTonightController extends ValueNotifier<OneTapTonightState> {
         _run = run,
         super(const OneTapTonightState());
 
+  /// Set once [dispose] runs. The chain's awaits (pick / plan / run) can each
+  /// outlive the screen — if the operator navigates away mid-run this notifier
+  /// is disposed while `go()` is still suspended, and a post-await `value =`
+  /// would then throw "used after being disposed". Every publish consults this.
+  bool _disposed = false;
+
   /// Current chain snapshot (alias for [value], reads nicer at call sites).
   OneTapTonightState get state => value;
+
+  /// Publish [next] unless the notifier was disposed mid-chain. Writing [value]
+  /// on a disposed [ValueNotifier] throws; a no-op is the correct behavior once
+  /// the screen (and its listeners) are gone.
+  void _publish(OneTapTonightState next) {
+    if (_disposed) return;
+    value = next;
+  }
 
   /// Run the whole chain: pick → frame → plan → GO. Re-arms cleanly — a
   /// second tap after a failure starts over from [OneTapPhase.picking].
   Future<void> go() async {
     if (state.isBusy) return;
-    value = const OneTapTonightState(phase: OneTapPhase.picking);
+    _publish(const OneTapTonightState(phase: OneTapPhase.picking));
     try {
       final target = await _pick();
       if (target == null) {
         throw const NoTonightTargetException();
       }
-      value = state.copyWith(phase: OneTapPhase.framing, target: target);
+      _publish(state.copyWith(phase: OneTapPhase.framing, target: target));
 
       _frame(target);
 
-      value = state.copyWith(phase: OneTapPhase.planning);
+      _publish(state.copyWith(phase: OneTapPhase.planning));
       final plan = await _plan(target);
-      value = state.copyWith(phase: OneTapPhase.starting, plan: plan);
+      _publish(state.copyWith(phase: OneTapPhase.starting, plan: plan));
 
       await _run(plan);
-      value = state.copyWith(phase: OneTapPhase.running);
+      _publish(state.copyWith(phase: OneTapPhase.running));
     } on NoTonightTargetException catch (e) {
-      value = state.copyWith(phase: OneTapPhase.failed, error: e.message);
+      _publish(state.copyWith(phase: OneTapPhase.failed, error: e.message));
     } on SmartNightBuildException catch (e) {
-      value = state.copyWith(phase: OneTapPhase.failed, error: e.message);
+      _publish(state.copyWith(phase: OneTapPhase.failed, error: e.message));
     } catch (e) {
-      value = state.copyWith(
+      _publish(state.copyWith(
         phase: OneTapPhase.failed,
         error: 'Could not start tonight: $e',
-      );
+      ));
     }
   }
 
@@ -168,5 +182,11 @@ class OneTapTonightController extends ValueNotifier<OneTapTonightState> {
   void reset() {
     if (state.isBusy) return;
     value = const OneTapTonightState();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

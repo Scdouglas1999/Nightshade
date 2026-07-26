@@ -9,6 +9,7 @@ import '../models/notification/notification_categories.dart'
 import '../models/sequence/sequence_models.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/sequence/sequence_editor_exceptions.dart';
+import '../utils/export_target.dart';
 import '../providers/sequence/sequence_validation.dart';
 import '../providers/sequence_provider.dart' show currentSequenceProvider;
 import '../providers/settings_provider.dart';
@@ -43,19 +44,39 @@ class SequenceFileService {
   /// Empty string means "let the
   /// platform pick the default location".
   final String _defaultDirectory;
+  final String Function()? _defaultDirectoryProvider;
 
   SequenceFileService({
     SequenceImportValidator? importValidator,
     ExportValidatorStrategy? exportValidator,
     void Function(Sequence sequence)? onExportSaved,
     String defaultDirectory = '',
+    String Function()? defaultDirectoryProvider,
   }) : _importValidator = importValidator,
        _exportValidator = exportValidator ?? validateSequence,
        _onExportSaved = onExportSaved,
-       _defaultDirectory = defaultDirectory;
+       _defaultDirectory = defaultDirectory,
+       _defaultDirectoryProvider = defaultDirectoryProvider;
 
-  String? get _initialDirectoryOrNull =>
-      _defaultDirectory.isEmpty ? null : _defaultDirectory;
+  String? get _initialDirectoryOrNull {
+    final directory = (_defaultDirectoryProvider?.call() ?? _defaultDirectory)
+        .trim();
+    return directory.isEmpty ? null : directory;
+  }
+
+  /// Serialize one node with the same exhaustive codec used by sequence files.
+  ///
+  /// Snippets and other partial-tree formats should build on this method
+  /// instead of maintaining a second type switch that can omit newly-added
+  /// fields or node types.
+  Map<String, dynamic> nodeToMap(SequenceNode node) => _nodeToJson(node);
+
+  /// Deserialize one node with the same exhaustive codec used by imports.
+  SequenceNode nodeFromMap(Map<String, dynamic> json, {String? fallbackId}) {
+    final node = _jsonToNode(json, fallbackId: fallbackId);
+    final comment = json['comment'];
+    return comment is String ? node.copyWith(comment: comment) : node;
+  }
 
   /// Export a sequence to a JSON file.
   ///
@@ -70,7 +91,15 @@ class SequenceFileService {
   /// "Export anyway" in the confirmation dialog). The validation pass still
   /// runs so callers can include the issue list in any audit log, but the
   /// failure is not raised as an exception.
-  Future<void> exportSequence(
+  /// Returns the path written, or `null` when nothing was written. Dismissing
+  /// the platform save dialog returns `null` so callers do not report a
+  /// cancelled export as a successful save.
+  ///
+  /// The path is returned rather than a bare `true` because on Android/iOS the
+  /// destination is inside the app sandbox — the caller has to hand it to the
+  /// share sheet (see [ExportTarget.needsShareSheet]) or the user never gets
+  /// the file. This service has no `BuildContext`, so it cannot do that itself.
+  Future<String?> exportSequence(
     Sequence sequence, {
     bool forceExport = false,
   }) async {
@@ -87,8 +116,8 @@ class SequenceFileService {
     final json = sequenceToMap(sequence);
     final jsonString = const JsonEncoder.withIndent('  ').convert(json);
 
-    // Show save dialog
-    final saveLocation = await file_selector.getSaveLocation(
+    // Save dialog on desktop; a sandbox path plus a share sheet on touch.
+    final target = await chooseExportTarget(
       initialDirectory: _initialDirectoryOrNull,
       suggestedName: '${sequence.name}.nseq.json',
       acceptedTypeGroups: [
@@ -99,10 +128,10 @@ class SequenceFileService {
       ],
     );
 
-    if (saveLocation == null) return;
+    if (target == null) return null;
 
     // Write file
-    final file = File(saveLocation.path);
+    final file = File(target.path);
     await file.writeAsString(jsonString);
     // Marking-saved is the caller's responsibility — the editor notifier
     // owns the dirty flag and we can't reach it from this stateless file-
@@ -111,6 +140,7 @@ class SequenceFileService {
     // / mobile export buttons hook up to `markSaved()`.
     final cb = _onExportSaved;
     if (cb != null) cb(sequence);
+    return target.path;
   }
 
   /// Import a sequence from a JSON file
@@ -288,25 +318,17 @@ BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
 
 /// Provider for the sequence file service
 final sequenceFileServiceProvider = Provider<SequenceFileService>((ref) {
-  // Why: route export/import dialogs through the user-configured
-  // Settings → File Paths → Sequences directory when set. We do not
-  // `watch` the settings provider here — the file-service factory is
-  // long-lived and rebuilding it on every settings tick would invalidate
-  // dependents. Instead we read the current snapshot and capture it; the
-  // app uses the path at dialog-open time which already reads through
-  // the same provider tree.
-  String defaultDir = '';
-  try {
-    final settings = ref.read(appSettingsProvider).valueOrNull;
-    defaultDir = settings?.sequencesPath ?? '';
-  } catch (_) {
-    // Why: a unit test may construct this provider without a database.
-    // The fall-through to empty string mirrors the "not configured"
-    // path in production. Fail-loud is reserved for real consumers.
-    defaultDir = '';
-  }
   return SequenceFileService(
-    defaultDirectory: defaultDir,
+    // Read at dialog-open time so changing Settings → File Paths → Sequences
+    // takes effect immediately without rebuilding every service dependent.
+    defaultDirectoryProvider: () {
+      try {
+        return ref.read(appSettingsProvider).valueOrNull?.sequencesPath ?? '';
+      } catch (_) {
+        // Unit tests may construct the service without a settings database.
+        return '';
+      }
+    },
     onExportSaved: (exported) {
       // Reach into the sequence editor and clear the dirty flag. The
       // export wrote the canonical bytes for the in-memory sequence, so
@@ -317,10 +339,7 @@ final sequenceFileServiceProvider = Provider<SequenceFileService>((ref) {
       // async write path, not a reactive subscription.
       try {
         final editor = ref.read(currentSequenceProvider.notifier);
-        final current = ref.read(currentSequenceProvider);
-        if (current != null && current.id == exported.id) {
-          editor.markSaved();
-        }
+        editor.markSavedIfCurrent(exported);
       } catch (_) {
         // Tests may construct this provider without the sequence
         // notifier. Failing silent is acceptable here because the

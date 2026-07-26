@@ -336,10 +336,10 @@ class _ReadinessRow extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     final levelColor = readinessLevelColor(item.level, colors);
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 420;
+        final leading = Padding(
           // Optically align the dot with the first text line.
           padding: const EdgeInsets.only(top: NightshadeTokens.spaceXs + 1),
           child: StatusDot(
@@ -348,64 +348,108 @@ class _ReadinessRow extends StatelessWidget {
                 ? StatusDotVariant.urgent
                 : StatusDotVariant.static,
           ),
-        ),
-        const SizedBox(width: NightshadeTokens.spaceMd),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    readinessItemIcon(item.id),
-                    size: NightshadeTokens.iconSm,
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  Expanded(
-                    child: Text(
-                      item.title,
-                      style: NightshadeTypography.bodyMedium
-                          .copyWith(color: colors.textPrimary),
-                    ),
-                  ),
+                  leading,
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(child: _content(colors)),
+                  if (onDismiss != null) ...[
+                    const SizedBox(width: NightshadeTokens.spaceXs),
+                    _dismissButton(colors),
+                  ],
                 ],
               ),
-              const SizedBox(height: NightshadeTokens.spaceXs),
-              Text(
-                item.detail,
-                style: NightshadeTypography.caption
-                    .copyWith(color: colors.textMuted),
-              ),
+              if (!item.isReady && item.hasFix) ...[
+                const SizedBox(height: NightshadeTokens.spaceSm),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _fixButton(context),
+                ),
+              ],
             ],
-          ),
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            leading,
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(child: _content(colors)),
+            if (!item.isReady && item.hasFix) ...[
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              _fixButton(context),
+            ],
+            if (onDismiss != null) ...[
+              const SizedBox(width: NightshadeTokens.spaceXs),
+              _dismissButton(colors),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _content(NightshadeColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Icon(
+              readinessItemIcon(item.id),
+              size: NightshadeTokens.iconSm,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Expanded(
+              child: Text(
+                item.title,
+                style: NightshadeTypography.bodyMedium
+                    .copyWith(color: colors.textPrimary),
+              ),
+            ),
+          ],
         ),
-        if (!item.isReady && item.hasFix) ...[
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          NightshadeButton(
-            label: item.fixLabel!,
-            variant: ButtonVariant.outline,
-            size: ButtonSize.small,
-            onPressed: () {
-              context.go(item.fixRoute!);
-              onFixTapped?.call();
-            },
-          ),
-        ],
-        if (onDismiss != null) ...[
-          const SizedBox(width: NightshadeTokens.spaceXs),
-          IconButton(
-            onPressed: onDismiss,
-            icon: const Icon(LucideIcons.x, size: NightshadeTokens.iconSm),
-            color: colors.textMuted,
-            tooltip: 'Dismiss for this session',
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-          ),
-        ],
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        Text(
+          item.detail,
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
+        ),
       ],
+    );
+  }
+
+  Widget _fixButton(BuildContext context) {
+    return NightshadeButton(
+      label: item.fixLabel!,
+      variant: ButtonVariant.outline,
+      size: ButtonSize.small,
+      onPressed: () {
+        context.go(item.fixRoute!);
+        onFixTapped?.call();
+      },
+    );
+  }
+
+  Widget _dismissButton(NightshadeColors colors) {
+    return IconButton(
+      onPressed: onDismiss,
+      icon: const Icon(LucideIcons.x, size: NightshadeTokens.iconSm),
+      color: colors.textMuted,
+      tooltip: 'Dismiss for this session',
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
     );
   }
 }

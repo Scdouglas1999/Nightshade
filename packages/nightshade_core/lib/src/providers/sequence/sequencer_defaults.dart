@@ -121,7 +121,7 @@ class SequencerDefaults {
     this.exposureGain,
     this.exposureOffset,
     this.exposureBinning = BinningMode.one,
-    this.exposureDitherEvery = 1,
+    this.exposureDitherEvery = 3,
     this.frameDownloadOverheadSecs = 2.0,
     this.livestackingDefaultPort = 8081,
     this.livestackingPublicByDefault = false,
@@ -345,9 +345,9 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     final exposureDitherEvery =
         int.tryParse(
           await settingsDao.getSetting('sequencer_exposure_dither_every') ??
-              '1',
+              '3',
         ) ??
-        1;
+        3;
 
     // LiveStacking defaults.
     final livestackingPort =

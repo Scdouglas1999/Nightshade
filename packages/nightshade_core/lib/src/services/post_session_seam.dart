@@ -106,7 +106,8 @@ abstract class PostSessionSeam {
 
   /// Drizzle (variable-pixel linear reconstruction) onto a scaled output grid.
   /// Wraps `apiDrizzleIntegrate`; returns the decoded result map
-  /// (`{outputPath, coveragePath?, outWidth, outHeight, channels}`).
+  /// (`{outputPath, coveragePath?, coveragePngPath?, outWidth, outHeight,
+  /// channels}`).
   Future<Map<String, dynamic>> drizzleIntegrate(Map<String, dynamic> args);
 
   /// Linearly combine single-channel narrowband masters into an RGB composite.
@@ -514,7 +515,18 @@ class PerFrameRecord {
 class IntegrateSessionResult {
   final String masterFitsPath;
   final String? previewPath;
+
+  /// Scientific per-pixel rejection-count FITS.
   final String? rejectionMapPath;
+
+  /// Stretched PNG sibling for UI compositing.
+  final String? rejectionMapPreviewPath;
+
+  /// Scientific drizzle coverage/weight FITS.
+  final String? coverageMapPath;
+
+  /// Stretched PNG sibling for UI compositing.
+  final String? coverageMapPreviewPath;
   final int framesIntegrated;
   final int framesRejected;
   final double totalIntegrationSec;
@@ -530,6 +542,9 @@ class IntegrateSessionResult {
     required this.masterFitsPath,
     required this.previewPath,
     required this.rejectionMapPath,
+    this.rejectionMapPreviewPath,
+    this.coverageMapPath,
+    this.coverageMapPreviewPath,
     required this.framesIntegrated,
     required this.framesRejected,
     required this.totalIntegrationSec,
@@ -549,6 +564,9 @@ class IntegrateSessionResult {
       masterFitsPath: json['masterFitsPath'] as String,
       previewPath: json['previewPath'] as String?,
       rejectionMapPath: json['rejectionMapPath'] as String?,
+      rejectionMapPreviewPath: json['rejectionMapPreviewPath'] as String?,
+      coverageMapPath: json['coverageMapPath'] as String?,
+      coverageMapPreviewPath: json['coverageMapPreviewPath'] as String?,
       framesIntegrated: (json['framesIntegrated'] as num?)?.toInt() ?? 0,
       framesRejected: (json['framesRejected'] as num?)?.toInt() ?? 0,
       totalIntegrationSec:

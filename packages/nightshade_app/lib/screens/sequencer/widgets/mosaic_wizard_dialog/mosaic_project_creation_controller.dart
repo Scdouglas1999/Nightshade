@@ -51,6 +51,12 @@ class MosaicProjectDesign {
   /// Single-panel field-of-view height (arcmin).
   final double panelHeightArcmin;
 
+  /// Grid cells (0-based row/col) the user disabled in the wizard. These panels
+  /// are NOT persisted as `mosaic_panels` rows, but the grid geometry
+  /// (rows × cols) is unchanged so surviving panels keep their canonical
+  /// row-major [MosaicPanel.panelIndex]. Empty => every panel is created.
+  final Set<({int row, int col})> disabledCells;
+
   /// The framed region's `targets.id`, when the design came from a saved
   /// target; null for an ad-hoc centre.
   final int? targetId;
@@ -74,6 +80,7 @@ class MosaicProjectDesign {
     required this.positionAngleDeg,
     required this.panelWidthArcmin,
     required this.panelHeightArcmin,
+    this.disabledCells = const {},
     this.targetId,
     this.panelTargetId,
   });
@@ -111,6 +118,7 @@ class MosaicProjectCreationController {
       panelWidthArcmin: design.panelWidthArcmin,
       panelHeightArcmin: design.panelHeightArcmin,
       panelTargetId: design.panelTargetId,
+      disabledCells: design.disabledCells,
     );
   }
 }

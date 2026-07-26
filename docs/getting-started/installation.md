@@ -89,7 +89,8 @@ a compatible vendor library yourself or use ASCOM/Alpaca.
    ```
 
 Use the `./nightshade` launcher, not `nightshade_desktop` directly; the launcher
-loads the archive's ABI-matched LibRaw and SQLite libraries first.
+loads the archive's ABI-matched LibRaw first (and the hermetic `libsqlite3.so`
+native asset from `package:sqlite3`).
 
 For INDI, install and start the server/drivers through your distribution. For
 example, Ubuntu users can install the appropriate INDI packages and then point

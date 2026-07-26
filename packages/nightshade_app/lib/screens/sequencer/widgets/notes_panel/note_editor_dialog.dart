@@ -56,7 +56,7 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final isEditing = widget.existing != null;
-    return Dialog(
+    final dialog = Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -100,7 +100,8 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
                       ),
                     ),
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed:
+                        _saving ? null : () => Navigator.of(context).pop(),
                     icon: Icon(LucideIcons.x, color: colors.textMuted),
                     tooltip: 'Close',
                   ),
@@ -204,6 +205,7 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
         ),
       ),
     );
+    return PopScope(canPop: !_saving, child: dialog);
   }
 
   void _addTag(String raw) {
@@ -220,6 +222,11 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
   }
 
   Future<void> _save() async {
+    // Commit a tag the user typed but didn't submit with Enter so it isn't
+    // silently dropped on save.
+    if (_tagCtrl.text.trim().isNotEmpty) {
+      _addTag(_tagCtrl.text);
+    }
     final body = _bodyCtrl.text.trim();
     final title = _titleCtrl.text.trim();
     // Require either a body or sentiment so we never persist an
@@ -234,7 +241,7 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
     }
     setState(() => _saving = true);
     try {
-      final service = ref.read(notesServiceProvider);
+      final service = ref.read(notesRepositoryProvider);
       final JournalNote saved;
       if (widget.existing == null) {
         saved = await service.addNote(
@@ -273,9 +280,14 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
     if (existing == null) return;
     setState(() => _saving = true);
     try {
-      await ref.read(notesServiceProvider).deleteNote(existing.id);
+      // Route through the shared confirmation so this destructive action
+      // matches every other delete surface; only dismiss the editor once
+      // the note was actually deleted, leaving unsaved edits intact on cancel.
+      final deleted = await confirmDeleteNote(context, ref, existing);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      if (deleted) {
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

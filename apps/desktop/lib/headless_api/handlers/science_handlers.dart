@@ -89,6 +89,67 @@ class ScienceHandlers {
     // explicit user error and gets a structured 400.
     final settings = <String, String>{};
     for (final entry in rawSettings.entries) {
+      if (!entry.key.startsWith('science.')) {
+        throw BadRequestError(
+          field: 'settings.${entry.key}',
+          expected: 'science.* setting key',
+          message: 'Only science settings can be changed through this endpoint',
+        );
+      }
+      final value = entry.value;
+      if (value == null) {
+        throw BadRequestError(
+          field: 'settings.${entry.key}',
+          expected: 'string|number|boolean',
+          message: 'Value must not be null',
+        );
+      }
+      settings[entry.key] = value.toString();
+    }
+    await container.read(settingsDaoProvider).setSettings(settings);
+    if (settings[ScienceCameraAutoConfig.autoManagedKey]?.toLowerCase() ==
+        'true') {
+      // Re-enabling this from a tablet must apply the host's current camera
+      // immediately; waiting for a later camera event leaves stale manual
+      // values active even though the UI says they are managed automatically.
+      await container
+          .read(scienceCameraAutoConfigProvider)
+          .maybeSync(reason: 'remote setting re-enabled', force: true);
+    }
+    return jsonOk({'status': 'updated'});
+  }
+
+  /// Raw Smart Night planning values that are intentionally outside the main
+  /// [AppSettings] schema (camera-spec overrides and expert exposure knobs).
+  /// These describe the imaging rig, so a remote planner must read and write
+  /// them on the host rather than its controller-local database.
+  Future<Response> handleGetSmartNightSettings(Request request) async {
+    _logInfo('[API] GET /api/smart-night/settings');
+    final settings = await container.read(settingsDaoProvider).getAllSettings();
+    final filtered = settings.entries
+        .where((entry) => entry.key.startsWith('smart_night.'))
+        .fold<Map<String, String>>({}, (map, entry) {
+          map[entry.key] = entry.value;
+          return map;
+        });
+    return jsonOk({'settings': filtered});
+  }
+
+  Future<Response> handleUpdateSmartNightSettings(Request request) async {
+    _logInfo('[API] POST /api/smart-night/settings');
+    final payload = await readJsonObject(request);
+    final rawSettings = optionalObject(payload, 'settings') ?? const {};
+    final settings = <String, String>{};
+    for (final entry in rawSettings.entries) {
+      if (!entry.key.startsWith('smart_night.')) {
+        throw BadRequestError(
+          field: 'settings.${entry.key}',
+          expected: 'smart_night.* setting key',
+          message:
+              'Only Smart Night settings can be changed through this '
+              'endpoint',
+        );
+      }
       final value = entry.value;
       if (value == null) {
         throw BadRequestError(
@@ -125,9 +186,33 @@ class ScienceHandlers {
     final sid = _parsePathId(sessionId, 'sessionId');
     final payload = await readJsonObject(request);
     final configJson = optionalObject(payload, 'config') ?? const {};
-    final config = ScienceSessionConfig.fromJson(
-      configJson,
-    ).copyWith(sessionId: sid);
+    // Validate every caller-controlled field before model construction.
+    // ScienceSessionConfig.fromJson uses casts/defaults intended for trusted
+    // persisted data; feeding it raw JSON allowed negative/zero grid sizes,
+    // out-of-range percentages, and wrong-type booleans to reach processing.
+    final config = ScienceSessionConfig(
+      sessionId: sid,
+      photometryEnabled: optionalBool(configJson, 'photometryEnabled') ?? true,
+      calibrationEnabled:
+          optionalBool(configJson, 'calibrationEnabled') ?? true,
+      transparencyEnabled:
+          optionalBool(configJson, 'transparencyEnabled') ?? true,
+      psfMapEnabled: optionalBool(configJson, 'psfMapEnabled') ?? true,
+      residualsEnabled: optionalBool(configJson, 'residualsEnabled') ?? true,
+      movingObjectsEnabled:
+          optionalBool(configJson, 'movingObjectsEnabled') ?? false,
+      narrowbandEnabled: optionalBool(configJson, 'narrowbandEnabled') ?? false,
+      psfGridRows: optionalInt(configJson, 'psfGridRows', min: 1, max: 64) ?? 4,
+      psfGridCols: optionalInt(configJson, 'psfGridCols', min: 1, max: 64) ?? 6,
+      transparencyAlertThreshold:
+          optionalDouble(
+            configJson,
+            'transparencyAlertThreshold',
+            min: 0,
+            max: 100,
+          ) ??
+          70.0,
+    );
     await container
         .read(databaseProvider)
         .scienceDao
@@ -179,11 +264,13 @@ class ScienceHandlers {
 
   Future<Response> handleGetPhotometricTransforms(Request request) async {
     _logInfo('[API] GET /api/science/transforms');
+    final profileId = optionalQueryInt(
+      request.url.queryParameters,
+      'profileId',
+      min: 1,
+    );
     final database = container.read(databaseProvider);
     final scienceDao = database.scienceDao;
-    final profileId = int.tryParse(
-      request.url.queryParameters['profileId'] ?? '',
-    );
 
     final transforms = profileId == null
         ? await scienceDao.getAllTransforms()
@@ -551,6 +638,16 @@ class ScienceHandlers {
     _logInfo('[API] POST /api/science/calibration/save-transform');
     final payload = await readJsonObject(request);
     final coefficientsJson = requireObject(payload, 'coefficients');
+    // `PhotometricTransformCoefficients.fromJson` defaults EVERY field, which is
+    // right for the host->slave mirror but wrong for user input: posting
+    // `{"coefficients":{}}` persisted a transform with filterName "" and
+    // zeroPoint 0.0. That transform is later applied to convert instrumental to
+    // standard magnitudes for AAVSO submission, so a silent all-zero fit
+    // publishes systematically wrong photometry. Require the three fields
+    // without which a transform has no meaning.
+    requireString(coefficientsJson, 'filterName', maxLength: 32);
+    requireDouble(coefficientsJson, 'zeroPoint', min: -50, max: 50);
+    requireInt(coefficientsJson, 'matchedStarCount', min: 1);
     final coefficients = PhotometricTransformCoefficients.fromJson(
       coefficientsJson,
     );

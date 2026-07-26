@@ -58,42 +58,43 @@ void main() {
     });
   });
 
-  group('BoundedTokenScopeMap (HTTP-002)', () {
+  group('BoundedTokenGrantMap (HTTP-002)', () {
+    final control = HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
     test('evicts the least-recently-written entry past the cap', () {
-      final map = BoundedTokenScopeMap(maxEntries: 3);
-      map['a'] = HeadlessTokenScope.control;
-      map['b'] = HeadlessTokenScope.control;
-      map['c'] = HeadlessTokenScope.control;
+      final map = BoundedTokenGrantMap(maxEntries: 3);
+      map['a'] = control;
+      map['b'] = control;
+      map['c'] = control;
       expect(map.length, 3);
 
       // Inserting a fourth distinct key evicts the oldest ('a').
-      map['d'] = HeadlessTokenScope.control;
+      map['d'] = control;
       expect(map.length, 3);
       expect(map.containsKey('a'), isFalse);
       expect(map.containsKey('d'), isTrue);
     });
 
     test('re-writing a key refreshes its recency so it survives eviction', () {
-      final map = BoundedTokenScopeMap(maxEntries: 3);
-      map['a'] = HeadlessTokenScope.control;
-      map['b'] = HeadlessTokenScope.control;
-      map['c'] = HeadlessTokenScope.control;
+      final map = BoundedTokenGrantMap(maxEntries: 3);
+      map['a'] = control;
+      map['b'] = control;
+      map['c'] = control;
 
       // Touch 'a' so it becomes the most-recently-written; insertion order is
       // now b, c, a. The next insert must evict 'b', not 'a'.
-      map['a'] = HeadlessTokenScope.admin;
-      map['d'] = HeadlessTokenScope.control;
+      map['a'] = HeadlessAuthGrant.admin();
+      map['d'] = control;
 
       expect(map.length, 3);
       expect(map.containsKey('a'), isTrue);
-      expect(map['a'], HeadlessTokenScope.admin);
+      expect(map['a']!.isAdmin, isTrue);
       expect(map.containsKey('b'), isFalse);
     });
 
     test('stays bounded under a flood of distinct tokens', () {
-      final map = BoundedTokenScopeMap(maxEntries: 8);
+      final map = BoundedTokenGrantMap(maxEntries: 8);
       for (var i = 0; i < 10000; i++) {
-        map['token-$i'] = HeadlessTokenScope.control;
+        map['token-$i'] = control;
         expect(map.length, lessThanOrEqualTo(8));
       }
       expect(map.length, 8);

@@ -14,7 +14,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         // control. See docs/plans/2026-05-09-v250-audit-fixes.md §4.1.
         if (settingsAction != null)
           IconButton(
-            onPressed: settingsAction,
+            onPressed: _anyCommandInFlight ? null : settingsAction,
             icon: const Icon(LucideIcons.settings2, size: 16),
             tooltip: 'Settings',
             style: IconButton.styleFrom(
@@ -24,7 +24,9 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
         // Disconnect button
         IconButton(
-          onPressed: widget.onDisconnect ?? () => _handleDisconnect(),
+          onPressed: _anyCommandInFlight
+              ? null
+              : widget.onDisconnect ?? () => _handleDisconnect(),
           icon: const Icon(LucideIcons.unplug, size: 16),
           tooltip: 'Disconnect',
           style: IconButton.styleFrom(
@@ -76,7 +78,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   /// | focuser         | no            | no step-size / max-position widget yet    |
   /// | rotator         | no            | no sky-PA preset widget yet               |
   /// | dome            | no            | no park/home/follow-mount widget yet      |
-  /// | coverCalibrator | no            | no brightness / cover-state widget yet    |
+  /// | coverCalibrator | yes, if light | local brightness dialog                    |
   /// | guider          | no            | no per-card settings (config in Imaging)  |
   /// | weather         | no            | read-only telemetry                       |
   /// | safetyMonitor   | no            | read-only                                 |
@@ -111,7 +113,16 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
       case ConnectedDeviceType.dome:
         return _showDomeSettingsDialog;
       case ConnectedDeviceType.coverCalibrator:
-        return _showCoverCalibratorSettingsDialog;
+        final state = ref.watch(coverCalibratorStateProvider);
+        final capabilities = ref.watch(
+          equipmentCoverCalibratorCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        return gateCapability(
+          capabilities,
+          (caps) => caps.calibratorPresent,
+        )
+            ? _showCoverCalibratorSettingsDialog
+            : null;
       case ConnectedDeviceType.filterWheel:
       // Read-only / no per-card settings.
       case ConnectedDeviceType.guider:
@@ -128,62 +139,141 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         return [
           _ActionButton(
             label: 'Cool to ${state.targetTemp.toStringAsFixed(0)}C',
-            onTap: () => _handleCoolCamera(state.targetTemp),
-            onLongPress: () => _showCoolingTempDialog(state.targetTemp),
+            onTap: _deviceCommandInFlight
+                ? null
+                : () => _handleCoolCamera(state.targetTemp),
+            onLongPress: _deviceCommandInFlight
+                ? null
+                : () => _showCoolingTempDialog(state.targetTemp),
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: state.isWarming ? 'Cancel Warm' : 'Warm Up',
-            onTap: state.isWarming ? _handleCancelWarm : _handleWarmCamera,
+            onTap: _deviceCommandInFlight
+                ? null
+                : state.isWarming
+                    ? _handleCancelWarm
+                    : _handleWarmCamera,
             colors: colors,
           ),
         ];
 
       case ConnectedDeviceType.mount:
         final state = ref.watch(mountStateProvider);
+        final capabilities = ref.watch(
+          equipmentMountCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        final connected =
+            state.connectionState == DeviceConnectionState.connected &&
+                state.deviceId != null &&
+                state.deviceId!.isNotEmpty;
+        final canPark = gateCapability<MountCapabilities>(
+          capabilities,
+          (caps) => state.isParked ? caps.canUnpark : caps.canPark,
+        );
+        final canSetTracking = gateCapability<MountCapabilities>(
+          capabilities,
+          (caps) => caps.canSetTracking,
+        );
+        final canFindHome = gateCapability<MountCapabilities>(
+          capabilities,
+          (caps) => caps.canFindHome,
+        );
+        final canFlip = gateCapability<MountCapabilities>(
+          capabilities,
+          (caps) =>
+              caps.isEquatorial &&
+              caps.canGetSideOfPier &&
+              (caps.canSlew || caps.canSlewAsync),
+        );
+        final flipInProgress = ref.watch(isFlipInProgressProvider);
+        final sequenceSettled =
+            ref.watch(sequenceExecutionStateProvider).canStart;
         return [
           _ActionButton(
             label: state.isParked ? 'Unpark' : 'Park',
-            onTap: () => _handleTogglePark(),
+            onTap: connected &&
+                    canPark &&
+                    !state.isSlewing &&
+                    !flipInProgress &&
+                    !_mountCommandInFlight
+                ? _handleTogglePark
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: state.isTracking ? 'Stop Tracking' : 'Track',
-            onTap: () => _handleToggleTracking(state.isTracking),
+            onTap: connected &&
+                    canSetTracking &&
+                    !state.isSlewing &&
+                    !flipInProgress &&
+                    !_mountCommandInFlight
+                ? () => _handleToggleTracking(state.isTracking)
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: 'Home',
-            onTap: () => _handleFindHome(),
+            onTap: connected &&
+                    canFindHome &&
+                    !state.isSlewing &&
+                    !flipInProgress &&
+                    !_mountCommandInFlight
+                ? _handleFindHome
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: 'Flip',
-            onTap: () => _handleManualMeridianFlip(),
+            onTap: connected &&
+                    canFlip &&
+                    state.isTracking &&
+                    !state.isParked &&
+                    !state.isSlewing &&
+                    state.ra != null &&
+                    state.dec != null &&
+                    sequenceSettled &&
+                    !flipInProgress &&
+                    !_mountCommandInFlight
+                ? _handleManualMeridianFlip
+                : null,
             colors: colors,
           ),
         ];
 
       case ConnectedDeviceType.focuser:
+        final state = ref.watch(focuserStateProvider);
+        final autofocusRunning = ref.watch(
+          sessionStateProvider.select((session) => session.isAutofocusing),
+        );
         return [
           _ActionButton(
             label: 'Move to...',
-            onTap: () => _showMoveDialog(context),
+            onTap: state.isAbsolute && !state.isMoving && !autofocusRunning
+                ? () => _showMoveDialog(context)
+                : null,
             colors: colors,
           ),
         ];
 
       case ConnectedDeviceType.filterWheel:
         final state = ref.watch(filterWheelStateProvider);
+        final autofocusRunning = ref.watch(
+          sessionStateProvider.select((session) => session.isAutofocusing),
+        );
         return [
           _FilterDropdown(
             filterNames: state.filterNames,
             currentPosition: state.currentPosition,
             onFilterSelected: _handleFilterChange,
+            enabled: state.connectionState == DeviceConnectionState.connected &&
+                !state.isMoving &&
+                !autofocusRunning &&
+                !_deviceCommandInFlight,
             colors: colors,
           ),
         ];
@@ -193,7 +283,13 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         return [
           _ActionButton(
             label: state.isGuiding ? 'Stop' : 'Start Guiding',
-            onTap: () => _handleToggleGuiding(state.isGuiding),
+            onTap: state.connectionState == DeviceConnectionState.connected &&
+                    state.deviceId != null &&
+                    state.deviceId!.isNotEmpty &&
+                    !state.isCalibrating &&
+                    !_deviceCommandInFlight
+                ? () => _handleToggleGuiding(state.isGuiding)
+                : null,
             colors: colors,
           ),
         ];
@@ -205,49 +301,113 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         // invalidates on the connect edge; without an active watcher the
         // FutureProvider would be cold and the dialog would fall back to a
         // full 0..360 turn even on a bounded rotator.
-        ref.watch(equipmentRotatorCapabilitiesProvider(
-          ref.watch(rotatorStateProvider).deviceId ?? '',
-        ));
+        final state = ref.watch(rotatorStateProvider);
+        final capabilities = ref.watch(
+          equipmentRotatorCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        final canMoveAbsolute = gateCapability<RotatorCapabilities>(
+          capabilities,
+          (caps) => caps.canMoveAbsolute,
+        );
         return [
           _ActionButton(
             label: 'Rotate to...',
-            onTap: () => _showRotateDialog(context),
+            onTap: state.connectionState == DeviceConnectionState.connected &&
+                    !state.isMoving &&
+                    canMoveAbsolute
+                ? () => _showRotateDialog(context)
+                : null,
             colors: colors,
           ),
         ];
 
       case ConnectedDeviceType.dome:
         final state = ref.watch(domeStateProvider);
+        final capabilities = ref.watch(
+          equipmentDomeCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        final connected =
+            state.connectionState == DeviceConnectionState.connected &&
+                state.deviceId != null &&
+                state.deviceId!.isNotEmpty;
+        final canSetShutter = gateCapability<DomeCapabilities>(
+          capabilities,
+          (caps) => caps.canSetShutter,
+        );
+        final canPark = gateCapability<DomeCapabilities>(
+          capabilities,
+          (caps) => caps.canPark,
+        );
+        final canSetAzimuth = gateCapability<DomeCapabilities>(
+          capabilities,
+          (caps) => caps.canSetAzimuth,
+        );
+        final canFindHome = gateCapability<DomeCapabilities>(
+          capabilities,
+          (caps) => caps.canFindHome,
+        );
+        final canAbort = gateCapability<DomeCapabilities>(
+          capabilities,
+          (caps) => caps.canAbort,
+        );
+        final shutterMoving = state.shutterStatus == ShutterStatus.opening ||
+            state.shutterStatus == ShutterStatus.closing;
         return [
           _ActionButton(
             label: state.shutterStatus == ShutterStatus.open
                 ? 'Close Shutter'
                 : 'Open Shutter',
-            onTap: () => _handleDomeShutter(state.shutterStatus),
+            onTap: connected &&
+                    canSetShutter &&
+                    !shutterMoving &&
+                    !_domeCommandInFlight
+                ? () => _handleDomeShutter(state.shutterStatus)
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
-            label: state.isParked ? 'Unpark' : 'Park',
-            onTap: () => _handleDomePark(state.isParked),
+            label: state.isParked ? 'Parked' : 'Park',
+            onTap: connected &&
+                    canPark &&
+                    !state.isParked &&
+                    !state.isSlewing &&
+                    !_domeCommandInFlight
+                ? _handleDomePark
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: 'Slew...',
-            onTap: () => _showDomeSlewDialog(context),
+            onTap: connected &&
+                    canSetAzimuth &&
+                    !state.isSlewing &&
+                    !_domeCommandInFlight
+                ? () => _showDomeSlewDialog(context)
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: 'Home',
-            onTap: () => _handleDomeHome(),
+            onTap: connected &&
+                    canFindHome &&
+                    !state.isSlewing &&
+                    !_domeCommandInFlight
+                ? _handleDomeHome
+                : null,
             colors: colors,
           ),
           const SizedBox(width: 8),
           _ActionButton(
             label: 'Halt',
-            onTap: () => _handleDomeHalt(),
+            onTap: connected &&
+                    canAbort &&
+                    state.isSlewing &&
+                    !_domeCommandInFlight
+                ? _handleDomeHalt
+                : null,
             colors: colors,
           ),
         ];
@@ -257,29 +417,71 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
       case ConnectedDeviceType.safetyMonitor:
         final state = ref.watch(safetyMonitorStateProvider);
+        final safetyStatus = ref.watch(equipmentSafetySnoozeStatusProvider);
         return [
           if (!state.isSafe)
             _ActionButton(
-              label: 'Acknowledge',
-              onTap: () => _handleSafetyAcknowledge(),
+              label: safetyStatus == WeatherSafetyStatus.snoozed
+                  ? 'Cancel Snooze'
+                  : 'Snooze 15m',
+              onTap: state.connectionState != DeviceConnectionState.connected
+                  ? null
+                  : safetyStatus == WeatherSafetyStatus.snoozed
+                      ? _handleSafetyCancelSnooze
+                      : _handleSafetySnooze,
               colors: colors,
             ),
         ];
 
       case ConnectedDeviceType.coverCalibrator:
         final state = ref.watch(coverCalibratorStateProvider);
+        final capabilities = ref.watch(
+          equipmentCoverCalibratorCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        final snapshot = capabilities.valueOrNull;
+        if (snapshot == null) return [];
+        final connected =
+            state.connectionState == DeviceConnectionState.connected;
+        final coverStatus = snapshot.coverStatus;
+        final coverCanMove = coverStatus == CoverStatus.open ||
+            coverStatus == CoverStatus.closed;
+        final calibratorStatus = snapshot.calibratorStatus;
+        final calibratorCanToggle = calibratorStatus == CalibratorStatus.off ||
+            calibratorStatus == CalibratorStatus.ready ||
+            calibratorStatus == CalibratorStatus.notReady;
+        final calibratorOn = calibratorStatus == CalibratorStatus.ready ||
+            calibratorStatus == CalibratorStatus.notReady;
         return [
-          if (state.hasCover)
+          if (snapshot.coverPresent)
             _ActionButton(
-              label: state.isCoverOpen ? 'Close Cover' : 'Open Cover',
-              onTap: () => _handleCoverToggle(state.isCoverOpen),
+              label: switch (coverStatus) {
+                CoverStatus.open => 'Close Cover',
+                CoverStatus.closed => 'Open Cover',
+                CoverStatus.moving => 'Cover Moving',
+                _ => 'Cover Unavailable',
+              },
+              onTap: connected &&
+                      coverCanMove &&
+                      !_coverCalibratorCommandInFlight
+                  ? () => _handleCoverToggle(coverStatus == CoverStatus.open)
+                  : null,
               colors: colors,
             ),
-          if (state.hasCover && state.hasCalibrator) const SizedBox(width: 8),
-          if (state.hasCalibrator)
+          if (snapshot.coverPresent && snapshot.calibratorPresent)
+            const SizedBox(width: 8),
+          if (snapshot.calibratorPresent)
             _ActionButton(
-              label: state.isCalibratorOn ? 'Light Off' : 'Light On',
-              onTap: () => _handleCalibratorToggle(state),
+              label: calibratorOn ? 'Light Off' : 'Light On',
+              onTap: connected &&
+                      calibratorCanToggle &&
+                      (calibratorOn || snapshot.maxBrightness > 0) &&
+                      !_coverCalibratorCommandInFlight
+                  ? () => _handleCalibratorToggle(
+                        isOn: calibratorOn,
+                        brightness: snapshot.brightness,
+                        maxBrightness: snapshot.maxBrightness,
+                      )
+                  : null,
               colors: colors,
             ),
         ];
@@ -305,20 +507,6 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             ),
             const SizedBox(height: 8),
             ..._buildExpandedTelemetry(colors),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeButton(
-                    onPressed: () => _showEditNameDialog(context),
-                    icon: LucideIcons.pencil,
-                    label: 'Edit Name',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -400,6 +588,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
       case ConnectedDeviceType.focuser:
         final state = ref.watch(focuserStateProvider);
+        final reportedMax = state.maxPosition;
         return [
           _TelemetryRow(
               label: 'Device ID',
@@ -407,7 +596,9 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
               colors: colors),
           _TelemetryRow(
             label: 'Max Position',
-            value: state.maxPosition?.toString() ?? '---',
+            value: reportedMax != null && reportedMax > 0
+                ? reportedMax.toString()
+                : '---',
             colors: colors,
           ),
         ];
@@ -618,26 +809,56 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
 
       case ConnectedDeviceType.coverCalibrator:
         final state = ref.watch(coverCalibratorStateProvider);
+        final capabilities = ref.watch(
+          equipmentCoverCalibratorCapabilitiesProvider(state.deviceId ?? ''),
+        );
+        final snapshot = capabilities.valueOrNull;
+        if (snapshot == null) {
+          return [
+            _TelemetryRow(
+              label: 'Device ID',
+              value: state.deviceId ?? 'Unknown',
+              colors: colors,
+            ),
+            _TelemetryRow(
+              label: 'Capabilities',
+              value: capabilities.hasError ? 'Unavailable' : 'Loading...',
+              colors: colors,
+            ),
+          ];
+        }
         return [
           _TelemetryRow(
               label: 'Device ID',
               value: state.deviceId ?? 'Unknown',
               colors: colors),
-          _TelemetryRow(
-            label: 'Cover Status',
-            value: _coverStatusLabel(state.coverStatus),
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Calibrator',
-            value: state.isCalibratorOn ? 'On' : 'Off',
-            colors: colors,
-          ),
-          _TelemetryRow(
-            label: 'Brightness',
-            value: '${state.brightness} / ${state.maxBrightness}',
-            colors: colors,
-          ),
+          if (snapshot.coverPresent)
+            _TelemetryRow(
+              label: 'Cover Status',
+              value: _coverStatusLabel(
+                snapshot.coverStatus ?? CoverStatus.unknown,
+              ),
+              colors: colors,
+            ),
+          if (snapshot.calibratorPresent) ...[
+            _TelemetryRow(
+              label: 'Calibrator',
+              value: _calibratorStatusLabel(snapshot.calibratorStatus),
+              colors: colors,
+            ),
+            _TelemetryRow(
+              label: 'Brightness',
+              value: '${snapshot.brightness ?? 0} / '
+                  '${snapshot.maxBrightness}',
+              colors: colors,
+            ),
+          ],
+          if (!snapshot.coverPresent && !snapshot.calibratorPresent)
+            _TelemetryRow(
+              label: 'Capabilities',
+              value: 'No cover or calibrator reported',
+              colors: colors,
+            ),
         ];
     }
   }

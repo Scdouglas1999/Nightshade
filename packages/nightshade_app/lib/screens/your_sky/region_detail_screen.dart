@@ -14,6 +14,39 @@ import 'widgets/atlas_growth_curve.dart';
 import 'widgets/atlas_region_cutout.dart';
 import 'widgets/atlas_timescrub.dart';
 
+/// Injectable seam for producing a host-local region cutout.
+typedef YourSkyRegionExporter = Future<RegionCutoutExport?> Function(
+  int regionId,
+);
+
+/// Injectable seam for opening the platform share sheet.
+typedef YourSkyRegionShare = Future<void> Function(
+  String filePath, {
+  required String text,
+});
+
+/// Injectable seam for arming live stacking with a region FITS.
+typedef YourSkyReferenceStarter = Future<void> Function(String fitsPath);
+
+Future<void> _shareRegionCutout(
+  String filePath, {
+  required String text,
+}) async {
+  await Share.shareXFiles([XFile(filePath)], text: text);
+}
+
+final yourSkyRegionExporterProvider = Provider<YourSkyRegionExporter>((ref) {
+  return ref.read(skyAtlasServiceProvider).exportRegionCutout;
+});
+
+final yourSkyRegionShareProvider =
+    Provider<YourSkyRegionShare>((ref) => _shareRegionCutout);
+
+final yourSkyReferenceStarterProvider =
+    Provider<YourSkyReferenceStarter>((ref) {
+  return ref.read(liveStackingProvider.notifier).startFromFile;
+});
+
 /// The scrub anchor for the open region detail (null = latest / all folds).
 final _scrubAnchorProvider =
     StateProvider.autoDispose<DateTime?>((ref) => null);
@@ -158,7 +191,6 @@ class _CutoutPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final isHost = ref.watch(backendProvider) is! NetworkBackend;
 
     // Session counts by the scrub point: distinct fold days at/before the anchor
     // out of all distinct fold days. Drives the honest depth line.
@@ -234,7 +266,7 @@ class _CutoutPanel extends ConsumerWidget {
                 ],
                 if (folds.isNotEmpty) ...[
                   const SizedBox(height: NightshadeTokens.spaceMd),
-                  _CutoutActions(region: region, isHost: isHost),
+                  RegionCutoutActions(region: region),
                 ],
               ],
             ),
@@ -258,22 +290,47 @@ class _CutoutPanel extends ConsumerWidget {
 /// is HOST-ONLY — it co-adds the region to a photometric FITS and arms live
 /// stacking against it ([LiveStackingService.startFromFile] takes a host path);
 /// on a slave the button is hidden with a one-line "runs on your host" note.
-class _CutoutActions extends ConsumerStatefulWidget {
+class RegionCutoutActions extends ConsumerStatefulWidget {
   final SkyAtlasRegionRow region;
-  final bool isHost;
 
-  const _CutoutActions({required this.region, required this.isHost});
+  const RegionCutoutActions({
+    super.key,
+    required this.region,
+  });
 
   @override
-  ConsumerState<_CutoutActions> createState() => _CutoutActionsState();
+  ConsumerState<RegionCutoutActions> createState() =>
+      _RegionCutoutActionsState();
 }
 
-class _CutoutActionsState extends ConsumerState<_CutoutActions> {
+class _RegionCutoutActionsState extends ConsumerState<RegionCutoutActions> {
   bool _busy = false;
+  int _operationGeneration = 0;
+
+  @override
+  void didUpdateWidget(covariant RegionCutoutActions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.region.id != widget.region.id) {
+      _operationGeneration++;
+      _busy = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final backend = ref.watch(backendProvider);
+    final isHost =
+        backend is! NetworkBackend && backend is! DisconnectedBackend;
+    final canAccessAtlas = backend is! DisconnectedBackend;
+
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (_busy && previous != null && !identical(previous, next)) {
+        _operationGeneration++;
+        setState(() => _busy = false);
+      }
+    });
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,9 +343,9 @@ class _CutoutActionsState extends ConsumerState<_CutoutActions> {
               icon: LucideIcons.share2,
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
-              onPressed: _busy ? null : _export,
+              onPressed: _busy || !canAccessAtlas ? null : _export,
             ),
-            if (widget.isHost)
+            if (isHost)
               NightshadeButton(
                 label: 'Use as reference frame',
                 icon: LucideIcons.crosshair,
@@ -298,7 +355,14 @@ class _CutoutActionsState extends ConsumerState<_CutoutActions> {
               ),
           ],
         ),
-        if (!widget.isHost) ...[
+        if (!canAccessAtlas) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'Reconnect to your imaging host to export this co-add.',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+        ] else if (!isHost) ...[
           const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             'Use as a live-stack reference frame runs on your imaging host.',
@@ -312,24 +376,29 @@ class _CutoutActionsState extends ConsumerState<_CutoutActions> {
 
   Future<void> _export() async {
     final messenger = ScaffoldMessenger.of(context);
+    final generation = ++_operationGeneration;
+    final regionId = widget.region.id;
+    final regionName = widget.region.name;
+    final backend = ref.read(backendProvider);
     setState(() => _busy = true);
     try {
-      final backend = ref.read(backendProvider);
       final String sharePath;
       if (backend is NetworkBackend) {
         // Slave: pull PNG bytes over the wire and stage a temp file to share.
-        final bytes = await backend.getAtlasRegionCutout(widget.region.id);
+        final bytes = await backend.getAtlasRegionCutout(regionId);
+        if (!_isCurrent(generation, backend, regionId)) return;
         final dir = await getTemporaryDirectory();
+        if (!_isCurrent(generation, backend, regionId)) return;
         final file = File(p.join(
           dir.path,
-          'region_${widget.region.id}_${_safeName(widget.region.name)}.png',
+          'region_${regionId}_${_safeName(regionName)}.png',
         ));
         await file.writeAsBytes(bytes);
+        if (!_isCurrent(generation, backend, regionId)) return;
         sharePath = file.path;
-      } else {
-        final export = await ref
-            .read(skyAtlasServiceProvider)
-            .exportRegionCutout(widget.region.id);
+      } else if (backend is! DisconnectedBackend) {
+        final export = await ref.read(yourSkyRegionExporterProvider)(regionId);
+        if (!_isCurrent(generation, backend, regionId)) return;
         if (export == null || export.pngPath == null) {
           messenger.showSnackBar(const SnackBar(
             content: Text('No co-add to export yet.'),
@@ -338,28 +407,40 @@ class _CutoutActionsState extends ConsumerState<_CutoutActions> {
           return;
         }
         sharePath = export.pngPath!;
+      } else {
+        throw StateError('Reconnect to the imaging host before exporting.');
       }
-      await Share.shareXFiles(
-        [XFile(sharePath)],
-        text: '${widget.region.name} — co-added in Your Sky',
+      if (!_isCurrent(generation, backend, regionId)) return;
+      await ref.read(yourSkyRegionShareProvider)(
+        sharePath,
+        text: '$regionName — co-added in Your Sky',
       );
     } on Object catch (e) {
+      if (!_isCurrent(generation, backend, regionId)) return;
       messenger.showSnackBar(SnackBar(
         content: Text('Could not export: $e'),
         duration: const Duration(seconds: 4),
       ));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _finish(generation);
     }
   }
 
   Future<void> _useAsReference() async {
     final messenger = ScaffoldMessenger.of(context);
+    final generation = ++_operationGeneration;
+    final regionId = widget.region.id;
+    final regionName = widget.region.name;
+    final backend = ref.read(backendProvider);
     setState(() => _busy = true);
     try {
-      final export = await ref
-          .read(skyAtlasServiceProvider)
-          .exportRegionCutout(widget.region.id);
+      if (backend is NetworkBackend || backend is DisconnectedBackend) {
+        throw StateError(
+          'Reference frames can only be armed on the imaging host.',
+        );
+      }
+      final export = await ref.read(yourSkyRegionExporterProvider)(regionId);
+      if (!_isCurrent(generation, backend, regionId)) return;
       if (export == null) {
         messenger.showSnackBar(const SnackBar(
           content: Text('No co-add to use as a reference yet.'),
@@ -367,22 +448,39 @@ class _CutoutActionsState extends ConsumerState<_CutoutActions> {
         ));
         return;
       }
-      await ref
-          .read(liveStackingProvider.notifier)
-          .startFromFile(export.fitsPath);
+      await ref.read(yourSkyReferenceStarterProvider)(export.fitsPath);
+      if (!_isCurrent(generation, backend, regionId)) return;
       messenger.showSnackBar(SnackBar(
         content: Text(
-          'Armed live stacking on ${widget.region.name} as the reference frame.',
+          'Armed live stacking on $regionName as the reference frame.',
         ),
         duration: const Duration(seconds: 4),
       ));
     } on Object catch (e) {
+      if (!_isCurrent(generation, backend, regionId)) return;
       messenger.showSnackBar(SnackBar(
         content: Text('Could not set reference frame: $e'),
         duration: const Duration(seconds: 4),
       ));
     } finally {
-      if (mounted) setState(() => _busy = false);
+      _finish(generation);
+    }
+  }
+
+  bool _isCurrent(
+    int generation,
+    NightshadeBackend backend,
+    int regionId,
+  ) {
+    return mounted &&
+        generation == _operationGeneration &&
+        widget.region.id == regionId &&
+        identical(ref.read(backendProvider), backend);
+  }
+
+  void _finish(int generation) {
+    if (mounted && generation == _operationGeneration) {
+      setState(() => _busy = false);
     }
   }
 

@@ -6,7 +6,7 @@
 /// `sequencer_routes.dart`.
 ///
 /// Order constraint: the literal sub-paths (`list-full`, `templates`,
-/// `templates-full`, `save-full`) must register before any
+/// `templates-full`, `save-full`, `summaries`, `versions`) must register before any
 /// `<id>`-parameterised route on the same prefix.
 library;
 
@@ -39,6 +39,21 @@ List<HeadlessRoute> buildSequenceManagementRoutes(
   ),
   HeadlessRoute(
     HttpMethod.get,
+    '/api/sequence-management/summaries',
+    h.handleListSequenceSummaries,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/versions/<versionId>',
+    h.handleGetVersion,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/<id>/full',
+    h.handleGetFullSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
     '/api/sequence-management/templates',
     h.handleGetAllTemplates,
   ),
@@ -54,8 +69,13 @@ List<HeadlessRoute> buildSequenceManagementRoutes(
   ),
   HeadlessRoute(
     HttpMethod.get,
-    '/api/sequence-management/<id>/children',
+    '/api/sequence-management/<id>/nodes/<parentNodeId>/children',
     h.handleGetChildNodes,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequence-management/<id>/versions',
+    h.handleListVersions,
   ),
   HeadlessRoute(
     HttpMethod.post,
@@ -76,6 +96,21 @@ List<HeadlessRoute> buildSequenceManagementRoutes(
     HttpMethod.post,
     '/api/sequence-management/<id>/duplicate',
     h.handleDuplicateSequence,
+  ),
+  HeadlessRoute(
+    HttpMethod.put,
+    '/api/sequence-management/<id>/tags',
+    h.handleSetTags,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/<id>/favorite',
+    h.handleToggleFavorite,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequence-management/<id>/versions',
+    h.handleSnapshotVersion,
   ),
   HeadlessRoute(
     HttpMethod.post,

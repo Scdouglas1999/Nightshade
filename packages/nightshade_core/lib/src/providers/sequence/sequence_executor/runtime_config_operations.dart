@@ -1,25 +1,23 @@
 part of '../sequence_executor.dart';
 
 extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
-  Future<void> _startNativeExecution(Sequence sequence) async {
-    final backend = _ref.read(backendProvider);
+  Future<void> _startNativeExecution(
+    Sequence sequence,
+    AppSettingsState settings,
+  ) async {
+    final backend = _backend;
 
     // Sync observer location to Rust backend before starting sequence
     // This ensures the sequencer has access to the current location from settings
-    final settingsAsync = _ref.read(appSettingsProvider);
-    final settings = settingsAsync.valueOrNull;
     _logger.debug(
-      '_startNativeExecution: settings=${settings != null ? "loaded" : "null"}',
+      '_startNativeExecution: authoritative settings loaded',
       source: 'SequenceExecutor',
     );
-    if (settings != null) {
-      _logger.debug(
-        'Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}',
-        source: 'SequenceExecutor',
-      );
-    }
-    if (settings != null &&
-        (settings.latitude != 0.0 || settings.longitude != 0.0)) {
+    _logger.debug(
+      'Location from settings: lat=${settings.latitude}, lon=${settings.longitude}, elev=${settings.elevation}',
+      source: 'SequenceExecutor',
+    );
+    if (settings.latitude != 0.0 || settings.longitude != 0.0) {
       _logger.debug(
         'Syncing location to backend...',
         source: 'SequenceExecutor',
@@ -34,31 +32,40 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       _logger.debug('Location sync complete', source: 'SequenceExecutor');
     } else {
       _logger.debug(
-        'Skipping location sync: settings null or location is 0,0',
+        'Skipping location sync: location is 0,0',
         source: 'SequenceExecutor',
       );
     }
 
-    // Simulation is disabled in release builds.
-    if (kReleaseMode) {
-      await backend.sequencerSetSimulationMode(false);
-    } else {
-      await backend.sequencerSetSimulationMode(_useSimulationMode);
-    }
+    await backend.sequencerSetSimulationMode(
+      effectiveSimulationMode(settings.useSimulationMode),
+    );
 
-    if (settings != null) {
-      final safetyFailMode = _safetyFailModeToBackendString(
-        settings.safetyFailMode,
-      );
-      await backend.sequencerSetSafetyFailMode(safetyFailMode);
-      _logger.debug(
-        'Safety fail mode set to: $safetyFailMode',
-        source: 'SequenceExecutor',
-      );
-    }
+    // When weather safety is DISABLED the operator has opted out of
+    // weather-driven aborts. The Rust safety poll fail-closes on a rig with no
+    // safety-monitor device, so pushing a stale `failClosed` here would keep
+    // the always-armed in-sequencer `WeatherUnsafe` trigger firing (via
+    // `!weather_safe`) even with monitoring off — aborting every sequence.
+    // Force the executor poll permissive (`failOpen`) while disabled; the Dart
+    // verdict already abstains (see weather_safety_provider), so nothing drives
+    // an unsafe verdict. Re-enabling restores the configured mode on the next
+    // sync (this runs at every run start).
+    final weatherSafetyEnabled = _ref
+        .read(weatherSettingsProvider)
+        .weatherSafetyEnabled;
+    final effectiveFailMode = weatherSafetyEnabled
+        ? settings.safetyFailMode
+        : SafetyFailMode.failOpen;
+    final safetyFailMode = _safetyFailModeToBackendString(effectiveFailMode);
+    await backend.sequencerSetSafetyFailMode(safetyFailMode);
+    _logger.debug(
+      'Safety fail mode set to: $safetyFailMode '
+      '(weatherSafetyEnabled=$weatherSafetyEnabled)',
+      source: 'SequenceExecutor',
+    );
 
-    final savePath = settings?.imageOutputPath;
-    if (savePath != null && savePath.isNotEmpty) {
+    final savePath = settings.imageOutputPath;
+    if (savePath.isNotEmpty) {
       await backend.sequencerSetSavePath(savePath);
       _logger.debug('Save path set to: $savePath', source: 'SequenceExecutor');
     } else {
@@ -104,6 +111,36 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       rotatorId: rotatorId,
     );
 
+    // Tell the operator, in the run record, that automatic refocus is off for
+    // this run. With no focuser connected the native executor disarms every
+    // autofocus-action trigger (HFR degradation, temperature shift, focus
+    // drift, the frame-interval refocus). That is the correct behaviour — an
+    // autofocus is physically impossible — but it silently removes a
+    // protection the sequence editor still advertises, so the run report has
+    // to say so rather than look like a night with focus management running.
+    // `persist: false` — this is a start-up fact, not a running statistic. It
+    // reaches the DB via the final `finishRun` stats write like every other
+    // warning; forcing an incremental `updateStats` here would add a second DB
+    // round-trip before the first frame for a value that cannot change.
+    if (focuserId == null) {
+      _surfaceRunWarning(
+        'No focuser is connected, so automatic refocus is disabled for this '
+        'run (HFR-degradation, temperature-shift, focus-drift and '
+        'interval refocus triggers are all inert). Focus will not be '
+        'corrected automatically.',
+        persist: false,
+      );
+    }
+
+    // The native defect-map runtime slot is not restored from app_settings.
+    // Seed it for every run so auto-apply survives restarts and headless starts.
+    await seedDefectMapRuntimeForSequence(_ref);
+
+    // Meridian nodes that opt into global defaults are serialized from this
+    // provider. Wait for the DB/remote-host snapshot so a fast start after app
+    // launch cannot bake factory defaults into the run while the real settings
+    // are still loading in the background.
+    await _ref.read(globalMeridianFlipSettingsProvider.notifier).ensureLoaded();
     final json = _sequenceToJson(sequence);
     await backend.sequencerLoadJson(json);
 
@@ -150,6 +187,10 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
 
     _startSettingsWatchers(backend);
 
+    // Mark the native-launch boundary: a throw from here on may mean a partial
+    // launch, so [_rollbackStart] will best-effort sequencerStop rather than
+    // tear down blind.
+    _nativeLaunchAttempted = true;
     await backend.sequencerStart();
   }
 
@@ -211,6 +252,32 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
+    // Meridian-flip settings. The Rust `meridian_flip` trigger is seeded by
+    // `TriggerManager::create_standard_triggers` with
+    // `MeridianFlipConfig::default()`, and until this push existed NOTHING ever
+    // replaced it — so every trigger-driven flip (the only flip that fires on
+    // an unattended night) ignored the whole Settings -> Meridian Flip panel.
+    // It hid because the Rust defaults happen to equal the panel's defaults;
+    // only an operator who CHANGED a value was affected, and then silently.
+    // Proven live: a run with `recenterAfterFlip: false` still ran
+    // "Step 6/8: Plate solving and centering".
+    try {
+      await backend.sequencerUpdateMeridianFlipConfig(
+        jsonEncode(buildGlobalMeridianFlipConfigJson()),
+      );
+      _logger.debug(
+        'Seeded meridian-flip trigger config from user settings',
+        source: 'SequenceExecutor',
+      );
+    } catch (e, st) {
+      firstError ??= e;
+      firstStack ??= st;
+      _logger.error(
+        'Failed to seed meridian-flip config: $e',
+        source: 'SequenceExecutor',
+      );
+    }
+
     // Observer location: distinct from setLocation() above (which sets the
     // higher-level NightshadeBackend location). The sequencer's RuntimeConfig
     // owns its own lat/lon used by meridian-flip and altitude calculations.
@@ -235,13 +302,29 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
-    // Filter focus offsets: persisted on the active equipment profile as a
-    // `Map<String,int>` directly on `EquipmentProfileModel`. The Rust
-    // default is an empty map, so an unattended start with no Settings
-    // round-trip would not apply offsets.
+    // Filter focus offsets: merge the equipment profile table with non-zero
+    // per-filter AF overrides (the same precedence DeviceService uses). Honor
+    // the user's master toggle by sending an empty map when disabled.
     try {
       final profile = _ref.read(activeEquipmentProfileProvider);
-      final offsets = profile?.filterFocusOffsets ?? const <String, int>{};
+      final settings = _ref.read(appSettingsProvider).valueOrNull;
+      if (settings == null) {
+        throw StateError(
+          'AppSettings is not loaded; filter focus-offset behavior is unknown.',
+        );
+      }
+      final offsets = <String, int>{};
+      if (settings.useFilterFocusOffsets) {
+        offsets.addAll(profile?.filterFocusOffsets ?? const <String, int>{});
+        final autofocusFilters = AutofocusSettings.parseFilterSettingsJson(
+          settings.afFilterSettingsJson,
+        );
+        for (final entry in autofocusFilters.entries) {
+          if (entry.value.focusOffset != 0) {
+            offsets[entry.key] = entry.value.focusOffset;
+          }
+        }
+      }
       await backend.sequencerUpdateFilterOffsets(offsets);
       _logger.debug(
         'Seeded filter focus offsets: ${offsets.length} entries',
@@ -347,9 +430,18 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           focalLength = fl;
         }
 
+        // Aperture needs the SAME legacy fallback as focal length above: a
+        // profile built through the generic optics fields has
+        // telescopeAperture == 0 and the real value in `aperture`, so reading
+        // only telescopeAperture dropped it and every frame was written with
+        // FOCALLEN but no APTDIA — an aperture the operator had configured,
+        // missing from the FITS header that photometry reads.
         final ta = profile.telescopeAperture;
+        final ap = profile.aperture;
         if (ta != null && ta > 0) {
           aperture = ta;
+        } else if (ap > 0) {
+          aperture = ap;
         }
       }
 
@@ -419,6 +511,30 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       );
     }
 
+    // Replay Debug — seed the decision-logging enabled flag from
+    // the ACTIVE authority's setting before start. `replayDebugEnabledProvider`
+    // branches on backend: on the host it reads the local `replay_debug.enabled`
+    // app-setting; on a remote client it reads the host's authoritative value.
+    // Pushing it through `backend.sequencerSetDecisionLoggingEnabled` reconciles
+    // the executor's runtime flag to that persisted policy for both paths. A
+    // corrupt/unreadable setting throws (strict parse) and, via `firstError`,
+    // aborts the start so we never begin a run under the wrong logging policy.
+    try {
+      final enabled = await _ref.read(replayDebugEnabledProvider.future);
+      await backend.sequencerSetDecisionLoggingEnabled(enabled);
+      _logger.debug(
+        'Seeded replay decision logging: enabled=$enabled',
+        source: 'SequenceExecutor',
+      );
+    } catch (e, st) {
+      firstError ??= e;
+      firstStack ??= st;
+      _logger.error(
+        'Failed to seed replay decision logging: $e',
+        source: 'SequenceExecutor',
+      );
+    }
+
     if (firstError != null) {
       // Rethrow so sequencerStart() does not silently proceed with a partial
       // runtime config. The rule "errors are a feature" requires
@@ -466,11 +582,26 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     final List<SessionCarryOver> carryOvers;
     try {
       carryOvers = await _ref.read(sessionCarryOverProvider.future);
+      // A transient failure may have recovered between the pre-flight prompt
+      // and executor setup. Consume the one-shot anyway and use the real data.
+      if (_ref.read(sessionHandoffIgnoreUnavailableOnceProvider)) {
+        _ref.read(sessionHandoffIgnoreUnavailableOnceProvider.notifier).state =
+            false;
+      }
     } catch (e, st) {
-      // detectCarryOver already swallows DAO errors and returns []. A
-      // throw here means the provider build itself failed (e.g. ref
-      // disposal mid-start); surface so the operator sees it rather
-      // than ship a stale runtime config to the executor.
+      // History-unavailable is not equivalent to no history. Surface it before
+      // native start so a direct/API launch cannot silently reset a multi-night
+      // integration budget to zero.
+      if (_ref.read(sessionHandoffIgnoreUnavailableOnceProvider)) {
+        _ref.read(sessionHandoffIgnoreUnavailableOnceProvider.notifier).state =
+            false;
+        _logger.warning(
+          'Starting without session carry-over after explicit operator '
+          'confirmation: $e',
+          source: 'SequenceExecutor',
+        );
+        return;
+      }
       _logger.error(
         'Failed to read session carry-over snapshot: $e',
         source: 'SequenceExecutor',
@@ -777,9 +908,18 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           focalLength = fl;
         }
 
+        // Aperture needs the SAME legacy fallback as focal length above: a
+        // profile built through the generic optics fields has
+        // telescopeAperture == 0 and the real value in `aperture`, so reading
+        // only telescopeAperture dropped it and every frame was written with
+        // FOCALLEN but no APTDIA — an aperture the operator had configured,
+        // missing from the FITS header that photometry reads.
         final ta = profile.telescopeAperture;
+        final ap = profile.aperture;
         if (ta != null && ta > 0) {
           aperture = ta;
+        } else if (ap > 0) {
+          aperture = ap;
         }
       }
 
@@ -823,7 +963,22 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
   /// runtime config event stream stays quiet under steady conditions.
   void _startSkyBrightnessPoll(NightshadeBackend backend) {
     _skyBrightnessPollTimer?.cancel();
-    _skyBrightnessPollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    // Capture the logger ONCE, here. It is a provider read, and the tick below
+    // outlives the container: reading it from inside the catch block meant the
+    // error handler ITSELF threw ("Tried to read a provider from a
+    // ProviderContainer that was already disposed"), escaping the try and
+    // surfacing as an unhandled async error every 10 seconds. A catch that can
+    // throw is not a guard. Same idiom the frame-registration path already uses.
+    final logger = _logger;
+    _skyBrightnessPollTimer = Timer.periodic(const Duration(seconds: 10), (
+      timer,
+    ) {
+      // Self-cancel if the executor went away between ticks, so a leaked timer
+      // can never keep touching a torn-down Ref.
+      if (_disposed) {
+        timer.cancel();
+        return;
+      }
       try {
         final tracker = _ref.read(skyBrightnessTrackerProvider);
         final mag = tracker.currentMagPerArcsec2();
@@ -838,7 +993,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
           if (changed) {
             _lastPushedSkyMag = mag;
             backend.sequencerUpdateSkyBrightness(mag: mag);
-            _logger.debug(
+            logger.debug(
               'Pushed sky brightness to executor: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsecÂ²',
               source: 'SequenceExecutor',
             );
@@ -848,7 +1003,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
         // Don't let a tracker read failure kill the periodic timer —
         // log and keep going. "Errors are a feature" applies to user-
         // visible faults; this is best-effort telemetry.
-        _logger.debug(
+        logger.debug(
           'Sky brightness poll failed: $e',
           source: 'SequenceExecutor',
         );

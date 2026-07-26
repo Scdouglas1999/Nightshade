@@ -14,6 +14,7 @@
 //     gone), then Back returns to the list.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
@@ -50,6 +51,32 @@ const _phoneLandscape = <(String, Size)>[
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('search survives a shell-consumed landscape keyboard inset',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      await pumpAppScreen(
+        tester,
+        const SizedBox(height: 64, child: SettingsScreen()),
+        size: const Size(932, 430),
+        extraOverrides: _stubSettings(),
+      );
+
+      final searchField = find.byType(TextField).first;
+      expect(tester.takeException(), isNull);
+      expect(searchField.hitTestable(), findsOneWidget);
+      expect(find.text('Settings'), findsNothing);
+
+      await tester.tap(searchField);
+      await tester.enterText(searchField, 'latitude');
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 
   // Every test size/orientation: no overflow + a reachable, working search box.
   // (Layout is driven by *device class* — shortest side < 600 — not the live
@@ -113,7 +140,13 @@ void main() {
               'at $label.');
       // The grouped list is gone now that the detail pane is full-screen
       // (list -> detail navigation, not a split).
-      expect(find.text('EQUIPMENT'), findsNothing,
+      //
+      // GENERAL, not EQUIPMENT, is the sentinel: the list is a lazy
+      // ListView.builder, so on a short phone EQUIPMENT is simply never built
+      // and `findsNothing` passed for the wrong reason — it could not tell
+      // "the list is gone" from "the list is here but that row is below the
+      // fold". GENERAL is the first row, so it is built whenever the list is.
+      expect(find.text('GENERAL'), findsNothing,
           reason: 'The detail pane is full-screen on phone; the grouped list '
               'must not also be visible at $label.');
 
@@ -121,9 +154,19 @@ void main() {
       // (the back arrow).
       await tester.tap(find.byType(IconButton).first);
       await tester.pumpAndSettle(const Duration(seconds: 1));
-      expect(find.text('EQUIPMENT'), findsOneWidget,
+      expect(find.text('GENERAL'), findsOneWidget,
           reason: 'Back from the detail pane must restore the grouped list '
               'at $label.');
+
+      // ...and the rest of the taxonomy is still reachable from there, which
+      // is the claim the old EQUIPMENT assertion was reaching for.
+      final list = find.byType(Scrollable).last;
+      await tester.scrollUntilVisible(find.text('EQUIPMENT'), 100,
+          scrollable: list);
+      await tester.pumpAndSettle();
+      expect(find.text('EQUIPMENT'), findsOneWidget,
+          reason: 'Later groups must remain reachable by scrolling the '
+              'restored list at $label.');
     });
   }
 
@@ -161,7 +204,9 @@ void main() {
       expect(find.byType(GeneralSettings), findsOneWidget,
           reason: 'Tapping a category must push its full-screen detail pane '
               'at $label.');
-      expect(find.text('EQUIPMENT'), findsNothing,
+      // GENERAL (the first, always-built row) rather than EQUIPMENT — see the
+      // portrait case above for why a below-the-fold row is a false sentinel.
+      expect(find.text('GENERAL'), findsNothing,
           reason: 'The detail pane is full-screen on phone; the grouped list '
               'must not also be visible at $label.');
     });

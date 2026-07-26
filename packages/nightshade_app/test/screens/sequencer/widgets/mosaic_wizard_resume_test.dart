@@ -29,6 +29,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../harness/mock_backend.dart';
 import '../../../harness/pump_app_screen.dart';
 
+class _MockSequenceExecutor extends Mock implements SequenceExecutor {}
+
 CheckpointInfo _mosaicCheckpoint({
   String sequenceName = 'Mosaic 12.50h 30.0°',
   int completedExposures = 40,
@@ -48,6 +50,7 @@ CheckpointInfo _mosaicCheckpoint({
 Future<void> _pumpMosaicWizard(
   WidgetTester tester, {
   required MockBackend backend,
+  SequenceExecutor? executor,
 }) async {
   // The mosaic dialog is hardcoded at 900×700. Give the test surface
   // enough room so the dialog's pre-existing Rows (statistics block,
@@ -83,6 +86,8 @@ Future<void> _pumpMosaicWizard(
       overrides: [
         backendProvider
             .overrideWith((ref) => TestBackendNotifier(ref, backend)),
+        if (executor != null)
+          sequenceExecutorProvider.overrideWithValue(executor),
         smartNightExposureContextProvider.overrideWith((ref) async => null),
       ],
       child: MaterialApp(
@@ -185,20 +190,25 @@ void main() {
       );
     });
 
-    testWidgets('Resume button invokes backend.resumeFromCheckpoint',
+    testWidgets('Resume button invokes the sequence executor resume lifecycle',
         (tester) async {
       final backend = mockBackend();
+      final executor = _MockSequenceExecutor();
       when(() => backend.hasCheckpoint()).thenAnswer((_) async => true);
       when(() => backend.getCheckpointInfo())
           .thenAnswer((_) async => _mosaicCheckpoint());
-      when(() => backend.resumeFromCheckpoint()).thenAnswer((_) async {});
+      when(executor.resumeFromCheckpoint).thenAnswer((_) async {});
 
-      await _pumpMosaicWizard(tester, backend: backend);
+      await _pumpMosaicWizard(
+        tester,
+        backend: backend,
+        executor: executor,
+      );
 
       await tester.tap(find.widgetWithText(NightshadeButton, 'Resume'));
       await tester.pumpAndSettle();
 
-      verify(() => backend.resumeFromCheckpoint()).called(1);
+      verify(executor.resumeFromCheckpoint).called(1);
     });
 
     testWidgets(

@@ -191,6 +191,92 @@ void main() {
       final a = resolveFrameAttribution(seq, 'does-not-exist');
       expect(a.targetId, isNull);
       expect(a.exposureSecs, isNull);
+      // Binning has no honest "unknown": the column is NOT NULL, so an
+      // unresolvable node must fall back to 1x1 rather than 0.
+      expect(a.binX, 1);
+      expect(a.binY, 1);
+      expect(a.gain, isNull);
+      expect(a.offset, isNull);
+    });
+
+    /// Sequencer frames used to be written with NULL gain/offset and a
+    /// defaulted 1x1 binning, so a binned or non-default-gain run could not be
+    /// matched against its master darks (the matcher keys on gain, offset and
+    /// binning) and binned frames were recorded at the wrong binning entirely.
+    test('carries the producing node gain, offset and binning', () {
+      final seq = Sequence.create(
+        name: 'binned',
+        rootNodeId: 't',
+        nodes: {
+          't': TargetHeaderNode(
+            id: 't',
+            targetName: 'M42',
+            raHours: 5.59,
+            decDegrees: -5.39,
+            catalogTargetId: 11,
+            childIds: const ['exp'],
+          ),
+          'exp': ExposureNode(
+            id: 'exp',
+            durationSecs: 120.0,
+            count: 5,
+            gain: 150,
+            offset: 20,
+            binning: BinningMode.two,
+          ),
+        },
+      );
+
+      final a = resolveFrameAttribution(seq, 'exp');
+      expect(a.gain, 150);
+      expect(a.offset, 20);
+      expect(a.binX, 2);
+      expect(a.binY, 2);
+    });
+
+    test('SmartExposure takes gain/offset/binning from the matching plan', () {
+      final seq = Sequence.create(
+        name: 'smart',
+        rootNodeId: 't',
+        nodes: {
+          't': TargetHeaderNode(
+            id: 't',
+            targetName: 'M42',
+            raHours: 5.59,
+            decDegrees: -5.39,
+            catalogTargetId: 11,
+            childIds: const ['smart'],
+          ),
+          'smart': SmartExposureNode(
+            id: 'smart',
+            plans: const [
+              FilterPlan(
+                filterName: 'Lum',
+                durationSecs: 60.0,
+                gain: 100,
+                offset: 10,
+              ),
+              FilterPlan(
+                filterName: 'Ha',
+                durationSecs: 300.0,
+                gain: 200,
+                offset: 30,
+                binning: BinningMode.two,
+              ),
+            ],
+          ),
+        },
+      );
+
+      final ha = resolveFrameAttribution(seq, 'smart', currentFilter: 'Ha');
+      expect(ha.exposureSecs, 300.0);
+      expect(ha.gain, 200);
+      expect(ha.offset, 30);
+      expect(ha.binX, 2);
+
+      final lum = resolveFrameAttribution(seq, 'smart', currentFilter: 'Lum');
+      expect(lum.gain, 100);
+      expect(lum.binX, 1);
     });
   });
 }

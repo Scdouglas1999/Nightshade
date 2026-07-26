@@ -7,6 +7,45 @@ import 'package:nightshade_bridge/nightshade_bridge.dart'
 import '../../models/backend/backend_types.dart';
 import '../../models/imaging/imaging_models.dart' show FrameType;
 
+/// Typed environmental telemetry shared by local FFI and remote HTTP
+/// backends. Null fields mean the driver does not expose that sensor.
+class HardwareWeatherConditions {
+  final double? temperature;
+  final double? humidity;
+  final double? pressure;
+  final double? cloudCover;
+  final double? dewPoint;
+  final double? windSpeed;
+  final double? windDirection;
+  final double? skyQuality;
+  final double? skyTemperature;
+  final double? rainRate;
+
+  const HardwareWeatherConditions({
+    this.temperature,
+    this.humidity,
+    this.pressure,
+    this.cloudCover,
+    this.dewPoint,
+    this.windSpeed,
+    this.windDirection,
+    this.skyQuality,
+    this.skyTemperature,
+    this.rainRate,
+  });
+}
+
+/// Optional capability implemented by backends that can read live weather
+/// and safety-monitor state. It is deliberately separate from [DeviceBackend]
+/// so lightweight test backends are not forced to fake safety telemetry.
+abstract interface class EnvironmentalStatusBackend {
+  Future<HardwareWeatherConditions> getHardwareWeatherConditions(
+    String deviceId,
+  );
+
+  Future<bool> getHardwareSafetyStatus(String deviceId);
+}
+
 /// Role interface covering driver-bound device operations.
 ///
 /// What this role owns:
@@ -210,6 +249,8 @@ abstract class DeviceBackend {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    int? gain,
+    int? offset,
     String curveFitting = 'Hyperbolic',
     int numberOfAttempts = 1,
     int exposuresPerPoint = 1,
@@ -257,6 +298,11 @@ abstract class DeviceBackend {
 
   /// Halt rotator
   Future<void> rotatorHalt(String deviceId);
+
+  /// Set the rotator's reverse-direction flag (IRotatorV3 `Reverse`,
+  /// Alpaca `reverse`, INDI `ROTATOR_REVERSE`). Only valid when the driver
+  /// reports `canReverse`.
+  Future<void> rotatorSetReverse(String deviceId, bool reverse);
 
   /// Sync the rotator's reported sky position-angle (degrees) to [pa] without
   /// moving the hardware. Why a separate method from [rotatorMoveTo]: ASCOM

@@ -5,7 +5,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
-import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
+import '../backend/ffi_backend.dart' show FfiBackend;
+import '../backend/network_backend.dart' show NetworkBackend;
+import '../backend/nightshade_backend.dart';
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
 import '../providers/settings_provider.dart';
@@ -48,11 +50,29 @@ class PlateSolverConfig {
   });
 }
 
+class _SolverProcessResult {
+  final int exitCode;
+  final String stdout;
+  final String stderr;
+
+  const _SolverProcessResult({
+    required this.exitCode,
+    required this.stdout,
+    required this.stderr,
+  });
+}
+
 /// Plate solve service
 class PlateSolveService {
   final Ref _ref;
+  final NightshadeBackend _backend;
+  final StateController<PlateSolveState> _stateController;
+  bool _solveInFlight = false;
+  bool _retired = false;
 
-  PlateSolveService(this._ref);
+  PlateSolveService(this._ref, {NightshadeBackend? backend})
+    : _backend = backend ?? _ref.read(backendProvider),
+      _stateController = _ref.read(plateSolveStateProvider.notifier);
 
   /// Test seam: parse an ASTAP `.wcs` sidecar. Pins the unit contract
   /// (RA in degrees). Delegates to the private parser used by the local
@@ -81,17 +101,51 @@ class PlateSolveService {
   /// reflect "solving…" / last result) and the result is logged. The log line
   /// is the one place an unattended sequence's plate-solve outcome surfaces to
   /// the operator, who otherwise only saw a node flip green/red.
-  Future<PlateSolveResult> solve(
+  Future<PlateSolveResult> solve(String imagePath, PlateSolverConfig config) {
+    return _runExclusiveSolve(imagePath, () => _runSolve(imagePath, config));
+  }
+
+  Future<PlateSolveResult> _runExclusiveSolve(
     String imagePath,
-    PlateSolverConfig config,
+    Future<PlateSolveResult> Function() operation,
   ) async {
+    if (_solveInFlight) {
+      return _failureResult(
+        'Another plate solve is already running. Wait for it to finish before '
+        'starting a new solve.',
+      );
+    }
+
+    _solveInFlight = true;
     _ref.read(plateSolveStateProvider.notifier).state = _ref
         .read(plateSolveStateProvider)
         .copyWith(isSolving: true, currentImage: imagePath);
 
-    final result = await _runSolve(imagePath, config);
-    _announceSolveResult(imagePath, result);
-    return result;
+    try {
+      final result = await operation();
+      if (_hasAuthority) _announceSolveResult(imagePath, result);
+      return result;
+    } finally {
+      // Detection/configuration/backend errors can throw before a result
+      // exists. Always release both the UI state and the process-local gate.
+      final state = _ref.read(plateSolveStateProvider);
+      if (_hasAuthority && state.isSolving) {
+        _ref.read(plateSolveStateProvider.notifier).state = state.copyWith(
+          isSolving: false,
+        );
+      }
+      _solveInFlight = false;
+    }
+  }
+
+  bool get _hasAuthority =>
+      !_retired && identical(_ref.read(backendProvider), _backend);
+
+  void retire() {
+    if (_retired) return;
+    _retired = true;
+    _solveInFlight = false;
+    _stateController.state = const PlateSolveState();
   }
 
   Future<PlateSolveResult> _runSolve(
@@ -100,14 +154,24 @@ class PlateSolveService {
   ) async {
     try {
       // Use backend's plateSolve - works for both local (FFI) and remote (Network)
-      final backend = _ref.read(imagingBackendProvider);
-      return await backend.plateSolve(
+      return await _backend.plateSolve(
         imagePath: imagePath,
-        ra: config.hintRa,
+        // PlateSolverConfig is app-canonical HOURS; the native bridge and
+        // sequencer DeviceOps contract take solver hints in DEGREES.
+        ra: config.hintRa == null ? null : config.hintRa! * 15.0,
         dec: config.hintDec,
         fovDegrees: config.searchRadius,
+        timeoutSeconds: config.timeoutSeconds,
       );
     } catch (e) {
+      // A NetworkBackend runs the solver on the desktop host. Its executable
+      // path and image path are not meaningful on the remote client, so a
+      // transport/backend failure must be surfaced instead of trying to spawn
+      // that binary on the phone's local filesystem.
+      if (_backend is NetworkBackend) {
+        return _failureResult('Remote host plate solve failed: $e');
+      }
+
       final fallbackResult = await _solveLocally(imagePath, config);
       if (fallbackResult.success) {
         return fallbackResult;
@@ -138,6 +202,82 @@ class PlateSolveService {
         sipApCoeffs: _kEmptyCoeffs,
         sipBpCoeffs: _kEmptyCoeffs,
       );
+    }
+  }
+
+  PlateSolveResult _failureResult(String error) {
+    return PlateSolveResult(
+      success: false,
+      ra: 0,
+      dec: 0,
+      pixelScale: 0,
+      rotation: 0,
+      fieldWidth: 0,
+      fieldHeight: 0,
+      solveTimeSecs: 0,
+      error: error,
+      cd11: 0,
+      cd12: 0,
+      cd21: 0,
+      cd22: 0,
+      sipAOrder: 0,
+      sipBOrder: 0,
+      sipACoeffs: _kEmptyCoeffs,
+      sipBCoeffs: _kEmptyCoeffs,
+      sipApOrder: 0,
+      sipBpOrder: 0,
+      sipApCoeffs: _kEmptyCoeffs,
+      sipBpCoeffs: _kEmptyCoeffs,
+    );
+  }
+
+  /// Run a local solver while retaining a process handle so timeout can
+  /// actually terminate it. `Process.run(...).timeout(...)` only abandons the
+  /// Dart Future; the solver keeps running and can write a stale solution after
+  /// the caller has already reported failure.
+  Future<_SolverProcessResult> _runSolverProcess(
+    String executable,
+    List<String> args, {
+    String? workingDirectory,
+    required Duration timeout,
+  }) async {
+    final process = await Process.start(
+      executable,
+      args,
+      workingDirectory: workingDirectory,
+    );
+    final stdoutFuture = systemEncoding
+        .decodeStream(process.stdout)
+        .catchError((Object _) => '');
+    final stderrFuture = systemEncoding
+        .decodeStream(process.stderr)
+        .catchError((Object _) => '');
+
+    int exitCode;
+    try {
+      exitCode = await process.exitCode.timeout(timeout);
+    } on TimeoutException {
+      await _terminateSolverProcess(process);
+      throw TimeoutException('Plate solve timed out', timeout);
+    }
+
+    return _SolverProcessResult(
+      exitCode: exitCode,
+      stdout: await stdoutFuture,
+      stderr: await stderrFuture,
+    );
+  }
+
+  Future<void> _terminateSolverProcess(Process process) async {
+    process.kill();
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 2));
+      return;
+    } on TimeoutException {
+      if (!Platform.isWindows) {
+        process.kill(ProcessSignal.sigkill);
+      }
+      await process.exitCode.timeout(const Duration(seconds: 2));
     }
   }
 
@@ -229,7 +369,9 @@ class PlateSolveService {
 
       if (config.hintRa != null && config.hintDec != null) {
         args.addAll([
-          '-ra', (config.hintRa! * 15).toString(), // Convert hours to degrees
+          // ASTAP's CLI takes -ra in hours (unlike astrometry.net and the
+          // Nightshade native bridge, which take degree hints).
+          '-ra', config.hintRa!.toString(),
           '-spd', (config.hintDec! + 90).toString(), // South pole distance
         ]);
       }
@@ -244,11 +386,12 @@ class PlateSolveService {
       // Tell ASTAP to write the `.wcs` sidecar that `_parseWcsFile` reads.
       args.add('-wcs');
 
-      final result = await Process.run(
+      final result = await _runSolverProcess(
         config.executablePath,
         args,
         workingDirectory: File(imagePath).parent.path,
-      ).timeout(Duration(seconds: config.timeoutSeconds));
+        timeout: Duration(seconds: config.timeoutSeconds),
+      );
 
       if (result.exitCode != 0) {
         return PlateSolveResult(
@@ -379,10 +522,11 @@ class PlateSolveService {
         ]);
       }
 
-      final result = await Process.run(
+      final result = await _runSolverProcess(
         config.executablePath,
         args,
-      ).timeout(Duration(seconds: config.timeoutSeconds));
+        timeout: Duration(seconds: config.timeoutSeconds),
+      );
 
       if (result.exitCode != 0) {
         return PlateSolveResult(
@@ -470,6 +614,12 @@ class PlateSolveService {
     PlateSolverConfig config,
   ) async {
     try {
+      final outputPath = '$imagePath.apm';
+      final outputFile = File(outputPath);
+      if (await outputFile.exists()) {
+        await outputFile.delete();
+      }
+
       // PlateSolve2 uses a different command line interface
       final args = <String>[
         imagePath,
@@ -484,14 +634,20 @@ class PlateSolveService {
         ]);
       }
 
-      final result = await Process.run(
+      final result = await _runSolverProcess(
         config.executablePath,
         args,
-      ).timeout(Duration(seconds: config.timeoutSeconds));
+        timeout: Duration(seconds: config.timeoutSeconds),
+      );
+
+      if (result.exitCode != 0) {
+        return _failureResult(
+          'PlateSolve2 failed (exit ${result.exitCode}): ${result.stderr}',
+        );
+      }
 
       // Parse PlateSolve2 output file
-      final outputPath = '$imagePath.apm';
-      if (await File(outputPath).exists()) {
+      if (await outputFile.exists()) {
         return _parsePlateSolve2Output(outputPath);
       }
 
@@ -752,7 +908,7 @@ class PlateSolveService {
   Future<ps_model.PlateSolverDetection> detect() async {
     final logging = _ref.read(loggingServiceProvider);
     try {
-      return await _ref.read(imagingBackendProvider).detectPlateSolvers();
+      return await _backend.detectPlateSolvers();
     } catch (e) {
       logging.error(
         'plate-solver detection failed: $e',
@@ -771,9 +927,7 @@ class PlateSolveService {
   Future<ps_model.PlateSolverInfo> verify(String executablePath) async {
     final logging = _ref.read(loggingServiceProvider);
     try {
-      return await _ref
-          .read(imagingBackendProvider)
-          .verifyPlateSolver(executablePath);
+      return await _backend.verifyPlateSolver(executablePath);
     } catch (e) {
       logging.warning(
         'plate-solver verify failed for $executablePath: $e',
@@ -789,7 +943,7 @@ class PlateSolveService {
   /// Routed through the backend so the phone reads the HOST's persisted
   /// config rather than its own.
   Future<ps_model.PlateSolverPreference> getConfig() async {
-    return _ref.read(imagingBackendProvider).getPlateSolverConfig();
+    return _backend.getPlateSolverConfig();
   }
 
   /// Persist plate-solver UX configuration. Invalidates the solver-
@@ -799,7 +953,48 @@ class PlateSolveService {
   /// Routed through the backend so the phone writes config to the HOST (the
   /// machine that actually runs the solver), not to the phone.
   Future<void> setConfig(ps_model.PlateSolverPreference pref) async {
-    await _ref.read(imagingBackendProvider).setPlateSolverConfig(pref);
+    await _backend.setPlateSolverConfig(pref);
+  }
+
+  /// Validate the selected solver before callers capture an image or move
+  /// hardware. Centering uses this preflight so a missing executable/catalog
+  /// fails immediately instead of wasting a camera exposure first.
+  Future<void> ensureSolverAvailable() async {
+    final detection = await detect();
+    final pref = await getConfig();
+    _validateSolverAvailability(detection, pref);
+  }
+
+  void _validateSolverAvailability(
+    ps_model.PlateSolverDetection detection,
+    ps_model.PlateSolverPreference pref,
+  ) {
+    switch (pref.choice) {
+      case ps_model.PlateSolverChoice.astap:
+        if (!detection.astapReady) {
+          throw const SolverNotAvailableError(
+            'ASTAP is selected but its executable or star catalog is not '
+            'configured. Configure it in Settings → Plate Solving.',
+          );
+        }
+        return;
+      case ps_model.PlateSolverChoice.astrometry:
+        if (detection.astrometryPath == null) {
+          throw const SolverNotAvailableError(
+            'Astrometry.net is selected but not installed. Configure it in '
+            'Settings → Plate Solving.',
+          );
+        }
+        return;
+      case ps_model.PlateSolverChoice.auto:
+        if (!detection.hasAnySolver) {
+          throw const SolverNotAvailableError(
+            'No usable plate solver configured. Set one up in Settings → Plate '
+            'Solving.',
+          );
+        }
+        return;
+    }
   }
 
   /// Solve `imagePath` honouring the user's `PlateSolverChoice`.
@@ -820,10 +1015,30 @@ class PlateSolveService {
     double? hintDecDegrees,
     double? searchRadiusDegrees,
     int? timeoutSeconds,
+  }) {
+    return _runExclusiveSolve(
+      imagePath,
+      () => _solveWithFallbackInternal(
+        imagePath: imagePath,
+        hintRaHours: hintRaHours,
+        hintDecDegrees: hintDecDegrees,
+        searchRadiusDegrees: searchRadiusDegrees,
+        timeoutSeconds: timeoutSeconds,
+      ),
+    );
+  }
+
+  Future<PlateSolveResult> _solveWithFallbackInternal({
+    required String imagePath,
+    double? hintRaHours,
+    double? hintDecDegrees,
+    double? searchRadiusDegrees,
+    int? timeoutSeconds,
   }) async {
     final logging = _ref.read(loggingServiceProvider);
     final detection = await detect();
     final pref = await getConfig();
+    _validateSolverAvailability(detection, pref);
 
     // Fall back to the user-configured defaults (Settings → Plate Solving →
     // Solve parameters) when the caller doesn't pin an explicit value. This is
@@ -834,6 +1049,40 @@ class PlateSolveService {
         timeoutSeconds ?? appSettings?.plateSolveTimeout ?? 60;
     final effectiveRadius =
         searchRadiusDegrees ?? appSettings?.plateSolveSearchRadius;
+    final forceBlind = appSettings?.blindSolve ?? false;
+    final effectiveHintRa = forceBlind ? null : hintRaHours;
+    final effectiveHintDec = forceBlind ? null : hintDecDegrees;
+
+    // FFI and Network backends both execute against the host's persisted
+    // solver choice. The native host performs Auto's ASTAP→astrometry fallback
+    // under its process-wide gate, so issue exactly one backend solve rather
+    // than accidentally running ASTAP twice when the first attempt fails.
+    final activeBackend = _backend;
+    if (activeBackend is FfiBackend || activeBackend is NetworkBackend) {
+      final executable = switch (pref.choice) {
+        ps_model.PlateSolverChoice.astrometry => detection.astrometryPath!,
+        ps_model.PlateSolverChoice.astap => detection.astapPath!,
+        ps_model.PlateSolverChoice.auto =>
+          detection.astapReady
+              ? detection.astapPath!
+              : detection.astrometryPath!,
+      };
+      final type = pref.choice == ps_model.PlateSolverChoice.astrometry
+          ? PlateSolverType.astrometryNet
+          : PlateSolverType.astap;
+      return _runSolve(
+        imagePath,
+        PlateSolverConfig(
+          type: type,
+          executablePath: executable,
+          catalogPath: detection.catalogPath,
+          timeoutSeconds: effectiveTimeout,
+          searchRadius: effectiveRadius,
+          hintRa: effectiveHintRa,
+          hintDec: effectiveHintDec,
+        ),
+      );
+    }
 
     Future<PlateSolveResult> runAstap() async {
       if (detection.astapPath == null) {
@@ -892,10 +1141,10 @@ class PlateSolveService {
         catalogPath: detection.catalogPath,
         timeoutSeconds: effectiveTimeout,
         searchRadius: effectiveRadius,
-        hintRa: hintRaHours,
-        hintDec: hintDecDegrees,
+        hintRa: effectiveHintRa,
+        hintDec: effectiveHintDec,
       );
-      return solve(imagePath, config);
+      return _runSolve(imagePath, config);
     }
 
     Future<PlateSolveResult> runAstrometry() async {
@@ -929,37 +1178,18 @@ class PlateSolveService {
         executablePath: detection.astrometryPath!,
         timeoutSeconds: effectiveTimeout,
         searchRadius: effectiveRadius,
-        hintRa: hintRaHours,
-        hintDec: hintDecDegrees,
+        hintRa: effectiveHintRa,
+        hintDec: effectiveHintDec,
       );
-      return solve(imagePath, config);
+      return _runSolve(imagePath, config);
     }
 
     switch (pref.choice) {
       case ps_model.PlateSolverChoice.astap:
-        if (!detection.astapReady) {
-          throw const SolverNotAvailableError(
-            'ASTAP is selected but its executable or star catalog is not '
-            'configured. Configure it in '
-            'Settings → Plate Solving.',
-          );
-        }
         return runAstap();
       case ps_model.PlateSolverChoice.astrometry:
-        if (detection.astrometryPath == null) {
-          throw const SolverNotAvailableError(
-            'Astrometry.net is selected but not installed. Configure it '
-            'in Settings → Plate Solving.',
-          );
-        }
         return runAstrometry();
       case ps_model.PlateSolverChoice.auto:
-        if (!detection.hasAnySolver) {
-          throw const SolverNotAvailableError(
-            'No usable plate solver configured. Set one up in Settings → Plate '
-            'Solving.',
-          );
-        }
         if (detection.astapReady) {
           final astapResult = await runAstap();
           if (astapResult.success) return astapResult;
@@ -1122,7 +1352,10 @@ class PlateSolveService {
 
 /// Plate solve service provider
 final plateSolveServiceProvider = Provider<PlateSolveService>((ref) {
-  return PlateSolveService(ref);
+  final backend = ref.watch(backendProvider);
+  final service = PlateSolveService(ref, backend: backend);
+  ref.onDispose(service.retire);
+  return service;
 });
 
 /// Active plate solve state

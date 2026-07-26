@@ -18,11 +18,15 @@
 //
 // ignore_for_file: implementation_imports
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/src/providers/plugin_enablement_provider.dart'
     show settingsPluginEnablementStoreProvider;
 import 'package:nightshade_plugins/src/plugin_registration.dart'
     show pluginEnablementStoreProvider;
+import 'package:nightshade_plugins/src/plugin_host.dart'
+    show PluginHost, pluginHostProvider;
 
 /// Build the Riverpod override that makes the bundled-plugin registration
 /// honour the user's persisted enable/disable choices.
@@ -51,4 +55,16 @@ Override pluginEnablementStoreOverride() {
   return pluginEnablementStoreProvider.overrideWith(
     (ref) => ref.watch(settingsPluginEnablementStoreProvider),
   );
+}
+
+/// Build the app-composition override that supplies the running Nightshade
+/// version to the plugin host's `minAppVersion` gate.
+Override pluginHostAppVersionOverride(String appVersion) {
+  return pluginHostProvider.overrideWith((ref) {
+    final host = PluginHost(appVersion: appVersion);
+    ref.onDispose(() {
+      unawaited(host.dispose());
+    });
+    return host;
+  });
 }

@@ -95,6 +95,14 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
   Widget build(BuildContext context) {
     final step = ref.watch(nextUsePromptProvider);
 
+    // First-use coaching must never compete with an unsettled imaging run. In
+    // particular, this gate cannot live only inside Smart Night eligibility:
+    // users who disable the Smart Night auto-prompt still have running,
+    // paused, stopping, recovering, and cleanup/finalization states where a
+    // "what should I do next?" action would be both distracting and unsafe.
+    final sequenceActive =
+        _sequenceIsActive(ref.watch(sequenceExecutionStateProvider));
+
     // De-overlap with the Smart Night prompt: both anchor bottom-centre, so
     // never stack them. Smart Night ("plan tonight") wins when it is eligible;
     // this card stands down. Mirrors the coach/readiness de-overlap in
@@ -104,7 +112,7 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
     // never double-occupied.
     final smartNightEligible = ref.watch(_smartNightPromptEligibleProvider);
 
-    if (step == null || smartNightEligible) {
+    if (step == null || smartNightEligible || sequenceActive) {
       _animController.value = 0.0;
       return const SizedBox.shrink();
     }
@@ -348,6 +356,12 @@ bool _sequenceIsActive(SequenceExecutionState state) {
     case SequenceExecutionState.paused:
     case SequenceExecutionState.stopping:
     case SequenceExecutionState.recovering:
+    // A failed stop (hardware possibly still imaging), a pending cleanup, or an
+    // in-flight finalization are all "active" — the run is not settled (start is
+    // blocked), so the next-use prompt must not offer to launch over it.
+    case SequenceExecutionState.stopFailed:
+    case SequenceExecutionState.cleanupFailed:
+    case SequenceExecutionState.finalizing:
       return true;
   }
 }

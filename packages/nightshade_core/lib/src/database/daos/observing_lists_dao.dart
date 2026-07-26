@@ -29,10 +29,13 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
     required int id,
     String? name,
     String? description,
+    bool clearDescription = false,
   }) async {
     final companion = ObservingListsCompanion(
       name: name != null ? Value(name) : const Value.absent(),
-      description: description != null
+      description: clearDescription
+          ? const Value(null)
+          : description != null
           ? Value(description)
           : const Value.absent(),
       updatedAt: Value(DateTime.now()),
@@ -180,11 +183,13 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
     return result;
   }
 
-  /// Update notes on a list item.
-  Future<void> updateItemNotes(int itemId, String? notes) async {
-    await (update(observingListItems)..where((t) => t.id.equals(itemId))).write(
-      ObservingListItemsCompanion(notes: Value(notes)),
-    );
+  /// Update notes on a list item. Returns the number of rows written, so a
+  /// caller can tell "saved" from "there was no such item" — discarding the
+  /// count let the headless API answer `200 {"status":"updated"}` for an id
+  /// that does not exist, leaving a client believing an edit had persisted.
+  Future<int> updateItemNotes(int itemId, String? notes) {
+    return (update(observingListItems)..where((t) => t.id.equals(itemId)))
+        .write(ObservingListItemsCompanion(notes: Value(notes)));
   }
 
   /// Get all items for a given list, ordered by sortOrder.

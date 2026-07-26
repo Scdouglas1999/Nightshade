@@ -48,7 +48,7 @@ pub async fn execute_recovery(
     context: &mut ExecutionContext,
 ) -> NodeStatus {
     let mut attempts = 0;
-    let max_attempts = config.max_retries.max(1);
+    let max_attempts = config.max_retries.saturating_add(1);
 
     loop {
         attempts += 1;
@@ -170,7 +170,7 @@ pub async fn execute_recovery(
                     }
                 };
                 tracing::info!("Running recovery autofocus...");
-                let ctx = context.to_instruction_context().await;
+                let ctx = context.to_instruction_context(node.id()).await;
                 let progress_cb = context.progress_callback.clone();
                 let progress_node_id = node.id().clone();
                 let total_steps = autofocus_config
@@ -224,4 +224,104 @@ pub(crate) fn configured_recovery_autofocus(node: &RuntimeNode) -> Option<crate:
             _ => None,
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::Arc;
+
+    struct FailingChild {
+        id: crate::NodeId,
+        node_type: NodeType,
+        executions: Arc<AtomicUsize>,
+        children: Vec<Box<dyn Node>>,
+    }
+
+    #[async_trait]
+    impl Node for FailingChild {
+        fn id(&self) -> &crate::NodeId {
+            &self.id
+        }
+
+        fn name(&self) -> &str {
+            "failing-child"
+        }
+
+        fn node_type(&self) -> &NodeType {
+            &self.node_type
+        }
+
+        fn is_enabled(&self) -> bool {
+            true
+        }
+
+        async fn execute(&mut self, _context: &mut ExecutionContext) -> NodeStatus {
+            self.executions.fetch_add(1, Ordering::SeqCst);
+            NodeStatus::Failure
+        }
+
+        fn reset(&mut self) {}
+
+        async fn abort(&mut self) {}
+
+        fn children(&self) -> &[Box<dyn Node>] {
+            &self.children
+        }
+
+        fn children_mut(&mut self) -> &mut Vec<Box<dyn Node>> {
+            &mut self.children
+        }
+
+        fn mark_completed(&mut self, _node_id: &crate::NodeId) {}
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn max_retries_counts_retries_after_initial_attempt() {
+        for max_retries in [0, 1, 3] {
+            let executions = Arc::new(AtomicUsize::new(0));
+            let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+                id: format!("recovery-{max_retries}"),
+                name: "Recovery".to_string(),
+                node_type: NodeType::Recovery(RecoveryConfig {
+                    trigger: None,
+                    recovery_action: RecoveryAction::Retry {
+                        max_attempts: max_retries,
+                    },
+                    max_retries,
+                }),
+                enabled: true,
+                children: Vec::new(),
+            });
+            node.add_child(Box::new(FailingChild {
+                id: format!("failure-{max_retries}"),
+                node_type: NodeType::Park,
+                executions: executions.clone(),
+                children: Vec::new(),
+            }));
+            let mut context = ExecutionContext::new(node.id().clone());
+
+            let status = execute_recovery(
+                &mut node,
+                RecoveryConfig {
+                    trigger: None,
+                    recovery_action: RecoveryAction::Retry {
+                        max_attempts: max_retries,
+                    },
+                    max_retries,
+                },
+                &mut context,
+            )
+            .await;
+
+            assert_eq!(status, NodeStatus::Failure);
+            assert_eq!(
+                executions.load(Ordering::SeqCst),
+                (max_retries + 1) as usize,
+                "max_retries={max_retries} must allow the initial execution plus that many retries"
+            );
+        }
+    }
 }

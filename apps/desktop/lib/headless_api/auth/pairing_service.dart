@@ -74,6 +74,7 @@ class PairingService {
     required String deviceId,
     required String deviceName,
     String deviceType = 'browser',
+    String authGrantSpec = 'control',
   }) async {
     final completion = await _tokenManager.completePairing(
       pairingCode: code,
@@ -84,6 +85,7 @@ class PairingService {
       // the advisory `expiresAt` returned to the client. Previously the
       // 1-year horizon was returned to the client but never enforced.
       tokenLifetime: _defaultSessionTokenLifetime,
+      authGrantSpec: authGrantSpec,
     );
 
     final outcome = switch (completion.result) {

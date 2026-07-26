@@ -4,6 +4,8 @@ import '../models/optical_config.dart';
 import 'equipment/rotator_state_provider.dart';
 import 'profiles_provider.dart';
 
+const Object _equipmentFovUnset = Object();
+
 /// Equipment sensor field of view for sky/planetarium overlays.
 class EquipmentFovState {
   const EquipmentFovState({
@@ -28,13 +30,17 @@ class EquipmentFovState {
       heightDegrees! > 0;
 
   EquipmentFovState copyWith({
-    double? widthDegrees,
-    double? heightDegrees,
+    Object? widthDegrees = _equipmentFovUnset,
+    Object? heightDegrees = _equipmentFovUnset,
     double? rotationDegrees,
   }) {
     return EquipmentFovState(
-      widthDegrees: widthDegrees ?? this.widthDegrees,
-      heightDegrees: heightDegrees ?? this.heightDegrees,
+      widthDegrees: identical(widthDegrees, _equipmentFovUnset)
+          ? this.widthDegrees
+          : widthDegrees as double?,
+      heightDegrees: identical(heightDegrees, _equipmentFovUnset)
+          ? this.heightDegrees
+          : heightDegrees as double?,
       rotationDegrees: rotationDegrees ?? this.rotationDegrees,
     );
   }

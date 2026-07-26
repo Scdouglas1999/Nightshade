@@ -136,7 +136,10 @@ class _HealthHeaderBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   reportAsync.when(
-                    data: (report) => _ScoreBadge(score: report.score),
+                    data: (report) => _ScoreBadge(
+                      score: report.score,
+                      assessed: report.assessed,
+                    ),
                     loading: () => SizedBox(
                       width: 12,
                       height: 12,
@@ -174,11 +177,33 @@ class _HealthHeaderBar extends StatelessWidget {
 class _ScoreBadge extends StatelessWidget {
   final double score;
 
-  const _ScoreBadge({required this.score});
+  /// False when there is no session history and no connected device, i.e. the
+  /// degradation score had nothing to measure. Rendering the raw 100 then reads
+  /// as "Excellent" on a rig that cannot even capture yet.
+  final bool assessed;
+
+  const _ScoreBadge({required this.score, this.assessed = true});
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    if (!assessed) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: NightshadeDecorations.statusChip(
+          colors.textMuted,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+        ),
+        child: Text(
+          'Not assessed',
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize10,
+            fontWeight: FontWeight.w600,
+            color: colors.textMuted,
+          ),
+        ),
+      );
+    }
     final (badgeColor, label) = _scoreAppearance(score, colors);
 
     return Container(
@@ -244,7 +269,7 @@ class _HealthDetailContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Score gauge + summary row
-          _ScoreGaugeRow(score: report.score),
+          _ScoreGaugeRow(score: report.score, assessed: report.assessed),
           const SizedBox(height: 16),
 
           // Insights list
@@ -286,19 +311,25 @@ class _HealthDetailContent extends StatelessWidget {
 
 class _ScoreGaugeRow extends StatelessWidget {
   final double score;
+  final bool assessed;
 
-  const _ScoreGaugeRow({required this.score});
+  const _ScoreGaugeRow({required this.score, this.assessed = true});
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final (gaugeColor, _) = _ScoreBadge._scoreAppearance(score, colors);
+    // Un-assessed: show an empty muted gauge and a dash rather than a full
+    // green bar at 100/100, which claimed a perfect rig before a single frame
+    // had ever been captured.
+    final (gaugeColor, _) = assessed
+        ? _ScoreBadge._scoreAppearance(score, colors)
+        : (colors.textMuted, '');
 
     return Row(
       children: [
         // Score number
         Text(
-          '${score.round()}',
+          assessed ? '${score.round()}' : '--',
           style: NightshadeTypography.telemetryLg.copyWith(
             fontWeight: FontWeight.w700,
             color: gaugeColor,
@@ -321,7 +352,7 @@ class _ScoreGaugeRow extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                 child: LinearProgressIndicator(
-                  value: score / 100.0,
+                  value: assessed ? score / 100.0 : 0.0,
                   minHeight: 6,
                   backgroundColor: colors.surfaceAlt,
                   valueColor: AlwaysStoppedAnimation<Color>(gaugeColor),
@@ -329,7 +360,10 @@ class _ScoreGaugeRow extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                _scoreDescription(score),
+                assessed
+                    ? _scoreDescription(score)
+                    : 'Not assessed yet — needs a completed session or a '
+                        'connected device.',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,

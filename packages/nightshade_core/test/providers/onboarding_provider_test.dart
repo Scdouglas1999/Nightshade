@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +7,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/models/equipment_profile.dart'
     as remote_profile;
+import 'package:nightshade_core/src/models/settings/app_settings.dart'
+    as remote_settings;
 
 /// Mock NetworkBackend so we can exercise the remote (host-authoritative)
 /// branch of [OnboardingNotifier.complete] without a live headless server.
@@ -16,6 +20,27 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void swap(NightshadeBackend backend) {
+    state = backend;
+  }
+}
+
+class _ProfileSettingsBackendFake implements ProfileSettingsBackend {
+  @override
+  Future<void> loadProfile(String id) async {}
+
+  @override
+  Future<void> saveProfile(remote_profile.EquipmentProfile profile) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// End-to-end provider test for the onboarding wizard.
@@ -31,6 +56,7 @@ void main() {
     registerFallbackValue(
       const remote_profile.EquipmentProfile(id: '0', name: 'fallback'),
     );
+    registerFallbackValue(const remote_settings.AppSettings());
     registerFallbackValue(const Stream<NightshadeEvent>.empty());
   });
 
@@ -40,7 +66,12 @@ void main() {
   setUp(() {
     db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     container = ProviderContainer(
-      overrides: [databaseProvider.overrideWithValue(db)],
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        profileSettingsBackendProvider.overrideWithValue(
+          _ProfileSettingsBackendFake(),
+        ),
+      ],
     );
   });
 
@@ -76,6 +107,47 @@ void main() {
         shouldRunEquipmentOnboardingProvider.future,
       );
       expect(shouldRun, isFalse);
+    },
+  );
+
+  test(
+    'equipment onboarding gate reloads when the imaging host changes',
+    () async {
+      final emptyHost = _MockNetworkBackend();
+      final configuredHost = _MockNetworkBackend();
+      when(() => emptyHost.getProfiles()).thenAnswer((_) async => const []);
+      when(() => configuredHost.getProfiles()).thenAnswer(
+        (_) async => const [
+          remote_profile.EquipmentProfile(id: 'rig-b', name: 'Rig B'),
+        ],
+      );
+
+      final hostContainer = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          backendProvider.overrideWith(
+            (ref) => _SwappableBackendNotifier(ref, emptyHost),
+          ),
+        ],
+      );
+      addTearDown(hostContainer.dispose);
+
+      expect(
+        await hostContainer.read(shouldRunEquipmentOnboardingProvider.future),
+        isTrue,
+      );
+
+      final backend =
+          hostContainer.read(backendProvider.notifier)
+              as _SwappableBackendNotifier;
+      backend.swap(configuredHost);
+
+      expect(
+        await hostContainer.read(shouldRunEquipmentOnboardingProvider.future),
+        isFalse,
+      );
+      verify(() => emptyHost.getProfiles()).called(1);
+      verify(() => configuredHost.getProfiles()).called(1);
     },
   );
 
@@ -188,6 +260,56 @@ void main() {
     );
     expect(draftRow, isNotNull);
   });
+
+  test(
+    'complete() with an existing active/default profile activates the new rig '
+    'without stealing the default',
+    () async {
+      // Seed a pre-existing profile the way a returning user would have one.
+      // dao.createProfile marks the FIRST profile active + default.
+      final dao = container.read(equipmentProfilesDaoProvider);
+      final firstId = await dao.createProfile(
+        const EquipmentProfileModel(name: 'Existing rig').toCompanion(),
+      );
+      final firstBefore = await dao.getProfileById(firstId);
+      expect(firstBefore!.isActive, isTrue);
+      expect(firstBefore.isDefault, isTrue);
+
+      // Re-run onboarding to create a SECOND profile. Before the fix,
+      // dao.createProfile left it inactive (only the first profile auto-
+      // activates) yet the terminal screen claimed it was active + ready.
+      final notifier = container.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
+      await notifier.setProfileName('Second rig');
+      final secondId = await notifier.complete();
+      expect(secondId, isNot(firstId));
+
+      final second = await dao.getProfileById(secondId);
+      final first = await dao.getProfileById(firstId);
+
+      // The freshly created rig is now active and the previous one is not, so
+      // the "active & ready" screen is truthful.
+      expect(
+        second!.isActive,
+        isTrue,
+        reason: 'onboarding must activate the profile it just created',
+      );
+      expect(
+        first!.isActive,
+        isFalse,
+        reason: 'the previously active profile must be deactivated',
+      );
+
+      // Activation must NOT silently change the default startup profile —
+      // active and default stay distinct.
+      expect(
+        first.isDefault,
+        isTrue,
+        reason: 'default startup profile is distinct from active',
+      );
+      expect(second.isDefault, isFalse);
+    },
+  );
 
   test(
     'complete() threads telescopeName + leaves cooling null for a DSLR-style '
@@ -501,11 +623,18 @@ void main() {
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
       when(() => backend.saveProfile(any())).thenAnswer((_) async {});
+      when(() => backend.lastSavedProfileId).thenReturn('42');
       when(() => backend.loadProfile(any())).thenAnswer((_) async {});
-      // The host echoes back the saved profile with a server-assigned id.
+      when(
+        () => backend.getSettings(),
+      ).thenAnswer((_) async => const remote_settings.AppSettings());
+      when(() => backend.updateSettings(any())).thenAnswer((_) async {});
+      // A same-name row already exists. Completion must use the id returned by
+      // POST /profiles, never rediscover the row by its non-unique name.
       when(() => backend.getProfiles()).thenAnswer(
-        (_) async => [
-          const remote_profile.EquipmentProfile(id: '42', name: 'Remote rig'),
+        (_) async => const [
+          remote_profile.EquipmentProfile(id: '7', name: 'Remote rig'),
+          remote_profile.EquipmentProfile(id: '42', name: 'Remote rig'),
         ],
       );
 
@@ -526,14 +655,71 @@ void main() {
           pixelSizeMicrons: 4.63,
         );
         await notifier.setProfileName('Remote rig');
+        await notifier.setCaptureDirectory('/srv/nightshade/captures');
 
         final id = await notifier.complete();
         expect(id, 42);
         verify(() => backend.saveProfile(any())).called(1);
         verify(() => backend.loadProfile('42')).called(1);
+        final settings =
+            verify(() => backend.updateSettings(captureAny())).captured.single
+                as remote_settings.AppSettings;
+        expect(settings.imageOutputPath, '/srv/nightshade/captures');
       } finally {
         remoteContainer.dispose();
       }
+    },
+  );
+
+  test(
+    'complete() never continues onboarding writes on a replacement host',
+    () async {
+      final firstHost = _MockNetworkBackend();
+      final replacementHost = _MockNetworkBackend();
+      final saveProfile = Completer<void>();
+      when(
+        () => firstHost.saveProfile(any()),
+      ).thenAnswer((_) => saveProfile.future);
+      when(() => firstHost.lastSavedProfileId).thenReturn('71');
+      late _SwappableBackendNotifier backendNotifier;
+
+      final remoteContainer = ProviderContainer(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          backendProvider.overrideWith((ref) {
+            backendNotifier = _SwappableBackendNotifier(ref, firstHost);
+            return backendNotifier;
+          }),
+        ],
+      );
+      addTearDown(remoteContainer.dispose);
+
+      final notifier = remoteContainer.read(onboardingDraftProvider.notifier);
+      await notifier.loaded;
+      await notifier.setProfileName('Host A rig');
+      await notifier.setCaptureDirectory('/host-a/captures');
+
+      final completion = notifier.complete();
+      await untilCalled(() => firstHost.saveProfile(any()));
+      backendNotifier.swap(replacementHost);
+      saveProfile.complete();
+
+      await expectLater(
+        completion,
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('imaging host changed'),
+          ),
+        ),
+      );
+      verifyNever(() => firstHost.loadProfile(any()));
+      verifyNever(() => firstHost.getSettings());
+      verifyNever(() => replacementHost.saveProfile(any()));
+      verifyNever(() => replacementHost.loadProfile(any()));
+      verifyNever(() => replacementHost.getSettings());
+      verifyNever(() => replacementHost.updateSettings(any()));
     },
   );
 }

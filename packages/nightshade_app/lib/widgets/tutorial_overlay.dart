@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -140,6 +141,32 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
   late Animation<double> _fadeAnimation;
   late Animation<double> _ringAnimation;
   late Animation<double> _ringOpacityAnimation;
+  _TutorialOverlayAction? _pendingAction;
+
+  void _runAction(
+    _TutorialOverlayAction action,
+    Future<void> Function() operation,
+  ) {
+    if (_pendingAction != null) return;
+    unawaited(() async {
+      setState(() => _pendingAction = action);
+      try {
+        await operation();
+      } catch (_) {
+        if (mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not save tutorial progress. Please try again.',
+              ),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _pendingAction = null);
+      }
+    }());
+  }
 
   @override
   void initState() {
@@ -252,9 +279,22 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
               isLast: notifier.isLastStep,
               ringAnimation: _ringAnimation,
               ringOpacityAnimation: _ringOpacityAnimation,
-              onNext: notifier.nextStep,
-              onPrevious: notifier.previousStep,
-              onSkip: notifier.dismissTutorial,
+              isBusy: _pendingAction != null,
+              isAdvancing: _pendingAction == _TutorialOverlayAction.next,
+              isGoingBack: _pendingAction == _TutorialOverlayAction.previous,
+              isSkipping: _pendingAction == _TutorialOverlayAction.skip,
+              onNext: () => _runAction(
+                _TutorialOverlayAction.next,
+                notifier.nextStep,
+              ),
+              onPrevious: () => _runAction(
+                _TutorialOverlayAction.previous,
+                notifier.previousStep,
+              ),
+              onSkip: () => _runAction(
+                _TutorialOverlayAction.skip,
+                notifier.dismissTutorial,
+              ),
               onSpotlightTapped: () {
                 // Action completion callback - fires when user interacts with spotlight
                 // This can be used to auto-advance steps in the future
@@ -265,3 +305,5 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     );
   }
 }
+
+enum _TutorialOverlayAction { next, previous, skip }

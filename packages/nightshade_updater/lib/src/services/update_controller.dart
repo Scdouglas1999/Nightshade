@@ -33,6 +33,10 @@ enum UpdateLifecycleState {
   /// No update activity in progress.
   idle,
 
+  /// A newer build was found and its verified manifest is cached in memory,
+  /// so Download is a valid next action.
+  available,
+
   /// `checkForUpdate` is in flight against the configured server.
   checking,
 
@@ -42,6 +46,10 @@ enum UpdateLifecycleState {
   /// Bytes are on disk and the manifest signature + per-file hashes are
   /// being verified before we promote to `staged`.
   verifying,
+
+  /// Cancellation was requested, but the underlying future is still
+  /// unwinding. A second update operation must not start in this window.
+  cancelling,
 
   /// A verified update is staged and ready to apply.
   staged,
@@ -63,14 +71,23 @@ extension UpdateLifecycleStateX on UpdateLifecycleState {
 /// controller rebuilds this on every state transition.
 class UpdateControllerStatus {
   final UpdateLifecycleState state;
+  final String? availableVersion;
+  final int? availableBuildNumber;
+  final bool requiresManualUpgrade;
   final String? stagedVersion;
   final DateTime? stagedAt;
+
+  /// Download progress as a percentage in `[0, 100]`, or null outside the
+  /// downloading / staging phases.
   final double? progressPct;
   final String? message;
   final String? lastError;
 
   const UpdateControllerStatus({
     required this.state,
+    this.availableVersion,
+    this.availableBuildNumber,
+    this.requiresManualUpgrade = false,
     this.stagedVersion,
     this.stagedAt,
     this.progressPct,
@@ -80,6 +97,10 @@ class UpdateControllerStatus {
 
   Map<String, Object?> toJson() => {
     'state': state.wireName,
+    if (availableVersion != null) 'availableVersion': availableVersion,
+    if (availableBuildNumber != null)
+      'availableBuildNumber': availableBuildNumber,
+    if (requiresManualUpgrade) 'requiresManualUpgrade': true,
     if (stagedVersion != null) 'stagedVersion': stagedVersion,
     if (stagedAt != null) 'stagedAt': stagedAt!.toUtc().toIso8601String(),
     if (progressPct != null) 'progressPct': progressPct,
@@ -229,6 +250,8 @@ class UpdateDownloadProgressEvent extends UpdateEvent {
   final String jobId;
   final int downloadedBytes;
   final int totalBytes;
+
+  /// Download progress as a fraction in `[0, 1]`.
   final double pct;
 
   const UpdateDownloadProgressEvent({
@@ -363,6 +386,7 @@ class UpdateFailedEvent extends UpdateEvent {
 /// need to track disposal of two objects.
 class UpdateController {
   final UpdateService _service;
+  final Future<void> Function() _applySafetyCheck;
   final String _currentVersion;
   final int _currentBuildNumber;
   final String _channel;
@@ -388,6 +412,14 @@ class UpdateController {
   /// manifest between check and download (and so a manifest signature
   /// is only verified once).
   UpdateManifest? _lastManifest;
+  bool _lastOfferRequiresManualUpgrade = false;
+
+  /// Monotonic counter bumped by [abortInFlight]. An in-flight
+  /// [checkForUpdates] captures this on entry and skips its terminal status
+  /// writes when it no longer matches, so a check that completes after an
+  /// operator abort cannot clobber the aborted status.
+  int _opGeneration = 0;
+  String? _activeOperation;
 
   UpdateController({
     required UpdateService service,
@@ -397,7 +429,9 @@ class UpdateController {
     String channel = 'stable',
     String? serverUrl,
     DateTime Function()? now,
+    Future<void> Function()? applySafetyCheck,
   }) : _service = service,
+       _applySafetyCheck = applySafetyCheck ?? _allowUpdateApply,
        _currentVersion = currentVersion,
        _currentBuildNumber = currentBuildNumber,
        _channel = channel,
@@ -411,16 +445,48 @@ class UpdateController {
     _lastUpdateCheck = await _readTimestamp('last_update_check.txt');
     _lastUpdateApplied = await _readTimestamp('last_update_applied.txt');
 
+    // An apply request is only a handoff to the external updater. The first
+    // launch of the target build is the earliest point at which Nightshade can
+    // truthfully call it applied, so verify the pending marker here and record
+    // the timestamp only after that proof succeeds.
+    final pending = await _service.verifyPendingInstall();
+    if (pending.state == PendingInstallState.verified) {
+      _lastUpdateApplied = _now();
+      await _writeTimestamp('last_update_applied.txt', _lastUpdateApplied!);
+    } else if (pending.state == PendingInstallState.requiresAttention) {
+      _status = UpdateControllerStatus(
+        state: UpdateLifecycleState.failed,
+        message: 'The previous update handoff could not be verified.',
+        lastError: pending.message,
+      );
+    } else if (pending.state == PendingInstallState.rolledBack) {
+      _status = UpdateControllerStatus(
+        state: UpdateLifecycleState.idle,
+        message: pending.message,
+      );
+    }
+
     // Surface any existing staged update so `GET /api/system/update/status`
     // shows `staged` immediately on startup (not just after the first
     // check).
     final staged = await _service.getStagedUpdate();
     if (staged != null) {
-      _status = UpdateControllerStatus(
-        state: UpdateLifecycleState.staged,
-        stagedVersion: staged.version,
-        stagedAt: staged.stagedAt,
-      );
+      if (_status.state == UpdateLifecycleState.failed) {
+        _status = UpdateControllerStatus(
+          state: UpdateLifecycleState.failed,
+          stagedVersion: staged.version,
+          stagedAt: staged.stagedAt,
+          message: _status.message,
+          lastError: _status.lastError,
+        );
+      } else {
+        _status = UpdateControllerStatus(
+          state: UpdateLifecycleState.staged,
+          stagedVersion: staged.version,
+          stagedAt: staged.stagedAt,
+          message: _status.message,
+        );
+      }
     }
   }
 
@@ -444,6 +510,18 @@ class UpdateController {
   /// Configured update-server URL, or null when the server is not set.
   String? get updateServerUrl => _serverUrl;
 
+  /// Whether this build can cryptographically authenticate update manifests
+  /// (a trusted Ed25519 public key is compiled in and not revoked). False
+  /// means OTA is check-only: downloads/applies fail closed. The bootstrap
+  /// warns on this so a server-configured build that cannot accept updates
+  /// is not silently mistaken for live OTA.
+  bool get canAuthenticateUpdates => _service.canAuthenticateUpdates;
+
+  /// True from admission until the active controller future has fully
+  /// unwound. Unlike [status], this remains true while an aborted HTTP check
+  /// is returning, which lets the REST layer reject a racing second command.
+  bool get hasActiveOperation => _activeOperation != null;
+
   /// Persisted moment of the last successful check, or null when no
   /// check has run during this process lifetime.
   DateTime? get lastUpdateCheck => _lastUpdateCheck;
@@ -456,9 +534,18 @@ class UpdateController {
   /// `UpdateAvailable` event if a newer version exists. Honours
   /// [channelOverride] for one-off `?channel=` query params.
   Future<UpdateCheckOutcome> checkForUpdates({String? channelOverride}) async {
-    if (channelOverride != null && channelOverride.isNotEmpty) {
+    _beginOperation('check');
+    final gen = _opGeneration;
+    final hasChannelOverride =
+        channelOverride != null && channelOverride.isNotEmpty;
+    if (hasChannelOverride) {
       _service.configure(serverUrl: _serverUrl ?? '', channel: channelOverride);
     }
+    // A fresh check supersedes the prior in-memory offer. This prevents a
+    // failed/aborted re-check from downloading a manifest the operator no
+    // longer sees on screen.
+    _lastManifest = null;
+    _lastOfferRequiresManualUpgrade = false;
     _updateStatus(
       _status = UpdateControllerStatus(
         state: UpdateLifecycleState.checking,
@@ -469,23 +556,37 @@ class UpdateController {
 
     try {
       final result = await _service.checkForUpdates();
+
+      // Abort is generation based because the HTTP check itself is not
+      // cancellable. Once invalidated, it must have no late cache, timestamp,
+      // status, or event side effects; the JobManager will mark the cancelled
+      // job after this future returns.
+      if (gen != _opGeneration) {
+        return const UpdateCheckOutcome(available: false);
+      }
       _lastManifest = result.manifest;
+      _lastOfferRequiresManualUpgrade = result.requiresManualUpgrade;
       _lastUpdateCheck = _now();
       await _writeTimestamp('last_update_check.txt', _lastUpdateCheck!);
 
       if (result.hasUpdate && result.manifest != null) {
         final manifest = result.manifest!;
-        _updateStatus(
-          UpdateControllerStatus(
-            state: _status.stagedVersion != null
-                ? UpdateLifecycleState.staged
-                : UpdateLifecycleState.idle,
-            stagedVersion: _status.stagedVersion,
-            stagedAt: _status.stagedAt,
-            message:
-                'Update ${manifest.version}+${manifest.buildNumber} available',
-          ),
-        );
+        if (gen == _opGeneration) {
+          _updateStatus(
+            UpdateControllerStatus(
+              state: _status.stagedVersion != null
+                  ? UpdateLifecycleState.staged
+                  : UpdateLifecycleState.available,
+              availableVersion: manifest.version,
+              availableBuildNumber: manifest.buildNumber,
+              requiresManualUpgrade: result.requiresManualUpgrade,
+              stagedVersion: _status.stagedVersion,
+              stagedAt: _status.stagedAt,
+              message:
+                  'Update ${manifest.version}+${manifest.buildNumber} available',
+            ),
+          );
+        }
         _eventsController.add(
           UpdateAvailableEvent(
             currentVersion: _currentVersion,
@@ -509,17 +610,22 @@ class UpdateController {
 
       // No update — reset to idle (or staged if a previously-staged
       // update still exists).
-      _updateStatus(
-        UpdateControllerStatus(
-          state: _status.stagedVersion != null
-              ? UpdateLifecycleState.staged
-              : UpdateLifecycleState.idle,
-          stagedVersion: _status.stagedVersion,
-          stagedAt: _status.stagedAt,
-        ),
-      );
+      if (gen == _opGeneration) {
+        _updateStatus(
+          UpdateControllerStatus(
+            state: _status.stagedVersion != null
+                ? UpdateLifecycleState.staged
+                : UpdateLifecycleState.idle,
+            stagedVersion: _status.stagedVersion,
+            stagedAt: _status.stagedAt,
+          ),
+        );
+      }
       return const UpdateCheckOutcome(available: false);
     } catch (e) {
+      if (gen != _opGeneration) {
+        return const UpdateCheckOutcome(available: false);
+      }
       _updateStatus(
         UpdateControllerStatus(
           state: UpdateLifecycleState.failed,
@@ -532,6 +638,15 @@ class UpdateController {
         UpdateFailedEvent(phase: 'check', error: e.toString()),
       );
       rethrow;
+    } finally {
+      // A channelOverride is explicitly one-shot. Restore the controller's
+      // configured channel even when the request fails or is aborted so a
+      // later ordinary check cannot silently keep using beta/nightly.
+      if (hasChannelOverride) {
+        _service.configure(serverUrl: _serverUrl ?? '', channel: _channel);
+      }
+      _endOperation('check');
+      _settleCancellation();
     }
   }
 
@@ -543,6 +658,13 @@ class UpdateController {
     if (manifest == null) {
       throw StateError('No manifest available; call checkForUpdates first.');
     }
+    if (_lastOfferRequiresManualUpgrade) {
+      throw UnsupportedError(
+        'Update ${manifest.version} requires a manual upgrade and cannot be '
+        'downloaded or staged by this Nightshade build.',
+      );
+    }
+    _beginOperation('download');
 
     _eventsController.add(
       UpdateDownloadStartedEvent(
@@ -566,7 +688,7 @@ class UpdateController {
           _updateStatus(
             UpdateControllerStatus(
               state: UpdateLifecycleState.downloading,
-              progressPct: progress,
+              progressPct: progress * 100,
               message:
                   'Downloading ${manifest.version} (${(progress * 100).toStringAsFixed(1)}%)',
             ),
@@ -577,6 +699,15 @@ class UpdateController {
               downloadedBytes: downloaded,
               totalBytes: total == 0 ? manifest.compressedSize : total,
               pct: progress,
+            ),
+          );
+        },
+        onVerifying: () {
+          _updateStatus(
+            UpdateControllerStatus(
+              state: UpdateLifecycleState.verifying,
+              progressPct: 100,
+              message: 'Verifying ${manifest.version}',
             ),
           );
         },
@@ -600,7 +731,7 @@ class UpdateController {
           state: UpdateLifecycleState.staged,
           stagedVersion: staged.version,
           stagedAt: staged.stagedAt,
-          progressPct: 1.0,
+          progressPct: 100.0,
         ),
       );
       _eventsController.add(
@@ -611,9 +742,34 @@ class UpdateController {
         ),
       );
     } catch (e) {
+      // Operator abort surfaces as a cancellation from the downloader. Treat
+      // it as a clean stop — return to staged/idle without a failure event.
+      final cancelled =
+          e.runtimeType.toString().contains('Cancel') ||
+          e.toString().toLowerCase().contains('cancel');
+      if (cancelled) {
+        final manifest = _lastManifest;
+        _updateStatus(
+          UpdateControllerStatus(
+            state: _status.stagedVersion != null
+                ? UpdateLifecycleState.staged
+                : manifest != null
+                ? UpdateLifecycleState.available
+                : UpdateLifecycleState.idle,
+            availableVersion: manifest?.version,
+            availableBuildNumber: manifest?.buildNumber,
+            stagedVersion: _status.stagedVersion,
+            stagedAt: _status.stagedAt,
+            message: 'Download cancelled',
+          ),
+        );
+        return;
+      }
       _updateStatus(
         UpdateControllerStatus(
           state: UpdateLifecycleState.failed,
+          availableVersion: manifest.version,
+          availableBuildNumber: manifest.buildNumber,
           lastError: e.toString(),
         ),
       );
@@ -634,6 +790,9 @@ class UpdateController {
         );
       }
       rethrow;
+    } finally {
+      _endOperation('download');
+      _settleCancellation();
     }
   }
 
@@ -642,75 +801,105 @@ class UpdateController {
   /// before the future resolves). Always emits `UpdateApplyStarted`
   /// before invoking the underlying applier.
   Future<void> applyStagedUpdate({required String jobId}) async {
-    final staged = await _service.getStagedUpdate();
-    if (staged == null) {
-      throw StateError('No staged update available to apply');
-    }
-
-    _eventsController.add(
-      UpdateApplyStartedEvent(jobId: jobId, version: staged.version),
-    );
-    _updateStatus(
-      UpdateControllerStatus(
-        state: UpdateLifecycleState.installing,
-        stagedVersion: staged.version,
-        stagedAt: staged.stagedAt,
-        message: 'Applying ${staged.version}',
-      ),
-    );
-
+    _beginOperation('apply');
     try {
-      // applyUpdate may exit(0) before this returns. We still emit the
-      // applied-event optimistically here so phones receive the alert
-      // before the WebSocket teardown. On real failure (Process.start
-      // throws) we transition back to staged so the client can retry.
+      final staged = await _service.getStagedUpdate();
+      if (staged == null) {
+        throw StateError('No staged update available to apply');
+      }
+
+      try {
+        await _applySafetyCheck();
+      } catch (e) {
+        _updateStatus(
+          UpdateControllerStatus(
+            state: UpdateLifecycleState.staged,
+            stagedVersion: staged.version,
+            stagedAt: staged.stagedAt,
+            message: 'Update apply blocked by host safety state',
+            lastError: e.toString(),
+          ),
+        );
+        _eventsController.add(
+          UpdateFailedEvent(jobId: jobId, phase: 'safety', error: e.toString()),
+        );
+        rethrow;
+      }
+
       _eventsController.add(
-        UpdateAppliedEvent(
-          fromVersion: _currentVersion,
-          toVersion: staged.version,
-          restartRequired: true,
-        ),
+        UpdateApplyStartedEvent(jobId: jobId, version: staged.version),
       );
-      _lastUpdateApplied = _now();
-      await _writeTimestamp('last_update_applied.txt', _lastUpdateApplied!);
-      await _service.applyUpdate();
-    } catch (e) {
       _updateStatus(
         UpdateControllerStatus(
-          state: UpdateLifecycleState.failed,
+          state: UpdateLifecycleState.installing,
           stagedVersion: staged.version,
           stagedAt: staged.stagedAt,
-          lastError: e.toString(),
+          message: 'Applying ${staged.version}',
         ),
       );
-      _eventsController.add(
-        UpdateFailedEvent(jobId: jobId, phase: 'apply', error: e.toString()),
-      );
-      rethrow;
+
+      try {
+        await _service.applyUpdate();
+        // Production normally exits inside applyUpdate after the updater process
+        // is launched, so this branch is primarily for embedders/tests where the
+        // handoff can return. Never publish `UpdateApplied` before the spawn has
+        // at least succeeded; the definitive applied timestamp is written by
+        // bootstrap after the new build verifies its pending-install marker.
+        _eventsController.add(
+          UpdateAppliedEvent(
+            fromVersion: _currentVersion,
+            toVersion: staged.version,
+            restartRequired: true,
+          ),
+        );
+      } catch (e) {
+        _updateStatus(
+          UpdateControllerStatus(
+            state: UpdateLifecycleState.failed,
+            stagedVersion: staged.version,
+            stagedAt: staged.stagedAt,
+            lastError: e.toString(),
+          ),
+        );
+        _eventsController.add(
+          UpdateFailedEvent(jobId: jobId, phase: 'apply', error: e.toString()),
+        );
+        rethrow;
+      }
+    } finally {
+      _endOperation('apply');
     }
   }
 
   /// Abort an in-flight check / download. Throws [StateError] when there
   /// is nothing to abort.
   void abortInFlight() {
+    final wasDownloading = _status.state == UpdateLifecycleState.downloading;
     final inFlight =
-        _status.state == UpdateLifecycleState.checking ||
-        _status.state == UpdateLifecycleState.downloading;
+        _status.state == UpdateLifecycleState.checking || wasDownloading;
     if (!inFlight) {
       throw StateError(
         'No update operation is currently in flight '
         '(state=${_status.state.wireName}).',
       );
     }
+    if (wasDownloading && !_service.canCancelDownload) {
+      throw StateError(
+        'The package transfer has completed and verification can no longer be aborted.',
+      );
+    }
+    _opGeneration++;
     _service.cancelDownload();
+    final manifest = wasDownloading ? _lastManifest : null;
     _updateStatus(
       UpdateControllerStatus(
-        state: _status.stagedVersion != null
-            ? UpdateLifecycleState.staged
-            : UpdateLifecycleState.idle,
+        state: UpdateLifecycleState.cancelling,
+        availableVersion: manifest?.version,
+        availableBuildNumber: manifest?.buildNumber,
+        requiresManualUpgrade: _lastOfferRequiresManualUpgrade,
         stagedVersion: _status.stagedVersion,
         stagedAt: _status.stagedAt,
-        message: 'Aborted by operator',
+        message: 'Waiting for the cancelled operation to stop',
       ),
     );
   }
@@ -771,6 +960,11 @@ class UpdateController {
 
   /// Discard any staged update on disk. No-op when nothing is staged.
   Future<void> discardStaged() async {
+    if (_activeOperation != null) {
+      throw StateError(
+        'Cannot discard a staged update while update $_activeOperation is in progress.',
+      );
+    }
     await _service.clearStagedUpdate();
     _updateStatus(
       const UpdateControllerStatus(
@@ -793,52 +987,57 @@ class UpdateController {
   /// in `--rollback` mode (the same binary + backup machinery the
   /// auto-rollback path uses on failure). On success the host process
   /// restarts, so the returned future MAY never complete. Emits
-  /// `UpdateApplyStarted` before and `UpdateApplied` optimistically so
-  /// paired phones learn the host is about to restart; on a real spawn
-  /// failure it transitions to `failed` and rethrows.
+  /// `UpdateApplyStarted` before the handoff. If the handoff returns, an
+  /// `UpdateApplied` event follows; in production the process normally exits
+  /// first and clients instead observe the disconnect/reconnect boundary.
   Future<void> rollback({required String jobId}) async {
-    if (!await _service.hasRestorePoint()) {
-      throw UnsupportedError(
-        'No restore point is available to roll back to. A rollback is only '
-        'possible after an update is applied and before the next launch '
-        'confirms it healthy.',
-      );
-    }
-
-    _eventsController.add(
-      UpdateApplyStartedEvent(jobId: jobId, version: 'rollback'),
-    );
-    _updateStatus(
-      const UpdateControllerStatus(
-        state: UpdateLifecycleState.installing,
-        message: 'Rolling back to the previous version',
-      ),
-    );
-
+    _beginOperation('rollback');
     try {
-      // Optimistic applied-event so phones receive the restart alert before
-      // the WebSocket teardown (rollbackToPrevious exits the process on
-      // success). On a real failure (spawn throws) we fall through to the
-      // catch and re-arm.
+      if (!await _service.hasRestorePoint()) {
+        throw UnsupportedError(
+          'No restore point is available to roll back to. A rollback is only '
+          'possible after an update is applied and before the next launch '
+          'confirms it healthy.',
+        );
+      }
+
       _eventsController.add(
-        UpdateAppliedEvent(
-          fromVersion: _currentVersion,
-          toVersion: 'previous',
-          restartRequired: true,
-        ),
+        UpdateApplyStartedEvent(jobId: jobId, version: 'rollback'),
       );
-      await _service.rollbackToPrevious();
-    } catch (e) {
       _updateStatus(
-        UpdateControllerStatus(
-          state: UpdateLifecycleState.failed,
-          lastError: e.toString(),
+        const UpdateControllerStatus(
+          state: UpdateLifecycleState.installing,
+          message: 'Rolling back to the previous version',
         ),
       );
-      _eventsController.add(
-        UpdateFailedEvent(jobId: jobId, phase: 'rollback', error: e.toString()),
-      );
-      rethrow;
+
+      try {
+        await _service.rollbackToPrevious();
+        _eventsController.add(
+          UpdateAppliedEvent(
+            fromVersion: _currentVersion,
+            toVersion: 'previous',
+            restartRequired: true,
+          ),
+        );
+      } catch (e) {
+        _updateStatus(
+          UpdateControllerStatus(
+            state: UpdateLifecycleState.failed,
+            lastError: e.toString(),
+          ),
+        );
+        _eventsController.add(
+          UpdateFailedEvent(
+            jobId: jobId,
+            phase: 'rollback',
+            error: e.toString(),
+          ),
+        );
+        rethrow;
+      }
+    } finally {
+      _endOperation('rollback');
     }
   }
 
@@ -850,6 +1049,40 @@ class UpdateController {
 
   void _updateStatus(UpdateControllerStatus next) {
     _status = next;
+  }
+
+  void _beginOperation(String operation) {
+    final active = _activeOperation;
+    if (active != null) {
+      throw StateError(
+        'Cannot start update $operation while update $active is still in progress.',
+      );
+    }
+    _activeOperation = operation;
+  }
+
+  void _endOperation(String operation) {
+    if (_activeOperation == operation) _activeOperation = null;
+  }
+
+  void _settleCancellation() {
+    if (_status.state != UpdateLifecycleState.cancelling) return;
+    final manifest = _lastManifest;
+    _updateStatus(
+      UpdateControllerStatus(
+        state: _status.stagedVersion != null
+            ? UpdateLifecycleState.staged
+            : manifest != null
+            ? UpdateLifecycleState.available
+            : UpdateLifecycleState.idle,
+        availableVersion: manifest?.version,
+        availableBuildNumber: manifest?.buildNumber,
+        requiresManualUpgrade: _lastOfferRequiresManualUpgrade,
+        stagedVersion: _status.stagedVersion,
+        stagedAt: _status.stagedAt,
+        message: 'Cancelled by operator',
+      ),
+    );
   }
 
   Future<DateTime?> _readTimestamp(String fileName) async {
@@ -870,3 +1103,5 @@ class UpdateController {
     await file.writeAsString(ts.toUtc().toIso8601String());
   }
 }
+
+Future<void> _allowUpdateApply() async {}

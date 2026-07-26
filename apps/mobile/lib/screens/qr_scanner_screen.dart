@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -15,7 +17,9 @@ import 'package:permission_handler/permission_handler.dart';
 /// and resumes scanning; the audit specifically calls out that the previous
 /// `startsWith('{')` check was too permissive and let arbitrary JSON through.
 class QrScannerScreen extends StatefulWidget {
-  const QrScannerScreen({super.key});
+  final Future<PermissionStatus> Function()? requestCameraPermission;
+
+  const QrScannerScreen({super.key, this.requestCameraPermission});
 
   @override
   State<QrScannerScreen> createState() => _QrScannerScreenState();
@@ -28,6 +32,9 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   // leaving the scanner.
   bool _hasScanned = false;
   bool _confirming = false;
+  bool _initializing = false;
+  bool _cameraActionPending = false;
+  bool _permissionBlocked = false;
   String? _cameraError;
 
   NightshadeColors _colors(BuildContext context) {
@@ -42,42 +49,85 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _initCamera() async {
+    if (_initializing) return;
+    setState(() {
+      _initializing = true;
+      _cameraError = null;
+      _permissionBlocked = false;
+    });
+    final oldController = _controller;
+    _controller = null;
     try {
-      final status = await Permission.camera.request();
+      if (oldController != null) {
+        await oldController.dispose();
+      }
+      final status =
+          await (widget.requestCameraPermission?.call() ??
+              Permission.camera.request());
       if (!status.isGranted) {
         if (mounted) {
           setState(() {
+            _permissionBlocked =
+                status.isPermanentlyDenied || status.isRestricted;
             _cameraError =
                 'Camera permission is required to scan pairing QR codes. '
-                'Allow camera access for Nightshade in system settings, then '
-                'tap Scan QR again.';
+                'Allow camera access for Nightshade, then retry.';
           });
         }
         return;
       }
 
-      _controller = MobileScannerController(
+      final controller = MobileScannerController(
         detectionSpeed: DetectionSpeed.normal,
         facing: CameraFacing.back,
       );
-      if (mounted) {
-        setState(() => _cameraError = null);
+      if (!mounted) {
+        await controller.dispose();
+        return;
       }
+      setState(() {
+        _controller = controller;
+        _cameraError = null;
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
           _cameraError =
               'Camera unavailable. Allow camera permission for Nightshade '
-              'in system settings, then try again.\n\n($e)';
+              'and try again.\n\n($e)';
         });
       }
+    } finally {
+      if (mounted) setState(() => _initializing = false);
     }
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
+    final controller = _controller;
+    _controller = null;
+    if (controller != null) unawaited(controller.dispose());
     super.dispose();
+  }
+
+  Future<void> _runCameraAction(
+    String failurePrefix,
+    Future<void> Function(MobileScannerController) action,
+  ) async {
+    final controller = _controller;
+    if (_cameraActionPending || controller == null) return;
+    setState(() => _cameraActionPending = true);
+    try {
+      await action(controller);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$failurePrefix: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _cameraActionPending = false);
+    }
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
@@ -118,6 +168,17 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Rejected QR code: ${e.message}'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      } catch (error) {
+        if (!mounted) return;
+        _confirming = false;
+        _hasScanned = false;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not read this QR code: $error'),
             duration: const Duration(seconds: 4),
           ),
         );
@@ -237,18 +298,52 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          if (_controller != null) ...[
-            IconButton(
-              icon: const Icon(Icons.flash_on),
-              tooltip: 'Toggle torch',
-              onPressed: () => _controller?.toggleTorch(),
+          if (_controller case final controller?)
+            ValueListenableBuilder<MobileScannerState>(
+              valueListenable: controller,
+              builder: (context, camera, _) {
+                final ready = camera.isInitialized && camera.isRunning;
+                final torchAvailable =
+                    camera.torchState != TorchState.unavailable;
+                final canSwitch =
+                    camera.availableCameras == null ||
+                    camera.availableCameras! > 1;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        camera.torchState == TorchState.on
+                            ? Icons.flash_on
+                            : Icons.flash_off,
+                      ),
+                      tooltip: torchAvailable
+                          ? 'Toggle torch'
+                          : 'Torch unavailable',
+                      onPressed:
+                          ready && torchAvailable && !_cameraActionPending
+                          ? () => _runCameraAction(
+                              'Could not toggle the torch',
+                              (value) => value.toggleTorch(),
+                            )
+                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.flip_camera_ios),
+                      tooltip: canSwitch
+                          ? 'Switch camera'
+                          : 'No second camera available',
+                      onPressed: ready && canSwitch && !_cameraActionPending
+                          ? () => _runCameraAction(
+                              'Could not switch cameras',
+                              (value) => value.switchCamera(),
+                            )
+                          : null,
+                    ),
+                  ],
+                );
+              },
             ),
-            IconButton(
-              icon: const Icon(Icons.flip_camera_ios),
-              tooltip: 'Switch camera',
-              onPressed: () => _controller?.switchCamera(),
-            ),
-          ],
         ],
       ),
       body: Column(
@@ -256,35 +351,46 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           Expanded(
             child: Stack(
               children: [
-                if (_cameraError != null)
+                if (_initializing)
+                  const Center(child: CircularProgressIndicator())
+                else if (_cameraError != null)
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text(
-                        _cameraError!,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: colors.textSecondary),
+                      child: _CameraRecovery(
+                        message: _cameraError!,
+                        showSettings: _permissionBlocked,
+                        onRetry: _initCamera,
                       ),
                     ),
                   )
                 else if (_controller != null)
-                  MobileScanner(controller: _controller, onDetect: _onDetect),
-                if (_controller != null)
-                  Center(
-                    child: Builder(
-                      builder: (context) {
-                        final viewport = MediaQuery.sizeOf(context);
-                        final overlaySize = (viewport.shortestSide * 0.65)
-                            .clamp(200.0, 280.0);
-                        return Container(
+                  MobileScanner(
+                    controller: _controller,
+                    onDetect: _onDetect,
+                    overlayBuilder: (context, constraints) {
+                      final overlaySize =
+                          (constraints.biggest.shortestSide * 0.65).clamp(
+                            200.0,
+                            280.0,
+                          );
+                      return Center(
+                        child: Container(
                           width: overlaySize,
                           height: overlaySize,
                           decoration: BoxDecoration(
                             border: Border.all(color: colors.primary, width: 3),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                        );
-                      },
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, _) => _CameraRecovery(
+                      message: 'The camera stopped: $error',
+                      showSettings:
+                          error.errorCode ==
+                          MobileScannerErrorCode.permissionDenied,
+                      onRetry: _initCamera,
                     ),
                   ),
               ],
@@ -312,6 +418,64 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CameraRecovery extends StatelessWidget {
+  final String message;
+  final bool showSettings;
+  final Future<void> Function() onRetry;
+
+  const _CameraRecovery({
+    required this.message,
+    required this.showSettings,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors =
+        Theme.of(context).extension<NightshadeColors>() ??
+        NightshadeColors.dark;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.no_photography_outlined,
+              color: colors.warning,
+              size: 36,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.textSecondary),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              children: [
+                NightshadeButton(
+                  label: 'Retry camera',
+                  onPressed: () => unawaited(onRetry()),
+                ),
+                if (showSettings)
+                  NightshadeButton(
+                    label: 'Open settings',
+                    variant: ButtonVariant.outline,
+                    onPressed: () => unawaited(openAppSettings()),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

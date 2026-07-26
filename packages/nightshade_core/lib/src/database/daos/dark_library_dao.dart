@@ -154,6 +154,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
   Future<List<DarkLibraryEntry>> getMatchingFrames({
     required double exposureTime,
     required int gain,
+    required int offset,
     required int binX,
     required int binY,
     String frameType = 'dark',
@@ -170,11 +171,34 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
                   exposureTime + exposureTol,
                 ) &
                 t.gain.equals(gain) &
+                t.offset.equals(offset) &
                 t.binX.equals(binX) &
                 t.binY.equals(binY) &
                 t.frameType.equals(frameType) &
                 t.masterDarkPath.isNull(),
           ) // Only raw frames
+          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+        .get();
+  }
+
+  /// Get every entry belonging to one exact operator-visible group.
+  ///
+  /// Administrative actions such as "Delete Group" must not use
+  /// [getMatchingFrames]: that query intentionally applies calibration
+  /// tolerance and excludes masters. Here the values are exact because the
+  /// group itself came from SQL `GROUP BY`, and both raw and master rows are
+  /// part of what the user asked to administer.
+  Future<List<DarkLibraryEntry>> getEntriesForGroup(DarkGroupKey group) {
+    return (select(darkLibrary)
+          ..where(
+            (t) =>
+                t.exposureTime.equals(group.exposureTime) &
+                t.gain.equals(group.gain) &
+                t.offset.equals(group.offset) &
+                t.binX.equals(group.binX) &
+                t.binY.equals(group.binY) &
+                t.frameType.equals(group.frameType),
+          )
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
   }
@@ -451,6 +475,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
         darkLibrary.frameType,
         darkLibrary.exposureTime,
         darkLibrary.gain,
+        darkLibrary.offset,
         darkLibrary.binX,
         darkLibrary.binY,
       ])
@@ -458,6 +483,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
         darkLibrary.frameType,
         darkLibrary.exposureTime,
         darkLibrary.gain,
+        darkLibrary.offset,
         darkLibrary.binX,
         darkLibrary.binY,
       ]);
@@ -468,6 +494,7 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
         frameType: row.read(darkLibrary.frameType)!,
         exposureTime: row.read(darkLibrary.exposureTime)!,
         gain: row.read(darkLibrary.gain)!,
+        offset: row.read(darkLibrary.offset)!,
         binX: row.read(darkLibrary.binX)!,
         binY: row.read(darkLibrary.binY)!,
       );
@@ -495,6 +522,7 @@ class DarkGroupKey {
   final String frameType;
   final double exposureTime;
   final int gain;
+  final int offset;
   final int binX;
   final int binY;
 
@@ -502,6 +530,7 @@ class DarkGroupKey {
     required this.frameType,
     required this.exposureTime,
     required this.gain,
+    required this.offset,
     required this.binX,
     required this.binY,
   });
@@ -513,13 +542,16 @@ class DarkGroupKey {
           frameType == other.frameType &&
           exposureTime == other.exposureTime &&
           gain == other.gain &&
+          offset == other.offset &&
           binX == other.binX &&
           binY == other.binY;
 
   @override
-  int get hashCode => Object.hash(frameType, exposureTime, gain, binX, binY);
+  int get hashCode =>
+      Object.hash(frameType, exposureTime, gain, offset, binX, binY);
 
   @override
   String toString() =>
-      'DarkGroupKey($frameType, ${exposureTime}s, gain=$gain, ${binX}x$binY)';
+      'DarkGroupKey($frameType, ${exposureTime}s, gain=$gain, offset=$offset, '
+      '${binX}x$binY)';
 }

@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/stack_result/stack_and_share_dialog.dart';
 import 'package:nightshade_app/screens/stack_result/stack_result_screen.dart';
+import 'package:nightshade_app/widgets/astro_image_viewer.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // The stretch-engine seam type is needed to stub the colour STF in the result
 // viewer without loading the native dynamic library. (Matches the screen's own
@@ -95,6 +96,12 @@ class _FakeStackAndShareNotifier extends StackAndShareNotifier {
     runCount++;
     lastSessionId = sessionId;
     lastConfig = config;
+  }
+}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
   }
 }
 
@@ -228,6 +235,48 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('StackResultScreen', () {
+    testWidgets('remote mode renders host metadata and preview',
+        (tester) async {
+      final backend = NetworkBackend(
+        serverHost: '10.0.0.8',
+        serverPort: 8080,
+        webSocketPort: 8080,
+        autoConnectWebSocket: false,
+      );
+      addTearDown(backend.dispose);
+      final result = _cannedResult();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            remoteStackResultProvider(7).overrideWith(
+              (ref) async => RemoteStackedResult(
+                result: result,
+                previewAvailable: true,
+              ),
+            ),
+            stackResultPreviewProvider(7).overrideWith(
+              (ref) async => _rgba2x2(),
+            ),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const StackResultScreen(resultId: 7),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('M51'), findsOneWidget);
+      expect(find.byType(AstroImageViewer), findsOneWidget);
+      expect(find.text('Open this stacked result on the imaging host'),
+          findsNothing);
+    });
+
     testWidgets('renders header title, subtitle, and stats', (tester) async {
       final result = _cannedResult();
       await _pumpScreen(tester, result: result);

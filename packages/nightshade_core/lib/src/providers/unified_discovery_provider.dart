@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/nightshade_backend.dart';
 import '../models/equipment/unified_device.dart';
 import '../models/equipment/discovery_state.dart';
 import '../services/device_service.dart';
@@ -24,8 +25,16 @@ final unifiedDiscoveryProvider =
 class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
   final Ref _ref;
   bool _cancelled = false;
+  int _operationGeneration = 0;
 
-  UnifiedDiscoveryNotifier(this._ref) : super(const UnifiedDiscoveryState());
+  UnifiedDiscoveryNotifier(this._ref) : super(const UnifiedDiscoveryState()) {
+    _ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (previous != null && !identical(previous, next)) {
+        _invalidateInFlightDiscovery();
+        state = const UnifiedDiscoveryState();
+      }
+    });
+  }
 
   /// Discover devices from all available backends in parallel
   ///
@@ -34,11 +43,18 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
   /// 2. Track progress per-backend
   /// 3. Group discovered devices using fuzzy matching
   /// 4. Update state as results come in
-  Future<void> discoverAll() async {
-    _cancelled = false;
+  Future<void> discoverAll({
+    bool includeIndi = true,
+    bool includeAlpaca = true,
+  }) async {
+    final generation = _startDiscovery();
 
     // Get backends that are available on this platform
-    final backends = _getAvailableBackends();
+    final backends = discoveryBackendsForPolicy(
+      _getAvailableBackends(),
+      includeIndi: includeIndi,
+      includeAlpaca: includeAlpaca,
+    );
 
     // Clear stale grouped/raw results before rescan so a failed or
     // partial scan never leaves yesterday's devices on screen.
@@ -53,7 +69,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     // Process results as they complete
     final results = await Future.wait(futures);
 
-    if (_cancelled) return;
+    if (!_canPublish(generation)) return;
 
     // Collect all devices
     final allDevices = <DeviceInfo>[];
@@ -92,7 +108,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     String? host,
     int? port,
   }) async {
-    _cancelled = false;
+    final generation = _startDiscovery();
 
     // Drop this backend's stale devices as soon as rescan starts.
     state = _discoveringStateForBackends([backend], mergeWithExisting: true);
@@ -100,7 +116,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     // Discover
     final result = await _discoverBackend(backend, host: host, port: port);
 
-    if (_cancelled) return;
+    if (!_canPublish(generation)) return;
 
     // Update state with results
     final updatedStates = Map<DriverType, BackendDiscoveryState>.from(
@@ -165,7 +181,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     }
 
     // Otherwise, selectively rediscover only the stale backends
-    _cancelled = false;
+    final generation = _startDiscovery();
 
     // Clear stale devices for backends being rescanned.
     state = _discoveringStateForBackends(
@@ -180,7 +196,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     }
     final results = await Future.wait(futures);
 
-    if (_cancelled) return;
+    if (!_canPublish(generation)) return;
 
     // Merge results into existing state
     final updatedStates = Map<DriverType, BackendDiscoveryState>.from(
@@ -222,12 +238,27 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
   /// Cancel ongoing discovery
   void cancel() {
-    _cancelled = true;
+    _invalidateInFlightDiscovery();
   }
 
   /// Clear all discovery results
   void clear() {
+    _invalidateInFlightDiscovery();
     state = const UnifiedDiscoveryState();
+  }
+
+  int _startDiscovery() {
+    _cancelled = false;
+    return ++_operationGeneration;
+  }
+
+  bool _canPublish(int generation) {
+    return !_cancelled && generation == _operationGeneration;
+  }
+
+  void _invalidateInFlightDiscovery() {
+    _cancelled = true;
+    _operationGeneration++;
   }
 
   /// Build state with [backends] marked discovering and their device lists cleared.
@@ -385,6 +416,23 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
       return _BackendResult(backend: backend, devices: [], error: e.toString());
     }
   }
+}
+
+/// Apply automatic-discovery protocol choices to the platform's available
+/// backends. Manual discovery keeps both flags true; startup supplies the
+/// persisted INDI and Alpaca choices.
+List<DriverType> discoveryBackendsForPolicy(
+  Iterable<DriverType> available, {
+  required bool includeIndi,
+  required bool includeAlpaca,
+}) {
+  return available
+      .where((backend) {
+        if (backend == DriverType.indi) return includeIndi;
+        if (backend == DriverType.alpaca) return includeAlpaca;
+        return true;
+      })
+      .toList(growable: false);
 }
 
 /// Internal result class for backend discovery

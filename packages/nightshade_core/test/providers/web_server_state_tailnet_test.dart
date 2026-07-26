@@ -49,7 +49,9 @@ void main() {
         tailscaleReachable: true,
         actualPort: 8080,
       );
-      expect(state.tailscaleUrl, 'http://100.96.0.7:8080');
+      // Browser-openable: must include the dashboard path, since the origin
+      // root answers 401 rather than serving the SPA.
+      expect(state.tailscaleUrl, 'http://100.96.0.7:8080/dashboard');
     });
 
     test('tailscaleUrl brackets an IPv6 tailnet literal', () {
@@ -58,7 +60,7 @@ void main() {
         tailscaleReachable: true,
         actualPort: 9090,
       );
-      expect(state.tailscaleUrl, 'http://[fd7a:115c:a1e0::1]:9090');
+      expect(state.tailscaleUrl, 'http://[fd7a:115c:a1e0::1]:9090/dashboard');
     });
 
     test('copyWith carries the tailnet fields through', () {
@@ -82,6 +84,38 @@ void main() {
       expect(updated.tailscaleIp, '100.96.0.7');
       expect(updated.tailscaleReachable, isTrue);
       expect(updated.activeViewers, 3);
+    });
+  });
+
+  group('WebServerState browser URLs', () {
+    /// These strings are opened in a browser and copied for humans. The origin
+    /// root is NOT a routed page — the auth middleware answers `GET /` with
+    /// `401 {"error":"Authentication required"}` as raw JSON — so a URL without
+    /// the dashboard path sent the operator to an error document from the very
+    /// button that promises to "confirm the dashboard is working". Verified
+    /// live against the desktop server: `/` -> 401, `/dashboard` -> 200.
+    test('localUrl points at the dashboard page, not the origin root', () {
+      const state = WebServerState(isRunning: true, actualPort: 8080);
+      expect(state.localUrl, 'http://localhost:8080/dashboard');
+    });
+
+    test('networkUrl points at the dashboard page when LAN-bound', () {
+      const state = WebServerState(
+        isRunning: true,
+        actualPort: 8080,
+        localIp: '192.168.1.20',
+        bindLocalOnly: false,
+      );
+      expect(state.networkUrl, 'http://192.168.1.20:8080/dashboard');
+    });
+
+    test('networkUrl stays empty while bound to loopback only', () {
+      const state = WebServerState(
+        isRunning: true,
+        actualPort: 8080,
+        localIp: '192.168.1.20',
+      );
+      expect(state.networkUrl, '');
     });
   });
 }

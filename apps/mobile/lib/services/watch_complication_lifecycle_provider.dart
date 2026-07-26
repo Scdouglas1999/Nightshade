@@ -153,6 +153,13 @@ class WatchComplicationLifecycleController {
         return 'completed';
       case SequenceExecutionState.failed:
         return 'failed';
+      case SequenceExecutionState.stopFailed:
+      case SequenceExecutionState.cleanupFailed:
+      case SequenceExecutionState.finalizing:
+        // The run has not settled (the stop / finalization / its cleanup is
+        // still pending); surface it to the complication as the transient
+        // 'stopping' vocabulary.
+        return 'stopping';
     }
   }
 

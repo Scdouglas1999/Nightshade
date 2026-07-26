@@ -7,8 +7,61 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
+import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/remote_host_path_dialog.dart';
 import 'settings_widgets.dart';
+
+enum CalibrationFileType { flat, bias, dark }
+
+typedef CalibrationFilePicker = Future<String?> Function(
+  BuildContext context, {
+  required CalibrationFileType fileType,
+  required bool isRemote,
+  required String? currentPath,
+});
+
+typedef CalibrationFileWriter = Future<void> Function(
+  CalibrationFileType fileType,
+  String path,
+);
+
+Future<String?> _pickCalibrationFile(
+  BuildContext context, {
+  required CalibrationFileType fileType,
+  required bool isRemote,
+  required String? currentPath,
+}) async {
+  if (isRemote) {
+    return RemoteHostPathDialog.show(
+      context,
+      title: 'Master frame on host',
+      initialPath: currentPath,
+    );
+  }
+
+  const fitsGroup = XTypeGroup(
+    label: 'FITS/XISF images',
+    extensions: ['fits', 'fit', 'fts', 'xisf'],
+  );
+  return (await openFile(acceptedTypeGroups: [fitsGroup]))?.path;
+}
+
+final calibrationFilePickerProvider =
+    Provider<CalibrationFilePicker>((ref) => _pickCalibrationFile);
+
+final calibrationFileWriterProvider = Provider<CalibrationFileWriter>((ref) {
+  return (fileType, path) async {
+    final notifier = ref.read(calibrationSettingsProvider.notifier);
+    switch (fileType) {
+      case CalibrationFileType.flat:
+        await notifier.setMasterFlatPath(path);
+      case CalibrationFileType.bias:
+        await notifier.setMasterBiasPath(path);
+      case CalibrationFileType.dark:
+        await notifier.setManualDarkPath(path);
+    }
+  };
+});
 
 class CalibrationSettingsPage extends ConsumerWidget {
   final bool isMobile;
@@ -18,46 +71,19 @@ class CalibrationSettingsPage extends ConsumerWidget {
     this.isMobile = false,
   });
 
-  Future<void> _selectFitsFile(
+  Future<void> _saveSwitch(
     BuildContext context,
-    WidgetRef ref,
-    _CalFileType fileType,
+    Future<void> Function() action,
   ) async {
-    final calSettings = ref.read(calibrationSettingsProvider);
-    final isRemote = ref.read(isRemoteModeProvider);
-    String? filePath;
-
-    if (isRemote) {
-      final initialPath = switch (fileType) {
-        _CalFileType.flat => calSettings.masterFlatPath,
-        _CalFileType.bias => calSettings.masterBiasPath,
-        _CalFileType.dark => calSettings.manualDarkPath,
-      };
-      filePath = await RemoteHostPathDialog.show(
-        context,
-        title: 'Master frame on host',
-        initialPath: initialPath,
-      );
-    } else {
-      const fitsGroup = XTypeGroup(
-        label: 'FITS/XISF images',
-        extensions: ['fits', 'fit', 'fts', 'xisf'],
-      );
-      final result = await openFile(acceptedTypeGroups: [fitsGroup]);
-      filePath = result?.path;
-    }
-
-    if (filePath == null || filePath.isEmpty) return;
-
-    final notifier = ref.read(calibrationSettingsProvider.notifier);
-
-    switch (fileType) {
-      case _CalFileType.flat:
-        await notifier.setMasterFlatPath(filePath);
-      case _CalFileType.bias:
-        await notifier.setMasterBiasPath(filePath);
-      case _CalFileType.dark:
-        await notifier.setManualDarkPath(filePath);
+    try {
+      await action();
+    } catch (error) {
+      if (context.mounted) {
+        context.showErrorSnackBar(
+          'Could not update calibration settings: $error',
+        );
+      }
+      rethrow;
     }
   }
 
@@ -66,6 +92,18 @@ class CalibrationSettingsPage extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final calSettings = ref.watch(calibrationSettingsProvider);
     final darkLibraryStats = ref.watch(darkLibraryStatsProvider);
+
+    if (calSettings.isLoading) {
+      return SettingsLoadingState(isMobile: isMobile);
+    }
+    final loadError = calSettings.loadError;
+    if (loadError != null) {
+      return SettingsErrorState(
+        isMobile: isMobile,
+        error: loadError,
+        onRetry: () => ref.invalidate(calibrationSettingsProvider),
+      );
+    }
 
     return SettingsPage(
       title: 'Calibration',
@@ -86,9 +124,12 @@ class CalibrationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: calSettings.autoCalibrate,
                 onChanged: (value) {
-                  ref
-                      .read(calibrationSettingsProvider.notifier)
-                      .setAutoCalibrate(value);
+                  return _saveSwitch(
+                    context,
+                    () => ref
+                        .read(calibrationSettingsProvider.notifier)
+                        .setAutoCalibrate(value),
+                  );
                 },
               ),
               isMobile: isMobile,
@@ -156,9 +197,12 @@ class CalibrationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: calSettings.autoDarkFromLibrary,
                 onChanged: (value) {
-                  ref
-                      .read(calibrationSettingsProvider.notifier)
-                      .setAutoDarkFromLibrary(value);
+                  return _saveSwitch(
+                    context,
+                    () => ref
+                        .read(calibrationSettingsProvider.notifier)
+                        .setAutoDarkFromLibrary(value),
+                  );
                 },
               ),
               isMobile: isMobile,
@@ -180,22 +224,19 @@ class CalibrationSettingsPage extends ConsumerWidget {
                         icon:
                             Icon(LucideIcons.x, size: 16, color: colors.error),
                         tooltip: 'Clear dark path',
-                        onPressed: () {
-                          ref
+                        onPressed: () => _clearPath(
+                          context,
+                          () => ref
                               .read(calibrationSettingsProvider.notifier)
-                              .setManualDarkPath(null);
-                        },
+                              .setManualDarkPath(null),
+                        ),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
                     const SizedBox(width: 8),
-                    NightshadeButton(
-                      onPressed: () =>
-                          _selectFitsFile(context, ref, _CalFileType.dark),
-                      icon: LucideIcons.folderOpen,
-                      label: 'Browse',
-                      variant: ButtonVariant.outline,
-                      size: ButtonSize.small,
+                    CalibrationFileBrowseButton(
+                      fileType: CalibrationFileType.dark,
+                      currentPath: calSettings.manualDarkPath,
                     ),
                   ],
                 ),
@@ -226,22 +267,19 @@ class CalibrationSettingsPage extends ConsumerWidget {
                     IconButton(
                       icon: Icon(LucideIcons.x, size: 16, color: colors.error),
                       tooltip: 'Clear flat path',
-                      onPressed: () {
-                        ref
+                      onPressed: () => _clearPath(
+                        context,
+                        () => ref
                             .read(calibrationSettingsProvider.notifier)
-                            .setMasterFlatPath(null);
-                      },
+                            .setMasterFlatPath(null),
+                      ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                   const SizedBox(width: 8),
-                  NightshadeButton(
-                    onPressed: () =>
-                        _selectFitsFile(context, ref, _CalFileType.flat),
-                    icon: LucideIcons.folderOpen,
-                    label: 'Browse',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
+                  CalibrationFileBrowseButton(
+                    fileType: CalibrationFileType.flat,
+                    currentPath: calSettings.masterFlatPath,
                   ),
                 ],
               ),
@@ -277,22 +315,19 @@ class CalibrationSettingsPage extends ConsumerWidget {
                     IconButton(
                       icon: Icon(LucideIcons.x, size: 16, color: colors.error),
                       tooltip: 'Clear bias path',
-                      onPressed: () {
-                        ref
+                      onPressed: () => _clearPath(
+                        context,
+                        () => ref
                             .read(calibrationSettingsProvider.notifier)
-                            .setMasterBiasPath(null);
-                      },
+                            .setMasterBiasPath(null),
+                      ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),
                   const SizedBox(width: 8),
-                  NightshadeButton(
-                    onPressed: () =>
-                        _selectFitsFile(context, ref, _CalFileType.bias),
-                    icon: LucideIcons.folderOpen,
-                    label: 'Browse',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
+                  CalibrationFileBrowseButton(
+                    fileType: CalibrationFileType.bias,
+                    currentPath: calSettings.masterBiasPath,
                   ),
                 ],
               ),
@@ -307,6 +342,21 @@ class CalibrationSettingsPage extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _clearPath(
+    BuildContext context,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+    } catch (error) {
+      if (context.mounted) {
+        context.showErrorSnackBar(
+          'Could not clear calibration path: $error',
+        );
+      }
+    }
   }
 
   bool _isDarkAvailable(
@@ -359,7 +409,81 @@ class CalibrationSettingsPage extends ConsumerWidget {
   }
 }
 
-enum _CalFileType { flat, bias, dark }
+class CalibrationFileBrowseButton extends ConsumerStatefulWidget {
+  final CalibrationFileType fileType;
+  final String? currentPath;
+
+  const CalibrationFileBrowseButton({
+    super.key,
+    required this.fileType,
+    required this.currentPath,
+  });
+
+  @override
+  ConsumerState<CalibrationFileBrowseButton> createState() =>
+      _CalibrationFileBrowseButtonState();
+}
+
+class _CalibrationFileBrowseButtonState
+    extends ConsumerState<CalibrationFileBrowseButton> {
+  bool _busy = false;
+  int _operationGeneration = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (_busy && previous != null && !identical(previous, next)) {
+        _operationGeneration++;
+        setState(() => _busy = false);
+      }
+    });
+
+    return NightshadeButton(
+      onPressed: _busy ? null : _selectFile,
+      icon: _busy ? NightshadeIcons.loading : LucideIcons.folderOpen,
+      label: _busy ? 'Selecting...' : 'Browse',
+      variant: ButtonVariant.outline,
+      size: ButtonSize.small,
+    );
+  }
+
+  Future<void> _selectFile() async {
+    if (_busy) return;
+    final generation = ++_operationGeneration;
+    final authority = ref.read(backendProvider);
+    final isRemote = ref.read(isRemoteModeProvider);
+    setState(() => _busy = true);
+
+    try {
+      final path = await ref.read(calibrationFilePickerProvider)(
+        context,
+        fileType: widget.fileType,
+        isRemote: isRemote,
+        currentPath: widget.currentPath,
+      );
+      if (path == null || path.isEmpty || !_isCurrent(generation, authority)) {
+        return;
+      }
+
+      await ref.read(calibrationFileWriterProvider)(widget.fileType, path);
+    } catch (error) {
+      if (!mounted || !_isCurrent(generation, authority)) return;
+      context.showErrorSnackBar(
+        'Could not update calibration settings: $error',
+      );
+    } finally {
+      if (_isCurrent(generation, authority)) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  bool _isCurrent(int generation, NightshadeBackend authority) {
+    return mounted &&
+        generation == _operationGeneration &&
+        identical(ref.read(backendProvider), authority);
+  }
+}
 
 /// Card showing availability status of a calibration frame type.
 class _CalStatusCard extends StatelessWidget {

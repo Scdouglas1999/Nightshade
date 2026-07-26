@@ -40,6 +40,7 @@ import '../../providers/database_provider.dart';
 import '../../providers/notification_router_provider.dart'
     show secretsStoreProvider;
 import '../backup_service.dart';
+import '../endpoint_sanitizer.dart';
 import '../logging_service.dart';
 import '../notification/secrets_store.dart';
 import 's3_sync_target.dart';
@@ -92,6 +93,15 @@ const String kSyncRemoteRoot = 'nightshade-sync';
 
 /// Default number of bundles retained per machine.
 const int kSyncDefaultRetainCount = 5;
+
+/// Safe projection for status screens and remote APIs. Provider endpoints are
+/// configured as ordinary URLs, so users can paste credentials in user-info or
+/// token-bearing query parameters even though Nightshade offers separate
+/// credential fields. Keep the useful origin/path while never echoing those
+/// URL-embedded secrets.
+String sanitizeSyncEndpointForDisplay(String raw) {
+  return sanitizeEndpointForDisplay(raw);
+}
 
 // ---------------------------------------------------------------------------
 // Config / manifest models
@@ -331,6 +341,31 @@ class SyncStatus {
     required this.pushInProgress,
   });
 
+  factory SyncStatus.fromJson(Map<String, dynamic> json) {
+    final configured = json['configured'];
+    final autoPushEnabled = json['autoPushEnabled'];
+    final pushInProgress = json['pushInProgress'];
+    if (configured is! bool ||
+        autoPushEnabled is! bool ||
+        pushInProgress is! bool) {
+      throw const FormatException('Malformed cloud sync status response');
+    }
+    final rawLastPush = json['lastPushAt'];
+    return SyncStatus(
+      configured: configured,
+      autoPushEnabled: autoPushEnabled,
+      machineName: json['machineName'] as String? ?? '',
+      serverUrl: json['serverUrl'] as String? ?? '',
+      lastPushAt: rawLastPush is String
+          ? DateTime.tryParse(rawLastPush)
+          : rawLastPush is num
+          ? DateTime.fromMillisecondsSinceEpoch(rawLastPush.toInt())
+          : null,
+      lastError: json['lastError'] as String?,
+      pushInProgress: pushInProgress,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
     'configured': configured,
     'autoPushEnabled': autoPushEnabled,
@@ -561,9 +596,11 @@ class SyncService {
       // Display the meaningful endpoint for the active provider. This is
       // the non-secret endpoint/URL only — never the access/secret key —
       // so the headless status JSON stays safe.
-      serverUrl: config.provider == SyncProvider.s3
-          ? config.s3Endpoint
-          : config.serverUrl,
+      serverUrl: sanitizeSyncEndpointForDisplay(
+        config.provider == SyncProvider.s3
+            ? config.s3Endpoint
+            : config.serverUrl,
+      ),
       lastPushAt: lastPushRaw == null ? null : DateTime.tryParse(lastPushRaw),
       lastError: (lastError == null || lastError.isEmpty) ? null : lastError,
       pushInProgress: _pushInProgress,
@@ -645,7 +682,7 @@ class SyncService {
           await _readManifest(target, machineDir) ??
           SyncManifest(
             machine: sanitizeMachineName(config.machineName),
-            appVersion: BackupService.appVersion,
+            appVersion: backupService.runtimeAppVersion,
             updatedAt: _clock(),
             bundles: const [],
           );
@@ -665,7 +702,7 @@ class SyncService {
           const JsonEncoder.withIndent('  ').convert(
             SyncManifest(
               machine: updated.machine,
-              appVersion: BackupService.appVersion,
+              appVersion: backupService.runtimeAppVersion,
               updatedAt: updated.updatedAt,
               bundles: updated.bundles,
             ).toJson(),

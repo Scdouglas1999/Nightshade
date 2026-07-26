@@ -253,11 +253,14 @@ class _ComputedValue extends StatelessWidget {
 class _DeviceRow extends StatelessWidget {
   final String type;
   final IconData icon;
-  final TextEditingController nameController;
+  // Null when this device type has no persisted friendly-name column, so the
+  // row shows only the device id (no editable name field to silently discard).
+  final TextEditingController? nameController;
   final String? deviceId;
   final List<UnifiedDevice> discoveredDevices;
   final void Function(String? id, String? name) onDeviceSelected;
   final VoidCallback onClear;
+  final VoidCallback onScan;
   final NightshadeColors colors;
 
   const _DeviceRow({
@@ -268,11 +271,13 @@ class _DeviceRow extends StatelessWidget {
     required this.discoveredDevices,
     required this.onDeviceSelected,
     required this.onClear,
+    required this.onScan,
     required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
+    final nameController = this.nameController;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -310,45 +315,47 @@ class _DeviceRow extends StatelessWidget {
                       style: NightshadeTypography.labelQuiet
                           .copyWith(color: colors.textSecondary),
                     ),
-                    const SizedBox(height: 4),
-                    // Friendly name text field
-                    SizedBox(
-                      height: 32,
-                      child: TextField(
-                        controller: nameController,
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize13,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Friendly name...',
-                          hintStyle: TextStyle(
-                            color: colors.textMuted,
+                    if (nameController != null) ...[
+                      const SizedBox(height: 4),
+                      // Friendly name text field
+                      SizedBox(
+                        height: 32,
+                        child: TextField(
+                          controller: nameController,
+                          style: TextStyle(
+                            color: colors.textPrimary,
                             fontSize: NightshadeTypography.fontSize13,
                           ),
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 6),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline4),
-                            borderSide: BorderSide(color: colors.border),
+                          decoration: InputDecoration(
+                            hintText: 'Friendly name...',
+                            hintStyle: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: NightshadeTypography.fontSize13,
+                            ),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 6),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
+                              borderSide: BorderSide(color: colors.border),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
+                              borderSide: BorderSide(color: colors.border),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline4),
+                              borderSide: BorderSide(color: colors.primary),
+                            ),
+                            filled: true,
+                            fillColor: colors.surface,
                           ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline4),
-                            borderSide: BorderSide(color: colors.border),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline4),
-                            borderSide: BorderSide(color: colors.primary),
-                          ),
-                          filled: true,
-                          fillColor: colors.surface,
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -358,6 +365,7 @@ class _DeviceRow extends StatelessWidget {
                 deviceId: deviceId,
                 discoveredDevices: discoveredDevices,
                 onSelected: onDeviceSelected,
+                onScan: onScan,
                 colors: colors,
               ),
               // Clear button
@@ -401,12 +409,14 @@ class _DeviceDropdown extends StatelessWidget {
   final String? deviceId;
   final List<UnifiedDevice> discoveredDevices;
   final void Function(String? id, String? name) onSelected;
+  final VoidCallback onScan;
   final NightshadeColors colors;
 
   const _DeviceDropdown({
     required this.deviceId,
     required this.discoveredDevices,
     required this.onSelected,
+    required this.onScan,
     required this.colors,
   });
 
@@ -418,10 +428,12 @@ class _DeviceDropdown extends StatelessWidget {
         if (value == '_manual_') {
           _showManualEntryDialog(context);
         } else if (value == '_scan_') {
-          // Trigger discovery refresh
+          // Trigger a real discovery refresh; the parent watches
+          // unifiedDiscoveryProvider so the dropdown repopulates when it lands.
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Scanning for devices...')),
           );
+          onScan();
         } else {
           // Find the device name
           final device = discoveredDevices
@@ -537,14 +549,14 @@ class _DeviceDropdown extends StatelessWidget {
   }
 
   Future<void> _showManualEntryDialog(BuildContext context) async {
-    final controller = TextEditingController();
+    var deviceId = '';
     final result = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Enter Device ID'),
-          content: TextField(
-            controller: controller,
+          content: TextFormField(
+            onChanged: (value) => deviceId = value,
             decoration: const InputDecoration(
               hintText: 'Device ID or path...',
             ),
@@ -556,7 +568,7 @@ class _DeviceDropdown extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
+              onPressed: () => Navigator.pop(context, deviceId.trim()),
               child: const Text('Add'),
             ),
           ],
@@ -566,7 +578,6 @@ class _DeviceDropdown extends StatelessWidget {
     if (result != null && result.isNotEmpty) {
       onSelected(result, null);
     }
-    controller.dispose();
   }
 }
 

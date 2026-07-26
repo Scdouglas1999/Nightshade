@@ -201,7 +201,21 @@ class _LiveConditions extends ConsumerWidget {
     if (weather.connectionState != DeviceConnectionState.connected) {
       return const SizedBox.shrink();
     }
-    final settings = ref.watch(weatherSettingsProvider);
+    final settingsAsync = ref.watch(weatherSettingsDataProvider);
+    final settings = settingsAsync.valueOrNull;
+    if (settings == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          settingsAsync.hasError
+              ? 'Safety thresholds unavailable'
+              : 'Loading safety thresholds…',
+          style: NightshadeTypography.caption.copyWith(
+            color: settingsAsync.hasError ? colors.error : colors.textMuted,
+          ),
+        ),
+      );
+    }
 
     final rows = <Widget>[];
 
@@ -220,7 +234,7 @@ class _LiveConditions extends ConsumerWidget {
       ));
     }
 
-    final wind = weather.windSpeed;
+    final wind = weather.windSpeedKph;
     if (wind != null) {
       rows.add(_ConditionRow(
         colors: colors,

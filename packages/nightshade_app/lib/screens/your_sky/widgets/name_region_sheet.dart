@@ -15,9 +15,9 @@ enum _RegionSource { target, custom }
 ///
 /// Pick a source — one of the user's targets (active target / library) or a
 /// custom RA-Dec + radius (covers a mosaic, polar field, or any patch of sky) —
-/// give it a name, and create the region via [SkyAtlasService.ensureRegion].
-/// HOST-ONLY: this writes the local atlas DB, so the caller hides it on a
-/// [NetworkBackend] companion (the host owns the atlas; the slave only mirrors).
+/// give it a name, and create the region through the authority-aware
+/// [skyAtlasRegionWriterProvider]. On a companion the metadata write runs on
+/// the imaging host; atlas pixels and fold history never move to the client.
 class NameRegionSheet extends ConsumerStatefulWidget {
   const NameRegionSheet({super.key});
 
@@ -57,7 +57,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
     final colors = NightshadeColors.of(context);
     final targetsAsync = ref.watch(allDbTargetsProvider);
 
-    return SafeArea(
+    final sheet = SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
           left: NightshadeTokens.spaceLg,
@@ -147,6 +147,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
         ),
       ),
     );
+    return PopScope(canPop: !_saving, child: sheet);
   }
 
   Widget _buildTargetPicker(
@@ -289,10 +290,22 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
       final ra = double.tryParse(_raController.text.trim());
       final dec = double.tryParse(_decController.text.trim());
       final radius = double.tryParse(_radiusController.text.trim());
-      if (ra == null || dec == null || radius == null || radius <= 0) {
+      if (ra == null ||
+          !ra.isFinite ||
+          ra < 0 ||
+          ra > 360 ||
+          dec == null ||
+          !dec.isFinite ||
+          dec < -90 ||
+          dec > 90 ||
+          radius == null ||
+          !radius.isFinite ||
+          radius <= 0 ||
+          radius > 180) {
         setState(() {
           _saving = false;
-          _error = 'Enter a valid RA, Dec, and a positive radius.';
+          _error = 'Enter RA from 0–360°, Dec from -90–90°, and a radius '
+              'greater than 0° and no more than 180°.';
         });
         return;
       }
@@ -305,8 +318,9 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
     final effectiveName =
         name.isNotEmpty ? name : (_selectedTarget?.name ?? 'Custom region');
 
+    final authority = ref.read(backendProvider);
     try {
-      await ref.read(skyAtlasServiceProvider).ensureRegion(
+      await ref.read(skyAtlasRegionWriterProvider).ensureRegion(
             name: effectiveName,
             centerRaDeg: raDeg,
             centerDecDeg: decDeg,
@@ -315,9 +329,19 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
             targetId:
                 _source == _RegionSource.target ? _selectedTarget?.id : null,
           );
+      if (!mounted) return;
+      if (!identical(ref.read(backendProvider), authority)) {
+        setState(() {
+          _saving = false;
+          _error = 'The imaging host changed while the region was being '
+              'created. Check the active host before trying again.';
+        });
+        return;
+      }
       ref.invalidate(skyAtlasRegionsProvider);
-      if (mounted) unawaited(Navigator.of(context).maybePop(true));
+      unawaited(Navigator.of(context).maybePop(true));
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _saving = false;
         _error = 'Could not create region: $e';

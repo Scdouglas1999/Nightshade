@@ -1,0 +1,72 @@
+import '../../../models/equipment/equipment_models.dart';
+import '../../../models/sequence/sequence_models.dart';
+import '../../../models/settings/app_settings.dart';
+import '../../settings_provider.dart';
+import '../../equipment_provider.dart';
+import '../../weather_providers.dart';
+import '../sequence_validation.dart';
+
+/// Catches the fail-closed weather gate BEFORE the run wastes a slew.
+///
+/// The Rust `WeatherUnsafe` trigger is always armed. With weather safety enabled
+/// and the fail mode set to `fail_closed`, a rig that has NO weather source
+/// (no weather device, no safety monitor) is treated as unsafe the moment the
+/// trigger first evaluates — and the configured action is `ParkAndAbort`. The
+/// run therefore unparks, slews, takes a frame or two, then parks and aborts.
+///
+/// Reproduced end-to-end on the desktop build with the simulator camera: a
+/// 2-iteration loop captured exactly one frame before
+/// "Trigger fired: Weather Unsafe (weather_unsafe) - action: ParkAndAbort"
+/// terminated the sequence. Nothing in pre-flight mentioned it, so the operator
+/// only finds out from the log — typically the next morning, having lost the
+/// night. This is the fail-closed contract working as designed; the bug is that
+/// it was invisible until it fired.
+class WeatherSafetyNoSourceRule implements RefAwareSequenceValidator {
+  @override
+  String get name => 'WeatherSafetyNoSource';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence, ValidationContext ctx) {
+    final weatherSettings = ctx.ref.read(weatherSettingsProvider);
+    if (!weatherSettings.weatherSafetyEnabled) {
+      // Safety disabled: the trigger is neutralised elsewhere (the start paths
+      // push `fail_open`), so there is nothing to warn about.
+      return const [];
+    }
+
+    // `appSettingsProvider` is an AsyncNotifier; `.read()` yields AsyncValue and
+    // `.value` is null while loading (see `settings_rules.dart`).
+    final failMode = ctx.ref.read(appSettingsProvider).value?.safetyFailMode;
+    // Only fail-closed aborts a run on missing data; failOpen/warnOnly abstain,
+    // so an absent sensor is harmless there. A null (settings still loading) is
+    // treated as fail-closed because that is the shipped default.
+    final failsClosed =
+        failMode == null || failMode == SafetyFailMode.failClosed;
+    if (!failsClosed) return const [];
+
+    final weatherConnected =
+        ctx.ref.read(weatherStateProvider).connectionState ==
+        DeviceConnectionState.connected;
+    final safetyMonitorConnected =
+        ctx.ref.read(safetyMonitorStateProvider).connectionState ==
+        DeviceConnectionState.connected;
+    if (weatherConnected || safetyMonitorConnected) return const [];
+
+    return [
+      const ValidationIssue(
+        severity: ValidationSeverity.error,
+        category: ValidationCategory.equipment,
+        title: 'Weather Safety Will Abort This Run',
+        description:
+            'Weather safety is enabled and set to fail closed, but no weather '
+            'device or safety monitor is connected. With no reading to trust, '
+            'the safety gate treats conditions as unsafe and the run will park '
+            'and abort shortly after it starts.',
+        resolutionHint:
+            'Connect a weather device or safety monitor, switch the safety fail '
+            'mode to fail open in Settings > Automation & Safety, or turn '
+            'weather safety off for this session.',
+      ),
+    ];
+  }
+}

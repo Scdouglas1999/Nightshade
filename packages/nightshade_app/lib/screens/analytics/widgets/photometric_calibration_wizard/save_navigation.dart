@@ -75,12 +75,13 @@ extension _PhotometricWizardSaveNavigation
   // =========================================================================
 
   Widget _buildNavigationButtons(NightshadeColors colors) {
+    final isBusy = _isComputing || _isSaving;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         if (_step > 0)
           NightshadeButton(
-            onPressed: () => _update(() => _step--),
+            onPressed: isBusy ? null : () => _update(() => _step--),
             label: 'Back',
             variant: ButtonVariant.ghost,
           )
@@ -88,13 +89,15 @@ extension _PhotometricWizardSaveNavigation
           const SizedBox.shrink(),
         if (_step < 3)
           NightshadeButton(
-            onPressed: _canAdvance() ? () => _advance() : null,
+            onPressed: !isBusy && _canAdvance() ? () => _advance() : null,
             label: 'Next',
           )
         else
           NightshadeButton(
-            onPressed: _computedCoefficients != null ? _saveAndClose : null,
+            onPressed:
+                _computedCoefficients != null && !isBusy ? _saveAndClose : null,
             icon: LucideIcons.save,
+            isLoading: _isSaving,
             label: 'Save Coefficients',
           ),
       ],
@@ -122,28 +125,35 @@ extension _PhotometricWizardSaveNavigation
 
   Future<void> _saveAndClose() async {
     final coeff = _computedCoefficients;
-    if (coeff == null) return;
+    if (coeff == null || _isSaving || _isComputing) return;
+
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
+    _update(() {
+      _isSaving = true;
+      _statusMessage = 'Saving coefficients...';
+    });
 
     try {
-      final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        await backend.savePhotometricTransform(coeff);
+      if (authority is NetworkBackend) {
+        await authority.savePhotometricTransform(coeff);
       } else {
         await ref
             .read(photometricTransformServiceProvider)
             .saveTransform(coeff);
       }
-      if (mounted) {
-        _update(() => _statusMessage = 'Saved successfully!');
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted) {
-          Navigator.pop(context);
-        }
-      }
+      if (!_isCurrentOperation(generation, authority)) return;
+      _update(() => _statusMessage = 'Saved successfully!');
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!_isCurrentOperation(generation, authority)) return;
+      if (!mounted) return;
+      Navigator.pop(context);
     } catch (error) {
-      if (mounted) {
-        _update(() => _statusMessage = 'Save failed: $error');
-      }
+      if (!_isCurrentOperation(generation, authority)) return;
+      _update(() {
+        _isSaving = false;
+        _statusMessage = 'Save failed: $error';
+      });
     }
   }
 }

@@ -10,9 +10,25 @@ class _HistoryTab extends ConsumerStatefulWidget {
 }
 
 class _HistoryTabState extends ConsumerState<_HistoryTab> {
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _timeFilter = 'All Time';
   String _targetFilter = 'All Targets';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _timeFilter = 'All Time';
+      _targetFilter = 'All Targets';
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +58,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
         final isPhone = constraints.maxWidth < BreakpointTokens.breakpointPhone;
 
         final searchField = NightshadeTextField(
+          controller: _searchController,
           hint: l10n.text('analyticsSearchSessions'),
           prefixIcon: LucideIcons.search,
           onChanged: (v) => setState(() => _searchQuery = v),
@@ -146,6 +163,32 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                       return nameMatch && targetMatch && timeMatch;
                     }).toList();
 
+                    if (filteredSessions.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.searchX,
+                                size: 48, color: colors.textMuted),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No sessions match your filters',
+                              style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize14,
+                                  color: colors.textSecondary),
+                            ),
+                            const SizedBox(height: 12),
+                            NightshadeButton(
+                              label: 'Clear filters',
+                              variant: ButtonVariant.outline,
+                              size: ButtonSize.small,
+                              onPressed: _clearFilters,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     return ListView.builder(
                       itemCount: filteredSessions.length,
                       itemBuilder: (context, index) {
@@ -182,6 +225,14 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                             style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize12,
                                 color: colors.textMuted),
+                          ),
+                          const SizedBox(height: 12),
+                          NightshadeButton(
+                            label: 'Retry',
+                            variant: ButtonVariant.outline,
+                            size: ButtonSize.small,
+                            onPressed: () =>
+                                ref.invalidate(allSessionsProvider),
                           ),
                         ],
                       ),

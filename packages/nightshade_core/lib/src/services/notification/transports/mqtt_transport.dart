@@ -103,11 +103,13 @@ class MqttTransport extends NotificationTransport {
       }
       // CONNACK: byte 1 = session-present flags, byte 2 = return code.
       // 0x00 = accepted; non-zero rejects.
-      if (connack.payload.length < 2 || connack.payload[1] != 0) {
+      if (connack.payload.length != 2 ||
+          (connack.payload[0] & 0xfe) != 0 ||
+          connack.payload[1] != 0) {
         final rc = connack.payload.length >= 2
             ? connack.payload[1].toRadixString(16)
             : '??';
-        throw Exception('MQTT broker rejected CONNECT (rc=0x$rc)');
+        throw Exception('MQTT broker returned invalid CONNACK (rc=0x$rc)');
       }
 
       final qos = (_config.qos < 0 || _config.qos > 2) ? 0 : _config.qos;
@@ -145,6 +147,11 @@ class MqttTransport extends NotificationTransport {
         if (puback.type != _MqttPacketType.puback) {
           throw Exception('Expected PUBACK, got ${puback.type}');
         }
+        if (puback.payload.length != 2 ||
+            puback.payload[0] != 0 ||
+            puback.payload[1] != packetId) {
+          throw Exception('MQTT broker returned PUBACK for the wrong packet');
+        }
       }
 
       socket.add(_buildDisconnectPacket());
@@ -181,6 +188,7 @@ class _MqttSession {
   late StreamSubscription<List<int>> _subscription;
   final List<int> _buffer = [];
   final List<Completer<_MqttPacket>> _waiters = [];
+  final List<_MqttPacket> _pendingPackets = [];
   Object? _streamError;
 
   _MqttSession(this._socket) {
@@ -188,35 +196,43 @@ class _MqttSession {
   }
 
   void _onData(List<int> bytes) {
-    _buffer.addAll(bytes);
-    while (true) {
-      if (_buffer.isEmpty) return;
-      // Variable-length remaining-length field.
-      var multiplier = 1;
-      var value = 0;
-      var i = 1;
+    try {
+      _buffer.addAll(bytes);
       while (true) {
-        if (i >= _buffer.length) return; // need more bytes
-        final b = _buffer[i];
-        value += (b & 0x7f) * multiplier;
-        multiplier *= 128;
-        i++;
-        if ((b & 0x80) == 0) break;
-        if (multiplier > 128 * 128 * 128) {
-          throw Exception('MQTT remaining length malformed');
+        if (_buffer.isEmpty) return;
+        // Variable-length remaining-length field.
+        var multiplier = 1;
+        var value = 0;
+        var i = 1;
+        while (true) {
+          if (i >= _buffer.length) return; // need more bytes
+          final b = _buffer[i];
+          value += (b & 0x7f) * multiplier;
+          multiplier *= 128;
+          i++;
+          if ((b & 0x80) == 0) break;
+          if (multiplier > 128 * 128 * 128) {
+            throw const FormatException('MQTT remaining length malformed');
+          }
+        }
+        final totalLen = i + value;
+        if (_buffer.length < totalLen) return; // wait for more bytes
+        final firstByte = _buffer[0];
+        final type = (firstByte >> 4) & 0x0f;
+        final payload = Uint8List.fromList(_buffer.sublist(i, totalLen));
+        _buffer.removeRange(0, totalLen);
+        final packet = _MqttPacket(_decodeType(type), payload);
+        if (_waiters.isNotEmpty) {
+          _waiters.removeAt(0).complete(packet);
+        } else {
+          // Brokers can respond between socket.add() and readPacket(). Keep
+          // that response instead of dropping it and timing out a healthy
+          // connection.
+          _pendingPackets.add(packet);
         }
       }
-      final totalLen = i + value;
-      if (_buffer.length < totalLen) return; // wait for more bytes
-      final firstByte = _buffer[0];
-      final type = (firstByte >> 4) & 0x0f;
-      final payload = Uint8List.fromList(_buffer.sublist(i, totalLen));
-      _buffer.removeRange(0, totalLen);
-      final pkt = _MqttPacket(_decodeType(type), payload);
-      if (_waiters.isNotEmpty) {
-        _waiters.removeAt(0).complete(pkt);
-      }
-      // Else: silently drop. We only ever read CONNACK + PUBACK.
+    } catch (error) {
+      _onError(error);
     }
   }
 
@@ -244,6 +260,9 @@ class _MqttSession {
   }
 
   Future<_MqttPacket> readPacket() {
+    if (_pendingPackets.isNotEmpty) {
+      return Future.value(_pendingPackets.removeAt(0));
+    }
     if (_streamError != null) {
       return Future.error(_streamError!);
     }

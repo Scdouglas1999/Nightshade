@@ -17,6 +17,33 @@ class MosaicProjectsListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    if (ref.watch(backendProvider) is NetworkBackend) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: const SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ScreenHeader(
+                icon: NightshadeIcons.grid,
+                title: 'Mosaic projects',
+                subtitle: 'Multi-panel mosaics: capture, integrate, stitch',
+              ),
+              Expanded(
+                child: EmptyState(
+                  icon: NightshadeIcons.device,
+                  title: 'Open Mosaic Projects on the imaging host',
+                  body: 'Durable mosaic projects, panel masters, and stitched '
+                      'outputs are stored and processed on the imaging '
+                      'computer. Remote project control is unavailable in '
+                      'this release.',
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final projectsAsync = ref.watch(mosaicProjectsListProvider);
 
     return Scaffold(
@@ -31,31 +58,45 @@ class MosaicProjectsListScreen extends ConsumerWidget {
               subtitle: 'Multi-panel mosaics: capture, integrate, stitch',
             ),
             Expanded(
-              child: projectsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => EmptyState(
-                  icon: NightshadeIcons.warning,
-                  title: 'Could not load mosaic projects',
-                  body: '$e',
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(mosaicProjectsListProvider);
+                  await ref.read(mosaicProjectsListProvider.future);
+                },
+                child: projectsAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => _refreshableCenter(
+                    EmptyState(
+                      icon: NightshadeIcons.warning,
+                      title: 'Could not load mosaic projects',
+                      body: '$e',
+                    ),
+                  ),
+                  data: (projects) => projects.isEmpty
+                      ? _refreshableCenter(
+                          const EmptyState(
+                            icon: NightshadeIcons.grid,
+                            title: 'No mosaic projects yet',
+                            body:
+                                'Design a mosaic in Framing or the Planetarium '
+                                'and save it as a project to capture and stitch '
+                                'it here.',
+                          ),
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding:
+                              const EdgeInsets.all(NightshadeTokens.spaceLg),
+                          itemCount: projects.length,
+                          separatorBuilder: (_, __) => const SizedBox(
+                            height: NightshadeTokens.spaceSm,
+                          ),
+                          itemBuilder: (context, index) => _ProjectRow(
+                            project: projects[index],
+                          ),
+                        ),
                 ),
-                data: (projects) => projects.isEmpty
-                    ? const EmptyState(
-                        icon: NightshadeIcons.grid,
-                        title: 'No mosaic projects yet',
-                        body: 'Design a mosaic in Framing or the Planetarium '
-                            'and save it as a project to capture and stitch '
-                            'it here.',
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-                        itemCount: projects.length,
-                        separatorBuilder: (_, __) => const SizedBox(
-                          height: NightshadeTokens.spaceSm,
-                        ),
-                        itemBuilder: (context, index) => _ProjectRow(
-                          project: projects[index],
-                        ),
-                      ),
               ),
             ),
           ],
@@ -63,6 +104,21 @@ class MosaicProjectsListScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Wraps a centered empty/error [child] in an always-scrollable viewport so the
+/// enclosing [RefreshIndicator] can still be pulled when there is no list to
+/// scroll.
+Widget _refreshableCenter(Widget child) {
+  return LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: child,
+      ),
+    ),
+  );
 }
 
 class _ProjectRow extends StatelessWidget {
@@ -75,7 +131,7 @@ class _ProjectRow extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return NightshadeCard(
       enableHover: true,
-      onTap: () => context.go('/mosaic/${project.id}'),
+      onTap: () => context.push('/mosaic/${project.id}'),
       child: Row(
         children: [
           Icon(NightshadeIcons.grid,

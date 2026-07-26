@@ -5,17 +5,19 @@ extension _DeviceServiceMountControls on DeviceService {
   // Mount Control
   // ===========================================================================
 
-  /// Get the connected mount device ID from mount state (preferred) or active profile
+  /// Get the currently connected mount device ID.
   Future<String?> _getMountDeviceId() async {
-    // First check if a mount is currently connected via state provider
     final mountState = _ref.read(mountStateProvider);
     if (mountState.connectionState == DeviceConnectionState.connected &&
         mountState.deviceId != null &&
         mountState.deviceId!.isNotEmpty) {
       return mountState.deviceId;
     }
-
-    return _activeProfileDeviceId((profile) => profile.mountId);
+    // An active profile identifies the mount the user intends to connect; it
+    // does not prove that device is live on the current backend. Falling back
+    // to it here allowed a command admitted just before a disconnect/backend
+    // swap to target a disconnected or different host.
+    return null;
   }
 
   /// Slew mount to coordinates
@@ -29,7 +31,7 @@ extension _DeviceServiceMountControls on DeviceService {
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
 
     mountNotifier.setSlewing(true);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.slewToTarget,
       description: 'Slewing to RA ${_formatRA(ra)}, Dec ${_formatDec(dec)}',
       canCancel: true,
@@ -41,7 +43,10 @@ extension _DeviceServiceMountControls on DeviceService {
       mountNotifier.setParked(false);
     } finally {
       mountNotifier.setSlewing(false);
-      operationsNotifier.completeOperation(OperationType.slewToTarget);
+      operationsNotifier.completeOperation(
+        OperationType.slewToTarget,
+        operationId: operationId,
+      );
     }
   }
 
@@ -83,7 +88,7 @@ extension _DeviceServiceMountControls on DeviceService {
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
 
     mountNotifier.setSlewing(true);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.parkMount,
       description: 'Parking mount',
     );
@@ -94,7 +99,10 @@ extension _DeviceServiceMountControls on DeviceService {
       mountNotifier.setTracking(false);
     } finally {
       mountNotifier.setSlewing(false);
-      operationsNotifier.completeOperation(OperationType.parkMount);
+      operationsNotifier.completeOperation(
+        OperationType.parkMount,
+        operationId: operationId,
+      );
     }
   }
 
@@ -106,7 +114,7 @@ extension _DeviceServiceMountControls on DeviceService {
     }
 
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.unparkMount,
       description: 'Unparking mount',
     );
@@ -116,7 +124,10 @@ extension _DeviceServiceMountControls on DeviceService {
       final mountNotifier = _ref.read(mountStateProvider.notifier);
       mountNotifier.setParked(false);
     } finally {
-      operationsNotifier.completeOperation(OperationType.unparkMount);
+      operationsNotifier.completeOperation(
+        OperationType.unparkMount,
+        operationId: operationId,
+      );
     }
   }
 
@@ -168,7 +179,7 @@ extension _DeviceServiceMountControls on DeviceService {
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
 
     mountNotifier.setSlewing(true);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.slewToTarget,
       description:
           'Slewing to Alt ${altitude.toStringAsFixed(1)}, Az ${azimuth.toStringAsFixed(1)}',
@@ -180,7 +191,10 @@ extension _DeviceServiceMountControls on DeviceService {
       mountNotifier.setParked(false);
     } finally {
       mountNotifier.setSlewing(false);
-      operationsNotifier.completeOperation(OperationType.slewToTarget);
+      operationsNotifier.completeOperation(
+        OperationType.slewToTarget,
+        operationId: operationId,
+      );
     }
   }
 
@@ -195,7 +209,7 @@ extension _DeviceServiceMountControls on DeviceService {
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
 
     mountNotifier.setSlewing(true);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.slewToTarget,
       description: 'Finding mount home position',
     );
@@ -205,7 +219,10 @@ extension _DeviceServiceMountControls on DeviceService {
       mountNotifier.setParked(false);
     } finally {
       mountNotifier.setSlewing(false);
-      operationsNotifier.completeOperation(OperationType.slewToTarget);
+      operationsNotifier.completeOperation(
+        OperationType.slewToTarget,
+        operationId: operationId,
+      );
     }
   }
 

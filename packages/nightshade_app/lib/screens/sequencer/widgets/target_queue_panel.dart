@@ -62,6 +62,24 @@ class TargetQueueDragPayload {
   });
 }
 
+/// Matches an executor target to a queue label without confusing catalog IDs
+/// such as M1 and M10. Qualified names (for example "M31 (Panel 1/9)") still
+/// match their base target when the extra text begins at a word boundary.
+bool targetQueueNamesMatch(String first, String second) {
+  final a = first.trim().toLowerCase();
+  final b = second.trim().toLowerCase();
+  if (a.isEmpty || b.isEmpty) return false;
+  return _isQualifiedTargetName(a, b) || _isQualifiedTargetName(b, a);
+}
+
+bool _isQualifiedTargetName(String candidate, String base) {
+  if (candidate == base) return true;
+  if (!candidate.startsWith(base) || candidate.length == base.length) {
+    return false;
+  }
+  return RegExp(r'[\s\(\[\{\-–—/:]').hasMatch(candidate[base.length]);
+}
+
 /// Sort modes for the target queue list.
 enum _QueueSortMode {
   userOrder,
@@ -225,11 +243,7 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
         // and "M31 (Panel 1/9)" together so mosaics light up the
         // parent queue card.
         final match = queue.targets.cast<QueuedTarget?>().firstWhere(
-              (t) =>
-                  t != null &&
-                  (t.displayName == next ||
-                      next.startsWith(t.displayName) ||
-                      t.displayName.startsWith(next)),
+              (t) => t != null && targetQueueNamesMatch(t.displayName, next),
               orElse: () => null,
             );
         if (match != null && match.id != queue.activeTargetId) {

@@ -22,7 +22,7 @@ extension _SequenceFileEncoder on SequenceFileService {
     final nodesJson = (json['nodes'] as Map?)?.cast<String, dynamic>() ?? {};
 
     for (final entry in nodesJson.entries) {
-      final node = _jsonToNode(
+      final node = nodeFromMap(
         entry.value as Map<String, dynamic>,
         fallbackId: entry.key,
       );
@@ -50,6 +50,7 @@ extension _SequenceFileEncoder on SequenceFileService {
       'childIds': node.childIds,
       'orderIndex': node.orderIndex,
       'isEnabled': node.isEnabled,
+      'comment': node.comment,
     };
 
     // Exhaustive switch over the sealed SequenceNode hierarchy so new node
@@ -67,6 +68,11 @@ extension _SequenceFileEncoder on SequenceFileService {
         'startAfter': node.startAfter?.toIso8601String(),
         'endBefore': node.endBefore?.toIso8601String(),
         'mosaicPanel': node.mosaicPanel?.toJson(),
+        if (node.integrationBudget != null)
+          'integrationBudget': node.integrationBudget!.toJson(),
+        if (node.startWhen != null) 'startWhen': node.startWhen!.toJson(),
+        if (node.endWhen != null) 'endWhen': node.endWhen!.toJson(),
+        'triggerPollIntervalSecs': node.triggerPollIntervalSecs,
       },
       LoopNode() => <String, dynamic>{
         'conditionType': node.conditionType.name,
@@ -93,6 +99,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'triggerThreshold': node.triggerThreshold,
         'hfrThresholdPercent': node.hfrThresholdPercent,
         'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
+        'triggerEveryNFrames': node.triggerEveryNFrames,
         // Added focusDrift as a distinct trigger type
         // with its own rolling-window parameters. Persist them so a
         // saved-then-reloaded sequence preserves the trigger config —
@@ -100,6 +107,14 @@ extension _SequenceFileEncoder on SequenceFileService {
         'focusDriftWindowSize': node.focusDriftWindowSize,
         'focusDriftMinIncreasingCount': node.focusDriftMinIncreasingCount,
         'focusDriftMinTotalIncrease': node.focusDriftMinTotalIncrease,
+        'guidingFailedDurationSecs': node.guidingFailedDurationSecs,
+        'cloudMinutesBefore': node.cloudMinutesBefore,
+        'cloudCoverageThresholdPercent': node.cloudCoverageThresholdPercent,
+        'cloudOpeningMinDurationSecs': node.cloudOpeningMinDurationSecs,
+        'cloudCoverMaxPercent': node.cloudCoverMaxPercent,
+        'cloudCoverDurationSecs': node.cloudCoverDurationSecs,
+        'transparencyBelowThreshold': node.transparencyBelowThreshold,
+        'transparencyDurationSecs': node.transparencyDurationSecs,
       },
       SlewNode() => <String, dynamic>{
         'useTargetCoords': node.useTargetCoords,
@@ -126,6 +141,7 @@ extension _SequenceFileEncoder on SequenceFileService {
         'binning': node.binning.name,
         'ditherEvery': node.ditherEvery,
         'triggers': node.triggers,
+        'adaptiveExposure': node.adaptiveExposure?.toJson(),
       },
       AutofocusNode() => <String, dynamic>{
         'method': node.method.name,

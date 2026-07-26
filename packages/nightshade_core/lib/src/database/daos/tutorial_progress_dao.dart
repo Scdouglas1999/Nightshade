@@ -99,6 +99,27 @@ class TutorialProgressDao extends DatabaseAccessor<NightshadeDatabase>
     )..where((t) => t.category.equals(category))).go();
   }
 
+  /// Replace any saved state for [category] with a fresh step-zero run.
+  ///
+  /// A delete followed by a later save leaves a failure window where a
+  /// completed tutorial has already lost its history but no new run exists.
+  /// Keeping both writes in one transaction lets replay controls report a
+  /// failure without partially resetting the persisted state.
+  Future<void> restartProgress(String category) {
+    return transaction(() async {
+      await (delete(
+        tutorialProgress,
+      )..where((t) => t.category.equals(category))).go();
+      await into(tutorialProgress).insert(
+        TutorialProgressCompanion.insert(
+          category: category,
+          lastStepIndex: const Value(0),
+          startedAt: DateTime.now(),
+        ),
+      );
+    });
+  }
+
   /// Get all tutorial progress entries.
   /// Useful for displaying an overview of tutorial completion status.
   Future<List<TutorialProgressEntry>> getAllProgress() {

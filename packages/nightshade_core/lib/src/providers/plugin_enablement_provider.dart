@@ -147,6 +147,8 @@ final pluginEnablementProvider =
 
 /// AsyncNotifier backing [pluginEnablementProvider].
 class PluginEnablementNotifier extends AsyncNotifier<Set<String>> {
+  Future<void> _mutationTail = Future<void>.value();
+
   SettingsDao get _dao => ref.read(settingsDaoProvider);
 
   List<String> get _managedIds => ref.read(managedPluginIdsProvider);
@@ -199,26 +201,56 @@ class PluginEnablementNotifier extends AsyncNotifier<Set<String>> {
   /// step is skipped and only the persisted choice is written — the
   /// settings-backed enablement store replays that choice into the registration
   /// pipeline the next time the plugins load, so the saved state still wins.
-  Future<void> setEnabled(String pluginId, bool enabled) async {
-    // 1. Transition the live host first (only if it actually holds this
-    //    plugin). We deliberately do NOT throw for a not-loaded id: the host
-    //    is the authority for "what's running right now", and an id that isn't
-    //    loaded has nothing to transition — the persisted choice below is what
-    //    makes it take effect at next registration.
-    final host = ref.read(pluginHostProvider);
-    if (host.isLoaded(pluginId)) {
-      await host.setPluginEnabled(pluginId, enabled);
-    }
+  Future<void> setEnabled(String pluginId, bool enabled) {
+    final operation = _mutationTail.then((_) async {
+      // 1. Transition the live host first (only if it actually holds this
+      //    plugin). We deliberately do NOT throw for a not-loaded id: the host
+      //    is the authority for "what's running right now", and an id that
+      //    isn't loaded has nothing to transition — the persisted choice below
+      //    is what makes it take effect at next registration.
+      final host = ref.read(pluginHostProvider);
+      final isLoaded = host.isLoaded(pluginId);
+      final wasEnabled = isLoaded ? host.isEnabled(pluginId) : null;
+      final hostNeedsTransition = isLoaded && wasEnabled != enabled;
+      if (hostNeedsTransition) {
+        await host.setPluginEnabled(pluginId, enabled);
+      }
 
-    // 2. Persist the user's choice.
-    final raw = await _dao.getSetting(kPluginEnablementSettingKey);
-    final choices = Map<String, bool>.from(_decodeEnablementMap(raw));
-    choices[pluginId] = enabled;
+      try {
+        // 2. Persist the user's choice. This read-modify-write runs inside the
+        // mutation queue so parallel toggles cannot drop unrelated ids.
+        final raw = await _dao.getSetting(kPluginEnablementSettingKey);
+        final choices = Map<String, bool>.from(_decodeEnablementMap(raw));
+        choices[pluginId] = enabled;
 
-    await _dao.setSetting(kPluginEnablementSettingKey, jsonEncode(choices));
+        await _dao.setSetting(kPluginEnablementSettingKey, jsonEncode(choices));
 
-    // 3. Publish the new live set.
-    state = AsyncData(_enabledSetFor(choices, _managedIds));
+        // 3. Publish the new live set.
+        state = AsyncData(_enabledSetFor(choices, _managedIds));
+      } catch (error, stackTrace) {
+        // Securely persisting the choice is part of the same user action as
+        // changing the live host. If persistence fails, restore the prior live
+        // state so the UI, current process, and next launch still agree.
+        if (hostNeedsTransition && wasEnabled != null) {
+          try {
+            await host.setPluginEnabled(pluginId, wasEnabled);
+          } catch (rollbackError, rollbackStackTrace) {
+            _log.severe(
+              'Failed to roll back live plugin $pluginId after its '
+              'enablement preference could not be saved.',
+              rollbackError,
+              rollbackStackTrace,
+            );
+          }
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+    });
+    _mutationTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
   }
 }
 

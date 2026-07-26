@@ -1,5 +1,15 @@
 part of '../bridge_stub.dart';
 
+double calculateSequencerProgressFraction({
+  required String state,
+  required int completedExposures,
+  required int totalExposures,
+}) {
+  if (state.toLowerCase() == 'completed') return 1.0;
+  if (totalExposures <= 0) return 0.0;
+  return (completedExposures / totalExposures).clamp(0.0, 1.0);
+}
+
 extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   // =========================================================================
   // Sequencer API
@@ -247,6 +257,35 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     } catch (e) {
       developer.log(
         '[Bridge] Error updating sequencer dither config: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
+      rethrow;
+    }
+  }
+
+  /// Push the operator's meridian-flip settings onto the standard
+  /// `meridian_flip` trigger, which otherwise runs on Rust defaults for the
+  /// whole night.
+  Future<void> sequencerUpdateMeridianFlipConfig({
+    required String configJson,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateMeridianFlipConfig');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateMeridianFlipConfig(
+        configJson: configJson,
+      );
+      developer.log(
+        '[Bridge] Updated sequencer meridian-flip trigger config',
+        name: 'NativeBridge',
+        level: 800,
+      );
+    } catch (e) {
+      developer.log(
+        '[Bridge] Error updating sequencer meridian-flip config: $e',
         name: 'NativeBridge',
         level: 1000,
       );
@@ -797,10 +836,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
 
     try {
       final nativeState = await gen_api.apiSequencerGetState();
-      // Calculate progress from exposures
-      final progress = nativeState.totalExposures > 0
-          ? nativeState.completedExposures / nativeState.totalExposures
-          : 0.0;
+      final progress = calculateSequencerProgressFraction(
+        state: nativeState.state,
+        completedExposures: nativeState.completedExposures,
+        totalExposures: nativeState.totalExposures,
+      );
       return SequencerStatus(
         state: nativeState.state,
         currentNodeId: nativeState.currentNodeId,

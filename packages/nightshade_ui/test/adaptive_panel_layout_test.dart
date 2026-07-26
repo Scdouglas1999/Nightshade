@@ -74,6 +74,42 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
+      // Regression: the collapsed handle used to be a floating Positioned on a
+      // Stack, so `primary` was laid out at the FULL viewport height and the
+      // handle painted across its last ~56dp. Anything the primary anchored to
+      // its own bottom edge was sliced in half — on the Imaging screen that cut
+      // through the live histogram and the HFR/Mean stats readout. The handle
+      // must RESERVE its height so the two regions never intersect.
+      testWidgets('collapsed handle reserves space, never overlaps the '
+          'primary at ${entry.key}', (tester) async {
+        await _pumpAt(tester, entry.value, _host());
+        expect(tester.takeException(), isNull);
+
+        final primaryRect = tester.getRect(find.text('PRIMARY'));
+        final handleRect = tester.getRect(find.text('Controls'));
+
+        // The handle sits strictly BELOW the primary region's painted content.
+        expect(
+          handleRect.top,
+          greaterThanOrEqualTo(primaryRect.bottom),
+          reason: 'the collapsed Controls handle overlaps the primary region',
+        );
+
+        // And the primary must actually have been shortened: it cannot still
+        // run to the bottom of the viewport once the handle has been reserved.
+        final primaryBox = tester.getRect(
+          find.byWidgetPredicate(
+            (w) => w is ColoredBox && w.color == const Color(0xFF101010),
+          ),
+        );
+        expect(
+          primaryBox.bottom,
+          lessThanOrEqualTo(handleRect.top),
+          reason: 'the primary region still extends under the handle',
+        );
+        expect(primaryBox.bottom, lessThan(entry.value.height));
+      });
+
       testWidgets('segmented collapse at ${entry.key}', (tester) async {
         await _pumpAt(
           tester,

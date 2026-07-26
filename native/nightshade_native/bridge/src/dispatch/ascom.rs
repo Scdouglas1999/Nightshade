@@ -22,28 +22,12 @@ use std::sync::Arc;
 #[cfg(windows)]
 use tokio::sync::RwLock;
 
-/// Whether interactive driver dialogs (e.g. an ASCOM camera `SetupDialog`) may
-/// be shown during connect.
-///
-/// `false` in headless mode: there is no operator to dismiss a modal dialog, so
-/// showing one blocks the connect indefinitely (B1 — the ASCOM camera connect
-/// pops the vendor chooser and hangs the appliance). Headless is detected the
-/// same way the Flutter entrypoint decides it (`apps/desktop/lib/main.dart`):
-/// the `--headless` process argument or `NIGHTSHADE_HEADLESS=1`. The native
-/// process shares its argv/env with the Dart side, so no extra FFI is needed.
-/// Cached — neither signal changes after process start.
+/// Whether interactive driver dialogs may be shown during connect. The decision
+/// (headless ⇒ never) lives next to the STA worker that also force-closes any
+/// rogue modal, so the gate and its enforcement stay in one place — B1: the
+/// ASCOM connect must never block the appliance on an undismissable dialog.
 #[cfg(windows)]
-fn interactive_dialogs_allowed() -> bool {
-    use std::sync::OnceLock;
-    static ALLOWED: OnceLock<bool> = OnceLock::new();
-    *ALLOWED.get_or_init(|| {
-        let headless = std::env::args().any(|a| a == "--headless")
-            || std::env::var("NIGHTSHADE_HEADLESS")
-                .map(|v| v == "1")
-                .unwrap_or(false);
-        !headless
-    })
-}
+use crate::ascom_wrapper::sta_worker::interactive_dialogs_allowed;
 
 /// Probe an ASCOM typed wrapper for its four ASCOM-Common identification
 /// properties, releasing the per-type map lock before acquiring the
@@ -456,6 +440,127 @@ impl DeviceManager {
                     }
                 } else {
                     Err(format!("ASCOM dome {} not found", device_id))
+                }
+            }
+            DeviceType::SafetyMonitor => {
+                let safety_monitors = self.ascom_safety_monitors.read().await;
+                if let Some(safety) = safety_monitors.get(device_id) {
+                    // IsSafe is a mandatory ISafetyMonitor property; reading it is a
+                    // live COM round-trip that both confirms the driver is responding
+                    // and exercises the actual safety-reporting path. Without this arm
+                    // the heartbeat always failed ("No ASCOM heartbeat implementation"),
+                    // which is what drove the JustAHub safety-monitor error flood.
+                    match safety.read().await.is_safe().await {
+                        Ok(_) => {
+                            tracing::trace!(
+                                "ASCOM safety monitor {} heartbeat: healthy",
+                                device_id
+                            );
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "ASCOM safety monitor {} heartbeat failed: {:?}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("ASCOM safety monitor {} not found", device_id))
+                }
+            }
+            DeviceType::Rotator => {
+                let rotators = self.ascom_rotators.read().await;
+                if let Some(rotator) = rotators.get(device_id) {
+                    // Position is a mandatory IRotatorV3 property.
+                    match rotator.read().await.position().await {
+                        Ok(_) => {
+                            tracing::trace!("ASCOM rotator {} heartbeat: healthy", device_id);
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "ASCOM rotator {} heartbeat failed: {:?}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("ASCOM rotator {} not found", device_id))
+                }
+            }
+            DeviceType::CoverCalibrator => {
+                let cover_cals = self.ascom_cover_calibrators.read().await;
+                if let Some(cover_cal) = cover_cals.get(device_id) {
+                    // CoverState is a mandatory ICoverCalibratorV1 property (it returns
+                    // NotPresent rather than throwing when no cover is fitted).
+                    match cover_cal.read().await.cover_state().await {
+                        Ok(_) => {
+                            tracing::trace!(
+                                "ASCOM cover calibrator {} heartbeat: healthy",
+                                device_id
+                            );
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "ASCOM cover calibrator {} heartbeat failed: {:?}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("ASCOM cover calibrator {} not found", device_id))
+                }
+            }
+            DeviceType::Weather => {
+                let weather = self.ascom_weather.read().await;
+                if let Some(w) = weather.get(device_id) {
+                    // Every ObservingConditions sensor is optional and may throw
+                    // PropertyNotImplemented, so probe InterfaceVersion — a mandatory
+                    // IAscomDriver member — for a live COM round-trip that never
+                    // depends on an unimplemented sensor.
+                    match w.read().await.interface_version().await {
+                        Ok(_) => {
+                            tracing::trace!("ASCOM weather {} heartbeat: healthy", device_id);
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "ASCOM weather {} heartbeat failed: {:?}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("ASCOM weather {} not found", device_id))
+                }
+            }
+            DeviceType::Switch => {
+                let switches = self.ascom_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    // No mandatory scalar count is exposed on the wrapper, so probe
+                    // InterfaceVersion — a mandatory IAscomDriver member — for liveness.
+                    match sw.read().await.interface_version().await {
+                        Ok(_) => {
+                            tracing::trace!("ASCOM switch {} heartbeat: healthy", device_id);
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!("ASCOM switch {} heartbeat failed: {:?}", device_id, e);
+                            Ok(false)
+                        }
+                    }
+                } else {
+                    Err(format!("ASCOM switch {} not found", device_id))
                 }
             }
             _ => Err(format!(

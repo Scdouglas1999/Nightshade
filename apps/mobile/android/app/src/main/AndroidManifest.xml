@@ -97,6 +97,17 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!-- FCM background push (dormant until google-services.json is
+             provisioned — see PushBridge.kt). Handles token rotation; the
+             host's notification payloads render without client code. -->
+        <service
+            android:name=".NightshadePushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

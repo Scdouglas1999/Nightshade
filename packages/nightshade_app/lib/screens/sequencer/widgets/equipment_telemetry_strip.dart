@@ -449,20 +449,23 @@ class _VerticalLayout extends StatelessWidget {
                   ? colors.success
                   : colors.textMuted,
           rows: [
-            if (guider.rmsTotal != null)
+            // Only while guiding: these values persist in guider state after a
+            // session stops, so an unguarded check showed the previous run's RMS
+            // directly beneath this block's own "Idle" status label.
+            if (guider.isGuiding && guider.rmsTotal != null)
               _TelemetryRow(
                 colors: colors,
                 label: 'RMS Tot',
                 value: '${guider.rmsTotal!.toStringAsFixed(2)}"',
                 valueColor: _guidingRmsColor(guider, colors),
               ),
-            if (guider.rmsRa != null)
+            if (guider.isGuiding && guider.rmsRa != null)
               _TelemetryRow(
                 colors: colors,
                 label: 'RMS RA',
                 value: '${guider.rmsRa!.toStringAsFixed(2)}"',
               ),
-            if (guider.rmsDec != null)
+            if (guider.isGuiding && guider.rmsDec != null)
               _TelemetryRow(
                 colors: colors,
                 label: 'RMS Dec',

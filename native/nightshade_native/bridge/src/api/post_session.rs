@@ -285,6 +285,8 @@ struct OutputArgs {
     preview_png_path: Option<String>,
     /// Optional per-pixel rejection-count map FITS path.
     rejection_map_path: Option<String>,
+    /// Optional stretched PNG sibling for the rejection-count overlay.
+    rejection_map_preview_path: Option<String>,
 }
 
 /// Top-level request for [`api_integrate_session`].
@@ -386,6 +388,7 @@ struct IntegrateSessionResult {
     master_fits_path: String,
     preview_path: Option<String>,
     rejection_map_path: Option<String>,
+    rejection_map_preview_path: Option<String>,
     frames_integrated: usize,
     frames_rejected: usize,
     total_integration_sec: f64,
@@ -792,6 +795,32 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         None
     };
 
+    // --- Optional stretched rejection-map PNG. ---
+    // Flutter cannot decode the scientific FITS map directly. Keep that FITS
+    // for inspection and emit a real image sibling for Session Review.
+    let rejection_map_preview_path = if let (Some(p), Some(map)) = (
+        args.output.rejection_map_preview_path.as_ref(),
+        output.rejection_map.as_ref(),
+    ) {
+        if !p.trim().is_empty() {
+            match write_preview_png(map, Path::new(p)) {
+                Ok(()) => Some(p.clone()),
+                Err(e) => {
+                    tracing::warn!(
+                        path = %p,
+                        error = %e,
+                        "rejection preview PNG write failed; keeping master and FITS map"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     // --- Optional stretched preview PNG. ---
     let preview_path = if let Some(p) = args.output.preview_png_path.as_ref() {
         if !p.trim().is_empty() {
@@ -868,6 +897,7 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         master_fits_path: args.output.master_fits_path.clone(),
         preview_path,
         rejection_map_path,
+        rejection_map_preview_path,
         frames_integrated: output.stats.frames_integrated,
         frames_rejected,
         total_integration_sec,
@@ -2006,13 +2036,44 @@ mod tests {
     use nightshade_imaging::read_fits;
     use std::path::PathBuf;
 
-    /// Unique temp path so parallel test runs don't collide.
-    fn temp_path(prefix: &str, ext: &str) -> PathBuf {
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: the leak was worst exactly when a test FAILED, and a
+    /// trailing cleanup never runs while a panic unwinds — drop does.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Unique scratch directory so parallel test runs don't collide.
+    fn temp_dir(prefix: &str) -> TempDir {
         let n = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        std::env::temp_dir().join(format!("ns_ps_{prefix}_{}_{n}.{ext}", std::process::id()))
+        let p = std::env::temp_dir().join(format!("ns_ps_{prefix}_{}_{n}", std::process::id()));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
     }
 
     /// Deterministic, well-separated bright stars for a `size`x`size` frame —
@@ -2135,18 +2196,21 @@ mod tests {
     /// accepted.
     #[test]
     fn integrate_session_produces_master_and_preview() {
+        let dir = temp_dir("integrate_session_produces_master_and_preview");
         let size = 256u32;
         let stars = base_stars(size as f64);
         let mut light_paths = Vec::new();
         let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0)];
         for (i, (dx, dy)) in shifts.iter().enumerate() {
             let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
-            let p = temp_path(&format!("light{i}"), "fits");
+            let p = dir.join(format!("light{i}.fits"));
             write_field_fits(&p, &field);
             light_paths.push(p.to_string_lossy().to_string());
         }
-        let master_path = temp_path("master", "fits");
-        let preview_path = temp_path("preview", "png");
+        let master_path = dir.join("master.fits");
+        let preview_path = dir.join("preview.png");
+        let rejection_path = dir.join("rejection.fits");
+        let rejection_preview_path = dir.join("rejection_preview.png");
 
         let args = serde_json::json!({
             "lightPaths": light_paths,
@@ -2158,7 +2222,9 @@ mod tests {
             },
             "output": {
                 "masterFitsPath": master_path.to_string_lossy(),
-                "previewPngPath": preview_path.to_string_lossy()
+                "previewPngPath": preview_path.to_string_lossy(),
+                "rejectionMapPath": rejection_path.to_string_lossy(),
+                "rejectionMapPreviewPath": rejection_preview_path.to_string_lossy()
             }
         });
 
@@ -2182,12 +2248,19 @@ mod tests {
         assert_eq!(master_img.width, size);
         assert_eq!(master_img.height, size);
         assert!(preview_path.exists(), "preview PNG should be written");
-
-        let _ = std::fs::remove_file(&master_path);
-        let _ = std::fs::remove_file(&preview_path);
-        for p in &light_paths {
-            let _ = std::fs::remove_file(p);
-        }
+        assert!(rejection_path.exists(), "rejection FITS should be written");
+        assert!(
+            rejection_preview_path.exists(),
+            "rejection preview PNG should be written"
+        );
+        assert_eq!(
+            result.rejection_map_preview_path.as_deref(),
+            Some(rejection_preview_path.to_string_lossy().as_ref())
+        );
+        let rejection_preview =
+            image::open(&rejection_preview_path).expect("decode rejection preview");
+        assert_eq!(rejection_preview.width(), size);
+        assert_eq!(rejection_preview.height(), size);
     }
 
     /// Write a synthetic light whose FITS header carries a plate-solved WCS
@@ -2206,6 +2279,7 @@ mod tests {
     /// `read_fits` finds no CRVAL/CD keywords — this test fails.
     #[test]
     fn integrate_session_stamps_reference_wcs_into_master() {
+        let dir = temp_dir("integrate_session_stamps_reference_wcs_into_master");
         let size = 256u32;
         let stars = base_stars(size as f64);
         // A representative plate-solved panel WCS: ~1.5 arcsec/px, small rotation.
@@ -2215,7 +2289,7 @@ mod tests {
         let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0)];
         for (i, (dx, dy)) in shifts.iter().enumerate() {
             let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
-            let p = temp_path(&format!("wcslight{i}"), "fits");
+            let p = dir.join(format!("wcslight{i}.fits"));
             // Only the reference (sub 0, selected explicitly below) carries WCS.
             if i == 0 {
                 write_field_fits_with_wcs(&p, &field, &ref_wcs);
@@ -2224,7 +2298,7 @@ mod tests {
             }
             light_paths.push(p.to_string_lossy().to_string());
         }
-        let master_path = temp_path("wcsmaster", "fits");
+        let master_path = dir.join("wcsmaster.fits");
 
         let args = serde_json::json!({
             "lightPaths": light_paths,
@@ -2267,11 +2341,6 @@ mod tests {
         near("CD2_1", ref_wcs.cd2_1);
         near("CD2_2", ref_wcs.cd2_2);
         assert_eq!(h.get_string("CTYPE1"), Some("RA---TAN"));
-
-        let _ = std::fs::remove_file(&master_path);
-        for p in &light_paths {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     /// A reference frame with NO astrometry must leave the master WCS-less (the
@@ -2279,17 +2348,18 @@ mod tests {
     /// carry-over must never invent a WCS.
     #[test]
     fn integrate_session_leaves_master_wcs_absent_when_reference_has_none() {
+        let dir = temp_dir("integrate_session_leaves_master_wcs_absent_when_reference_has_none");
         let size = 256u32;
         let stars = base_stars(size as f64);
         let mut light_paths = Vec::new();
         let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0)];
         for (i, (dx, dy)) in shifts.iter().enumerate() {
             let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
-            let p = temp_path(&format!("nowcslight{i}"), "fits");
+            let p = dir.join(format!("nowcslight{i}.fits"));
             write_field_fits(&p, &field); // no WCS on any sub
             light_paths.push(p.to_string_lossy().to_string());
         }
-        let master_path = temp_path("nowcsmaster", "fits");
+        let master_path = dir.join("nowcsmaster.fits");
         let args = serde_json::json!({
             "lightPaths": light_paths,
             "reference": light_paths[0],
@@ -2309,25 +2379,21 @@ mod tests {
             "no WCS to carry → none stamped"
         );
         assert_eq!(h.get_float("CD1_1"), None);
-
-        let _ = std::fs::remove_file(&master_path);
-        for p in &light_paths {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     /// Multi-night accumulation: create -> add -> finalize round-trips through
     /// the sidecar and yields a finalized master with the accumulated count.
     #[test]
     fn master_accumulate_create_add_finalize() {
+        let dir = temp_dir("master_accumulate_create_add_finalize");
         let size = 256u32;
         let stars = base_stars(size as f64);
 
         let ref_field = render_field(size, &stars, 200.0);
-        let ref_path = temp_path("ref", "fits");
+        let ref_path = dir.join("ref.fits");
         write_field_fits(&ref_path, &ref_field);
 
-        let sidecar = temp_path("master", "nsmaster");
+        let sidecar = dir.join("master.nsmaster");
         let create = serde_json::json!({
             "op": "create",
             "referencePath": ref_path.to_string_lossy(),
@@ -2342,7 +2408,7 @@ mod tests {
         let mut light_paths = Vec::new();
         for (i, (dx, dy)) in [(0.0f64, 0.0f64), (2.0, -3.0)].iter().enumerate() {
             let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
-            let p = temp_path(&format!("add{i}"), "fits");
+            let p = dir.join(format!("add{i}.fits"));
             write_field_fits(&p, &field);
             light_paths.push(p.to_string_lossy().to_string());
         }
@@ -2360,7 +2426,7 @@ mod tests {
         assert_eq!(ar.frame_count, 2);
         assert!((ar.total_integration_sec - 120.0).abs() < 1e-6);
 
-        let master_path = temp_path("acc_master", "fits");
+        let master_path = dir.join("acc_master.fits");
         let finalize = serde_json::json!({
             "op": "finalize",
             "sidecarPath": sidecar.to_string_lossy(),
@@ -2377,14 +2443,6 @@ mod tests {
         let (img, _h) = read_fits(master_path.as_path()).expect("read accumulated master");
         assert_eq!(img.pixel_type, PixelType::F32);
         assert_eq!(img.width, size);
-
-        let _ = std::fs::remove_file(&ref_path);
-        let _ = std::fs::remove_file(reference_companion_path(&sidecar));
-        let _ = std::fs::remove_file(&sidecar);
-        let _ = std::fs::remove_file(&master_path);
-        for p in &light_paths {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     /// IMG-001 regression: folding a good-seeing night and then a uniformly
@@ -2396,6 +2454,7 @@ mod tests {
     /// worse night contributes proportionally less.
     #[test]
     fn accumulate_weights_better_night_more_than_worse_night() {
+        let dir = temp_dir("accumulate_weights_better_night_more_than_worse_night");
         let size = 256u32;
         let stars = base_stars(size as f64);
 
@@ -2409,10 +2468,10 @@ mod tests {
 
         // Reference frame defines the master grid/anchor (bright, like night A).
         let ref_field = render_field(size, &field_stars, 200.0);
-        let ref_path = temp_path("img001_ref", "fits");
+        let ref_path = dir.join("img001_ref.fits");
         write_field_fits(&ref_path, &ref_field);
 
-        let sidecar = temp_path("img001_master", "nsmaster");
+        let sidecar = dir.join("img001_master.nsmaster");
         let create = serde_json::json!({
             "op": "create",
             "referencePath": ref_path.to_string_lossy(),
@@ -2423,16 +2482,14 @@ mod tests {
 
         // Helper: render two slightly-shifted subs whose stars are scaled to
         // brightness `k`, write them, fold them in, return this fold's weights.
-        let mut cleanup: Vec<PathBuf> = vec![ref_path.clone()];
-        let mut fold = |k: f64, label: &str, tag: &str| -> Vec<f64> {
+        let fold = |k: f64, label: &str, tag: &str| -> Vec<f64> {
             let mut paths = Vec::new();
             for (i, (dx, dy)) in [(0.0f64, 0.0f64), (2.0, -3.0)].iter().enumerate() {
                 let mut night = grid_stars(size as f64, k);
                 night.extend_from_slice(&stars);
                 let field = render_field(size, &shift_stars(&night, *dx, *dy), 200.0);
-                let p = temp_path(&format!("{tag}{i}"), "fits");
+                let p = dir.join(format!("{tag}{i}.fits"));
                 write_field_fits(&p, &field);
-                cleanup.push(p.clone());
                 paths.push(p.to_string_lossy().to_string());
             }
             let add = serde_json::json!({
@@ -2461,17 +2518,12 @@ mod tests {
             sum_a > sum_b * 1.3,
             "the better-seeing night must carry meaningfully more total weight across folds: A={sum_a} ({w_a:?}) B={sum_b} ({w_b:?})"
         );
-
-        let _ = std::fs::remove_file(reference_companion_path(&sidecar));
-        let _ = std::fs::remove_file(&sidecar);
-        for p in &cleanup {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     /// Master-flat build normalizes to unit mean and writes a readable FITS.
     #[test]
     fn build_master_flat_unit_mean() {
+        let dir = temp_dir("build_master_flat_unit_mean");
         let size = 48u32;
         let len = (size * size) as usize;
         let mut flat_paths = Vec::new();
@@ -2483,13 +2535,13 @@ mod tests {
                 })
                 .collect();
             let img = ImageData::from_u16(size, size, 1, &data);
-            let p = temp_path(&format!("flat{i}"), "fits");
+            let p = dir.join(format!("flat{i}.fits"));
             let mut h = FitsHeader::new();
             h.set_string("IMAGETYP", "FLAT");
             write_fits(&p, &img, &h).unwrap();
             flat_paths.push(p.to_string_lossy().to_string());
         }
-        let out = temp_path("master_flat", "fits");
+        let out = dir.join("master_flat.fits");
         let args = serde_json::json!({
             "flatPaths": flat_paths,
             "outputBitDepth": "f32",
@@ -2507,20 +2559,16 @@ mod tests {
 
         let (img, _h) = read_fits(out.as_path()).unwrap();
         assert_eq!(img.pixel_type, PixelType::F32);
-
-        let _ = std::fs::remove_file(&out);
-        for p in &flat_paths {
-            let _ = std::fs::remove_file(p);
-        }
     }
 
     /// save_fits_master re-exports a buffer with the declared geometry/type.
     #[test]
     fn save_fits_master_round_trips() {
+        let dir = temp_dir("save_fits_master_round_trips");
         let size = 16u32;
         let len = (size * size) as usize;
         let f32_data: Vec<f32> = (0..len).map(|i| i as f32 * 0.5).collect();
-        let out = temp_path("export", "fits");
+        let out = dir.join("export.fits");
         let args = serde_json::json!({
             "width": size,
             "height": size,
@@ -2537,7 +2585,6 @@ mod tests {
         assert_eq!(img.pixel_type, PixelType::F32);
         assert_eq!(img.width, size);
         assert_eq!(h.get_string("OBJECT"), Some("M42"));
-        let _ = std::fs::remove_file(&out);
     }
 
     /// Bad JSON and unknown ops surface as errors, never a silent success.
@@ -2564,6 +2611,7 @@ mod tests {
     /// pass once `noise` rides through — no scripted fake curve can mask it.
     #[test]
     fn per_frame_noise_drives_a_positive_optimizer_curve() {
+        let dir = temp_dir("per_frame_noise_drives_a_positive_optimizer_curve");
         use crate::api::finishing_analyze::api_analyze_night;
 
         let size = 256u32;
@@ -2572,11 +2620,11 @@ mod tests {
         let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0), (1.0, 1.0)];
         for (i, (dx, dy)) in shifts.iter().enumerate() {
             let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
-            let p = temp_path(&format!("noise_light{i}"), "fits");
+            let p = dir.join(format!("noise_light{i}.fits"));
             write_field_fits(&p, &field);
             light_paths.push(p.to_string_lossy().to_string());
         }
-        let master_path = temp_path("noise_master", "fits");
+        let master_path = dir.join("noise_master.fits");
 
         let args = serde_json::json!({
             "lightPaths": light_paths,
@@ -2678,10 +2726,5 @@ mod tests {
             target_snr > 0.0,
             "target_snr (full-night anchor) must be non-zero, got {target_snr}"
         );
-
-        let _ = std::fs::remove_file(&master_path);
-        for p in &light_paths {
-            let _ = std::fs::remove_file(p);
-        }
     }
 }

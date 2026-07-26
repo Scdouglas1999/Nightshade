@@ -137,6 +137,18 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
     required bool raOnly,
   });
 
+  /// Push the operator's meridian-flip settings onto the standard
+  /// `meridian_flip` trigger.
+  ///
+  /// [configJson] is a serialised Rust `MeridianFlipConfig` — the same wire
+  /// shape a `MeridianFlipNode` already sends inside the sequence JSON.
+  ///
+  /// Required because the Rust trigger is seeded with
+  /// `MeridianFlipConfig::default()` and nothing else ever replaces it, so
+  /// without this call the Settings → Meridian Flip panel has no effect on the
+  /// trigger-driven flip.
+  Future<void> sequencerUpdateMeridianFlipConfig(String configJson);
+
   /// Update observer location at runtime during sequence execution.
   /// Updates the executor's stored location for altitude-based trigger evaluation.
   Future<void> sequencerUpdateLocation({

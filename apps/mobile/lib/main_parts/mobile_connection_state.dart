@@ -37,6 +37,7 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
   );
   bool _showManualEntry = false;
   bool _skippedConnection = false;
+  int _connectionOperationGeneration = 0;
   // Tokens are sensitive — default to obscured. Trailing icon toggles for
   // operators who need to verify the value during pairing.
   bool _accessTokenVisible = false;
@@ -48,6 +49,27 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
   StreamSubscription<BackendConnectionState>? _connectionStateSubscription;
   Timer? _disconnectGraceTimer;
   bool _connectionStale = false;
+
+  /// Re-arms [_autoConnect] after the grace period has declared a session
+  /// dead. Losing WiFi for longer than the grace used to be terminal: the app
+  /// dropped to the connection screen and sat there indefinitely, so a phone
+  /// that blipped off the network overnight was still showing "Please
+  /// reconnect" in the morning even though a fresh launch reconnects instantly
+  /// from the same saved server. Null whenever no retry is pending.
+  Timer? _lostSessionRetryTimer;
+
+  /// Consecutive automatic retries since the session was declared lost. Drives
+  /// the backoff and resets on any successful connect.
+  int _lostSessionRetryAttempt = 0;
+
+  /// The server whose session we just lost, captured before [_connectedServer]
+  /// is cleared. Retries re-dial *this* endpoint (and its saved token) rather
+  /// than re-running generic discovery: discovery can legitimately resolve the
+  /// same host by a different address (on an emulator, `10.0.2.2` instead of the
+  /// paired `192.168.1.20`), and the token is keyed to the paired one — so a
+  /// discovery-based retry dropped an already-paired user onto the "enter a
+  /// pairing code" dialog.
+  DiscoveredServer? _lostSessionServer;
 
   /// Phase E (iOS): registers this device's APNs token with the paired desktop
   /// for cellular critical-alert delivery. Lazily created on first use so the
@@ -69,12 +91,20 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
   BuildContext? get _connectionUiContext =>
       _connectionNavigatorKey.currentContext;
 
+  bool _isCurrentConnectionOperation(int generation) =>
+      mounted && generation == _connectionOperationGeneration;
+
   // --- Cross-group operations, implemented in the sibling mixins. ---
 
   /// Implemented by the (re)connect/disconnect ops mixin. The notification
   /// machine drops the loopback tunnel when a session dies; the discovery
   /// and reconnect flows tear it down on their own teardown paths.
   Future<void> _closeActiveRelayTunnel();
+
+  /// Implemented by the discovery / pairing ops mixin. The notification
+  /// machine re-arms it after a lost session so the app re-attaches on its own
+  /// once the network comes back, exactly as it does on a cold start.
+  Future<void> _autoConnect();
 
   /// Implemented by the (re)connect/disconnect ops mixin. The discovery /
   /// pairing flows hand a resolved [DiscoveredServer] to it.
@@ -107,6 +137,11 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
     _connectionStateSubscription = null;
     _disconnectGraceTimer?.cancel();
     _disconnectGraceTimer = null;
+    // Any pending auto-retry belongs to the session we are tearing down. The
+    // lost-session path re-arms it immediately afterwards; every other caller
+    // (a fresh connect, dispose) genuinely wants it gone.
+    _lostSessionRetryTimer?.cancel();
+    _lostSessionRetryTimer = null;
     if (_connectionStale) {
       _connectionStale = false;
       // Clear the global banner so a re-connect doesn't briefly show stale.
@@ -116,6 +151,46 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
         ref.read(connectionStaleProvider.notifier).state = false;
       }
     }
+  }
+
+  /// Re-arm the connect flow after the session was declared lost.
+  ///
+  /// Prefers re-dialling [_lostSessionServer] — the exact endpoint we were
+  /// paired to, token included — and only falls back to [_autoConnect]'s
+  /// discovery when we never had one. Both routes reuse the existing connect
+  /// paths, so there is no second, divergent reconnect implementation to keep
+  /// in sync.
+  void _scheduleLostSessionRetry() {
+    if (!mounted) return;
+    _lostSessionRetryTimer?.cancel();
+    final delay = lostSessionRetryDelay(_lostSessionRetryAttempt);
+    _lostSessionRetryAttempt++;
+    _lostSessionRetryTimer = Timer(delay, () async {
+      _lostSessionRetryTimer = null;
+      if (!mounted) return;
+      // Never fight the operator: if they already reconnected, opened manual
+      // entry, chose to browse the UI offline, or a connect is in flight, sit
+      // this round out and look again later.
+      if (_connectedServer != null ||
+          _isDiscovering ||
+          _showManualEntry ||
+          _skippedConnection) {
+        if (_connectedServer == null && !_skippedConnection) {
+          _scheduleLostSessionRetry();
+        }
+        return;
+      }
+      final target = _lostSessionServer;
+      if (target != null) {
+        await _connectToServer(target);
+      } else {
+        await _autoConnect();
+      }
+      if (!mounted) return;
+      if (_connectedServer == null && !_skippedConnection) {
+        _scheduleLostSessionRetry();
+      }
+    });
   }
 
   void _setNetworkHeartbeatPaused(bool paused) {
@@ -130,20 +205,23 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
     }
   }
 
-  /// Phase E (iOS): register this device's APNs token with the now-connected
-  /// desktop so cellular critical alerts can reach a backgrounded phone.
+  /// Register this device's push token (APNs on iOS, FCM on Android) with
+  /// the now-connected desktop so critical alerts can reach a backgrounded
+  /// or off-LAN phone. On Android builds without a provisioned Firebase
+  /// project the native side reports `fcm_unconfigured` and the service
+  /// stays dormant.
   ///
   /// Gated three ways so it no-ops cleanly off the happy path:
-  ///   * non-iOS — `PushRegistrationService` short-circuits internally
-  ///     (Platform.isIOS guard), so the channel is never touched and no
+  ///   * not iOS/Android — `PushRegistrationService` also short-circuits
+  ///     internally, so the channel is never touched and no
   ///     MissingPluginException can fire;
   ///   * not a [NetworkBackend] — local/FFI session, nothing to register with;
   ///   * not paired — empty deviceId, the service skips the POST.
   ///
   /// Best-effort: the service swallows and logs all network/host errors, so a
   /// failure here never disturbs the live session.
-  Future<void> _registerPushTokenIfIos() async {
-    if (!Platform.isIOS) {
+  Future<void> _registerPushToken() async {
+    if (!Platform.isIOS && !Platform.isAndroid) {
       return;
     }
     final backend = ref.read(backendProvider);
@@ -157,6 +235,8 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
 
   void _startConnectionMonitor() {
     _stopConnectionMonitor();
+    // A live session again: the next drop starts its backoff from the top.
+    _lostSessionRetryAttempt = 0;
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) {
       // Only NetworkBackend exposes the WS heartbeat. Other backends
@@ -211,7 +291,7 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
             _connectionStale = true;
             ref.read(connectionStaleProvider.notifier).state = true;
           }
-          _disconnectGraceTimer ??= Timer(_connectionGracePeriod, () {
+          _disconnectGraceTimer ??= Timer(_connectionGracePeriod, () async {
             if (!mounted) return;
             final current = ref.read(backendProvider);
             if (current is! NetworkBackend ||
@@ -224,13 +304,43 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
               level: 1000,
             );
             _stopConnectionMonitor();
+            // Remember who we were talking to, so the retries below re-dial
+            // that exact endpoint and token instead of re-running discovery.
+            //
+            // This MUST happen before the `disconnect()` below: that swaps in a
+            // DisconnectedBackend, and the `backendProvider` listener in the
+            // build method clears `_connectedServer` the moment it sees one. A
+            // capture placed after the await therefore always read null, and
+            // every retry silently fell back to discovery — which on this
+            // emulator resolved the same host by a different address (10.0.2.2
+            // rather than the paired 192.168.1.20) and re-prompted an
+            // already-paired user for a pairing code.
+            _lostSessionServer = _connectedServer ?? _lostSessionServer;
             // Drop cached APNs registration state: the next connect may land on
             // a different desktop, and APNs hands back the same token across
             // servers. Without this the target-keyed gate in the service is the
             // only thing forcing a re-POST; resetting here is belt-and-braces so
             // a re-pair can never be assumed already-registered. (Blocker #8.)
             _pushRegistration?.reset();
-            ref.read(backendProvider.notifier).disconnect();
+            try {
+              await ref.read(backendProvider.notifier).disconnect();
+            } catch (e, stackTrace) {
+              developer.log(
+                'Could not detach the lost backend session: $e',
+                name: 'Connection',
+                level: 1000,
+                error: e,
+                stackTrace: stackTrace,
+              );
+              if (mounted) {
+                setState(() {
+                  _error =
+                      'Connection was lost, but local sequence startup '
+                      'is still settling. Wait a moment, then disconnect.';
+                });
+              }
+              return;
+            }
             // v4 relay: the session is dead — drop the loopback tunnel too.
             unawaited(_closeActiveRelayTunnel());
             ref.read(connectionStaleProvider.notifier).state = false;
@@ -244,9 +354,16 @@ mixin _MobileConnectionState on ConsumerState<NightshadeMobileApp> {
               _connectedServer = null;
               _isDiscovering = false;
               _connectionStale = false;
-              _error = 'Connection to server lost. Please reconnect.';
+              _error =
+                  'Connection to server lost. Retrying automatically — '
+                  'or reconnect below.';
               _statusMessage = '';
             });
+            // Keep trying on our own. Without this the app parked on this
+            // screen forever: restoring WiFi four minutes later left it still
+            // showing "Please reconnect" even though the saved server and
+            // token were both still valid.
+            _scheduleLostSessionRetry();
           });
           break;
       }

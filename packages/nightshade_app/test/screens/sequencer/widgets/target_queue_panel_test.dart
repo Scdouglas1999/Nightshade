@@ -77,6 +77,12 @@ CelestialObject _fakeObject(
 }
 
 void main() {
+  test('executor name matching respects catalog-id boundaries', () {
+    expect(targetQueueNamesMatch('M31', 'M31 (Panel 1/9)'), isTrue);
+    expect(targetQueueNamesMatch('M1', 'M10'), isFalse);
+    expect(targetQueueNamesMatch('NGC 7', 'NGC 7000'), isFalse);
+  });
+
   group('TargetQueuePanel', () {
     testWidgets('shows empty state when queue is empty', (tester) async {
       await _pumpPanel(tester);

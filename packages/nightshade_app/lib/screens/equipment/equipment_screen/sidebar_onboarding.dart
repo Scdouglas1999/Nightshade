@@ -151,8 +151,23 @@ class _FirstTimeOnboarding extends StatelessWidget {
     // Tighter padding on a phone, and the whole panel scrolls so the welcome
     // steps + both CTAs never overflow a short phone viewport (e.g. 360x640 or
     // a phone in landscape, where the content is taller than the screen).
+    //
+    // Scrolling alone was not enough. Measured at 360x640, the desktop-sized
+    // rhythm below made this column 705dp tall, which pushed the secondary
+    // "I'll do it manually" CTA to y=633 — 41dp *below* the fold, so its
+    // 48dp-tall button clipped to a 7dp-tall tap target and the action was
+    // invisible on first run unless the user guessed to scroll. The phone tier
+    // therefore uses its own vertical rhythm (roughly two-thirds of desktop's)
+    // so the whole first-run panel fits a 640dp viewport with both CTAs on
+    // screen. Desktop keeps the airy spacing.
     final isPhone = Responsive.isPhone(context);
-    final pad = isPhone ? 24.0 : 48.0;
+    final pad = isPhone ? 16.0 : 48.0;
+    final gapAfterIcon =
+        isPhone ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg;
+    final gapBeforeSteps = isPhone ? 24.0 : 40.0;
+    final stepGap = isPhone ? 12.0 : 16.0;
+    final cardPad = isPhone ? 16.0 : 24.0;
+    final gapBeforeCtas = isPhone ? 20.0 : 32.0;
     return SafeArea(
       child: Center(
         child: SingleChildScrollView(
@@ -168,7 +183,7 @@ class _FirstTimeOnboarding extends StatelessWidget {
                   color: colors.primary,
                 ),
 
-                const SizedBox(height: NightshadeTokens.spaceLg),
+                SizedBox(height: gapAfterIcon),
 
                 Text(
                   'Welcome to Nightshade',
@@ -187,13 +202,13 @@ class _FirstTimeOnboarding extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
 
-                const SizedBox(height: 40),
+                SizedBox(height: gapBeforeSteps),
 
                 // Setup steps
                 NightshadeCard(
                   variant: CardVariant.standard,
                   borderRadius: NightshadeTokens.radiusInline8,
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(cardPad),
                   child: Column(
                     children: [
                       _SetupStep(
@@ -201,13 +216,13 @@ class _FirstTimeOnboarding extends StatelessWidget {
                         text: "We'll scan for connected equipment",
                         colors: colors,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: stepGap),
                       _SetupStep(
                         number: '2',
                         text: 'Select the devices you want to use',
                         colors: colors,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: stepGap),
                       _SetupStep(
                         number: '3',
                         text: 'Save as a profile for one-click connection',
@@ -217,7 +232,7 @@ class _FirstTimeOnboarding extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                SizedBox(height: gapBeforeCtas),
 
                 // Action buttons
                 SizedBox(

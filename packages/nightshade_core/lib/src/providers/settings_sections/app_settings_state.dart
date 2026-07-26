@@ -132,6 +132,8 @@ class AppSettingsState {
   final String ditherScale; // 'Small', 'Medium', 'Large'
   final double settleThreshold;
   final int settleTimeout;
+  final int settleTime;
+  final bool ditherRaOnly;
 
   // Observing Environment
   final int bortleClass; // 1-9, Bortle dark-sky scale
@@ -373,6 +375,11 @@ class AppSettingsState {
   /// [smartNightAutoSelect] is true.
   final int smartNightAutoSelectCount;
 
+  /// Astronomical-day key (yyyy-MM-dd) for which the dashboard Smart Night
+  /// auto-prompt was dismissed via "Hide for tonight". Persisted so the
+  /// dismissal survives a same-night restart. Empty when not dismissed.
+  final String smartNightPromptDismissedDayKey;
+
   // -------------------------------------------------------------------
   // Notes / journal preferences
   // -------------------------------------------------------------------
@@ -481,7 +488,7 @@ class AppSettingsState {
     this.parkOnUnsafeWeather = true,
     this.parkBeforeDawn = true,
     this.meridianFlipMinutes = 5,
-    this.autoFocusOnFilterChange = true,
+    this.autoFocusOnFilterChange = false,
     this.useFilterFocusOffsets = true,
     this.autoFocusEveryMinutes = 60,
     this.ditherEnabled = true,
@@ -550,14 +557,16 @@ class AppSettingsState {
     this.enableMeridianFlip = true,
 
     // Equipment Settings - Focuser
-    this.tempCompensation = true,
+    this.tempCompensation = false,
     this.tempCoefficient = -12.0,
     this.backlashCompensation = 0,
 
     // Equipment Settings - Guider
     this.ditherScale = 'Medium',
-    this.settleThreshold = 0.5,
-    this.settleTimeout = 30,
+    this.settleThreshold = 1.5,
+    this.settleTimeout = 60,
+    this.settleTime = 10,
+    this.ditherRaOnly = false,
 
     // Observing Environment
     this.bortleClass = 5,
@@ -630,6 +639,7 @@ class AppSettingsState {
     this.smartNightAutoPromptEnabled = true,
     this.smartNightAutoSelect = true,
     this.smartNightAutoSelectCount = 2,
+    this.smartNightPromptDismissedDayKey = '',
     this.promptForNotesAfterRun = true,
     this.sessionHandoffAutoPrompt = true,
     this.campaignRollupSurfaceTargetsTab = true,
@@ -725,6 +735,8 @@ class AppSettingsState {
     String? ditherScale,
     double? settleThreshold,
     int? settleTimeout,
+    int? settleTime,
+    bool? ditherRaOnly,
     // Observing Environment
     int? bortleClass,
     String? horizonProfileJson,
@@ -804,6 +816,7 @@ class AppSettingsState {
     bool? smartNightAutoPromptEnabled,
     bool? smartNightAutoSelect,
     int? smartNightAutoSelectCount,
+    String? smartNightPromptDismissedDayKey,
     // Notes prompt toggle.
     bool? promptForNotesAfterRun,
     // Session lifecycle.
@@ -916,7 +929,9 @@ class AppSettingsState {
       ditherScale: ditherScale ?? this.ditherScale,
       settleThreshold: settleThreshold ?? this.settleThreshold,
       settleTimeout: settleTimeout ?? this.settleTimeout,
-      // Autofocus Settings
+      settleTime: settleTime ?? this.settleTime,
+      ditherRaOnly: ditherRaOnly ?? this.ditherRaOnly,
+      // Observing Environment
       bortleClass: bortleClass ?? this.bortleClass,
       horizonProfileJson: horizonProfileJson ?? this.horizonProfileJson,
       effectiveHorizonDeg: effectiveHorizonDeg ?? this.effectiveHorizonDeg,
@@ -1047,6 +1062,9 @@ class AppSettingsState {
       smartNightAutoSelect: smartNightAutoSelect ?? this.smartNightAutoSelect,
       smartNightAutoSelectCount:
           smartNightAutoSelectCount ?? this.smartNightAutoSelectCount,
+      smartNightPromptDismissedDayKey:
+          smartNightPromptDismissedDayKey ??
+          this.smartNightPromptDismissedDayKey,
       // Notes prompt toggle.
       promptForNotesAfterRun:
           promptForNotesAfterRun ?? this.promptForNotesAfterRun,

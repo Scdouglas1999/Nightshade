@@ -17,13 +17,40 @@ const _logSource = 'RemoteSessionSync';
 final remoteSessionSyncProvider = Provider<void>((ref) {
   StreamSubscription<NightshadeEvent>? eventSub;
   Timer? pollTimer;
+  var generation = 0;
+  var hydrationInFlight = false;
+  var hydrationPending = false;
 
   void teardown() {
+    generation++;
     eventSub?.cancel();
     pollTimer?.cancel();
     eventSub = null;
     pollTimer = null;
+    hydrationInFlight = false;
+    hydrationPending = false;
   }
+
+  late final void Function(NetworkBackend backend) requestHydration;
+  requestHydration = (backend) {
+    if (!identical(ref.read(backendProvider), backend)) return;
+    if (hydrationInFlight) {
+      hydrationPending = true;
+      return;
+    }
+    final requestGeneration = generation;
+    hydrationInFlight = true;
+    unawaited(
+      _hydrate(ref, backend).whenComplete(() {
+        if (requestGeneration != generation) return;
+        hydrationInFlight = false;
+        if (hydrationPending) {
+          hydrationPending = false;
+          requestHydration(backend);
+        }
+      }),
+    );
+  };
 
   ref.onDispose(teardown);
 
@@ -33,17 +60,18 @@ final remoteSessionSyncProvider = Provider<void>((ref) {
       return;
     }
 
-    unawaited(_hydrate(ref, next));
+    requestHydration(next);
 
     eventSub = next.eventStream.listen((event) {
-      unawaited(applyRemoteSyncEvent(ref, event, networkBackend: next));
+      if (event.eventType == 'BackendReconnected') {
+        requestHydration(next);
+      } else {
+        unawaited(applyRemoteSyncEvent(ref, event, networkBackend: next));
+      }
     });
 
     pollTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        unawaited(_hydrate(ref, backend));
-      }
+      requestHydration(next);
     });
   }, fireImmediately: true);
 });
@@ -53,6 +81,7 @@ Future<void> _hydrate(Ref ref, NetworkBackend backend) async {
 
   try {
     await hydrateRemoteSessionState(ref, backend);
+    if (!identical(ref.read(backendProvider), backend)) return;
     logger.info('Hydrated remote session from host', source: _logSource);
   } catch (e, stackTrace) {
     logger.error(

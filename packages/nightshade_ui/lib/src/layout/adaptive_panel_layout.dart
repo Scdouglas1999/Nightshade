@@ -5,11 +5,15 @@ import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 import '../tokens/breakpoint_tokens.dart';
 import '../utils/responsive_utils.dart';
+import '../utils/shell_back_dispatcher.dart';
 
 /// How [AdaptivePanelLayout] collapses its secondary panel(s) on a phone.
 enum PhonePanelStrategy {
-  /// Secondary content lives in a bottom sheet toggled by a handle/button
-  /// overlaid on the primary region. The primary region keeps the full screen.
+  /// Secondary content lives in a bottom sheet toggled by a handle/button at
+  /// the bottom edge. While COLLAPSED the handle reserves its own height, so
+  /// the primary region ends where the handle begins and bottom-anchored
+  /// primary chrome is never painted over. While OPEN the sheet overlays the
+  /// (then full-height) primary region.
   bottomSheet,
 
   /// A segmented control switches the whole region between the primary view
@@ -122,12 +126,39 @@ class AdaptivePanelLayout extends StatefulWidget {
   State<AdaptivePanelLayout> createState() => _AdaptivePanelLayoutState();
 }
 
+/// Minimum region height before the collapsed sheet handle is allowed to
+/// RESERVE its own row instead of floating over the primary region.
+const double _sheetHandleReserveFloor = 160.0;
+
 class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
   late double _panelWidth = widget.initialPanelWidth;
 
   // Phone state.
   bool _sheetOpen = false;
   int _segment = 0; // 0 = primary, 1.. = secondary panels.
+
+  @override
+  void initState() {
+    super.initState();
+    ShellBackDispatcher.register(_handleSystemBack);
+  }
+
+  @override
+  void dispose() {
+    ShellBackDispatcher.unregister(_handleSystemBack);
+    super.dispose();
+  }
+
+  /// System back closes an open phone bottom sheet instead of leaving the
+  /// screen. Guarded on route currency: shell tabs keep their state alive
+  /// while hidden, and a background tab's open sheet must not swallow back.
+  bool _handleSystemBack() {
+    if (!_sheetOpen || !mounted) return false;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return false;
+    setState(() => _sheetOpen = false);
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -252,46 +283,95 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
 
   Widget _buildPhoneSheet(BuildContext context) {
     final colors = context.nightshadeColors;
+    // The collapsed handle RESERVES its height in a Column rather than floating
+    // over the primary region on a Stack. Floating it meant `primary` was laid
+    // out at the full viewport height while the handle painted across its last
+    // ~56dp — so anything the primary anchors to its OWN bottom edge was sliced
+    // in half. On the Imaging screen that cut straight through the bottom-left
+    // histogram and the bottom-right HFR/Mean stats readout (both
+    // `Positioned(bottom: 16)`), rendering half a row of live frame statistics
+    // under an opaque bar. Reserving the space is also what a peeking Material
+    // bottom sheet does, so the primary now ends exactly where the handle
+    // begins and no consumer has to guess an inset.
+    final handle = _SheetHandleButton(
+      label: widget.secondary.first.title,
+      icon: widget.secondary.first.icon,
+      onTap: () => setState(() => _sheetOpen = true),
+    );
+
+    final body = LayoutBuilder(
+      builder: (context, constraints) {
+        // Reserving only works while the region can actually SEAT the handle.
+        // The shell hands this layout a degenerate height on transient frames
+        // (a keyboard inset landing before the sibling capture bar has
+        // resized), and a Column asked to fit a ~56dp handle into ~43dp
+        // overflows — which is how a 13px overflow appeared on the 360x640
+        // imaging screen. Under the floor, fall back to the old overlay so a
+        // transient frame degrades to "handle on top" rather than an error.
+        final canReserve =
+            !constraints.hasBoundedHeight ||
+            constraints.maxHeight >= _sheetHandleReserveFloor;
+
+        if (_sheetOpen) {
+          return SizedBox.expand(child: widget.primary);
+        }
+        if (!canReserve) {
+          return Stack(
+            children: [
+              Positioned.fill(child: widget.primary),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: SafeArea(top: false, child: handle),
+              ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            Expanded(child: widget.primary),
+            SafeArea(top: false, child: handle),
+          ],
+        );
+      },
+    );
+
+    if (!_sheetOpen) return body;
+
+    // Open: the sheet overlays the (now full-height) primary region.
     return Stack(
       children: [
-        Positioned.fill(child: widget.primary),
-        // Toggle handle pinned to the bottom edge.
-        if (!_sheetOpen)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: _SheetHandleButton(
-                label: widget.secondary.first.title,
-                icon: widget.secondary.first.icon,
-                onTap: () => setState(() => _sheetOpen = true),
-              ),
-            ),
-          ),
-        // The sheet itself.
-        if (_sheetOpen)
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () => setState(() => _sheetOpen = false),
-              child: ColoredBox(
-                color: colors.background.withValues(alpha: 0.55),
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: GestureDetector(
-                    onTap: () {},
-                    child: _PhoneSheet(
-                      panels: widget.secondary,
-                      onClose: () => setState(() => _sheetOpen = false),
-                    ),
+        Positioned.fill(child: body),
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () => setState(() => _sheetOpen = false),
+            child: ColoredBox(
+              color: colors.background.withValues(alpha: 0.55),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: GestureDetector(
+                  onTap: _keepPhoneSheetOpen,
+                  child: _PhoneSheet(
+                    panels: widget.secondary,
+                    onClose: () => setState(() => _sheetOpen = false),
                   ),
                 ),
               ),
             ),
           ),
+        ),
       ],
     );
+  }
+
+  /// Claims taps on non-interactive sheet chrome so the backdrop recognizer
+  /// cannot close the sheet through its child. Interactive controls inside
+  /// the sheet still win the gesture arena and run their own callbacks.
+  void _keepPhoneSheetOpen() {
+    if (!_sheetOpen) {
+      setState(() => _sheetOpen = true);
+    }
   }
 
   Widget _buildPhoneSegmented(BuildContext context) {

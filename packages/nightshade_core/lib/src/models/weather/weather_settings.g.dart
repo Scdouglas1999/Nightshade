@@ -13,7 +13,7 @@ _WeatherSettings _$WeatherSettingsFromJson(
   cloudDensityThreshold:
       (json['cloudDensityThreshold'] as num?)?.toDouble() ?? 60.0,
   leadTimeMinutes: (json['leadTimeMinutes'] as num?)?.toInt() ?? 15,
-  weatherSafetyEnabled: json['weatherSafetyEnabled'] as bool? ?? true,
+  weatherSafetyEnabled: json['weatherSafetyEnabled'] as bool? ?? false,
   maxHumidityPercent: (json['maxHumidityPercent'] as num?)?.toDouble() ?? 90.0,
   maxWindSpeedKph: (json['maxWindSpeedKph'] as num?)?.toDouble() ?? 30.0,
   maxCloudCoverPercent:

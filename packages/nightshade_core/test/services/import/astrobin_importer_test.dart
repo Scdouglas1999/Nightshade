@@ -91,6 +91,53 @@ void main() {
     });
   });
 
+  group('CatalogSearchLookup', () {
+    test(
+      'prefers an exact catalog id over an earlier partial result',
+      () async {
+        final lookup = CatalogSearchLookup(
+          (_) async => const [
+            CatalogLookupResult(
+              canonicalName: 'M31 satellite field',
+              raHours: 0.5,
+              decDegrees: 40,
+            ),
+            CatalogLookupResult(
+              canonicalName: 'Andromeda Galaxy',
+              raHours: 0.7122,
+              decDegrees: 41.269,
+              identifiers: ['NGC 224', 'M 31'],
+            ),
+          ],
+        );
+
+        final result = await lookup.resolve('M31');
+        expect(result?.canonicalName, 'Andromeda Galaxy');
+        expect(result?.raHours, closeTo(0.7122, 1e-6));
+      },
+    );
+
+    test('rejects invalid catalog coordinates before fallback', () async {
+      final lookup = CatalogSearchLookup(
+        (_) async => const [
+          CatalogLookupResult(
+            canonicalName: 'Broken result',
+            raHours: 25,
+            decDegrees: 0,
+            identifiers: ['M31'],
+          ),
+          CatalogLookupResult(
+            canonicalName: 'Andromeda Galaxy',
+            raHours: 0.7122,
+            decDegrees: 41.269,
+          ),
+        ],
+      );
+
+      expect((await lookup.resolve('M31'))?.canonicalName, 'Andromeda Galaxy');
+    });
+  });
+
   group('AstrobinImporter parse', () {
     test(
       'resolves matching designations and emits one target per row',

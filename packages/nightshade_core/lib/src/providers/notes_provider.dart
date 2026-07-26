@@ -7,6 +7,7 @@ import '../backend/network_backend.dart';
 import '../models/notes/journal_note.dart';
 import '../services/notes_service.dart';
 import '../services/sequence_diff_service.dart';
+import '../utils/resilient_poll_stream.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 
@@ -35,6 +36,126 @@ final notesServiceProvider = Provider<NotesService>((ref) {
     service.dispose();
   });
   return service;
+});
+
+/// Host-authoritative mutation surface for journal notes.
+///
+/// Read providers already poll the imaging host in remote mode. Routing edits
+/// through this repository keeps create/update/delete on that same authority
+/// instead of reporting success after writing to the controller's unused
+/// local database.
+class NotesRepository {
+  final NotesService? _local;
+  final NetworkBackend? _remote;
+  final void Function()? _afterRemoteMutation;
+
+  NotesRepository.local(NotesService local)
+    : _local = local,
+      _remote = null,
+      _afterRemoteMutation = null;
+
+  NotesRepository.remote(
+    NetworkBackend remote, {
+    required void Function() afterMutation,
+  }) : _local = null,
+       _remote = remote,
+       _afterRemoteMutation = afterMutation;
+
+  bool get isRemote => _remote != null;
+
+  Future<JournalNote> addNote({
+    required String targetId,
+    int? sequenceRunId,
+    required String body,
+    String? title,
+    List<String> tags = const <String>[],
+    List<String> attachments = const <String>[],
+    String? sentiment,
+  }) async {
+    final remote = _remote;
+    if (remote == null) {
+      return _local!.addNote(
+        targetId: targetId,
+        sequenceRunId: sequenceRunId,
+        body: body,
+        title: title,
+        tags: tags,
+        attachments: attachments,
+        sentiment: sentiment,
+      );
+    }
+    final note = await remote.createJournalNote(
+      targetId: targetId,
+      sequenceRunId: sequenceRunId,
+      body: body,
+      title: title,
+      tags: tags,
+      attachments: attachments,
+      sentiment: sentiment,
+    );
+    _afterRemoteMutation!();
+    return _noteFromRemote(note);
+  }
+
+  Future<JournalNote> updateNote(
+    String id, {
+    String? body,
+    String? title,
+    List<String>? tags,
+    List<String>? attachments,
+    String? sentiment,
+    bool clearTitle = false,
+    bool clearSentiment = false,
+  }) async {
+    final remote = _remote;
+    if (remote == null) {
+      return _local!.updateNote(
+        id,
+        body: body,
+        title: title,
+        tags: tags,
+        attachments: attachments,
+        sentiment: sentiment,
+        clearTitle: clearTitle,
+        clearSentiment: clearSentiment,
+      );
+    }
+    final note = await remote.updateJournalNote(
+      id,
+      body: body,
+      title: title,
+      tags: tags,
+      attachments: attachments,
+      sentiment: sentiment,
+      clearTitle: clearTitle,
+      clearSentiment: clearSentiment,
+    );
+    _afterRemoteMutation!();
+    return _noteFromRemote(note);
+  }
+
+  Future<int> deleteNote(String id) async {
+    final remote = _remote;
+    if (remote == null) return _local!.deleteNote(id);
+    await remote.deleteJournalNote(id);
+    _afterRemoteMutation!();
+    return 1;
+  }
+}
+
+final notesRepositoryProvider = Provider<NotesRepository>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return NotesRepository.remote(
+      backend,
+      afterMutation: () {
+        ref.invalidate(notesForTargetProvider);
+        ref.invalidate(notesForRunProvider);
+        ref.invalidate(allNotesProvider);
+      },
+    );
+  }
+  return NotesRepository.local(ref.watch(notesServiceProvider));
 });
 
 /// Live notes for a target. Family-keyed by the logical target id
@@ -87,22 +208,11 @@ Stream<List<JournalNote>> _pollRemoteNotes(
   String? targetId,
   int? runId,
   Duration interval = const Duration(seconds: 10),
-}) async* {
-  var last = await _fetchRemoteNotes(backend, targetId: targetId, runId: runId);
-  yield last;
-  while (true) {
-    await Future<void>.delayed(interval);
-    final next = await _fetchRemoteNotes(
-      backend,
-      targetId: targetId,
-      runId: runId,
-    );
-    if (!listEquals(last, next)) {
-      last = next;
-      yield next;
-    }
-  }
-}
+}) => resilientDistinctPoll(
+  fetch: () => _fetchRemoteNotes(backend, targetId: targetId, runId: runId),
+  unchanged: listEquals,
+  interval: interval,
+);
 
 Future<List<JournalNote>> _fetchRemoteNotes(
   NetworkBackend backend, {

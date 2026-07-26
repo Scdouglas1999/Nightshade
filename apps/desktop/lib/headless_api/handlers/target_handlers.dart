@@ -101,24 +101,30 @@ class TargetHandlers {
     final companion = TargetsCompanion(
       name: Value(requireString(payload, 'name')),
       catalogId: Value(optionalString(payload, 'catalogId')),
-      ra: Value(requireDouble(payload, 'ra')),
-      dec: Value(requireDouble(payload, 'dec')),
+      ra: Value(requireDouble(payload, 'ra', min: 0, max: 24)),
+      dec: Value(requireDouble(payload, 'dec', min: -90, max: 90)),
       objectType: Value(optionalString(payload, 'objectType')),
       constellation: Value(optionalString(payload, 'constellation')),
       magnitude: Value(optionalDouble(payload, 'magnitude')),
-      sizeArcmin: Value(optionalDouble(payload, 'sizeArcmin')),
-      positionAngle: Value(optionalDouble(payload, 'positionAngle')),
-      minAltitude: Value(optionalDouble(payload, 'minAltitude') ?? 30.0),
+      sizeArcmin: Value(optionalDouble(payload, 'sizeArcmin', min: 0)),
+      positionAngle: Value(
+        optionalDouble(payload, 'positionAngle', min: 0, max: 360),
+      ),
+      minAltitude: Value(
+        optionalDouble(payload, 'minAltitude', min: 0, max: 90) ?? 30.0,
+      ),
       notes: Value(optionalString(payload, 'notes')),
       isFavorite: Value(optionalBool(payload, 'isFavorite') ?? false),
-      priority: Value(optionalInt(payload, 'priority') ?? 0),
-      totalPlannedSubs: Value(optionalInt(payload, 'totalPlannedSubs') ?? 0),
-      capturedSubs: Value(optionalInt(payload, 'capturedSubs') ?? 0),
+      priority: Value(optionalInt(payload, 'priority', min: 0) ?? 0),
+      totalPlannedSubs: Value(
+        optionalInt(payload, 'totalPlannedSubs', min: 0) ?? 0,
+      ),
+      capturedSubs: Value(optionalInt(payload, 'capturedSubs', min: 0) ?? 0),
       totalIntegrationSecs: Value(
-        optionalDouble(payload, 'totalIntegrationSecs') ?? 0.0,
+        optionalDouble(payload, 'totalIntegrationSecs', min: 0) ?? 0.0,
       ),
       goalIntegrationSecs: Value(
-        optionalDouble(payload, 'goalIntegrationSecs') ?? 0.0,
+        optionalDouble(payload, 'goalIntegrationSecs', min: 0) ?? 0.0,
       ),
       filterProgress: Value(optionalString(payload, 'filterProgress')),
     );
@@ -159,8 +165,8 @@ class TargetHandlers {
       catalogId: Value(
         optionalString(payload, 'catalogId') ?? existing.catalogId,
       ),
-      ra: optionalDouble(payload, 'ra') ?? existing.ra,
-      dec: optionalDouble(payload, 'dec') ?? existing.dec,
+      ra: optionalDouble(payload, 'ra', min: 0, max: 24) ?? existing.ra,
+      dec: optionalDouble(payload, 'dec', min: -90, max: 90) ?? existing.dec,
       objectType: Value(
         optionalString(payload, 'objectType') ?? existing.objectType,
       ),
@@ -171,25 +177,28 @@ class TargetHandlers {
         optionalDouble(payload, 'magnitude') ?? existing.magnitude,
       ),
       sizeArcmin: Value(
-        optionalDouble(payload, 'sizeArcmin') ?? existing.sizeArcmin,
+        optionalDouble(payload, 'sizeArcmin', min: 0) ?? existing.sizeArcmin,
       ),
       positionAngle: Value(
-        optionalDouble(payload, 'positionAngle') ?? existing.positionAngle,
+        optionalDouble(payload, 'positionAngle', min: 0, max: 360) ??
+            existing.positionAngle,
       ),
       minAltitude:
-          optionalDouble(payload, 'minAltitude') ?? existing.minAltitude,
+          optionalDouble(payload, 'minAltitude', min: 0, max: 90) ??
+          existing.minAltitude,
       notes: Value(optionalString(payload, 'notes') ?? existing.notes),
       isFavorite: optionalBool(payload, 'isFavorite') ?? existing.isFavorite,
-      priority: optionalInt(payload, 'priority') ?? existing.priority,
+      priority: optionalInt(payload, 'priority', min: 0) ?? existing.priority,
       totalPlannedSubs:
-          optionalInt(payload, 'totalPlannedSubs') ?? existing.totalPlannedSubs,
+          optionalInt(payload, 'totalPlannedSubs', min: 0) ??
+          existing.totalPlannedSubs,
       capturedSubs:
-          optionalInt(payload, 'capturedSubs') ?? existing.capturedSubs,
+          optionalInt(payload, 'capturedSubs', min: 0) ?? existing.capturedSubs,
       totalIntegrationSecs:
-          optionalDouble(payload, 'totalIntegrationSecs') ??
+          optionalDouble(payload, 'totalIntegrationSecs', min: 0) ??
           existing.totalIntegrationSecs,
       goalIntegrationSecs:
-          optionalDouble(payload, 'goalIntegrationSecs') ??
+          optionalDouble(payload, 'goalIntegrationSecs', min: 0) ??
           existing.goalIntegrationSecs,
       filterProgress: Value(
         optionalString(payload, 'filterProgress') ?? existing.filterProgress,
@@ -258,8 +267,12 @@ class TargetHandlers {
 
     await database.targetsDao.updateProgress(
       targetId,
-      capturedSubs: optionalInt(payload, 'capturedSubs'),
-      totalIntegrationSecs: optionalDouble(payload, 'totalIntegrationSecs'),
+      capturedSubs: optionalInt(payload, 'capturedSubs', min: 0),
+      totalIntegrationSecs: optionalDouble(
+        payload,
+        'totalIntegrationSecs',
+        min: 0,
+      ),
       filterProgress: optionalString(payload, 'filterProgress'),
     );
 

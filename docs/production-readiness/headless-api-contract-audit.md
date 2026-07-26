@@ -1,11 +1,11 @@
 # Headless API Contract Audit
 
 - Passed: `true`
-- Registered routes: `468`
-- Advertised routes: `468`
-- Advertised HTTP routes: `465`
-- OpenAPI paths: `427`
-- NetworkBackend routes: `372`
+- Registered routes: `596`
+- Advertised routes: `596`
+- Advertised HTTP routes: `593`
+- OpenAPI paths: `532`
+- NetworkBackend routes: `482`
 - Registered not advertised: `0`
 - Advertised not registered: `0`
 - NetworkBackend missing on server: `0`

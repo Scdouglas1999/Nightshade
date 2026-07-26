@@ -379,6 +379,8 @@ class _ApiServerLifecycle {
           currentBuildNumber: appBuildNumber,
           logger: logger,
           logSource: _logSource,
+          applySafetyCheck: () =>
+              defaultUpdateApplySafetyCheckWithReader(container.read),
         );
         if (stack != null) {
           _updateController = stack.controller;
@@ -444,11 +446,9 @@ class _ApiServerLifecycle {
       // Phase D — wire cellular (FCM/APNs) remote push delivery. Reads
       // push_config.json from the app-support dir (or NIGHTSHADE_PUSH_CONFIG):
       // the real FCM/APNs senders activate when the operator has supplied a
-      // service-account JSON / .p8 key, otherwise the no-cloud mock delivery is
-      // the default. The mock exercises the full recipient lookup
-      // (device_push_tokens) + per-device preference gate (device_push_prefs)
-      // and logs each "would-send" frame, so the whole pipeline is live and
-      // testable before any cloud account exists.
+      // service-account JSON / .p8 key. Missing cloud credentials leave
+      // cellular delivery disabled; mock would-send delivery is available only
+      // through an explicit `mock:true` development configuration.
       try {
         final appSupportDir = await getApplicationSupportDirectory();
         final delivery = await nextServer.wireRemotePushDelivery(

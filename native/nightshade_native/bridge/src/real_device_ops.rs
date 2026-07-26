@@ -62,7 +62,7 @@ use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use async_trait::async_trait;
 use chrono::{Datelike, Timelike};
-use nightshade_native::camera::ExposureParams;
+use nightshade_native::camera::{ExposureParams, FrameType};
 use nightshade_sequencer::{
     DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData as SeqImageData,
     PlateSolveResult,
@@ -1295,7 +1295,7 @@ impl DeviceOps for RealDeviceOps {
                 tracing::info!("INDI BLOB format detected: {:?}", format);
 
                 // Process based on detected format
-                let (image, is_color) = match format {
+                let (image, is_color, raw_bayer_offset) = match format {
                     Some(nightshade_imaging::ImageFormat::Fits) | None => {
                         // FITS format (most astronomy cameras) or unknown - try FITS first
                         let (img, header) = nightshade_imaging::read_fits_from_bytes(&data)
@@ -1307,29 +1307,58 @@ impl DeviceOps for RealDeviceOps {
                             .get("BAYERPAT")
                             .and_then(|v| v.as_string().map(|_s| true));
                         let color = bayer.unwrap_or(false);
-                        (img, color)
+                        (img, color, None)
                     }
                     Some(fmt) if fmt.is_raw() => {
-                        // DSLR RAW format (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF, etc.)
-                        tracing::info!("Processing DSLR RAW image ({:?}) via LibRaw", fmt);
+                        // DSLR RAW format (Canon CR2/CR3, Nikon NEF, Sony ARW, Fuji RAF, etc.).
+                        // Decode to the LINEAR SINGLE-CHANNEL CFA MOSAIC, not demosaiced RGB:
+                        // the sequencer's stacking/calibration pipeline needs raw Bayer data
+                        // plus a bayer_offset, exactly like a native OSC camera. The old
+                        // read_raw_from_bytes path returned gamma/sRGB/white-balanced 3-channel
+                        // RGB tagged "already debayered", corrupting every INDI-connected DSLR
+                        // light frame (same root cause as the gPhoto2/Fujifilm fix).
+                        tracing::info!(
+                            "Processing DSLR RAW image ({:?}) via LibRaw (CFA mosaic)",
+                            fmt
+                        );
 
                         let ext = nightshade_imaging::raw_format_extension(&data).unwrap_or("raw");
 
-                        let (img, raw_meta) =
-                            nightshade_imaging::read_raw_from_bytes(&data, ext, None)
+                        let (cfa, raw_meta) =
+                            nightshade_imaging::read_cfa_mosaic_from_bytes(&data, ext)
                                 .map_err(|e| format!("Failed to process DSLR RAW: {}", e))?;
 
                         tracing::info!(
-                            "RAW processed: {} {} ({}x{}), X-Trans: {}",
+                            "RAW CFA mosaic: {} {} ({}x{}), X-Trans: {}, bits: {}",
                             raw_meta.camera_make,
                             raw_meta.camera_model,
-                            img.width,
-                            img.height,
-                            raw_meta.is_xtrans
+                            cfa.width,
+                            cfa.height,
+                            cfa.is_xtrans,
+                            cfa.bits_per_pixel
                         );
 
-                        // RAW files are always color after debayering
-                        (img, true)
+                        // Map the CFA pattern to a debayer offset (same convention as the
+                        // native color-camera path below). X-Trans → None (no 2x2 Bayer).
+                        let offset = cfa.cfa_pattern.map(|p| match p {
+                            nightshade_imaging::CfaPattern::Rggb => (0, 0),
+                            nightshade_imaging::CfaPattern::Grbg => (1, 0),
+                            nightshade_imaging::CfaPattern::Gbrg => (0, 1),
+                            nightshade_imaging::CfaPattern::Bggr => (1, 1),
+                        });
+
+                        // Single-channel u16 mosaic → ImageData (little-endian bytes).
+                        let bytes: Vec<u8> =
+                            cfa.data.iter().flat_map(|&v| v.to_le_bytes()).collect();
+                        let image_data = nightshade_imaging::ImageData {
+                            width: cfa.width,
+                            height: cfa.height,
+                            channels: 1,
+                            pixel_type: nightshade_imaging::PixelType::U16,
+                            data: bytes,
+                        };
+                        // Tagged color; the bayer_offset drives downstream debayering.
+                        (image_data, true, offset)
                     }
                     Some(nightshade_imaging::ImageFormat::Jpeg) => {
                         // JPEG preview (some cameras send JPEG for quick preview)
@@ -1352,7 +1381,7 @@ impl DeviceOps for RealDeviceOps {
                             pixel_type: nightshade_imaging::PixelType::U16,
                             data: bytes,
                         };
-                        (image_data, true)
+                        (image_data, true, None)
                     }
                     Some(other) => {
                         return Err(format!("Unsupported image format from INDI: {:?}", other));
@@ -1380,7 +1409,7 @@ impl DeviceOps for RealDeviceOps {
                     } else {
                         Some("Mono".to_string())
                     },
-                    bayer_offset: None, // RAW files are already debayered
+                    bayer_offset: raw_bayer_offset,
                 });
             }
         }
@@ -1555,6 +1584,7 @@ impl DeviceOps for RealDeviceOps {
                     bin_y,
                     subframe: None,
                     readout_mode: None,
+                    frame_type: FrameType::Light,
                 };
 
                 // Start exposure
@@ -2655,11 +2685,12 @@ impl DeviceOps for RealDeviceOps {
                 ra,
                 dec,
                 hint_scale.unwrap_or(5.0), // 5 degree search radius default
+                None,
             )
             .await
         } else {
             // Blind solve
-            crate::api::api_plate_solve_blind(temp_path_str.clone()).await
+            crate::api::api_plate_solve_blind(temp_path_str.clone(), None).await
         };
 
         // Clean up temp file

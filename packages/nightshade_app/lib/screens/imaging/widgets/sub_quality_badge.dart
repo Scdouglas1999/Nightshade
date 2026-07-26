@@ -102,23 +102,26 @@ class SubQualityBadge extends ConsumerWidget {
       ),
       child: Padding(
         padding: NightshadeTokens.paddingSm,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        // Wrap, not Row: this badge floats over the preview inside a bounded
+        // overlay width. A rigid Row of chips overflowed that box (47 px on an
+        // 800x600 window with the "Large" font setting) and pushed the star
+        // count and the ACCEPT/REJECT verdict off the canvas. Wrapping keeps
+        // every chip on screen and still renders as a single line whenever the
+        // overlay has room.
+        child: Wrap(
+          spacing: NightshadeTokens.spaceMd,
+          runSpacing: NightshadeTokens.spaceXs,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _MetricChip(label: 'HFR', value: hfrText, colors: colors),
-            const SizedBox(width: NightshadeTokens.spaceMd),
             _MetricChip(label: 'ECC', value: eccText, colors: colors),
-            const SizedBox(width: NightshadeTokens.spaceMd),
             _MetricChip(
               label: null,
               value: starText,
               trailingGlyph: '★',
               colors: colors,
             ),
-            if (hasRules) ...[
-              const SizedBox(width: NightshadeTokens.spaceMd),
-              _VerdictChip(reason: rejectReason, colors: colors),
-            ],
+            if (hasRules) _VerdictChip(reason: rejectReason, colors: colors),
           ],
         ),
       ),

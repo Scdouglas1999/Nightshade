@@ -194,12 +194,6 @@ pub async fn api_connect_device(
         device_id
     );
 
-    tracing::info!(
-        "Connecting to {} device: {}",
-        device_type.as_str(),
-        device_id
-    );
-
     // Special handling for PHD2 auto-launch
     if is_phd2_device_id(&device_id) {
         if !nightshade_imaging::is_phd2_running() {
@@ -301,12 +295,6 @@ pub async fn api_disconnect_device(
     device_type: DeviceType,
     device_id: String,
 ) -> Result<(), NightshadeError> {
-    tracing::info!(
-        "Disconnecting from {} device: {}",
-        device_type.as_str(),
-        device_id
-    );
-
     tracing::info!(
         "Disconnecting from {} device: {}",
         device_type.as_str(),

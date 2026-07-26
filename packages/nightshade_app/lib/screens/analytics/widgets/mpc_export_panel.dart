@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/exported_file_reveal.dart';
 import '../../../utils/snackbar_helper.dart';
 
 /// Panel for selecting moving object observations and exporting them
@@ -34,8 +35,42 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
       return const SizedBox.shrink();
     }
 
-    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
+    final scienceSettingsAsync = ref.watch(scienceSettingsProvider);
+    if (scienceSettingsAsync.hasError || !scienceSettingsAsync.hasValue) {
+      return NightshadeCard(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                scienceSettingsAsync.hasError
+                    ? 'MPC reporting settings unavailable'
+                    : 'Loading MPC reporting settings…',
+                style: TextStyle(color: widget.colors.error),
+              ),
+              if (scienceSettingsAsync.hasError) ...[
+                const SizedBox(height: 6),
+                Text(
+                  scienceSettingsAsync.error.toString(),
+                  style: TextStyle(color: widget.colors.textMuted),
+                ),
+                const SizedBox(height: 10),
+                NightshadeButton(
+                  label: 'Retry MPC settings',
+                  icon: LucideIcons.refreshCw,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: () => ref.invalidate(scienceSettingsProvider),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    final scienceSettings = scienceSettingsAsync.requireValue;
     final obsCode = scienceSettings.mpcObservatoryCode;
     final hasObsCode = obsCode.length == 3;
 
@@ -257,7 +292,16 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
       );
       if (mounted) {
         setState(() => _lastExportPath = filePath);
-        context.showSuccessSnackBar('MPC report exported to: $filePath');
+        // MpcExportService writes into getApplicationDocumentsDirectory(),
+        // which on Android/iOS is the private sandbox — announcing the path
+        // there names a report the observer cannot attach to an MPC
+        // submission, so hand the file to the share sheet instead.
+        await revealExportedFile(
+          context,
+          filePath,
+          subject: 'MPC observation report',
+          desktopMessage: 'MPC report exported to: $filePath',
+        );
       }
     } catch (e) {
       if (mounted) {

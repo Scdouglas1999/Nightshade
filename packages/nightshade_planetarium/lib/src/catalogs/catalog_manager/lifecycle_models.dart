@@ -13,7 +13,18 @@ class CatalogDescriptor {
   final String metadataFileName;
   final String version;
   final int approximateSizeBytes;
+
+  /// Upstream FALLBACK download URL (see [CatalogSource.downloadUrl]).
   final String downloadUrl;
+
+  /// GitHub release asset name for the PRIMARY source (see
+  /// [CatalogSource.githubAssetName]). Empty when no release asset exists.
+  final String githubAssetName;
+
+  /// Expected SHA-256 of the AS-DOWNLOADED bytes (see [CatalogSource.sha256]).
+  /// Empty when no canonical hash is known.
+  final String sha256;
+
   final bool isGzipped;
   final bool requiredForPlateSolve;
 
@@ -28,6 +39,8 @@ class CatalogDescriptor {
     required this.downloadUrl,
     required this.isGzipped,
     required this.requiredForPlateSolve,
+    this.githubAssetName = '',
+    this.sha256 = '',
   });
 }
 

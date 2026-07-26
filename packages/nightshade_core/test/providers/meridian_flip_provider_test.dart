@@ -16,10 +16,101 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _MockFfiBackend extends Mock implements FfiBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    registerFallbackValue(const MeridianFlipSettings());
+  });
+
+  group('Remote meridian-flip authority', () {
+    test('loads and writes the complete imaging-host snapshot', () async {
+      final backend = _MockNetworkBackend();
+      const hostSettings = MeridianFlipSettings(
+        standaloneMonitoringEnabled: true,
+        triggerMethod: MeridianTriggerMethod.hourAngleThreshold,
+        hourAngleThreshold: 1.25,
+        recenterAfterFlip: false,
+        maxRetries: 6,
+        failureAction: FlipFailureAction.abortAndPark,
+      );
+      when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
+      when(
+        backend.getMeridianFlipSettings,
+      ).thenAnswer((_) async => hostSettings);
+      when(
+        () => backend.updateMeridianFlipSettings(any()),
+      ).thenAnswer((_) async {});
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(
+        globalMeridianFlipSettingsProvider.notifier,
+      );
+      await notifier.ensureLoaded();
+      expect(container.read(globalMeridianFlipSettingsProvider), hostSettings);
+      expect(
+        container.read(globalMeridianFlipSettingsLoadStateProvider).hasValue,
+        isTrue,
+      );
+
+      await notifier.setMaxRetries(8);
+      final saved =
+          verify(
+                () => backend.updateMeridianFlipSettings(captureAny()),
+              ).captured.single
+              as MeridianFlipSettings;
+      expect(saved.maxRetries, 8);
+      expect(saved.triggerMethod, MeridianTriggerMethod.hourAngleThreshold);
+      expect(saved.hourAngleThreshold, 1.25);
+      expect(saved.recenterAfterFlip, isFalse);
+      expect(saved.failureAction, FlipFailureAction.abortAndPark);
+    });
+
+    test('remote clients never own the standalone automation timer', () async {
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
+      when(backend.getMeridianFlipSettings).thenAnswer(
+        (_) async =>
+            const MeridianFlipSettings(standaloneMonitoringEnabled: true),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(globalMeridianFlipSettingsProvider.notifier)
+          .ensureLoaded();
+      final monitor = container.read(
+        meridianFlipStandaloneMonitorProvider.notifier,
+      );
+      expect(monitor.evaluateOnce(), MeridianMonitorDecision.inactive);
+    });
+  });
 
   group('MeridianFlipNode useGlobalDefaults data-model contract', () {
     // The sticky-override UX heuristic ("user edited a config field → flip
@@ -136,6 +227,36 @@ void main() {
         );
       },
     );
+
+    test(
+      'unsupported standalone trigger atomically disables monitoring',
+      () async {
+        final notifier = container.read(
+          globalMeridianFlipSettingsProvider.notifier,
+        );
+        await notifier.setStandaloneMonitoringEnabled(true);
+        expect(
+          container
+              .read(globalMeridianFlipSettingsProvider)
+              .standaloneMonitoringEnabled,
+          isTrue,
+        );
+
+        await notifier.setTriggerMethod(
+          MeridianTriggerMethod.onTrackingLimitHit,
+        );
+        final settings = container.read(globalMeridianFlipSettingsProvider);
+        expect(
+          settings.triggerMethod,
+          MeridianTriggerMethod.onTrackingLimitHit,
+        );
+        expect(settings.standaloneMonitoringEnabled, isFalse);
+        await expectLater(
+          notifier.setStandaloneMonitoringEnabled(true),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
   });
 
   group('MeridianFlipStandaloneMonitor', () {
@@ -155,9 +276,14 @@ void main() {
       required MountState mount,
       double longitude = -75.0,
       double latitude = 40.0,
+      NightshadeBackend? backend,
     }) {
       return ProviderContainer(
         overrides: [
+          if (backend != null)
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
           databaseProvider.overrideWithValue(db),
           mountStateProvider.overrideWith((ref) {
             final n = MountStateNotifier(ref);
@@ -242,6 +368,36 @@ void main() {
       },
     );
 
+    test('legacy unsupported standalone mode remains inactive', () async {
+      container = makeContainer(
+        mount: const MountState(
+          connectionState: DeviceConnectionState.connected,
+          deviceId: 'mount-1',
+          isTracking: true,
+          isParked: false,
+          ra: 6,
+          dec: 20,
+        ),
+      );
+      await container
+          .read(globalMeridianFlipSettingsProvider.notifier)
+          .updateSettings(
+            const MeridianFlipSettings(
+              standaloneMonitoringEnabled: true,
+              triggerMethod: MeridianTriggerMethod.minutesBeforeLimit,
+            ),
+          );
+
+      final monitor = container.read(
+        meridianFlipStandaloneMonitorProvider.notifier,
+      );
+      expect(monitor.evaluateOnce(), MeridianMonitorDecision.inactive);
+      expect(
+        container.read(flipExecutionStateProvider),
+        FlipExecutionState.idle,
+      );
+    });
+
     test(
       'fires when mount HA crosses threshold and emits alert state',
       () async {
@@ -293,6 +449,115 @@ void main() {
         expect(second, MeridianMonitorDecision.cooldown);
       },
     );
+
+    test(
+      'manual flip uses canonical settings and disables centering without a camera',
+      () async {
+        final backend = _MockFfiBackend();
+        when(
+          () => backend.performMeridianFlip(
+            mountId: any(named: 'mountId'),
+            cameraId: any(named: 'cameraId'),
+            focuserId: any(named: 'focuserId'),
+            coverCalibratorId: any(named: 'coverCalibratorId'),
+            targetName: any(named: 'targetName'),
+            targetRaHours: any(named: 'targetRaHours'),
+            targetDecDegrees: any(named: 'targetDecDegrees'),
+            pauseGuiding: any(named: 'pauseGuiding'),
+            autoCenter: any(named: 'autoCenter'),
+            refocusAfter: any(named: 'refocusAfter'),
+            resumeGuiding: any(named: 'resumeGuiding'),
+            settleTimeSecs: any(named: 'settleTimeSecs'),
+          ),
+        ).thenAnswer((_) async {});
+        container = makeContainer(
+          backend: backend,
+          mount: const MountState(
+            connectionState: DeviceConnectionState.connected,
+            deviceId: 'mount-1',
+            isTracking: true,
+            isParked: false,
+            ra: 7.5,
+            dec: -20,
+          ),
+        );
+        await container.read(appSettingsProvider.future);
+        final settings = container.read(
+          globalMeridianFlipSettingsProvider.notifier,
+        );
+        await settings.ensureLoaded();
+        await settings.setPushNotificationOnFlip(false);
+
+        final succeeded = await container
+            .read(meridianFlipStandaloneMonitorProvider.notifier)
+            .executeNow();
+
+        expect(succeeded, isTrue);
+        expect(
+          container.read(flipExecutionStateProvider),
+          FlipExecutionState.completed,
+        );
+        verify(
+          () => backend.performMeridianFlip(
+            mountId: 'mount-1',
+            cameraId: null,
+            focuserId: null,
+            coverCalibratorId: null,
+            targetName: 'Manual flip',
+            targetRaHours: 7.5,
+            targetDecDegrees: -20,
+            pauseGuiding: true,
+            autoCenter: false,
+            refocusAfter: false,
+            resumeGuiding: true,
+            settleTimeSecs: 10,
+          ),
+        ).called(1);
+      },
+    );
+
+    test('manual flip refuses while a sequence owns the mount', () async {
+      final backend = _MockFfiBackend();
+      container = makeContainer(
+        backend: backend,
+        mount: const MountState(
+          connectionState: DeviceConnectionState.connected,
+          deviceId: 'mount-1',
+          isTracking: true,
+          isParked: false,
+          ra: 7.5,
+          dec: -20,
+        ),
+      );
+      container.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+
+      final succeeded = await container
+          .read(meridianFlipStandaloneMonitorProvider.notifier)
+          .executeNow();
+
+      expect(succeeded, isFalse);
+      expect(
+        container.read(flipLastErrorProvider),
+        contains('active sequence'),
+      );
+      verifyNever(
+        () => backend.performMeridianFlip(
+          mountId: any(named: 'mountId'),
+          cameraId: any(named: 'cameraId'),
+          focuserId: any(named: 'focuserId'),
+          coverCalibratorId: any(named: 'coverCalibratorId'),
+          targetName: any(named: 'targetName'),
+          targetRaHours: any(named: 'targetRaHours'),
+          targetDecDegrees: any(named: 'targetDecDegrees'),
+          pauseGuiding: any(named: 'pauseGuiding'),
+          autoCenter: any(named: 'autoCenter'),
+          refocusAfter: any(named: 'refocusAfter'),
+          resumeGuiding: any(named: 'resumeGuiding'),
+          settleTimeSecs: any(named: 'settleTimeSecs'),
+        ),
+      );
+    });
   });
 
   group('MeridianFlipDisconnectGuard', () {

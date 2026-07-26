@@ -375,30 +375,41 @@ class QuickStartDialog extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Primary action buttons
-        Row(
-          children: [
-            Expanded(
-              child: NightshadeButton(
-                label: 'Start Fresh',
-                icon: LucideIcons.refreshCw,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.large,
-                onPressed: onStartFresh,
+        // Only advertise an execution resume when the backend confirms a
+        // matching, resumable checkpoint. Historical frame totals alone do
+        // not let Nightshade continue a partially executed node tree.
+        if (quickStartContext.canResumeFromCheckpoint)
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Start Fresh',
+                  icon: LucideIcons.refreshCw,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.large,
+                  onPressed: onStartFresh,
+                ),
               ),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceMd),
-            Expanded(
-              child: NightshadeButton(
-                label: 'Resume Progress',
-                icon: LucideIcons.play,
-                variant: ButtonVariant.primary,
-                size: ButtonSize.large,
-                onPressed: onResumeProgress,
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: NightshadeButton(
+                  label: 'Resume Progress',
+                  icon: LucideIcons.play,
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.large,
+                  onPressed: onResumeProgress,
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          )
+        else
+          NightshadeButton(
+            label: 'Load Previous Setup',
+            icon: LucideIcons.history,
+            variant: ButtonVariant.primary,
+            size: ButtonSize.large,
+            onPressed: onStartFresh,
+          ),
         const SizedBox(height: NightshadeTokens.spaceMd),
         // Skip button
         Center(

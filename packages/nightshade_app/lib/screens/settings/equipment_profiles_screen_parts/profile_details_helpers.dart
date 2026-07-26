@@ -52,25 +52,11 @@ extension _ProfileDetailsHelpers on _ProfileDetailsState {
   }
 
   List<Widget> _buildFilterOffsetRows() {
-    // Get current filter names (from controllers if editing, otherwise from profile)
-    final filterNames = widget.isEditing
-        ? _filterControllers
-            .map((c) => c.text.trim())
-            .where((f) => f.isNotEmpty)
-            .toList()
-        : widget.profile.filterNames;
-
     final filterNameWidth = widget.isMobile ? 100.0 : 120.0;
     final inputWidth = widget.isMobile ? 90.0 : 100.0;
 
-    return filterNames.map((filterName) {
-      // Ensure we have a controller for this filter
-      if (!_filterOffsetControllers.containsKey(filterName)) {
-        _filterOffsetControllers[filterName] = TextEditingController(text: '0');
-      }
-      final controller = _filterOffsetControllers[filterName]!;
-      final offset = widget.profile.filterFocusOffsets[filterName] ?? 0;
-
+    Widget buildRow(
+        String filterName, TextEditingController? controller, int offset) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
@@ -165,6 +151,24 @@ extension _ProfileDetailsHelpers on _ProfileDetailsState {
           ],
         ),
       );
-    }).toList();
+    }
+
+    final rows = <Widget>[];
+    if (widget.isEditing) {
+      for (var i = 0; i < _filterControllers.length; i++) {
+        final filterName = _filterControllers[i].text.trim();
+        if (filterName.isEmpty) continue;
+        while (_filterOffsetControllers.length <= i) {
+          _filterOffsetControllers.add(TextEditingController(text: '0'));
+        }
+        rows.add(buildRow(filterName, _filterOffsetControllers[i], 0));
+      }
+    } else {
+      for (final filterName in widget.profile.filterNames) {
+        rows.add(buildRow(filterName, null,
+            widget.profile.filterFocusOffsets[filterName] ?? 0));
+      }
+    }
+    return rows;
   }
 }

@@ -9,8 +9,8 @@ use windows::Win32::Foundation::VARIANT_BOOL;
 use windows::Win32::System::{
     Com::{EXCEPINFO, SAFEARRAY},
     Variant::{
-        VariantClear, VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_DATE, VT_I2, VT_I4, VT_R8,
-        VT_UI2, VT_VARIANT,
+        VariantClear, VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_DATE, VT_I2, VT_I4, VT_R4,
+        VT_R8, VT_UI2, VT_VARIANT,
     },
 };
 
@@ -238,12 +238,19 @@ pub(super) fn variant_to_bool(var: &VARIANT) -> Option<bool> {
 /// Extract f64 from VARIANT
 pub(super) fn variant_to_f64(var: &VARIANT) -> Option<f64> {
     // SAFETY: `var` is a borrowed VARIANT (well-aligned). Each union-field access is gated
-    // on the matching `vt` discriminant (VT_R8 / VT_I4 / VT_I2 / VT_UI2) before dereferencing
-    // the corresponding union arm, per COM VARIANT tag-then-field semantics.
+    // on the matching `vt` discriminant (VT_R8 / VT_R4 / VT_I4 / VT_I2 / VT_UI2) before
+    // dereferencing the corresponding union arm, per COM VARIANT tag-then-field semantics.
     unsafe {
         let vt = (*var.Anonymous.Anonymous).vt;
         if vt == VT_R8 {
             Some((*var.Anonymous.Anonymous).Anonymous.dblVal)
+        } else if vt == VT_R4 {
+            // Why: f32 → f64 is exact widening. ASCOM represents angles as Single
+            // (VT_R4) — Rotator Position/MechanicalPosition/TargetPosition/StepSize,
+            // and assorted Single-typed properties on other device types. Without
+            // this arm every such read failed "Property X is not a double" (e.g.
+            // /api/rotator/status 500 on all real rotators).
+            Some(f64::from((*var.Anonymous.Anonymous).Anonymous.fltVal))
         } else if vt == VT_I4 {
             // Why: i32 → f64 is exact for all values
             // (f64 mantissa is 53 bits, covers i32::MIN..=i32::MAX).
@@ -550,6 +557,15 @@ pub(super) unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<Strin
 
     // Validate bounds to prevent integer overflow and stack overflow
     if upper < lower {
+        // An empty SAFEARRAY reports UBound == LBound - 1 (zero elements) —
+        // that is valid COM, not a malformed array. Real ASCOM drivers return
+        // this for an unpopulated string array (e.g. a filter wheel exposing no
+        // custom filter Names, or a device with no SupportedActions). Return an
+        // empty list instead of a hard error; only a genuinely inverted range
+        // (upper < lower - 1) is bad.
+        if upper.wrapping_add(1) == lower {
+            return Ok(Vec::new());
+        }
         return Err(format!(
             "Invalid bounds: upper ({}) < lower ({})",
             upper, lower

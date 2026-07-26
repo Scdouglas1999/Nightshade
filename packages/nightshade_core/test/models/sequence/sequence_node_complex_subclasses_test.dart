@@ -549,7 +549,7 @@ void main() {
       expect(n.gain, isNull);
       expect(n.offset, isNull);
       expect(n.binning, equals(BinningMode.one));
-      expect(n.ditherEvery, equals(1));
+      expect(n.ditherEvery, equals(3));
       expect(n.triggers, isEmpty);
       expect(n.adaptiveExposure, isNull);
     });

@@ -179,7 +179,10 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
 
   void _addNodeViaDoubleTap() {
     // Mirrors `_NodePaletteItem._addNode` in node_palette.dart so the rail
-    // double-tap matches the expanded-palette insertion semantics.
+    // double-tap matches the expanded-palette insertion semantics — including
+    // the run-lock guard, since `addNode` throws SequenceLockedException while
+    // the executor owns the tree.
+    if (!ref.read(canEditSequenceProvider)) return;
     final node = widget.item.createNode();
     final selectedId = ref.read(selectedNodeIdProvider);
     final notifier = ref.read(currentSequenceProvider.notifier);

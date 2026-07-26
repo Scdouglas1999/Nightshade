@@ -118,6 +118,30 @@ class FramingTargetSearch extends ConsumerWidget {
             },
           ),
 
+          if (searchState.errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      searchState.errorMessage!,
+                      style: NightshadeTypography.labelQuiet.copyWith(
+                        color: colors.error,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: searchState.isSearching
+                        ? null
+                        : () => ref.read(targetSearchProvider.notifier).retry(),
+                    icon: const Icon(NightshadeIcons.refresh, size: 13),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+
           // Search results dropdown
           if (searchState.results.isNotEmpty)
             Container(
@@ -360,9 +384,7 @@ class FramingEquipmentSection extends StatelessWidget {
                   message:
                       'Create and activate an equipment profile in Settings → Equipment to enable framing preview.',
                   actionLabel: 'Open Settings',
-                  onAction: () {
-                    // Navigate to settings
-                  },
+                  onAction: () => context.go('/equipment'),
                 );
 
               case EquipmentStatus.noFocalLength:
@@ -373,9 +395,7 @@ class FramingEquipmentSection extends StatelessWidget {
                   message:
                       'Set the focal length in profile "${result.profileName}" to enable FOV preview.',
                   actionLabel: 'Edit Profile',
-                  onAction: () {
-                    // Navigate to profile editor
-                  },
+                  onAction: () => context.go('/equipment'),
                 );
 
               case EquipmentStatus.noCameraSpecs:

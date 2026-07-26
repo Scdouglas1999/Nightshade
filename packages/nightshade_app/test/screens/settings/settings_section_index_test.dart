@@ -123,7 +123,8 @@ const List<String> _allContractKeys = [
   // Advanced
   'logs',
   // Merged-away aliases
-  'file-paths', 'auto-save', 'predictive-af', 'notification-routing',
+  'file-paths', 'auto-save', 'predictive-af', 'focus-model',
+  'notification-routing',
 ];
 
 void main() {
@@ -172,6 +173,7 @@ void main() {
     expect(resolveSectionKey('file-paths'), 'files-storage');
     expect(resolveSectionKey('auto-save'), 'files-storage');
     expect(resolveSectionKey('predictive-af'), 'autofocus');
+    expect(resolveSectionKey('focus-model'), 'autofocus');
     expect(resolveSectionKey('notification-routing'), 'notifications');
   });
 
@@ -190,6 +192,8 @@ void main() {
     expect(kSettingsSectionIndex['auto-save'],
         kSettingsSectionIndex['files-storage']);
     expect(kSettingsSectionIndex['predictive-af'],
+        kSettingsSectionIndex['autofocus']);
+    expect(kSettingsSectionIndex['focus-model'],
         kSettingsSectionIndex['autofocus']);
     expect(kSettingsSectionIndex['notification-routing'],
         kSettingsSectionIndex['notifications']);

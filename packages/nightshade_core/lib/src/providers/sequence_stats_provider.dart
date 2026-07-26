@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../models/backend/sequencer_status.dart';
+import '../models/sequence/sequence_models.dart';
 import '../database/daos/sequence_runs_dao.dart';
 import '../database/daos/sequence_versions_dao.dart';
 import '../database/daos/session_diagnostics_dao.dart';
@@ -29,7 +30,7 @@ class SequenceRunStats {
   int ditherCount;
 
   /// Per-target, per-filter breakdown: targetName -> filterName -> stats
-  final Map<String, Map<String, _FilterStats>> targetBreakdown;
+  final Map<String, Map<String, FilterStats>> targetBreakdown;
 
   /// Error messages accumulated during the run
   final List<String> errorMessages;
@@ -64,15 +65,15 @@ class SequenceRunStats {
     required this.meridianFlips,
     required this.ditherCount,
     required this.warningMessages,
-  }) : targetBreakdown = {},
-       errorMessages = [];
+    required this.errorMessages,
+  }) : targetBreakdown = {};
 
   /// Reconstruct a live-stats snapshot from the master's run-vitals wire model.
   ///
   /// Used by the remote sync handler so a slave can mirror the master's Session
-  /// Vitals tile. The per-target breakdown and error list are not carried on the
-  /// vitals wire (the Vitals tile reads only the aggregate counters and
-  /// warnings), so they are reconstructed empty.
+  /// Vitals tile. The per-target breakdown is not carried on the vitals wire
+  /// (the Vitals tile reads only the aggregate counters plus the warning and
+  /// error lists), so it is reconstructed empty.
   factory SequenceRunStats.fromRemoteVitals(SequencerRunVitals vitals) {
     return SequenceRunStats._(
       startTime: vitals.startTime,
@@ -85,7 +86,47 @@ class SequenceRunStats {
       meridianFlips: vitals.meridianFlips,
       ditherCount: vitals.ditherCount,
       warningMessages: List<String>.from(vitals.warningMessages),
+      errorMessages: List<String>.from(vitals.errorMessages),
     );
+  }
+
+  /// A fresh deep copy carrying the same values but a NEW identity.
+  ///
+  /// [liveSequenceStatsProvider] is a `StateProvider`, whose `updateShouldNotify`
+  /// is `!identical(previous, next)`. Mutating this instance in place and then
+  /// re-storing the SAME object therefore notifies NO consumer — the live
+  /// Session Vitals tile and run dashboard would silently stop updating. The
+  /// executor stores `copy()` after each incremental mutation so the identity
+  /// changes and watchers actually rebuild. Deep-copying the per-target /
+  /// per-filter breakdown keeps the previous snapshot immutable (a consumer that
+  /// retained it sees a consistent point-in-time value, not a shared mutable
+  /// map). The frame cadence (seconds apart) makes the copy cost negligible.
+  SequenceRunStats copy() {
+    final c = SequenceRunStats._(
+      startTime: startTime,
+      endTime: endTime,
+      framesCaptured: framesCaptured,
+      framesRejected: framesRejected,
+      integrationSecs: integrationSecs,
+      triggerFires: triggerFires,
+      autofocusRuns: autofocusRuns,
+      meridianFlips: meridianFlips,
+      ditherCount: ditherCount,
+      warningMessages: List<String>.from(warningMessages),
+      errorMessages: List<String>.from(errorMessages),
+    );
+    for (final targetEntry in targetBreakdown.entries) {
+      final filters = <String, FilterStats>{};
+      for (final filterEntry in targetEntry.value.entries) {
+        final fs = FilterStats();
+        fs.captured = filterEntry.value.captured;
+        fs.rejected = filterEntry.value.rejected;
+        fs.integrationSecs = filterEntry.value.integrationSecs;
+        filters[filterEntry.key] = fs;
+      }
+      c.targetBreakdown[targetEntry.key] = filters;
+    }
+    return c;
   }
 
   double get wallClockSecs {
@@ -108,7 +149,7 @@ class SequenceRunStats {
     targetBreakdown.putIfAbsent(target, () => {});
     final filterStats = targetBreakdown[target]!.putIfAbsent(
       filter,
-      () => _FilterStats(),
+      () => FilterStats(),
     );
     filterStats.captured++;
     if (!accepted) filterStats.rejected++;
@@ -191,7 +232,7 @@ class SequenceRunStats {
         stats.targetBreakdown[targetEntry.key] = {};
         for (final filterEntry in filters.entries) {
           final fMap = filterEntry.value as Map<String, dynamic>;
-          final fs = _FilterStats();
+          final fs = FilterStats();
           fs.captured = (fMap['captured'] as num?)?.toInt() ?? 0;
           fs.rejected = (fMap['rejected'] as num?)?.toInt() ?? 0;
           fs.integrationSecs =
@@ -205,7 +246,7 @@ class SequenceRunStats {
   }
 }
 
-class _FilterStats {
+class FilterStats {
   int captured = 0;
   int rejected = 0;
   double integrationSecs = 0.0;
@@ -319,6 +360,56 @@ final liveSequenceStatsProvider = StateProvider<SequenceRunStats?>(
 /// The database row ID of the current run (for updating on completion).
 final currentRunIdProvider = StateProvider<int?>((ref) => null);
 
+/// Immutable, one-shot result of a fully-finalized sequence run.
+///
+/// The executor publishes exactly one of these to
+/// [sequenceTerminalRunResultProvider] AFTER durable finalization (finishRun +
+/// endSession) succeeds — i.e. after [currentRunIdProvider] and the durable
+/// session have already been cleared. It carries a SNAPSHOT of the ids the
+/// finished run owned so the auto-opening Session Report and its run-scoped
+/// Journal resolve against the completed run instead of racing the live
+/// providers that finalization has (correctly) just cleared.
+///
+/// [generation] is unique and monotonic per terminal event, giving consumers
+/// event-consumption semantics: a screen reacts to the transition into a new
+/// result, so a fresh mount (which only observes subsequent changes) never
+/// reopens an already-consumed report.
+class SequenceTerminalRunResult {
+  const SequenceTerminalRunResult({
+    required this.generation,
+    required this.outcome,
+    required this.runStatus,
+    required this.runId,
+    required this.dbSessionId,
+  });
+
+  /// Unique, monotonically increasing id for this terminal event.
+  final int generation;
+
+  /// The settled UI state the run ended in: `completed`, `failed`, or `idle`
+  /// (a stop / abort).
+  final SequenceExecutionState outcome;
+
+  /// The durable run-row status recorded for this run (`completed`, `failed`,
+  /// `stopped`, `paused-stopped`).
+  final String runStatus;
+
+  /// The finished run's `sequence_runs.id`, captured before finalization
+  /// cleared [currentRunIdProvider]. Null when the run never got a row.
+  final int? runId;
+
+  /// The finished run's `sessions.id`, captured before finalization ended the
+  /// durable session. Null when the run never opened a session.
+  final int? dbSessionId;
+}
+
+/// The most recent fully-finalized run result, or null before any run has
+/// terminated this session. Published exactly once per terminal run by the
+/// executor; the sequencer screen reacts to it to open the Session Report with
+/// the correct, immutable run/session ids.
+final sequenceTerminalRunResultProvider =
+    StateProvider<SequenceTerminalRunResult?>((ref) => null);
+
 /// Watch all sequence runs from the database.
 ///
 /// On a slave (NetworkBackend) the local `sequence_runs` table is never
@@ -333,6 +424,93 @@ final sequenceRunsProvider = StreamProvider<List<SequenceRun>>((ref) {
   final dao = ref.watch(sequenceRunsDaoProvider);
   return dao.watchAllRuns();
 });
+
+/// Resolve the imaging session created for a sequence run.
+///
+/// New sequence executions intentionally create one session per run, but the
+/// historical schema does not store a direct `sequence_runs -> sessions`
+/// foreign key. Captured frames do carry both identities, so they are the
+/// authoritative join whenever the run produced at least one frame. A
+/// zero-frame run falls back to the session whose start is nearest to the run
+/// start within the executor's small start-up window.
+final sequenceRunSessionIdProvider = FutureProvider.family<int?, int>((
+  ref,
+  runId,
+) async {
+  if (runId <= 0) {
+    throw ArgumentError.value(runId, 'runId', 'must be positive');
+  }
+
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final page = await backend.fetchSequenceRunFrames(runId, limit: 1);
+    final frameSessionId = page.items.firstOrNull?.sessionId;
+    if (frameSessionId != null) return frameSessionId;
+  } else {
+    final frames = await ref
+        .watch(imagesDaoProvider)
+        .getImagesByProducingRun(producingRunId: runId.toString(), limit: 1);
+    final frameSessionId = frames.firstOrNull?.sessionId;
+    if (frameSessionId != null) return frameSessionId;
+  }
+
+  final runs = await ref.watch(sequenceRunsProvider.future);
+  SequenceRun? run;
+  for (final candidate in runs) {
+    if (candidate.id == runId) {
+      run = candidate;
+      break;
+    }
+  }
+  if (run == null) return null;
+
+  final sessions = await ref.watch(allSessionsProvider.future);
+  return resolveSessionIdForSequenceRun(run, sessions);
+});
+
+/// Best-effort legacy join for a run that has no captured frame provenance.
+///
+/// The executor opens the session immediately before it creates the run row,
+/// so a five-minute bound is deliberately generous while still refusing to
+/// link an unrelated historical session. Overlapping time windows and known
+/// sequence/name mismatches are rejected before the nearest start wins.
+int? resolveSessionIdForSequenceRun(
+  SequenceRun run,
+  Iterable<ImagingSession> sessions,
+) {
+  const maxStartDelta = Duration(minutes: 5);
+  ImagingSession? best;
+  Duration? bestDelta;
+
+  for (final session in sessions) {
+    if (run.sequenceId != null &&
+        session.sequenceId != null &&
+        run.sequenceId != session.sequenceId) {
+      continue;
+    }
+    if (session.name != null &&
+        session.name!.isNotEmpty &&
+        run.sequenceName.isNotEmpty &&
+        session.name != run.sequenceName) {
+      continue;
+    }
+
+    final sessionEnd = session.endTime;
+    final runEnd = run.endedAt;
+    if (sessionEnd != null && sessionEnd.isBefore(run.startedAt)) continue;
+    if (runEnd != null && session.startTime.isAfter(runEnd)) continue;
+
+    final rawDelta = run.startedAt.difference(session.startTime);
+    final delta = rawDelta.isNegative ? -rawDelta : rawDelta;
+    if (delta > maxStartDelta) continue;
+    if (bestDelta == null || delta < bestDelta) {
+      best = session;
+      bestDelta = delta;
+    }
+  }
+
+  return best?.id;
+}
 
 /// Watch runs for a specific sequence.
 final sequenceRunsForSequenceProvider =

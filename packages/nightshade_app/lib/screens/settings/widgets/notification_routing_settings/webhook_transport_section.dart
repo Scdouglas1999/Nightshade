@@ -29,10 +29,14 @@ class _WebhookTransportSectionState
     final cfgAsync = ref.watch(webhookTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => const NightshadeInlineBanner(
-        message: 'Could not load webhook routing configuration.',
-        severity: NightshadeAlertSeverity.error,
-      ),
+      error: (e, _) {
+        _initialized = false;
+        return _transportErrorSection(
+          title: 'Generic webhook',
+          error: e,
+          onRetry: () => ref.invalidate(webhookTransportConfigProvider),
+        );
+      },
       data: (cfg) {
         if (!_initialized) {
           _url.text = cfg.url;
@@ -41,6 +45,25 @@ class _WebhookTransportSectionState
               cfg.headers.entries.map((e) => '${e.key}: ${e.value}').join('\n');
           _initialized = true;
         }
+        Future<_PrepResult> saveConfig() async {
+          final url = _url.text.trim();
+          final urlError = _validateUrlField(url);
+          if (urlError != null) return _PrepResult.fail(urlError);
+          final parsedHeaders = _parseHeaderLines(_headers.text);
+          if (parsedHeaders.error != null) {
+            return _PrepResult.fail(parsedHeaders.error);
+          }
+          final templateError = _validateWebhookBodyTemplate(_body.text);
+          if (templateError != null) return _PrepResult.fail(templateError);
+          final cfg2 = WebhookTransportConfig(
+            url: url,
+            headers: parsedHeaders.headers!,
+            bodyTemplate: _body.text.trim().isEmpty ? null : _body.text,
+          );
+          await ref.read(webhookTransportConfigProvider.notifier).save(cfg2);
+          return const _PrepResult.ok();
+        }
+
         return SettingsSection(
           title: 'Generic webhook',
           children: [
@@ -80,38 +103,18 @@ class _WebhookTransportSectionState
             SettingRow(
               icon: LucideIcons.save,
               title: 'Save webhook config',
-              trailing: NightshadeButton(
-                label: 'Save',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () async {
-                  final headers = <String, String>{};
-                  for (final line in _headers.text.split('\n')) {
-                    final idx = line.indexOf(':');
-                    if (idx <= 0) continue;
-                    headers[line.substring(0, idx).trim()] =
-                        line.substring(idx + 1).trim();
-                  }
-                  final cfg2 = WebhookTransportConfig(
-                    url: _url.text.trim(),
-                    headers: headers,
-                    bodyTemplate: _body.text.trim().isEmpty ? null : _body.text,
-                  );
-                  await ref
-                      .read(webhookTransportConfigProvider.notifier)
-                      .save(cfg2);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Webhook config saved')),
-                  );
-                },
+              trailing: _SaveButton(
+                successMessage: 'Webhook config saved',
+                onSave: saveConfig,
               ),
             ),
-            const SettingRow(
+            SettingRow(
               icon: LucideIcons.send,
               title: 'Test webhook',
               trailing: _TestSendButton(
-                  kind: NotificationTransportKind.webhookGeneric),
+                kind: NotificationTransportKind.webhookGeneric,
+                onBeforeSend: saveConfig,
+              ),
               isLast: true,
             ),
           ],

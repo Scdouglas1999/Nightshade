@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:battery_plus/battery_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'mobile_preferences.dart';
 import 'notification_service.dart';
 
 enum BatteryWarningLevel { normal, low, veryLow, critical }
@@ -161,19 +163,31 @@ class PowerService {
           _currentBatteryState != BatteryState.full) {
         _lastWarningLevel = warningLevel;
 
+        // The "Battery warnings" toggle only mutes the notification banner;
+        // the safety callbacks (warning pause / critical protective pause)
+        // fire regardless so the sequence is still protected.
+        final prefs = await SharedPreferences.getInstance();
+        final notifyBattery = MobilePreferences(prefs).notifyBattery;
+
         switch (warningLevel) {
           case BatteryWarningLevel.low:
-            await MobileNotificationService().notifyLowBattery(level);
+            if (notifyBattery) {
+              await MobileNotificationService().notifyLowBattery(level);
+            }
             onBatteryWarning?.call(warningLevel);
             break;
 
           case BatteryWarningLevel.veryLow:
-            await MobileNotificationService().notifyLowBattery(level);
+            if (notifyBattery) {
+              await MobileNotificationService().notifyLowBattery(level);
+            }
             onBatteryWarning?.call(warningLevel);
             break;
 
           case BatteryWarningLevel.critical:
-            await MobileNotificationService().notifyLowBattery(level);
+            if (notifyBattery) {
+              await MobileNotificationService().notifyLowBattery(level);
+            }
             onBatteryWarning?.call(warningLevel);
             onCriticalBattery?.call();
             break;

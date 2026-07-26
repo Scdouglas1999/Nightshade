@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -43,7 +45,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
   final _backlashInController = TextEditingController();
   final _backlashOutController = TextEditingController();
 
-  bool _initialized = false;
+  late AppSettingsState _renderedSettings;
+  late Object _renderedAuthority;
 
   @override
   void dispose() {
@@ -63,28 +66,60 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     super.dispose();
   }
 
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _initialOffsetStepsController.text =
-          settings.afInitialOffsetSteps.toString();
-      _stepSizeController.text = settings.afStepSize.toString();
-      _exposureTimeController.text = settings.afExposureTime.toString();
-      _numberOfAttemptsController.text = settings.afNumberOfAttempts.toString();
-      _brightestNStarsController.text =
-          settings.afUseBrightestNStars.toString();
-      _outerCropRatioController.text = settings.afOuterCropRatio.toString();
-      _innerCropRatioController.text = settings.afInnerCropRatio.toString();
-      _binningController.text = settings.afBinning.toString();
-      _rSquaredThresholdController.text =
-          settings.afRSquaredThreshold.toString();
-      _focuserSettleTimeController.text =
-          settings.afFocuserSettleTimeMs.toString();
-      _exposuresPerPointController.text =
-          settings.afExposuresPerPoint.toString();
-      _backlashInController.text = settings.afBacklashIn.toString();
-      _backlashOutController.text = settings.afBacklashOut.toString();
-      _initialized = true;
-    }
+  Widget _afNumberInput({
+    Key? key,
+    required TextEditingController controller,
+    required String suffix,
+    required double min,
+    required double max,
+    required int decimals,
+    required FutureOr<void> Function(double) onChanged,
+    double? width,
+    bool isMobile = false,
+  }) {
+    final settings = _renderedSettings;
+    final authoritativeValue = switch (controller) {
+      _ when identical(controller, _initialOffsetStepsController) =>
+        settings.afInitialOffsetSteps.toDouble(),
+      _ when identical(controller, _stepSizeController) =>
+        settings.afStepSize.toDouble(),
+      _ when identical(controller, _exposureTimeController) =>
+        settings.afExposureTime,
+      _ when identical(controller, _numberOfAttemptsController) =>
+        settings.afNumberOfAttempts.toDouble(),
+      _ when identical(controller, _brightestNStarsController) =>
+        settings.afUseBrightestNStars.toDouble(),
+      _ when identical(controller, _outerCropRatioController) =>
+        settings.afOuterCropRatio,
+      _ when identical(controller, _innerCropRatioController) =>
+        settings.afInnerCropRatio,
+      _ when identical(controller, _binningController) =>
+        settings.afBinning.toDouble(),
+      _ when identical(controller, _rSquaredThresholdController) =>
+        settings.afRSquaredThreshold,
+      _ when identical(controller, _focuserSettleTimeController) =>
+        settings.afFocuserSettleTimeMs.toDouble(),
+      _ when identical(controller, _exposuresPerPointController) =>
+        settings.afExposuresPerPoint.toDouble(),
+      _ when identical(controller, _backlashInController) =>
+        settings.afBacklashIn.toDouble(),
+      _ when identical(controller, _backlashOutController) =>
+        settings.afBacklashOut.toDouble(),
+      _ => throw StateError('Unknown autofocus settings controller'),
+    };
+    return SettingsNumberInput(
+      key: key,
+      controller: controller,
+      authoritativeValue: authoritativeValue,
+      authorityKey: _renderedAuthority,
+      suffix: suffix,
+      min: min,
+      max: max,
+      decimals: decimals,
+      onChanged: onChanged,
+      width: width,
+      isMobile: isMobile,
+    );
   }
 
   @override
@@ -103,7 +138,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
+        _renderedSettings = settings;
+        _renderedAuthority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
 
         return SettingsPage(
@@ -156,7 +192,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.arrowUpDown,
                   title: 'Initial offset steps',
                   subtitle: 'Steps out from center for V-curve',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _initialOffsetStepsController,
                     suffix: '',
                     min: 1,
@@ -173,7 +209,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     value: settings.afMethod,
                     items: const ['Star HFR'],
                     onChanged: (value) {
-                      if (value != null) notifier.setAfMethod(value);
+                      return notifier.setAfMethod(value);
                     },
                   ),
                 ),
@@ -184,7 +220,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     value: settings.afCurveFitting,
                     items: const ['Hyperbolic', 'Parabolic', 'Trend Lines'],
                     onChanged: (value) {
-                      if (value != null) notifier.setAfCurveFitting(value);
+                      return notifier.setAfCurveFitting(value);
                     },
                     width: 150,
                   ),
@@ -193,7 +229,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.repeat,
                   title: 'Number of attempts',
                   subtitle: 'Retry count on failure',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _numberOfAttemptsController,
                     suffix: '',
                     min: 1,
@@ -207,7 +243,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.sparkles,
                   title: 'Use brightest n stars',
                   subtitle: '0 = use all detected stars',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _brightestNStarsController,
                     suffix: '',
                     min: 0,
@@ -220,10 +256,11 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 _buildAfSettingRow(
                   icon: LucideIcons.maximize2,
                   title: 'Outer crop ratio',
-                  trailing: SettingsNumberInput(
+                  subtitle: 'Must be greater than the inner crop ratio',
+                  trailing: _afNumberInput(
                     controller: _outerCropRatioController,
                     suffix: '',
-                    min: 0.0,
+                    min: 0.01,
                     max: 1.0,
                     decimals: 2,
                     onChanged: (value) => notifier.setAfOuterCropRatio(value),
@@ -232,7 +269,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 _buildAfSettingRow(
                   icon: LucideIcons.grid,
                   title: 'Binning',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _binningController,
                     suffix: '',
                     min: 1,
@@ -245,7 +282,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.checkCircle,
                   title: 'R\u00B2 threshold',
                   subtitle: 'Minimum acceptable curve fit quality',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _rSquaredThresholdController,
                     suffix: '',
                     min: 0.0,
@@ -268,7 +305,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.moveVertical,
                   title: 'Step size',
                   subtitle: 'Focuser steps between measurement points',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _stepSizeController,
                     suffix: '',
                     min: 1,
@@ -281,7 +318,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.timer,
                   title: 'Exposure time',
                   subtitle: 'Default AF frame exposure',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _exposureTimeController,
                     suffix: 's',
                     min: 0.1,
@@ -304,7 +341,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.clock,
                   title: 'Focuser settle time',
                   subtitle: 'Wait after focuser move',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _focuserSettleTimeController,
                     suffix: 'ms',
                     min: 0,
@@ -318,7 +355,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   icon: LucideIcons.layers,
                   title: 'Exposures per point',
                   subtitle: 'Frames to average per focus position',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _exposuresPerPointController,
                     suffix: '',
                     min: 1,
@@ -331,7 +368,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 _buildAfSettingRow(
                   icon: LucideIcons.minimize2,
                   title: 'Inner crop ratio',
-                  trailing: SettingsNumberInput(
+                  subtitle: 'Central exclusion; must be smaller than outer',
+                  trailing: _afNumberInput(
                     controller: _innerCropRatioController,
                     suffix: '',
                     min: 0.0,
@@ -347,9 +385,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     value: settings.afBacklashCompMethod,
                     items: const ['None', 'Overshoot', 'Absolute'],
                     onChanged: (value) {
-                      if (value != null) {
-                        notifier.setAfBacklashCompMethod(value);
-                      }
+                      return notifier.setAfBacklashCompMethod(value);
                     },
                     width: 150,
                   ),
@@ -357,7 +393,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 _buildAfSettingRow(
                   icon: LucideIcons.arrowLeft,
                   title: 'Backlash IN',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _backlashInController,
                     suffix: '',
                     min: 0,
@@ -370,7 +406,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 _buildAfSettingRow(
                   icon: LucideIcons.arrowRight,
                   title: 'Backlash OUT',
-                  trailing: SettingsNumberInput(
+                  trailing: _afNumberInput(
                     controller: _backlashOutController,
                     suffix: '',
                     min: 0,
@@ -406,7 +442,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.arrowUpDown,
         title: 'Initial offset steps',
         subtitle: 'Steps out from center for V-curve',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _initialOffsetStepsController,
           suffix: '',
           min: 1,
@@ -424,7 +460,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           value: settings.afMethod,
           items: const ['Star HFR'],
           onChanged: (value) {
-            if (value != null) notifier.setAfMethod(value);
+            return notifier.setAfMethod(value);
           },
           isMobile: true,
         ),
@@ -437,7 +473,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           value: settings.afCurveFitting,
           items: const ['Hyperbolic', 'Parabolic', 'Trend Lines'],
           onChanged: (value) {
-            if (value != null) notifier.setAfCurveFitting(value);
+            return notifier.setAfCurveFitting(value);
           },
           isMobile: true,
         ),
@@ -447,7 +483,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.moveVertical,
         title: 'Step size',
         subtitle: 'Focuser steps between measurement points',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _stepSizeController,
           suffix: '',
           min: 1,
@@ -462,7 +498,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.timer,
         title: 'Exposure time',
         subtitle: 'Default AF frame exposure',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _exposureTimeController,
           suffix: 's',
           min: 0.1,
@@ -487,7 +523,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.repeat,
         title: 'Number of attempts',
         subtitle: 'Retry count on failure',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _numberOfAttemptsController,
           suffix: '',
           min: 1,
@@ -502,7 +538,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.sparkles,
         title: 'Use brightest n stars',
         subtitle: '0 = use all detected stars',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _brightestNStarsController,
           suffix: '',
           min: 0,
@@ -516,10 +552,11 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
       SettingRow(
         icon: LucideIcons.maximize2,
         title: 'Outer crop ratio',
-        trailing: SettingsNumberInput(
+        subtitle: 'Must be greater than the inner crop ratio',
+        trailing: _afNumberInput(
           controller: _outerCropRatioController,
           suffix: '',
-          min: 0.0,
+          min: 0.01,
           max: 1.0,
           decimals: 2,
           onChanged: (value) => notifier.setAfOuterCropRatio(value),
@@ -530,7 +567,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
       SettingRow(
         icon: LucideIcons.minimize2,
         title: 'Inner crop ratio',
-        trailing: SettingsNumberInput(
+        subtitle: 'Central exclusion; must be smaller than outer',
+        trailing: _afNumberInput(
           controller: _innerCropRatioController,
           suffix: '',
           min: 0.0,
@@ -544,7 +582,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
       SettingRow(
         icon: LucideIcons.grid,
         title: 'Binning',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _binningController,
           suffix: '',
           min: 1,
@@ -559,7 +597,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.checkCircle,
         title: 'R\u00B2 threshold',
         subtitle: 'Minimum acceptable curve fit quality',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _rSquaredThresholdController,
           suffix: '',
           min: 0.0,
@@ -574,7 +612,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.clock,
         title: 'Focuser settle time',
         subtitle: 'Wait after focuser move',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _focuserSettleTimeController,
           suffix: 'ms',
           min: 0,
@@ -590,7 +628,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         icon: LucideIcons.layers,
         title: 'Exposures per point',
         subtitle: 'Frames to average per focus position',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _exposuresPerPointController,
           suffix: '',
           min: 1,
@@ -608,7 +646,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           value: settings.afBacklashCompMethod,
           items: const ['None', 'Overshoot', 'Absolute'],
           onChanged: (value) {
-            if (value != null) notifier.setAfBacklashCompMethod(value);
+            return notifier.setAfBacklashCompMethod(value);
           },
           isMobile: true,
         ),
@@ -617,7 +655,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
       SettingRow(
         icon: LucideIcons.arrowLeft,
         title: 'Backlash IN',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _backlashInController,
           suffix: '',
           min: 0,
@@ -631,7 +669,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
       SettingRow(
         icon: LucideIcons.arrowRight,
         title: 'Backlash OUT',
-        trailing: SettingsNumberInput(
+        trailing: _afNumberInput(
           controller: _backlashOutController,
           suffix: '',
           min: 0,
@@ -798,9 +836,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             config: config,
             allFilterNames: filterNames,
             isLast: isLast,
-            onConfigChanged: (newConfig) {
-              notifier.setFilterAutofocusConfig(filterName, newConfig);
-            },
+            onConfigChanged: (update) =>
+                notifier.updateFilterAutofocusConfig(filterName, update),
           );
         }),
         // Autofocus filter selector
@@ -828,11 +865,9 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     : settings.afAutofocusFilterName,
                 items: ['Current filter', ...filterNames],
                 onChanged: (value) {
-                  if (value != null) {
-                    notifier.setAfAutofocusFilterName(
-                      value == 'Current filter' ? '' : value,
-                    );
-                  }
+                  return notifier.setAfAutofocusFilterName(
+                    value == 'Current filter' ? '' : value,
+                  );
                 },
                 width: 180,
               ),
@@ -863,9 +898,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           config: config,
           allFilterNames: filterNames,
           isLast: index == filterNames.length - 1,
-          onConfigChanged: (newConfig) {
-            notifier.setFilterAutofocusConfig(filterName, newConfig);
-          },
+          onConfigChanged: (update) =>
+              notifier.updateFilterAutofocusConfig(filterName, update),
         ),
       );
     }
@@ -882,11 +916,9 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
               : settings.afAutofocusFilterName,
           items: ['Current filter', ...filterNames],
           onChanged: (value) {
-            if (value != null) {
-              notifier.setAfAutofocusFilterName(
-                value == 'Current filter' ? '' : value,
-              );
-            }
+            return notifier.setAfAutofocusFilterName(
+              value == 'Current filter' ? '' : value,
+            );
           },
           isMobile: true,
         ),

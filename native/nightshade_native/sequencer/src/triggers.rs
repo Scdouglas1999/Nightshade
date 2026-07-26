@@ -496,19 +496,23 @@ impl Trigger {
                 // history has already been trimmed by `update_guiding_rms`
                 // using the propagated retention.
                 if let Some(rms_history) = &state.guiding_rms_history {
-                    // "All samples within `duration_secs` above threshold"
-                    // means a sustained guiding failure, not a transient spike
-                    // (which `consecutive_frames` handles for HFR). One good
-                    // sample inside the window resets the trigger.
-                    let recent: Vec<_> = rms_history
+                    // Work backward over the uninterrupted tail of bad samples.
+                    // The oldest sample in that run must cover the full debounce
+                    // interval; merely having every sample currently inside the
+                    // interval be bad lets a single fresh spike fire immediately.
+                    let mut bad_run = rms_history
                         .iter()
-                        .filter(|(time, _)| time.elapsed().as_secs_f64() < *duration_secs)
-                        .collect();
+                        .rev()
+                        .take_while(|(_, rms)| *rms > *rms_threshold);
+                    let newest_bad = bad_run.next();
+                    let oldest_bad = bad_run.last();
 
-                    if recent.is_empty() {
-                        false
-                    } else {
-                        recent.iter().all(|(_, rms)| *rms > *rms_threshold)
+                    match (newest_bad, oldest_bad) {
+                        (Some((newest_time, _)), Some((oldest_time, _))) => {
+                            newest_time.elapsed().as_secs_f64() < *duration_secs
+                                && oldest_time.elapsed().as_secs_f64() >= *duration_secs
+                        }
+                        _ => false,
                     }
                 } else {
                     false
@@ -532,7 +536,34 @@ impl Trigger {
                 // is OR-of-unsafe (never less safe than the hardware verdict) — an
                 // abstaining verdict (`None`) or a `Some(false)` SAFE verdict never
                 // suppresses a hardware-unsafe reading.
-                !state.weather_safe || state.weather_verdict_unsafe == Some(true)
+                let hardware_unsafe = !state.weather_safe;
+                let verdict_unsafe = state.weather_verdict_unsafe == Some(true);
+                if hardware_unsafe || verdict_unsafe {
+                    // Name the deciding input. This trigger's action is
+                    // ParkAndAbort, so firing ends the night — and the operator
+                    // previously got only "Sequence cancelled", with the cause
+                    // reconstructable solely by reading Rust source. Logged at
+                    // warn on the aborting edge, so it cannot flood a healthy run.
+                    tracing::warn!(
+                        "WeatherUnsafe: hardware safety monitor {}, Dart weather verdict {} \
+                         (weather_safe={}, weather_verdict_unsafe={:?})",
+                        if hardware_unsafe {
+                            "reports UNSAFE (or has not reported yet)"
+                        } else {
+                            "reports safe"
+                        },
+                        match state.weather_verdict_unsafe {
+                            Some(true) => "reports UNSAFE",
+                            Some(false) => "reports safe",
+                            None => "has not been pushed (abstaining)",
+                        },
+                        state.weather_safe,
+                        state.weather_verdict_unsafe,
+                    );
+                    true
+                } else {
+                    false
+                }
             }
             TriggerType::TemperatureShift { degrees } => {
                 if let (Some(baseline), Some(current)) =
@@ -1263,6 +1294,52 @@ impl TriggerState {
         self.autofocus_invalidation_reason = None;
     }
 
+    /// Drop a pending "autofocus is stale" latch WITHOUT claiming an autofocus
+    /// actually ran.
+    ///
+    /// [`Self::mark_autofocus_performed`] also advances `last_autofocus_frame`,
+    /// which is the interval trigger's "frames since the last AF" cursor — using
+    /// it to clear an unactionable latch would record a focus run that never
+    /// happened and push the next interval refocus out by a whole cadence.
+    ///
+    /// The caller is the trigger evaluator's Autofocus recovery action on a rig
+    /// with no focuser: the latch (set by any filter/target change) would
+    /// otherwise re-force the HFR trigger on every evaluation tick forever.
+    pub fn clear_autofocus_invalidation(&mut self) {
+        self.autofocus_invalidated = false;
+        self.autofocus_invalidation_reason = None;
+    }
+
+    /// Clear the per-RUN latches so a second run in the same app launch does not
+    /// inherit the previous run's transient trigger state.
+    ///
+    /// Observed on the live rig: run 1 changed to "Filter 2" and left
+    /// `autofocus_invalidated` set; run 2 (a different sequence, changing to
+    /// "Filter 4") force-fired the HFR trigger one second after start with the
+    /// reason `filter changed to Filter 2` — a filter that run 2 never selected.
+    /// [`TriggerManager`] and its state are built once in
+    /// [`SequenceExecutor::new`] and outlive every run, so nothing else resets
+    /// these.
+    ///
+    /// Deliberately NOT cleared here: operator/runtime configuration
+    /// (thresholds, retention windows, meridian config) and live device
+    /// telemetry (weather verdict, pier side, altitude), which are properties of
+    /// the rig rather than of a run.
+    pub fn reset_for_new_run(&mut self) {
+        self.baseline_hfr = None;
+        self.current_hfr = None;
+        self.autofocus_invalidated = false;
+        self.autofocus_invalidation_reason = None;
+        self.filter_changed = false;
+        self.current_filter = None;
+        self.has_flipped_this_target = false;
+        self.flip_origin_pier_side = None;
+        self.last_applied_filter_offset = 0;
+        self.completed_exposures = 0;
+        self.last_autofocus_frame = 0;
+        self.last_dither_frame = 0;
+    }
+
     /// Mark that dither was just performed
     pub fn mark_dither_performed(&mut self) {
         self.last_dither_frame = self.completed_exposures;
@@ -1721,6 +1798,36 @@ impl TriggerManager {
         self.triggers.iter_mut().find(|t| t.id == id)
     }
 
+    /// Apply the operator's meridian-flip settings to the standard
+    /// `meridian_flip` trigger.
+    ///
+    /// `create_standard_triggers` seeds that trigger with
+    /// `MeridianFlipConfig::default()` and, before this existed, nothing ever
+    /// replaced it — so EVERY trigger-driven flip ran on Rust defaults and the
+    /// whole Settings → Meridian Flip panel was inert for the path that
+    /// actually fires in a real night. It went unnoticed because the shipped
+    /// defaults (5 minutes past, recenter on, 3 retries at 30/60/120 s,
+    /// Pause & Alert) are identical to the panel's defaults; only a user who
+    /// CHANGED a value would have seen their change ignored.
+    ///
+    /// Both the trigger's own config (which decides WHEN to fire) and the
+    /// recovery action's config (which decides HOW the flip runs) are updated
+    /// so the threshold and the step sequence can never drift apart.
+    ///
+    /// Returns `true` when the trigger was found and updated.
+    pub fn set_meridian_flip_config(&mut self, config: crate::MeridianFlipConfig) -> bool {
+        let Some(trigger) = self.get_trigger_mut("meridian_flip") else {
+            return false;
+        };
+        if let TriggerType::MeridianFlip { config: existing } = &mut trigger.trigger_type {
+            *existing = config.clone();
+        }
+        if let RecoveryAction::MeridianFlip(existing) = &mut trigger.recovery_action {
+            *existing = config;
+        }
+        true
+    }
+
     /// Enable/disable a trigger
     pub fn set_trigger_enabled(&mut self, id: &str, enabled: bool) {
         if let Some(trigger) = self.triggers.iter_mut().find(|t| t.id == id) {
@@ -1731,6 +1838,37 @@ impl TriggerManager {
     /// Enable/disable all triggers
     pub fn set_all_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
+    }
+
+    /// Disarm every trigger whose recovery action is an autofocus run.
+    /// Returns the ids that were disarmed.
+    ///
+    /// Called at `start()` when the run has no focuser. An autofocus action is
+    /// physically impossible without one, so leaving those triggers armed can
+    /// only produce untruth: the HFR trigger force-fires on any filter/target
+    /// change (see [`TriggerState::invalidate_autofocus`]), the operator's
+    /// decision log records "HFR Degradation fired -> Autofocus" for a run that
+    /// never graded a frame, and the executor's Autofocus arm has no device to
+    /// act on.
+    ///
+    /// Only the standard/global triggers are disarmed; per-sequence Recovery
+    /// nodes keep whatever the operator authored (they carry their own
+    /// user-visible failure reporting).
+    pub fn disarm_autofocus_triggers(&mut self) -> Vec<String> {
+        let mut disarmed = Vec::new();
+        for trigger in &mut self.triggers {
+            if trigger
+                .id
+                .starts_with(crate::executor::RECOVERY_NODE_TRIGGER_PREFIX)
+            {
+                continue;
+            }
+            if matches!(trigger.recovery_action, RecoveryAction::Autofocus) && trigger.enabled {
+                trigger.enabled = false;
+                disarmed.push(trigger.id.clone());
+            }
+        }
+        disarmed
     }
 
     /// Get all triggers
@@ -1754,11 +1892,37 @@ impl TriggerManager {
         let state = self.state.read().await.clone();
         let mut fired = Vec::new();
 
+        let mut filter_change_fired = false;
         for trigger in &mut self.triggers {
             if trigger.check(&state).await {
                 tracing::warn!("Trigger fired: {} ({})", trigger.name, trigger.id);
+                if matches!(trigger.trigger_type, TriggerType::FilterChange) {
+                    filter_change_fired = true;
+                }
                 fired.push((trigger.id.clone(), trigger.recovery_action.clone()));
             }
+        }
+
+        // `filter_changed` is an EDGE ("a filter change just happened"), but it
+        // is stored as a level and nothing in production ever called
+        // `clear_filter_changed()`. Combined with the standard FilterChange
+        // trigger's zero cooldown, one filter change therefore re-fired the
+        // trigger on every ~1Hz evaluation tick for the remainder of the run.
+        //
+        // Observed on the live rig: a sequence containing a single Change
+        // Filter node logged
+        //   04:49:09  WARN Trigger fired: Filter Change (filter_change)
+        //   04:49:10  WARN Trigger fired: Filter Change (filter_change)
+        //   04:49:11  WARN Trigger fired: Filter Change (filter_change)
+        //   04:49:12  WARN Trigger fired: Filter Change (filter_change)
+        // and `/api/sequencer/status` reported `"triggerFires": 4` for that one
+        // change — a count that would have reached ~28,000 over an eight-hour
+        // night, with a duplicate decision-log row behind every one of them.
+        //
+        // Consume the edge once it has been delivered. Done after the loop so
+        // every trigger in this pass sees the same state snapshot.
+        if filter_change_fired {
+            self.state.write().await.clear_filter_changed();
         }
 
         fired
@@ -2299,18 +2463,30 @@ mod tests {
         let mut state = TriggerState::new();
         state.guiding_rms_history = Some(Vec::new());
 
-        // Add recent high RMS values
-        let now = std::time::Instant::now();
-        state.guiding_rms_history.as_mut().unwrap().push((now, 2.5));
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        // A single fresh spike is not evidence that guiding has been bad for
+        // the configured ten-second debounce window.
         state
             .guiding_rms_history
             .as_mut()
             .unwrap()
-            .push((std::time::Instant::now(), 2.8));
+            .push((Instant::now(), 2.8));
+        assert!(
+            !trigger.check(&state).await,
+            "one recent high-RMS sample must not trip GuidingFailed"
+        );
 
-        // Should trigger - RMS above threshold for duration
-        assert!(trigger.check(&state).await);
+        // Two bad samples spanning the full window establish a sustained bad
+        // run and must trip the trigger.
+        let now = Instant::now();
+        state.guiding_rms_history = Some(vec![
+            (now - Duration::from_secs(11), 2.5),
+            (now - Duration::from_secs(5), 2.7),
+            (now, 2.8),
+        ]);
+        assert!(
+            trigger.check(&state).await,
+            "an uninterrupted bad-RMS run spanning duration_secs must trip"
+        );
     }
 
     #[tokio::test]
@@ -3408,6 +3584,89 @@ mod tests {
         );
     }
 
+    /// Regression: the operator's meridian-flip settings must reach BOTH the
+    /// trigger's own config (which decides when to fire) and the recovery
+    /// action's config (which decides how the flip runs).
+    ///
+    /// The standard trigger is seeded with `MeridianFlipConfig::default()` and
+    /// nothing used to replace it, so the whole Settings → Meridian Flip panel
+    /// was inert on the trigger path. Proven live: a run with
+    /// `recenterAfterFlip: false` still executed
+    /// `"Step 6/8: Plate solving and centering"` and failed the flip on it.
+    /// It hid for so long because the Rust defaults equal the panel defaults —
+    /// only an operator who changed a value was silently ignored.
+    #[tokio::test]
+    async fn meridian_flip_settings_reach_both_trigger_and_recovery_action() {
+        let mut manager = TriggerManager::new();
+        manager.create_standard_triggers();
+
+        // Sanity: the default really is the config that used to be stuck.
+        let seeded = manager.get_trigger("meridian_flip").expect("trigger");
+        match &seeded.trigger_type {
+            TriggerType::MeridianFlip { config } => {
+                assert!(config.auto_center, "default seeds auto_center = true");
+                assert_eq!(config.minutes_past_meridian, 5.0);
+            }
+            other => panic!("expected a MeridianFlip trigger, got {:?}", other),
+        }
+
+        let user = crate::MeridianFlipConfig {
+            minutes_past_meridian: 17.0,
+            auto_center: false,
+            refocus_after: true,
+            pause_guiding: false,
+            max_retries: 1,
+            retry_delays_secs: vec![5.0],
+            failure_action: crate::FlipFailureAction::AbortAndPark,
+            ..Default::default()
+        };
+        assert!(
+            manager.set_meridian_flip_config(user.clone()),
+            "the standard meridian_flip trigger must be found"
+        );
+
+        let updated = manager.get_trigger("meridian_flip").expect("trigger");
+        match &updated.trigger_type {
+            TriggerType::MeridianFlip { config } => {
+                assert_eq!(
+                    config.minutes_past_meridian, 17.0,
+                    "the FIRE threshold must follow the user's setting"
+                );
+            }
+            other => panic!("expected a MeridianFlip trigger, got {:?}", other),
+        }
+        match &updated.recovery_action {
+            RecoveryAction::MeridianFlip(config) => {
+                assert!(
+                    !config.auto_center,
+                    "recenterAfterFlip=false must actually disable the \
+                     post-flip plate-solve step"
+                );
+                assert!(config.refocus_after);
+                assert!(!config.pause_guiding);
+                assert_eq!(config.max_retries, 1);
+                assert_eq!(config.retry_delays_secs, vec![5.0]);
+                assert_eq!(
+                    config.failure_action,
+                    crate::FlipFailureAction::AbortAndPark
+                );
+            }
+            other => panic!("expected a MeridianFlip action, got {:?}", other),
+        }
+    }
+
+    /// A manager with no standard triggers must report that the push did not
+    /// land, so the caller can warn instead of silently running on defaults.
+    #[tokio::test]
+    async fn meridian_flip_settings_push_reports_missing_trigger() {
+        let mut manager = TriggerManager::new();
+        assert!(
+            !manager.set_meridian_flip_config(crate::MeridianFlipConfig::default()),
+            "pushing settings with no meridian_flip trigger registered must \
+             report failure rather than silently succeeding"
+        );
+    }
+
     /// Trust-patch §3: AutofocusInterval is now part of the standard
     /// trigger set so periodic refocus fires in sequences that lack an
     /// explicit Autofocus node. Symmetric with the §1.5 DitherInterval test.
@@ -3939,5 +4198,46 @@ mod tests {
         // Valid values flow through.
         state.update_transparency(Some(0.6));
         assert_eq!(state.current_transparency, Some(0.6));
+    }
+}
+
+#[cfg(test)]
+mod filter_change_edge_tests {
+    use super::*;
+
+    /// A single filter change must fire the FilterChange trigger exactly once,
+    /// not once per ~1Hz evaluation tick for the rest of the run.
+    #[tokio::test]
+    async fn filter_change_trigger_fires_once_per_change() {
+        let mut manager = TriggerManager::new();
+        manager.add_trigger(Trigger::new(
+            "filter_change",
+            "Filter Change",
+            TriggerType::FilterChange,
+            RecoveryAction::Continue,
+        ));
+
+        manager.state().write().await.set_filter("Ha".to_string());
+
+        let first: Vec<_> = manager.check_all().await;
+        assert!(
+            first.iter().any(|(id, _)| id == "filter_change"),
+            "the change itself must fire the trigger"
+        );
+
+        for tick in 0..5 {
+            let later: Vec<_> = manager.check_all().await;
+            assert!(
+                !later.iter().any(|(id, _)| id == "filter_change"),
+                "tick {tick} re-fired FilterChange with no new filter change"
+            );
+        }
+
+        manager.state().write().await.set_filter("OIII".to_string());
+        let second: Vec<_> = manager.check_all().await;
+        assert!(
+            second.iter().any(|(id, _)| id == "filter_change"),
+            "a genuinely new filter change must fire again"
+        );
     }
 }

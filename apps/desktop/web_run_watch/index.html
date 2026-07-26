@@ -14,13 +14,17 @@
        covers the EventSource subscription + REST calls. img-src adds
        blob: so we can hold a Blob URL for the JPEG frame thumbnail
        without re-fetching when only the headers change. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'" />
+  <!-- No external font/CDN origins: this surface is meant to work on a
+       field-offline rig, and the server's own CSP response header is
+       `style-src 'self'`, so a Google Fonts <link> could never load — it only
+       cost a doomed DNS/TCP attempt plus a CSP console error per page load.
+       The --font-sans/--font-mono stacks in css/style.css already fall back to
+       the platform UI font. `frame-ancestors` is deliberately absent: it is
+       ignored via <meta> (browsers log an error) and the response header
+       already carries it. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; manifest-src 'self'; worker-src 'self'" />
 
   <title>Nightshade Run-Watch</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 
   <link rel="manifest" href="/run-watch/manifest.json" />
   <link rel="icon" type="image/svg+xml" href="/run-watch/icons/icon.svg" />
@@ -30,10 +34,13 @@
 <body>
   <!-- =====================================================================
        Pairing screen. Shown until a session token is in localStorage. The
-       desktop app prints a 6-digit code on its console (see
-       PairingService.startPairing); the operator types it here to mint a
+       desktop surfaces a WORD-WORD-NNNN code (e.g. STAR-LYRA-1234 — see
+       TokenManager.generatePairingCode); the operator types it here to mint a
        long-lived bearer token. Once paired we stash the token and reload
-       into the main view.
+       into the main view. The field must NOT be constrained to 6 digits: a
+       numeric maxlength=6 input truncated real codes to "STAR-L" and the
+       client-side guard then refused to send them at all, so this screen
+       could never be completed.
        ===================================================================== -->
   <div id="pair-screen" class="screen pair-screen">
     <div class="pair-card">
@@ -44,19 +51,20 @@
       </div>
       <p class="pair-help">
         Open the Nightshade desktop app's Remote Access screen and read the
-        6-digit pairing code. It expires after about 5 minutes; just request
-        a fresh one if it does.
+        pairing code (it looks like STAR-LYRA-1234). It expires after about
+        5 minutes; just request a fresh one if it does.
       </p>
       <label class="pair-label" for="pair-code">Pairing code</label>
       <input
         id="pair-code"
         class="pair-input"
         type="text"
-        inputmode="numeric"
         autocomplete="one-time-code"
-        maxlength="6"
-        pattern="[0-9]{6}"
-        placeholder="------"
+        autocapitalize="characters"
+        spellcheck="false"
+        maxlength="32"
+        pattern="[A-Za-z0-9-]{6,32}"
+        placeholder="STAR-LYRA-1234"
         aria-describedby="pair-status"
       />
       <button id="btn-pair" class="btn btn-primary btn-block">Pair this device</button>

@@ -26,6 +26,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildGuidingRoutes(_guidingHandlers),
       ...buildImagingRoutes(_imagingHandlers),
       ...buildSequencerRoutes(_sequencerHandlers),
+      ...buildReplayDebugRoutes(_replayDebugHandlers),
       ...buildEquipmentRoutes(_equipmentHandlers),
       ...buildProfileRoutes(_profileHandlers),
       ...buildSessionRoutes(_sessionHandlers),
@@ -33,6 +34,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSequenceManagementRoutes(_sequenceManagementHandlers),
       ...buildFlatWizardRoutes(_flatWizardHandlers),
       ...buildMosaicRoutes(_mosaicHandlers),
+      ...buildCoImagingRoutes(_coImagingHandlers),
       ...buildAnalyticsRoutes(_analyticsHandlers),
       ...buildWeatherRoutes(_weatherHandlers),
       ...buildFileSystemRoutes(_fileSystemHandlers),
@@ -58,15 +60,10 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSessionOwnershipRoutes(_sessionOwnershipHandlers),
     ];
 
-    // OTA update routes are only registered when the host has
-    // wired an UpdateController via [setUpdateController]. Tests and
-    // headless deployments that opt out of OTA leave the controller
-    // unset, in which case these routes return 404 from the router
-    // itself — matching the legacy behaviour exactly.
-    final updateHandlers = _updateHandlers;
-    if (updateHandlers != null) {
-      allRoutes.addAll(buildUpdateRoutes(updateHandlers));
-    }
+    // OTA handlers are provisioned after the HTTP server starts in both GUI
+    // and headless bootstraps. Register dynamic routes now so a later
+    // setUpdateController() immediately activates the advertised surface.
+    allRoutes.addAll(buildUpdateRoutes(() => _updateHandlers));
 
     // Continue appending the remaining per-domain route lists. These
     // come AFTER the OTA block above so the relative declaration order
@@ -204,13 +201,32 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       _logInfo(
         '[AUTH] Authentication is ENABLED. All requests require Bearer token.',
       );
-    } else {
-      _logInfo('[AUTH] Authentication is DISABLED. All requests are allowed.');
+    } else if (allowUnauthenticated) {
+      // The operator explicitly opted into the legacy fully-open behaviour.
+      // Surface it loudly so an accidental `--allow-unauthenticated` in a
+      // production unit is impossible to miss in the logs.
+      _logWarning(
+        '[AUTH] UNAUTHENTICATED ACCESS IS ENABLED via --allow-unauthenticated '
+        '(NIGHTSHADE_ALLOW_UNAUTHENTICATED). EVERY endpoint is served WITHOUT a '
+        'token. Only use this on a fully trusted LAN or for local development.',
+      );
       if (!bindLocalOnly) {
         _logWarning(
-          '[AUTH] Unauthenticated LAN access is enabled. This is unsafe for normal rig control.',
+          '[AUTH] The open server is also bound to the LAN. Any device on the '
+          'network can control this rig. This is unsafe for normal use.',
         );
       }
+    } else {
+      // FAIL CLOSED (default): no tokens configured, no opt-in. Privileged
+      // endpoints reject with 401 until the appliance is paired or a token is
+      // set; only the pairing/discovery/dashboard bootstrap surface is open.
+      _logInfo(
+        '[AUTH] No tokens configured. Server is FAIL CLOSED: only the pairing '
+        'and dashboard bootstrap endpoints are reachable. Pair a device (or set '
+        'NIGHTSHADE_AUTH_TOKEN / --auth-token) to unlock control. To deliberately '
+        'serve everything unauthenticated on a trusted LAN, pass '
+        '--allow-unauthenticated (NIGHTSHADE_ALLOW_UNAUTHENTICATED=1).',
+      );
     }
 
     // + hydrate `_pairedSessionTokens` from the Drift DB and
@@ -250,6 +266,25 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         _logWarning('JobManager sweep failed: $e');
       }
     });
+
+    // Collaborative Sky WS2 — arm the unattended collaborative-mosaic driver so
+    // an owner appliance auto-assembles (and a participant auto-downloads) the
+    // finished mosaic with nobody watching. Reuses the same hub-credentialed
+    // [CollaborativeMosaicService] the headless mosaic endpoints drive; a
+    // no-hub config simply makes each refresh a quiet auth no-op until the
+    // operator signs in.
+    _collabMosaicPoller?.stop();
+    final collabSettings = container.read(settingsDaoProvider);
+    _collabMosaicPoller = CollaborativeMosaicPoller(
+      service: container.read(collaborativeMosaicServiceProvider),
+      projectsDao: container.read(mosaicProjectsDaoProvider),
+      panelsDao: container.read(mosaicPanelsDaoProvider),
+      logger: container.read(loggingServiceProvider),
+      // Auto-upload an unattended rig's integrated panels only under the
+      // operator's recorded unattended-upload consent (license + attribution +
+      // auto opt-in); absence keeps uploads manual.
+      uploadConsentResolver: () => resolveMosaicUploadConsent(collabSettings),
+    )..start();
 
     // Subscribe to backend events and broadcast to WebSocket clients
     _subscribeToBackendEvents();
@@ -291,12 +326,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   /// Load all active, unexpired pairing tokens from Drift into the in-memory
   /// `_pairedSessionTokens` map. Without this, every server restart evicts
   /// every HTTP-paired client (audit F-3 in 01-connection-auth.md). The
-  /// hydrated scope is heuristic: the DB doesn't currently store the granted
-  /// scope per device, so we default to `control` — the same default the
-  /// verify path uses when `requestedScope` is unset. Operators who pair as
-  /// admin must re-pair if they want admin again after the next restart;
-  /// this matches the verify-path default and is documented in the
-  /// release notes.
+  /// paired-device row stores the canonical grant spec, so an admin or
+  /// fine-grained pairing keeps exactly the same authority after a restart.
+  /// Legacy v3 rows are migrated to the historical `control` default.
   Future<void> _hydratePairedSessionTokens() async {
     // Skip hydration when no PairingService is available. The service is
     // either injected via the constructor (tests / GUI in-memory pairing
@@ -317,14 +349,26 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     try {
       final rows = await service.tokenManager.getActiveUnexpiredPairedDevices();
       var restored = 0;
+      var rejected = 0;
       for (final row in rows) {
-        // Default to `control` scope — see method-doc rationale above.
-        _pairedSessionTokens[row.sessionToken] = HeadlessTokenScope.control;
+        final grant = HeadlessAuthGrant.parseSpec(row.authGrantSpec);
+        if (grant == null) {
+          // Never guess when a persisted authorization record is corrupt. A
+          // skipped bearer forces re-pairing and cannot accidentally escalate
+          // to admin or broad control authority.
+          rejected++;
+          _logWarning(
+            '[AUTH] Refusing paired session for device=${row.deviceId}: '
+            'stored grant spec is malformed',
+          );
+          continue;
+        }
+        _pairedSessionTokens[row.sessionToken] = grant;
         restored++;
       }
       _logInfo(
         '[AUTH] Restored $restored paired session token(s) from disk',
-        fields: {'restored': restored},
+        fields: {'restored': restored, 'rejectedMalformed': rejected},
       );
     } catch (e, st) {
       // We do NOT silently fall back to an empty map: the audit flagged
@@ -355,11 +399,11 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   /// the token is unknown (already evicted, or never present) the call is a
   /// no-op so concurrent sweep + verify paths cannot fight.
   void _evictPairedSessionToken(String sessionToken) {
-    final scope = _pairedSessionTokens.remove(sessionToken);
-    if (scope != null) {
+    final grant = _pairedSessionTokens.remove(sessionToken);
+    if (grant != null) {
       _logInfo(
         '[AUTH] Evicted paired session token (${HeadlessApiServer._redactBearer(sessionToken)}) '
-        'from in-memory map (scope=${headlessTokenScopeName(scope)})',
+        'from in-memory map (scope=${grant.toSpec()})',
       );
     }
   }
@@ -372,22 +416,35 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   /// never fired the listener).
   void _scheduleTokenSweep() {
     _tokenSweepTimer?.cancel();
-    _tokenSweepTimer = Timer.periodic(tokenSweepInterval, (_) async {
-      final service = _pairingService;
-      if (service == null) return;
-      try {
-        final result = await service.tokenManager
-            .purgeExpiredAndRevokedSessions();
-        if (!result.isEmpty) {
-          _logInfo(
-            '[AUTH] Token sweep purged ${result.expiredTokens.length} expired '
-            'and ${result.revokedTokens.length} revoked session token(s)',
-          );
-        }
-      } catch (e, st) {
-        _logWarning('[AUTH] Token sweep failed: $e\n$st');
-      }
+    _tokenSweepTimer = Timer.periodic(tokenSweepInterval, (_) {
+      if (_tokenSweepFuture != null) return;
+      final sweep = _runTokenSweep();
+      _tokenSweepFuture = sweep;
+      unawaited(
+        sweep.whenComplete(() {
+          if (identical(_tokenSweepFuture, sweep)) {
+            _tokenSweepFuture = null;
+          }
+        }),
+      );
     });
+  }
+
+  Future<void> _runTokenSweep() async {
+    final service = _pairingService;
+    if (service == null) return;
+    try {
+      final result = await service.tokenManager
+          .purgeExpiredAndRevokedSessions();
+      if (!result.isEmpty) {
+        _logInfo(
+          '[AUTH] Token sweep purged ${result.expiredTokens.length} expired '
+          'and ${result.revokedTokens.length} revoked session token(s)',
+        );
+      }
+    } catch (e, st) {
+      _logWarning('[AUTH] Token sweep failed: $e\n$st');
+    }
   }
 
   void _subscribeToSequenceCatalogUpdates() {
@@ -648,6 +705,12 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // `this` past disposal.
     _tokenSweepTimer?.cancel();
     _tokenSweepTimer = null;
+    // A slow Drift purge must finish before the caller tears down the pairing
+    // database. The single-flight gate also prevents minute ticks from piling
+    // up concurrent writes when storage is degraded.
+    final tokenSweep = _tokenSweepFuture;
+    if (tokenSweep != null) await tokenSweep;
+    _tokenSweepFuture = null;
     // stop the correlator eviction sweep.
     _commandCorrelatorSweepTimer?.cancel();
     _commandCorrelatorSweepTimer = null;
@@ -657,6 +720,10 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // work observes the cancellation flag and exits its next poll.
     _jobSweepTimer?.cancel();
     _jobSweepTimer = null;
+    // stop the unattended collaborative-mosaic driver (WS2). In-flight stitches
+    // own their own cleanup; only the scheduling stops.
+    _collabMosaicPoller?.stop();
+    _collabMosaicPoller = null;
     await _jobManager.dispose();
     // tear down ownership state and broadcast controller.
     await _sessionOwnership.dispose();

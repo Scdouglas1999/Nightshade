@@ -223,6 +223,29 @@ Future<void> apiSequencerUpdateDitherConfig({
   raOnly: raOnly,
 );
 
+/// Push the operator's meridian-flip settings onto the standard
+/// `meridian_flip` trigger.
+///
+/// `config_json` is a serialised `MeridianFlipConfig` — the SAME shape the Dart
+/// side already builds for a `MeridianFlipNode`, so there is exactly one
+/// wire format for meridian settings and one place to keep in sync.
+///
+/// Why JSON rather than a typed FRB struct: `MeridianFlipConfig` has 21 fields
+/// including a `Vec<f64>` retry ladder and two enums, and every one of them is
+/// already covered by the serde contract the sequence JSON uses. Mirroring it
+/// as an FRB struct would duplicate that contract and give it two places to
+/// drift.
+///
+/// Without this call the trigger keeps `MeridianFlipConfig::default()` for the
+/// whole run and the user's Settings → Meridian Flip panel is inert on the
+/// trigger path.
+Future<void> apiSequencerUpdateMeridianFlipConfig({
+  required String configJson,
+}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateMeridianFlipConfig(
+      configJson: configJson,
+    );
+
 /// Update observer location at runtime while a sequence is running or paused.
 /// Updates the executor's stored latitude/longitude so altitude-based triggers
 /// use the correct location on their next evaluation.

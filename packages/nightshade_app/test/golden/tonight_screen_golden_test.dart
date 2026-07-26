@@ -1,3 +1,6 @@
+@Tags(['golden'])
+library;
+
 // Review-PNG golden for the one-tap "Tonight" screen (Phase F one-tap flow).
 // Written to `docs/design/goldens/` for a reviewer to eyeball — not a
 // pixel-diff guard; the assertion only confirms a real, non-empty image was
@@ -73,11 +76,13 @@ void main() {
                       child: TonightBodyView(
                         colors: colors,
                         state: const OneTapTonightState(),
+                        activeRun: null,
                         targetAsync: const AsyncData(seededTarget),
                         onGo: () async {},
                         onReset: () {},
                         onRefreshPick: () {},
-                        morningSessionId: null,
+                        morningSessionAsync: const AsyncData(null),
+                        onRefreshMorningReport: () {},
                       ),
                     ),
                   ),

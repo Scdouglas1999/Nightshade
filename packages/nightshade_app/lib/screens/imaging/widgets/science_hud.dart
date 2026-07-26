@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,23 +10,104 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../analytics/widgets/science_status_banner.dart';
 import '../imaging_science_state.dart';
 
-class ScienceHudPanel extends ConsumerWidget {
+class ScienceHudPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
   const ScienceHudPanel({super.key, required this.colors});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final modeState = ref.watch(scienceModeStateProvider);
+  ConsumerState<ScienceHudPanel> createState() => _ScienceHudPanelState();
+}
+
+class _ScienceHudPanelState extends ConsumerState<ScienceHudPanel> {
+  bool _isSavingSessionConfig = false;
+  bool _isSavingSelection = false;
+  int _authorityGeneration = 0;
+  int _configOperationGeneration = 0;
+  int _selectionOperationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  ProviderSubscription<SessionState>? _sessionSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous != null && !identical(previous, next)) {
+          _retireHostOperations();
+        }
+      },
+    );
+    _sessionSubscription = ref.listenManual<SessionState>(
+      sessionStateProvider,
+      (previous, next) {
+        if (previous?.dbSessionId != next.dbSessionId) {
+          _retireHostOperations();
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _authorityGeneration++;
+    _configOperationGeneration++;
+    _selectionOperationGeneration++;
+    _backendSubscription?.close();
+    _sessionSubscription?.close();
+    super.dispose();
+  }
+
+  void _retireHostOperations() {
+    _authorityGeneration++;
+    _configOperationGeneration++;
+    _selectionOperationGeneration++;
+    if (mounted && (_isSavingSessionConfig || _isSavingSelection)) {
+      setState(() {
+        _isSavingSessionConfig = false;
+        _isSavingSelection = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final overlayState = ref.watch(scienceOverlayStateProvider);
-    final settings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
+    final settingsAsync = ref.watch(scienceSettingsProvider);
+    final selectionAsync = ref.watch(sciencePhotometrySelectionProvider);
+    final sessionConfigAsync = ref.watch(activeScienceSessionConfigProvider);
+    final settings = settingsAsync.valueOrNull ?? const ScienceSettings();
     final photometrySelection =
-        ref.watch(sciencePhotometrySelectionProvider).valueOrNull ??
-            const SciencePhotometrySelection();
+        selectionAsync.valueOrNull ?? const SciencePhotometrySelection();
     final sessionConfig =
-        ref.watch(activeScienceSessionConfigProvider).valueOrNull ??
-            const ScienceSessionConfig();
+        sessionConfigAsync.valueOrNull ?? const ScienceSessionConfig();
+    final sessionId = ref.watch(sessionStateProvider).dbSessionId;
+    final hasSession = sessionId != null;
+    final settingsReady = settingsAsync.hasValue &&
+        !settingsAsync.isLoading &&
+        !settingsAsync.hasError;
+    final selectionReady = selectionAsync.hasValue &&
+        !selectionAsync.isLoading &&
+        !selectionAsync.hasError;
+    final sessionConfigReady = hasSession &&
+        sessionConfigAsync.hasValue &&
+        !sessionConfigAsync.isLoading &&
+        !sessionConfigAsync.hasError;
+    final configControlsEnabled = sessionConfigReady && !_isSavingSessionConfig;
+    final authoritySources = <AsyncValue<Object?>>[
+      settingsAsync,
+      selectionAsync,
+      if (hasSession) sessionConfigAsync,
+    ];
+    final authorityErrors = authoritySources
+        .where((source) => source.hasError && source.error != null)
+        .map((source) => source.error!)
+        .toList(growable: false);
+    final authorityLoading = authoritySources.any(
+      (source) => source.isLoading || (!source.hasValue && !source.hasError),
+    );
     final selectedObject = ref.watch(selectedAnnotationObjectProvider);
     final photometryTarget = photometrySelection.target;
     final comparisonAnchors = photometrySelection.comparisons;
@@ -48,7 +131,7 @@ class ScienceHudPanel extends ConsumerWidget {
               ),
               const Spacer(),
               Text(
-                'Informational only',
+                'Live session controls',
                 style: NightshadeTypography.captionSm
                     .copyWith(color: colors.textMuted),
               ),
@@ -82,16 +165,43 @@ class ScienceHudPanel extends ConsumerWidget {
           // entirely if the pipeline is idle AND empty.
           const ScienceStatusBanner(hideWhenIdle: true),
           const SizedBox(height: NightshadeTokens.spaceSm),
+          if (authorityErrors.isNotEmpty) ...[
+            _ScienceHudAuthorityNotice(
+              colors: colors,
+              error: authorityErrors.first,
+              additionalErrorCount: authorityErrors.length - 1,
+              onRetry: () => _retryAuthorities(sessionId),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+          ] else if (authorityLoading) ...[
+            LinearProgressIndicator(
+              minHeight: 2,
+              color: colors.primary,
+              backgroundColor: colors.border,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+          ],
+          if (!hasSession)
+            Padding(
+              padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+              child: Text(
+                'Science features attach to a capture session. Start or open a '
+                'session to configure them.',
+                style: NightshadeTypography.captionSm
+                    .copyWith(color: colors.textMuted),
+              ),
+            ),
           _FeatureToggle(
             colors: colors,
+            enabled: configControlsEnabled,
             title: 'Moving object mode',
             value: sessionConfig.movingObjectsEnabled,
             onChanged: (value) {
-              ref.read(scienceModeStateProvider.notifier).state =
-                  modeState.copyWith(movingObjectModeEnabled: value);
-              _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(movingObjectsEnabled: value),
+              unawaited(
+                _saveSessionConfig(
+                  sessionConfig.copyWith(movingObjectsEnabled: value),
+                  movingObjectModeEnabled: value,
+                ),
               );
             },
           ),
@@ -99,71 +209,92 @@ class ScienceHudPanel extends ConsumerWidget {
           // image list and offers one-tap enable for features the user
           // looks ready for (multi-frame for moving objects, NB filter
           // set for line ratios). Hidden when the feature is already on.
-          _ContextualOffers(
-            colors: colors,
-            sessionConfig: sessionConfig,
-            onEnableMovingObjects: () => _updateSessionConfig(
-              ref,
-              sessionConfig.copyWith(movingObjectsEnabled: true),
+          if (sessionConfigReady)
+            _ContextualOffers(
+              colors: colors,
+              sessionConfig: sessionConfig,
+              actionsEnabled: !_isSavingSessionConfig,
+              onEnableMovingObjects: () => unawaited(
+                _saveSessionConfig(
+                  sessionConfig.copyWith(movingObjectsEnabled: true),
+                  movingObjectModeEnabled: true,
+                ),
+              ),
+              onEnableNarrowband: () => unawaited(
+                _saveSessionConfig(
+                  sessionConfig.copyWith(narrowbandEnabled: true),
+                ),
+              ),
             ),
-            onEnableNarrowband: () => _updateSessionConfig(
-              ref,
-              sessionConfig.copyWith(narrowbandEnabled: true),
-            ),
-          ),
           _FeatureToggle(
             colors: colors,
+            enabled: configControlsEnabled,
             title: 'Session photometry',
             value: sessionConfig.photometryEnabled,
-            onChanged: (value) => _updateSessionConfig(
-                ref, sessionConfig.copyWith(photometryEnabled: value)),
-          ),
-          _FeatureToggle(
-            colors: colors,
-            title: 'Photometric calibration',
-            value: sessionConfig.calibrationEnabled,
-            onChanged: (value) => _updateSessionConfig(
-              ref,
-              sessionConfig.copyWith(calibrationEnabled: value),
+            onChanged: (value) => unawaited(
+              _saveSessionConfig(
+                sessionConfig.copyWith(photometryEnabled: value),
+              ),
             ),
           ),
           _FeatureToggle(
             colors: colors,
+            enabled: configControlsEnabled,
+            title: 'Photometric calibration',
+            value: sessionConfig.calibrationEnabled,
+            onChanged: (value) => unawaited(
+              _saveSessionConfig(
+                sessionConfig.copyWith(calibrationEnabled: value),
+              ),
+            ),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            enabled: configControlsEnabled,
             title: 'Transparency model',
             value: sessionConfig.transparencyEnabled,
-            onChanged: (value) => _updateSessionConfig(
-              ref,
-              sessionConfig.copyWith(transparencyEnabled: value),
+            onChanged: (value) => unawaited(
+              _saveSessionConfig(
+                sessionConfig.copyWith(transparencyEnabled: value),
+              ),
             ),
           ),
           // P3.2: transparency unlock progress — surfaces the
           // "N more calibrated frames" hint directly in the HUD so the
           // user understands why the transparency reading is blank.
-          if (sessionConfig.transparencyEnabled)
+          if (sessionConfigReady && sessionConfig.transparencyEnabled)
             _TransparencyUnlockProgress(colors: colors),
           _FeatureToggle(
             colors: colors,
+            enabled: configControlsEnabled,
             title: 'PSF map',
             value: sessionConfig.psfMapEnabled,
-            onChanged: (value) => _updateSessionConfig(
-                ref, sessionConfig.copyWith(psfMapEnabled: value)),
-          ),
-          _FeatureToggle(
-            colors: colors,
-            title: 'Astrometric residuals',
-            value: sessionConfig.residualsEnabled,
-            onChanged: (value) => _updateSessionConfig(
-              ref,
-              sessionConfig.copyWith(residualsEnabled: value),
+            onChanged: (value) => unawaited(
+              _saveSessionConfig(
+                sessionConfig.copyWith(psfMapEnabled: value),
+              ),
             ),
           ),
           _FeatureToggle(
             colors: colors,
+            enabled: configControlsEnabled,
+            title: 'Astrometric residuals',
+            value: sessionConfig.residualsEnabled,
+            onChanged: (value) => unawaited(
+              _saveSessionConfig(
+                sessionConfig.copyWith(residualsEnabled: value),
+              ),
+            ),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            enabled: configControlsEnabled,
             title: 'Narrowband tools',
             value: sessionConfig.narrowbandEnabled,
-            onChanged: (value) => _updateSessionConfig(
-              ref,
-              sessionConfig.copyWith(narrowbandEnabled: value),
+            onChanged: (value) => unawaited(
+              _saveSessionConfig(
+                sessionConfig.copyWith(narrowbandEnabled: value),
+              ),
             ),
           ),
           const Divider(height: 18),
@@ -281,20 +412,27 @@ class ScienceHudPanel extends ConsumerWidget {
             children: [
               Expanded(
                 child: NightshadeButton(
-                  onPressed: selectedObject == null
+                  onPressed: selectedObject == null ||
+                          !selectionReady ||
+                          _isSavingSelection
                       ? null
-                      : () async {
-                          await ref
-                              .read(sciencePhotometrySelectionProvider.notifier)
-                              .setTarget(
-                                PhotometryAnchor(
-                                  objectId: selectedObject.id,
-                                  label: selectedObject.commonName ??
-                                      selectedObject.name,
-                                  raDegrees: selectedObject.ra,
-                                  decDegrees: selectedObject.dec,
-                                ),
-                              );
+                      : () {
+                          unawaited(
+                            _runSelectionAction(
+                              () => ref
+                                  .read(sciencePhotometrySelectionProvider
+                                      .notifier)
+                                  .setTarget(
+                                    PhotometryAnchor(
+                                      objectId: selectedObject.id,
+                                      label: selectedObject.commonName ??
+                                          selectedObject.name,
+                                      raDegrees: selectedObject.ra,
+                                      decDegrees: selectedObject.dec,
+                                    ),
+                                  ),
+                            ),
+                          );
                         },
                   label: 'Set Target',
                   variant: ButtonVariant.outline,
@@ -304,20 +442,27 @@ class ScienceHudPanel extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: NightshadeButton(
-                  onPressed: selectedObject == null
+                  onPressed: selectedObject == null ||
+                          !selectionReady ||
+                          _isSavingSelection
                       ? null
-                      : () async {
-                          await ref
-                              .read(sciencePhotometrySelectionProvider.notifier)
-                              .toggleComparison(
-                                PhotometryAnchor(
-                                  objectId: selectedObject.id,
-                                  label: selectedObject.commonName ??
-                                      selectedObject.name,
-                                  raDegrees: selectedObject.ra,
-                                  decDegrees: selectedObject.dec,
-                                ),
-                              );
+                      : () {
+                          unawaited(
+                            _runSelectionAction(
+                              () => ref
+                                  .read(sciencePhotometrySelectionProvider
+                                      .notifier)
+                                  .toggleComparison(
+                                    PhotometryAnchor(
+                                      objectId: selectedObject.id,
+                                      label: selectedObject.commonName ??
+                                          selectedObject.name,
+                                      raDegrees: selectedObject.ra,
+                                      decDegrees: selectedObject.dec,
+                                    ),
+                                  ),
+                            ),
+                          );
                         },
                   label: 'Toggle Comp',
                   variant: ButtonVariant.ghost,
@@ -331,11 +476,18 @@ class ScienceHudPanel extends ConsumerWidget {
             children: [
               Expanded(
                 child: NightshadeButton(
-                  onPressed: () async {
-                    await ref
-                        .read(sciencePhotometrySelectionProvider.notifier)
-                        .setTarget(null);
-                  },
+                  onPressed: !selectionReady ||
+                          _isSavingSelection ||
+                          photometryTarget == null
+                      ? null
+                      : () => unawaited(
+                            _runSelectionAction(
+                              () => ref
+                                  .read(sciencePhotometrySelectionProvider
+                                      .notifier)
+                                  .setTarget(null),
+                            ),
+                          ),
                   label: 'Clear Target',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
@@ -344,11 +496,18 @@ class ScienceHudPanel extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
                 child: NightshadeButton(
-                  onPressed: () async {
-                    await ref
-                        .read(sciencePhotometrySelectionProvider.notifier)
-                        .clearComparisons();
-                  },
+                  onPressed: !selectionReady ||
+                          _isSavingSelection ||
+                          comparisonAnchors.isEmpty
+                      ? null
+                      : () => unawaited(
+                            _runSelectionAction(
+                              () => ref
+                                  .read(sciencePhotometrySelectionProvider
+                                      .notifier)
+                                  .clearComparisons(),
+                            ),
+                          ),
                   label: 'Clear Comps',
                   variant: ButtonVariant.ghost,
                   size: ButtonSize.small,
@@ -371,16 +530,27 @@ class ScienceHudPanel extends ConsumerWidget {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              onPressed: settings.photometryEnabled
-                  ? () async {
+              onPressed: settingsReady &&
+                      selectionReady &&
+                      !_isSavingSelection &&
+                      settings.photometryEnabled
+                  ? () {
                       final nextEnabled =
                           !photometrySelection.differentialEnabled;
-                      await ref
-                          .read(sciencePhotometrySelectionProvider.notifier)
-                          .setDifferentialEnabled(nextEnabled);
-                      ref.read(scienceModeStateProvider.notifier).state =
-                          modeState.copyWith(
-                        differentialPhotometryActive: nextEnabled,
+                      unawaited(
+                        _runSelectionAction(
+                          () => ref
+                              .read(sciencePhotometrySelectionProvider.notifier)
+                              .setDifferentialEnabled(nextEnabled),
+                          onSuccess: () {
+                            final currentMode =
+                                ref.read(scienceModeStateProvider);
+                            ref.read(scienceModeStateProvider.notifier).state =
+                                currentMode.copyWith(
+                              differentialPhotometryActive: nextEnabled,
+                            );
+                          },
+                        ),
                       );
                     }
                   : null,
@@ -398,17 +568,181 @@ class ScienceHudPanel extends ConsumerWidget {
     );
   }
 
-  Future<void> _updateSessionConfig(
-    WidgetRef ref,
-    ScienceSessionConfig config,
-  ) async {
+  Future<void> _saveSessionConfig(
+    ScienceSessionConfig config, {
+    bool? movingObjectModeEnabled,
+  }) async {
+    if (_isSavingSessionConfig) return;
     final sessionId = ref.read(sessionStateProvider).dbSessionId;
-    if (sessionId == null) {
-      return;
+    if (sessionId == null) return;
+    final backend = ref.read(backendProvider);
+    final authorityGeneration = _authorityGeneration;
+    final operationGeneration = ++_configOperationGeneration;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isSavingSessionConfig = true);
+    try {
+      await ref
+          .read(scienceSessionConfigControllerProvider)
+          .save(sessionId, config);
+      if (!_isCurrentConfigOperation(
+        backend,
+        sessionId,
+        authorityGeneration,
+        operationGeneration,
+      )) {
+        return;
+      }
+      ref.invalidate(scienceSessionConfigProvider(sessionId));
+      ref.invalidate(activeScienceSessionConfigProvider);
+      if (movingObjectModeEnabled != null) {
+        final currentMode = ref.read(scienceModeStateProvider);
+        ref.read(scienceModeStateProvider.notifier).state =
+            currentMode.copyWith(
+          movingObjectModeEnabled: movingObjectModeEnabled,
+        );
+      }
+    } catch (error) {
+      if (_isCurrentConfigOperation(
+        backend,
+        sessionId,
+        authorityGeneration,
+        operationGeneration,
+      )) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not save science session: $error')),
+        );
+      }
+    } finally {
+      if (_isCurrentConfigOperation(
+        backend,
+        sessionId,
+        authorityGeneration,
+        operationGeneration,
+      )) {
+        setState(() => _isSavingSessionConfig = false);
+      }
     }
-    await ref
-        .read(scienceSessionConfigControllerProvider)
-        .save(sessionId, config);
+  }
+
+  Future<void> _runSelectionAction(
+    Future<void> Function() action, {
+    VoidCallback? onSuccess,
+  }) async {
+    if (_isSavingSelection) return;
+    final backend = ref.read(backendProvider);
+    final sessionId = ref.read(sessionStateProvider).dbSessionId;
+    final authorityGeneration = _authorityGeneration;
+    final operationGeneration = ++_selectionOperationGeneration;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isSavingSelection = true);
+    try {
+      await action();
+      if (!_isCurrentSelectionOperation(
+        backend,
+        sessionId,
+        authorityGeneration,
+        operationGeneration,
+      )) {
+        return;
+      }
+      onSuccess?.call();
+    } catch (error) {
+      if (_isCurrentSelectionOperation(
+        backend,
+        sessionId,
+        authorityGeneration,
+        operationGeneration,
+      )) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Could not save photometry setup: $error')),
+        );
+      }
+    } finally {
+      if (_isCurrentSelectionOperation(
+        backend,
+        sessionId,
+        authorityGeneration,
+        operationGeneration,
+      )) {
+        setState(() => _isSavingSelection = false);
+      }
+    }
+  }
+
+  bool _isCurrentConfigOperation(
+    NightshadeBackend backend,
+    int sessionId,
+    int authorityGeneration,
+    int operationGeneration,
+  ) {
+    return mounted &&
+        authorityGeneration == _authorityGeneration &&
+        operationGeneration == _configOperationGeneration &&
+        identical(ref.read(backendProvider), backend) &&
+        ref.read(sessionStateProvider).dbSessionId == sessionId;
+  }
+
+  bool _isCurrentSelectionOperation(
+    NightshadeBackend backend,
+    int? sessionId,
+    int authorityGeneration,
+    int operationGeneration,
+  ) {
+    return mounted &&
+        authorityGeneration == _authorityGeneration &&
+        operationGeneration == _selectionOperationGeneration &&
+        identical(ref.read(backendProvider), backend) &&
+        ref.read(sessionStateProvider).dbSessionId == sessionId;
+  }
+
+  void _retryAuthorities(int? sessionId) {
+    ref.invalidate(scienceSettingsProvider);
+    ref.invalidate(sciencePhotometrySelectionProvider);
+    if (sessionId != null) {
+      ref.invalidate(scienceSessionConfigProvider(sessionId));
+    }
+    ref.invalidate(activeScienceSessionConfigProvider);
+  }
+}
+
+class _ScienceHudAuthorityNotice extends StatelessWidget {
+  const _ScienceHudAuthorityNotice({
+    required this.colors,
+    required this.error,
+    required this.additionalErrorCount,
+    required this.onRetry,
+  });
+
+  final NightshadeColors colors;
+  final Object error;
+  final int additionalErrorCount;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: NightshadeDecorations.emphasisSurface(colors.error),
+      child: Row(
+        children: [
+          Icon(LucideIcons.alertTriangle, size: 14, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Some science controls are unavailable: $error'
+              '${additionalErrorCount > 0 ? ' (+$additionalErrorCount more)' : ''}',
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: NightshadeTypography.captionSm.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
   }
 }
 
@@ -418,11 +752,16 @@ class _FeatureToggle extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// When false the toggle is disabled and greyed — science config is scoped to
+  /// an active capture session, so the switch cannot persist without one.
+  final bool enabled;
+
   const _FeatureToggle({
     required this.colors,
     required this.title,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
   });
 
   @override
@@ -434,13 +773,15 @@ class _FeatureToggle extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: NightshadeTypography.captionSm
-                  .copyWith(color: colors.textSecondary),
+              style: NightshadeTypography.captionSm.copyWith(
+                color: enabled ? colors.textSecondary : colors.textMuted,
+              ),
             ),
           ),
           NightshadeSwitch(
             value: value,
-            onChanged: onChanged,
+            onChanged: enabled ? onChanged : null,
+            enabled: enabled,
           ),
         ],
       ),
@@ -462,12 +803,14 @@ class _FeatureToggle extends StatelessWidget {
 class _ContextualOffers extends ConsumerWidget {
   final NightshadeColors colors;
   final ScienceSessionConfig sessionConfig;
+  final bool actionsEnabled;
   final VoidCallback onEnableMovingObjects;
   final VoidCallback onEnableNarrowband;
 
   const _ContextualOffers({
     required this.colors,
     required this.sessionConfig,
+    required this.actionsEnabled,
     required this.onEnableMovingObjects,
     required this.onEnableNarrowband,
   });
@@ -476,6 +819,9 @@ class _ContextualOffers extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionId = ref.watch(sessionStateProvider).dbSessionId;
     if (sessionId == null) return const SizedBox.shrink();
+    if (sessionConfig.movingObjectsEnabled && sessionConfig.narrowbandEnabled) {
+      return const SizedBox.shrink();
+    }
 
     final imageStream = ref.watch(_huddedImagesProvider(sessionId));
     final images = imageStream.valueOrNull ?? const <DbCapturedImage>[];
@@ -505,7 +851,7 @@ class _ContextualOffers extends ConsumerWidget {
         title: 'Enable moving-object detection?',
         body:
             'You have ${lights.length} light frames — enough for the detector to spot drifting candidates.',
-        onAccept: onEnableMovingObjects,
+        onAccept: actionsEnabled ? onEnableMovingObjects : null,
       ));
     }
 
@@ -516,7 +862,7 @@ class _ContextualOffers extends ConsumerWidget {
         title: 'Enable narrowband ratios?',
         body:
             'Ha, OIII, and SII frames are all present — Nightshade can produce line ratios from this session.',
-        onAccept: onEnableNarrowband,
+        onAccept: actionsEnabled ? onEnableNarrowband : null,
       ));
     }
 
@@ -555,7 +901,7 @@ class _OfferTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  final VoidCallback onAccept;
+  final VoidCallback? onAccept;
 
   const _OfferTile({
     required this.colors,
@@ -625,12 +971,40 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
     final sessionId = ref.watch(sessionStateProvider).dbSessionId;
     if (sessionId == null) return const SizedBox.shrink();
 
-    final calibrationRows =
-        ref.watch(sessionFrameCalibrationsProvider(sessionId)).valueOrNull ??
-            const <FramePhotometricCalibrationRow>[];
+    final calibrationsAsync =
+        ref.watch(sessionFrameCalibrationsProvider(sessionId));
+    final transparencyAsync =
+        ref.watch(sessionTransparencySamplesProvider(sessionId));
+    final error = calibrationsAsync.error ?? transparencyAsync.error;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+        child: _ScienceHudAuthorityNotice(
+          colors: colors,
+          error: error,
+          additionalErrorCount:
+              calibrationsAsync.hasError && transparencyAsync.hasError ? 1 : 0,
+          onRetry: () {
+            ref.invalidate(sessionFrameCalibrationsProvider(sessionId));
+            ref.invalidate(sessionTransparencySamplesProvider(sessionId));
+          },
+        ),
+      );
+    }
+    if (calibrationsAsync.isLoading || transparencyAsync.isLoading) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+        child: LinearProgressIndicator(
+          minHeight: 2,
+          color: colors.primary,
+          backgroundColor: colors.border,
+        ),
+      );
+    }
+    final calibrationRows = calibrationsAsync.valueOrNull ??
+        const <FramePhotometricCalibrationRow>[];
     final transparency =
-        ref.watch(sessionTransparencySamplesProvider(sessionId)).valueOrNull ??
-            const <TransparencySampleRow>[];
+        transparencyAsync.valueOrNull ?? const <TransparencySampleRow>[];
     if (transparency.isNotEmpty) return const SizedBox.shrink();
 
     final calibrated = calibrationRows.where((row) => row.isCalibrated).length;

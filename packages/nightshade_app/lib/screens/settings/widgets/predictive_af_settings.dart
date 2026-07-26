@@ -46,38 +46,116 @@ class PredictiveAfSettingsPage extends ConsumerStatefulWidget {
 class _PredictiveAfSettingsPageState
     extends ConsumerState<PredictiveAfSettingsPage> {
   StreamSubscription<DriftStatus>? _driftSub;
+  ProviderSubscription<NightshadeBackend>? _backendSub;
+  ProviderSubscription<EquipmentProfileModel?>? _profileSub;
   String? _latestDriftWarning;
+  Future<PredictiveAfSettingsSnapshot>? _snapshotFuture;
+  Future<void> _configWriteTail = Future<void>.value();
+  PredictiveAfConfig? _requestedConfig;
+  int _loadRevision = 0;
+  int _authorityRevision = 0;
+  int _driftRevision = 0;
 
   @override
   void initState() {
     super.initState();
-    // We attach in the next frame because the service provider isn't
-    // available until after `build()` runs once.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _attachDriftListener());
+    _backendSub = ref.listenManual<NightshadeBackend>(backendProvider, (
+      previous,
+      next,
+    ) {
+      if (!mounted) return;
+      _authorityRevision++;
+      _latestDriftWarning = null;
+      _requestedConfig = null;
+      _configWriteTail = Future<void>.value();
+      _attachDriftListener();
+      _reload();
+    });
+    _profileSub = ref.listenManual<EquipmentProfileModel?>(
+      activeEquipmentProfileProvider,
+      (previous, next) {
+        if (mounted && previous?.id != next?.id) {
+          setState(() => _latestDriftWarning = null);
+          _reload();
+        }
+      },
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _attachDriftListener();
+      _reload();
+    });
   }
 
   void _attachDriftListener() {
-    final service = ref.read(predictiveAfServiceProvider);
+    final revision = ++_driftRevision;
     _driftSub?.cancel();
+    if (ref.read(backendProvider) is NetworkBackend) {
+      _driftSub = null;
+      return;
+    }
+    final service = ref.read(predictiveAfServiceProvider);
     _driftSub = service.driftEvents.listen((status) {
-      if (!mounted) return;
+      if (!mounted || revision != _driftRevision) return;
       if (status is ShouldWarn) {
         setState(() => _latestDriftWarning = status.message);
       }
     });
   }
 
+  void _reload() {
+    final revision = ++_loadRevision;
+    final controller = ref.read(predictiveAfSettingsControllerProvider);
+    final profileId = ref.read(activeEquipmentProfileProvider)?.id;
+    final future = controller.load(equipmentProfileId: profileId).then((value) {
+      if (mounted && revision == _loadRevision) {
+        _requestedConfig = value.config;
+      }
+      return value;
+    });
+    if (mounted) {
+      setState(() {
+        _snapshotFuture = future;
+      });
+    }
+  }
+
+  Future<void> _updateConfig(
+    PredictiveAfConfig current,
+    PredictiveAfConfig Function(PredictiveAfConfig) change,
+  ) async {
+    final next = change(_requestedConfig ?? current);
+    _requestedConfig = next;
+    final authority = _authorityRevision;
+    final controller = ref.read(predictiveAfSettingsControllerProvider);
+    final operation = _configWriteTail.then((_) async {
+      if (!mounted || authority != _authorityRevision) return;
+      await controller.updateConfig(next);
+    });
+    _configWriteTail = operation.then<void>((_) {}, onError: (_, __) {});
+    try {
+      await operation;
+      if (mounted && authority == _authorityRevision) _reload();
+    } catch (_) {
+      if (authority != _authorityRevision) return;
+      if (identical(_requestedConfig, next)) _requestedConfig = null;
+      if (mounted) _reload();
+      rethrow;
+    }
+  }
+
   @override
   void dispose() {
+    _driftRevision++;
     _driftSub?.cancel();
+    _backendSub?.close();
+    _profileSub?.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final service = ref.watch(predictiveAfServiceProvider);
-    final config = service.config;
     final activeProfile = ref.watch(activeEquipmentProfileProvider);
+    final controller = ref.watch(predictiveAfSettingsControllerProvider);
 
     return SettingsPage(
       title: 'Predictive Autofocus',
@@ -93,122 +171,172 @@ class _PredictiveAfSettingsPageState
             message: _latestDriftWarning!,
             onDismiss: () => setState(() => _latestDriftWarning = null),
           ),
-        SettingsSection(
-          title: 'Gates',
-          isMobile: widget.isMobile,
-          children: [
-            _settingRow(
-              icon: LucideIcons.brainCircuit,
-              title: 'Auto-learn focus models',
-              subtitle: 'When enabled, each successful AF run appends a sample '
-                  'to the matching (camera, filter) model and re-fits the '
-                  'regression on every insert.',
-              trailing: SettingsSwitch(
-                value: config.enabled,
-                onChanged: (value) => setState(() {
-                  service.config = config.copyWith(enabled: value);
-                }),
+        FutureBuilder<PredictiveAfSettingsSnapshot>(
+          future: _snapshotFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError || snapshot.data == null) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Text('Could not load focus models: ${snapshot.error}'),
+                    TextButton(
+                      onPressed: _reload,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return Column(
+              children: _buildSettings(
+                snapshot.data!,
+                controller,
+                activeProfile?.id,
               ),
-            ),
-            _settingRow(
-              icon: LucideIcons.barChart3,
-              title: 'Minimum samples for trust',
-              subtitle: 'Below this count, even a high-R² model still forces a '
-                  'real AF sweep so the predictor cannot lock onto a tiny '
-                  'sample window by coincidence.',
-              trailing: _NumberField(
-                initialValue: config.minSamplesForTrust.toDouble(),
-                min: 3,
-                max: 50,
-                decimals: 0,
-                onChanged: (v) => setState(() {
-                  service.config = config.copyWith(
-                    minSamplesForTrust: v.toInt(),
-                  );
-                }),
-              ),
-            ),
-            _settingRow(
-              icon: LucideIcons.checkCircle,
-              title: 'High-confidence threshold (R²)',
-              subtitle: 'R² ≥ this → apply prediction directly.',
-              trailing: _NumberField(
-                initialValue: config.highConfidenceThreshold,
-                min: 0.5,
-                max: 1.0,
-                decimals: 2,
-                onChanged: (v) => setState(() {
-                  service.config = config.copyWith(
-                    highConfidenceThreshold: v,
-                  );
-                }),
-              ),
-            ),
-            _settingRow(
-              icon: LucideIcons.alertCircle,
-              title: 'Low-confidence threshold (R²)',
-              subtitle: 'R² < this → force a real AF sweep.',
-              trailing: _NumberField(
-                initialValue: config.lowConfidenceThreshold,
-                min: 0.0,
-                max: 0.9,
-                decimals: 2,
-                onChanged: (v) => setState(() {
-                  service.config = config.copyWith(
-                    lowConfidenceThreshold: v,
-                  );
-                }),
-              ),
-            ),
-            _settingRow(
-              icon: LucideIcons.activity,
-              title: 'Drift threshold (steps)',
-              subtitle: 'How many focuser steps a prediction can be off before '
-                  'counting as a "bad" run for drift tracking.',
-              trailing: _NumberField(
-                initialValue: config.driftThresholdSteps.toDouble(),
-                min: 20,
-                max: 2000,
-                decimals: 0,
-                onChanged: (v) => setState(() {
-                  service.config = config.copyWith(
-                    driftThresholdSteps: v.toInt(),
-                  );
-                }),
-              ),
-            ),
-            _settingRow(
-              icon: LucideIcons.alertTriangle,
-              title: 'Bad runs before warning',
-              subtitle: 'Consecutive bad predictions required before the app '
-                  'surfaces a re-train notification.',
-              trailing: _NumberField(
-                initialValue: config.driftRunsBeforeWarn.toDouble(),
-                min: 1,
-                max: 20,
-                decimals: 0,
-                onChanged: (v) => setState(() {
-                  service.config = config.copyWith(
-                    driftRunsBeforeWarn: v.toInt(),
-                  );
-                }),
-              ),
-              isLast: true,
-            ),
-          ],
-        ),
-        SettingsSection(
-          title: 'Learned models',
-          isMobile: widget.isMobile,
-          children: [
-            _ModelViewer(
-              service: service,
-              equipmentProfileId: activeProfile?.id,
-            ),
-          ],
+            );
+          },
         ),
       ],
     );
+  }
+
+  List<Widget> _buildSettings(
+    PredictiveAfSettingsSnapshot snapshot,
+    PredictiveAfSettingsController controller,
+    int? activeProfileId,
+  ) {
+    final config = _requestedConfig ?? snapshot.config;
+    return [
+      SettingsSection(
+        title: 'Gates',
+        isMobile: widget.isMobile,
+        children: [
+          _settingRow(
+            icon: LucideIcons.brainCircuit,
+            title: 'Auto-learn focus models',
+            subtitle: 'When enabled, each successful AF run appends a sample '
+                'to the matching (camera, filter) model and re-fits the '
+                'regression on every insert.',
+            trailing: SettingsSwitch(
+              value: config.enabled,
+              onChanged: (value) => _updateConfig(
+                config,
+                (current) => current.copyWith(enabled: value),
+              ),
+            ),
+          ),
+          _settingRow(
+            icon: LucideIcons.barChart3,
+            title: 'Minimum samples for trust',
+            subtitle: 'Below this count, even a high-R² model still forces a '
+                'real AF sweep so the predictor cannot lock onto a tiny '
+                'sample window by coincidence.',
+            trailing: _NumberField(
+              initialValue: config.minSamplesForTrust.toDouble(),
+              min: 3,
+              max: 50,
+              decimals: 0,
+              onChanged: (v) => _updateConfig(
+                config,
+                (current) => current.copyWith(
+                  minSamplesForTrust: v.toInt(),
+                ),
+              ),
+            ),
+          ),
+          _settingRow(
+            icon: LucideIcons.checkCircle,
+            title: 'High-confidence threshold (R²)',
+            subtitle: 'R² ≥ this → apply prediction directly.',
+            trailing: _NumberField(
+              initialValue: config.highConfidenceThreshold,
+              min: 0.5,
+              max: 1.0,
+              decimals: 2,
+              onChanged: (v) => _updateConfig(
+                config,
+                (current) => current.copyWith(
+                  highConfidenceThreshold: v,
+                ),
+              ),
+            ),
+          ),
+          _settingRow(
+            icon: LucideIcons.alertCircle,
+            title: 'Low-confidence threshold (R²)',
+            subtitle: 'R² < this → force a real AF sweep.',
+            trailing: _NumberField(
+              initialValue: config.lowConfidenceThreshold,
+              min: 0.0,
+              max: 0.9,
+              decimals: 2,
+              onChanged: (v) => _updateConfig(
+                config,
+                (current) => current.copyWith(
+                  lowConfidenceThreshold: v,
+                ),
+              ),
+            ),
+          ),
+          _settingRow(
+            icon: LucideIcons.activity,
+            title: 'Drift threshold (steps)',
+            subtitle: 'How many focuser steps a prediction can be off before '
+                'counting as a "bad" run for drift tracking.',
+            trailing: _NumberField(
+              initialValue: config.driftThresholdSteps.toDouble(),
+              min: 20,
+              max: 2000,
+              decimals: 0,
+              onChanged: (v) => _updateConfig(
+                config,
+                (current) => current.copyWith(
+                  driftThresholdSteps: v.toInt(),
+                ),
+              ),
+            ),
+          ),
+          _settingRow(
+            icon: LucideIcons.alertTriangle,
+            title: 'Bad runs before warning',
+            subtitle: 'Consecutive bad predictions required before the app '
+                'surfaces a re-train notification.',
+            trailing: _NumberField(
+              initialValue: config.driftRunsBeforeWarn.toDouble(),
+              min: 1,
+              max: 20,
+              decimals: 0,
+              onChanged: (v) => _updateConfig(
+                config,
+                (current) => current.copyWith(
+                  driftRunsBeforeWarn: v.toInt(),
+                ),
+              ),
+            ),
+            isLast: true,
+          ),
+        ],
+      ),
+      SettingsSection(
+        title: 'Learned models',
+        isMobile: widget.isMobile,
+        children: [
+          _ModelViewer(
+            controller: controller,
+            models: snapshot.models,
+            equipmentProfileId: activeProfileId,
+            onReload: _reload,
+          ),
+        ],
+      ),
+    ];
   }
 
   Widget _settingRow({
@@ -284,131 +412,112 @@ class _DriftWarningBanner extends StatelessWidget {
   }
 }
 
-/// Table-of-models viewer. Re-fetches from the DB on every build (driven by
-/// `_refreshTrigger`) so post-action state always reflects what was just
-/// written.
-class _ModelViewer extends StatefulWidget {
-  final PredictiveAfService service;
+class _ModelViewer extends StatelessWidget {
+  final PredictiveAfSettingsController controller;
+  final List<FilterFocusModel> models;
   final int? equipmentProfileId;
+  final VoidCallback onReload;
 
   const _ModelViewer({
-    required this.service,
+    required this.controller,
+    required this.models,
     required this.equipmentProfileId,
+    required this.onReload,
   });
 
   @override
-  State<_ModelViewer> createState() => _ModelViewerState();
-}
-
-class _ModelViewerState extends State<_ModelViewer> {
-  Future<List<FilterFocusModel>>? _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _reload();
-  }
-
-  @override
-  void didUpdateWidget(_ModelViewer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.equipmentProfileId != widget.equipmentProfileId) {
-      _reload();
-    }
-  }
-
-  void _reload() {
-    setState(() {
-      _future = widget.service.listModels(
-        equipmentProfileId: widget.equipmentProfileId,
-      );
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<FilterFocusModel>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final models = snapshot.data ?? const <FilterFocusModel>[];
-        if (models.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Icon(LucideIcons.info,
-                    color: NightshadeColors.of(context).textMuted, size: 14),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    widget.equipmentProfileId == null
-                        ? 'Activate an equipment profile to see its learned focus models.'
-                        : 'No focus models have been learned for this profile yet. '
-                            'Run autofocus across a few temperatures and they will '
-                            'appear here.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: NightshadeColors.of(context).textSecondary,
-                    ),
-                  ),
-                ),
-              ],
+    if (models.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(
+              LucideIcons.info,
+              color: NightshadeColors.of(context).textMuted,
+              size: 14,
             ),
-          );
-        }
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: models
-                .map((m) => _ModelRow(
-                      model: m,
-                      onClear: () async {
-                        await widget.service.clearSamples(
-                          equipmentProfileId: m.equipmentProfileId,
-                          filterName: m.filterName,
-                        );
-                        _reload();
-                      },
-                      onExport: () async {
-                        final json = await widget.service.exportModel(
-                          equipmentProfileId: m.equipmentProfileId,
-                          filterName: m.filterName,
-                        );
-                        if (!context.mounted || json == null) return;
-                        await Clipboard.setData(
-                          ClipboardData(text: json),
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Copied ${m.filterName} model JSON to clipboard',
-                            ),
-                          ),
-                        );
-                      },
-                    ))
-                .toList(),
-          ),
-        );
-      },
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                equipmentProfileId == null
+                    ? 'Activate an equipment profile to see its learned focus models.'
+                    : 'No focus models have been learned for this profile yet. '
+                        'Run autofocus across a few temperatures and they will '
+                        'appear here.',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: NightshadeColors.of(context).textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: models
+            .map(
+              (model) => _ModelRow(
+                key: ValueKey(model.uuid),
+                model: model,
+                onClear: () async {
+                  try {
+                    await controller.clearSamples(
+                      equipmentProfileId: model.equipmentProfileId,
+                      filterName: model.filterName,
+                    );
+                    onReload();
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Re-train failed: $error')),
+                      );
+                    }
+                  }
+                },
+                onExport: () async {
+                  try {
+                    final json = await controller.exportModel(
+                      equipmentProfileId: model.equipmentProfileId,
+                      filterName: model.filterName,
+                    );
+                    if (!context.mounted || json == null) return;
+                    await Clipboard.setData(ClipboardData(text: json));
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Copied ${model.filterName} model JSON to clipboard',
+                        ),
+                      ),
+                    );
+                  } catch (error) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Export failed: $error')),
+                      );
+                    }
+                  }
+                },
+              ),
+            )
+            .toList(),
+      ),
     );
   }
 }
 
 class _ModelRow extends StatefulWidget {
   final FilterFocusModel model;
-  final VoidCallback onClear;
-  final VoidCallback onExport;
+  final Future<void> Function() onClear;
+  final Future<void> Function() onExport;
 
   const _ModelRow({
+    super.key,
     required this.model,
     required this.onClear,
     required this.onExport,
@@ -420,6 +529,50 @@ class _ModelRow extends StatefulWidget {
 
 class _ModelRowState extends State<_ModelRow> {
   bool _expanded = false;
+  bool _busy = false;
+
+  Future<void> _export() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onExport();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmClear() async {
+    if (_busy) return;
+    final model = widget.model;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Re-train ${model.filterName} focus model?'),
+        content: Text(
+          'This clears all ${model.samples.length} learned samples '
+          'for ${model.filterName}. The next autofocus run will '
+          'start a fresh regression window.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Re-train'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.onClear();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -440,21 +593,16 @@ class _ModelRowState extends State<_ModelRow> {
             children: [
               _confidenceDot(m.confidenceScore, c),
               const SizedBox(width: 8),
-              Text(
-                m.filterName,
-                style: NightshadeTypography.labelStrong
-                    .copyWith(color: c.textPrimary),
+              Expanded(
+                child: Text(
+                  m.filterName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.labelStrong.copyWith(
+                    color: c.textPrimary,
+                  ),
+                ),
               ),
-              const SizedBox(width: 12),
-              _stat('Slope', '${m.slopeStepsPerC.toStringAsFixed(1)} steps/°C',
-                  c),
-              const SizedBox(width: 12),
-              _stat('Samples', '${m.samples.length}', c),
-              const SizedBox(width: 12),
-              _stat('Runs', '${m.trainingRunCount}', c),
-              const SizedBox(width: 12),
-              _stat('R²', m.confidenceScore.toStringAsFixed(3), c),
-              const Spacer(),
               IconButton(
                 tooltip: _expanded ? 'Hide samples' : 'View samples',
                 iconSize: 14,
@@ -464,46 +612,53 @@ class _ModelRowState extends State<_ModelRow> {
                   color: c.textMuted,
                 ),
               ),
-              IconButton(
-                tooltip: 'Export JSON',
-                iconSize: 14,
-                onPressed: widget.onExport,
-                icon: Icon(LucideIcons.download, color: c.textMuted),
-              ),
-              TextButton.icon(
-                onPressed: () async {
-                  final ok = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text('Re-train ${m.filterName} focus model?'),
-                      content: Text(
-                        'This clears all ${m.samples.length} learned samples '
-                        'for ${m.filterName}. The next autofocus run will '
-                        'start a fresh regression window.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text('Re-train'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (ok == true) widget.onClear();
-                },
-                icon: Icon(LucideIcons.refreshCw, size: 13, color: c.warning),
-                label: Text(
-                  'Re-train',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: c.warning),
-                ),
-              ),
             ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
+            children: [
+              _stat('Slope', '${m.slopeStepsPerC.toStringAsFixed(1)} steps/°C',
+                  c),
+              _stat('Samples', '${m.samples.length}', c),
+              _stat('Runs', '${m.trainingRunCount}', c),
+              _stat('R²', m.confidenceScore.toStringAsFixed(3), c),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Export JSON',
+                  iconSize: 14,
+                  onPressed: _busy ? null : _export,
+                  icon: _busy
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: c.textMuted,
+                          ),
+                        )
+                      : Icon(LucideIcons.download, color: c.textMuted),
+                ),
+                TextButton.icon(
+                  onPressed: _busy ? null : _confirmClear,
+                  icon: Icon(LucideIcons.refreshCw, size: 13, color: c.warning),
+                  label: Text(
+                    'Re-train',
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: c.warning),
+                  ),
+                ),
+              ],
+            ),
           ),
           if (m.consecutiveBadPredictions > 0) ...[
             const SizedBox(height: 6),
@@ -719,7 +874,7 @@ class _NumberField extends StatefulWidget {
   final double min;
   final double max;
   final int decimals;
-  final void Function(double) onChanged;
+  final FutureOr<void> Function(double) onChanged;
 
   const _NumberField({
     required this.initialValue,
@@ -741,6 +896,22 @@ class _NumberFieldState extends State<_NumberField> {
     super.initState();
     _controller = TextEditingController(
       text: widget.initialValue.toStringAsFixed(widget.decimals),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _NumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue == widget.initialValue &&
+        oldWidget.decimals == widget.decimals) {
+      return;
+    }
+
+    final nextText = widget.initialValue.toStringAsFixed(widget.decimals);
+    if (_controller.text == nextText) return;
+    _controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
     );
   }
 

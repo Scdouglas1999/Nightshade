@@ -3,9 +3,10 @@
  *
  * Vanilla JS so the bundle stays tiny. Three concerns:
  *
- *  1. Pairing — first run prompts for the 6-digit code printed by the
- *     desktop console, calls /api/pairing/verify, persists the resulting
- *     session token in localStorage.
+ *  1. Pairing — first run prompts for the WORD-WORD-NNNN code the desktop
+ *     surfaces (e.g. STAR-LYRA-1234, see TokenManager.generatePairingCode),
+ *     calls /api/pairing/verify, persists the resulting session token in
+ *     localStorage.
  *
  *  2. Live data — once authenticated:
  *       - fetch /api/run-watch/snapshot every 15s as a baseline + on
@@ -148,12 +149,36 @@ function showMainScreen() {
 // ---------------------------------------------------------------------------
 // Pairing flow
 // ---------------------------------------------------------------------------
+// Map the server's machine-readable pairing failures onto something an
+// operator standing at the telescope can act on. Without this the raw code
+// ("invalid_pairing_code") was printed straight into the status line. Mirrors
+// the dashboard's handlePairSubmit mapping.
+function pairingErrorText(data, status) {
+  const raw = String((data && (data.error || data.message)) || '');
+  if (raw.includes('invalid_pairing_code')) {
+    return 'Pairing code is not recognised. Check the code on the desktop.';
+  }
+  if (raw.includes('pairing_code_expired')) {
+    return 'Pairing code expired. Request a new one on the desktop.';
+  }
+  if (raw.includes('pairing_code_already_used')) {
+    return 'That code has already been claimed. Request a new one.';
+  }
+  if (status === 429 || raw.includes('temporarily locked')) {
+    return 'Too many failed attempts. Wait a moment before trying again.';
+  }
+  return raw || 'Pairing failed.';
+}
+
 async function startPairing(code) {
   const trimmed = (code || '').trim();
   const statusEl = $('pair-status');
   statusEl.className = 'pair-status';
-  if (!/^\d{6}$/.test(trimmed)) {
-    statusEl.textContent = 'Enter the 6-digit code from the desktop.';
+  // Codes are WORD-WORD-NNNN (TokenManager.generatePairingCode), never six
+  // digits. Keep this in step with the dashboard's pair-modal guard.
+  if (!/^[A-Za-z0-9-]{6,32}$/.test(trimmed)) {
+    statusEl.textContent =
+      'Enter the pairing code from the desktop (like STAR-LYRA-1234).';
     statusEl.classList.add('error');
     return;
   }
@@ -174,7 +199,7 @@ async function startPairing(code) {
     });
     const data = await res.json();
     if (!res.ok || !data.sessionToken) {
-      statusEl.textContent = data.error || data.message || 'Pairing failed.';
+      statusEl.textContent = pairingErrorText(data, res.status);
       statusEl.classList.add('error');
       return;
     }

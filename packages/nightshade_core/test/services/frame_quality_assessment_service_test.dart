@@ -40,6 +40,31 @@ void main() {
   group('FrameQualityAssessmentService', () {
     const service = FrameQualityAssessmentService();
 
+    /// A frame can be demoted by the composite score alone: `advisoryScore`
+    /// starts at the frame's own `qualityScore`, so one that trips no individual
+    /// threshold but scores in the 60s still lands in `needsReview`. It used to
+    /// arrive with an EMPTY reason list, so the gallery said "Needs Review" and
+    /// gave the operator nothing to act on. Reproduced with real captures
+    /// scoring 64-66 at a healthy HFR 2.5px / 200 stars.
+    test('needsReview by score alone still carries a reason', () {
+      final result = service.assessFrame(
+        _image(id: 1, qualityScore: 64.4, hfr: 2.5, starCount: 200),
+      );
+
+      expect(result.level, FrameQualityLevel.needsReview);
+      expect(result.reasons, isNotEmpty);
+      expect(result.reasons.single, contains('64/100'));
+    });
+
+    test('a good frame gains no synthetic reason', () {
+      final result = service.assessFrame(
+        _image(id: 2, qualityScore: 88, hfr: 2.0, starCount: 400),
+      );
+
+      expect(result.level, FrameQualityLevel.good);
+      expect(result.reasons, isEmpty);
+    });
+
     test('classifies a clean frame as good', () {
       final result = service.assessFrame(
         _image(

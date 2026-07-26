@@ -14,7 +14,8 @@ void main(List<String> args) async {
     exit(2);
   }
 
-  final exePath = args.isEmpty ? _defaultExePath : args.first;
+  final options = _Options.parse(args);
+  final exePath = options.exePath;
   final exe = File(exePath);
   if (!exe.existsSync()) {
     stderr.writeln('Release executable not found: $exePath');
@@ -134,9 +135,21 @@ void main(List<String> args) async {
 
     await _expectWebSocketPong(baseUri, _viewToken);
 
+    if (options.logPath != null) {
+      await _writeSmokeLog(
+        options.logPath!,
+        exe: exe,
+        port: port,
+        info: info.json,
+      );
+    }
+
     stdout.writeln('Packaged headless Linux smoke passed.');
     stdout.writeln('Executable: ${exe.absolute.path}');
     stdout.writeln('Port: $port');
+    if (options.logPath != null) {
+      stdout.writeln('Log: ${File(options.logPath!).absolute.path}');
+    }
   } catch (error, stackTrace) {
     stderr.writeln('Packaged headless Linux smoke failed: $error');
     stderr.writeln(stackTrace);
@@ -153,6 +166,31 @@ void main(List<String> args) async {
   }
 
   exit(exitCode == 1 ? 1 : 0);
+}
+
+Future<void> _writeSmokeLog(
+  String path, {
+  required File exe,
+  required int port,
+  required Map<String, dynamic> info,
+}) async {
+  final file = File(path);
+  await file.parent.create(recursive: true);
+  final timestamp = DateTime.now().toUtc().toIso8601String();
+  await file.writeAsString('''$timestamp Nightshade packaged Linux runtime smoke
+Executable: ${exe.absolute.path}
+Port: $port
+Version: ${info['version']}
+Platform: ${info['platform']}
+PASS headless_process_started
+PASS api_info_ok
+PASS auth_fail_closed_and_scoped
+PASS self_test_ok
+PASS openapi_ok
+PASS dashboard_asset_ok (HTML, CSS, api.js, app.js)
+PASS websocket_ping_pong
+PASS packaged_linux_runtime_smoke
+''');
 }
 
 Future<int> _reservePort() async {
@@ -313,6 +351,35 @@ Future<void> _expectWebSocketPong(Uri baseUri, String token) async {
     }
   } finally {
     await socket.close();
+  }
+}
+
+class _Options {
+  final String exePath;
+  final String? logPath;
+
+  const _Options({required this.exePath, required this.logPath});
+
+  factory _Options.parse(List<String> args) {
+    var exePath = _defaultExePath;
+    String? logPath;
+    var executableProvided = false;
+
+    for (final arg in args) {
+      if (arg.startsWith('--log=')) {
+        logPath = arg.substring('--log='.length).trim();
+        if (logPath.isEmpty) {
+          throw ArgumentError('--log requires a non-empty path');
+        }
+      } else if (!arg.startsWith('-') && !executableProvided) {
+        exePath = arg;
+        executableProvided = true;
+      } else {
+        throw ArgumentError('Unknown argument: $arg');
+      }
+    }
+
+    return _Options(exePath: exePath, logPath: logPath);
   }
 }
 

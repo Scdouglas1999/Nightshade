@@ -70,13 +70,16 @@ class _ToolbarOverflowMenu extends StatelessWidget {
                         : colors.textSecondary,
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    a.label!,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: a.onPressed == null
-                          ? colors.textMuted
-                          : colors.textPrimary,
+                  Flexible(
+                    child: Text(
+                      a.label!,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize13,
+                        color: a.onPressed == null
+                            ? colors.textMuted
+                            : colors.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -109,9 +112,37 @@ class _SequenceTimeEstimate extends StatelessWidget {
     return '${minutes}m';
   }
 
+  /// Natural width of [text] in [style], used to decide which segments of the
+  /// pill actually fit before any of them is laid out.
+  double _measure(BuildContext context, String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    return painter.width;
+  }
+
   @override
   Widget build(BuildContext context) {
     final estimate = sequence.estimateWithOverhead();
+
+    final valueStyle = TextStyle(
+      fontSize: NightshadeTypography.fontSize12,
+      color: colors.textSecondary,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    final overheadStyle = TextStyle(
+      fontSize: NightshadeTypography.fontSize12,
+      color: colors.textMuted,
+      fontStyle: FontStyle.italic,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+
+    final framesText = '${sequence.totalExposures} frames';
+    final timeText = _formatDuration(estimate.estimatedSecs);
+    final overheadText = '~${_formatDuration(estimate.totalEstimatedSecs)}';
 
     return Tooltip(
       message: estimate.overheadSecs > 0
@@ -120,79 +151,94 @@ class _SequenceTimeEstimate extends StatelessWidget {
               '(slews, AF, dithers, downloads, etc.)\n'
               'Estimated total: ${_formatDuration(estimate.totalEstimatedSecs)}'
           : 'Integration time: ${_formatDuration(estimate.estimatedSecs)}',
-      // `clipBehavior` is the load-bearing guard: even if this box is given
-      // less width than its content's natural size (a crowded toolbar row),
-      // it clips at its own rounded border instead of painting its text out
-      // over the equipment-status icons / run-status badge to its right.
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        clipBehavior: Clip.hardEdge,
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                '${sequence.totalExposures} frames',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Icons and their gaps cannot shrink, so a `Flexible` text alone
+          // does NOT stop this row overflowing: below ~66 px the icons alone
+          // exceed the box. Measure each segment up front and drop the ones
+          // that do not fit, rather than painting a half-clipped icon with
+          // no number next to it (which is what a crowded 1440-wide toolbar
+          // used to show).
+          const padding = 12.0 * 2 + 2; // horizontal padding + 1 px borders
+          final framesSegment =
+              14 + 6 + _measure(context, framesText, valueStyle);
+          final timeSegment =
+              12 + 14 + 6 + _measure(context, timeText, valueStyle);
+          final overheadSegment = 8 +
+              1 +
+              8 +
+              14 +
+              4 +
+              _measure(context, overheadText, overheadStyle);
+
+          final available = constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : double.infinity;
+
+          final showFrames = available >= padding + framesSegment;
+          final showTime = available >= padding + framesSegment + timeSegment;
+          final showOverhead = estimate.overheadSecs > 0 &&
+              available >=
+                  padding + framesSegment + timeSegment + overheadSegment;
+
+          // Nothing meaningful fits: render nothing at all instead of a
+          // clipped icon that tells the user neither a count nor a duration.
+          if (!showFrames) return const SizedBox.shrink();
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            clipBehavior: Clip.hardEdge,
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border: Border.all(color: colors.border),
             ),
-            const SizedBox(width: 12),
-            Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                _formatDuration(estimate.estimatedSecs),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ),
-            if (estimate.overheadSecs > 0) ...[
-              const SizedBox(width: 8),
-              Container(
-                width: 1,
-                height: 16,
-                color: colors.border,
-              ),
-              const SizedBox(width: 8),
-              Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  '~${_formatDuration(estimate.totalEstimatedSecs)}',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
+                const SizedBox(width: 6),
+                Text(
+                  framesText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.textMuted,
-                    fontStyle: FontStyle.italic,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                  style: valueStyle,
                 ),
-              ),
-            ],
-          ],
-        ),
+                if (showTime) ...[
+                  const SizedBox(width: 12),
+                  Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
+                  const SizedBox(width: 6),
+                  Text(
+                    timeText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: valueStyle,
+                  ),
+                ],
+                if (showOverhead) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 1,
+                    height: 16,
+                    color: colors.border,
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
+                  const SizedBox(width: 4),
+                  Text(
+                    overheadText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: overheadStyle,
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }

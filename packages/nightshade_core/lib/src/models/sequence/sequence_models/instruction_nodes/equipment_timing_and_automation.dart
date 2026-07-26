@@ -363,6 +363,8 @@ class WaitTimeNode extends SequenceNode {
     String? comment,
     DateTime? waitUntil,
     TwilightType? waitForTwilight,
+    bool clearWaitForTwilight = false,
+    bool clearWaitUntil = false,
   }) {
     return WaitTimeNode(
       id: id ?? this.id,
@@ -372,8 +374,10 @@ class WaitTimeNode extends SequenceNode {
       parentId: parentId ?? this.parentId,
       orderIndex: orderIndex ?? this.orderIndex,
       comment: comment ?? this.comment,
-      waitUntil: waitUntil ?? this.waitUntil,
-      waitForTwilight: waitForTwilight ?? this.waitForTwilight,
+      waitUntil: clearWaitUntil ? null : (waitUntil ?? this.waitUntil),
+      waitForTwilight: clearWaitForTwilight
+          ? null
+          : (waitForTwilight ?? this.waitForTwilight),
     );
   }
 

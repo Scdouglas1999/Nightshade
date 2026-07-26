@@ -251,12 +251,16 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
       aavsoObserverCode: settings[_keys['aavsoObserverCode']] ?? '',
       observerName: settings[_keys['observerName']] ?? '',
       mpcAstrometricCatalog: settings[_keys['mpcAstrometricCatalog']] ?? '',
-      tnsBotId: int.tryParse(settings[_keys['tnsBotId']] ?? '') ?? 0,
+      tnsBotId: _parseInt(settings[_keys['tnsBotId']], _keys['tnsBotId']!),
       tnsBotName: settings[_keys['tnsBotName']] ?? '',
-      tnsReportingGroupId:
-          int.tryParse(settings[_keys['tnsReportingGroupId']] ?? '') ?? 0,
-      tnsDataSourceId:
-          int.tryParse(settings[_keys['tnsDataSourceId']] ?? '') ?? 0,
+      tnsReportingGroupId: _parseInt(
+        settings[_keys['tnsReportingGroupId']],
+        _keys['tnsReportingGroupId']!,
+      ),
+      tnsDataSourceId: _parseInt(
+        settings[_keys['tnsDataSourceId']],
+        _keys['tnsDataSourceId']!,
+      ),
       tnsReporterName: settings[_keys['tnsReporterName']] ?? '',
       tnsUseSandbox: _parseBool(settings[_keys['tnsUseSandbox']], false),
       autoFrameGradingEnabled:
@@ -270,237 +274,178 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     );
   }
 
-  Future<void> _setSetting(String key, bool value) async {
-    await _writeScienceSettings(ref, {key: value.toString()});
-  }
+  Future<void> _writeTail = Future<void>.value();
 
-  Future<void> _setStringSetting(String key, String value) async {
-    await _writeScienceSettings(ref, {key: value});
-  }
-
-  Future<void> setAdvancedModeEnabled(bool enabled) async {
-    await _setSetting(_keys['advancedMode']!, enabled);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        advancedModeEnabled: enabled,
-      ),
-    );
-  }
-
-  Future<void> setOverlayEnabled(bool enabled) async {
-    await _setSetting(_keys['overlay']!, enabled);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        overlayEnabled: enabled,
-      ),
-    );
-  }
-
-  Future<void> setFeatureEnabled(ScienceFeature feature, bool enabled) async {
-    switch (feature) {
-      case ScienceFeature.photometry:
-        await _setSetting(_keys['photometry']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            photometryEnabled: enabled,
-          ),
+  Future<void> _serialized(
+    Future<void> Function(ScienceSettings current) operation,
+  ) {
+    final result = _writeTail.then((_) async {
+      final current = state.valueOrNull;
+      if (current == null) {
+        throw StateError(
+          'Science settings are not loaded; refusing to overwrite them '
+          'with defaults.',
         );
-        break;
-      case ScienceFeature.photometricCalibration:
-        await _setSetting(_keys['photometricCalibration']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            photometricCalibrationEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.transparency:
-        await _setSetting(_keys['transparency']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            transparencyEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.psfMap:
-        await _setSetting(_keys['psfMap']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            psfMapEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.astrometricResiduals:
-        await _setSetting(_keys['astrometricResiduals']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            astrometricResidualsEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.movingObjects:
-        await _setSetting(_keys['movingObjects']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            movingObjectsEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.narrowbandRatios:
-        await _setSetting(_keys['narrowbandRatios']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            narrowbandRatiosEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.frameQualityMaps:
-        await _setSetting(_keys['frameQualityMaps']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            frameQualityMapsEnabled: enabled,
-          ),
-        );
-        break;
-      case ScienceFeature.surface3d:
-        await _setSetting(_keys['surface3d']!, enabled);
-        state = AsyncData(
-          (state.value ?? const ScienceSettings()).copyWith(
-            surface3dEnabled: enabled,
-          ),
-        );
-        break;
-    }
-  }
-
-  Future<void> setMpcObservatoryCode(String code) async {
-    await _setStringSetting(_keys['mpcObservatoryCode']!, code);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        mpcObservatoryCode: code,
-      ),
+      }
+      await operation(current);
+    });
+    _writeTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
     );
+    return result;
   }
 
-  Future<void> setAavsoObserverCode(String code) async {
-    await _setStringSetting(_keys['aavsoObserverCode']!, code);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        aavsoObserverCode: code,
-      ),
-    );
+  Future<void> _update(
+    Map<String, String> values,
+    ScienceSettings Function(ScienceSettings current) change,
+  ) {
+    return _serialized((current) async {
+      final updated = change(current);
+      await _writeScienceSettings(ref, values);
+      state = AsyncData(updated);
+    });
   }
 
-  Future<void> setObserverName(String name) async {
-    await _setStringSetting(_keys['observerName']!, name);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(observerName: name),
-    );
+  Future<void> setAdvancedModeEnabled(bool enabled) => _update({
+    _keys['advancedMode']!: enabled.toString(),
+  }, (current) => current.copyWith(advancedModeEnabled: enabled));
+
+  Future<void> setOverlayEnabled(bool enabled) => _update({
+    _keys['overlay']!: enabled.toString(),
+  }, (current) => current.copyWith(overlayEnabled: enabled));
+
+  Future<void> setFeatureEnabled(ScienceFeature feature, bool enabled) {
+    final key = switch (feature) {
+      ScienceFeature.photometry => _keys['photometry']!,
+      ScienceFeature.photometricCalibration => _keys['photometricCalibration']!,
+      ScienceFeature.transparency => _keys['transparency']!,
+      ScienceFeature.psfMap => _keys['psfMap']!,
+      ScienceFeature.astrometricResiduals => _keys['astrometricResiduals']!,
+      ScienceFeature.movingObjects => _keys['movingObjects']!,
+      ScienceFeature.narrowbandRatios => _keys['narrowbandRatios']!,
+      ScienceFeature.frameQualityMaps => _keys['frameQualityMaps']!,
+      ScienceFeature.surface3d => _keys['surface3d']!,
+    };
+    return _update({key: enabled.toString()}, (current) {
+      return switch (feature) {
+        ScienceFeature.photometry => current.copyWith(
+          photometryEnabled: enabled,
+        ),
+        ScienceFeature.photometricCalibration => current.copyWith(
+          photometricCalibrationEnabled: enabled,
+        ),
+        ScienceFeature.transparency => current.copyWith(
+          transparencyEnabled: enabled,
+        ),
+        ScienceFeature.psfMap => current.copyWith(psfMapEnabled: enabled),
+        ScienceFeature.astrometricResiduals => current.copyWith(
+          astrometricResidualsEnabled: enabled,
+        ),
+        ScienceFeature.movingObjects => current.copyWith(
+          movingObjectsEnabled: enabled,
+        ),
+        ScienceFeature.narrowbandRatios => current.copyWith(
+          narrowbandRatiosEnabled: enabled,
+        ),
+        ScienceFeature.frameQualityMaps => current.copyWith(
+          frameQualityMapsEnabled: enabled,
+        ),
+        ScienceFeature.surface3d => current.copyWith(surface3dEnabled: enabled),
+      };
+    });
   }
 
-  Future<void> setMpcAstrometricCatalog(String catalog) async {
-    await _setStringSetting(_keys['mpcAstrometricCatalog']!, catalog);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        mpcAstrometricCatalog: catalog,
-      ),
-    );
+  Future<void> setMpcObservatoryCode(String code) => _update({
+    _keys['mpcObservatoryCode']!: code,
+  }, (current) => current.copyWith(mpcObservatoryCode: code));
+
+  Future<void> setAavsoObserverCode(String code) => _update({
+    _keys['aavsoObserverCode']!: code,
+  }, (current) => current.copyWith(aavsoObserverCode: code));
+
+  Future<void> setObserverName(String name) => _update({
+    _keys['observerName']!: name,
+  }, (current) => current.copyWith(observerName: name));
+
+  Future<void> setMpcAstrometricCatalog(String catalog) => _update({
+    _keys['mpcAstrometricCatalog']!: catalog,
+  }, (current) => current.copyWith(mpcAstrometricCatalog: catalog));
+
+  Future<void> setTnsBotId(int id) => _update({
+    _keys['tnsBotId']!: id.toString(),
+  }, (current) => current.copyWith(tnsBotId: id));
+
+  Future<void> setTnsBotName(String name) => _update({
+    _keys['tnsBotName']!: name,
+  }, (current) => current.copyWith(tnsBotName: name));
+
+  Future<void> setTnsReportingGroupId(int id) => _update({
+    _keys['tnsReportingGroupId']!: id.toString(),
+  }, (current) => current.copyWith(tnsReportingGroupId: id));
+
+  Future<void> setTnsDataSourceId(int id) => _update({
+    _keys['tnsDataSourceId']!: id.toString(),
+  }, (current) => current.copyWith(tnsDataSourceId: id));
+
+  Future<void> setTnsReporterName(String name) => _update({
+    _keys['tnsReporterName']!: name,
+  }, (current) => current.copyWith(tnsReporterName: name));
+
+  Future<void> setTnsUseSandbox(bool enabled) => _update({
+    _keys['tnsUseSandbox']!: enabled.toString(),
+  }, (current) => current.copyWith(tnsUseSandbox: enabled));
+
+  Future<void> setFitsHeaderWritebackEnabled(bool enabled) => _update({
+    _keys['fitsHeaderWriteback']!: enabled.toString(),
+  }, (current) => current.copyWith(fitsHeaderWritebackEnabled: enabled));
+
+  Future<void> setAutoFrameGradingEnabled(bool enabled) {
+    return _serialized((current) async {
+      await ref.read(appSettingsProvider.future);
+      await ref
+          .read(appSettingsProvider.notifier)
+          .setEnableImageGrading(enabled);
+      await _writeScienceSettings(ref, {
+        _keys['autoFrameGrading']!: enabled.toString(),
+      });
+      state = AsyncData(current.copyWith(autoFrameGradingEnabled: enabled));
+    });
   }
 
-  Future<void> setTnsBotId(int id) async {
-    await _setStringSetting(_keys['tnsBotId']!, id.toString());
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(tnsBotId: id),
-    );
-  }
+  Future<void> setScienceGuideCollapsed(bool collapsed) => _update({
+    _keys['guideCollapsed']!: collapsed.toString(),
+  }, (current) => current.copyWith(scienceGuideCollapsed: collapsed));
 
-  Future<void> setTnsBotName(String name) async {
-    await _setStringSetting(_keys['tnsBotName']!, name);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(tnsBotName: name),
-    );
-  }
-
-  Future<void> setTnsReportingGroupId(int id) async {
-    await _setStringSetting(_keys['tnsReportingGroupId']!, id.toString());
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        tnsReportingGroupId: id,
-      ),
-    );
-  }
-
-  Future<void> setTnsDataSourceId(int id) async {
-    await _setStringSetting(_keys['tnsDataSourceId']!, id.toString());
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(tnsDataSourceId: id),
-    );
-  }
-
-  Future<void> setTnsReporterName(String name) async {
-    await _setStringSetting(_keys['tnsReporterName']!, name);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(tnsReporterName: name),
-    );
-  }
-
-  Future<void> setTnsUseSandbox(bool enabled) async {
-    await _setSetting(_keys['tnsUseSandbox']!, enabled);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(tnsUseSandbox: enabled),
-    );
-  }
-
-  Future<void> setFitsHeaderWritebackEnabled(bool enabled) async {
-    await _setSetting(_keys['fitsHeaderWriteback']!, enabled);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        fitsHeaderWritebackEnabled: enabled,
-      ),
-    );
-  }
-
-  Future<void> setAutoFrameGradingEnabled(bool enabled) async {
-    await _setSetting(_keys['autoFrameGrading']!, enabled);
-    await ref.read(appSettingsProvider.notifier).setEnableImageGrading(enabled);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        autoFrameGradingEnabled: enabled,
-      ),
-    );
-  }
-
-  Future<void> setScienceGuideCollapsed(bool collapsed) async {
-    await _setSetting(_keys['guideCollapsed']!, collapsed);
-    state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        scienceGuideCollapsed: collapsed,
-      ),
-    );
-  }
-
-  Future<void> setFrameGradeRules(FrameGradeRules rules) async {
+  Future<void> setFrameGradeRules(FrameGradeRules rules) {
     final json = rules.isEmpty ? '' : rules.toJsonString();
-    await _writeScienceSettings(ref, {_keys['frameGradeRules']!: json});
-    // copyWith treats a null json as "keep current", so clearing the rules
-    // must go through the explicit clear flag or stale thresholds keep
-    // grading frames until the next app restart.
-    state = AsyncData(
-      json.isEmpty
-          ? (state.value ?? const ScienceSettings()).copyWith(
-              clearFrameGradeRulesJson: true,
-            )
-          : (state.value ?? const ScienceSettings()).copyWith(
-              frameGradeRulesJson: json,
-            ),
+    return _update(
+      {_keys['frameGradeRules']!: json},
+      (current) => json.isEmpty
+          ? current.copyWith(clearFrameGradeRulesJson: true)
+          : current.copyWith(frameGradeRulesJson: json),
     );
   }
 
   bool _parseBool(String? value, bool fallback) {
-    if (value == null) {
-      return fallback;
+    if (value == null || value.isEmpty) return fallback;
+    switch (value.toLowerCase()) {
+      case 'true':
+        return true;
+      case 'false':
+        return false;
+      default:
+        throw FormatException('Invalid persisted boolean "$value"');
     }
-    return value.toLowerCase() == 'true';
+  }
+
+  int _parseInt(String? value, String key) {
+    if (value == null || value.isEmpty) return 0;
+    final parsed = int.tryParse(value);
+    if (parsed == null) {
+      throw FormatException('Invalid persisted integer for $key: "$value"');
+    }
+    return parsed;
   }
 }
 

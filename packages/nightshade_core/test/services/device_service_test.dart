@@ -11,6 +11,7 @@ import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/device_heartbeat_health_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
+import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/services/device_exceptions.dart';
@@ -51,6 +52,14 @@ void main() {
     when(
       () => mockBackend.cameraGetRecommendedSettings(any()),
     ).thenAnswer((_) async => const CameraRecommendedSettings(notes: ''));
+    when(
+      () => mockBackend.startDeviceHeartbeat(
+        deviceType: any(named: 'deviceType'),
+        deviceId: any(named: 'deviceId'),
+        intervalMs: any(named: 'intervalMs'),
+      ),
+    ).thenAnswer((_) async {});
+    when(() => mockBackend.stopDeviceHeartbeat(any())).thenAnswer((_) async {});
 
     container = ProviderContainer(
       overrides: [
@@ -308,6 +317,13 @@ void main() {
       expect(state.maxPosition, 50000);
       expect(state.temperature, 12.5);
       expect(state.isMoving, isFalse);
+      verify(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: DeviceType.focuser,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        ),
+      ).called(1);
     });
 
     test('disconnectFocuser resets state', () async {
@@ -326,6 +342,7 @@ void main() {
 
       final state = container.read(focuserStateProvider);
       expect(state.connectionState, DeviceConnectionState.disconnected);
+      verify(() => mockBackend.stopDeviceHeartbeat(deviceId)).called(1);
     });
   });
 
@@ -1682,5 +1699,212 @@ void main() {
       verifyNever(() => mockBackend.disconnectDevice(DeviceType.camera, any()));
       verifyNever(() => mockBackend.disconnectDevice(DeviceType.mount, any()));
     });
+  });
+
+  group('disconnect failure preserves live connection authority', () {
+    test('camera notifier keeps device id and restarts monitoring', () async {
+      const deviceId = TestFixtures.cameraId;
+      container.read(cameraStateProvider.notifier)
+        ..setConnecting(deviceId, 'Test Camera')
+        ..setConnected();
+
+      when(
+        () => mockBackend.stopDeviceHeartbeat(deviceId),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: DeviceType.camera,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.disconnectDevice(DeviceType.camera, deviceId),
+      ).thenThrow(StateError('camera driver refused disconnect'));
+      when(() => mockBackend.getCameraStatus(deviceId)).thenAnswer(
+        (_) async => const CameraStatus(
+          connected: true,
+          state: device_types.CameraState.idle,
+          sensorTemp: -10,
+          coolerPower: 0,
+          targetTemp: -10,
+          coolerOn: false,
+          gain: 100,
+          offset: 10,
+          binX: 1,
+          binY: 1,
+          sensorWidth: 100,
+          sensorHeight: 100,
+          pixelSizeX: 3.76,
+          pixelSizeY: 3.76,
+          maxAdu: 65535,
+          canCool: true,
+          canSetGain: true,
+          canSetOffset: true,
+        ),
+      );
+
+      await expectLater(
+        container.read(cameraStateProvider.notifier).disconnect(),
+        throwsA(isA<StateError>()),
+      );
+
+      final state = container.read(cameraStateProvider);
+      expect(state.connectionState, DeviceConnectionState.connected);
+      expect(state.deviceId, deviceId);
+      expect(
+        container
+            .read(deviceServiceProvider)
+            .isUserInitiatedDisconnect(deviceId),
+        isFalse,
+      );
+      verify(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: DeviceType.camera,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        ),
+      ).called(1);
+    });
+
+    test(
+      'mount notifier keeps device id and restarts heartbeat/polling',
+      () async {
+        const deviceId = TestFixtures.mountId;
+        container.read(mountStateProvider.notifier)
+          ..setConnecting(deviceId, 'Test Mount')
+          ..setConnected();
+
+        when(
+          () => mockBackend.stopDeviceHeartbeat(deviceId),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockBackend.startDeviceHeartbeat(
+            deviceType: DeviceType.mount,
+            deviceId: deviceId,
+            intervalMs: 10000,
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockBackend.disconnectDevice(DeviceType.mount, deviceId),
+        ).thenThrow(StateError('mount driver refused disconnect'));
+        when(() => mockBackend.getMountStatus(deviceId)).thenAnswer(
+          (_) async => const MountStatus(
+            connected: true,
+            tracking: true,
+            slewing: false,
+            parked: false,
+            atHome: false,
+            sideOfPier: PierSide.east,
+            rightAscension: 0,
+            declination: 0,
+            altitude: 0,
+            azimuth: 0,
+            siderealTime: 0,
+            trackingRate: TrackingRate.sidereal,
+            canPark: true,
+            canSlew: true,
+            canSync: true,
+            canPulseGuide: true,
+            canSetTrackingRate: true,
+          ),
+        );
+
+        await expectLater(
+          container.read(mountStateProvider.notifier).disconnect(),
+          throwsA(isA<StateError>()),
+        );
+
+        final state = container.read(mountStateProvider);
+        expect(state.connectionState, DeviceConnectionState.connected);
+        expect(state.deviceId, deviceId);
+        expect(
+          container
+              .read(deviceServiceProvider)
+              .isUserInitiatedDisconnect(deviceId),
+          isFalse,
+        );
+        verify(
+          () => mockBackend.startDeviceHeartbeat(
+            deviceType: DeviceType.mount,
+            deviceId: deviceId,
+            intervalMs: 10000,
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'PHD2 notifier preserves connection when teardown is rejected',
+      () async {
+        const deviceId = 'phd2_guider';
+        container.read(guiderStateProvider.notifier)
+          ..setConnecting(deviceId, 'PHD2')
+          ..setConnected();
+        when(
+          () => mockBackend.phd2Disconnect(),
+        ).thenThrow(StateError('PHD2 teardown rejected'));
+
+        await expectLater(
+          container.read(guiderStateProvider.notifier).disconnect(),
+          throwsA(isA<StateError>()),
+        );
+
+        final state = container.read(guiderStateProvider);
+        expect(state.connectionState, DeviceConnectionState.connected);
+        expect(state.deviceId, deviceId);
+        expect(
+          container
+              .read(deviceServiceProvider)
+              .isUserInitiatedDisconnect(deviceId),
+          isFalse,
+        );
+      },
+    );
+  });
+
+  test('configured but disconnected guider cannot receive commands', () async {
+    final configuredContainer = ProviderContainer(
+      overrides: [
+        backendProvider.overrideWith(
+          (ref) => TestBackendNotifier(ref, mockBackend),
+        ),
+        activeEquipmentProfileProvider.overrideWithValue(
+          const EquipmentProfileModel(
+            id: 7,
+            name: 'Configured only',
+            guiderId: 'simulator:configured-guider',
+          ),
+        ),
+      ],
+    );
+    addTearDown(configuredContainer.dispose);
+    final service = configuredContainer.read(deviceServiceProvider);
+
+    await expectLater(service.startGuiding(), throwsException);
+    await expectLater(service.stopGuiding(), throwsException);
+    await expectLater(service.dither(), throwsException);
+
+    verifyNever(
+      () => mockBackend.guiderStartGuiding(
+        deviceId: any(named: 'deviceId'),
+        settlePixels: any(named: 'settlePixels'),
+        settleTime: any(named: 'settleTime'),
+        settleTimeout: any(named: 'settleTimeout'),
+      ),
+    );
+    verifyNever(
+      () => mockBackend.guiderStopGuiding(deviceId: any(named: 'deviceId')),
+    );
+    verifyNever(
+      () => mockBackend.guiderDither(
+        deviceId: any(named: 'deviceId'),
+        amount: any(named: 'amount'),
+        raOnly: any(named: 'raOnly'),
+        settlePixels: any(named: 'settlePixels'),
+        settleTime: any(named: 'settleTime'),
+        settleTimeout: any(named: 'settleTimeout'),
+      ),
+    );
   });
 }

@@ -292,6 +292,30 @@ impl DeviceOps for BridgeDeviceOps {
         bin_x: i32,
         bin_y: i32,
     ) -> DeviceResult<ImageData> {
+        // Frame-type-agnostic entry point → Light. Dark/bias flows through the
+        // frame-type-aware method below (shared body).
+        self.camera_start_exposure_with_frame_type(
+            camera_id,
+            duration_secs,
+            gain,
+            offset,
+            bin_x,
+            bin_y,
+            "Light",
+        )
+        .await
+    }
+
+    async fn camera_start_exposure_with_frame_type(
+        &self,
+        camera_id: &str,
+        duration_secs: f64,
+        gain: Option<i32>,
+        offset: Option<i32>,
+        bin_x: i32,
+        bin_y: i32,
+        frame_type: &str,
+    ) -> DeviceResult<ImageData> {
         tracing::info!(
             "Starting {:.1}s exposure on camera {}",
             duration_secs,
@@ -303,7 +327,15 @@ impl DeviceOps for BridgeDeviceOps {
         // could overwrite each other's data in the global LAST_RAW_IMAGE_INFO storage.
         let unified_ops = create_unified_device_ops();
         let image_data = unified_ops
-            .camera_start_exposure(camera_id, duration_secs, gain, offset, bin_x, bin_y)
+            .camera_start_exposure_with_frame_type(
+                camera_id,
+                duration_secs,
+                gain,
+                offset,
+                bin_x,
+                bin_y,
+                frame_type,
+            )
             .await?;
 
         // Validate the raw data

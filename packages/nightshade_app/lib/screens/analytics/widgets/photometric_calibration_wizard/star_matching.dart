@@ -75,106 +75,115 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
   }
 
   Widget _buildMatchResults(NightshadeColors colors) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: NightshadeDecorations.emphasisSurface(
-              colors.success,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-            ),
-            child: Row(
-              children: [
-                Icon(LucideIcons.checkCircle2, color: colors.success, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '${_starMatches.length} catalog stars matched',
-                  style: NightshadeTypography.label.copyWith(
-                    color: colors.success,
-                  ),
-                ),
-              ],
-            ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: NightshadeDecorations.emphasisSurface(
+            colors.success,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
-          if (_statusMessage.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              _statusMessage,
-              style: TextStyle(
-                color: _statusMessage.contains('extinction is fittable')
-                    ? colors.success
-                    : colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12,
+          child: Row(
+            children: [
+              Icon(LucideIcons.checkCircle2, color: colors.success, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                '${_starMatches.length} catalog stars matched',
+                style: NightshadeTypography.label.copyWith(
+                  color: colors.success,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+        if (_statusMessage.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: math.min(_starMatches.length, 20),
-              itemBuilder: (context, index) {
-                final match = _starMatches[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 30,
-                        child: Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                              color: colors.textMuted,
-                              fontSize: NightshadeTypography.fontSize11),
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'V=${match.catalogMagV.toStringAsFixed(2)}  '
-                          'B-V=${match.colorIndex.toStringAsFixed(2)}  '
-                          'Flux=${match.instrumentalFlux.toStringAsFixed(0)}  '
-                          'SNR=${match.snr.toStringAsFixed(1)}',
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize11,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+          Text(
+            _statusMessage,
+            style: TextStyle(
+              color: _statusMessage.contains('extinction is fittable')
+                  ? colors.success
+                  : colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ],
-      ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: math.min(_starMatches.length, 20),
+          itemBuilder: (context, index) {
+            final match = _starMatches[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: NightshadeTypography.fontSize11),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'V=${match.catalogMagV.toStringAsFixed(2)}  '
+                      'B-V=${match.colorIndex.toStringAsFixed(2)}  '
+                      'Flux=${match.instrumentalFlux.toStringAsFixed(0)}  '
+                      'SNR=${match.snr.toStringAsFixed(1)}',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize11,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
   Future<void> _runStarMatching() async {
-    if (_selectedImageIds.isEmpty) {
+    if (_selectedImageIds.isEmpty || _isComputing || _isSaving) {
       return;
     }
 
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
+    final imageIds = List<int>.unmodifiable(_selectedImageIds);
+
     _update(() {
       _isComputing = true;
+      _fitAttempted = false;
       _statusMessage = 'Matching stars against catalog...';
     });
 
     try {
-      final backend = ref.read(backendProvider);
       final matches = <CatalogStarMatch>[];
-      for (final imageId in _selectedImageIds) {
-        if (backend is NetworkBackend) {
+      for (final imageId in imageIds) {
+        if (authority is NetworkBackend) {
           matches.addAll(
-            await backend.matchPhotometricCalibrationStars(imageId),
+            await authority.matchPhotometricCalibrationStars(imageId),
           );
         } else {
-          matches.addAll(await _matchesForImage(imageId));
+          matches.addAll(
+            await _matchesForImage(
+              imageId,
+              authority: authority,
+              generation: generation,
+            ),
+          );
         }
+        if (!_isCurrentOperation(generation, authority)) return;
       }
       if (matches.length < 4) {
         throw StateError(
@@ -185,7 +194,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       // Keep the strongest detections; with multiple frames the budget
       // scales so each frame keeps contributing airmass leverage.
       matches.sort((a, b) => b.snr.compareTo(a.snr));
-      final cap = 200 * _selectedImageIds.length;
+      final cap = 200 * imageIds.length;
       final topMatches =
           matches.length > cap ? matches.sublist(0, cap) : matches;
 
@@ -203,11 +212,12 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         _starMatches = topMatches;
         _isComputing = false;
         _statusMessage = 'Matched ${topMatches.length} stars across '
-            '${_selectedImageIds.length} frame(s). '
+            '${imageIds.length} frame(s). '
             'Airmass span ${airmassSpan.toStringAsFixed(2)} — '
             '${airmassSpan >= 0.05 ? 'extinction is fittable.' : 'add frames at different altitudes to fit extinction (k will be reported as 0).'}';
       });
     } catch (error, stack) {
+      if (!_isCurrentOperation(generation, authority)) return;
       _update(() {
         _isComputing = false;
         _statusMessage = 'Star matching failed: $error';
@@ -223,11 +233,16 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
   /// return catalog matches with the frame's own airmass attached — the
   /// per-frame airmass is what lets a multi-frame selection constrain
   /// atmospheric extinction.
-  Future<List<CatalogStarMatch>> _matchesForImage(int imageId) async {
+  Future<List<CatalogStarMatch>> _matchesForImage(
+    int imageId, {
+    required NightshadeBackend authority,
+    required int generation,
+  }) async {
     final scienceBackend = ref.read(scienceBackendProvider);
     final imagesDao = ref.read(imagesDaoProvider);
 
     final image = await imagesDao.getImageById(imageId);
+    if (!_isCurrentOperation(generation, authority)) return const [];
     if (image == null) {
       throw StateError('Selected image $imageId not found');
     }
@@ -241,6 +256,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       image.filePath,
       const PhotometryOptions(minSnr: 5.0),
     );
+    if (!_isCurrentOperation(generation, authority)) return const [];
 
     if (stars.length < 4) {
       throw StateError(
@@ -264,9 +280,14 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     // pixel pitch — rather than guessing a fixed 1.5"/px. The hard-coded
     // value only applies when BOTH the pixel size and focal length are
     // unavailable.
-    final pixelScale =
-        image.solvedPixelScale ?? await _resolveFallbackPixelScale();
+    final pixelScale = image.solvedPixelScale ??
+        await _resolveFallbackPixelScale(
+          authority: authority,
+          generation: generation,
+        );
+    if (!_isCurrentOperation(generation, authority)) return const [];
     final distortion = await imagesDao.getStoredWcsDistortion(image.id);
+    if (!_isCurrentOperation(generation, authority)) return const [];
     final sip = decodeSolvedSip(distortion?.sip);
     final wcs = WcsSolution(
       raHours: image.solvedRa!,
@@ -314,6 +335,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         imageHeight: 0,
       ),
     );
+    if (!_isCurrentOperation(generation, authority)) return const [];
 
     if (calibration == null || !calibration.isCalibrated) {
       throw StateError(
@@ -331,12 +353,14 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
             ) *
             0.65 +
         0.3;
-    final cone = await ref.read(photometricCatalogServiceProvider).coneSearch(
-          raDegrees: wcs.raHours * 15.0,
-          decDegrees: wcs.decDegrees,
-          radiusDegrees: searchRadiusDeg.clamp(0.25, 8.0),
-          maxMagnitude: 16.0,
-        );
+    final catalogService = ref.read(photometricCatalogServiceProvider);
+    final cone = await catalogService.coneSearch(
+      raDegrees: wcs.raHours * 15.0,
+      decDegrees: wcs.decDegrees,
+      radiusDegrees: searchRadiusDeg.clamp(0.25, 8.0),
+      maxMagnitude: 16.0,
+    );
+    if (!_isCurrentOperation(generation, authority)) return const [];
     final catalogStars = cone.stars;
 
     // Build a spatial index of catalog stars projected to pixel coords
@@ -345,7 +369,10 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       filePath: image.filePath,
       stars: stars,
       pixelScale: image.solvedPixelScale,
+      authority: authority,
+      generation: generation,
     );
+    if (!_isCurrentOperation(generation, authority)) return const [];
     // Canonical TAN projection (services/wcs in nightshade_core) — the
     // same implementation the science pipeline and catalog overlay use.
     final solvedWcs = SolvedWcs(
@@ -494,7 +521,13 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
   /// then computes arcsec/pixel via [_fallbackPixelScale]. A missing profile,
   /// camera, or capability query leaves the corresponding input null, and the
   /// helper only collapses to the fixed default when BOTH are unavailable.
-  Future<double> _resolveFallbackPixelScale() async {
+  Future<double> _resolveFallbackPixelScale({
+    required NightshadeBackend authority,
+    required int generation,
+  }) async {
+    if (!_isCurrentOperation(generation, authority)) {
+      return kDefaultFallbackPixelScale;
+    }
     final profile = ref.read(activeEquipmentProfileProvider);
 
     // Effective focal length already folds in any reducer/barlow (the profile
@@ -510,6 +543,9 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       try {
         final caps =
             await ref.read(cameraCapabilitiesProvider(cameraId).future);
+        if (!_isCurrentOperation(generation, authority)) {
+          return kDefaultFallbackPixelScale;
+        }
         final px = caps?.pixelSizeX;
         if (px != null && px > 0) {
           pixelSizeUm = px;
@@ -530,8 +566,13 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     required String filePath,
     required List<StarMeasurement> stars,
     double? pixelScale,
+    required NightshadeBackend authority,
+    required int generation,
   }) async {
-    if (!ref.read(isRemoteModeProvider)) {
+    if (!_isCurrentOperation(generation, authority)) {
+      throw StateError('Photometric calibration operation was retired.');
+    }
+    if (authority is! NetworkBackend) {
       final fits = await ref
           .read(imagingBackendProvider)
           .readFitsFile(filePath: filePath);
@@ -541,12 +582,9 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     // Remote: ask the host for the TRUE dimensions (it reads the real FITS
     // header) rather than estimating from the star bounding box. The estimate
     // below remains only as a last resort if the host can't read the file.
-    final backend = ref.read(backendProvider);
-    if (backend is NetworkBackend) {
-      final dims = await backend.getFitsDimensions(filePath);
-      if (dims != null) {
-        return (width: dims.width.toDouble(), height: dims.height.toDouble());
-      }
+    final dims = await authority.getFitsDimensions(filePath);
+    if (dims != null) {
+      return (width: dims.width.toDouble(), height: dims.height.toDouble());
     }
 
     if (stars.isNotEmpty) {

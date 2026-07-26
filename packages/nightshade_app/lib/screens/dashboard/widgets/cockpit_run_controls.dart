@@ -75,9 +75,20 @@ class CockpitRunControls extends ConsumerWidget {
         );
       }
 
+      // A Start offered against a backend that cannot carry the command is the
+      // app claiming a capability it does not have: on a remote controller
+      // whose host has gone away, tapping Start could never launch anything.
+      // Gate the affordance AND the surrounding copy on the same signal so the
+      // strip never reads "Ready" while nothing can be commanded.
+      final canCommand = ref.watch(backendCanCommandProvider);
+
       // After a terminal state the Start button re-arms the same sequence; the
       // helper text + badge stay honest about how the last attempt ended.
       final (String readyText, Widget badge) = switch (state) {
+        _ when !canCommand => (
+            'Host unreachable — reconnect to start this sequence.',
+            _OfflineBadge(colors: colors),
+          ),
         SequenceExecutionState.failed => (
             'Run failed — fix the issue and start again.',
             _StateBadge(colors: colors, state: state),
@@ -98,7 +109,8 @@ class CockpitRunControls extends ConsumerWidget {
             colors: colors,
             icon: LucideIcons.play,
             label: 'Start',
-            isActive: true,
+            isActive: canCommand,
+            isEnabled: canCommand,
             onPressed: startSequence,
           ),
           const SizedBox(width: 10),
@@ -186,9 +198,10 @@ class CockpitRunControls extends ConsumerWidget {
           const SizedBox(width: 8),
           // Stop is hold-to-confirm so a stray click can't abort an overnight
           // run; the inner button is IgnorePointer so the hold gesture is
-          // owned exclusively by HoldToConfirmButton.
+          // owned exclusively by HoldToConfirmButton. Enabled wherever a stop
+          // is meaningful — including a retry from stopFailed / cleanupFailed.
           HoldToConfirmButton(
-            enabled: isRunning || isPaused,
+            enabled: state.canStop,
             holdColor: colors.error,
             confirmText: 'Hold to stop',
             semanticsLabel: 'Press and hold to stop the sequence',
@@ -198,18 +211,21 @@ class CockpitRunControls extends ConsumerWidget {
                 colors: colors,
                 icon: LucideIcons.square,
                 label: 'Stop',
-                isEnabled: isRunning || isPaused,
+                isEnabled: state.canStop,
                 onPressed: stopSequence,
               ),
             ),
           ),
           const SizedBox(width: 8),
-          // Skip the current instruction — only meaningful while running.
+          // Skip the current instruction — the backend skip advances the node
+          // pointer while the run is running OR paused, so route through the
+          // canonical [canSkip] instead of open-coding `isRunning` (which hid
+          // Skip from a paused run, drifting from every other surface).
           _ControlButton(
             colors: colors,
             icon: LucideIcons.skipForward,
             label: 'Skip',
-            isEnabled: isRunning,
+            isEnabled: state.canSkip,
             onPressed: skipNode,
           ),
           const Spacer(),
@@ -241,19 +257,11 @@ class CockpitRunControls extends ConsumerWidget {
         connected(focuserStateProvider.select((s) => s.connectionState));
   }
 
-  bool _isActive(SequenceExecutionState state) {
-    switch (state) {
-      case SequenceExecutionState.running:
-      case SequenceExecutionState.paused:
-      case SequenceExecutionState.stopping:
-      case SequenceExecutionState.recovering:
-        return true;
-      case SequenceExecutionState.idle:
-      case SequenceExecutionState.completed:
-      case SequenceExecutionState.failed:
-        return false;
-    }
-  }
+  /// Whether to show the run-control strip (pause/stop/skip) instead of the
+  /// Start affordance. True for every non-settled state — including the
+  /// retryable stopFailed / cleanupFailed — so the operator keeps a Stop retry
+  /// and never faces a Start button while the prior run is still winding down.
+  bool _isActive(SequenceExecutionState state) => state.isBusy;
 }
 
 /// Small "Ready" chip shown next to the Start button when a launchable
@@ -282,6 +290,43 @@ class _ReadyBadge extends StatelessWidget {
               fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w700,
               color: colors.info,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown in place of the "Ready" chip when a launchable sequence is loaded but
+/// the backend cannot carry a start command (host unreachable). The sequence
+/// really is loaded — what is missing is the host — so this reports the
+/// connection, not the sequence.
+class _OfflineBadge extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _OfflineBadge({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: NightshadeDecorations.statusChip(
+        colors.warning,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          StatusDot(color: colors.warning, size: 8),
+          const SizedBox(width: 6),
+          Text(
+            'Offline',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              fontWeight: FontWeight.w700,
+              color: colors.warning,
               letterSpacing: 0.3,
             ),
           ),
@@ -412,6 +457,21 @@ class _StateBadge extends StatelessWidget {
           colors.error,
           LucideIcons.xCircle,
           'Failed',
+        ),
+      SequenceExecutionState.stopFailed => (
+          colors.error,
+          LucideIcons.alertOctagon,
+          'Stop failed',
+        ),
+      SequenceExecutionState.cleanupFailed => (
+          colors.warning,
+          LucideIcons.alertTriangle,
+          'Cleanup failed',
+        ),
+      SequenceExecutionState.finalizing => (
+          colors.info,
+          LucideIcons.loader,
+          'Finalizing',
         ),
     };
 

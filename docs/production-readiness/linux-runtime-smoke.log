@@ -1,32 +1,13 @@
-linux runtime smoke started: 2026-06-16T19:50:19Z
-binary: apps/desktop/build/linux/x64/release/bundle/nightshade_desktop
-port: 18081
-auth: admin bearer token used for protected endpoints
-pid: 910623
-
-(com.example.nightshade_desktop:910623): Atk-CRITICAL **: 15:50:19.756: atk_socket_embed: assertion 'plug_id != NULL' failed
-Gdk-Message: 15:50:19.906: Unable to load  from the cursor theme
-Nightshade 2.0 - Headless Mode
-==============================
-Initializing native bridge and data directories...
-[OK] Native bridge initialized
-[OK] Data directory: /home/scdouglas/.local/share/com.example.nightshade_desktop
-[OK] Profile and settings storage initialized
-Initializing services...
-
-  Mobile devices can connect to:
-    http://192.168.1.20:18081
-
-  Authentication required:
-    Authorization: Bearer linu...oken
-
-
-Nightshade is running in headless mode.
-Press Ctrl+C to stop.
-
-headless_process_started=true pid=910623
-api_info_ok=true bytes=17796
-api_info_summary={"apiVersion": "2.6.0", "authRequired": true, "name": "Nightshade Headless", "platform": "linux", "version": "4.0.0", "webUIAvailable": true}
-openapi_ok=true bytes=244107
-dashboard_asset_ok=true bytes=77771
-linux runtime smoke completed: 2026-06-16T19:50:20Z
+2026-07-21T15:06:44.646722Z Nightshade packaged Linux runtime smoke
+Executable: /home/scdouglas/Documents/Nightshade2/apps/desktop/build/linux/x64/release/bundle/nightshade_desktop
+Port: 39071
+Version: 5.0.0
+Platform: linux
+PASS headless_process_started
+PASS api_info_ok
+PASS auth_fail_closed_and_scoped
+PASS self_test_ok
+PASS openapi_ok
+PASS dashboard_asset_ok (HTML, CSS, api.js, app.js)
+PASS websocket_ping_pong
+PASS packaged_linux_runtime_smoke

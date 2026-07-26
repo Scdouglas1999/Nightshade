@@ -1,6 +1,15 @@
 part of '../network_backend.dart';
 
+// Long-running device commands use the shared job transport implemented by
+// _NetworkBackendRemoteOperations.
+
 mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
+  Future<Map<String, dynamic>> awaitJobResultOrLegacy(
+    Map<String, dynamic> response, {
+    required String operation,
+    required Duration timeout,
+  });
+
   // =========================================================================
   // Device Discovery & Connection
   // =========================================================================
@@ -74,21 +83,43 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       for (final type in DeviceType.values) type: <DeviceInfo>[],
     };
 
-    for (final device in devices) {
+    for (var index = 0; index < devices.length; index++) {
+      final device = devices[index];
       final typeValue = device['deviceType'] ?? device['type'];
       if (typeValue is! String) {
-        continue;
+        throw FormatException(
+          'GET /api/devices returned device row $index without a valid '
+          '`deviceType`',
+        );
       }
       final deviceType = _tryParseCachedDeviceType(typeValue);
       if (deviceType == null) {
         continue;
       }
+      final id = device['id'];
+      final name = device['name'];
+      final driverType = device['driverType'];
+      if (id is! String || id.trim().isEmpty) {
+        throw FormatException(
+          'GET /api/devices returned device row $index without a valid `id`',
+        );
+      }
+      if (name is! String || name.trim().isEmpty) {
+        throw FormatException(
+          'GET /api/devices returned device $id without a valid `name`',
+        );
+      }
+      if (driverType is! String || driverType.trim().isEmpty) {
+        throw FormatException(
+          'GET /api/devices returned device $id without a valid `driverType`',
+        );
+      }
       byType[deviceType]!.add(
         DeviceInfo(
-          id: device['id'] as String,
-          name: device['name'] as String,
+          id: id,
+          name: name,
           deviceType: deviceType,
-          driverType: _parseDriverType(device['driverType'] as String),
+          driverType: _parseDriverType(driverType),
           description: device['description'] as String? ?? '',
           driverVersion: device['driverVersion'] as String? ?? '',
         ),
@@ -114,10 +145,10 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   Future<List<Map<String, dynamic>>> _fetchDevicesFromServer() async {
     final response = await _get('devices');
-    return (response['devices'] as List? ??
-            response['available'] as List? ??
-            [])
-        .cast<Map<String, dynamic>>();
+    final source = response.containsKey('devices')
+        ? response['devices']
+        : response['available'];
+    return _rowsFromJson<Map<String, dynamic>>(source, (row) => row);
   }
 
   /// Invalidate device cache (called when "Scan Network" is clicked)
@@ -167,11 +198,24 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       'port': port.toString(),
     });
 
-    final devices = (response['devices'] as List?) ?? const [];
+    final devices = _rowsFromJson<Map<String, dynamic>>(
+      response['devices'],
+      (row) => row,
+    );
     final results = <DeviceInfo>[];
     for (final d in devices) {
-      final id = d['id'] as String? ?? '';
-      final name = d['name'] as String? ?? '';
+      final id = d['id'];
+      final name = d['name'];
+      if (id is! String || id.trim().isEmpty) {
+        throw FormatException(
+          'GET /api/$endpoint returned a device without a valid `id`',
+        );
+      }
+      if (name is! String || name.trim().isEmpty) {
+        throw FormatException(
+          'GET /api/$endpoint returned device $id without a valid `name`',
+        );
+      }
       final deviceTypeName = d['deviceType'] as String?;
       // Server-side schema drift would otherwise silently turn an
       // unknown device class into a Camera. Skip and log loudly per
@@ -292,12 +336,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   @override
   Future<List<DeviceInfo>> getConnectedDevices() async {
     final response = await _get('devices/connected');
-    final deviceList = response['devices'] as List;
-
-    return deviceList
-        .cast<Map<String, dynamic>>()
-        .map(DeviceInfo.fromJson)
-        .toList();
+    return _rowsFromJson(response['devices'], DeviceInfo.fromJson);
   }
 
   // =========================================================================
@@ -340,6 +379,14 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       },
       null,
       1,
+      // The host endpoint intentionally completes the entire exposure,
+      // download, and processing workflow before responding. Add the requested
+      // exposure duration to the transport's normal LAN/tailnet allowance so
+      // legitimate long subs do not time out and appear failed remotely.
+      Duration(
+        milliseconds:
+            requestTimeout.inMilliseconds + (exposureTime * 1000).ceil(),
+      ),
     );
   }
 
@@ -481,6 +528,11 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
         unityGain: (response['unityGain'] as num?)?.toInt(),
         hcgGain: (response['hcgGain'] as num?)?.toInt(),
         defaultOffset: (response['defaultOffset'] as num?)?.toInt(),
+        // `num?.toDouble()` widens an integer JSON value (e.g. `-10`) to the
+        // double the FFI backend reports, and older hosts that omit the field
+        // decode as `null` — preserving the honest "not reported" state.
+        recommendedCoolingSetpointC:
+            (response['recommendedCoolingSetpointC'] as num?)?.toDouble(),
         notes: (response['notes'] as String?) ?? '',
       );
     } on ServerError catch (e) {
@@ -552,11 +604,16 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     required String direction,
     required int durationMs,
   }) async {
-    await _post('mount/pulse-guide', {
-      'deviceId': deviceId,
-      'direction': direction,
-      'durationMs': durationMs,
-    });
+    // A guide pulse is relative, time-based actuation. If the host applies it
+    // but the response times out, retrying would apply a second correction and
+    // can turn a small guide error into a large one. Keep this at-most-once,
+    // matching move-axis and other non-idempotent hardware commands.
+    await _post(
+      'mount/pulse-guide',
+      {'deviceId': deviceId, 'direction': direction, 'durationMs': durationMs},
+      null,
+      1,
+    );
   }
 
   @override
@@ -650,6 +707,8 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     required int stepsOut,
     String method = 'VCurve',
     int binning = 1,
+    int? gain,
+    int? offset,
     String curveFitting = 'Hyperbolic',
     int numberOfAttempts = 1,
     int exposuresPerPoint = 1,
@@ -662,7 +721,7 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     int backlashIn = 350,
     int backlashOut = 0,
   }) async {
-    final response = await _post('focuser/autofocus/start', {
+    final start = await _post('focuser/autofocus/start', {
       'deviceId': deviceId,
       'cameraId': cameraId,
       'exposureTime': exposureTime,
@@ -670,6 +729,8 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       'stepsOut': stepsOut,
       'method': method,
       'binning': binning,
+      if (gain != null) 'gain': gain,
+      if (offset != null) 'offset': offset,
       'curveFitting': curveFitting,
       'numberOfAttempts': numberOfAttempts,
       'exposuresPerPoint': exposuresPerPoint,
@@ -682,6 +743,11 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       'backlashIn': backlashIn,
       'backlashOut': backlashOut,
     });
+    final response = await awaitJobResultOrLegacy(
+      start,
+      operation: 'autofocus',
+      timeout: const Duration(minutes: 30),
+    );
 
     // Parse using pure Dart types from JSON
     return AutofocusResult.fromJson(response);
@@ -766,6 +832,14 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   @override
   Future<void> rotatorHalt(String deviceId) async {
     await _post('rotator/halt', {'deviceId': deviceId});
+  }
+
+  @override
+  Future<void> rotatorSetReverse(String deviceId, bool reverse) async {
+    await _post('rotator/set-reverse', {
+      'deviceId': deviceId,
+      'reverse': reverse,
+    });
   }
 
   @override

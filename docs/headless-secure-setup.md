@@ -9,9 +9,9 @@ token before LAN exposure, and verify the server before connecting devices.
 
 | Mode | Binding | Authentication | Intended Use |
 |------|---------|----------------|--------------|
-| Local loopback | `127.0.0.1` | Optional | Same-machine automation, reverse proxy, development |
+| Local loopback | `127.0.0.1` | Fail closed unless a token is configured; pairing/dashboard always reachable | Same-machine automation, reverse proxy, development |
 | Authenticated LAN | LAN interface | Required | Mobile or browser control from trusted LAN clients |
-| Unauthenticated LAN | LAN interface | None | Isolated development networks only |
+| Unauthenticated LAN | LAN interface | None — requires explicit `--allow-unauthenticated` **and** `--allow-unauthenticated-lan` | Isolated development networks only |
 
 The headless entry point binds to loopback unless one of these is true:
 
@@ -24,6 +24,32 @@ The headless entry point binds to loopback unless one of these is true:
 Do not use unauthenticated LAN mode for normal imaging. It exposes control
 commands such as slew, park, device connect, sequence start, and backup restore
 to any client that can reach the port.
+
+## Authentication Posture (Fail Closed by Default)
+
+When no token is configured the server **fails closed**: privileged endpoints
+(control, status, OpenAPI, backup, OTA) return `401`, and only the onboarding
+surface — pairing (`/api/pairing/*`), discovery (`/api/info`), and the static
+dashboard — is reachable. A fresh appliance is still bootstrapped normally: a
+client pairs out-of-band, `POST /api/pairing/verify` mints a bearer token, and
+that token unlocks the privileged endpoints. So an unconfigured server is safe by
+default rather than wide open.
+
+To intentionally serve **everything** without authentication (isolated
+development networks only), opt in explicitly:
+
+- `--allow-unauthenticated`, or
+- `NIGHTSHADE_ALLOW_UNAUTHENTICATED=true`.
+
+The server logs a prominent warning at startup when this is set. Authentication
+(`--allow-unauthenticated`) and network exposure (`--allow-unauthenticated-lan`)
+are independent: serving open *on the LAN* requires **both** flags — a deliberate
+two-key requirement for the dangerous combination.
+
+> **Upgrade note:** earlier builds served all endpoints open when no token was
+> configured. They now fail closed. Configure a token (recommended) or pass
+> `--allow-unauthenticated` to restore the previous open behavior on an isolated
+> network.
 
 ## Start Headless Mode
 

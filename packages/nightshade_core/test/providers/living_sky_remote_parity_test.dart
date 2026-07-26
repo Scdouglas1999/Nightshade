@@ -185,6 +185,44 @@ void main() {
       verify(() => backend.getAtlasRegions()).called(1);
     });
 
+    test('skyAtlasRegionWriterProvider creates metadata on the host', () async {
+      final backend = slaveBackend();
+      when(
+        () => backend.createAtlasRegion(
+          name: any(named: 'name'),
+          centerRaDeg: any(named: 'centerRaDeg'),
+          centerDecDeg: any(named: 'centerDecDeg'),
+          radiusDeg: any(named: 'radiusDeg'),
+          kind: any(named: 'kind'),
+          targetId: any(named: 'targetId'),
+        ),
+      ).thenAnswer((_) async => 42);
+      final container = containerFor(backend);
+
+      final id = await container
+          .read(skyAtlasRegionWriterProvider)
+          .ensureRegion(
+            name: 'M31 core',
+            centerRaDeg: 10.68,
+            centerDecDeg: 41.27,
+            radiusDeg: 1.5,
+            kind: 'target',
+            targetId: 31,
+          );
+
+      expect(id, 42);
+      verify(
+        () => backend.createAtlasRegion(
+          name: 'M31 core',
+          centerRaDeg: 10.68,
+          centerDecDeg: 41.27,
+          radiusDeg: 1.5,
+          kind: 'target',
+          targetId: 31,
+        ),
+      ).called(1);
+    });
+
     test('atlasRegionProvider reads host region detail (not empty)', () async {
       final backend = slaveBackend();
       when(

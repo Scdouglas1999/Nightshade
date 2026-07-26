@@ -126,12 +126,16 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             durationSecs + defaults.frameDownloadOverheadSecs,
           );
         }
-        final newCompletedIntegration =
-            _ref.read(sequenceProgressProvider).completedIntegrationSecs +
-            durationSecs;
-        progressNotifier.updateProgress(
-          completedExposures: frame,
-          completedIntegrationSecs: newCompletedIntegration,
+        progressNotifier.updateProgress(completedExposures: frame);
+        // Idempotent: this handler and the DeviceService-driven pump in
+        // `sequence_progress.dart` both see every ExposureCompleted, and both
+        // used to read-modify-write the integration total, so each frame's
+        // shutter time was added twice (verified on the live rig: 9.0 s of real
+        // exposure reported as 18.0 s). Keyed on the originating event so
+        // whichever subscriber gets there first wins and the other is a no-op.
+        progressNotifier.recordCompletedFrameIntegration(
+          eventKey: '${event.timestamp}:$frame',
+          durationSecs: durationSecs,
         );
         final completedNodeId = _ref
             .read(sequenceProgressProvider)
@@ -189,6 +193,15 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'Error':
         final message = event.data['message'] as String? ?? 'Unknown error';
+        // Older native executors acknowledged an accepted SkipToNode command
+        // through the generic Error event. It is an informational success: the
+        // current instruction finishes, then preceding nodes are reported as
+        // skipped. Do not poison run stats, paint the current node red, or move
+        // Running -> Recovering for this compatibility event.
+        if (message.startsWith('SkipToNode request accepted:')) {
+          progressNotifier.updateProgress(message: message);
+          break;
+        }
         _recordRunError(message);
         progressNotifier.updateProgress(message: 'Error: $message');
         final errorNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
@@ -229,6 +242,28 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           detailKind: detailKind,
           detailJson: detailJson,
         );
+
+        // A Change Filter node is the ONLY place the running filter is named
+        // on the wire. `SequencerEvent.ExposureStarted.filter` carries the
+        // filter configured on the exposure node itself, which is null
+        // whenever the operator selects the filter with a separate Change
+        // Filter instruction — the normal way to author an LRGB/SHO plan. So
+        // `currentFilter` stayed null for the whole run, and everything
+        // downstream inherited the blank: the Run Dashboard's filter field,
+        // and `captured_images.filter`, which `_registerSequenceFrame` reads
+        // from here.
+        //
+        // Verified on the live rig: a run whose frames were written as
+        // `untargeted_Filter 2_0001.fits` with `FILTER = 'Filter 2'` in the
+        // FITS header produced `captured_images.filter = ''` and a run-watch
+        // snapshot of `"currentFilter": null`. The app's own database
+        // contradicted the file it had just written.
+        if (detailKind == 'Filter' && detailJson is Map) {
+          final filterName = detailJson['name'];
+          if (filterName is String && filterName.isNotEmpty) {
+            progressNotifier.updateProgress(currentFilter: filterName);
+          }
+        }
 
         final targetNodeId =
             nodeId ?? _ref.read(sequenceProgressProvider).currentNodeId;
@@ -271,6 +306,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         }
         break;
 
+      case 'MeridianFlipOutcome':
+        _handleMeridianFlipOutcome(event);
+        break;
+
       case 'TriggerFired':
         final triggerName =
             event.data['trigger_name'] as String? ?? 'Unknown trigger';
@@ -305,37 +344,26 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'Completed':
       case 'SequenceCompleted':
-        _resetRunTimers();
-        _stopSettingsWatchers();
-        _finalizeRun('completed');
-        unawaited(_teardownLiveStacking());
-        progressNotifier.updateState(SequenceExecutionState.completed);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.completed;
+        // Natural completion. Exactly-once teardown that ALSO ends the durable
+        // session as completed (previously it finalised only the sequence_runs
+        // row and left the sessions row "active" after a normal night). A
+        // duplicate/aliased Completed is ignored by the guard in
+        // [_onTerminalEvent].
+        _onTerminalEvent(SequenceExecutionState.completed, 'completed');
         break;
 
       case 'SequenceFailed':
         final error = event.data['error'] as String? ?? 'Unknown error';
-        _resetRunTimers();
-        _stopSettingsWatchers();
-        _recordRunError(error);
-        _finalizeRun('failed');
-        unawaited(_teardownLiveStacking());
-        progressNotifier.updateProgress(message: error);
-        progressNotifier.updateState(SequenceExecutionState.failed);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.failed;
+        _onTerminalEvent(SequenceExecutionState.failed, 'failed', error: error);
         break;
 
       case 'Stopped':
       case 'SequenceStopped':
-        _resetRunTimers();
-        _stopSettingsWatchers();
-        _finalizeRun('stopped');
-        unawaited(_teardownLiveStacking());
-        progressNotifier.updateState(SequenceExecutionState.idle);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.idle;
+        // A native Stopped echoed after an explicit stop() is suppressed by
+        // the terminal-cleanup guard (stop() claims teardown before issuing
+        // sequencerStop). A native-initiated stop with no operator stop drives
+        // the same exactly-once teardown here.
+        _onTerminalEvent(SequenceExecutionState.idle, 'stopped');
         break;
 
       case 'FrameAccepted':
@@ -490,7 +518,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       return;
     }
 
-    final backend = _ref.read(backendProvider);
+    final backend = _backend;
     if (!backend.dispatchPluginNodesLocally) {
       _logger.debug(
         'PluginNodeRequested ignored locally because the backend '
@@ -594,9 +622,25 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         ? null
         : (event.data['reason'] as String?);
     final progress = _ref.read(sequenceProgressProvider);
-    final filter = progress.currentFilter;
+    // Second source for the filter: the wheel's own live position/name. The
+    // progress provider learns the filter from the Change Filter instruction
+    // event; the wheel state learns it from the `FilterChanged` equipment
+    // event. Either alone leaves a hole (an operator who selects the filter
+    // outside the sequence, or a run whose first frame lands before the
+    // instruction event is processed), and a frame recorded with no filter is
+    // unusable for calibration matching later.
+    final filter =
+        progress.currentFilter ??
+        _ref.read(filterWheelStateProvider).currentFilterName;
     final runId = _ref.read(currentRunIdProvider);
     final runIdString = runId?.toString();
+    // `dbSessionId` is 0/absent when no session row is open (a bare
+    // start-without-session), in which case the column stays NULL rather than
+    // pointing at a session that does not exist.
+    final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
+    final sessionId = (dbSessionId != null && dbSessionId > 0)
+        ? dbSessionId
+        : null;
     final dao = _ref.read(imagesDaoProvider);
     final sidecarService = _ref.read(thumbnailSidecarServiceProvider);
 
@@ -624,6 +668,34 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
       );
     }
 
+    // Advance the imaging-session counters for this frame.
+    //
+    // Without this, a sequenced night wrote captured_images rows stamped with
+    // `session_id` while the owning `imaging_sessions` row kept
+    // totalExposures/successfulExposures/totalIntegrationSecs at 0 — the
+    // session claiming nothing was captured while its own frames pointed back
+    // at it. `recordExposureComplete` was only ever called from the ad-hoc
+    // capture surfaces (imaging screen, dashboard quick actions), never from
+    // the sequencer, so every unattended run reported an empty session.
+    //
+    // Recorded synchronously (not inside the persistence closure below)
+    // because the frame really was captured — it is on disk — whether or not
+    // our own DB insert then succeeds. `recordExposureComplete` fans out to
+    // SessionService, which checkpoints the aggregate onto the session row;
+    // it self-guards when no session is open, so a bare
+    // start-without-session stays a no-op.
+    //
+    // A rejected frame still counts as a completed capture (the shutter did
+    // open) but is kept out of the integration budget and the HFR average —
+    // that accept/reject split is `recordExposureComplete`'s own contract.
+    _ref
+        .read(sessionStateProvider.notifier)
+        .recordExposureComplete(
+          exposureTime: attribution.exposureSecs ?? 0.0,
+          hfr: hfr,
+          accepted: isAccepted,
+        );
+
     // Capture the logger NOW (it is a provider read): the persistence
     // future below outlives the event handler, and reading providers
     // through _ref after the container is disposed throws out of an
@@ -633,7 +705,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final logger = _logger;
     final registration = () async {
       try {
-        await dao.insertSequenceFrame(
+        final rowId = await dao.insertSequenceFrame(
           filePath: filePath,
           fileName: fileName,
           fileFormat: filePath.toLowerCase().endsWith('.xisf')
@@ -650,13 +722,62 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           runtimeGrade: grade,
           rejectionReason: rejectionReason,
           filter: filter,
-          frameType: 'light',
+          // Real frame type from the producing ExposureNode — previously
+          // hardcoded 'light', which mislabeled sequenced darks/flats/bias
+          // in the images DB.
+          frameType: attribution.frameType,
+          // Capture settings from the producing node. Omitting these left
+          // sequencer frames with NULL gain/offset and a defaulted 1x1 binning
+          // (the columns are NOT NULL DEFAULT 1), so master-dark matching —
+          // which keys on gain, offset and binning — could not pair a sequenced
+          // light with its calibration frames, and binned runs were recorded at
+          // the wrong binning. The ad-hoc capture path already recorded all
+          // three; this brings the sequencer in line.
+          gain: attribution.gain,
+          offset: attribution.offset,
+          binX: attribution.binX,
+          binY: attribution.binY,
+          // Tie the frame to the active imaging session, the same way the
+          // ad-hoc capture path does (`persistence.dart` reads
+          // `sessionState.dbSessionId`). Without it every session-scoped
+          // query — session summary, post-session report — saw zero frames
+          // for a sequenced night.
+          sessionId: sessionId,
           hfr: hfr,
           starCount: starCount,
           eccentricity: eccentricity,
           logger: logger,
           sidecarService: sidecarService,
         );
+        // Surface the frame on the live session surfaces. On the host,
+        // `recentSessionFramesProvider` is exactly the in-memory
+        // `sessionImagesProvider` list, which only the ad-hoc capture loop was
+        // appending to — so the Dashboard's Recent Frames tile read "No frames
+        // captured this session yet" for an entire sequenced night while frames
+        // were landing on disk and in the DB. Re-reading the row we just wrote
+        // (rather than rebuilding a CapturedImage by hand) keeps the strip
+        // showing exactly what was persisted.
+        //
+        // Accepted frames only: a rejected frame rendered in a plain "recent
+        // frames" strip has no affordance marking it as rejected, so it would
+        // read as a good frame. The sequencer's own thumbnail strip is the
+        // surface that shows rejects, with a colour-coded border.
+        if (isAccepted && !_disposed) {
+          try {
+            final row = await dao.getImageById(rowId);
+            if (row != null && !_disposed) {
+              _ref
+                  .read(sessionImagesProvider.notifier)
+                  .addImage(capturedImageFromDbRow(row));
+            }
+          } catch (e) {
+            logger.warning(
+              'Registered sequence frame $rowId but could not add it to the '
+              'live session list: $e',
+              source: 'SequenceExecutor',
+            );
+          }
+        }
         // Phase B (v43) — ADDITIVE durable-campaign bookkeeping. When an
         // accepted light frame attributes to a catalog target and a filter,
         // credit one accepted frame to the durable NINA-style `campaigns`
@@ -725,28 +846,157 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     _incrementRunStat((stats) => stats.recordError(message));
   }
 
-  void _incrementRunStat(void Function(SequenceRunStats stats) update) {
+  /// Record the verdict of a meridian flip into the live run stats.
+  ///
+  /// Why this exists: the flip is the most dangerous unattended operation the
+  /// app performs, and until this handler landed it was invisible to the run
+  /// record. A trigger-driven flip that physically slewed the mount across the
+  /// pier still finished the night with `meridianFlips: 0`, and a flip whose
+  /// post-flip plate-solve recenter FAILED finished with `errorMessages: []`
+  /// on a run reported as `completed` — i.e. potentially mis-framed or
+  /// empty-sky frames presented to the operator as a clean session.
+  ///
+  /// The three outcomes map to three different truths:
+  ///  * clean success (one attempt, no failed steps) -> count it, nothing more;
+  ///  * degraded success (the retry ladder ran but the flip eventually worked)
+  ///    -> count it AND warn, because a recenter that needed retries means the
+  ///    framing should be eyeballed before trusting the sub-frames;
+  ///  * failed / aborted -> do NOT count it (no flip happened) and record an
+  ///    error/warning so the session report cannot claim a clean night.
+  void _handleMeridianFlipOutcome(NightshadeEvent event) {
+    final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
+    final outcome = event.data['outcome'] as String? ?? 'unknown';
+    final targetName = event.data['target_name'] as String? ?? 'target';
+    final attempts = (event.data['attempts'] as num?)?.toInt() ?? 0;
+    final durationSecs = (event.data['duration_secs'] as num?)?.toDouble() ?? 0;
+    final error = event.data['error'] as String?;
+    final actionTaken = event.data['action_taken'] as String?;
+    final failedSteps =
+        (event.data['failed_steps'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const <String>[];
+
+    switch (outcome) {
+      case 'success':
+        _incrementRunStat((stats) => stats.recordMeridianFlip());
+        if (failedSteps.isEmpty) {
+          final message =
+              'Meridian flip for "$targetName" completed in '
+              '${durationSecs.toStringAsFixed(1)}s';
+          _logger.info(message, source: 'SequenceExecutor');
+          progressNotifier.updateProgress(message: message);
+        } else {
+          final message =
+              'Meridian flip for "$targetName" succeeded only on attempt '
+              '$attempts after ${failedSteps.length} failed attempt(s): '
+              '${failedSteps.join("; ")}. Verify framing — the post-flip '
+              'recentre needed retries.';
+          _logger.warning(message, source: 'SequenceExecutor');
+          _incrementRunStat((stats) => stats.recordWarning(message));
+          progressNotifier.updateProgress(message: message);
+        }
+        break;
+
+      case 'aborted':
+        final message =
+            'Meridian flip for "$targetName" was aborted after $attempts '
+            'attempt(s)${error != null ? ": $error" : ""}. The mount was NOT '
+            'flipped.';
+        _logger.warning(message, source: 'SequenceExecutor');
+        _incrementRunStat((stats) => stats.recordWarning(message));
+        progressNotifier.updateProgress(message: message);
+        break;
+
+      default:
+        final message =
+            'Meridian flip for "$targetName" FAILED after $attempts '
+            'attempt(s): ${error ?? "unknown error"}'
+            '${actionTaken != null ? " (action: $actionTaken)" : ""}. '
+            'Frames captured after this point may be mis-framed.';
+        _logger.error(message, source: 'SequenceExecutor');
+        _recordRunError(message);
+        progressNotifier.updateProgress(message: message);
+        // Same escalation the generic Error handler performs: a run still
+        // claiming a healthy `running` state after its flip failed is the
+        // cry-wolf inverse — the dashboard must show needs-attention until the
+        // authoritative terminal event lands.
+        if (_ref.read(sequenceExecutionStateProvider) ==
+            SequenceExecutionState.running) {
+          progressNotifier.updateState(SequenceExecutionState.recovering);
+          _ref.read(sequenceExecutionStateProvider.notifier).state =
+              SequenceExecutionState.recovering;
+        }
+        break;
+    }
+  }
+
+  /// Mutate the live run stats and (by default) schedule an incremental
+  /// `updateStats` write.
+  ///
+  /// [persist] = `false` records the mutation in memory only. It is for facts
+  /// established at run START that are constant for the whole run (e.g. "this
+  /// rig has no focuser, so refocus is off"). Those are already carried into
+  /// `sequence_runs.stats_json` by the final `finishRun` write, and there is no
+  /// mid-run window in which a crash could lose them but keep the run row — so
+  /// an extra DB round-trip buys nothing, and every such write is one more
+  /// chance to land after the finalization seal.
+  void _incrementRunStat(
+    void Function(SequenceRunStats stats) update, {
+    bool persist = true,
+  }) {
+    // Once finalization has sealed the stats for the final finishRun write, no
+    // further incremental mutation/persist may occur — a late/old-generation
+    // event must not overwrite the final stats JSON.
+    if (_statsSealed) {
+      return;
+    }
     final stats = _ref.read(liveSequenceStatsProvider);
     if (stats == null) {
       return;
     }
     update(stats);
-    _ref.read(liveSequenceStatsProvider.notifier).state = stats;
-    _persistLiveRunStats();
+    // Store a fresh COPY so the identity changes: [liveSequenceStatsProvider] is
+    // a StateProvider whose updateShouldNotify is `!identical(prev, next)`, so
+    // re-storing the same mutated instance would notify NO consumer (the live
+    // Session Vitals tile / run dashboard would silently stop updating).
+    _ref.read(liveSequenceStatsProvider.notifier).state = stats.copy();
+    if (persist) _persistLiveRunStats();
   }
 
   void _persistLiveRunStats() {
+    // Sealed: the final finishRun write owns the stats now. Skipping here (plus
+    // draining already-submitted writes in [_finalizeRun]) guarantees no stale
+    // updateStats lands after the final stats JSON.
+    if (_statsSealed) {
+      return;
+    }
     final runId = _ref.read(currentRunIdProvider);
     final stats = _ref.read(liveSequenceStatsProvider);
     if (runId == null || stats == null) {
       return;
     }
-    unawaited(
-      _ref.read(sequenceRunsDaoProvider).updateStats(runId, stats.toJson()),
-    );
+    // Track the write so [_finalizeRun] can drain it before the final finish.
+    final Future<void> write = _ref
+        .read(sequenceRunsDaoProvider)
+        .updateStats(runId, stats.toJson());
+    _pendingStatWrites.add(write);
+    unawaited(write.whenComplete(() => _pendingStatWrites.remove(write)));
   }
 
-  void _finalizeRun(String status) {
+  /// Finalize the current run row and fire the once-per-run session-end hooks.
+  ///
+  /// Awaitable (contract: "finalization awaitable; clear IDs only after true
+  /// finish success"): the caller awaits the durable `finishRun` write so the
+  /// run id is only cleared once the finish has actually persisted, and a
+  /// finish failure surfaces to the stop / terminal path instead of being
+  /// swallowed by a fire-and-forget future.
+  ///
+  /// The `_runFinalized` guard is latched only AFTER `finishRun` succeeds — so
+  /// it is an exactly-once guard for the SUCCESS path, never a permanent latch
+  /// that would swallow a retry after a failed finish (a failed cleanup must be
+  /// retryable, so a subsequent Stop can re-run this).
+  Future<void> _finalizeRun(String status) async {
     if (_runFinalized) {
       return;
     }
@@ -755,16 +1005,37 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     if (runId == null || stats == null) {
       return;
     }
-    _runFinalized = true;
+    // Seal the stats BEFORE the final write so no further incremental
+    // updateStats can be SUBMITTED, then DRAIN the writes already in flight so
+    // none of them lands AFTER finishRun and clobbers the final stats JSON.
+    // Sealing is idempotent, so a Stop retry after a failed finish re-runs this
+    // safely.
+    _statsSealed = true;
+    await _drainPendingStatWrites();
     stats.endTime = DateTime.now();
     final statsJson = stats.toJson();
-    unawaited(
-      _ref.read(sequenceRunsDaoProvider).finishRun(runId, status, statsJson),
-    );
-    // Surface post-session diagnostics + clear the
-    // NotificationRouter override. `_finalizeRun` already early-returns
-    // when called twice so these hooks fire exactly once per run.
+    await _ref
+        .read(sequenceRunsDaoProvider)
+        .finishRun(runId, status, statsJson);
+    _runFinalized = true;
+    // Surface post-session diagnostics + clear the NotificationRouter override.
+    // Fires exactly once per run (guarded by the `_runFinalized` latch above,
+    // which is only set once the finish has persisted).
     _captureSessionEndHooks();
+  }
+
+  /// Await every incremental `updateStats` write submitted before the stats
+  /// were sealed, so no stale write can race the final `finishRun`. Individual
+  /// write errors are swallowed (they do not block finalization); the snapshot-
+  /// and-clear means new writes (blocked while sealed) cannot re-populate the
+  /// set mid-drain.
+  Future<void> _drainPendingStatWrites() async {
+    if (_pendingStatWrites.isEmpty) {
+      return;
+    }
+    final batch = _pendingStatWrites.toList();
+    _pendingStatWrites.clear();
+    await Future.wait(batch.map((w) => w.catchError((Object _) {})));
   }
 
   // =========================================================================

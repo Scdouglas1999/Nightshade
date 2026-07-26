@@ -12,6 +12,7 @@
 part of '../main.dart';
 
 mixin _MobileDiscoveryOps on _MobileConnectionState {
+  @override
   Future<void> _autoConnect() async {
     setState(() {
       _isDiscovering = true;
@@ -85,9 +86,6 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
     String? pinnedFingerprint,
     String? initialCode,
   }) async {
-    final codeController = TextEditingController(text: initialCode ?? '');
-    var requestAdmin = false;
-
     final uiContext = _connectionUiContext;
     if (uiContext == null || !uiContext.mounted) {
       setState(() {
@@ -98,74 +96,19 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
       return null;
     }
 
+    // The dialog owns its TextEditingController (see PairingCodeDialog).
+    // The previous shape — a method-local controller disposed the moment
+    // showDialog's future resolved — raced the route's exit animation: the
+    // TextField rebuilt one more time against the disposed controller,
+    // and the resulting build exception cascaded into duplicate-GlobalKey /
+    // '_dependents.isEmpty' assertions as the connection MaterialApp was
+    // swapped for the main shell. Result: a reliable red screen on every
+    // first pair (recoverable only by restarting the app).
     final pairingInput = await showDialog<({String code, bool admin})>(
       context: uiContext,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final colors = NightshadeColors.of(context);
-            return NightshadeDialog(
-              title: 'Pair with Nightshade',
-              icon: LucideIcons.link,
-              width: 420,
-              actions: [
-                NightshadeButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  label: 'Cancel',
-                  variant: ButtonVariant.ghost,
-                  size: ButtonSize.small,
-                ),
-                NightshadeButton(
-                  onPressed: () {
-                    final trimmed = codeController.text.trim();
-                    if (trimmed.isEmpty) return;
-                    Navigator.of(ctx).pop((code: trimmed, admin: requestAdmin));
-                  },
-                  label: 'Pair',
-                  size: ButtonSize.small,
-                ),
-              ],
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Enter the pairing code shown on the appliance. Read it '
-                    'from the pairing page in a browser — open '
-                    'http://$host:$port/pair — or from the desktop\'s Remote '
-                    'Access screen.',
-                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: codeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Pairing code',
-                      hintText: 'STAR-LYRA-1234',
-                    ),
-                    textCapitalization: TextCapitalization.characters,
-                    autocorrect: false,
-                  ),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Grant full admin access'),
-                    subtitle: const Text(
-                      'Off by default. Enable only if this device should '
-                      'manage backups and filesystem paths.',
-                    ),
-                    value: requestAdmin,
-                    onChanged: (value) {
-                      setDialogState(() => requestAdmin = value ?? false);
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      builder: (ctx) =>
+          PairingCodeDialog(host: host, port: port, initialCode: initialCode),
     );
-    codeController.dispose();
 
     if (pairingInput == null || pairingInput.code.isEmpty || !mounted) {
       if (mounted) {
@@ -264,7 +207,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
     if (dialogContext == null || !dialogContext.mounted) return;
 
     // The dialog owns its text controllers for the lifetime of the route (see
-    // [_RelayConnectDialog]) so they are disposed exactly once, when the route
+    // [RelayConnectDialog]) so they are disposed exactly once, when the route
     // is torn down — after the dismiss animation. Disposing them the instant
     // showDialog resolves would race that animation, which still rebuilds the
     // fields, and throw a use-after-dispose.
@@ -273,7 +216,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
           ({String relayUrl, String applianceId, bool allowInsecure})
         >(
           context: dialogContext,
-          builder: (_) => _RelayConnectDialog(
+          builder: (_) => RelayConnectDialog(
             initialRelayUrl: initialRelayUrl,
             initialApplianceId: initialApplianceId,
             initialAllowInsecure: initialAllowInsecure,
@@ -305,9 +248,10 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
   /// connect, so the new row appears the next time the list is opened.
   ///
   /// Tapping a saved row connects through the screen's own activate path,
-  /// which swaps the backend; [_connectedServer] is repopulated on the next
-  /// build via the backend listener, so we simply pop back to the connection
-  /// screen here.
+  /// which swaps the backend but does NOT touch [_connectedServer]. From the
+  /// connection screen that leaves the shell stuck on "Not Connected", so we
+  /// adopt the established session in [onServerSelected] rather than
+  /// reconnecting.
   Future<void> _openSavedServers() async {
     final uiContext = _connectionUiContext;
     if (uiContext == null || !uiContext.mounted) {
@@ -325,6 +269,40 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
           onAddServer: (screenContext) async {
             Navigator.of(screenContext).pop();
             return null;
+          },
+          // A saved row's _activateServer already brought the backend up; adopt
+          // that live session so the shell leaves the connection screen. A
+          // relay row is adopted inside _reconnectSavedRelay -> _connectToServer
+          // (which already set _connectedServer + the monitor), so just pop.
+          onServerSelected: (screenContext, server) async {
+            if (server.isRelay) {
+              if (screenContext.mounted) Navigator.of(screenContext).pop();
+              return;
+            }
+            final token = await ref
+                .read(savedServersServiceProvider)
+                .tokenFor(server.id);
+            if (!mounted) return;
+            setState(() {
+              _connectedServer = DiscoveredServer(
+                name: server.displayName,
+                host: server.host,
+                webPort: server.port,
+                mode: 'headless',
+                scheme: server.scheme,
+                authToken: token,
+                authRequired: token != null,
+                pairingSupported: true,
+                fingerprint: server.pinnedFingerprint,
+              );
+              _error = null;
+              _statusMessage = '';
+            });
+            _startConnectionMonitor();
+            unawaited(_registerPushToken());
+            ref.invalidate(appSettingsProvider);
+            ref.invalidate(equipmentProfilesProvider);
+            if (screenContext.mounted) Navigator.of(screenContext).pop();
           },
         ),
       ),
@@ -520,16 +498,17 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
       return;
     }
 
-    var host = input;
-    var port = 8080;
-    final separator = input.lastIndexOf(':');
-    if (separator > 0 && separator < input.length - 1) {
-      final parsedPort = int.tryParse(input.substring(separator + 1));
-      if (parsedPort != null) {
-        host = input.substring(0, separator);
-        port = parsedPort;
-      }
+    final ManualServerEndpoint endpoint;
+    try {
+      endpoint = parseManualServerEndpoint(input);
+    } on FormatException catch (error) {
+      setState(() {
+        _error = error.message.toString();
+      });
+      return;
     }
+    final host = endpoint.host;
+    final port = endpoint.port;
 
     var authToken = _accessTokenController.text.trim().isEmpty
         ? null
@@ -538,7 +517,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
     setState(() {
       _isDiscovering = true;
       _error = null;
-      _statusMessage = 'Connecting to $host:$port...';
+      _statusMessage = 'Connecting to ${endpoint.authority}...';
     });
 
     var server = DiscoveredServer(
@@ -546,6 +525,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
       host: host,
       webPort: port,
       mode: 'headless',
+      scheme: endpoint.scheme,
       authToken: authToken,
       pairingSupported: true,
     );
@@ -575,12 +555,18 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
+        // Keep this platform-neutral: the host may be a Windows or Linux
+        // desktop *or* a headless Raspberry Pi appliance, and this client runs
+        // on phones as well as tablets. Naming "Windows Firewall" / "the
+        // tablet" sent appliance users chasing settings that do not exist.
         _error =
-            'Cannot reach http://$host:$port/api/info from this device.\n\n'
-            'On the Windows PC: confirm Settings → Remote Access shows '
-            '"Running", note the LAN URL, and allow port $port through '
-            'Windows Firewall (private network).\n\n'
-            'On the tablet: open that URL in Chrome — you should see JSON. '
+            'Cannot reach ${endpoint.scheme}://${endpoint.authority}/api/info '
+            'from this device.\n\n'
+            'On the computer running Nightshade: confirm Settings → Remote '
+            'Access shows "Running" (on a headless appliance, that the service '
+            'is up), note the LAN URL, and allow port $port through that '
+            "machine's firewall on the private/local network.\n\n"
+            'On this device: open that URL in a browser — you should see JSON. '
             'Then try Connect again or scan the QR after starting pairing.';
       });
       return;
@@ -596,22 +582,23 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
 /// allowInsecure)` record on Connect, or `null` on Cancel; the caller trims and
 /// validates the fields. (The relay URL / appliance id are read at pop time,
 /// before the controllers are disposed.)
-class _RelayConnectDialog extends StatefulWidget {
+class RelayConnectDialog extends StatefulWidget {
   final String initialRelayUrl;
   final String initialApplianceId;
   final bool initialAllowInsecure;
 
-  const _RelayConnectDialog({
+  const RelayConnectDialog({
+    super.key,
     required this.initialRelayUrl,
     required this.initialApplianceId,
     required this.initialAllowInsecure,
   });
 
   @override
-  State<_RelayConnectDialog> createState() => _RelayConnectDialogState();
+  State<RelayConnectDialog> createState() => _RelayConnectDialogState();
 }
 
-class _RelayConnectDialogState extends State<_RelayConnectDialog> {
+class _RelayConnectDialogState extends State<RelayConnectDialog> {
   late final TextEditingController _relayController = TextEditingController(
     text: widget.initialRelayUrl,
   );
@@ -629,19 +616,46 @@ class _RelayConnectDialogState extends State<_RelayConnectDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardAvailableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.vertical;
+    final keyboardCompact =
+        mediaQuery.viewInsets.bottom > 0 && keyboardAvailableHeight < 480;
     return AlertDialog(
-      title: const Text('Connect via Relay'),
+      scrollable: true,
+      insetPadding: keyboardCompact
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+          : null,
+      contentPadding: keyboardCompact
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+          : null,
+      actionsPadding: keyboardCompact
+          ? const EdgeInsets.fromLTRB(8, 0, 8, 4)
+          : null,
+      titlePadding: keyboardCompact ? EdgeInsets.zero : null,
+      title: Offstage(
+        offstage: keyboardCompact,
+        child: const Text('Connect via Relay'),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'Reach your rig from anywhere through a self-hosted '
-            'Nightshade relay — no VPN or port forwarding. The appliance '
-            'id is printed by the headless daemon on first connect.',
-            style: TextStyle(fontSize: 13),
+          Offstage(
+            offstage: keyboardCompact,
+            child: const Column(
+              children: [
+                Text(
+                  'Reach your rig from anywhere through a self-hosted '
+                  'Nightshade relay — no VPN or port forwarding. The appliance '
+                  'id is printed by the headless daemon on first connect.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                SizedBox(height: 12),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
           TextField(
+            key: const ValueKey('relay-url-field'),
             controller: _relayController,
             autocorrect: false,
             enableSuggestions: false,
@@ -653,6 +667,7 @@ class _RelayConnectDialogState extends State<_RelayConnectDialog> {
           ),
           const SizedBox(height: 8),
           TextField(
+            key: const ValueKey('relay-appliance-id-field'),
             controller: _idController,
             autocorrect: false,
             enableSuggestions: false,
@@ -661,16 +676,23 @@ class _RelayConnectDialogState extends State<_RelayConnectDialog> {
               hintText: 'xxxx-xxxx-xxxx',
             ),
           ),
-          const SizedBox(height: 8),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: _allowInsecure,
-            onChanged: (v) => setState(() => _allowInsecure = v ?? false),
-            title: const Text(
-              'Trust self-signed relay TLS',
-              style: TextStyle(fontSize: 13),
+          Offstage(
+            offstage: keyboardCompact,
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _allowInsecure,
+                  onChanged: (v) => setState(() => _allowInsecure = v ?? false),
+                  title: const Text(
+                    'Trust self-signed relay TLS',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
             ),
-            controlAffinity: ListTileControlAffinity.leading,
           ),
         ],
       ),
@@ -688,6 +710,131 @@ class _RelayConnectDialogState extends State<_RelayConnectDialog> {
           child: const Text('Connect'),
         ),
       ],
+    );
+  }
+}
+
+/// Code-pairing dialog. A real StatefulWidget (not a StatefulBuilder over
+/// method-locals) so the [TextEditingController] is disposed by the
+/// framework when the dialog element unmounts — after the route's exit
+/// animation — never while a final rebuild can still touch it.
+///
+/// Public (rather than library-private) so widget tests can pump the dialog
+/// directly and pin its input validation.
+@visibleForTesting
+class PairingCodeDialog extends StatefulWidget {
+  final String host;
+  final int port;
+  final String? initialCode;
+
+  const PairingCodeDialog({
+    super.key,
+    required this.host,
+    required this.port,
+    this.initialCode,
+  });
+
+  @override
+  State<PairingCodeDialog> createState() => _PairingCodeDialogState();
+}
+
+class _PairingCodeDialogState extends State<PairingCodeDialog> {
+  late final TextEditingController _codeController;
+  bool _requestAdmin = false;
+
+  /// Inline validation message for the code field. Submitting an empty code
+  /// used to `return` silently, leaving a fully-enabled-looking "Pair" button
+  /// that did nothing — the operator got no clue what was wrong.
+  String? _codeError;
+
+  @override
+  void initState() {
+    super.initState();
+    _codeController = TextEditingController(text: widget.initialCode ?? '');
+  }
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return NightshadeDialog(
+      title: 'Pair with Nightshade',
+      icon: LucideIcons.link,
+      width: 420,
+      actions: [
+        NightshadeButton(
+          onPressed: () => Navigator.of(context).pop(),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+        ),
+        NightshadeButton(
+          onPressed: () {
+            final trimmed = _codeController.text.trim();
+            if (trimmed.isEmpty) {
+              setState(() {
+                _codeError = 'Enter the pairing code before tapping Pair.';
+              });
+              return;
+            }
+            Navigator.of(context).pop((code: trimmed, admin: _requestAdmin));
+          },
+          label: 'Pair',
+          size: ButtonSize.small,
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Enter the pairing code shown on the appliance. Read it '
+            'from the pairing page in a browser — open '
+            'http://${widget.host}:${widget.port}/pair — or from the '
+            "desktop's Remote Access screen.",
+            style: TextStyle(fontSize: 13, color: colors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _codeController,
+            decoration: InputDecoration(
+              labelText: 'Pairing code',
+              hintText: 'STAR-LYRA-1234',
+              errorText: _codeError,
+            ),
+            textCapitalization: TextCapitalization.characters,
+            autocorrect: false,
+            onChanged: (_) {
+              if (_codeError != null) setState(() => _codeError = null);
+            },
+          ),
+          // Own Material: NightshadeDialog paints its surface with a
+          // DecoratedBox, which sits between this tile and the nearest
+          // Material ancestor. Flutter asserts on that arrangement because the
+          // tile's background and tap ripple are painted on that Material and
+          // would be hidden — the admin toggle gave no touch feedback at all.
+          Material(
+            type: MaterialType.transparency,
+            child: CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Grant full admin access'),
+              subtitle: const Text(
+                'Off by default. Enable only if this device should '
+                'manage backups and filesystem paths.',
+              ),
+              value: _requestAdmin,
+              onChanged: (value) {
+                setState(() => _requestAdmin = value ?? false);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

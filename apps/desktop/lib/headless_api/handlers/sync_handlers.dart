@@ -32,6 +32,19 @@ class SyncHandlers {
   Future<Response> handlePushNow(Request request) async {
     _logger.info('[API] POST /api/sync/push', source: 'SyncHandlers');
     final service = container.read(syncServiceProvider);
+    // Distinguish "not configured" (a client precondition) from a genuine
+    // upload failure. Returning 500 for the former makes remote clients retry
+    // a transient-looking server error instead of prompting the operator to
+    // configure a sync server first.
+    final status = await service.status();
+    if (!status.configured) {
+      throw HandlerFailure(
+        code: 'sync_not_configured',
+        message:
+            'Cloud sync is not configured; set a server URL in sync settings first.',
+        statusCode: 409,
+      );
+    }
     final result = await service.pushNow();
     if (result.success) {
       return jsonOk({

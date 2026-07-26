@@ -9,6 +9,11 @@ import '../validation.dart';
 class AnalyticsHandlers {
   final ProviderContainer container;
 
+  /// Upper bound for the `/api/sessions/recent` `limit`. Imaging sessions
+  /// accumulate slowly; 1000 is far more than any "recent" list shows and keeps
+  /// a negative from becoming SQLite `LIMIT -1` (all rows).
+  static const int _maxRecentSessionsLimit = 1000;
+
   AnalyticsHandlers(this.container);
 
   LoggingService get _logger => container.read(loggingServiceProvider);
@@ -25,6 +30,86 @@ class AnalyticsHandlers {
       throw BadRequestError(field: field, expected: 'integer');
     }
     return parsed;
+  }
+
+  DateTime? _optionalDateQuery(Request request, String field) {
+    final raw = request.url.queryParameters[field];
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      throw BadRequestError(
+        field: field,
+        expected: 'iso8601_datetime|epoch_milliseconds',
+      );
+    }
+
+    // Accept epoch milliseconds from older companion builds while the current
+    // client uses the documented ISO-8601 wire shape.
+    final epochMilliseconds = int.tryParse(trimmed);
+    if (epochMilliseconds != null) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(
+          epochMilliseconds,
+          isUtc: true,
+        );
+      } on RangeError {
+        throw BadRequestError(
+          field: field,
+          expected: 'iso8601_datetime|epoch_milliseconds',
+        );
+      }
+    }
+
+    final parsed = DateTime.tryParse(trimmed);
+    if (parsed == null) {
+      throw BadRequestError(
+        field: field,
+        expected: 'iso8601_datetime|epoch_milliseconds',
+      );
+    }
+    return parsed;
+  }
+
+  Future<List<ImagingSession>> _sessionsInRequestedRange(
+    Request request,
+  ) async {
+    final start = _optionalDateQuery(request, 'startDate');
+    final end = _optionalDateQuery(request, 'endDate');
+    if (start != null && end != null && start.isAfter(end)) {
+      throw BadRequestError(
+        field: 'startDate|endDate',
+        expected: 'startDate <= endDate',
+        message: 'The analytics start date must not be after the end date',
+      );
+    }
+
+    final sessions = await container
+        .read(databaseProvider)
+        .sessionsDao
+        .getAllSessions();
+    if (start == null && end == null) return sessions;
+    return sessions
+        .where(
+          (session) =>
+              (start == null || !session.startTime.isBefore(start)) &&
+              (end == null || !session.startTime.isAfter(end)),
+        )
+        .toList(growable: false);
+  }
+
+  Map<String, num> _statisticsForSessions(List<ImagingSession> sessions) {
+    var exposures = 0;
+    var integrationSeconds = 0.0;
+    for (final session in sessions) {
+      exposures += session.totalExposures;
+      integrationSeconds += session.totalIntegrationSecs;
+    }
+    return {
+      'totalSessions': sessions.length,
+      'totalExposures': exposures,
+      'totalIntegrationSecs': integrationSeconds,
+      'totalIntegrationHours': integrationSeconds / 3600,
+    };
   }
 
   // ===========================================================================
@@ -80,8 +165,17 @@ class AnalyticsHandlers {
   // ===========================================================================
 
   Future<Response> handleGetRecentSessions(Request request) async {
-    final limitStr = request.url.queryParameters['limit'] ?? '10';
-    final limit = int.tryParse(limitStr) ?? 10;
+    // Absent → 10. A supplied limit must be a positive, bounded whole number so
+    // a negative can't become SQLite `LIMIT -1` (all rows) and a huge value
+    // can't scan the whole session history. Validate before the DAO read.
+    final limit =
+        optionalQueryInt(
+          request.url.queryParameters,
+          'limit',
+          min: 1,
+          max: _maxRecentSessionsLimit,
+        ) ??
+        10;
     _logInfo('[API] GET /api/sessions/recent?limit=$limit');
     final database = container.read(databaseProvider);
     final sessions = await database.sessionsDao.getRecentSessions(limit: limit);
@@ -98,14 +192,75 @@ class AnalyticsHandlers {
   Future<Response> handleCreateSession(Request request) async {
     _logInfo('[API] POST /api/sessions');
     final payload = await readJsonObject(request);
+    const allowedFields = {'name', 'profileId', 'targetId', 'sequenceId'};
+    final unknownFields = payload.keys
+        .where((key) => !allowedFields.contains(key))
+        .toList(growable: false);
+    if (unknownFields.isNotEmpty) {
+      throw BadRequestError(
+        field: unknownFields.join(','),
+        expected: 'one of: ${allowedFields.join(', ')}',
+        message: 'Unknown session field(s)',
+      );
+    }
+    if (!payload.keys.any(allowedFields.contains)) {
+      throw BadRequestError(
+        field: 'body',
+        expected: 'at least one of: ${allowedFields.join(', ')}',
+        message: 'A session must identify its name or imaging context',
+      );
+    }
+
+    final name = optionalString(payload, 'name')?.trim();
+    if (payload.containsKey('name') && (name == null || name.isEmpty)) {
+      throw BadRequestError(
+        field: 'name',
+        expected: 'non-blank string',
+        message: 'Session name must not be blank',
+      );
+    }
+    final profileId = optionalInt(payload, 'profileId', min: 1);
+    final targetId = optionalInt(payload, 'targetId', min: 1);
+    final sequenceId = optionalInt(payload, 'sequenceId', min: 1);
     final database = container.read(databaseProvider);
 
-    final id = await database.sessionsDao.startSession(
-      name: optionalString(payload, 'name'),
-      profileId: optionalInt(payload, 'profileId'),
-      targetId: optionalInt(payload, 'targetId'),
-      sequenceId: optionalInt(payload, 'sequenceId'),
-    );
+    if (profileId != null &&
+        await database.equipmentProfilesDao.getProfileById(profileId) == null) {
+      throw BadRequestError(
+        field: 'profileId',
+        expected: 'an existing equipment profile id',
+      );
+    }
+    if (targetId != null &&
+        await database.targetsDao.getTargetById(targetId) == null) {
+      throw BadRequestError(
+        field: 'targetId',
+        expected: 'an existing target id',
+      );
+    }
+    if (sequenceId != null &&
+        await database.sequencesDao.getSequenceById(sequenceId) == null) {
+      throw BadRequestError(
+        field: 'sequenceId',
+        expected: 'an existing sequence id',
+      );
+    }
+
+    final int id;
+    try {
+      id = await database.sessionsDao.startSession(
+        name: name,
+        profileId: profileId,
+        targetId: targetId,
+        sequenceId: sequenceId,
+      );
+    } on ActiveImagingSessionException catch (error) {
+      return jsonConflict({
+        'error': 'active_session_exists',
+        'message': error.toString(),
+        'activeSessionId': error.sessionId,
+      });
+    }
 
     publishHostMutationFromContainer(
       container,
@@ -136,13 +291,21 @@ class AnalyticsHandlers {
         payload.containsKey('autofocusCount')) {
       await database.sessionsDao.updateSessionStats(
         sessionId,
-        totalExposures: optionalInt(payload, 'totalExposures'),
-        successfulExposures: optionalInt(payload, 'successfulExposures'),
-        failedExposures: optionalInt(payload, 'failedExposures'),
-        totalIntegrationSecs: optionalDouble(payload, 'totalIntegrationSecs'),
-        avgHfr: optionalDouble(payload, 'avgHfr'),
-        avgGuidingRms: optionalDouble(payload, 'avgGuidingRms'),
-        autofocusCount: optionalInt(payload, 'autofocusCount'),
+        totalExposures: optionalInt(payload, 'totalExposures', min: 0),
+        successfulExposures: optionalInt(
+          payload,
+          'successfulExposures',
+          min: 0,
+        ),
+        failedExposures: optionalInt(payload, 'failedExposures', min: 0),
+        totalIntegrationSecs: optionalDouble(
+          payload,
+          'totalIntegrationSecs',
+          min: 0,
+        ),
+        avgHfr: optionalDouble(payload, 'avgHfr', min: 0),
+        avgGuidingRms: optionalDouble(payload, 'avgGuidingRms', min: 0),
+        autofocusCount: optionalInt(payload, 'autofocusCount', min: 0),
       );
     }
 
@@ -156,10 +319,14 @@ class AnalyticsHandlers {
 
     // Update status if provided
     if (payload.containsKey('status')) {
-      await database.sessionsDao.updateSessionStatus(
-        sessionId,
-        requireString(payload, 'status'),
-      );
+      final status = requireString(payload, 'status');
+      if (!const {'active', 'completed', 'aborted', 'error'}.contains(status)) {
+        throw BadRequestError(
+          field: 'status',
+          expected: 'active|completed|aborted|error',
+        );
+      }
+      await database.sessionsDao.updateSessionStatus(sessionId, status);
     }
 
     publishHostMutationFromContainer(
@@ -180,6 +347,12 @@ class AnalyticsHandlers {
     final sessionId = _parsePathId(id, 'id');
     final payload = await readJsonObject(request);
     final status = optionalString(payload, 'status') ?? 'completed';
+    if (!const {'completed', 'aborted', 'error'}.contains(status)) {
+      throw BadRequestError(
+        field: 'status',
+        expected: 'completed|aborted|error',
+      );
+    }
     final database = container.read(databaseProvider);
 
     await database.sessionsDao.endSession(sessionId, status: status);
@@ -275,7 +448,7 @@ class AnalyticsHandlers {
         "successfulExposures": session.successfulExposures,
         "failedExposures": session.failedExposures,
         "totalIntegrationSecs": session.totalIntegrationSecs,
-        "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : null,
+        "avgHfr": hfrCount > 0 ? totalHfr / hfrCount : session.avgHfr,
         "avgGuidingRms": session.avgGuidingRms,
         "autofocusCount": session.autofocusCount,
         "frameBreakdown": {
@@ -322,44 +495,14 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetAnalyticsSummary(Request request) async {
     _logInfo('[API] GET /api/analytics/summary');
-    final database = container.read(databaseProvider);
-
-    // Parse date range if provided
-    final startDateStr = request.url.queryParameters['startDate'];
-    final endDateStr = request.url.queryParameters['endDate'];
-
-    List<ImagingSession> sessions;
-    if (startDateStr != null && endDateStr != null) {
-      // Why: invalid ISO dates would otherwise become FormatException → 500;
-      // translate to 400 so clients learn the format is wrong.
-      final DateTime startDate;
-      final DateTime endDate;
-      try {
-        startDate = DateTime.parse(startDateStr);
-        endDate = DateTime.parse(endDateStr);
-      } on FormatException catch (e) {
-        throw BadRequestError(
-          field: 'startDate|endDate',
-          expected: 'iso8601_datetime',
-          message: e.message,
-        );
-      }
-      sessions = await database.sessionsDao.getSessionsInRange(
-        startDate,
-        endDate,
-      );
-    } else {
-      sessions = await database.sessionsDao.getAllSessions();
-    }
-
-    // Calculate summary stats
-    final totalStats = await database.sessionsDao.getTotalStatistics();
+    final sessions = await _sessionsInRequestedRange(request);
+    final stats = _statisticsForSessions(sessions);
 
     return jsonOk({
       "summary": {
-        "totalSessions": totalStats['totalSessions'],
-        "totalExposures": totalStats['totalExposures'],
-        "totalIntegrationHours": totalStats['totalIntegrationHours'],
+        "totalSessions": stats['totalSessions'],
+        "totalExposures": stats['totalExposures'],
+        "totalIntegrationHours": stats['totalIntegrationHours'],
         "sessionsInRange": sessions.length,
       },
     });
@@ -371,11 +514,11 @@ class AnalyticsHandlers {
 
   Future<Response> handleGetTotalIntegrationTime(Request request) async {
     _logInfo('[API] GET /api/analytics/integration-time');
-    final database = container.read(databaseProvider);
-    final stats = await database.sessionsDao.getTotalStatistics();
+    final sessions = await _sessionsInRequestedRange(request);
+    final stats = _statisticsForSessions(sessions);
 
     return jsonOk({
-      "totalIntegrationSecs": stats['totalIntegrationHours']! * 3600,
+      "totalIntegrationSecs": stats['totalIntegrationSecs'],
       "totalIntegrationHours": stats['totalIntegrationHours'],
     });
   }

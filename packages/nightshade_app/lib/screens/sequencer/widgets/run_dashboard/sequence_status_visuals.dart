@@ -79,6 +79,33 @@ class SequenceStatusVisuals {
           icon: LucideIcons.rotateCw,
           variant: StatusDotVariant.urgent,
         );
+      case SequenceExecutionState.stopFailed:
+        // The native stop failed — the hardware may still be imaging. Urgent
+        // error styling so the operator retries the Stop.
+        return SequenceStatusVisuals(
+          color: colors.error,
+          label: 'Stop failed',
+          icon: LucideIcons.alertOctagon,
+          variant: StatusDotVariant.urgent,
+        );
+      case SequenceExecutionState.cleanupFailed:
+        // Hardware stopped, but saving the session record failed. Warning
+        // styling — safe, but the Stop retry is needed to finish the wrap-up.
+        return SequenceStatusVisuals(
+          color: colors.warning,
+          label: 'Cleanup failed',
+          icon: LucideIcons.alertTriangle,
+          variant: StatusDotVariant.urgent,
+        );
+      case SequenceExecutionState.finalizing:
+        // The run has ended and durable cleanup is wrapping up. Calm, transient
+        // styling — nothing is wrong, the executor is just persisting the run.
+        return SequenceStatusVisuals(
+          color: colors.info,
+          label: 'Finalizing',
+          icon: LucideIcons.loader,
+          variant: StatusDotVariant.static,
+        );
     }
   }
 }

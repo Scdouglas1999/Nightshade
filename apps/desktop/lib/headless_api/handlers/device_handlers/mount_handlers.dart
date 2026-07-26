@@ -5,8 +5,8 @@ extension MountDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/mount/slew');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
 
     final commandId = commandCorrelator?.beginCommand(
       operation: 'mount.slew',
@@ -26,8 +26,8 @@ extension MountDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/mount/sync');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final ra = requireDouble(payload, 'ra');
-    final dec = requireDouble(payload, 'dec');
+    final ra = requireDouble(payload, 'ra', min: 0, max: 24);
+    final dec = requireDouble(payload, 'dec', min: -90, max: 90);
 
     final backend = container.read(deviceBackendProvider);
     await backend.mountSync(deviceId, ra, dec);
@@ -90,7 +90,19 @@ extension MountDeviceHandlers on DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
     final direction = requireString(payload, 'direction');
-    final durationMs = requireInt(payload, 'durationMs');
+    if (!const {
+      'north',
+      'south',
+      'east',
+      'west',
+    }.contains(direction.toLowerCase())) {
+      throw BadRequestError(
+        field: 'direction',
+        expected: 'north|south|east|west',
+        message: 'direction must be north, south, east, or west',
+      );
+    }
+    final durationMs = requireInt(payload, 'durationMs', min: 1);
 
     final backend = container.read(deviceBackendProvider);
     await backend.mountPulseGuide(
@@ -152,7 +164,7 @@ extension MountDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/mount/set-tracking-rate');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final rate = requireInt(payload, 'rate');
+    final rate = requireInt(payload, 'rate', min: 0, max: 3);
 
     final backend = container.read(deviceBackendProvider);
     await backend.mountSetTrackingRate(deviceId, rate);
@@ -164,7 +176,7 @@ extension MountDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/mount/move-axis');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final axis = requireInt(payload, 'axis');
+    final axis = requireInt(payload, 'axis', min: 0, max: 1);
     final rate = requireDouble(payload, 'rate');
 
     final backend = container.read(deviceBackendProvider);
@@ -177,8 +189,8 @@ extension MountDeviceHandlers on DeviceHandlers {
     _logInfo('[API] POST /api/mount/slew-alt-az');
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
-    final altitude = requireDouble(payload, 'altitude');
-    final azimuth = requireDouble(payload, 'azimuth');
+    final altitude = requireDouble(payload, 'altitude', min: -90, max: 90);
+    final azimuth = requireDouble(payload, 'azimuth', min: 0, max: 360);
 
     final commandId = commandCorrelator?.beginCommand(
       operation: 'mount.slew-alt-az',

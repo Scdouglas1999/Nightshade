@@ -31,6 +31,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/src/backend/nightshade_backend.dart'
     hide CameraState;
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
@@ -55,6 +56,12 @@ class _BridgeRecorder {
   final List<(String, int)> getNameCalls = [];
   final List<(String, int)> getStateCalls = [];
   final List<(String, int, bool)> setStateCalls = [];
+  final List<(String, int, double)> setValueCalls = [];
+
+  /// Full capabilities are opt-in in legacy boolean tests; throwing here
+  /// deliberately exercises the production fallback instead of touching the
+  /// native bridge in the test process.
+  bridge_api.SwitchCapabilities? capabilities;
 
   /// Number of channels the fake driver reports.
   int channelCount = 4;
@@ -93,6 +100,17 @@ class _BridgeRecorder {
           if (switchId < states.length) {
             states[switchId] = state;
           }
+        };
+    SwitchChannelService.switchBridgeGetCapabilities = (deviceId) async {
+      final result = capabilities;
+      if (result == null) {
+        throw UnsupportedError('legacy boolean test fixture');
+      }
+      return result;
+    };
+    SwitchChannelService.switchBridgeSetValue =
+        (deviceId, switchId, value) async {
+          setValueCalls.add((deviceId, switchId, value));
         };
   }
 }
@@ -187,6 +205,27 @@ void main() {
       expect(bridge.getNameCalls, hasLength(3));
       expect(bridge.getStateCalls, hasLength(3));
     });
+
+    test(
+      'channel refresh failure does not undo a successful connection',
+      () async {
+        const deviceId = TestFixtures.switchId;
+        when(
+          () => mockBackend.connectDevice(DeviceType.switch_, deviceId),
+        ).thenAnswer((_) async {});
+        SwitchChannelService.switchBridgeGetCapabilities = (_) async =>
+            throw StateError('capabilities unavailable');
+        SwitchChannelService.switchBridgeGetMax = (_) async =>
+            throw StateError('channel snapshot unavailable');
+
+        await container.read(deviceServiceProvider).connectSwitch(deviceId);
+
+        final state = container.read(switchStateProvider);
+        expect(state.connectionState, DeviceConnectionState.connected);
+        expect(state.deviceId, deviceId);
+        expect(state.channelCount, 0);
+      },
+    );
 
     test(
       'connectSwitch throws InvalidDeviceIdException for malformed id',
@@ -408,6 +447,65 @@ void main() {
     });
 
     test(
+      'preserves analog ranges, values, descriptions and writeability',
+      () async {
+        const deviceId = TestFixtures.switchId;
+        final notifier = container.read(switchStateProvider.notifier);
+        notifier.setConnecting(deviceId, 'Test');
+        notifier.setConnected();
+        bridge.capabilities = const bridge_api.SwitchCapabilities(
+          switchCount: 2,
+          switches: [
+            bridge_api.SwitchInfo(
+              index: 0,
+              name: 'Mount Power',
+              description: '12V relay',
+              isBoolean: true,
+              minValue: 0,
+              maxValue: 1,
+              step: 1,
+              canWrite: true,
+              value: 1,
+            ),
+            bridge_api.SwitchInfo(
+              index: 1,
+              name: 'Dew Heater',
+              description: 'PWM output',
+              isBoolean: false,
+              minValue: 0,
+              maxValue: 100,
+              step: 5,
+              canWrite: false,
+              value: 35,
+            ),
+          ],
+        );
+
+        await container.read(deviceServiceProvider).refreshSwitchChannels();
+
+        final state = container.read(switchStateProvider);
+        expect(state.channelNames, ['Mount Power', 'Dew Heater']);
+        expect(state.channelDescriptions, ['12V relay', 'PWM output']);
+        expect(state.channelIsBoolean, [true, false]);
+        expect(state.channelValues, [1.0, 35.0]);
+        expect(state.channelMinValues, [0.0, 0.0]);
+        expect(state.channelMaxValues, [1.0, 100.0]);
+        expect(state.channelSteps, [1.0, 5.0]);
+        expect(state.channelCanWrite, [true, false]);
+        expect(
+          state.channelStates,
+          [true, false],
+          reason: 'Analog compact state uses the advertised range midpoint.',
+        );
+        expect(
+          bridge.getMaxCalls,
+          isEmpty,
+          reason: 'A complete capability snapshot needs no legacy polling.',
+        );
+      },
+    );
+
+    test(
       'falls back to "" label when a per-channel name fetch fails',
       () async {
         // The provider+UI fall-back to "Channel N" labels for empty
@@ -535,6 +633,62 @@ void main() {
         throwsA(isA<ArgumentError>()),
       );
       expect(bridge.setStateCalls, isEmpty);
+    });
+  });
+
+  group('setSwitchChannelValue', () {
+    test(
+      'writes an analog value once and reconciles the cached value',
+      () async {
+        const deviceId = TestFixtures.switchId;
+        final notifier = container.read(switchStateProvider.notifier);
+        notifier.setConnecting(deviceId, 'Test');
+        notifier.setConnected();
+        notifier.setChannels(
+          count: 1,
+          names: ['Dew Heater'],
+          states: [false],
+          isBoolean: [false],
+          values: [25],
+          minValues: [0],
+          maxValues: [100],
+          steps: [5],
+          canWrite: [true],
+        );
+
+        await container
+            .read(deviceServiceProvider)
+            .setSwitchChannelValue(0, 55);
+
+        expect(bridge.setValueCalls, [(deviceId, 0, 55.0)]);
+        final state = container.read(switchStateProvider);
+        expect(state.channelValues, [55.0]);
+        expect(state.channelStates, [true]);
+      },
+    );
+
+    test('rejects read-only analog channels before a hardware write', () async {
+      const deviceId = TestFixtures.switchId;
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 1,
+        names: ['Input voltage'],
+        states: [true],
+        isBoolean: [false],
+        values: [12.4],
+        minValues: [0],
+        maxValues: [15],
+        steps: [0.1],
+        canWrite: [false],
+      );
+
+      await expectLater(
+        container.read(deviceServiceProvider).setSwitchChannelValue(0, 13),
+        throwsUnsupportedError,
+      );
+      expect(bridge.setValueCalls, isEmpty);
     });
   });
 }

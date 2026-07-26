@@ -153,6 +153,38 @@ class SystemHandlers {
     });
   }
 
+  /// `GET /api/system/disk-space` — free/total bytes for the host's capture
+  /// directory. Paired clients render their dashboard storage/readiness
+  /// lines from this; they cannot sample it themselves — the host's capture
+  /// path does not exist on the phone's filesystem, so the previous
+  /// client-local `df` could only ever fail ("Disk query failed").
+  Future<Response> handleDiskSpace(Request request) async {
+    await container.read(appSettingsProvider.future);
+    final settings = container.read(appSettingsProvider).valueOrNull;
+    final path = settings?.imageOutputPath ?? '';
+    if (path.isEmpty) {
+      // Not configured is a valid state, not an error — clients render the
+      // same "choose a capture folder" nudge the host UI shows.
+      return jsonOk({'configured': false});
+    }
+    try {
+      final info = await container.read(diskSpaceServiceProvider).query(path);
+      return jsonOk({
+        'configured': true,
+        'path': info.path,
+        'totalBytes': info.totalBytes,
+        'freeBytes': info.freeBytes,
+        'sampledAt': info.sampledAt.toUtc().toIso8601String(),
+      });
+    } on DiskSpaceException catch (e) {
+      return jsonError(
+        code: 'disk_query_failed',
+        message: e.message,
+        details: {'path': path},
+      );
+    }
+  }
+
   /// `GET /api/info` — server discovery envelope. Returns the build
   /// version, API-version envelope, fingerprint, paired/scoped auth
   /// metadata, the replay-buffer cursor, and the full endpoint

@@ -8,10 +8,9 @@ class AnnotationMiniChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final annotation = ref.watch(currentAnnotationProvider);
-    final settings = ref.watch(annotationSettingsProvider).valueOrNull ??
-        const AnnotationSettings();
+    final settings = ref.watch(annotationSettingsProvider).valueOrNull;
 
-    if (annotation == null || !settings.enabled) {
+    if (annotation == null || settings == null || !settings.enabled) {
       return const SizedBox.shrink();
     }
 

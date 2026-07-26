@@ -26,22 +26,12 @@ class _PlateSolveParametersSectionState
     extends ConsumerState<PlateSolveParametersSection> {
   final _timeoutController = TextEditingController();
   final _radiusController = TextEditingController();
-  bool _initialized = false;
 
   @override
   void dispose() {
     _timeoutController.dispose();
     _radiusController.dispose();
     super.dispose();
-  }
-
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _timeoutController.text = settings.plateSolveTimeout.toString();
-      _radiusController.text =
-          settings.plateSolveSearchRadius.toStringAsFixed(1);
-      _initialized = true;
-    }
   }
 
   @override
@@ -74,7 +64,7 @@ class _PlateSolveParametersSectionState
         ],
       ),
       data: (settings) {
-        _initControllers(settings);
+        final authority = ref.watch(backendProvider);
         return SettingsSection(
           title: 'Solve Parameters',
           children: [
@@ -84,12 +74,14 @@ class _PlateSolveParametersSectionState
               subtitle: 'Maximum time to attempt a solve before giving up',
               trailing: SettingsNumberInput(
                 controller: _timeoutController,
+                authoritativeValue: settings.plateSolveTimeout.toDouble(),
+                authorityKey: authority,
                 suffix: 'sec',
                 min: 10,
                 max: 300,
                 decimals: 0,
                 onChanged: (value) {
-                  ref
+                  return ref
                       .read(appSettingsProvider.notifier)
                       .setPlateSolveTimeout(value.toInt());
                 },
@@ -102,12 +94,14 @@ class _PlateSolveParametersSectionState
               subtitle: 'How far around the expected position to search',
               trailing: SettingsNumberInput(
                 controller: _radiusController,
+                authoritativeValue: settings.plateSolveSearchRadius,
+                authorityKey: authority,
                 suffix: '°',
                 min: 1,
                 max: 180,
                 decimals: 1,
                 onChanged: (value) {
-                  ref
+                  return ref
                       .read(appSettingsProvider.notifier)
                       .setPlateSolveSearchRadius(value);
                 },
@@ -116,12 +110,14 @@ class _PlateSolveParametersSectionState
             SettingRow(
               icon: LucideIcons.compass,
               title: 'Blind solve',
-              subtitle: 'Solve with no position hint (slower, but works when '
-                  'the mount position is unknown)',
+              subtitle: 'Always ignore position hints (slower, but useful '
+                  'when the mount reports the wrong position)',
               trailing: SettingsSwitch(
                 value: settings.blindSolve,
                 onChanged: (value) {
-                  ref.read(appSettingsProvider.notifier).setBlindSolve(value);
+                  return ref
+                      .read(appSettingsProvider.notifier)
+                      .setBlindSolve(value);
                 },
               ),
               isLast: true,

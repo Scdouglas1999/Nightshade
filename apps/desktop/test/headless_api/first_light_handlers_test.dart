@@ -168,6 +168,69 @@ void main() {
       expect(response.statusCode, HttpStatus.badRequest);
     });
 
+    test(
+      'GET near rejects malformed and non-physical coordinates/radius',
+      () async {
+        final cases = <String, String>{
+          'ra=NaN&dec=25': 'ra',
+          'ra=-0.01&dec=25': 'ra',
+          'ra=360.01&dec=25': 'ra',
+          'ra=120&dec=Infinity': 'dec',
+          'ra=120&dec=-90.01': 'dec',
+          'ra=120&dec=90.01': 'dec',
+          'ra=120&dec=25&radius=nope': 'radius',
+          'ra=120&dec=25&radius=NaN': 'radius',
+          'ra=120&dec=25&radius=0': 'radius',
+          'ra=120&dec=25&radius=-0.1': 'radius',
+        };
+
+        for (final entry in cases.entries) {
+          final response = await translateHandlerErrors(
+            handlers.handleGetNear(
+              Request(
+                'GET',
+                Uri.parse('http://localhost/api/firstlight/near?${entry.key}'),
+              ),
+            ),
+          );
+          expect(response.statusCode, HttpStatus.badRequest, reason: entry.key);
+          final body = jsonDecode(await response.readAsString()) as Map;
+          expect(body['field'], entry.value, reason: entry.key);
+        }
+      },
+    );
+
+    test('GET near keeps the documented over-max radius cap', () async {
+      await dao.insertDetection(
+        TransientDetectionsCompanion.insert(
+          tileId: 42,
+          raDeg: 120.4,
+          decDeg: 25.0,
+          residualFlux: 1500.0,
+          snr: 18.0,
+          fwhm: 2.1,
+          eccentricity: 0.1,
+          kind: 'newSource',
+          confidence: 0.8,
+        ),
+      );
+
+      final response = await translateHandlerErrors(
+        handlers.handleGetNear(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/firstlight/near'
+              '?ra=120&dec=25&radius=5',
+            ),
+          ),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['count'], 1);
+    });
+
     test('GET candidates scoped to a session filters by sessionId', () async {
       // Detections reference imaging_sessions (FKs are enforced), so seed the
       // sessions first.

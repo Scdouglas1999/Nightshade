@@ -269,15 +269,20 @@ class SimbadResolver {
   }
 
   /// Alternative TAP query resolution
-  static Future<SimbadResult?> _resolveTAP(String name) async {
-    try {
-      final query =
-          '''
+  /// Builds the ADQL body for the TAP fallback resolve. Exposed for tests so
+  /// the exact-match/LIKE interpolation stays verified.
+  static String buildTapQuery(String name) {
+    return '''
         SELECT TOP 1 main_id, ra, dec, otype_txt, flux
         FROM basic JOIN flux ON oid = oidref
-        WHERE main_id = '\${name.toUpperCase()}'
+        WHERE main_id = '${name.toUpperCase()}'
         OR main_id LIKE '%${name.toUpperCase()}%'
       ''';
+  }
+
+  static Future<SimbadResult?> _resolveTAP(String name) async {
+    try {
+      final query = buildTapQuery(name);
 
       final url =
           'https://simbad.cds.unistra.fr/simbad/sim-tap/sync'
@@ -395,69 +400,10 @@ class SimbadResolver {
 
 class CoordinateUtils {
   /// Parse RA from string (supports HH:MM:SS, HHhMMmSSs, decimal hours/degrees)
-  static double? parseRA(String input) {
-    var cleaned = input.trim().toLowerCase();
-
-    // Check for explicit units
-    bool isDegrees = false;
-    if (cleaned.endsWith('d') ||
-        cleaned.endsWith('deg') ||
-        cleaned.endsWith('°')) {
-      isDegrees = true;
-      cleaned = cleaned.replaceAll(RegExp(r'[d°]|deg'), '').trim();
-    } else if (cleaned.endsWith('h')) {
-      cleaned = cleaned.replaceAll('h', '').trim();
-    }
-
-    // Try decimal first
-    final decimal = double.tryParse(cleaned);
-    if (decimal != null) {
-      if (isDegrees) {
-        return decimal / 15;
-      }
-
-      // Heuristic for unitless numbers
-      if (decimal > 24) {
-        // Probably degrees
-        return decimal / 15;
-      }
-      return decimal;
-    }
-
-    // Try HMS format
-    final hmsRegex = RegExp(r"(\d+)[h:\s]+(\d+)[m:\s']+(\d+\.?\d*)[s:\s]*");
-    final hmsMatch = hmsRegex.firstMatch(cleaned);
-    if (hmsMatch != null) {
-      final h = int.parse(hmsMatch.group(1)!);
-      final m = int.parse(hmsMatch.group(2)!);
-      final s = double.parse(hmsMatch.group(3)!);
-      return h + m / 60 + s / 3600;
-    }
-
-    return null;
-  }
+  static double? parseRA(String input) => CoordinateParser.parseRa(input);
 
   /// Parse Dec from string (supports ±DD:MM:SS, ±DD°MM'SS", decimal)
-  static double? parseDec(String input) {
-    final cleaned = input.trim();
-
-    // Try decimal first
-    final decimal = double.tryParse(cleaned);
-    if (decimal != null) return decimal;
-
-    // Try DMS format
-    final dmsRegex = RegExp(r"([+-])?(\d+)[°:\s]+(\d+)[':\s]+(\d+\.?\d*)");
-    final dmsMatch = dmsRegex.firstMatch(cleaned);
-    if (dmsMatch != null) {
-      final sign = dmsMatch.group(1) == '-' ? -1 : 1;
-      final d = int.parse(dmsMatch.group(2)!);
-      final m = int.parse(dmsMatch.group(3)!);
-      final s = double.parse(dmsMatch.group(4)!);
-      return sign * (d + m / 60 + s / 3600);
-    }
-
-    return null;
-  }
+  static double? parseDec(String input) => CoordinateParser.parseDec(input);
 
   /// Format RA as HH:MM:SS
   static String formatRA(double raHours) {

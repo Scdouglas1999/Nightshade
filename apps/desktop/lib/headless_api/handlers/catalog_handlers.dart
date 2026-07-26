@@ -61,6 +61,12 @@ class CatalogHandlers {
   /// emission; when null we no-op.
   final LoggingService? logger;
 
+  /// Real free-disk-space query backend (the same [DiskSpaceService] the
+  /// overnight watchdog uses). Optional because most handler tests don't
+  /// exercise the capacity field; when null `GET /status` omits
+  /// `availableSpaceBytes` instead of reporting a bogus number.
+  final DiskSpaceService? diskSpaceService;
+
   /// Cache lifetime for `GET /api/catalog/available`. The brief asks
   /// for an hour; we honour that so a client that polls every minute
   /// during the install wizard does not hammer the upstream manifest.
@@ -75,7 +81,11 @@ class CatalogHandlers {
   /// Cached response payload for `GET /api/catalog/available`.
   ({DateTime fetchedAt, List<AvailableCatalog> entries})? _availableCache;
 
-  CatalogHandlers({required this.jobManager, this.logger});
+  CatalogHandlers({
+    required this.jobManager,
+    this.logger,
+    this.diskSpaceService,
+  });
 
   CatalogManager get _manager => CatalogManager.instance;
 
@@ -125,15 +135,18 @@ class CatalogHandlers {
     final totalBytes = statuses.fold<int>(0, (sum, s) => sum + s.sizeBytes);
 
     int? availableSpaceBytes;
-    try {
-      // Best-effort free-space report. Some platforms (e.g. older
-      // Linux mounts behind FUSE) do not surface stat numbers, in
-      // which case we leave the field null rather than fail the
-      // status call.
-      final stat = await FileStat.stat(_manager.catalogDirectory);
-      availableSpaceBytes = stat.size; // FileStat does not expose free.
-    } catch (e) {
-      _logWarn('Failed to stat catalog directory for free space: $e');
+    final diskSpace = diskSpaceService;
+    if (diskSpace != null) {
+      try {
+        // Real free space on the volume holding the catalog directory, so a
+        // client can judge whether a multi-GB catalog download will fit. On a
+        // query failure (e.g. path not yet created) we leave the field null
+        // rather than fail the status call.
+        final info = await diskSpace.query(_manager.catalogDirectory);
+        availableSpaceBytes = info.freeBytes;
+      } on DiskSpaceException catch (e) {
+        _logWarn('Failed to query catalog directory free space: $e');
+      }
     }
 
     return jsonOk({

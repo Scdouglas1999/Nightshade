@@ -26,9 +26,10 @@ extension PreflightSettingsSection on AppSettingsNotifier {
   }
 
   /// Maximum age in days for the last polar alignment before pre-flight
-  /// considers it stale. Clamped to [1, 365].
+  /// considers it stale. Zero disables the freshness check; positive values
+  /// are clamped to [1, 365].
   Future<void> setPolarAlignmentMaxAgeDays(int value) async {
-    final clamped = value.clamp(1, 365);
+    final clamped = value.clamp(0, 365);
     await _saveSetting('polar_alignment_max_age_days', clamped.toString());
     _patchState((s) => s.copyWith(polarAlignmentMaxAgeDays: clamped));
   }

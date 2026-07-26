@@ -26,7 +26,8 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           id: dbNode.nodeId,
           name: dbNode.name,
           durationSecs: (props['durationSecs'] as num?)?.toDouble() ?? 60.0,
-          count: (props['count'] as num?)?.toInt() ?? 1,
+          count: (props['count'] as num?)?.toInt() ?? 10,
+          frameType: _stringToFrameType(props['frameType'] as String?),
           filter: props['filter'] as String?,
           filterIndex: (props['filterIndex'] as num?)?.toInt(),
           gain: (props['gain'] as num?)?.toInt(),
@@ -85,6 +86,7 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           method: _stringToAutofocusMethod(props['method'] as String?),
           stepSize: (props['stepSize'] as num?)?.toInt() ?? 100,
           stepsOut: (props['stepsOut'] as num?)?.toInt() ?? 7,
+          exposuresPerPoint: (props['exposuresPerPoint'] as num?)?.toInt() ?? 1,
           exposureDuration:
               (props['exposureDuration'] as num?)?.toDouble() ?? 3.0,
           useSettingsDefaults: props['useSettingsDefaults'] as bool? ?? true,
@@ -267,6 +269,11 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           endBefore: props['endBefore'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['endBefore'] as int)
               : null,
+          mosaicPanel: props['mosaicPanel'] is Map
+              ? MosaicPanelInfo.fromJson(
+                  (props['mosaicPanel'] as Map).cast<String, dynamic>(),
+                )
+              : null,
           // Restore the integration budget. Absent
           // field stays null (pre-budget sequences keep working).
           integrationBudget: props['integrationBudget'] != null
@@ -307,6 +314,7 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
               ?.toDouble(),
           integrationTimeTarget: (props['integrationTimeTarget'] as num?)
               ?.toDouble(),
+          maxSafetyIterations: (props['maxSafetyIterations'] as num?)?.toInt(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -364,6 +372,32 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
               (props['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
           hfrConsecutiveFrames:
               (props['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
+          triggerEveryNFrames:
+              (props['triggerEveryNFrames'] as num?)?.toInt() ?? 25,
+          focusDriftWindowSize:
+              (props['focusDriftWindowSize'] as num?)?.toInt() ?? 10,
+          focusDriftMinIncreasingCount:
+              (props['focusDriftMinIncreasingCount'] as num?)?.toInt() ?? 5,
+          focusDriftMinTotalIncrease:
+              (props['focusDriftMinTotalIncrease'] as num?)?.toDouble() ?? 0.5,
+          guidingFailedDurationSecs:
+              (props['guidingFailedDurationSecs'] as num?)?.toDouble() ?? 30.0,
+          cloudMinutesBefore:
+              (props['cloudMinutesBefore'] as num?)?.toDouble() ?? 10.0,
+          cloudCoverageThresholdPercent:
+              (props['cloudCoverageThresholdPercent'] as num?)?.toDouble() ??
+              70.0,
+          cloudOpeningMinDurationSecs:
+              (props['cloudOpeningMinDurationSecs'] as num?)?.toDouble() ??
+              300.0,
+          cloudCoverMaxPercent:
+              (props['cloudCoverMaxPercent'] as num?)?.toDouble() ?? 80.0,
+          cloudCoverDurationSecs:
+              (props['cloudCoverDurationSecs'] as num?)?.toDouble() ?? 60.0,
+          transparencyBelowThreshold:
+              (props['transparencyBelowThreshold'] as num?)?.toDouble() ?? 0.7,
+          transparencyDurationSecs:
+              (props['transparencyDurationSecs'] as num?)?.toDouble() ?? 60.0,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,

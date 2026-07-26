@@ -99,6 +99,20 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
       TextEditingController(text: widget.initial.toStringAsFixed(0));
 
   @override
+  void didUpdateWidget(covariant _CompactNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the parent clamps a submitted value (e.g. 50 -> 10) the displayed
+    // text would otherwise keep showing the raw input while the effective
+    // setting is the clamped one. Re-sync only when the incoming value moved
+    // and the field isn't already showing it, so valid in-range typing isn't
+    // disturbed.
+    if (widget.initial != oldWidget.initial &&
+        double.tryParse(_controller.text.trim()) != widget.initial) {
+      _controller.text = widget.initial.toStringAsFixed(0);
+    }
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -179,6 +193,42 @@ class _MissingLocationCard extends StatelessWidget {
               style: TextStyle(
                   color: colors.textPrimary,
                   fontSize: NightshadeTypography.fontSize13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WindowUnavailableCard extends StatelessWidget {
+  final NightshadeColors colors;
+  final String message;
+
+  const _WindowUnavailableCard({
+    required this.colors,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.error,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.sun, color: colors.error, size: 18),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
             ),
           ),
         ],

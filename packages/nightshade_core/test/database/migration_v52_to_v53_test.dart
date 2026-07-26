@@ -14,7 +14,7 @@
 //   4. Assert the columns exist + round-trip, and the idempotency guard holds
 //      (re-running the block preserves data and does not duplicate columns).
 //
-// Modern SQLite (the version bundled with sqlite3_flutter_libs / NativeDatabase
+// Modern SQLite (the version bundled via package:sqlite3 hooks / NativeDatabase
 // in this repo) supports `ALTER TABLE ... DROP COLUMN`, so we can exercise the
 // real ADD path by dropping the columns first.
 

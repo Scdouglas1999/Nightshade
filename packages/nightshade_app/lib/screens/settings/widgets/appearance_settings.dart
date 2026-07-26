@@ -14,6 +14,7 @@ class AppearanceSettings extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(appSettingsProvider);
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(isMobile: isMobile),
@@ -35,15 +36,35 @@ class AppearanceSettings extends ConsumerWidget {
             children: [
               SettingRow(
                 icon: LucideIcons.moon,
-                title: 'Dark mode',
-                subtitle: 'Use dark theme (recommended for night use)',
-                trailing: SettingsSwitch(
-                  value: settings.theme == 'dark',
-                  onChanged: (value) {
-                    ref
-                        .read(appSettingsProvider.notifier)
-                        .setTheme(value ? 'dark' : 'light');
+                title: 'Theme',
+                // Describe the SETTING, then the non-obvious option. The old
+                // subtitle was only the Red-night rationale, so on a Dark or
+                // Light rig the row read as if that sentence described the
+                // current selection.
+                subtitle: 'Dark, Light, or Red night — red night preserves '
+                    'dark adaptation at the telescope',
+                // A three-way selector, not the old Dark on/off switch: the
+                // theme engine has shipped a red-night mode all along
+                // (`resolveNightshadeThemeData`), but no settings surface
+                // ever offered it — the one theme built for a dark site was
+                // unreachable, especially on the phone in your hand at 2 AM.
+                trailing: SettingsDropdown(
+                  value: switch (settings.theme) {
+                    'light' => 'Light',
+                    'redNight' => 'Red night',
+                    _ => 'Dark',
                   },
+                  items: const ['Dark', 'Light', 'Red night'],
+                  onChanged: (value) {
+                    return ref.read(appSettingsProvider.notifier).setTheme(
+                          switch (value) {
+                            'Light' => 'light',
+                            'Red night' => 'redNight',
+                            _ => 'dark',
+                          },
+                        );
+                  },
+                  isMobile: isMobile,
                 ),
                 isMobile: isMobile,
               ),
@@ -54,7 +75,7 @@ class AppearanceSettings extends ConsumerWidget {
                 trailing: SettingsColorPicker(
                   selectedColor: settings.accentColor,
                   onColorSelected: (color) {
-                    ref
+                    return ref
                         .read(appSettingsProvider.notifier)
                         .setAccentColor(color);
                   },
@@ -78,9 +99,9 @@ class AppearanceSettings extends ConsumerWidget {
                   value: settings.fontSize,
                   items: const ['Small', 'Medium', 'Large'],
                   onChanged: (value) {
-                    if (value != null) {
-                      ref.read(appSettingsProvider.notifier).setFontSize(value);
-                    }
+                    return ref
+                        .read(appSettingsProvider.notifier)
+                        .setFontSize(value);
                   },
                   isMobile: isMobile,
                 ),
@@ -100,28 +121,32 @@ class AppearanceSettings extends ConsumerWidget {
                     'Extra Large (1.4x)',
                   ],
                   onChanged: (value) {
-                    if (value != null) {
-                      ref.read(appSettingsProvider.notifier).setUiScale(value);
-                    }
+                    return ref
+                        .read(appSettingsProvider.notifier)
+                        .setUiScale(value);
                   },
                   isMobile: isMobile,
                 ),
+                isLast: isRemoteMode,
                 isMobile: isMobile,
               ),
-              SettingRow(
-                icon: LucideIcons.panelLeft,
-                title: 'Sidebar collapsed by default',
-                trailing: SettingsSwitch(
-                  value: settings.sidebarCollapsed,
-                  onChanged: (value) {
-                    ref
-                        .read(appSettingsProvider.notifier)
-                        .setSidebarCollapsed(value);
-                  },
+              // `sidebar_collapsed` is intentionally non-remotable (host-only);
+              // hide the row over a remote session so it can't throw.
+              if (!isRemoteMode)
+                SettingRow(
+                  icon: LucideIcons.panelLeft,
+                  title: 'Sidebar collapsed by default',
+                  trailing: SettingsSwitch(
+                    value: settings.sidebarCollapsed,
+                    onChanged: (value) {
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setSidebarCollapsed(value);
+                    },
+                  ),
+                  isLast: true,
+                  isMobile: isMobile,
                 ),
-                isLast: true,
-                isMobile: isMobile,
-              ),
             ],
           ),
         ],

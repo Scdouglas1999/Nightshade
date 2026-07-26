@@ -23,11 +23,19 @@ class NightTimeline extends ConsumerWidget {
     final twilight = ref.watch(twilightTimesProvider);
     final moon = ref.watch(moonInfoProvider);
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
+    final observer = ref.watch(observerLocationProvider);
 
-    // Without a location the calculator returns null twilight fields (or the
-    // sun never sets at high latitude). Show a quiet prompt instead of an empty
-    // painter rather than throwing.
-    if (twilight.sunset == null || twilight.sunrise == null) {
+    // lat/lon both 0.0 is the "no site on record" sentinel, not a real
+    // Gulf-of-Guinea observatory. The sun does rise and set there, so the
+    // calculator happily returns a full set of Null Island twilight times — a
+    // confident-looking sunset that belongs to nobody. The null-field check
+    // below only catches polar day/night, so the sentinel needs its own guard or
+    // a first-run user reads someone else's night as their own.
+    final hasSite = observer.latitude != 0.0 || observer.longitude != 0.0;
+
+    // Without a location, or where the sun never sets at high latitude, show a
+    // quiet prompt instead of an empty painter rather than throwing.
+    if (!hasSite || twilight.sunset == null || twilight.sunrise == null) {
       return _NoTwilight(colors: colors);
     }
 

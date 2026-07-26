@@ -51,10 +51,13 @@ void main() {
       expect(req.url.queryParameters['limit'], '25');
     });
 
-    test('a missing/!list events field yields an empty feed', () async {
+    test('a missing/!list events field fails the wire contract', () async {
       final fake = FakeNetworkClient()
         ..setResponse('/api/narrator/recent', body: '{}');
-      expect(await _backend(fake).getRecentNarratorFeed(), isEmpty);
+      final backend = _backend(fake);
+      addTearDown(backend.dispose);
+
+      await expectLater(backend.getRecentNarratorFeed(), throwsFormatException);
     });
   });
 

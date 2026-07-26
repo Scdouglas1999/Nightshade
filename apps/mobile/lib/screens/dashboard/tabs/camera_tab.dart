@@ -116,6 +116,7 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
   StreamSubscription<LiveViewFrame>? _sub;
   LiveViewFrame? _latest;
   Object? _error;
+  int _subscriptionGeneration = 0;
 
   @override
   void initState() {
@@ -134,7 +135,8 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
   }
 
   void _resubscribe() {
-    _sub?.cancel();
+    final generation = ++_subscriptionGeneration;
+    unawaited(_sub?.cancel());
     _sub = null;
     setState(() {
       _latest = null;
@@ -150,14 +152,14 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
         : widget.backend.subscribeLiveView(deviceId: widget.deviceId);
     _sub = stream.listen(
       (frame) {
-        if (!mounted) return;
+        if (!mounted || generation != _subscriptionGeneration) return;
         setState(() {
           _latest = frame;
           _error = null;
         });
       },
       onError: (Object e) {
-        if (!mounted) return;
+        if (!mounted || generation != _subscriptionGeneration) return;
         setState(() => _error = e);
       },
     );
@@ -165,7 +167,8 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _subscriptionGeneration++;
+    unawaited(_sub?.cancel());
     super.dispose();
   }
 
@@ -363,6 +366,7 @@ class _ImagePainterWidget extends StatefulWidget {
 
 class _ImagePainterWidgetState extends State<_ImagePainterWidget> {
   ui.Image? _decoded;
+  int _decodeGeneration = 0;
 
   @override
   void initState() {
@@ -386,16 +390,17 @@ class _ImagePainterWidgetState extends State<_ImagePainterWidget> {
 
   void _decode() {
     final img = widget.image;
+    final generation = ++_decodeGeneration;
     ui.decodeImageFromPixels(
       Uint8List.fromList(img.displayData),
       img.width,
       img.height,
       ui.PixelFormat.rgba8888,
       (decoded) {
-        if (!mounted) {
-          // The widget went away (or was rebuilt for a new image) before this
-          // decode landed — drop the freshly decoded native image instead of
-          // leaking it.
+        if (!mounted || generation != _decodeGeneration) {
+          // The widget went away or a newer image began decoding before this
+          // callback landed. Drop this stale native image instead of letting an
+          // older capture replace the current frame.
           decoded.dispose();
           return;
         }
@@ -411,6 +416,7 @@ class _ImagePainterWidgetState extends State<_ImagePainterWidget> {
 
   @override
   void dispose() {
+    _decodeGeneration++;
     _decoded?.dispose();
     _decoded = null;
     super.dispose();
@@ -497,10 +503,61 @@ class _ExposureControls extends ConsumerStatefulWidget {
   ConsumerState<_ExposureControls> createState() => _ExposureControlsState();
 }
 
+@visibleForTesting
+Widget buildCameraExposureControlsForTesting({
+  required CameraStateSnapshot state,
+  ExposureProgress progress = const ExposureProgress(
+    elapsed: 0,
+    remaining: 0,
+    percent: 0,
+  ),
+  ExposureSettings settings = const ExposureSettings(
+    exposureTime: 1,
+    gain: 100,
+    offset: 10,
+  ),
+}) => _ExposureControls(state: state, progress: progress, settings: settings);
+
 class _ExposureControlsState extends ConsumerState<_ExposureControls> {
   bool _starting = false;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous != null && !identical(previous, next)) _retireOperation();
+      },
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ExposureControls oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.deviceId != widget.state.deviceId) _retireOperation();
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  void _retireOperation() {
+    _operationGeneration++;
+    if (mounted && _starting) setState(() => _starting = false);
+  }
 
   Future<void> _expose() async {
+    if (_starting || widget.state.isExposing) return;
+    final backend = ref.read(backendProvider);
+    final deviceId = widget.state.deviceId;
+    if (deviceId == null) return;
+    final operationGeneration = ++_operationGeneration;
     setState(() => _starting = true);
     try {
       final session = ref.read(sessionStateProvider);
@@ -511,20 +568,36 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
             targetName: session.targetName,
           );
       // imagingService.publish already updated currentImage + stats progressively.
-      if (result == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Capture returned no image data')),
-        );
+      // captureImage returns null only on cancel/abort; real failures throw.
+      if (result == null &&
+          _isCurrent(backend, deviceId, operationGeneration)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Capture cancelled')));
       }
     } catch (e) {
-      if (mounted) {
+      if (_isCurrent(backend, deviceId, operationGeneration)) {
+        if (!mounted) return;
         // [error parsing]
         showApiErrorWithPrefix(context, 'Capture failed', e);
       }
     } finally {
-      if (mounted) setState(() => _starting = false);
+      if (_isCurrent(backend, deviceId, operationGeneration)) {
+        setState(() => _starting = false);
+      }
     }
   }
+
+  bool _isCurrent(
+    NightshadeBackend backend,
+    String? deviceId,
+    int operationGeneration,
+  ) =>
+      mounted &&
+      operationGeneration == _operationGeneration &&
+      identical(ref.read(backendProvider), backend) &&
+      widget.state.deviceId == deviceId;
 
   void _abort() {
     ref.read(imagingServiceProvider).cancelExposure();
@@ -633,7 +706,9 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
                   icon: isExposing ? null : LucideIcons.zap,
                   size: ButtonSize.large,
                   isLoading: isExposing,
-                  onPressed: isExposing ? null : _expose,
+                  onPressed: isExposing || widget.state.deviceId == null
+                      ? null
+                      : _expose,
                 ),
               ),
               const SizedBox(width: 8),
@@ -654,27 +729,137 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
   }
 }
 
-class _CoolingCard extends ConsumerWidget {
+class _CoolingCard extends ConsumerStatefulWidget {
   final CameraStateSnapshot state;
   const _CoolingCard({required this.state});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final service = ref.read(deviceServiceProvider);
-    final temp = state.temperature;
-    final power = state.coolerPower;
+  ConsumerState<_CoolingCard> createState() => _CoolingCardState();
+}
 
-    Future<void> guard(Future<void> Function() fn) async {
-      try {
-        await fn();
-      } catch (e) {
-        if (context.mounted) {
-          // [error parsing]
-          showApiError(context, e);
+@visibleForTesting
+Widget buildCameraCoolingControlsForTesting({
+  required CameraStateSnapshot state,
+}) => _CoolingCard(state: state);
+
+class _CoolingCardState extends ConsumerState<_CoolingCard> {
+  bool _busy = false;
+  double? _resumeCoolingTarget;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous != null && !identical(previous, next)) {
+          _resumeCoolingTarget = null;
+          _retireOperation();
         }
+      },
+    );
+  }
+
+  @override
+  void didUpdateWidget(_CoolingCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.deviceId != widget.state.deviceId) {
+      _resumeCoolingTarget = null;
+      _retireOperation();
+    }
+    if (!oldWidget.state.isWarming && widget.state.isWarming) {
+      _resumeCoolingTarget ??= oldWidget.state.targetTemp;
+    }
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  void _retireOperation() {
+    _operationGeneration++;
+    if (mounted && _busy) setState(() => _busy = false);
+  }
+
+  Future<void> _toggleCooling() async {
+    if (_busy) return;
+    final state = widget.state;
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
+    final backend = ref.read(backendProvider);
+    final operationGeneration = ++_operationGeneration;
+    final service = ref.read(deviceServiceProvider);
+    setState(() => _busy = true);
+    try {
+      if (state.isWarming) {
+        final target =
+            _resumeCoolingTarget ??
+            ref.read(coolingSettingsProvider).targetTemp;
+        service.cancelWarmCamera();
+        await service.setCameraCooling(enabled: true, targetTemp: target);
+        if (!_isCurrent(backend, deviceId, operationGeneration)) return;
+        ref.read(cameraStateProvider.notifier)
+          ..setTargetTemp(target)
+          ..setCooling(true);
+        ref.read(coolingSettingsProvider.notifier).state = ref
+            .read(coolingSettingsProvider)
+            .copyWith(enabled: true, targetTemp: target);
+        _resumeCoolingTarget = null;
+      } else if (state.isCooling) {
+        _resumeCoolingTarget = state.targetTemp;
+        await service.warmCamera();
+      } else {
+        final target = _resumeCoolingTarget ?? state.targetTemp;
+        await service.setCameraCooling(enabled: true, targetTemp: target);
+        if (!_isCurrent(backend, deviceId, operationGeneration)) return;
+        ref.read(cameraStateProvider.notifier).setCooling(true);
+        ref.read(coolingSettingsProvider.notifier).state = ref
+            .read(coolingSettingsProvider)
+            .copyWith(enabled: true, targetTemp: target);
+        _resumeCoolingTarget = null;
+      }
+    } catch (e) {
+      if (_isCurrent(backend, deviceId, operationGeneration)) {
+        if (!mounted) return;
+        // [error parsing]
+        showApiError(context, e);
+      }
+    } finally {
+      if (_isCurrent(backend, deviceId, operationGeneration)) {
+        setState(() => _busy = false);
       }
     }
+  }
+
+  bool _isCurrent(
+    NightshadeBackend backend,
+    String deviceId,
+    int operationGeneration,
+  ) =>
+      mounted &&
+      operationGeneration == _operationGeneration &&
+      identical(ref.read(backendProvider), backend) &&
+      widget.state.deviceId == deviceId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final temp = state.temperature;
+    final power = state.coolerPower;
+    final warming = state.isWarming;
+    final actionLabel = _busy
+        ? (warming ? 'Resuming cooling…' : 'Updating cooler…')
+        : warming
+        ? 'Resume cooling'
+        : state.isCooling
+        ? 'Warm camera'
+        : 'Cool to target';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -699,10 +884,10 @@ class _CoolingCard extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              if (state.isCooling)
-                _Pill(label: 'On', color: colors.success)
-              else if (state.isWarming)
+              if (warming)
                 _Pill(label: 'Warming', color: colors.warning)
+              else if (state.isCooling)
+                _Pill(label: 'On', color: colors.success)
               else
                 _Pill(label: 'Off', color: colors.textMuted),
             ],
@@ -738,24 +923,20 @@ class _CoolingCard extends ConsumerWidget {
             children: [
               Expanded(
                 child: NightshadeButton(
-                  label: state.isCooling ? 'Stop cooling' : 'Cool to target',
-                  icon: state.isCooling
-                      ? LucideIcons.x
+                  label: actionLabel,
+                  icon: warming
+                      ? LucideIcons.snowflake
+                      : state.isCooling
+                      ? LucideIcons.flame
                       : LucideIcons.thermometerSnowflake,
                   size: ButtonSize.large,
-                  variant: state.isCooling
+                  variant: state.isCooling && !warming
                       ? ButtonVariant.outline
                       : ButtonVariant.primary,
-                  onPressed: () => guard(() async {
-                    if (state.isCooling) {
-                      await service.warmCamera();
-                    } else {
-                      await service.setCameraCooling(
-                        enabled: true,
-                        targetTemp: state.targetTemp,
-                      );
-                    }
-                  }),
+                  isLoading: _busy,
+                  onPressed: _busy || state.deviceId == null
+                      ? null
+                      : _toggleCooling,
                 ),
               ),
             ],
@@ -766,12 +947,90 @@ class _CoolingCard extends ConsumerWidget {
   }
 }
 
-class _FilterCard extends ConsumerWidget {
+class _FilterCard extends ConsumerStatefulWidget {
   final FilterWheelState state;
   const _FilterCard({required this.state});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FilterCard> createState() => _FilterCardState();
+}
+
+class _FilterCardState extends ConsumerState<_FilterCard> {
+  int? _pendingPosition;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous != null && !identical(previous, next)) _retireOperation();
+      },
+    );
+  }
+
+  @override
+  void didUpdateWidget(_FilterCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.state.deviceId != widget.state.deviceId) _retireOperation();
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  void _retireOperation() {
+    _operationGeneration++;
+    if (mounted && _pendingPosition != null) {
+      setState(() => _pendingPosition = null);
+    }
+  }
+
+  Future<void> _selectFilter(int position) async {
+    final state = widget.state;
+    if (_pendingPosition != null ||
+        state.isMoving ||
+        position == state.currentPosition) {
+      return;
+    }
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
+    final backend = ref.read(backendProvider);
+    final operationGeneration = ++_operationGeneration;
+    setState(() => _pendingPosition = position);
+    try {
+      await ref.read(deviceServiceProvider).setFilterWheelPosition(position);
+    } catch (e) {
+      if (_isCurrent(backend, deviceId, operationGeneration)) {
+        if (!mounted) return;
+        // [error parsing]
+        showApiErrorWithPrefix(context, 'Filter change failed', e);
+      }
+    } finally {
+      if (_isCurrent(backend, deviceId, operationGeneration)) {
+        setState(() => _pendingPosition = null);
+      }
+    }
+  }
+
+  bool _isCurrent(
+    NightshadeBackend backend,
+    String deviceId,
+    int operationGeneration,
+  ) =>
+      mounted &&
+      operationGeneration == _operationGeneration &&
+      identical(ref.read(backendProvider), backend) &&
+      widget.state.deviceId == deviceId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     if (state.connectionState != DeviceConnectionState.connected) {
       return Container(
@@ -796,6 +1055,8 @@ class _FilterCard extends ConsumerWidget {
 
     final filters = state.filterNames;
     final selected = state.currentPosition;
+    final pending = _pendingPosition;
+    final moving = state.isMoving || pending != null;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -820,8 +1081,13 @@ class _FilterCard extends ConsumerWidget {
                 ),
               ),
               const Spacer(),
-              if (state.isMoving)
-                _Pill(label: 'Moving', color: colors.warning)
+              if (moving)
+                _Pill(
+                  label: pending != null && pending < filters.length
+                      ? 'Moving to ${filters[pending]}'
+                      : 'Moving',
+                  color: colors.warning,
+                )
               else
                 _Pill(
                   label: state.currentFilterName ?? 'Slot ${selected ?? "?"}',
@@ -844,23 +1110,8 @@ class _FilterCard extends ConsumerWidget {
                   _FilterChip(
                     label: filters[i],
                     selected: i == selected,
-                    disabled: state.isMoving,
-                    onTap: () async {
-                      try {
-                        await ref
-                            .read(deviceServiceProvider)
-                            .setFilterWheelPosition(i);
-                      } catch (e) {
-                        if (context.mounted) {
-                          // [error parsing]
-                          showApiErrorWithPrefix(
-                            context,
-                            'Filter change failed',
-                            e,
-                          );
-                        }
-                      }
-                    },
+                    disabled: moving,
+                    onTap: () => _selectFilter(i),
                   ),
               ],
             ),

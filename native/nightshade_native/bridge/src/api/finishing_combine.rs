@@ -152,6 +152,8 @@ struct DrizzleIntegrateArgs {
     output_fits: String,
     /// Optional output FITS path for the per-pixel coverage (drizzle weight) map.
     coverage_fits: Option<String>,
+    /// Optional stretched PNG sibling for the coverage overlay.
+    coverage_png_path: Option<String>,
     /// Optional stretched preview PNG path for the drizzled master, mirroring
     /// `api_integrate_session`'s preview so the session-review hero can show the
     /// (scaled) drizzled image rather than the standard 1× preview.
@@ -167,6 +169,8 @@ struct DrizzleIntegrateResult {
     output_path: String,
     /// Path the coverage map was written to, when requested.
     coverage_path: Option<String>,
+    /// Path the stretched coverage-map PNG was written to, when requested.
+    coverage_png_path: Option<String>,
     /// Path the stretched preview PNG was written to, when requested.
     preview_png_path: Option<String>,
     /// Output master width (`ceil(ref_w · scale)`).
@@ -420,6 +424,26 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
         _ => None,
     };
 
+    // --- Optional stretched coverage-map PNG. ---
+    // Preserve the linear coverage FITS for science while providing a format
+    // Flutter can actually composite in the review overlay.
+    let coverage_png_path = match args.coverage_png_path.as_ref() {
+        Some(p) if !p.trim().is_empty() => {
+            match crate::api::post_session::write_preview_png(&output.coverage, Path::new(p)) {
+                Ok(()) => Some(p.clone()),
+                Err(e) => {
+                    tracing::warn!(
+                        path = %p,
+                        error = %e,
+                        "coverage preview PNG write failed; keeping drizzle master and FITS map"
+                    );
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+
     // --- Optional stretched preview PNG of the drizzled master. ---
     // Mirror `api_integrate_session`: emit a sibling 8-bit preview so the
     // session-review hero shows the (scaled) drizzled image, not the standard
@@ -453,6 +477,7 @@ fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrate
     Ok(DrizzleIntegrateResult {
         output_path: args.output_fits,
         coverage_path,
+        coverage_png_path,
         preview_png_path,
         out_width: output.master.width,
         out_height: output.master.height,
@@ -668,11 +693,42 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// Deterministic temp path derived from the calling test's name (NO rng): the
-    /// per-test name plus the process id keeps parallel runs from colliding while
-    /// staying fully reproducible.
-    fn temp_path(name: &str, ext: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("ns_fc_{name}_{}.{ext}", std::process::id()))
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: the leak was worst exactly when a test FAILED, and a
+    /// trailing cleanup never runs while a panic unwinds — drop does.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// Deterministic scratch directory derived from the calling test's name (NO
+    /// rng): the per-test name plus the process id keeps parallel runs from
+    /// colliding while staying fully reproducible.
+    fn temp_dir(name: &str) -> TempDir {
+        let p = std::env::temp_dir().join(format!("ns_fc_{name}_{}", std::process::id()));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
     }
 
     /// A row-major 3x3 translation `[1,0,tx, 0,1,ty, 0,0,1]`, flattened to 9
@@ -746,6 +802,7 @@ mod tests {
     /// coverage is single-channel.
     #[test]
     fn drizzle_integrate_mono_round_trip() {
+        let dir = temp_dir("drizzle_integrate_mono_round_trip");
         let size = 64u32;
         let ref_w = size;
         let ref_h = size;
@@ -759,14 +816,15 @@ mod tests {
             .collect();
         let f1 = render_mono_f32(size, &shifted, 200.0);
 
-        let p0 = temp_path("drizzle_integrate_mono_round_trip_f0", "fits");
-        let p1 = temp_path("drizzle_integrate_mono_round_trip_f1", "fits");
+        let p0 = dir.join("drizzle_integrate_mono_round_trip_f0.fits");
+        let p1 = dir.join("drizzle_integrate_mono_round_trip_f1.fits");
         write_master(&p0, &f0);
         write_master(&p1, &f1);
 
-        let out_path = temp_path("drizzle_integrate_mono_round_trip_out", "fits");
-        let cov_path = temp_path("drizzle_integrate_mono_round_trip_cov", "fits");
-        let png_path = temp_path("drizzle_integrate_mono_round_trip_prev", "png");
+        let out_path = dir.join("drizzle_integrate_mono_round_trip_out.fits");
+        let cov_path = dir.join("drizzle_integrate_mono_round_trip_cov.fits");
+        let cov_png_path = dir.join("drizzle_integrate_mono_round_trip_cov_preview.png");
+        let png_path = dir.join("drizzle_integrate_mono_round_trip_prev.png");
 
         let scale = 2.0;
         let args = serde_json::json!({
@@ -780,6 +838,7 @@ mod tests {
             "config": { "scale": scale, "pixfrac": 0.9, "kernel": "square" },
             "outputFits": out_path.to_string_lossy(),
             "coverageFits": cov_path.to_string_lossy(),
+            "coveragePngPath": cov_png_path.to_string_lossy(),
             "previewPngPath": png_path.to_string_lossy()
         });
 
@@ -794,6 +853,10 @@ mod tests {
             result.coverage_path.as_deref(),
             Some(cov_path.to_string_lossy().as_ref())
         );
+        assert_eq!(
+            result.coverage_png_path.as_deref(),
+            Some(cov_png_path.to_string_lossy().as_ref())
+        );
         // The drizzled master's stretched preview PNG was written and surfaced.
         assert_eq!(
             result.preview_png_path.as_deref(),
@@ -801,6 +864,7 @@ mod tests {
         );
         assert!(out_path.exists(), "drizzle master must be on disk");
         assert!(cov_path.exists(), "coverage map must be on disk");
+        assert!(cov_png_path.exists(), "coverage preview must be on disk");
         assert!(png_path.exists(), "drizzle preview PNG must be on disk");
 
         let (master, _h) = read_fits(out_path.as_path()).expect("read drizzle master");
@@ -813,12 +877,9 @@ mod tests {
         let preview = image::open(&png_path).expect("decode drizzle preview");
         assert_eq!(preview.width(), result.out_width);
         assert_eq!(preview.height(), result.out_height);
-
-        let _ = std::fs::remove_file(&p0);
-        let _ = std::fs::remove_file(&p1);
-        let _ = std::fs::remove_file(&out_path);
-        let _ = std::fs::remove_file(&cov_path);
-        let _ = std::fs::remove_file(&png_path);
+        let coverage_preview = image::open(&cov_png_path).expect("decode coverage preview");
+        assert_eq!(coverage_preview.width(), result.out_width);
+        assert_eq!(coverage_preview.height(), result.out_height);
     }
 
     // -------------------------------------------------------------------------
@@ -879,6 +940,7 @@ mod tests {
     /// pedestal is removed and the non-uniform flat reshapes each region.
     #[test]
     fn drizzle_calibration_removes_pedestal_and_applies_flat() {
+        let dir = temp_dir("drizzle_calibration_removes_pedestal_and_applies_flat");
         let size = 64u32;
 
         // Uniform light: a flat sky at 1000 (no stars — interior is predictable).
@@ -890,15 +952,15 @@ mod tests {
         // 800/1.3333 ≈ 600 (top) and 800/0.6667 ≈ 1200 (bottom).
         let flat = render_split_f32(size, 2.0, 1.0);
 
-        let light_path = temp_path("drizzle_cal_light", "fits");
-        let dark_path = temp_path("drizzle_cal_dark", "fits");
-        let flat_path = temp_path("drizzle_cal_flat", "fits");
+        let light_path = dir.join("drizzle_cal_light.fits");
+        let dark_path = dir.join("drizzle_cal_dark.fits");
+        let flat_path = dir.join("drizzle_cal_flat.fits");
         write_master(&light_path, &light);
         write_master(&dark_path, &dark);
         write_master(&flat_path, &flat);
 
-        let raw_out = temp_path("drizzle_cal_raw_out", "fits");
-        let cal_out = temp_path("drizzle_cal_cal_out", "fits");
+        let raw_out = dir.join("drizzle_cal_raw_out.fits");
+        let cal_out = dir.join("drizzle_cal_cal_out.fits");
 
         // Two identical subs, identity transforms ⇒ full interior coverage.
         let frames = serde_json::json!([
@@ -975,42 +1037,35 @@ mod tests {
             "calibrated master must differ from the raw deposit (cal_top={cal_top} \
              raw_top={raw_top} cal_bot={cal_bot} raw_bot={raw_bot})"
         );
-
-        let _ = std::fs::remove_file(&light_path);
-        let _ = std::fs::remove_file(&dark_path);
-        let _ = std::fs::remove_file(&flat_path);
-        let _ = std::fs::remove_file(&raw_out);
-        let _ = std::fs::remove_file(&cal_out);
     }
 
-    /// SHOULD-FIX: a preview-PNG write failure must NOT abort the (expensive)
-    /// drizzle run — the master + coverage are the real outputs. We point the
-    /// preview at an unwritable path (a PNG *inside* a path whose parent is a
-    /// regular file, so directory creation fails) and assert the call still
-    /// succeeds, the master/coverage are on disk, and `previewPngPath` comes back
-    /// `None` (best-effort skipped).
+    /// Preview-PNG write failures must NOT abort the (expensive) drizzle run —
+    /// the master + coverage FITS are the real outputs. Point both cosmetic
+    /// previews at unwritable paths and assert the real artifacts survive.
     ///
     /// Without the fix the preview write is a hard `?` error and the whole run
     /// returns `Err`, throwing away the master — this test FAILS.
     #[test]
     fn drizzle_preview_failure_still_returns_master() {
+        let dir = temp_dir("drizzle_preview_failure_still_returns_master");
         let size = 32u32;
         let stars = drizzle_stars(size as f64);
         let frame = render_mono_f32(size, &stars, 200.0);
-        let fp = temp_path("drizzle_preview_fail_frame", "fits");
+        let fp = dir.join("drizzle_preview_fail_frame.fits");
         write_master(&fp, &frame);
 
-        let out_path = temp_path("drizzle_preview_fail_out", "fits");
-        let cov_path = temp_path("drizzle_preview_fail_cov", "fits");
+        let out_path = dir.join("drizzle_preview_fail_out.fits");
+        let cov_path = dir.join("drizzle_preview_fail_cov.fits");
 
         // A "file" we create, then ask the preview to be written *underneath* as
         // if it were a directory: `<blocker>/preview.png`. `ensure_parent_dir`
         // (via write_preview_png) must `create_dir_all("<blocker>")`, which fails
         // because `<blocker>` already exists as a regular file — a deterministic,
         // platform-independent write failure.
-        let blocker = temp_path("drizzle_preview_fail_blocker", "dat");
+        let blocker = dir.join("drizzle_preview_fail_blocker.dat");
         std::fs::write(&blocker, b"not a directory").expect("create blocker file");
         let bad_preview = blocker.join("preview.png");
+        let bad_coverage_preview = blocker.join("coverage.png");
 
         let args = serde_json::json!({
             "frames": [
@@ -1021,6 +1076,7 @@ mod tests {
             "config": { "scale": 2.0 },
             "outputFits": out_path.to_string_lossy(),
             "coverageFits": cov_path.to_string_lossy(),
+            "coveragePngPath": bad_coverage_preview.to_string_lossy(),
             "previewPngPath": bad_preview.to_string_lossy()
         });
 
@@ -1035,11 +1091,10 @@ mod tests {
             result.preview_png_path, None,
             "a failed preview write surfaces as no preview, not an aborted run"
         );
-
-        let _ = std::fs::remove_file(&fp);
-        let _ = std::fs::remove_file(&out_path);
-        let _ = std::fs::remove_file(&cov_path);
-        let _ = std::fs::remove_file(&blocker);
+        assert_eq!(
+            result.coverage_png_path, None,
+            "a failed coverage preview preserves the scientific coverage FITS"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -1050,6 +1105,7 @@ mod tests {
     /// Bayer-drizzle into a 3-channel RGB master of the scaled dimensions.
     #[test]
     fn drizzle_integrate_bayer_round_trip() {
+        let dir = temp_dir("drizzle_integrate_bayer_round_trip");
         let size = 64u32;
         let w = size as usize;
         let h = size as usize;
@@ -1068,12 +1124,12 @@ mod tests {
             ImageData::from_f32(size, size, 1, &px)
         };
 
-        let p0 = temp_path("drizzle_integrate_bayer_round_trip_f0", "fits");
-        let p1 = temp_path("drizzle_integrate_bayer_round_trip_f1", "fits");
+        let p0 = dir.join("drizzle_integrate_bayer_round_trip_f0.fits");
+        let p1 = dir.join("drizzle_integrate_bayer_round_trip_f1.fits");
         write_bayer_mosaic(&p0, &mosaic(0.0), "RGGB");
         write_bayer_mosaic(&p1, &mosaic(5.0), "RGGB");
 
-        let out_path = temp_path("drizzle_integrate_bayer_round_trip_out", "fits");
+        let out_path = dir.join("drizzle_integrate_bayer_round_trip_out.fits");
         let scale = 2.0;
         let args = serde_json::json!({
             "frames": [
@@ -1102,10 +1158,6 @@ mod tests {
         let (master, _h) = read_fits(out_path.as_path()).expect("read bayer drizzle master");
         assert_eq!(master.pixel_type, PixelType::F32);
         assert_eq!(master.channels, 3);
-
-        let _ = std::fs::remove_file(&p0);
-        let _ = std::fs::remove_file(&p1);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     // -------------------------------------------------------------------------
@@ -1116,6 +1168,7 @@ mod tests {
     /// 3-channel `F32` composite of the shared geometry.
     #[test]
     fn combine_channels_sho_round_trip() {
+        let dir = temp_dir("combine_channels_sho_round_trip");
         let size = 32u32;
         let len = (size * size) as usize;
         // Distinct flat single-channel masters so each output channel is traceable.
@@ -1123,14 +1176,14 @@ mod tests {
             let data: Vec<f32> = (0..len).map(|i| level + (i % 5) as f32 * 0.5).collect();
             ImageData::from_f32(size, size, 1, &data)
         };
-        let s_path = temp_path("combine_channels_sho_round_trip_s", "fits");
-        let ha_path = temp_path("combine_channels_sho_round_trip_ha", "fits");
-        let o_path = temp_path("combine_channels_sho_round_trip_o", "fits");
+        let s_path = dir.join("combine_channels_sho_round_trip_s.fits");
+        let ha_path = dir.join("combine_channels_sho_round_trip_ha.fits");
+        let o_path = dir.join("combine_channels_sho_round_trip_o.fits");
         write_master(&s_path, &make(100.0));
         write_master(&ha_path, &make(200.0));
         write_master(&o_path, &make(300.0));
 
-        let out_path = temp_path("combine_channels_sho_round_trip_out", "fits");
+        let out_path = dir.join("combine_channels_sho_round_trip_out.fits");
         let args = serde_json::json!({
             "inputs": [
                 s_path.to_string_lossy(),
@@ -1153,27 +1206,23 @@ mod tests {
         assert_eq!(img.width, size);
         assert_eq!(img.height, size);
         assert_eq!(img.channels, 3, "narrowband composite has three channels");
-
-        let _ = std::fs::remove_file(&s_path);
-        let _ = std::fs::remove_file(&ha_path);
-        let _ = std::fs::remove_file(&o_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     /// Explicit per-input `[r,g,b]` weights also produce a 3-channel composite.
     #[test]
     fn combine_channels_explicit_weights_round_trip() {
+        let dir = temp_dir("combine_channels_explicit_weights_round_trip");
         let size = 24u32;
         let len = (size * size) as usize;
         let data: Vec<f32> = (0..len).map(|i| 50.0 + i as f32 * 0.1).collect();
         let a = ImageData::from_f32(size, size, 1, &data);
         let b = ImageData::from_f32(size, size, 1, &data);
-        let a_path = temp_path("combine_channels_explicit_weights_round_trip_a", "fits");
-        let b_path = temp_path("combine_channels_explicit_weights_round_trip_b", "fits");
+        let a_path = dir.join("combine_channels_explicit_weights_round_trip_a.fits");
+        let b_path = dir.join("combine_channels_explicit_weights_round_trip_b.fits");
         write_master(&a_path, &a);
         write_master(&b_path, &b);
 
-        let out_path = temp_path("combine_channels_explicit_weights_round_trip_out", "fits");
+        let out_path = dir.join("combine_channels_explicit_weights_round_trip_out.fits");
         let args = serde_json::json!({
             "inputs": [a_path.to_string_lossy(), b_path.to_string_lossy()],
             "weights": [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0]],
@@ -1184,10 +1233,6 @@ mod tests {
         assert_eq!(result.width, size);
         let (img, _h) = read_fits(out_path.as_path()).expect("read composite");
         assert_eq!(img.channels, 3);
-
-        let _ = std::fs::remove_file(&a_path);
-        let _ = std::fs::remove_file(&b_path);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     // -------------------------------------------------------------------------
@@ -1199,6 +1244,7 @@ mod tests {
     /// surface as `Err` — never a silent partial stack.
     #[test]
     fn combine_error_paths() {
+        let dir = temp_dir("combine_error_paths");
         // Malformed JSON.
         assert!(api_drizzle_integrate("not json".to_string()).is_err());
         assert!(api_combine_channels("not json".to_string()).is_err());
@@ -1214,8 +1260,8 @@ mod tests {
         .is_err());
 
         // Nonexistent input frame to drizzle.
-        let missing = temp_path("combine_error_paths_missing", "fits");
-        let out = temp_path("combine_error_paths_out", "fits");
+        let missing = dir.join("combine_error_paths_missing.fits");
+        let out = dir.join("combine_error_paths_out.fits");
         let nonexistent = serde_json::json!({
             "frames": [
                 { "fitsPath": missing.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 }
@@ -1232,7 +1278,7 @@ mod tests {
         // A real frame but a malformed (non-9-element) transform.
         let size = 16u32;
         let frame = render_mono_f32(size, &drizzle_stars(size as f64), 100.0);
-        let fp = temp_path("combine_error_paths_frame", "fits");
+        let fp = dir.join("combine_error_paths_frame.fits");
         write_master(&fp, &frame);
         let bad_transform = serde_json::json!({
             "frames": [ { "fitsPath": fp.to_string_lossy(), "transform": [1.0, 0.0, 0.0], "weight": 1.0 } ],
@@ -1258,8 +1304,8 @@ mod tests {
         // combine_channels with mismatched input geometry is rejected.
         let big = ImageData::from_f32(8, 8, 1, &[1.0f32; 64]);
         let small = ImageData::from_f32(4, 4, 1, &[1.0f32; 16]);
-        let big_path = temp_path("combine_error_paths_big", "fits");
-        let small_path = temp_path("combine_error_paths_small", "fits");
+        let big_path = dir.join("combine_error_paths_big.fits");
+        let small_path = dir.join("combine_error_paths_small.fits");
         write_master(&big_path, &big);
         write_master(&small_path, &small);
         let mismatch = serde_json::json!({
@@ -1271,10 +1317,5 @@ mod tests {
             api_combine_channels(mismatch.to_string()).is_err(),
             "mismatched combine geometry must error"
         );
-
-        let _ = std::fs::remove_file(&fp);
-        let _ = std::fs::remove_file(&big_path);
-        let _ = std::fs::remove_file(&small_path);
-        let _ = std::fs::remove_file(&out);
     }
 }

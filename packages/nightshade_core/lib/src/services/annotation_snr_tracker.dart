@@ -113,9 +113,16 @@ extension AnnotationSnrTracker on AnnotationService {
     double newMagnitudeLimit,
   ) async {
     final currentAnnotation = _ref.read(currentAnnotationProvider);
-    if (currentAnnotation == null || _lastPlateSolve == null) return;
+    final plateSolve = _lastPlateSolve;
+    if (currentAnnotation == null || plateSolve == null) return;
+    final generation = _annotationRunGeneration;
+    final backend = _ref.read(backendProvider);
+    bool isCurrent() =>
+        _isCurrentAnnotationRun(generation, backend) &&
+        identical(_lastPlateSolve, plateSolve);
 
     try {
+      if (!isCurrent()) return;
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.searching();
 
@@ -126,11 +133,12 @@ extension AnnotationSnrTracker on AnnotationService {
 
       // Search for additional objects with the new, higher magnitude limit
       final additionalObjects = await findObjectsInFov(
-        plateSolve: _lastPlateSolve!,
+        plateSolve: plateSolve,
         includeStars: includeStars,
         minMagnitude: newMagnitudeLimit,
         snrBasedMagnitudeCutoff: newMagnitudeLimit,
       );
+      if (!isCurrent()) return;
 
       // Filter to only new objects (not already revealed)
       final newObjects = additionalObjects
@@ -174,6 +182,7 @@ extension AnnotationSnrTracker on AnnotationService {
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.complete(updatedAnnotation.objects.length);
     } catch (e) {
+      if (!isCurrent()) return;
       _logger.error(
         'Error during progressive re-annotation: $e',
         source: 'Annotation',
@@ -194,9 +203,16 @@ extension AnnotationSnrTracker on AnnotationService {
     double newMagnitudeLimit,
   ) async {
     final currentAnnotation = _ref.read(currentAnnotationProvider);
-    if (currentAnnotation == null || _lastPlateSolve == null) return;
+    final plateSolve = _lastPlateSolve;
+    if (currentAnnotation == null || plateSolve == null) return;
+    final generation = _annotationRunGeneration;
+    final backend = _ref.read(backendProvider);
+    bool isCurrent() =>
+        _isCurrentAnnotationRun(generation, backend) &&
+        identical(_lastPlateSolve, plateSolve);
 
     try {
+      if (!isCurrent()) return;
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.searching();
 
@@ -232,6 +248,7 @@ extension AnnotationSnrTracker on AnnotationService {
       _ref.read(annotationStateProvider.notifier).state =
           AnnotationState.complete(updatedAnnotation.objects.length);
     } catch (e) {
+      if (!isCurrent()) return;
       _logger.error(
         'Error during reduced-limit re-annotation: $e',
         source: 'Annotation',

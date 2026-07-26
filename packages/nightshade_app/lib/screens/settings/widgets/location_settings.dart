@@ -16,6 +16,29 @@ import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
 
+typedef HorizonImportPicker = Future<file_selector.XFile?> Function();
+typedef HorizonImportReader = Future<String> Function(
+  file_selector.XFile file,
+);
+
+Future<file_selector.XFile?> _pickHorizonImport() {
+  return file_selector.openFile(
+    acceptedTypeGroups: [
+      const file_selector.XTypeGroup(
+        label: 'Horizon profile (.hor / .csv / .txt)',
+        extensions: ['hor', 'csv', 'txt'],
+      ),
+    ],
+  );
+}
+
+final horizonImportPickerProvider =
+    Provider<HorizonImportPicker>((ref) => _pickHorizonImport);
+
+final horizonImportReaderProvider = Provider<HorizonImportReader>(
+  (ref) => (file) => File(file.path).readAsString(),
+);
+
 class LocationSettingsPage extends ConsumerStatefulWidget {
   final bool isMobile;
 
@@ -30,7 +53,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   final _lonController = TextEditingController();
   final _elevController = TextEditingController();
   final Map<String, TextEditingController> _horizonControllers = {};
-  bool _initialized = false;
+  bool _isImportingHorizon = false;
+  int _horizonImportGeneration = 0;
 
   @override
   void initState() {
@@ -51,38 +75,18 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
     super.dispose();
   }
 
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _latController.text = settings.latitude.toStringAsFixed(6);
-      _lonController.text = settings.longitude.toStringAsFixed(6);
-      _elevController.text = settings.elevation.toStringAsFixed(0);
-
-      final profile =
-          LegacyHorizonProfile.fromJson(settings.horizonProfileJson);
-      for (final dir in horizonDirections) {
-        _horizonControllers[dir]!.text =
-            profile.altitudeAt(dir).toStringAsFixed(0);
-      }
-      _initialized = true;
-    }
-  }
-
-  /// Push externally-changed coordinates (GPS, server sync, IP auto-detect)
-  /// into the text fields. The seed in [_initControllers] only runs once, so
-  /// updates that arrive after the page is built must be written through here
-  /// to be visible without leaving and re-entering the screen.
-  void _syncCoordinateControllers({
-    required double latitude,
-    required double longitude,
-    required double elevation,
-  }) {
-    _latController.text = latitude.toStringAsFixed(6);
-    _lonController.text = longitude.toStringAsFixed(6);
-    _elevController.text = elevation.toStringAsFixed(0);
-  }
-
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (!_isImportingHorizon ||
+          previous == null ||
+          identical(previous, next)) {
+        return;
+      }
+      _horizonImportGeneration++;
+      setState(() => _isImportingHorizon = false);
+    });
+
     final settingsAsync = ref.watch(appSettingsProvider);
 
     return settingsAsync.when(
@@ -95,7 +99,10 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
+        final authority = ref.watch(backendProvider);
+        final isRemoteMode = ref.watch(isRemoteModeProvider);
+        final horizonProfile =
+            LegacyHorizonProfile.fromJson(settings.horizonProfileJson);
 
         return SettingsPage(
           key: SettingsTutorialKeys.location,
@@ -114,6 +121,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   subtitle: 'Positive for North, negative for South',
                   trailing: SettingsNumberInput(
                     controller: _latController,
+                    authoritativeValue: settings.latitude,
+                    authorityKey: authority,
                     suffix: '\u00B0',
                     min: -90,
                     max: 90,
@@ -133,6 +142,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   subtitle: 'Positive for East, negative for West',
                   trailing: SettingsNumberInput(
                     controller: _lonController,
+                    authoritativeValue: settings.longitude,
+                    authorityKey: authority,
                     suffix: '\u00B0',
                     min: -180,
                     max: 180,
@@ -152,6 +163,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   subtitle: 'Height above sea level',
                   trailing: SettingsNumberInput(
                     controller: _elevController,
+                    authoritativeValue: settings.elevation,
+                    authorityKey: authority,
                     suffix: 'm',
                     min: -500,
                     max: 10000,
@@ -175,9 +188,24 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                         color: NightshadeColors.of(context).primary),
                     onPressed: () async {
                       try {
+                        final actionAuthority = ref.read(backendProvider);
                         final backend =
                             ref.read(profileSettingsBackendProvider);
                         final location = await backend.getLocation();
+
+                        if (!mounted ||
+                            !identical(
+                              ref.read(backendProvider),
+                              actionAuthority,
+                            )) {
+                          if (mounted) {
+                            this.context.showWarningSnackBar(
+                                  'The imaging host changed while syncing. Try '
+                                  'again on the current host.',
+                                );
+                          }
+                          return;
+                        }
 
                         if (location != null) {
                           await ref
@@ -187,21 +215,15 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                                 longitude: location.longitude,
                                 elevation: location.elevation,
                               );
-                          // Reflect the new values in the visible fields
-                          // immediately — the controllers are seeded once
-                          // (guarded by _initialized) so a provider update
-                          // alone would not refresh them until the page is
-                          // rebuilt from scratch.
-                          _syncCoordinateControllers(
-                            latitude: location.latitude,
-                            longitude: location.longitude,
-                            elevation: location.elevation,
-                          );
-                        }
-
-                        if (context.mounted) {
-                          context.showSuccessSnackBar(
-                              'Location synced from server');
+                          if (context.mounted) {
+                            context.showSuccessSnackBar(
+                                'Location synced from server');
+                          }
+                        } else {
+                          if (context.mounted) {
+                            this.context.showWarningSnackBar(
+                                'No location available from server');
+                          }
                         }
                       } catch (e) {
                         if (context.mounted) {
@@ -222,8 +244,22 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                         color: NightshadeColors.of(context).primary),
                     onPressed: () async {
                       try {
+                        final actionAuthority = ref.read(backendProvider);
                         final location =
                             await GeolocationService.fetchLocationFromGPS();
+                        if (!mounted ||
+                            !identical(
+                              ref.read(backendProvider),
+                              actionAuthority,
+                            )) {
+                          if (mounted) {
+                            this.context.showWarningSnackBar(
+                                  'The imaging host changed while reading the '
+                                  'device location. Try again on the current host.',
+                                );
+                          }
+                          return;
+                        }
                         if (location != null) {
                           final (lat, lon, name) = location;
                           await ref
@@ -231,13 +267,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                               .updateLocation(
                                 latitude: lat,
                                 longitude: lon,
-                                elevation: 0,
+                                elevation: settings.elevation,
                               );
-                          _syncCoordinateControllers(
-                            latitude: lat,
-                            longitude: lon,
-                            elevation: 0,
-                          );
                           if (context.mounted) {
                             context
                                 .showSuccessSnackBar('Location updated: $name');
@@ -276,11 +307,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                       (i) => '${i + 1} - ${BortleScale.description(i + 1)}',
                     ),
                     onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .setBortleClass(int.parse(value));
-                      }
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setBortleClass(int.parse(value));
                     },
                     width: widget.isMobile ? 200 : 280,
                     isMobile: widget.isMobile,
@@ -319,63 +348,108 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     ),
                   ),
                 ),
-                ...List.generate(horizonDirections.length, (i) {
-                  final dir = horizonDirections[i];
-                  final azimuth = horizonDirectionAzimuths[i];
-                  return SettingRow(
-                    icon: _compassIcon(dir),
-                    title: '$dir (${azimuth.toStringAsFixed(0)}\u00B0)',
-                    subtitle: 'Horizon altitude at $dir',
-                    trailing: SettingsNumberInput(
-                      controller: _horizonControllers[dir]!,
-                      suffix: '\u00B0',
-                      min: 0,
-                      max: 89,
-                      decimals: 0,
-                      onChanged: (value) async {
-                        _updateHorizonProfile();
-                      },
-                      isMobile: widget.isMobile,
+                // The horizon mask (`horizon_profile_json`) is intentionally
+                // non-remotable \u2014 editing it over NetworkBackend throws. Show a
+                // host-only notice instead of editors that can't persist.
+                if (isRemoteMode)
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                    child: Text(
+                      'The local horizon mask can only be edited on the imaging '
+                      'host.',
+                      style: TextStyle(
+                        color: NightshadeColors.of(context).textSecondary,
+                        fontSize: NightshadeTypography.fontSize12,
+                      ),
                     ),
-                    isLast: i == horizonDirections.length - 1,
-                    isMobile: widget.isMobile,
-                  );
-                }),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      TextButton.icon(
-                        icon: Icon(LucideIcons.upload,
-                            size: 14,
-                            color: NightshadeColors.of(context).primary),
-                        label: Text('Import .hor / CSV',
-                            style: TextStyle(
-                                color: NightshadeColors.of(context).primary,
-                                fontSize: NightshadeTypography.fontSize12)),
-                        onPressed: _importHorizonFile,
+                  )
+                else ...[
+                  ...List.generate(horizonDirections.length, (i) {
+                    final dir = horizonDirections[i];
+                    final azimuth = horizonDirectionAzimuths[i];
+                    return SettingRow(
+                      icon: _compassIcon(dir),
+                      title: '$dir (${azimuth.toStringAsFixed(0)}\u00B0)',
+                      subtitle: 'Horizon altitude at $dir',
+                      trailing: SettingsNumberInput(
+                        controller: _horizonControllers[dir]!,
+                        authoritativeValue: horizonProfile.altitudeAt(dir),
+                        authorityKey: authority,
+                        suffix: '\u00B0',
+                        min: 0,
+                        max: 89,
+                        decimals: 0,
+                        onChanged: (_) => _updateHorizonProfile(),
+                        isMobile: widget.isMobile,
                       ),
-                      TextButton.icon(
-                        icon: Icon(LucideIcons.rotateCcw,
-                            size: 14,
-                            color: NightshadeColors.of(context).primary),
-                        label: Text('Reset All to 0\u00B0',
-                            style: TextStyle(
-                                color: NightshadeColors.of(context).primary,
-                                fontSize: NightshadeTypography.fontSize12)),
-                        onPressed: () {
-                          for (final dir in horizonDirections) {
-                            _horizonControllers[dir]!.text = '0';
-                          }
-                          _updateHorizonProfile();
-                        },
-                      ),
-                    ],
+                      isLast: i == horizonDirections.length - 1,
+                      isMobile: widget.isMobile,
+                    );
+                  }),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        TextButton.icon(
+                          icon: _isImportingHorizon
+                              ? const SizedBox.square(
+                                  dimension: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  LucideIcons.upload,
+                                  size: 14,
+                                  color: NightshadeColors.of(context).primary,
+                                ),
+                          label: Text(
+                              _isImportingHorizon
+                                  ? 'Importing horizon...'
+                                  : 'Import .hor / CSV',
+                              style: TextStyle(
+                                  color: _isImportingHorizon
+                                      ? NightshadeColors.of(context).textMuted
+                                      : NightshadeColors.of(context).primary,
+                                  fontSize: NightshadeTypography.fontSize12)),
+                          onPressed:
+                              _isImportingHorizon ? null : _importHorizonFile,
+                        ),
+                        TextButton.icon(
+                          icon: Icon(LucideIcons.rotateCcw,
+                              size: 14,
+                              color: NightshadeColors.of(context).primary),
+                          label: Text('Reset All to 0\u00B0',
+                              style: TextStyle(
+                                  color: NightshadeColors.of(context).primary,
+                                  fontSize: NightshadeTypography.fontSize12)),
+                          onPressed: () async {
+                            try {
+                              final reset = <String, double>{
+                                for (final dir in horizonDirections) dir: 0,
+                              };
+                              await ref
+                                  .read(appSettingsProvider.notifier)
+                                  .setHorizonProfileJson(
+                                    LegacyHorizonProfile(reset).toJson(),
+                                  );
+                            } catch (error) {
+                              if (mounted) {
+                                this.context.showErrorSnackBar(
+                                      'Could not reset the horizon mask: $error',
+                                    );
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
             SettingsSection(
@@ -389,11 +463,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     value: settings.timezone,
                     items: _getTimezones(),
                     onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .setTimezone(value);
-                      }
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setTimezone(value);
                     },
                     width: widget.isMobile ? 160 : 200,
                     isMobile: widget.isMobile,
@@ -407,7 +479,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   trailing: SettingsSwitch(
                     value: settings.useSystemTime,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setUseSystemTime(value);
                     },
@@ -428,44 +500,54 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
   /// onto the eight compass directions (highest altitude per sector wins so an
   /// obstruction is never under-reported), then persisted.
   Future<void> _importHorizonFile() async {
-    try {
-      final file = await file_selector.openFile(
-        acceptedTypeGroups: [
-          const file_selector.XTypeGroup(
-            label: 'Horizon profile (.hor / .csv / .txt)',
-            extensions: ['hor', 'csv', 'txt'],
-          ),
-        ],
-      );
-      if (file == null) return; // User cancelled.
+    if (_isImportingHorizon) return;
+    final generation = ++_horizonImportGeneration;
+    final authority = ref.read(backendProvider);
+    setState(() => _isImportingHorizon = true);
 
-      final content = await File(file.path).readAsString();
+    try {
+      final file = await ref.read(horizonImportPickerProvider)();
+      if (file == null || !_isCurrentHorizonImport(generation, authority)) {
+        return;
+      }
+
+      final content = await ref.read(horizonImportReaderProvider)(file);
+      if (!_isCurrentHorizonImport(generation, authority)) return;
       final imported = LegacyHorizonProfile.parseHorizonText(content);
 
-      for (final dir in horizonDirections) {
-        _horizonControllers[dir]!.text =
-            imported.altitudeAt(dir).toStringAsFixed(0);
-      }
       await ref
           .read(appSettingsProvider.notifier)
           .setHorizonProfileJson(imported.toJson());
-
-      if (mounted) {
-        context
-            .showSuccessSnackBar('Horizon profile imported from ${file.name}');
+      if (!mounted || !_isCurrentHorizonImport(generation, authority)) {
+        return;
       }
+
+      context.showSuccessSnackBar('Horizon profile imported from ${file.name}');
     } on FormatException catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentHorizonImport(generation, authority)) {
         context.showErrorSnackBar('Could not import horizon: ${e.message}');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentHorizonImport(generation, authority)) {
         context.showErrorSnackBar('Could not import horizon file: $e');
+      }
+    } finally {
+      if (_isCurrentHorizonImport(generation, authority)) {
+        setState(() => _isImportingHorizon = false);
       }
     }
   }
 
-  void _updateHorizonProfile() {
+  bool _isCurrentHorizonImport(
+    int generation,
+    NightshadeBackend authority,
+  ) {
+    return mounted &&
+        generation == _horizonImportGeneration &&
+        identical(ref.read(backendProvider), authority);
+  }
+
+  Future<void> _updateHorizonProfile() async {
     final parts = <String>[];
     for (final dir in horizonDirections) {
       final text = _horizonControllers[dir]!.text;
@@ -473,7 +555,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       parts.add('"$dir":${val.toStringAsFixed(1)}');
     }
     final json = '{${parts.join(',')}}';
-    ref.read(appSettingsProvider.notifier).setHorizonProfileJson(json);
+    await ref.read(appSettingsProvider.notifier).setHorizonProfileJson(json);
   }
 
   IconData _compassIcon(String direction) {

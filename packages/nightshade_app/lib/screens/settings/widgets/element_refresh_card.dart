@@ -11,17 +11,36 @@ import '../../../utils/snackbar_helper.dart';
 /// Refreshed bodies feed the planetarium's minor-planet overlay and the
 /// omnibox search. Offline-safe: a failed refresh keeps the cached set and the
 /// "last updated" line reflects the cache age.
-class ElementRefreshCard extends ConsumerWidget {
+///
+/// The auto-refresh schedule selector is gated on the config authority
+/// ([elementRefreshConfigProvider]): while the persisted config is loading it
+/// shows a spinner, and if it is unreadable/corrupt it shows an error with a
+/// Retry action instead of a writable control seeded from manufactured
+/// defaults — otherwise a save would overwrite the corrupt file with defaults
+/// the user never chose.
+class ElementRefreshCard extends ConsumerStatefulWidget {
   const ElementRefreshCard({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ElementRefreshCard> createState() => _ElementRefreshCardState();
+}
+
+class _ElementRefreshCardState extends ConsumerState<ElementRefreshCard> {
+  /// Synchronous double-submit guard for the async schedule save. Set the
+  /// instant a save starts so a second dropdown selection cannot race a write
+  /// in flight, and it also drives the inline "saving…" indicator.
+  bool _savingSchedule = false;
+
+  /// Detail of the last failed schedule save, shown inline. Cleared when a new
+  /// save starts or one succeeds.
+  String? _saveError;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     final status = ref.watch(elementRefreshControllerProvider);
     final controller = ref.read(elementRefreshControllerProvider.notifier);
     final configAsync = ref.watch(elementRefreshConfigProvider);
-    final config = configAsync.valueOrNull ?? const ElementRefreshConfig();
-    final service = ref.read(elementRefreshServiceProvider);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -76,7 +95,7 @@ class ElementRefreshCard extends ConsumerWidget {
               Expanded(
                 child: Text(
                   status.lastUpdated != null
-                      ? 'Last updated ${_fmt(status.lastUpdated!)} • '
+                      ? 'Oldest source updated ${_fmt(status.lastUpdated!)} • '
                           '${status.asteroidCount} asteroids, '
                           '${status.cometCount} comets'
                       : 'Using bundled elements — never refreshed',
@@ -99,40 +118,8 @@ class ElementRefreshCard extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 16),
-          // Schedule selector.
-          Row(
-            children: [
-              Text(
-                'Auto-refresh:',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize13,
-                ),
-              ),
-              const SizedBox(width: 12),
-              DropdownButton<ElementRefreshSchedule>(
-                value: config.schedule,
-                dropdownColor: colors.surface,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize13,
-                ),
-                items: ElementRefreshSchedule.values
-                    .map((s) => DropdownMenuItem(
-                          value: s,
-                          child: Text(s.displayName),
-                        ))
-                    .toList(),
-                onChanged: status.isRefreshing
-                    ? null
-                    : (s) async {
-                        if (s == null) return;
-                        await service.saveConfig(config.copyWith(schedule: s));
-                        ref.read(elementRefreshReloadProvider.notifier).state++;
-                      },
-              ),
-            ],
-          ),
+          // Schedule selector, gated on the config authority.
+          _buildScheduleSection(colors, configAsync, status),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -155,6 +142,207 @@ class ElementRefreshCard extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildScheduleSection(
+    NightshadeColors colors,
+    AsyncValue<ElementRefreshConfig> configAsync,
+    ElementRefreshStatus status,
+  ) {
+    // Error takes priority over a stale value: never render a writable control
+    // from a defaulted/corrupt authority.
+    if (configAsync.hasError) {
+      return _configAuthorityUnavailable(colors, configAsync.error);
+    }
+    if (!configAsync.hasValue) {
+      return _configAuthorityLoading(colors);
+    }
+
+    final config = configAsync.requireValue;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Auto-refresh:',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
+            ),
+            const SizedBox(width: 12),
+            DropdownButton<ElementRefreshSchedule>(
+              value: config.schedule,
+              dropdownColor: colors.surface,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
+              items: ElementRefreshSchedule.values
+                  .map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s.displayName),
+                      ))
+                  .toList(),
+              // Disabled while a save is in flight (double-submit guard) or a
+              // refresh is running.
+              onChanged: (status.isRefreshing || _savingSchedule)
+                  ? null
+                  : (s) => _saveSchedule(s, config),
+            ),
+            if (_savingSchedule) ...[
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colors.primary,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (_saveError != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Could not save schedule: $_saveError',
+            style: TextStyle(
+              color: colors.error,
+              fontSize: NightshadeTypography.fontSize11,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _configAuthorityLoading(NightshadeColors colors) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: colors.primary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          'Loading refresh configuration…',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: NightshadeTypography.fontSize13,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _configAuthorityUnavailable(NightshadeColors colors, Object? error) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(NightshadeIcons.warning, size: 16, color: colors.error),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Auto-refresh configuration unavailable',
+                style: TextStyle(
+                  color: colors.error,
+                  fontSize: NightshadeTypography.fontSize13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${error ?? 'Unknown error'}',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: NightshadeTypography.fontSize11,
+          ),
+        ),
+        const SizedBox(height: 10),
+        NightshadeButton(
+          label: 'Retry',
+          icon: NightshadeIcons.refresh,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: _retryConfig,
+        ),
+      ],
+    );
+  }
+
+  /// Re-read the config authority and let the controller re-init so a
+  /// recovered config clears both the settings UI error and any stale
+  /// init-time controller error.
+  void _retryConfig() {
+    setState(() => _saveError = null);
+    // Bumping the reload token recomputes the config + cached providers; the
+    // controller rebuild re-runs its (config-aware) init.
+    ref.read(elementRefreshReloadProvider.notifier).state++;
+    ref.invalidate(elementRefreshControllerProvider);
+  }
+
+  Future<void> _saveSchedule(
+    ElementRefreshSchedule? schedule,
+    ElementRefreshConfig current,
+  ) async {
+    if (schedule == null || schedule == current.schedule) return;
+    // Synchronous guard: a second selection cannot enter while a write is in
+    // flight (belt-and-suspenders with the disabled onChanged).
+    if (_savingSchedule) return;
+
+    setState(() {
+      _savingSchedule = true;
+      _saveError = null;
+    });
+
+    // Capture the exact service instance we persist through. If the authority
+    // is swapped out from under us mid-await, we must not report the write as a
+    // success on a service that no longer backs the app.
+    final service = ref.read(elementRefreshServiceProvider);
+    try {
+      await service.saveConfig(current.copyWith(schedule: schedule));
+      if (!mounted) return;
+
+      if (!identical(service, ref.read(elementRefreshServiceProvider))) {
+        // Authority changed during the save: don't claim success. Reload from
+        // the current authority and drop the in-flight state.
+        setState(() {
+          _savingSchedule = false;
+          _saveError = 'Configuration authority changed during the save.';
+        });
+        ref.read(elementRefreshReloadProvider.notifier).state++;
+        return;
+      }
+
+      // Only touch providers after the write actually committed, so the
+      // dropdown never visually commits a value that was not persisted.
+      ref.read(elementRefreshReloadProvider.notifier).state++;
+      setState(() => _savingSchedule = false);
+      if (context.mounted) {
+        context.showSuccessSnackBar(
+          'Auto-refresh set to ${schedule.displayName}',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      // Leave the prior confirmed selection visible (we did not invalidate the
+      // config provider) and surface the failure so the user can retry.
+      setState(() {
+        _savingSchedule = false;
+        _saveError = '$e';
+      });
+    }
   }
 
   String _fmt(DateTime d) {

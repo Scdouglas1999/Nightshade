@@ -23,35 +23,64 @@ class _FilterSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final fwState = ref.watch(filterWheelStateProvider);
     final state = ref.watch(flatWizardProvider);
+    final notifier = ref.read(flatWizardProvider.notifier);
+    final filters = state.filterSettings;
 
-    final currentFilter = state.filterSettings.isNotEmpty &&
-            state.currentFilterIndex < state.filterSettings.length
-        ? state.filterSettings[state.currentFilterIndex]
-        : null;
-
-    return NightshadeCard(
-      variant: CardVariant.standard,
-      borderRadius: NightshadeTokens.radiusInline8,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              currentFilter?.filterName ??
-                  fwState.currentFilterName ??
-                  'No filter',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                color: colors.textPrimary,
+    // No filters loaded (no wheel / not yet seeded): keep the read-only card so
+    // the section is not an empty control.
+    if (filters.isEmpty) {
+      return NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No filter',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize14,
+                  color: colors.textPrimary,
+                ),
               ),
             ),
+          ],
+        ),
+      );
+    }
+
+    final selectedIndex = state.currentFilterIndex >= 0 &&
+            state.currentFilterIndex < filters.length
+        ? state.currentFilterIndex
+        : 0;
+
+    return Row(
+      children: [
+        Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
+        const SizedBox(width: 12),
+        // A REAL selection over the loaded filters. Indices are the item values
+        // (labelled by filter name) so duplicate filter names never collide.
+        // Disabled while a run holds the busy latch — the run captured its
+        // target filter at start — mirroring _FilterChecklist's null-onChanged
+        // disable.
+        Expanded(
+          child: NightshadeDropdown(
+            isExpanded: true,
+            isDense: true,
+            value: selectedIndex.toString(),
+            items: [for (var i = 0; i < filters.length; i++) i.toString()],
+            itemLabels: [for (final f in filters) f.filterName],
+            onChanged: state.isCapturing
+                ? null
+                : (v) {
+                    if (v != null) notifier.selectQuickFilter(int.parse(v));
+                  },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -81,6 +110,11 @@ class _FilterChecklist extends ConsumerWidget {
       );
     }
 
+    // While a capture run is active the filter set must not change (the run
+    // captured its filter list with stable indices at start), so the toggles
+    // are visibly disabled — not just silently ignored by the notifier guard.
+    final interactable = !state.isCapturing;
+
     return NightshadeCard(
       variant: CardVariant.standard,
       borderRadius: NightshadeTokens.radiusInline8,
@@ -90,7 +124,9 @@ class _FilterChecklist extends ConsumerWidget {
             _FilterChecklistItem(
               filter: state.filterSettings[i],
               isLast: i == state.filterSettings.length - 1,
-              onToggle: (enabled) => notifier.toggleFilter(i, enabled),
+              onToggle: interactable
+                  ? (enabled) => notifier.toggleFilter(i, enabled)
+                  : null,
             ),
         ],
       ),
@@ -101,7 +137,10 @@ class _FilterChecklist extends ConsumerWidget {
 class _FilterChecklistItem extends StatelessWidget {
   final FlatFilterSettings filter;
   final bool isLast;
-  final ValueChanged<bool> onToggle;
+
+  /// Null while a capture run is active — disables the checkbox so the filter
+  /// set cannot change mid-run.
+  final ValueChanged<bool>? onToggle;
 
   const _FilterChecklistItem({
     required this.filter,
@@ -123,7 +162,7 @@ class _FilterChecklistItem extends StatelessWidget {
         children: [
           Checkbox(
             value: filter.enabled,
-            onChanged: (v) => onToggle(v ?? false),
+            onChanged: onToggle == null ? null : (v) => onToggle!(v ?? false),
             activeColor: colors.primary,
           ),
           const SizedBox(width: 8),

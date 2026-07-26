@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/daos/tutorial_dao.dart';
 import '../database/daos/tutorial_progress_dao.dart';
+import '../database/daos/settings_dao.dart';
 import '../models/tutorial/tutorial_models.dart';
 import 'database_provider.dart';
 
@@ -53,17 +56,42 @@ class FirstNightWizardState {
 /// rebuilds in tests and headless mode.
 class FirstNightWizardNotifier extends StateNotifier<FirstNightWizardState> {
   final TutorialDao _dao;
+  late final Future<void> _loadFuture;
+  Future<void> _mutationTail = Future<void>.value();
 
   FirstNightWizardNotifier(this._dao) : super(const FirstNightWizardState()) {
-    _loadResumeIndex();
+    _loadFuture = _loadResumeIndex();
   }
 
   Future<void> _loadResumeIndex() async {
-    final stepIndex = await _dao.getLastStepIndex();
-    // Clamp into the valid range — defends against a future where the
-    // wizard is shortened and a user has a saved step beyond the new end.
-    final clamped = stepIndex.clamp(0, _maxStepIndex);
-    state = state.copyWith(currentStepIndex: clamped, isLoaded: true);
+    try {
+      final stepIndex = await _dao.getLastStepIndex();
+      // Clamp into the valid range — defends against a future where the
+      // wizard is shortened and a user has a saved step beyond the new end.
+      final clamped = stepIndex.clamp(0, _maxStepIndex);
+      if (!mounted) return;
+      state = state.copyWith(currentStepIndex: clamped, isLoaded: true);
+    } catch (_) {
+      // A corrupt/unavailable progress database must not strand the user on
+      // an infinite loading spinner. Let them use the wizard from step zero;
+      // mutations still report persistence errors to the UI.
+      if (mounted) {
+        state = state.copyWith(currentStepIndex: 0, isLoaded: true);
+      }
+    }
+  }
+
+  Future<R> _serializeMutation<R>(Future<R> Function() operation) {
+    final completer = Completer<R>();
+    _mutationTail = _mutationTail.then((_) async {
+      try {
+        await _loadFuture;
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   /// Total step count is owned by the model layer; we mirror it here as a
@@ -82,21 +110,25 @@ class FirstNightWizardNotifier extends StateNotifier<FirstNightWizardState> {
   /// completes the wizard; the caller uses [isLastStep] to swap the Next
   /// button to "Done".
   Future<void> next() async {
-    if (state.currentStepIndex >= _maxStepIndex) {
-      await complete();
-      return;
-    }
-    final newIndex = state.currentStepIndex + 1;
-    state = state.copyWith(currentStepIndex: newIndex);
-    await _dao.saveFirstNightProgress(newIndex);
+    return _serializeMutation(() async {
+      if (state.currentStepIndex >= _maxStepIndex) {
+        await _dao.markFirstNightCompleted();
+        return;
+      }
+      final newIndex = state.currentStepIndex + 1;
+      await _dao.saveFirstNightProgress(newIndex);
+      state = state.copyWith(currentStepIndex: newIndex);
+    });
   }
 
   /// Go back one step. Persists. Does nothing on step 0.
   Future<void> back() async {
-    if (state.currentStepIndex == 0) return;
-    final newIndex = state.currentStepIndex - 1;
-    state = state.copyWith(currentStepIndex: newIndex);
-    await _dao.saveFirstNightProgress(newIndex);
+    return _serializeMutation(() async {
+      if (state.currentStepIndex == 0) return;
+      final newIndex = state.currentStepIndex - 1;
+      await _dao.saveFirstNightProgress(newIndex);
+      state = state.copyWith(currentStepIndex: newIndex);
+    });
   }
 
   /// Jump directly to a step (used by Settings → Help "Resume" deep-link).
@@ -109,37 +141,41 @@ class FirstNightWizardNotifier extends StateNotifier<FirstNightWizardState> {
         '[0..$_maxStepIndex]',
       );
     }
-    state = state.copyWith(currentStepIndex: index);
-    await _dao.saveFirstNightProgress(index);
+    return _serializeMutation(() async {
+      await _dao.saveFirstNightProgress(index);
+      state = state.copyWith(currentStepIndex: index);
+    });
   }
 
   /// Mark the wizard finished. The user reached the final step and clicked
   /// Done. The wizard will not auto-open again on launch but can be
   /// replayed from Settings → Help.
   Future<void> complete() async {
-    await _dao.markFirstNightCompleted();
+    return _serializeMutation(_dao.markFirstNightCompleted);
   }
 
   /// "Skip forever" — the user explicitly opted out. Same launch-time
   /// effect as [complete] but distinguishes intent for analytics and the
   /// Settings → Help row label.
   Future<void> dismissForever() async {
-    await _dao.dismissFirstNightForever();
+    return _serializeMutation(_dao.dismissFirstNightForever);
   }
 
   /// "Show on next launch" — the wizard closes for this session but
   /// reopens next time. Implemented by deleting the saved progress row;
   /// [TutorialDao.shouldShowFirstNightOnLaunch] keys off row absence.
   Future<void> showOnNextLaunch() async {
-    await _dao.resetFirstNight();
+    return _serializeMutation(_dao.resetFirstNight);
   }
 
   /// Restart from the welcome step. Used by Settings → Help "Restart".
   /// Doesn't dismiss or complete — just rewinds the saved index and the
   /// in-memory state.
   Future<void> restart() async {
-    state = state.copyWith(currentStepIndex: 0);
-    await _dao.saveFirstNightProgress(0);
+    return _serializeMutation(() async {
+      await _dao.saveFirstNightProgress(0);
+      state = state.copyWith(currentStepIndex: 0);
+    });
   }
 }
 
@@ -357,9 +393,10 @@ class OnboardingTourNotifier extends StateNotifier<int> {
   /// Reset the persisted progress AND the in-memory step pointer. Used by
   /// Settings → Help → Re-run tutorial.
   Future<void> reset() async {
+    await _dao.reset();
+    if (!mounted) return;
     _defectMapStepUnlocked = false;
     state = 0;
-    await _dao.reset();
     _ref.invalidate(firstLaunchTourStatusProvider);
   }
 }
@@ -391,7 +428,7 @@ final onboardingTourProvider =
 final tutorialProvider =
     StateNotifierProvider<TutorialNotifier, TutorialProgress>((ref) {
       final dao = ref.watch(tutorialProgressDaoProvider);
-      final notifier = TutorialNotifier(dao);
+      final notifier = TutorialNotifier(dao, ref.watch(settingsDaoProvider));
       // Load persisted progress on creation
       notifier._loadPersistedProgress();
       return notifier;
@@ -407,27 +444,40 @@ final tutorialKeyRegistry = Provider<TutorialKeyRegistry>((ref) {
 final dismissedTourPromptsProvider =
     StateNotifierProvider<DismissedTourPromptsNotifier, Set<String>>((ref) {
       final dao = ref.watch(tutorialProgressDaoProvider);
-      final notifier = DismissedTourPromptsNotifier(dao);
-      notifier._loadDismissedPrompts();
-      return notifier;
+      return DismissedTourPromptsNotifier(dao);
     });
 
 /// Manages dismissed tour prompts with database persistence
 class DismissedTourPromptsNotifier extends StateNotifier<Set<String>> {
   final TutorialProgressDao _dao;
 
-  DismissedTourPromptsNotifier(this._dao) : super({});
+  DismissedTourPromptsNotifier(this._dao) : super({}) {
+    _ready = _loadDismissedPrompts();
+  }
+
+  late final Future<void> _ready;
+
+  /// Completes once the persisted dismissals have been read.
+  ///
+  /// Callers that DECIDE something from this state have to await it. The load is
+  /// asynchronous while the initial state is an empty set, so a synchronous read
+  /// taken right after the provider is first created always sees "nothing has
+  /// been dismissed" — which is how a dismissed tour prompt came back on every
+  /// single launch despite its dismissal being written to the database
+  /// correctly. There is no delay long enough to paper over that reliably,
+  /// because reading the provider is itself what starts the load.
+  Future<void> get ready => _ready;
 
   /// Load dismissed prompts from database
   Future<void> _loadDismissedPrompts() async {
     final dismissed = await _dao.getDismissedPromptScreenIds();
-    state = dismissed;
+    if (mounted) state = dismissed;
   }
 
   /// Dismiss a tour prompt for a screen (persists to database)
   Future<void> dismissPrompt(String screenId) async {
     await _dao.dismissPromptForScreen(screenId);
-    state = {...state, screenId};
+    if (mounted) state = {...state, screenId};
   }
 
   /// Check if a screen's prompt has been dismissed
@@ -438,7 +488,7 @@ class DismissedTourPromptsNotifier extends StateNotifier<Set<String>> {
   /// Reset all dismissed prompts (for "reset tutorials" feature)
   Future<void> resetAllDismissed() async {
     // This will be handled by resetAllProgress in TutorialProgressDao
-    state = {};
+    if (mounted) state = {};
   }
 }
 
@@ -478,37 +528,80 @@ class TutorialKeyRegistry {
 /// Manages tutorial progress and state with database persistence
 class TutorialNotifier extends StateNotifier<TutorialProgress> {
   final TutorialProgressDao _dao;
+  final SettingsDao? _settingsDao;
+  Future<void> _settingsMutationTail = Future<void>.value();
+  int _settingsRevision = 0;
+  Future<void> _progressMutationTail = Future<void>.value();
+  int _progressRevision = 0;
 
-  TutorialNotifier(this._dao) : super(const TutorialProgress());
+  static const String _tutorialsEnabledSettingKey = 'tutorials_enabled';
+
+  TutorialNotifier(this._dao, [this._settingsDao])
+    : super(const TutorialProgress());
 
   /// Load persisted progress from database
   Future<void> _loadPersistedProgress() async {
+    final settingsRevisionAtStart = _settingsRevision;
+    final progressRevisionAtStart = _progressRevision;
     final allProgress = await _dao.getAllProgress();
+    final storedTutorialsEnabled = await _settingsDao?.getSetting(
+      _tutorialsEnabledSettingKey,
+    );
 
     // Build completed steps set from all completed categories
     final completedSteps = <String>{};
     bool hasSeenInitialTour = false;
 
     for (final entry in allProgress) {
-      if (entry.completed) {
-        // Add all steps from completed categories
-        final category = _categoryFromName(entry.category);
-        if (category != null) {
-          final steps = TutorialDefinitions.getStepsForCategory(category);
+      final category = _categoryFromName(entry.category);
+      if (category != null) {
+        final steps = TutorialDefinitions.getStepsForCategory(category);
+        if (entry.completed) {
+          // Add all steps from completed categories.
           completedSteps.addAll(steps.map((s) => s.id));
 
           // Check if firstLight (initial tour) was completed
           if (category == TutorialCategory.firstLight) {
             hasSeenInitialTour = true;
           }
+        } else {
+          // lastStepIndex is the step the user should resume on, so every
+          // preceding step was completed. Rehydrate that partial set as well;
+          // otherwise the Help screen and tour picker falsely say "Not
+          // started" after every app restart despite a valid resume pointer.
+          final completedCount = entry.lastStepIndex.clamp(0, steps.length);
+          completedSteps.addAll(
+            steps.take(completedCount).map((step) => step.id),
+          );
         }
       }
     }
 
+    if (!mounted) return;
     state = state.copyWith(
-      completedSteps: completedSteps,
-      hasSeenInitialTour: hasSeenInitialTour,
+      completedSteps: progressRevisionAtStart == _progressRevision
+          ? completedSteps
+          : state.completedSteps,
+      hasSeenInitialTour: progressRevisionAtStart == _progressRevision
+          ? hasSeenInitialTour
+          : state.hasSeenInitialTour,
+      tutorialsEnabled: settingsRevisionAtStart == _settingsRevision
+          ? storedTutorialsEnabled != 'false'
+          : state.tutorialsEnabled,
     );
+  }
+
+  Future<R> _serializeProgressMutation<R>(Future<R> Function() operation) {
+    _progressRevision++;
+    final completer = Completer<R>();
+    _progressMutationTail = _progressMutationTail.then((_) async {
+      try {
+        completer.complete(await operation());
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   /// Convert category name string to enum
@@ -520,146 +613,155 @@ class TutorialNotifier extends StateNotifier<TutorialProgress> {
   }
 
   /// Start a tutorial category
-  void startTutorial(TutorialCategory category) {
-    state = state.copyWith(activeCategory: category, currentStepIndex: 0);
-    // Save initial progress to DB
-    _dao.saveProgress(category.name, 0);
-  }
+  Future<void> startTutorial(TutorialCategory category) =>
+      _restartTutorial(category);
 
   /// Resume a tutorial from where the user left off
-  Future<void> resumeTutorial(TutorialCategory category) async {
-    final progress = await _dao.getProgress(category.name);
-    final stepIndex = progress?.lastStepIndex ?? 0;
+  Future<void> resumeTutorial(TutorialCategory category) =>
+      _serializeProgressMutation(() async {
+        final progress = await _dao.getProgress(category.name);
+        final stepIndex = progress?.lastStepIndex ?? 0;
 
-    // Make sure the step index is valid
-    final steps = TutorialDefinitions.getStepsForCategory(category);
-    final validIndex = stepIndex.clamp(0, steps.length - 1);
+        // Make sure the step index is valid
+        final steps = TutorialDefinitions.getStepsForCategory(category);
+        final validIndex = stepIndex.clamp(0, steps.length - 1);
 
-    state = state.copyWith(
-      activeCategory: category,
-      currentStepIndex: validIndex,
-    );
-  }
+        if (!mounted) return;
+        state = state.copyWith(
+          activeCategory: category,
+          currentStepIndex: validIndex,
+        );
+      });
 
   /// Restart a tutorial from the beginning
-  Future<void> restartTutorial(TutorialCategory category) async {
-    await _dao.resetProgress(category.name);
+  Future<void> restartTutorial(TutorialCategory category) =>
+      _restartTutorial(category);
 
-    // Remove completed steps for this category from the set
-    final steps = TutorialDefinitions.getStepsForCategory(category);
-    final stepIds = steps.map((s) => s.id).toSet();
-    final newCompleted = Set<String>.from(state.completedSteps)
-      ..removeAll(stepIds);
+  Future<void> _restartTutorial(TutorialCategory category) =>
+      _serializeProgressMutation(() async {
+        // Commit the complete reset first. If persistence fails, the existing
+        // status and active tutorial remain truthful and the UI can retry.
+        await _dao.restartProgress(category.name);
+        if (!mounted) return;
 
-    state = state.copyWith(
-      completedSteps: newCompleted,
-      activeCategory: category,
-      currentStepIndex: 0,
-    );
+        final steps = TutorialDefinitions.getStepsForCategory(category);
+        final stepIds = steps.map((s) => s.id).toSet();
+        final newCompleted = Set<String>.from(state.completedSteps)
+          ..removeAll(stepIds);
 
-    // Save fresh progress
-    await _dao.saveProgress(category.name, 0);
-  }
+        state = state.copyWith(
+          completedSteps: newCompleted,
+          activeCategory: category,
+          currentStepIndex: 0,
+        );
+      });
 
   /// Go to the next step in the current tutorial
-  void nextStep() {
-    if (state.activeCategory == null) return;
+  Future<void> nextStep() => _serializeProgressMutation(() async {
+    final category = state.activeCategory;
+    if (category == null) return;
 
-    final steps = TutorialDefinitions.getStepsForCategory(
-      state.activeCategory!,
-    );
+    final steps = TutorialDefinitions.getStepsForCategory(category);
     if (state.currentStepIndex < steps.length - 1) {
-      // Mark current step as completed
       final currentStep = steps[state.currentStepIndex];
       final newCompleted = Set<String>.from(state.completedSteps)
         ..add(currentStep.id);
-
       final newIndex = state.currentStepIndex + 1;
+
+      await _dao.saveProgress(category.name, newIndex);
+      if (!mounted || state.activeCategory != category) return;
       state = state.copyWith(
         completedSteps: newCompleted,
         currentStepIndex: newIndex,
       );
-
-      // Save progress to DB
-      _dao.saveProgress(state.activeCategory!.name, newIndex);
-    } else {
-      // Tutorial complete
-      completeTutorial();
+      return;
     }
-  }
+
+    await _completeTutorial(category, steps);
+  });
 
   /// Go to the previous step
-  void previousStep() {
-    if (state.currentStepIndex > 0) {
-      final newIndex = state.currentStepIndex - 1;
-      state = state.copyWith(currentStepIndex: newIndex);
-
-      // Save progress to DB
-      if (state.activeCategory != null) {
-        _dao.saveProgress(state.activeCategory!.name, newIndex);
-      }
-    }
-  }
+  Future<void> previousStep() => _serializeProgressMutation(() async {
+    final category = state.activeCategory;
+    if (category == null || state.currentStepIndex <= 0) return;
+    final newIndex = state.currentStepIndex - 1;
+    await _dao.saveProgress(category.name, newIndex);
+    if (!mounted || state.activeCategory != category) return;
+    state = state.copyWith(currentStepIndex: newIndex);
+  });
 
   /// Skip to a specific step
-  void goToStep(int index) {
-    if (state.activeCategory == null) return;
-
-    final steps = TutorialDefinitions.getStepsForCategory(
-      state.activeCategory!,
-    );
-    if (index >= 0 && index < steps.length) {
-      state = state.copyWith(currentStepIndex: index);
-
-      // Save progress to DB
-      _dao.saveProgress(state.activeCategory!.name, index);
-    }
-  }
+  Future<void> goToStep(int index) => _serializeProgressMutation(() async {
+    final category = state.activeCategory;
+    if (category == null) return;
+    final steps = TutorialDefinitions.getStepsForCategory(category);
+    if (index < 0 || index >= steps.length) return;
+    await _dao.saveProgress(category.name, index);
+    if (!mounted || state.activeCategory != category) return;
+    state = state.copyWith(currentStepIndex: index);
+  });
 
   /// Complete the current tutorial
-  void completeTutorial() {
-    if (state.activeCategory == null) return;
+  Future<void> completeTutorial() => _serializeProgressMutation(() async {
+    final category = state.activeCategory;
+    if (category == null) return;
+    final steps = TutorialDefinitions.getStepsForCategory(category);
+    await _completeTutorial(category, steps);
+  });
 
-    // Mark all steps in this category as completed
-    final steps = TutorialDefinitions.getStepsForCategory(
-      state.activeCategory!,
-    );
+  Future<void> _completeTutorial(
+    TutorialCategory category,
+    List<TutorialStep> steps,
+  ) async {
+    await _dao.markCompleted(category.name);
+    if (!mounted || state.activeCategory != category) return;
     final newCompleted = Set<String>.from(state.completedSteps)
       ..addAll(steps.map((s) => s.id));
-
-    final wasFirstLight = state.activeCategory == TutorialCategory.firstLight;
-
-    // Mark completed in DB
-    _dao.markCompleted(state.activeCategory!.name);
-
     state = state.copyWith(
       completedSteps: newCompleted,
-      hasSeenInitialTour: wasFirstLight ? true : state.hasSeenInitialTour,
+      hasSeenInitialTour: category == TutorialCategory.firstLight
+          ? true
+          : state.hasSeenInitialTour,
       clearActiveCategory: true,
       currentStepIndex: 0,
     );
   }
 
   /// Dismiss the current tutorial without completing
-  void dismissTutorial() {
-    if (state.activeCategory != null) {
-      // Mark dismissed in DB
-      _dao.markDismissed(state.activeCategory!.name);
-    }
-
+  Future<void> dismissTutorial() => _serializeProgressMutation(() async {
+    final category = state.activeCategory;
+    if (category == null) return;
+    await _dao.markDismissed(category.name);
+    if (!mounted || state.activeCategory != category) return;
     state = state.copyWith(clearActiveCategory: true, currentStepIndex: 0);
-  }
+  });
 
   /// Toggle tutorials globally
-  void setTutorialsEnabled(bool enabled) {
-    state = state.copyWith(tutorialsEnabled: enabled);
+  Future<void> setTutorialsEnabled(bool enabled) {
+    _settingsRevision++;
+    final completer = Completer<void>();
+    _settingsMutationTail = _settingsMutationTail.then((_) async {
+      try {
+        await _settingsDao?.setSetting(
+          _tutorialsEnabledSettingKey,
+          enabled.toString(),
+        );
+        if (mounted) state = state.copyWith(tutorialsEnabled: enabled);
+        completer.complete();
+      } catch (error, stackTrace) {
+        completer.completeError(error, stackTrace);
+      }
+    });
+    return completer.future;
   }
 
   /// Reset all tutorial progress
-  Future<void> resetProgress() async {
+  Future<void> resetProgress() => _serializeProgressMutation(() async {
     await _dao.resetAllProgress();
-    state = const TutorialProgress();
-  }
+    if (mounted) {
+      state = TutorialProgress(tutorialsEnabled: state.tutorialsEnabled);
+    }
+  });
 
   /// Mark the initial tour as seen (without completing it)
   void markInitialTourSeen() {

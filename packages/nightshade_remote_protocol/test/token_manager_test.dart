@@ -34,6 +34,10 @@ void main() {
       ).thenAnswer((_) async {});
     });
 
+    tearDown(() {
+      tokenManager.setRevocationListener(null);
+    });
+
     group('generateSecureToken', () {
       test('produces a 64-character hex string', () {
         final token = tokenManager.generateSecureToken();
@@ -274,6 +278,7 @@ void main() {
               sessionToken: '11223344' * 8,
               deviceType: 'mobile',
               expiresAt: any(named: 'expiresAt'),
+              authGrantSpec: 'camera:control,mount:view',
             ),
           ).thenAnswer((_) async {});
           when(
@@ -284,6 +289,7 @@ void main() {
             pairingCode: 'star-lyra-1234',
             deviceId: 'dev-1',
             deviceName: 'Test Phone',
+            authGrantSpec: 'camera:control,mount:view',
           );
 
           expect(result.result, equals(PairingResult.deviceAlreadyPaired));
@@ -296,6 +302,7 @@ void main() {
               sessionToken: '11223344' * 8,
               deviceType: 'mobile',
               expiresAt: any(named: 'expiresAt'),
+              authGrantSpec: 'camera:control,mount:view',
             ),
           ).called(1);
         },
@@ -425,6 +432,32 @@ void main() {
         verify(() => mockDb.revokeDevice('dev-revoked')).called(1);
       });
 
+      test('a separate GUI manager notifies the host manager cache', () async {
+        final device = _fakePairedDevice(
+          deviceId: 'dev-gui-revoked',
+          sessionToken: 'abababab' * 8,
+          isActive: true,
+        );
+        when(
+          () => mockDb.getPairedDevice('dev-gui-revoked'),
+        ).thenAnswer((_) async => device);
+        when(
+          () => mockDb.revokeDevice('dev-gui-revoked'),
+        ).thenAnswer((_) async {});
+
+        final hostManager = TokenManager(mockDb);
+        addTearDown(() => hostManager.setRevocationListener(null));
+        String? evicted;
+        hostManager.setRevocationListener((token) => evicted = token);
+
+        // The GUI owns a distinct TokenManager/Drift connection in production.
+        // Revoking there must still invalidate the embedded server's cache now,
+        // rather than leaving the bearer usable until the 60-second sweep.
+        await tokenManager.revokeDevice('dev-gui-revoked');
+
+        expect(evicted, device.sessionToken);
+      });
+
       test('is a no-op for an unknown device id (no listener call)', () async {
         when(
           () => mockDb.getPairedDevice('nope'),
@@ -515,6 +548,7 @@ PairedDevice _fakePairedDevice({
     deviceType: 'mobile',
     isActive: isActive,
     expiresAt: expiresAt,
+    authGrantSpec: 'control',
   );
 }
 

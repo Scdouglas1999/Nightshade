@@ -1,22 +1,26 @@
 import '../../../models/sequence/sequence_models.dart';
 import '../sequence_validation.dart';
 
-/// Errors out when the sequence has zero nodes. A sequence with no nodes
-/// cannot execute.
+/// Errors out when the sequence has zero nodes or its root container has no
+/// children. A newly-created sequence already contains an empty root node, but
+/// still has nothing the executor can run.
 class EmptySequenceRule implements SequenceValidator {
   @override
   String get name => 'EmptySequence';
 
   @override
   List<ValidationIssue> validate(Sequence sequence) {
-    if (sequence.nodes.isEmpty) {
+    final root = sequence.rootNode;
+    final hasEmptyRootContainer =
+        root != null && isContainerNode(root) && root.childIds.isEmpty;
+    if (sequence.nodes.isEmpty || hasEmptyRootContainer) {
       return const [
         ValidationIssue(
           severity: ValidationSeverity.error,
           category: ValidationCategory.structure,
           title: 'Empty Sequence',
           description:
-              'The sequence has no nodes. Add at least one instruction to run.',
+              'The sequence has no runnable instructions. Add at least one instruction to run.',
           resolutionHint:
               'Add exposure or other instruction nodes to the sequence.',
         ),
@@ -115,6 +119,9 @@ class EmptyContainerRule implements SequenceValidator {
       // Targets have their own dedicated empty-check (with a friendlier
       // message), so let TargetEmptyRule own that one.
       if (node is TargetHeaderNode) continue;
+      // EmptySequenceRule owns an empty root because it blocks execution;
+      // avoid also presenting the same condition as a weaker warning.
+      if (node.id == sequence.rootNodeId && node.childIds.isEmpty) continue;
       if (isContainerNode(node) && node.childIds.isEmpty) {
         issues.add(
           ValidationIssue(

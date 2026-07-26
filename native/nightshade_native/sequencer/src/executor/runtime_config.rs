@@ -295,6 +295,51 @@ impl SequenceExecutor {
         });
     }
 
+    /// Push the operator's meridian-flip settings onto the standard
+    /// `meridian_flip` trigger.
+    ///
+    /// Until this existed the trigger created by
+    /// `TriggerManager::create_standard_triggers` kept
+    /// `MeridianFlipConfig::default()` forever, so the entire
+    /// Settings → Meridian Flip panel had NO effect on the trigger-driven flip
+    /// — the only flip path that runs on an unattended night. Proven live: a
+    /// run with `recenterAfterFlip: false` still executed
+    /// `"Step 6/8: Plate solving and centering"`.
+    ///
+    /// The trigger manager is shared (`Arc<RwLock<..>>`) with the running
+    /// trigger-monitor task, which re-reads it on every poll, so writing here
+    /// covers both the idle (pre-`start()`) and live cases without a separate
+    /// `ExecutorCommand` round trip.
+    pub async fn update_meridian_flip_config(&mut self, config: crate::MeridianFlipConfig) {
+        tracing::info!(
+            "Updating meridian-flip trigger config: method={:?}, minutes_past={:.1}, \
+             auto_center={}, refocus={}, pause_guiding={}, resume_guiding={}, \
+             max_retries={}, failure_action={:?}",
+            config.trigger_method,
+            config.minutes_past_meridian,
+            config.auto_center,
+            config.refocus_after,
+            config.pause_guiding,
+            config.resume_guiding,
+            config.max_retries,
+            config.failure_action,
+        );
+        let applied = {
+            let mut manager = self.trigger_manager.write().await;
+            manager.set_meridian_flip_config(config)
+        };
+        if !applied {
+            tracing::warn!(
+                "Meridian-flip settings could not be applied: no 'meridian_flip' trigger \
+                 is registered. The flip would run on Rust defaults."
+            );
+            return;
+        }
+        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+            what: "meridian_flip_config".to_string(),
+        });
+    }
+
     /// stage per-target carry-over integration seconds so the
     /// next `start()` seeds the `BudgetRegistry` with the operator's
     /// "Resume" / "Restart" decision from the session-handoff dialog.

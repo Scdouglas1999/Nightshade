@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/sequence/template_snippet.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/sequence_file_service.dart';
@@ -35,36 +37,55 @@ final customSnippetsProvider =
 /// list-building cost is deferred until the template browser is opened.
 class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
   bool _loaded = false;
+  Object? _loadFailure;
+  Future<void>? _loadFuture;
+  Future<void> _mutationTail = Future<void>.value();
+  final Future<File> Function() _snippetsFile;
 
-  CustomSnippetsNotifier() : super([]) {
+  CustomSnippetsNotifier({Future<File> Function()? snippetsFile})
+    : _snippetsFile = snippetsFile ?? _defaultSnippetsFile,
+      super([]) {
     // Trigger lazy load on construction so data is ready when first watched.
     // The load is async and the UI will see an empty list until it completes.
-    _ensureLoaded();
+    loadFromDisk();
   }
 
   /// Ensure snippets have been loaded from disk. No-op after the first load.
   Future<void> _ensureLoaded() async {
-    if (_loaded) return;
-    await loadFromDisk();
+    if (!_loaded) {
+      await (_loadFuture ??= _readFromDisk());
+    }
+    final failure = _loadFailure;
+    if (failure != null) {
+      throw StateError(
+        'Custom templates could not be loaded; refusing to overwrite them: '
+        '$failure',
+      );
+    }
   }
 
   /// Load custom snippets from disk.
   ///
   /// Sets [_loaded] on completion (even on error) so subsequent calls are
   /// no-ops via [_ensureLoaded].
-  Future<void> loadFromDisk() async {
+  Future<void> loadFromDisk() {
+    if (!_loaded && _loadFuture != null) return _loadFuture!;
+    _loaded = false;
+    _loadFailure = null;
+    return _loadFuture = _readFromDisk();
+  }
+
+  Future<void> _readFromDisk() async {
     try {
-      final file = await _getSnippetsFile();
+      final file = await _snippetsFile();
       if (!await file.exists()) {
         state = [];
-        _loaded = true;
         return;
       }
 
       final jsonString = await file.readAsString();
       if (jsonString.isEmpty) {
         state = [];
-        _loaded = true;
         return;
       }
 
@@ -73,14 +94,14 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
           .map((json) => TemplateSnippet.fromJson(json as Map<String, dynamic>))
           .toList();
       state = snippets;
-      _loaded = true;
     } catch (e) {
+      _loadFailure = e;
       developer.log(
         'Error loading custom snippets: $e',
         name: 'TemplateSnippet',
         level: 1000,
       );
-      state = [];
+    } finally {
       _loaded = true;
     }
   }
@@ -88,7 +109,7 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
   /// Save custom snippets to disk
   Future<void> saveToDisk() async {
     try {
-      final file = await _getSnippetsFile();
+      final file = await _snippetsFile();
 
       // Ensure directory exists
       final dir = file.parent;
@@ -107,47 +128,56 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
 
   /// Add a new custom snippet
   Future<void> addSnippet(TemplateSnippet snippet) async {
-    await _ensureLoaded();
-
     // Ensure the snippet is not marked as built-in
     final snippetToAdd = snippet.isBuiltIn
         ? snippet.copyWith(isBuiltIn: false)
         : snippet;
-
-    state = [...state, snippetToAdd];
-
-    await saveToDisk();
+    await _mutateAndSave(() => state = [...state, snippetToAdd]);
   }
 
   /// Remove a custom snippet by ID
   Future<void> removeSnippet(String id) async {
-    await _ensureLoaded();
-    state = state.where((s) => s.id != id).toList();
-
-    await saveToDisk();
+    await _mutateAndSave(() => state = state.where((s) => s.id != id).toList());
   }
 
   /// Update an existing custom snippet
   Future<void> updateSnippet(TemplateSnippet snippet) async {
-    await _ensureLoaded();
-    final index = state.indexWhere((s) => s.id == snippet.id);
-    if (index == -1) {
-      throw ArgumentError('Snippet with id ${snippet.id} not found');
-    }
+    await _mutateAndSave(() {
+      final index = state.indexWhere((s) => s.id == snippet.id);
+      if (index == -1) {
+        throw ArgumentError('Snippet with id ${snippet.id} not found');
+      }
 
-    final updatedList = [...state];
-    updatedList[index] = snippet;
-    state = updatedList;
-
-    await saveToDisk();
+      final updatedList = [...state];
+      updatedList[index] = snippet;
+      state = updatedList;
+    });
   }
 
-  /// Get the file path for storing custom snippets
-  Future<File> _getSnippetsFile() async {
-    final appDir = await getApplicationSupportDirectory();
-    final snippetsDir = '${appDir.path}${Platform.pathSeparator}snippets';
-    return File('$snippetsDir${Platform.pathSeparator}custom_snippets.json');
+  Future<void> _mutateAndSave(void Function() mutation) {
+    final operation = _mutationTail.then((_) async {
+      await _ensureLoaded();
+      final previous = state;
+      try {
+        mutation();
+        await saveToDisk();
+      } catch (error) {
+        state = previous;
+        rethrow;
+      }
+    });
+    _mutationTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return operation;
   }
+}
+
+Future<File> _defaultSnippetsFile() async {
+  final appDir = await getApplicationSupportDirectory();
+  final snippetsDir = '${appDir.path}${Platform.pathSeparator}snippets';
+  return File('$snippetsDir${Platform.pathSeparator}custom_snippets.json');
 }
 
 // =============================================================================
@@ -242,11 +272,16 @@ Map<String, dynamic> _serializeNode(
   Sequence sequence,
   SequenceFileService fileService,
 ) {
-  final base = <String, dynamic>{
-    'nodeType': node.nodeType,
-    'name': node.name,
-    'isEnabled': node.isEnabled,
-  };
+  // Start from the canonical, exhaustive sequence-file codec. The historical
+  // hand-maintained map below predates several fields and node types; using the
+  // canonical map first prevents snippet save/insert from dropping them. Strip
+  // tree identity because snippets rebuild topology recursively under fresh
+  // IDs when inserted.
+  final base = fileService.nodeToMap(node)
+    ..remove('id')
+    ..remove('parentId')
+    ..remove('childIds')
+    ..remove('orderIndex');
 
   // Add type-specific properties
   if (node is TargetHeaderNode) {

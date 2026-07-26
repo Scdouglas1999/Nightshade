@@ -8,11 +8,10 @@ class LoopProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: belt-and-suspenders gate (parent NodePropertiesPanel
-    // already wraps the editor body in AbsorbPointer when running).
-    // Wrap our own subtree in IgnorePointer too so that a future refactor
-    // pulling LoopProperties out of the panel can't silently un-gate the
-    // inputs.
+    // Trust-patch §B: belt-and-suspenders gate. The parent _NodeEditor
+    // already wraps the editor body in IgnorePointer when running; wrap our
+    // own subtree in IgnorePointer too so that a future refactor pulling
+    // LoopProperties out of the panel can't silently un-gate the inputs.
     final canEdit = ref.watch(canEditSequenceProvider);
     return IgnorePointer(
       ignoring: !canEdit,

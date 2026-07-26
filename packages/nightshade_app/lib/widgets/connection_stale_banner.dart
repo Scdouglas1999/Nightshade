@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../utils/snackbar_helper.dart';
+
 /// Set true when the WebSocket connection to a remote backend has been
 /// down briefly but is still within the reconnect grace window (audit
 /// §3.6). The mobile app drives this; desktop/headless do not flip it.
@@ -26,29 +28,66 @@ class ConnectionStaleBanner extends ConsumerStatefulWidget {
 
 class _ConnectionStaleBannerState extends ConsumerState<ConnectionStaleBanner> {
   bool _retrying = false;
+  int _retryGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (!_retrying || previous == null || identical(previous, next)) return;
+        _retryGeneration++;
+        if (mounted) setState(() => _retrying = false);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _retryGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
 
   Future<void> _handleRetry() async {
+    if (_retrying) return;
     final backend = ref.read(backendProvider);
     if (backend is! NetworkBackend) {
-      // No remote session to reconnect — the banner shouldn't normally
-      // show in that case, but if it does we just no-op rather than
-      // throw, because spinning forever would be worse UX.
+      if (mounted) {
+        context.showErrorSnackBar(
+          'The remote session is no longer available. Reconnect from the '
+          'server screen.',
+        );
+      }
       return;
     }
+    final generation = ++_retryGeneration;
     setState(() => _retrying = true);
     try {
       await backend.reconnectNow();
+    } catch (e) {
+      if (mounted && _isCurrentRetry(generation, backend)) {
+        context.showErrorSnackBar('Reconnect failed: $e');
+      }
     } finally {
-      if (mounted) {
+      if (_isCurrentRetry(generation, backend)) {
         setState(() => _retrying = false);
       }
     }
   }
 
+  bool _isCurrentRetry(int generation, NetworkBackend backend) =>
+      mounted &&
+      generation == _retryGeneration &&
+      identical(ref.read(backendProvider), backend);
+
   @override
   Widget build(BuildContext context) {
     final stale = ref.watch(connectionStaleProvider);
     if (!stale) return const SizedBox.shrink();
+    final canRetry = ref.watch(backendProvider) is NetworkBackend;
 
     final colors = NightshadeColors.of(context);
     final bg = colors.warning;
@@ -81,11 +120,16 @@ class _ConnectionStaleBannerState extends ConsumerState<ConnectionStaleBanner> {
             ),
             const SizedBox(width: 8),
             TextButton(
-              onPressed: _retrying ? null : _handleRetry,
+              onPressed: _retrying || !canRetry ? null : _handleRetry,
               child: Text(
-                _retrying ? 'Retrying…' : 'Retry',
+                _retrying
+                    ? 'Retrying…'
+                    : canRetry
+                        ? 'Retry'
+                        : 'Reconnect required',
                 style: TextStyle(
-                  color: _retrying ? fg.withValues(alpha: 0.5) : fg,
+                  color:
+                      _retrying || !canRetry ? fg.withValues(alpha: 0.5) : fg,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),

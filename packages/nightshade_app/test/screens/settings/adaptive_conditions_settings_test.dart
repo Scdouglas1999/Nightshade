@@ -2,16 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/adaptive_conditions_settings.dart';
-import 'package:nightshade_app/widgets/tutorial_keys/settings_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
-
-/// The sidebar's scrollable (the keyed grouped ListView).
-Finder get _sidebar => find.descendant(
-      of: find.byKey(SettingsTutorialKeys.categories),
-      matching: find.byType(Scrollable),
-    );
+import 'settings_sidebar_nav.dart';
 
 class _StubAppSettingsNotifier extends AppSettingsNotifier {
   _StubAppSettingsNotifier(this._initial);
@@ -22,25 +16,13 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
   Future<AppSettingsState> build() async => _initial;
 }
 
+/// The sidebar is grouped + collapsible; Adaptive Conditions lives in the
+/// (collapsed-by-default) "Automation & Safety" group. Expand the group, then
+/// select the section. See settings_sidebar_nav.dart for why this must not
+/// hand-roll scroll-then-tap.
 Future<void> _openAdaptiveConditions(WidgetTester tester) async {
-  // The sidebar is grouped + collapsible; Adaptive Conditions lives in the
-  // (collapsed-by-default) "Automation & Safety" group. Expand the group, then
-  // select the section. ensureVisible scrolls each target fully into the
-  // sidebar viewport so the tap lands inside its hit-test box.
-  final groupHeader = find.text('AUTOMATION & SAFETY');
-  await tester.scrollUntilVisible(groupHeader, 100, scrollable: _sidebar);
-  await tester.tap(groupHeader);
-  await tester.pumpAndSettle(const Duration(milliseconds: 300));
-
-  final sectionItem = find.text('Adaptive Conditions').first;
-  await tester.scrollUntilVisible(sectionItem, 100, scrollable: _sidebar);
-  // scrollUntilVisible stops as soon as the row is partially visible (often
-  // pinned to the viewport edge); ensureVisible fully reveals it so the tap
-  // lands inside its hit-test box.
-  await tester.ensureVisible(sectionItem);
-  await tester.pumpAndSettle(const Duration(milliseconds: 200));
-  await tester.tap(sectionItem);
-  await tester.pumpAndSettle(const Duration(seconds: 1));
+  await expandSettingsGroup(tester, 'Automation & Safety');
+  await selectSettingsSection(tester, 'Adaptive Conditions');
 }
 
 void main() {
@@ -100,6 +82,10 @@ void main() {
       find.byKey(const ValueKey('adaptiveSwapTransparencyWeightInput')),
       '0.55',
     );
+    // SettingsNumberInput deliberately commits on Enter or blur, rather than
+    // writing once per keystroke. Submit the final field just as a keyboard
+    // user would; the preceding threshold edit committed when focus moved.
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
     final state = handle.container.read(appSettingsProvider).value;

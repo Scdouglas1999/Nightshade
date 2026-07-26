@@ -45,6 +45,7 @@
 import 'package:flutter/widgets.dart' show IconData;
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../../utils/count_label.dart';
 
 /// The kind of property an [EditableFragment] edits inline.
 ///
@@ -515,7 +516,7 @@ List<SummaryFragment> nodeSummary(SequenceNode node) {
 
     // Instruction set — child count; static.
     InstructionSetNode() => <SummaryFragment>[
-        StaticFragment('${node.childIds.length} steps'),
+        StaticFragment(countLabel(node.childIds.length, 'step')),
       ],
 
     // Target scheduler — its config is multi-axis; describe child count.

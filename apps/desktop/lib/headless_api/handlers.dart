@@ -11,6 +11,7 @@ export 'handlers/equipment_handlers.dart';
 export 'handlers/guiding_handlers.dart';
 export 'handlers/imaging_handlers.dart';
 export 'handlers/profile_handlers.dart';
+export 'handlers/replay_debug_handlers.dart';
 export 'handlers/sequencer_handlers.dart';
 export 'handlers/session_handlers.dart';
 
@@ -19,6 +20,7 @@ export 'handlers/target_handlers.dart';
 export 'handlers/sequence_management_handlers.dart';
 export 'handlers/flat_wizard_handlers.dart';
 export 'handlers/mosaic_handlers.dart';
+export 'handlers/coimaging_handlers.dart';
 export 'handlers/analytics_handlers.dart';
 export 'handlers/weather_handlers.dart';
 export 'handlers/suggestion_handlers.dart';

@@ -224,15 +224,28 @@ class _ReticlePainter extends CustomPainter {
     //   * altitude_error > 0 → mechanical pole sits above true pole.
     //     Render the marker on the TOP side (negative Y, since screen Y
     //     grows downward).
-    final dx = (azimuthErrorArcsec / outerScaleArcsec) * maxRadius;
-    final dy = -(altitudeErrorArcsec / outerScaleArcsec) * maxRadius;
+    // Both denominators can legitimately be zero: `outerScaleArcsec` before a
+    // first solve populates it, and `maxRadius` whenever the panel is squeezed
+    // (this reticle sits in a Column that overflows on a short viewport). A
+    // zero scale makes the division infinite, the clamp below then computes
+    // `maxRadius / infinity == 0`, and `infinity * 0` is NaN — which reaches
+    // `canvas.drawCircle` and throws "Offset argument contained a NaN value",
+    // taking down the whole polar-alignment screen rather than degrading.
+    // Substituting finite fallbacks keeps the marker at the centre, which is
+    // the honest rendering when there is no scale or no room to plot against.
+    final safeScale = outerScaleArcsec.isFinite && outerScaleArcsec > 0
+        ? outerScaleArcsec
+        : 1.0;
+    final safeRadius = maxRadius.isFinite && maxRadius > 0 ? maxRadius : 0.0;
+    final dx = (azimuthErrorArcsec / safeScale) * safeRadius;
+    final dy = -(altitudeErrorArcsec / safeScale) * safeRadius;
 
     // Clamp the marker to the rim so off-scale errors are still visible.
     final magnitude = math.sqrt(dx * dx + dy * dy);
     final double clampedDx;
     final double clampedDy;
-    if (magnitude > maxRadius) {
-      final scale = maxRadius / magnitude;
+    if (magnitude > safeRadius && magnitude > 0) {
+      final scale = safeRadius / magnitude;
       clampedDx = dx * scale;
       clampedDy = dy * scale;
     } else {

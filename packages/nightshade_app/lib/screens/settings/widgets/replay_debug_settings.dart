@@ -37,25 +37,38 @@ class ReplayDebugSettings extends ConsumerStatefulWidget {
 
 class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
   final TextEditingController _retentionCtrl = TextEditingController();
-  bool _hydrated = false;
   bool _isClearing = false;
+  int _clearGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next)) return;
+        _clearGeneration++;
+        if (mounted && _isClearing) {
+          setState(() => _isClearing = false);
+        }
+      },
+    );
+  }
 
   @override
   void dispose() {
+    _clearGeneration++;
+    _backendSubscription?.close();
     _retentionCtrl.dispose();
     super.dispose();
-  }
-
-  void _hydrate(int days) {
-    if (_hydrated) return;
-    _hydrated = true;
-    _retentionCtrl.text = days.toString();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final isMobile = widget.isMobile;
+    final isRemote = ref.watch(isRemoteModeProvider);
     final enabledAsync = ref.watch(replayDebugEnabledProvider);
     final retentionAsync = ref.watch(replayDebugRetentionDaysProvider);
 
@@ -66,27 +79,33 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
       return SettingsErrorState(
         isMobile: isMobile,
         error: enabledAsync.error!,
-        onRetry: () => ref.invalidate(replayDebugEnabledProvider),
+        onRetry: () => ref
+            .read(replayDebugSettingsControllerProvider)
+            .invalidateSettings(),
       );
     }
     if (retentionAsync.hasError) {
       return SettingsErrorState(
         isMobile: isMobile,
         error: retentionAsync.error!,
-        onRetry: () => ref.invalidate(replayDebugRetentionDaysProvider),
+        onRetry: () => ref
+            .read(replayDebugSettingsControllerProvider)
+            .invalidateSettings(),
       );
     }
 
     final enabled = enabledAsync.value ?? true;
     final retentionDays =
         retentionAsync.value ?? replayDebugDefaultRetentionDays;
-    _hydrate(retentionDays);
 
     final controller = ref.read(replayDebugSettingsControllerProvider);
+    final Object authorityKey =
+        isRemote ? ref.watch(backendProvider) : ref.watch(databaseProvider);
 
     return SettingsPage(
       title: 'Replay Debug',
-      description: 'Decision-log retention + cleanup for the retrospective '
+      description: '${isRemote ? 'Imaging-host ' : ''}decision-log retention '
+          '+ cleanup for the retrospective '
           'Replay screen. Decisions older than the retention window '
           'are pruned automatically on app startup (once per day).',
       isMobile: isMobile,
@@ -107,7 +126,18 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
               trailing: SettingsSwitch(
                 value: enabled,
                 onChanged: (value) async {
-                  await controller.setEnabled(value);
+                  try {
+                    await controller.setEnabled(value);
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Could not change replay logging: $error',
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
               isLast: false,
@@ -121,12 +151,25 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                 width: 96,
                 child: SettingsNumberInput(
                   controller: _retentionCtrl,
+                  authoritativeValue: retentionDays.toDouble(),
+                  authorityKey: authorityKey,
                   suffix: 'd',
                   min: 1,
                   max: 3650,
                   decimals: 0,
                   onChanged: (v) async {
-                    await controller.setRetentionDays(v.toInt());
+                    try {
+                      await controller.setRetentionDays(v.toInt());
+                    } catch (error) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Could not change replay retention: $error',
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
               ),
@@ -171,6 +214,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                           : 'Clear all replay history',
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
+                      isLoading: _isClearing,
                     ),
                   ),
                 ],
@@ -183,6 +227,11 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
   }
 
   Future<void> _confirmAndClear(ReplayDebugSettingsController c) async {
+    if (_isClearing) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_clearGeneration;
+    setState(() => _isClearing = true);
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -204,17 +253,38 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
         ],
       ),
     );
-    if (ok != true || !mounted) return;
-    setState(() => _isClearing = true);
-    final removed = await c.clearAllHistory();
-    if (!mounted) return;
-    setState(() => _isClearing = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Cleared $removed replay decision row(s).'),
-      ),
-    );
+    if (!_isCurrentClear(generation, authority)) return;
+    if (ok != true) {
+      setState(() => _isClearing = false);
+      return;
+    }
+    try {
+      final removed = await c.clearAllHistory();
+      if (mounted && _isCurrentClear(generation, authority)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cleared $removed replay decision row(s).'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted && _isCurrentClear(generation, authority)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not clear replay history: $error')),
+        );
+      }
+    } finally {
+      if (_isCurrentClear(generation, authority)) {
+        setState(() => _isClearing = false);
+      }
+    }
   }
+
+  bool _isCurrentClear(int generation, NightshadeBackend authority) =>
+      mounted &&
+      generation == _clearGeneration &&
+      _isClearing &&
+      identical(ref.read(backendProvider), authority);
 
   Widget _row({
     required IconData icon,

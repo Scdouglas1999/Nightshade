@@ -144,12 +144,14 @@ class TransientsView extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
               child: TransientCard(
+                key: ValueKey(alert.id),
                 alert: alert,
                 state: alertState,
                 onQueue: () => _queueAlert(context, ref, alert),
+                onPlan: () => _planAlert(context),
                 onViewInFraming: () => _viewInFraming(context, ref, alert),
                 onOpenScience: () => _openScience(context, alert),
-                onDismiss: () => _dismissAlert(ref, alert),
+                onDismiss: () => _dismissAlert(context, ref, alert),
               ),
             );
           },
@@ -243,6 +245,10 @@ class TransientsView extends ConsumerWidget {
     await queueTransientForTonight(ref, alert);
   }
 
+  void _planAlert(BuildContext context) {
+    context.go('/planner?tab=scheduler');
+  }
+
   void _viewInFraming(
       BuildContext context, WidgetRef ref, TransientAlert alert) {
     // Seed the target before navigating: the /framing route redirects to
@@ -259,8 +265,20 @@ class TransientsView extends ConsumerWidget {
     context.go('/science');
   }
 
-  void _dismissAlert(WidgetRef ref, TransientAlert alert) {
-    ref.read(transientAlertStatesProvider.notifier).dismiss(alert.id);
+  Future<void> _dismissAlert(
+    BuildContext context,
+    WidgetRef ref,
+    TransientAlert alert,
+  ) async {
+    try {
+      await ref.read(transientAlertStatesProvider.notifier).dismiss(alert.id);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not dismiss this alert.')),
+        );
+      }
+    }
   }
 }
 
@@ -269,7 +287,7 @@ class TransientsView extends ConsumerWidget {
 void showTransientSettingsDialog(BuildContext context, WidgetRef ref) {
   showDialog(
     context: context,
-    builder: (context) => _TransientSettingsDialog(ref: ref),
+    builder: (context) => const _TransientSettingsDialog(),
   );
 }
 
@@ -426,13 +444,32 @@ class _TransientCardSkeleton extends StatelessWidget {
 }
 
 /// Settings dialog for configuring transient alert preferences.
-class _TransientSettingsDialog extends ConsumerWidget {
-  final WidgetRef ref;
-
-  const _TransientSettingsDialog({required this.ref});
+class _TransientSettingsDialog extends ConsumerStatefulWidget {
+  const _TransientSettingsDialog();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_TransientSettingsDialog> createState() =>
+      _TransientSettingsDialogState();
+}
+
+class _TransientSettingsDialogState
+    extends ConsumerState<_TransientSettingsDialog> {
+  Future<void> _run(Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save the alert settings.'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final settings = ref.watch(transientAlertSettingsProvider);
     final notifier = ref.read(transientAlertSettingsProvider.notifier);
@@ -463,7 +500,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               return NightshadeChip(
                 label: _getSourceLabel(source),
                 selected: settings.enabledSources.contains(source),
-                onTap: () => notifier.toggleSource(source),
+                onTap: () => _run(() => notifier.toggleSource(source)),
               );
             }).toList(),
           ),
@@ -480,7 +517,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               return NightshadeChip(
                 label: _getTypeLabel(type),
                 selected: settings.typesToMonitor.contains(type),
-                onTap: () => notifier.toggleType(type),
+                onTap: () => _run(() => notifier.toggleType(type)),
               );
             }).toList(),
           ),
@@ -498,7 +535,8 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   min: 5.0,
                   max: 20.0,
                   divisions: 30,
-                  onChanged: (value) => notifier.setMagnitudeThreshold(value),
+                  onChanged: (value) =>
+                      _run(() => notifier.setMagnitudeThreshold(value)),
                 ),
               ),
               const SizedBox(width: NightshadeTokens.spaceMd),
@@ -522,7 +560,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             label: 'Notifications',
             subtitle: 'Show notifications for new alerts',
             value: settings.notifyOnNew,
-            onChanged: (value) => notifier.setNotifyOnNew(value),
+            onChanged: (value) => _run(() => notifier.setNotifyOnNew(value)),
           ),
         ],
       ),

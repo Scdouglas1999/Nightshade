@@ -46,9 +46,47 @@ class SequenceTimeline extends ConsumerWidget {
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
 
-    // Flatten the sequence into timeline segments
-    final segments = _buildTimelineSegments(sequence);
-    final totalDuration = sequence.totalIntegrationSecs;
+    final sessionStart =
+        isRunning ? ref.watch(sessionStateProvider).startTime : null;
+    final timelineStart = startTime ?? sessionStart ?? DateTime.now();
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final hasLocation = settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0);
+    final estimator = SequenceTimeEstimator(
+      overhead: ref.watch(sequencerOverheadConfigProvider),
+    );
+    final segments = _buildTimelineSegments(
+      sequence,
+      estimator,
+      timelineStart,
+      latitude: hasLocation ? settings.latitude : null,
+      longitude: hasLocation ? settings.longitude : null,
+    );
+    final totalDuration = estimator
+            .estimateTotalDuration(
+              sequence,
+              timelineStart,
+              latitude: hasLocation ? settings.latitude : null,
+              longitude: hasLocation ? settings.longitude : null,
+            )
+            .inMilliseconds /
+        1000.0;
+
+    final renderedDuration = segments.fold<double>(
+      0,
+      (total, segment) => total + segment.duration,
+    );
+    final unexpandedDuration = totalDuration - renderedDuration;
+    if (unexpandedDuration > 0.001) {
+      segments.add(
+        TimelineSegment(
+          nodeId: '__unexpanded_time__',
+          name: 'Scheduled or repeated time',
+          duration: unexpandedDuration,
+          type: TimelineSegmentType.instruction,
+        ),
+      );
+    }
 
     if (showMiniVersion) {
       return _MiniTimeline(
@@ -90,86 +128,63 @@ class SequenceTimeline extends ConsumerWidget {
     );
   }
 
-  List<TimelineSegment> _buildTimelineSegments(Sequence sequence) {
+  List<TimelineSegment> _buildTimelineSegments(
+    Sequence sequence,
+    SequenceTimeEstimator estimator,
+    DateTime timelineStart, {
+    double? latitude,
+    double? longitude,
+  }) {
+    final timings = estimator.estimateSequenceTiming(
+      sequence,
+      timelineStart,
+      latitude: latitude,
+      longitude: longitude,
+    );
     final segments = <TimelineSegment>[];
-
-    // Get all execution-relevant nodes in order
-    void processNode(SequenceNode node, int depth) {
-      if (!node.isEnabled) return;
-
-      // Calculate duration based on node type
-      double duration = 0;
-      TimelineSegmentType type = TimelineSegmentType.instruction;
-      Color? customColor;
-
-      if (node is ExposureNode) {
-        duration = node.totalDurationSecs;
-        type = TimelineSegmentType.exposure;
-        customColor =
-            node.filter != null ? _getFilterColor(node.filter!) : null;
-      } else if (node is AutofocusNode) {
-        duration = node.exposureDuration * 10; // Estimate ~10 exposures
-        type = TimelineSegmentType.focus;
-      } else if (node is DitherNode) {
-        duration = 5; // Dither typically takes ~5 seconds
-        type = TimelineSegmentType.dither;
-      } else if (node is DelayNode) {
-        duration = node.seconds;
-        type = TimelineSegmentType.wait;
-      } else if (node is WaitTimeNode) {
-        // Calculate time until wait
-        if (node.waitUntil != null) {
-          final now = DateTime.now();
-          duration = node.waitUntil!.difference(now).inSeconds.toDouble();
-          if (duration < 0) duration = 0;
-        }
-        type = TimelineSegmentType.wait;
-      } else if (node is SlewNode || node is CenterNode) {
-        duration = 30; // Estimate 30 seconds for slew operations
-        type = TimelineSegmentType.slew;
-      } else if (node is MeridianFlipNode) {
-        duration = 120; // Estimate 2 minutes for meridian flip
-        type = TimelineSegmentType.flip;
-      } else if (node is FilterChangeNode) {
-        duration = 10; // Estimate 10 seconds for filter change
-        type = TimelineSegmentType.filter;
+    var cursor = timelineStart;
+    for (final timing in timings) {
+      if (timing.estimatedStart.isAfter(cursor)) {
+        segments.add(
+          TimelineSegment(
+            nodeId: '__gap_${segments.length}__',
+            name: 'Scheduled or repeated time',
+            duration:
+                timing.estimatedStart.difference(cursor).inMilliseconds / 1000,
+            type: TimelineSegmentType.wait,
+          ),
+        );
       }
-
-      if (duration > 0) {
-        segments.add(TimelineSegment(
-          nodeId: node.id,
-          name: node.name,
-          duration: duration,
-          type: type,
-          customColor: customColor,
-        ));
+      if (timing.duration.inMilliseconds > 0) {
+        segments.add(_segmentForTiming(sequence, timing));
       }
-
-      // Process children
-      for (final childId in node.childIds) {
-        final child = sequence.nodes[childId];
-        if (child != null) {
-          processNode(child, depth + 1);
-        }
-      }
+      if (timing.estimatedEnd.isAfter(cursor)) cursor = timing.estimatedEnd;
     }
-
-    // Start from root
-    if (sequence.rootNodeId != null) {
-      final root = sequence.nodes[sequence.rootNodeId!];
-      if (root != null) {
-        processNode(root, 0);
-      }
-    }
-
-    // Also process any top-level target groups
-    for (final node in sequence.nodes.values) {
-      if (node is TargetHeaderNode && node.isEnabled) {
-        processNode(node, 0);
-      }
-    }
-
     return segments;
+  }
+
+  TimelineSegment _segmentForTiming(Sequence sequence, NodeTiming timing) {
+    final node = sequence.nodes[timing.nodeId];
+    final type = switch (node) {
+      ExposureNode() || SmartExposureNode() => TimelineSegmentType.exposure,
+      AutofocusNode() => TimelineSegmentType.focus,
+      DitherNode() => TimelineSegmentType.dither,
+      DelayNode() || WaitTimeNode() => TimelineSegmentType.wait,
+      SlewNode() || CenterNode() => TimelineSegmentType.slew,
+      MeridianFlipNode() => TimelineSegmentType.flip,
+      FilterChangeNode() => TimelineSegmentType.filter,
+      _ => TimelineSegmentType.instruction,
+    };
+    final customColor = node is ExposureNode && node.filter != null
+        ? _getFilterColor(node.filter!)
+        : null;
+    return TimelineSegment(
+      nodeId: timing.nodeId,
+      name: timing.nodeName,
+      duration: timing.duration.inMilliseconds / 1000.0,
+      type: type,
+      customColor: customColor,
+    );
   }
 
   Color? _getFilterColor(String filter) {

@@ -30,10 +30,10 @@ struct SecondaryRigManager {
     rig: Option<SecondaryRig>,
 }
 
-fn manager() -> &'static parking_lot::Mutex<SecondaryRigManager> {
-    static MGR: std::sync::OnceLock<parking_lot::Mutex<SecondaryRigManager>> =
+fn manager() -> &'static tokio::sync::Mutex<SecondaryRigManager> {
+    static MGR: std::sync::OnceLock<tokio::sync::Mutex<SecondaryRigManager>> =
         std::sync::OnceLock::new();
-    MGR.get_or_init(|| parking_lot::Mutex::new(SecondaryRigManager { rig: None }))
+    MGR.get_or_init(|| tokio::sync::Mutex::new(SecondaryRigManager { rig: None }))
 }
 
 /// FRB-facing configuration for arming the secondary rig. Mirrors
@@ -124,9 +124,9 @@ impl Default for SecondaryRigStatusApi {
 /// the *primary* only consults the barrier it captured at start; a future
 /// enhancement could push a live barrier into the running executor.
 pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<(), NightshadeError> {
-    if config.exposure_secs <= 0.0 {
+    if !config.exposure_secs.is_finite() || !(0.001..=86_400.0).contains(&config.exposure_secs) {
         return Err(NightshadeError::InvalidParameter(
-            "exposure_secs must be positive".to_string(),
+            "exposure_secs must be finite and between 0.001 and 86400".to_string(),
         ));
     }
     if config.camera_id.trim().is_empty() {
@@ -135,20 +135,76 @@ pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<()
         ));
     }
 
-    let policy = InFlightDitherPolicy::from_str_opt(&config.in_flight_policy).unwrap_or_default();
-    let max_wait = if config.dither_max_wait_secs > 0.0 {
-        config.dither_max_wait_secs
-    } else {
-        DEFAULT_DITHER_MAX_WAIT_SECS
-    };
+    if !(1..=16).contains(&config.bin_x) || !(1..=16).contains(&config.bin_y) {
+        return Err(NightshadeError::InvalidParameter(
+            "bin_x and bin_y must each be between 1 and 16".to_string(),
+        ));
+    }
+    if config.frame_count == Some(0) {
+        return Err(NightshadeError::InvalidParameter(
+            "frame_count must be positive when provided".to_string(),
+        ));
+    }
+    if config
+        .target_temp_c
+        .is_some_and(|value| !value.is_finite() || !(-100.0..=60.0).contains(&value))
+    {
+        return Err(NightshadeError::InvalidParameter(
+            "target_temp_c must be finite and between -100 and 60".to_string(),
+        ));
+    }
+    if !config.dither_max_wait_secs.is_finite()
+        || !(0.1..=600.0).contains(&config.dither_max_wait_secs)
+    {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "dither_max_wait_secs must be finite and between 0.1 and 600 (default is {DEFAULT_DITHER_MAX_WAIT_SECS})"
+        )));
+    }
+    validate_optional_range("target_ra_hours", config.target_ra_hours, 0.0, 24.0)?;
+    validate_optional_range("target_dec_degrees", config.target_dec_degrees, -90.0, 90.0)?;
+    validate_optional_range("site_latitude_deg", config.site_latitude_deg, -90.0, 90.0)?;
+    validate_optional_range(
+        "site_longitude_deg",
+        config.site_longitude_deg,
+        -180.0,
+        180.0,
+    )?;
+    validate_optional_range(
+        "site_elevation_m",
+        config.site_elevation_m,
+        -500.0,
+        10_000.0,
+    )?;
+    validate_optional_positive(
+        "telescope_focal_length_mm",
+        config.telescope_focal_length_mm,
+    )?;
+    validate_optional_positive("telescope_aperture_mm", config.telescope_aperture_mm)?;
+
+    let save_base_path = config
+        .save_base_path
+        .as_ref()
+        .filter(|path| !path.trim().is_empty())
+        .ok_or_else(|| {
+            NightshadeError::InvalidParameter(
+                "save_base_path is required; secondary frames cannot be written to the process directory"
+                    .to_string(),
+            )
+        })?;
+    let policy = InFlightDitherPolicy::from_str_opt(&config.in_flight_policy).ok_or_else(|| {
+        NightshadeError::InvalidParameter(
+            "in_flight_policy must be complete_if_short or abort_immediately".to_string(),
+        )
+    })?;
+    let max_wait = config.dither_max_wait_secs;
 
     let rig_config = SecondaryRigConfig {
         camera_id: config.camera_id.clone(),
         exposure_secs: config.exposure_secs,
         gain: config.gain,
         offset: config.offset,
-        bin_x: config.bin_x.max(1),
-        bin_y: config.bin_y.max(1),
+        bin_x: config.bin_x,
+        bin_y: config.bin_y,
         frame_count: config.frame_count,
         filter_name: config.filter_name.clone(),
         target_temp_c: config.target_temp_c,
@@ -174,7 +230,7 @@ pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<()
         site_latitude_deg: config.site_latitude_deg,
         site_longitude_deg: config.site_longitude_deg,
         site_elevation_m: config.site_elevation_m,
-        save_base: config.save_base_path.as_ref().map(std::path::PathBuf::from),
+        save_base: Some(std::path::PathBuf::from(save_base_path)),
     };
 
     // Reuse the unified device-ops path: the secondary camera is driven through
@@ -182,19 +238,20 @@ pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<()
     let device_ops = create_unified_device_ops();
     let barrier = Arc::new(DitherBarrier::new(max_wait, policy));
 
-    // Stop any previously-armed secondary first (one mount, one barrier).
-    if let Some(prev) = manager().lock().rig.take() {
-        // stop() signals the loop synchronously; the returned JoinHandle is
-        // deliberately dropped — we do not wait for the old loop to drain.
-        drop(prev.stop());
+    // Serialize replacement with stop/status. The old exposure must be fully
+    // aborted and its task joined before a new loop can touch the same camera.
+    let mut manager = manager().lock().await;
+    if let Some(prev) = manager.rig.take() {
+        await_rig_teardown(prev).await?;
     }
+    dual_rig::clear_active_barrier();
 
     // Install the barrier into the sequencer's process-wide slot BEFORE
     // spawning the loop so the executor (if it starts now) sees it.
     dual_rig::install_active_barrier(barrier.clone());
 
     let rig = SecondaryRig::start(rig_config, device_ops, barrier, meta);
-    manager().lock().rig = Some(rig);
+    manager.rig = Some(rig);
 
     tracing::info!(
         "Secondary rig armed: camera={}, exp={}s, max_wait={}s, policy={}",
@@ -208,21 +265,23 @@ pub async fn api_secondary_rig_start(config: SecondaryRigConfigApi) -> Result<()
 
 /// Stop the secondary capture loop and tear down the barrier. Idempotent.
 pub async fn api_secondary_rig_stop() -> Result<(), NightshadeError> {
-    let rig = manager().lock().rig.take();
-    if let Some(rig) = rig {
-        let handle = rig.stop();
-        // Await teardown so a subsequent re-arm doesn't race the old loop's
-        // final camera abort.
-        let _ = handle.await;
-    }
+    let mut manager = manager().lock().await;
+    let rig = manager.rig.take();
+    let teardown = if let Some(rig) = rig {
+        await_rig_teardown(rig).await
+    } else {
+        Ok(())
+    };
+    // Keep the barrier installed until teardown completes so a primary dither
+    // cannot move the mount while the cancelled exposure is still draining.
     dual_rig::clear_active_barrier();
     tracing::info!("Secondary rig stopped");
-    Ok(())
+    teardown
 }
 
 /// Live status snapshot of the secondary rig (for UI / headless monitoring).
 pub async fn api_secondary_rig_get_status() -> SecondaryRigStatusApi {
-    let mgr = manager().lock();
+    let mgr = manager().lock().await;
     let Some(rig) = mgr.rig.as_ref() else {
         return SecondaryRigStatusApi::default();
     };
@@ -248,7 +307,51 @@ pub async fn api_secondary_rig_get_status() -> SecondaryRigStatusApi {
 
 /// Whether a secondary rig is currently armed.
 pub async fn api_secondary_rig_is_armed() -> bool {
-    manager().lock().rig.is_some()
+    manager().lock().await.rig.is_some()
+}
+
+async fn await_rig_teardown(rig: SecondaryRig) -> Result<(), NightshadeError> {
+    let mut handle = rig.stop();
+    let joined = tokio::time::timeout(std::time::Duration::from_secs(10), &mut handle)
+        .await
+        .map_err(|_| {
+            handle.abort();
+            NightshadeError::Timeout(
+                "secondary rig did not acknowledge exposure abort within 10 seconds".to_string(),
+            )
+        })?;
+    joined
+        .map_err(|error| {
+            NightshadeError::OperationFailed(format!(
+                "secondary rig task failed while stopping: {error}"
+            ))
+        })?
+        .map_err(|error| {
+            NightshadeError::OperationFailed(format!("secondary rig did not stop safely: {error}"))
+        })
+}
+
+fn validate_optional_range(
+    name: &str,
+    value: Option<f64>,
+    min: f64,
+    max: f64,
+) -> Result<(), NightshadeError> {
+    if value.is_some_and(|value| !value.is_finite() || value < min || value > max) {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "{name} must be finite and between {min} and {max}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_optional_positive(name: &str, value: Option<f64>) -> Result<(), NightshadeError> {
+    if value.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "{name} must be finite and positive"
+        )));
+    }
+    Ok(())
 }
 
 /// Generate a unique-enough session id for a secondary run without pulling in a

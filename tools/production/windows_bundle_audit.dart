@@ -41,6 +41,34 @@ void main(List<String> args) {
   final bundlePath = args.isEmpty ? _defaultBundlePath : args.first;
   final bundleDir = Directory(bundlePath);
   if (!bundleDir.existsSync()) {
+    final missing = <String>[
+      ..._requiredFiles,
+      for (final prefix in _requiredGlobPrefixes) '$prefix*.dll',
+    ];
+    final report = {
+      'generatedAt': DateTime.now().toUtc().toIso8601String(),
+      'bundlePath': bundleDir.path,
+      'bundleExists': false,
+      'fileCount': 0,
+      'requiredFileCount': missing.length,
+      'missingRequiredFileCount': missing.length,
+      'disallowedFileCount': 0,
+      'passed': false,
+      'missingRequiredFiles': missing,
+      'disallowedFiles': const <String>[],
+    };
+    Directory('docs/production-readiness').createSync(recursive: true);
+    File(
+      _jsonOutputPath,
+    ).writeAsStringSync(const JsonEncoder.withIndent('  ').convert(report));
+    File(_markdownOutputPath).writeAsStringSync(
+      _renderMarkdown(
+        bundlePath: bundleDir.path,
+        fileCount: 0,
+        missing: missing,
+        disallowed: const <String>[],
+      ),
+    );
     stderr.writeln('Windows bundle not found: $bundlePath');
     exit(2);
   }
@@ -85,6 +113,7 @@ void main(List<String> args) {
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
     'bundlePath': bundleDir.path,
+    'bundleExists': true,
     'fileCount': relativeFiles.length,
     'requiredFileCount': _requiredFiles.length + _requiredGlobPrefixes.length,
     'missingRequiredFileCount': missing.length,

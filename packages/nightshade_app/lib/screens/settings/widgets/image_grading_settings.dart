@@ -41,7 +41,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
   final _starCountController = TextEditingController();
   final _maxRejectsController = TextEditingController();
   final _rejectFolderController = TextEditingController();
-  bool _initialized = false;
+  final _lastSyncedValues = <TextEditingController, String>{};
 
   @override
   void dispose() {
@@ -54,27 +54,42 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
     super.dispose();
   }
 
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _hfrController.text = settings.imageGradingHfrThresholdPx != null
-          ? settings.imageGradingHfrThresholdPx!.toStringAsFixed(2)
-          : '';
-      _baselineController.text = settings.imageGradingHfrBaselinePercent != null
-          ? settings.imageGradingHfrBaselinePercent!.toStringAsFixed(0)
-          : '';
-      _eccentricityController.text =
-          settings.imageGradingEccentricityThreshold != null
-              ? settings.imageGradingEccentricityThreshold!.toStringAsFixed(2)
-              : '';
-      _starCountController.text = settings.imageGradingStarCountMin != null
-          ? settings.imageGradingStarCountMin!.toString()
-          : '';
-      _maxRejectsController.text =
-          settings.imageGradingMaxConsecutiveRejects.toString();
-      _rejectFolderController.text =
-          settings.imageGradingRejectFolderPath ?? '';
-      _initialized = true;
-    }
+  void _syncController(TextEditingController controller, String value) {
+    // Only overwrite when the committed setting changed. Rebuilds caused by an
+    // unrelated toggle must not erase text the operator is still editing.
+    if (_lastSyncedValues[controller] == value) return;
+    controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+    _lastSyncedValues[controller] = value;
+  }
+
+  void _syncControllers(AppSettingsState settings) {
+    _syncController(
+      _hfrController,
+      settings.imageGradingHfrThresholdPx?.toStringAsFixed(2) ?? '',
+    );
+    _syncController(
+      _baselineController,
+      settings.imageGradingHfrBaselinePercent?.toStringAsFixed(0) ?? '',
+    );
+    _syncController(
+      _eccentricityController,
+      settings.imageGradingEccentricityThreshold?.toStringAsFixed(2) ?? '',
+    );
+    _syncController(
+      _starCountController,
+      settings.imageGradingStarCountMin?.toString() ?? '',
+    );
+    _syncController(
+      _maxRejectsController,
+      settings.imageGradingMaxConsecutiveRejects.toString(),
+    );
+    _syncController(
+      _rejectFolderController,
+      settings.imageGradingRejectFolderPath ?? '',
+    );
   }
 
   @override
@@ -91,7 +106,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
+        _syncControllers(settings);
         final notifier = ref.read(appSettingsProvider.notifier);
         final enabled = settings.enableImageGrading;
 
@@ -129,6 +144,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                   subtitle:
                       'Reject if measured HFR exceeds this absolute value. Leave blank to disable.',
                   trailing: _OptionalNumberInput(
+                    fieldKey: const ValueKey('image-grading-hfr-threshold'),
                     controller: _hfrController,
                     suffix: 'px',
                     min: 0.1,
@@ -147,6 +163,8 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                   subtitle:
                       'Reject if HFR > baseline × (1 + percent/100). The baseline is the median of the first 5 accepted frames of each target.',
                   trailing: _OptionalNumberInput(
+                    fieldKey:
+                        const ValueKey('image-grading-hfr-baseline-percent'),
                     controller: _baselineController,
                     suffix: '%',
                     min: 1.0,
@@ -171,6 +189,8 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                   subtitle:
                       'Reject if star eccentricity exceeds this value. 0.6 catches trailed frames; 0.8 catches catastrophic tracking failure. Leave blank to disable.',
                   trailing: _OptionalNumberInput(
+                    fieldKey:
+                        const ValueKey('image-grading-eccentricity-threshold'),
                     controller: _eccentricityController,
                     suffix: '',
                     min: 0.0,
@@ -190,6 +210,8 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                   subtitle:
                       'Reject if detected star count drops below this value. Trips when clouds roll in or the dome slit drifts off-target. Leave blank to disable.',
                   trailing: _OptionalIntInput(
+                    fieldKey:
+                        const ValueKey('image-grading-star-count-minimum'),
                     controller: _starCountController,
                     suffix: 'stars',
                     min: 1,
@@ -213,6 +235,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                   subtitle:
                       'Pause the sequence after this many consecutive rejected frames — the safety valve when something is systematically wrong (drifted focus, clouds, dome misalignment).',
                   trailing: _OptionalIntInput(
+                    fieldKey: const ValueKey('image-grading-max-rejects'),
                     controller: _maxRejectsController,
                     suffix: 'frames',
                     min: 1,
@@ -257,10 +280,8 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
                     controller: _rejectFolderController,
                     hint: '<save_path>/Reject/',
                     onChanged: (value) async {
-                      // Only persist when the user finishes typing (loses
-                      // focus would be ideal; settings_widgets doesn't
-                      // expose that, so we save on every change but the
-                      // setter trims empty -> null).
+                      // SettingsTextInput commits on Enter or blur and the
+                      // setter trims empty input to null.
                       await notifier.setImageGradingRejectFolderPath(value);
                     },
                     isMobile: widget.isMobile,
@@ -276,10 +297,7 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
   }
 }
 
-/// Opt-in toggle for the post-session auto-integration hook. Persists the
-/// boolean directly through [settingsDaoProvider] under
-/// [kAutoIntegrateSettingKey] (a feature-local key, no AppSettings schema
-/// change), defaulting to off so unattended-night auto-processing is opt-in.
+/// Opt-in toggle for the host-owned post-session auto-integration hook.
 class _AutoIntegrateSwitch extends ConsumerStatefulWidget {
   const _AutoIntegrateSwitch();
 
@@ -289,42 +307,39 @@ class _AutoIntegrateSwitch extends ConsumerStatefulWidget {
 }
 
 class _AutoIntegrateSwitchState extends ConsumerState<_AutoIntegrateSwitch> {
-  bool _enabled = false;
-  bool _loaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _read();
-  }
-
-  Future<void> _read() async {
-    final raw = await ref
-        .read(settingsDaoProvider)
-        .getSetting(kAutoIntegrateSettingKey);
-    if (!mounted) return;
-    setState(() {
-      _enabled = raw == 'true';
-      _loaded = true;
-    });
-  }
+  bool _saving = false;
+  String? _error;
 
   Future<void> _set(bool value) async {
-    setState(() => _enabled = value);
-    await ref
-        .read(settingsDaoProvider)
-        .setSetting(kAutoIntegrateSettingKey, value.toString());
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(autoIntegrationSettingsActionsProvider).setEnabled(value);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Could not save auto-integration setting.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return SettingsSwitch(
-      value: _enabled,
-      onChanged: (v) {
-        if (!_loaded) return;
-        _set(v);
-      },
+    final setting = ref.watch(autoIntegrationEnabledProvider);
+    final enabled = setting.valueOrNull ?? false;
+    final loadError =
+        setting.hasError ? 'Could not load auto-integration setting.' : null;
+    final control = NightshadeSwitch(
+      key: const ValueKey('auto-integrate-switch'),
+      value: enabled,
+      enabled: setting.hasValue && !_saving,
+      onChanged: _set,
     );
+    final error = _error ?? loadError;
+    return error == null ? control : Tooltip(message: error, child: control);
   }
 }
 
@@ -332,16 +347,18 @@ class _AutoIntegrateSwitchState extends ConsumerState<_AutoIntegrateSwitch> {
 /// optional thresholds. Clearing the field commits `null` to the setting
 /// (disabling that specific check while keeping the master toggle on).
 class _OptionalNumberInput extends StatelessWidget {
+  final Key fieldKey;
   final TextEditingController controller;
   final String suffix;
   final double min;
   final double max;
   final int decimals;
   final bool enabled;
-  final ValueChanged<double?> onCommit;
+  final Future<void> Function(double?) onCommit;
   final bool isMobile;
 
   const _OptionalNumberInput({
+    required this.fieldKey,
     required this.controller,
     required this.suffix,
     required this.min,
@@ -354,50 +371,18 @@ class _OptionalNumberInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    final effectiveWidth = isMobile ? 120.0 : 140.0;
-    return Opacity(
-      opacity: enabled ? 1.0 : 0.5,
-      child: IgnorePointer(
-        ignoring: !enabled,
-        child: SizedBox(
-          width: effectiveWidth,
-          child: TextField(
-            controller: controller,
-            keyboardType:
-                TextInputType.numberWithOptions(decimal: decimals > 0),
-            style: TextStyle(
-              fontSize: isMobile
-                  ? NightshadeTypography.fontSize13
-                  : NightshadeTypography.fontSize12,
-              color: colors.textPrimary,
-            ),
-            decoration: InputDecoration(
-              hintText: '—',
-              suffixText: suffix.isEmpty ? null : suffix,
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 8,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              ),
-            ),
-            onChanged: (value) {
-              if (value.trim().isEmpty) {
-                onCommit(null);
-                return;
-              }
-              final parsed = double.tryParse(value.trim());
-              if (parsed != null) {
-                final clamped = parsed.clamp(min, max);
-                onCommit(clamped);
-              }
-            },
-          ),
-        ),
-      ),
+    return _OptionalNumericInput<double>(
+      fieldKey: fieldKey,
+      controller: controller,
+      suffix: suffix,
+      enabled: enabled,
+      allowClear: true,
+      keyboardType: TextInputType.numberWithOptions(decimal: decimals > 0),
+      tryParse: double.tryParse,
+      normalize: (value) => value.clamp(min, max),
+      format: (value) => value.toStringAsFixed(decimals),
+      onCommit: onCommit,
+      isMobile: isMobile,
     );
   }
 }
@@ -405,16 +390,18 @@ class _OptionalNumberInput extends StatelessWidget {
 /// Integer-only variant of `_OptionalNumberInput` for star
 /// count + max consecutive rejects.
 class _OptionalIntInput extends StatelessWidget {
+  final Key fieldKey;
   final TextEditingController controller;
   final String suffix;
   final int min;
   final int max;
   final bool enabled;
   final bool allowClear;
-  final ValueChanged<int?> onCommit;
+  final Future<void> Function(int?) onCommit;
   final bool isMobile;
 
   const _OptionalIntInput({
+    required this.fieldKey,
     required this.controller,
     required this.suffix,
     required this.min,
@@ -427,26 +414,165 @@ class _OptionalIntInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _OptionalNumericInput<int>(
+      fieldKey: fieldKey,
+      controller: controller,
+      suffix: suffix,
+      enabled: enabled,
+      allowClear: allowClear,
+      keyboardType: TextInputType.number,
+      tryParse: int.tryParse,
+      normalize: (value) => value.clamp(min, max),
+      format: (value) => value.toString(),
+      onCommit: onCommit,
+      isMobile: isMobile,
+    );
+  }
+}
+
+class _OptionalNumericInput<T extends num> extends StatefulWidget {
+  final Key fieldKey;
+  final TextEditingController controller;
+  final String suffix;
+  final bool enabled;
+  final bool allowClear;
+  final TextInputType keyboardType;
+  final T? Function(String) tryParse;
+  final T Function(T) normalize;
+  final String Function(T) format;
+  final Future<void> Function(T?) onCommit;
+  final bool isMobile;
+
+  const _OptionalNumericInput({
+    required this.fieldKey,
+    required this.controller,
+    required this.suffix,
+    required this.enabled,
+    required this.allowClear,
+    required this.keyboardType,
+    required this.tryParse,
+    required this.normalize,
+    required this.format,
+    required this.onCommit,
+    required this.isMobile,
+  });
+
+  @override
+  State<_OptionalNumericInput<T>> createState() =>
+      _OptionalNumericInputState<T>();
+}
+
+class _OptionalNumericInputState<T extends num>
+    extends State<_OptionalNumericInput<T>> {
+  final _focusNode = FocusNode();
+  late String _committedText;
+  bool _saving = false;
+  bool _submittedSinceLastEdit = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _committedText = widget.controller.text;
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) return;
+    if (_submittedSinceLastEdit) {
+      _submittedSinceLastEdit = false;
+      return;
+    }
+    _commit();
+  }
+
+  void _setText(String text) {
+    widget.controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  Future<void> _commit() async {
+    if (_saving) return;
+    final raw = widget.controller.text.trim();
+    T? value;
+    late String canonical;
+    if (raw.isEmpty) {
+      if (!widget.allowClear) {
+        _setText(_committedText);
+        setState(() => _error = 'A value is required.');
+        return;
+      }
+      canonical = '';
+    } else {
+      final parsed = widget.tryParse(raw);
+      if (parsed == null) {
+        _setText(_committedText);
+        setState(() => _error = 'Enter a valid number.');
+        return;
+      }
+      value = widget.normalize(parsed);
+      canonical = widget.format(value);
+    }
+
+    _setText(canonical);
+    if (canonical == _committedText) {
+      if (_error != null) setState(() => _error = null);
+      return;
+    }
+
+    final previous = _committedText;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onCommit(value);
+      if (!mounted) return;
+      _committedText = canonical;
+    } catch (_) {
+      if (!mounted) return;
+      _setText(previous);
+      setState(() => _error = 'Could not save. Previous value restored.');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final effectiveWidth = isMobile ? 120.0 : 140.0;
+    final effectiveWidth = widget.isMobile ? 120.0 : 140.0;
+    final interactive = widget.enabled && !_saving;
     return Opacity(
-      opacity: enabled ? 1.0 : 0.5,
+      opacity: interactive ? 1.0 : 0.5,
       child: IgnorePointer(
-        ignoring: !enabled,
+        ignoring: !interactive,
         child: SizedBox(
           width: effectiveWidth,
           child: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
+            key: widget.fieldKey,
+            controller: widget.controller,
+            focusNode: _focusNode,
+            keyboardType: widget.keyboardType,
             style: TextStyle(
-              fontSize: isMobile
+              fontSize: widget.isMobile
                   ? NightshadeTypography.fontSize13
                   : NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(
-              hintText: allowClear ? '—' : '',
-              suffixText: suffix.isEmpty ? null : suffix,
+              hintText: widget.allowClear ? '—' : '',
+              suffixText: widget.suffix.isEmpty ? null : widget.suffix,
+              errorText: _error,
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 10,
@@ -456,16 +582,13 @@ class _OptionalIntInput extends StatelessWidget {
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
             ),
-            onChanged: (value) {
-              if (value.trim().isEmpty) {
-                if (allowClear) onCommit(null);
-                return;
-              }
-              final parsed = int.tryParse(value.trim());
-              if (parsed != null) {
-                final clamped = parsed.clamp(min, max);
-                onCommit(clamped);
-              }
+            onChanged: (_) {
+              _submittedSinceLastEdit = false;
+              if (_error != null) setState(() => _error = null);
+            },
+            onSubmitted: (_) {
+              _submittedSinceLastEdit = true;
+              _commit();
             },
           ),
         ),

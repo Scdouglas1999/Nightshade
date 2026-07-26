@@ -61,6 +61,40 @@ function Invoke-Step($name, [scriptblock]$action) {
     Write-Host "[OK] $name" -ForegroundColor Green
 }
 
+# Authenticode-sign the given files when a code-signing cert is provisioned.
+# Fail-closed: a blank WINDOWS_SIGNING_CERT_BASE64 is a no-op (ship unsigned
+# beta); a SET-but-broken cert throws rather than silently shipping unsigned.
+function Invoke-AuthenticodeSign([string[]]$paths) {
+    $certB64 = $env:WINDOWS_SIGNING_CERT_BASE64
+    if ([string]::IsNullOrWhiteSpace($certB64)) {
+        Write-Host "WINDOWS_SIGNING_CERT_BASE64 not set: skipping Authenticode signing (unsigned beta)." -ForegroundColor DarkYellow
+        return
+    }
+    $targets = @($paths | Where-Object { Test-Path $_ })
+    if ($targets.Count -eq 0) {
+        Write-Host "Authenticode: no files to sign." -ForegroundColor DarkYellow
+        return
+    }
+    $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if (-not $signtool) {
+        throw "WINDOWS_SIGNING_CERT_BASE64 is set but signtool.exe was not found under the Windows 10 SDK."
+    }
+    $pfx = Join-Path ([IO.Path]::GetTempPath()) "nightshade_codesign.pfx"
+    try {
+        [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($certB64))
+        & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+            /f $pfx /p $env:WINDOWS_SIGNING_CERT_PASSWORD @targets
+        if ($LASTEXITCODE -ne 0) { throw "signtool sign failed (exit $LASTEXITCODE)" }
+        & $signtool.FullName verify /pa @targets
+        if ($LASTEXITCODE -ne 0) { throw "signtool verify failed (exit $LASTEXITCODE)" }
+        Write-Host "Authenticode-signed $($targets.Count) file(s)." -ForegroundColor DarkGreen
+    }
+    finally {
+        Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
@@ -289,6 +323,11 @@ Invoke-Step "Copy web dashboard to release directory" {
     }
 }
 
+Invoke-Step "Authenticode sign Release binaries (optional)" {
+    Invoke-AuthenticodeSign (Get-ChildItem $releaseDir -Recurse -Include *.exe, *.dll |
+        Select-Object -ExpandProperty FullName)
+}
+
 Invoke-Step "Prepare installer output directory" {
     if (-not (Test-Path $installerOutDir)) {
         New-Item -ItemType Directory -Path $installerOutDir -Force | Out-Null
@@ -297,6 +336,11 @@ Invoke-Step "Prepare installer output directory" {
 
 Invoke-Step "Build installer with Inno Setup" {
     iscc "/O$installerOutDir" $installerScript
+}
+
+Invoke-Step "Authenticode sign installer (optional)" {
+    Invoke-AuthenticodeSign (Get-ChildItem $installerOutDir -Filter *.exe |
+        Select-Object -ExpandProperty FullName)
 }
 
 Write-Host ""

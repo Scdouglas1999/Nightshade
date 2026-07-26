@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
@@ -20,14 +22,62 @@ class AutoIntegrationResult {
   /// The new master id when a fresh batch integration produced one, else null.
   final int? masterId;
 
+  /// True when the feature was enabled but processing failed.
+  final bool failed;
+
   const AutoIntegrationResult({
     required this.ran,
     required this.message,
     this.masterId,
+    this.failed = false,
   });
 
   static const AutoIntegrationResult disabled =
       AutoIntegrationResult(ran: false, message: 'Auto-integration disabled.');
+}
+
+/// Host-authoritative setting used by both the local rig and remote clients.
+final autoIntegrationEnabledProvider =
+    FutureProvider.autoDispose<bool>((ref) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return backend.getAutoIntegrationEnabled();
+  }
+  final raw =
+      await ref.watch(settingsDaoProvider).getSetting(kAutoIntegrateSettingKey);
+  return raw == 'true';
+});
+
+final autoIntegrationSettingsActionsProvider = Provider((ref) {
+  final backend = ref.watch(backendProvider);
+  return AutoIntegrationSettingsActions(
+    ref,
+    remote: backend is NetworkBackend ? backend : null,
+    local: backend is NetworkBackend ? null : ref.read(settingsDaoProvider),
+  );
+});
+
+class AutoIntegrationSettingsActions {
+  AutoIntegrationSettingsActions(
+    this._ref, {
+    required NetworkBackend? remote,
+    required SettingsDao? local,
+  })  : _remote = remote,
+        _local = local;
+
+  final Ref _ref;
+  final NetworkBackend? _remote;
+  final SettingsDao? _local;
+
+  Future<void> setEnabled(bool enabled) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.setAutoIntegrationEnabled(enabled);
+    } else {
+      await _local!.setSetting(kAutoIntegrateSettingKey, enabled.toString());
+    }
+    _ref.invalidate(autoIntegrationEnabledProvider);
+  }
 }
 
 /// Runs the post-session integration automatically at the end of a sequence run
@@ -50,6 +100,23 @@ class AutoIntegrationService {
   /// [AutoIntegrationResult.disabled] when the setting is off or there is
   /// nothing to integrate; otherwise a summary of what ran.
   Future<AutoIntegrationResult> maybeRunForSession(int sessionId) async {
+    try {
+      return await _maybeRunForSession(sessionId);
+    } catch (error) {
+      _ref.read(loggingServiceProvider).error(
+        'Automatic post-session integration failed',
+        source: 'AutoIntegrationService',
+        fields: {'sessionId': sessionId, 'error': '$error'},
+      );
+      return AutoIntegrationResult(
+        ran: false,
+        failed: true,
+        message: 'Auto-integration failed: $error',
+      );
+    }
+  }
+
+  Future<AutoIntegrationResult> _maybeRunForSession(int sessionId) async {
     final enabled = await _isEnabled();
     if (!enabled) return AutoIntegrationResult.disabled;
 
@@ -121,6 +188,7 @@ class AutoIntegrationService {
     } catch (e) {
       return AutoIntegrationResult(
         ran: false,
+        failed: true,
         message: 'Auto-accumulate failed: $e',
       );
     }
@@ -162,7 +230,10 @@ class AutoIntegrationService {
             outcomes.isNotEmpty ? outcomes.first.masterId : null;
       } catch (e) {
         return AutoIntegrationResult(
-            ran: false, message: 'Auto-integrate failed: $e');
+          ran: false,
+          failed: true,
+          message: 'Auto-integrate failed: $e',
+        );
       }
     }
 
@@ -337,10 +408,9 @@ class AutoIntegrationService {
   }
 
   Future<String> _outputDir() async {
-    final configured = await _ref
-        .read(settingsDaoProvider)
-        .getSetting('default_image_directory');
-    if (configured != null && configured.trim().isNotEmpty) {
+    final configured =
+        await _ref.read(settingsDaoProvider).getImageOutputDirectory();
+    if (configured.trim().isNotEmpty) {
       return p.join(configured.trim(), 'masters');
     }
     return p.join('.', 'masters');
@@ -359,3 +429,71 @@ class AutoIntegrationService {
 final autoIntegrationServiceProvider = Provider<AutoIntegrationService>(
   (ref) => AutoIntegrationService(ref),
 );
+
+class AutoIntegrationCompletion {
+  const AutoIntegrationCompletion({
+    required this.generation,
+    required this.result,
+  });
+
+  final int generation;
+  final AutoIntegrationResult result;
+}
+
+/// Latest user-visible completion from the background coordinator.
+final autoIntegrationCompletionProvider =
+    StateProvider<AutoIntegrationCompletion?>((ref) => null);
+
+/// Always-on host lifecycle for automatic integration.
+///
+/// It deliberately activates only for [FfiBackend]. A remote UI mirrors the
+/// host's terminal state and image catalog, but must never process its own
+/// client-side database or paths. Runs are serialized so two closely-spaced
+/// terminal events cannot race the same accumulating master.
+final autoIntegrationCoordinatorProvider = Provider<void>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is! FfiBackend) return;
+
+  var queue = Future<void>.value();
+  ref.listen<SequenceTerminalRunResult?>(sequenceTerminalRunResultProvider,
+      (previous, next) {
+    if (next == null || next.runStatus != 'completed') return;
+    if (previous?.generation == next.generation) return;
+    final sessionId = next.dbSessionId;
+    if (sessionId == null) return;
+
+    queue = queue.then((_) async {
+      try {
+        final result = await ref
+            .read(autoIntegrationServiceProvider)
+            .maybeRunForSession(sessionId);
+        if (!result.ran && !result.failed) return;
+        ref.read(autoIntegrationCompletionProvider.notifier).state =
+            AutoIntegrationCompletion(
+          generation: next.generation,
+          result: result,
+        );
+        if (result.failed) {
+          ref.read(pushNotificationServiceProvider).enqueue(
+                PushNotification(
+                  title: 'Auto-integration failed',
+                  body: result.message,
+                  priority: PushNotificationPriority.high,
+                  eventType: 'PostSessionAutoIntegrationFailed',
+                  category: EventCategory.imaging,
+                  timestamp: DateTime.now(),
+                ),
+              );
+        }
+      } catch (error) {
+        // Keep the serialization chain alive even if notification/UI
+        // publication fails after the service has already returned.
+        ref.read(loggingServiceProvider).error(
+          'Auto-integration completion publication failed',
+          source: 'AutoIntegrationCoordinator',
+          fields: {'sessionId': sessionId, 'error': '$error'},
+        );
+      }
+    });
+  });
+});

@@ -1,6 +1,9 @@
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'mobile_preferences.dart';
 
 part 'notification_service/contracts.dart';
 
@@ -72,6 +75,27 @@ class MobileNotificationService implements MobileNotificationSink {
 
   Future<void> initialize() async {
     if (_initialized) return;
+
+    // Honor the user's "Sequence events" mute toggle. Persisted in
+    // MobilePreferences and read only here + when the settings toggle
+    // updates the live flag. Gates notifySequenceComplete/Failed.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      enableSequenceNotifications = MobilePreferences(prefs).notifySequence;
+    } catch (error, stackTrace) {
+      // A preferences outage must not prevent safety-critical notification
+      // channels and OS permissions from initializing. Keep the fail-open
+      // first-run notification default and make the storage problem visible.
+      developer.log(
+        '[MobileNotificationService] Could not load the sequence '
+        'notification preference; keeping notifications enabled: $error',
+        name: 'MobileNotificationService',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      enableSequenceNotifications = true;
+    }
 
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
@@ -298,6 +322,42 @@ class MobileNotificationService implements MobileNotificationSink {
   /// a notification is tapped. The app installs this once it has a router.
   void setNavigator(NotificationNavigator navigator) {
     _navigator = navigator;
+  }
+
+  /// Guards [handleLaunchNotification] so the cold-start tap routes at most
+  /// once even though the caller lives in a widget build that rebuilds.
+  bool _launchNotificationRouted = false;
+
+  /// Route a notification that cold-started the app from a terminated state.
+  /// Launch-from-killed taps are delivered via
+  /// [getNotificationAppLaunchDetails] rather than the
+  /// `onDidReceiveNotificationResponse` callback, so the app calls this once
+  /// after installing the navigator. Routing runs through
+  /// [_onNotificationTapped] to reuse the same payload mapping and
+  /// null-navigator guard as a foreground tap.
+  Future<void> handleLaunchNotification() async {
+    if (_launchNotificationRouted) return;
+    try {
+      final details = await _notifications.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp == true) {
+        final response = details?.notificationResponse;
+        if (response?.payload != null) {
+          _onNotificationTapped(response!);
+        }
+      }
+      _launchNotificationRouted = true;
+    } catch (error, stackTrace) {
+      // Do not latch the once-only guard on a platform-channel failure. A
+      // subsequent rebuild/retry can still route the cold-start tap.
+      developer.log(
+        '[MobileNotificationService] Could not inspect launch notification: '
+        '$error',
+        name: 'MobileNotificationService',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   void _onNotificationTapped(NotificationResponse response) {

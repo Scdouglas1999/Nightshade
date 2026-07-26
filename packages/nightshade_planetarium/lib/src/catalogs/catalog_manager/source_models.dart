@@ -86,14 +86,60 @@ enum CatalogPackage {
   );
 }
 
-/// Catalog source information
+/// Compile-time default base URL for the immutable GitHub release that hosts
+/// the bulk catalogs as integrity-verified assets. This is the PRIMARY source:
+/// third-party upstreams (Codeberg, raw.githubusercontent) are only used as a
+/// fallback when a release asset is unreachable.
+///
+/// Overridable two ways, so a self-hoster/fleet operator can repoint downloads
+/// without waiting on a new upstream:
+///   * at build time via `--dart-define=NIGHTSHADE_CATALOG_BASE_URL=<url>`, and
+///   * at runtime via [CatalogManager.setCatalogBaseUrl] (persisted, no rebuild),
+///     mirroring [DeepStarCatalogManager.getBaseUrl]/[setBaseUrl].
+///
+/// A GitHub release asset's full URL is `<base>/<CatalogSource.githubAssetName>`.
+const String kCatalogReleaseBaseUrl = String.fromEnvironment(
+  'NIGHTSHADE_CATALOG_BASE_URL',
+  defaultValue:
+      'https://github.com/Scdouglas1999/Nightshade/releases/download/catalogs-v1',
+);
+
+/// Catalog source information.
+///
+/// Downloads are resolved through an ordered candidate list (see
+/// [catalogDownloadCandidates]): the GitHub release asset ([githubAssetName]
+/// under [kCatalogReleaseBaseUrl] or a configured override) is tried FIRST,
+/// then [downloadUrl] as the upstream fallback. Each candidate's AS-DOWNLOADED
+/// bytes are checked against [sha256] before any decompression or parse.
 class CatalogSource {
   final String name;
   final String description;
   final String version;
+
+  /// Upstream FALLBACK download URL (the original third-party host). Used only
+  /// when the GitHub release asset is unreachable. For gzipped sources this
+  /// points at the compressed `.gz` file.
   final String downloadUrl;
+
+  /// Local (materialized) file name under the catalog directory. For gzipped
+  /// sources this is the DECOMPRESSED file, not the downloaded `.gz`.
   final String fileName;
   final String checksumUrl;
+
+  /// File name of the immutable GitHub release asset that is the PRIMARY
+  /// download source. The full primary URL is `<base>/<githubAssetName>` where
+  /// `<base>` is the configured override or [kCatalogReleaseBaseUrl]. Empty
+  /// when no release asset exists (e.g. the dynamically-built GLADE+ query).
+  final String githubAssetName;
+
+  /// Expected SHA-256 of the AS-DOWNLOADED bytes — the COMPRESSED payload for
+  /// gzipped sources — verified before any gunzip/parse so a corrupt or wrong
+  /// candidate is rejected and the next candidate is tried. Empty means no
+  /// canonical hash is known (e.g. GLADE+) and the check is skipped.
+  final String sha256;
+
+  /// Whether the as-downloaded payload is gzip-compressed.
+  final bool isGzipped;
 
   const CatalogSource({
     required this.name,
@@ -102,34 +148,105 @@ class CatalogSource {
     required this.downloadUrl,
     required this.fileName,
     this.checksumUrl = '',
+    this.githubAssetName = '',
+    this.sha256 = '',
+    this.isGzipped = false,
   });
 }
 
-/// HYG Star Database source
-/// Hosted at Codeberg: https://codeberg.org/astronexus/hyg
-/// Using v4.2 (current version with LFS storage)
+/// HYG Star Database source.
+///
+/// PRIMARY: the immutable `hyg_v44.csv.gz` GitHub release asset.
+/// FALLBACK: Codeberg Git-LFS `/media/` content URL (v44). NOTE: this MUST be
+/// the `/media/` URL, not `/raw/` (which returns a 133-byte LFS pointer). The
+/// old v42 `/raw`/`/media` URL is dead (upstream rolled to v44) and is gone.
 const hygStarCatalog = CatalogSource(
   name: 'HYG Star Database',
   description:
       'Combined Hipparcos, Yale Bright Star, and Gliese catalogs with ~120,000 stars',
-  version: '4.2',
-  // Using /media/ URL for Git LFS files on Codeberg
+  version: '4.4',
+  githubAssetName: 'hyg_v44.csv.gz',
+  // SHA-256 of the AS-DOWNLOADED (gzipped) bytes.
+  sha256: '00b349893b9a53106dd488d8371e8d2fa586043e500bb3cdb8bff3931682197d',
+  // Upstream fallback: /media/ LFS-content URL for v44 on Codeberg.
   downloadUrl:
-      'https://codeberg.org/astronexus/hyg/media/branch/main/data/hyg/CURRENT/hyg_v42.csv.gz',
-  fileName: 'hyg_v42.csv',
+      'https://codeberg.org/astronexus/hyg/media/branch/main/data/hyg/CURRENT/hyg_v44.csv.gz',
+  fileName: 'hyg_v44.csv',
+  isGzipped: true,
 );
 
-/// OpenNGC Deep Sky Object catalog source
-/// GitHub: https://github.com/mattiaverga/OpenNGC
+/// OpenNGC Deep Sky Object catalog source.
+///
+/// PRIMARY: the immutable `NGC.csv` GitHub release asset.
+/// FALLBACK: mattiaverga/OpenNGC `master` on raw.githubusercontent.com.
 const openNgcCatalog = CatalogSource(
   name: 'OpenNGC',
   description:
       'Open source NGC/IC deep sky objects catalog with ~13,000 objects',
   version: '2023.12',
+  githubAssetName: 'NGC.csv',
+  sha256: '840fe0c9ee1332e551b2e722a0e92726cd7b157914a3d2177602832aadd3aa9e',
   downloadUrl:
       'https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/NGC.csv',
   fileName: 'NGC.csv',
+  isGzipped: false,
 );
+
+/// Ordered list of URLs to try when downloading a catalog: the GitHub release
+/// asset FIRST (built from [baseUrl] + [githubAssetName]), then the upstream
+/// [upstreamUrl] fallback. [baseUrl] is the resolved release base (a persisted
+/// override, or [kCatalogReleaseBaseUrl]).
+///
+/// Empty entries and duplicates are dropped, so a source with no release asset
+/// (e.g. the dynamically-built GLADE+ query) collapses to just its upstream.
+List<String> catalogDownloadCandidates({
+  required String githubAssetName,
+  required String upstreamUrl,
+  required String baseUrl,
+}) {
+  final candidates = <String>[];
+  final base = baseUrl.trim();
+  final asset = githubAssetName.trim();
+  if (asset.isNotEmpty && base.isNotEmpty) {
+    final normalized = base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
+    candidates.add('$normalized/$asset');
+  }
+  final upstream = upstreamUrl.trim();
+  if (upstream.isNotEmpty && !candidates.contains(upstream)) {
+    candidates.add(upstream);
+  }
+  return candidates;
+}
+
+/// [catalogDownloadCandidates] for a [CatalogSource].
+List<String> resolveCatalogDownloadCandidates(
+  CatalogSource source, {
+  required String baseUrl,
+}) => catalogDownloadCandidates(
+  githubAssetName: source.githubAssetName,
+  upstreamUrl: source.downloadUrl,
+  baseUrl: baseUrl,
+);
+
+/// Whether [actualSha256] satisfies a catalog's [expectedSha256]
+/// (case-insensitive). An empty [expectedSha256] means "no canonical hash
+/// known" (e.g. GLADE+) and always matches.
+bool catalogSha256Matches(String expectedSha256, String actualSha256) {
+  final expected = expectedSha256.trim();
+  if (expected.isEmpty) return true;
+  return actualSha256.toLowerCase() == expected.toLowerCase();
+}
+
+/// Whether [bytes] (the AS-DOWNLOADED payload) satisfy a catalog's
+/// [expectedSha256]. Used by the download path to reject a candidate whose
+/// bytes don't match BEFORE any decompression/parse.
+bool catalogBytesMatchSha256(String expectedSha256, List<int> bytes) {
+  final expected = expectedSha256.trim();
+  if (expected.isEmpty) return true;
+  return catalogSha256Matches(expected, sha256.convert(bytes).toString());
+}
 
 /// Available annotation catalog packages for deep image annotation
 /// Uses GLADE+ (Galaxy List for the Advanced Detector Era) via VizieR TAP

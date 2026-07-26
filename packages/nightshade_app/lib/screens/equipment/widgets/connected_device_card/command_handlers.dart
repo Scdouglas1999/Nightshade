@@ -6,7 +6,18 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
   // ============================================================================
 
   Future<void> _handleDisconnect() async {
+    // Disconnecting a camera whose TEC is still active cuts cooler power
+    // abruptly — gate with the shared cooled-camera confirm. Confirm BEFORE
+    // _beginDeviceCommand so the card is not held busy while the dialog is up.
+    if (widget.type == ConnectedDeviceType.camera) {
+      final proceed = await confirmDisconnectCooledCamera(context, ref);
+      if (!proceed || !mounted) return;
+    }
+    final revision = _beginDeviceCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final deviceService = ref.read(deviceServiceProvider);
+    final deviceId = _currentCardDeviceId();
     try {
       switch (widget.type) {
         case ConnectedDeviceType.camera:
@@ -41,95 +52,177 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
           break;
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showErrorSnackBar('Failed to disconnect: $e');
       }
+    } finally {
+      _finishDeviceCommand(revision, backend);
     }
   }
 
   Future<void> _handleCoolCamera(double targetTemp) async {
+    final revision = _beginDeviceCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final deviceService = ref.read(deviceServiceProvider);
+    final deviceId = ref.read(cameraStateProvider).deviceId;
     // Cancel any in-progress warm-up before cooling
     deviceService.cancelWarmCamera();
     try {
       await deviceService.setCameraCooling(
           enabled: true, targetTemp: targetTemp);
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showSuccessSnackBar(
             'Cooling to ${targetTemp.toStringAsFixed(0)}C');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showErrorSnackBar('Failed to start cooling: $e');
       }
+    } finally {
+      _finishDeviceCommand(revision, backend);
     }
   }
 
+  /// Set the camera's cooling setpoint and start cooling to it.
+  ///
+  /// The dialog validates a finite target (rejecting blank/`NaN`/`±∞` input
+  /// with inline feedback and zero hardware work), then stays open and busy
+  /// while [DeviceService.setCameraCooling] is awaited. It closes only once the
+  /// driver confirms; a hardware failure keeps the dialog open with the typed
+  /// value intact and re-enables Set for a retry. The Set button is guarded
+  /// against double submission so a rapid double-tap issues a single cooling
+  /// command. No capability temperature range is imposed because the camera
+  /// state does not expose min/max setpoint bounds — only finiteness is
+  /// enforced here (with defense-in-depth in DeviceService).
   Future<void> _showCoolingTempDialog(double currentTemp) async {
-    final controller =
-        TextEditingController(text: currentTemp.toStringAsFixed(0));
-    final result = await showDialog<double>(
+    var targetText = currentTemp.isFinite ? currentTemp.toStringAsFixed(0) : '';
+    final pageContext = context;
+    bool isSaving = false;
+    String? errorText;
+
+    await _showEquipmentDialog<void>(
       context: context,
       builder: (ctx) {
-        final colors = NightshadeColors.of(ctx);
-        return NightshadeDialog(
-          title: 'Set Cooling Target',
-          icon: LucideIcons.thermometer,
-          width: 400,
-          actions: [
-            NightshadeButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-            ),
-            NightshadeButton(
-              onPressed: () {
-                final temp = double.tryParse(controller.text);
-                if (temp != null) Navigator.of(ctx).pop(temp);
-              },
-              label: 'Set',
-              variant: ButtonVariant.primary,
-              size: ButtonSize.small,
-            ),
-          ],
-          child: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(
-                decimal: true, signed: true),
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: 'Target Temperature (C)',
-              labelStyle: TextStyle(color: colors.textMuted),
-              enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: colors.border),
+        return StatefulBuilder(builder: (context, setState) {
+          final colors = NightshadeColors.of(context);
+          return NightshadeDialog(
+            title: 'Set Cooling Target',
+            icon: LucideIcons.thermometer,
+            width: 400,
+            actions: [
+              NightshadeButton(
+                onPressed: isSaving ? null : () => Navigator.pop(context),
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
               ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: colors.primary),
+              NightshadeButton(
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        if (isSaving) return;
+                        final temp = double.tryParse(targetText.trim());
+                        if (temp == null || !temp.isFinite) {
+                          setState(() =>
+                              errorText = 'Enter a finite target temperature.');
+                          return;
+                        }
+                        setState(() {
+                          errorText = null;
+                          isSaving = true;
+                        });
+                        try {
+                          final deviceService = ref.read(deviceServiceProvider);
+                          // Cancel any in-progress warm-up before cooling, then
+                          // drive the cooler to the requested setpoint.
+                          deviceService.cancelWarmCamera();
+                          await deviceService.setCameraCooling(
+                              enabled: true, targetTemp: temp);
+                          if (!context.mounted) return;
+                          ref
+                              .read(cameraStateProvider.notifier)
+                              .setTargetTemp(temp);
+                          Navigator.pop(context);
+                          if (pageContext.mounted) {
+                            pageContext.showSuccessSnackBar(
+                                'Cooling to ${temp.toStringAsFixed(0)}C');
+                          }
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          setState(() {
+                            isSaving = false;
+                            errorText = 'Failed to start cooling: $e';
+                          });
+                        }
+                      },
+                label: isSaving ? 'Setting...' : 'Set',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
               ),
+            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  initialValue: targetText,
+                  onChanged: (value) => targetText = value,
+                  enabled: !isSaving,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true, signed: true),
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'Target Temperature (C)',
+                    labelStyle: TextStyle(color: colors.textMuted),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: colors.primary),
+                    ),
+                  ),
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+                if (errorText != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    errorText!,
+                    style: TextStyle(
+                        color: colors.error,
+                        fontSize: NightshadeTypography.fontSize13),
+                  ),
+                ],
+              ],
             ),
-            style: TextStyle(color: colors.textPrimary),
-          ),
-        );
+          );
+        });
       },
     );
-    controller.dispose();
-    if (result != null) {
-      ref.read(cameraStateProvider.notifier).setTargetTemp(result);
-    }
   }
 
   Future<void> _handleWarmCamera() async {
+    final revision = _beginDeviceCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final deviceService = ref.read(deviceServiceProvider);
+    final deviceId = ref.read(cameraStateProvider).deviceId;
     try {
       await deviceService.warmCamera();
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showSuccessSnackBar('Gradually warming camera (2°C/min)');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showErrorSnackBar('Failed to warm up: $e');
       }
+    } finally {
+      _finishDeviceCommand(revision, backend);
     }
   }
 
@@ -142,24 +235,51 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
   }
 
   Future<void> _handleTogglePark() async {
+    final revision = _beginMountCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final mountService = ref.read(mountCommandServiceProvider);
-    final result = await mountService.togglePark();
-    if (!mounted) return;
-    context.showCommandActionResult(result);
+    try {
+      final result = await mountService.togglePark();
+      if (mounted &&
+          _hasCurrentMountAuthority(backend, mountService, revision)) {
+        context.showCommandActionResult(result);
+      }
+    } finally {
+      _finishMountCommand(revision, backend);
+    }
   }
 
   Future<void> _handleFindHome() async {
+    final revision = _beginMountCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final mountService = ref.read(mountCommandServiceProvider);
-    final result = await mountService.findHome();
-    if (!mounted) return;
-    context.showCommandActionResult(result);
+    try {
+      final result = await mountService.findHome();
+      if (mounted &&
+          _hasCurrentMountAuthority(backend, mountService, revision)) {
+        context.showCommandActionResult(result);
+      }
+    } finally {
+      _finishMountCommand(revision, backend);
+    }
   }
 
   Future<void> _handleToggleTracking(bool currentlyTracking) async {
+    final revision = _beginMountCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final mountService = ref.read(mountCommandServiceProvider);
-    final result = await mountService.setTracking(!currentlyTracking);
-    if (!mounted) return;
-    context.showCommandActionResult(result);
+    try {
+      final result = await mountService.setTracking(!currentlyTracking);
+      if (mounted &&
+          _hasCurrentMountAuthority(backend, mountService, revision)) {
+        context.showCommandActionResult(result);
+      }
+    } finally {
+      _finishMountCommand(revision, backend);
+    }
   }
 
   /// Manually trigger a meridian flip now (outside the sequencer's automatic
@@ -167,116 +287,178 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
   /// when a remote operator is stalled at the meridian — there was previously
   /// no manual "flip now" control anywhere.
   Future<void> _handleManualMeridianFlip() async {
-    final mountState = ref.read(mountStateProvider);
-    final mountId = mountState.deviceId;
-    final ra = mountState.ra;
-    final dec = mountState.dec;
-    if (mountId == null || ra == null || dec == null) {
-      if (mounted) {
-        context.showErrorSnackBar('Mount position unavailable for a flip');
-      }
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => NightshadeDialog(
-        title: 'Meridian Flip Now?',
-        icon: LucideIcons.flipHorizontal,
-        width: 400,
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            label: 'Flip',
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-          ),
-        ],
-        child: Text(
-          'This slews the mount across the meridian and re-points to the '
-          'current position. Guiding pauses and resumes automatically. '
-          'Proceed?',
-          style: TextStyle(
-            color: NightshadeColors.of(ctx).textSecondary,
-            fontSize: NightshadeTypography.fontSize13,
+    final revision = _beginMountCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
+    try {
+      final confirmed = await _showEquipmentDialog<bool>(
+        context: context,
+        builder: (ctx) => NightshadeDialog(
+          title: 'Meridian Flip Now?',
+          icon: LucideIcons.flipHorizontal,
+          width: 400,
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+            NightshadeButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              label: 'Flip',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+            ),
+          ],
+          child: Text(
+            'This slews the mount across the meridian and re-points to the '
+            'current position. Guiding pauses and resumes automatically. '
+            'Proceed?',
+            style: TextStyle(
+              color: NightshadeColors.of(ctx).textSecondary,
+              fontSize: NightshadeTypography.fontSize13,
+            ),
           ),
         ),
-      ),
-    );
-    if (confirmed != true) return;
+      );
+      if (confirmed != true ||
+          !mounted ||
+          revision != _commandRevision ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
 
-    try {
-      await ref.read(sequencerBackendProvider).performMeridianFlip(
-            mountId: mountId,
-            targetName: 'Manual flip',
-            targetRaHours: ra,
-            targetDecDegrees: dec,
-            pauseGuiding: true,
-            autoCenter: true,
-            refocusAfter: false,
-            resumeGuiding: true,
-            settleTimeSecs: 30,
-          );
-      if (mounted) context.showSuccessSnackBar('Meridian flip started');
-    } catch (e) {
-      if (mounted) context.showErrorSnackBar('Meridian flip failed: $e');
+      final succeeded = await ref
+          .read(meridianFlipStandaloneMonitorProvider.notifier)
+          .executeNow();
+      if (!mounted ||
+          revision != _commandRevision ||
+          !identical(ref.read(backendProvider), backend)) {
+        return;
+      }
+      if (succeeded) {
+        context.showSuccessSnackBar('Meridian flip completed');
+      } else {
+        context.showErrorSnackBar(
+          ref.read(flipLastErrorProvider) ?? 'Meridian flip could not start',
+        );
+      }
+    } finally {
+      _finishMountCommand(revision, backend);
     }
   }
 
   Future<void> _handleFilterChange(int position) async {
+    final revision = _beginDeviceCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final deviceService = ref.read(deviceServiceProvider);
+    final deviceId = ref.read(filterWheelStateProvider).deviceId;
     try {
       await deviceService.setFilterWheelPosition(position);
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showErrorSnackBar('Failed to change filter: $e');
       }
+    } finally {
+      _finishDeviceCommand(revision, backend);
     }
   }
 
   Future<void> _handleToggleGuiding(bool currentlyGuiding) async {
+    final revision = _beginDeviceCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     final deviceService = ref.read(deviceServiceProvider);
+    final deviceId = ref.read(guiderStateProvider).deviceId;
     try {
       if (currentlyGuiding) {
         await deviceService.stopGuiding();
-        if (mounted) {
+        if (mounted &&
+            _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
           context.showSuccessSnackBar('Guiding stopped');
         }
       } else {
         await deviceService.startGuiding();
-        if (mounted) {
+        if (mounted &&
+            _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
           context.showSuccessSnackBar('Guiding started');
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showErrorSnackBar('Guiding operation failed: $e');
       }
+    } finally {
+      _finishDeviceCommand(revision, backend);
     }
   }
+
+  String? _currentCardDeviceId() => switch (widget.type) {
+        ConnectedDeviceType.camera => ref.read(cameraStateProvider).deviceId,
+        ConnectedDeviceType.mount => ref.read(mountStateProvider).deviceId,
+        ConnectedDeviceType.focuser => ref.read(focuserStateProvider).deviceId,
+        ConnectedDeviceType.filterWheel =>
+          ref.read(filterWheelStateProvider).deviceId,
+        ConnectedDeviceType.guider => ref.read(guiderStateProvider).deviceId,
+        ConnectedDeviceType.rotator => ref.read(rotatorStateProvider).deviceId,
+        ConnectedDeviceType.dome => ref.read(domeStateProvider).deviceId,
+        ConnectedDeviceType.weather => ref.read(weatherStateProvider).deviceId,
+        ConnectedDeviceType.safetyMonitor =>
+          ref.read(safetyMonitorStateProvider).deviceId,
+        ConnectedDeviceType.coverCalibrator =>
+          ref.read(coverCalibratorStateProvider).deviceId,
+      };
+
+  bool _hasCurrentDeviceAuthority(
+    NightshadeBackend backend,
+    DeviceService deviceService,
+    String? deviceId,
+  ) =>
+      mounted &&
+      identical(ref.read(backendProvider), backend) &&
+      identical(ref.read(deviceServiceProvider), deviceService) &&
+      _currentCardDeviceId() == deviceId;
+
+  bool _hasCurrentMountAuthority(
+    NightshadeBackend backend,
+    MountCommandService service,
+    int revision,
+  ) =>
+      mounted &&
+      revision == _commandRevision &&
+      identical(ref.read(backendProvider), backend) &&
+      identical(ref.read(mountCommandServiceProvider), service);
 
   // ============================================================================
   // Dome Action Handlers
   // ============================================================================
 
+  bool _hasCurrentDomeAuthority(
+    NightshadeBackend backend,
+    String deviceId,
+  ) {
+    return identical(ref.read(backendProvider), backend) &&
+        ref.read(domeStateProvider).deviceId == deviceId;
+  }
+
   Future<void> _handleDomeShutter(ShutterStatus currentStatus) async {
     final domeState = ref.read(domeStateProvider);
     final deviceId = domeState.deviceId;
     if (deviceId == null) return;
+    final revision = _beginDomeCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     try {
-      final backend = ref.read(backendProvider);
       if (currentStatus == ShutterStatus.open) {
         await backend.domeCloseShutter(deviceId);
       } else {
         await backend.domeOpenShutter(deviceId);
       }
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showSuccessSnackBar(
           currentStatus == ShutterStatus.open
               ? 'Closing dome shutter'
@@ -284,55 +466,32 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showErrorSnackBar('Dome shutter operation failed: $e');
       }
+    } finally {
+      _finishDomeCommand(revision, backend);
     }
   }
 
-  Future<void> _handleDomePark(bool isParked) async {
+  Future<void> _handleDomePark() async {
     final domeState = ref.read(domeStateProvider);
     final deviceId = domeState.deviceId;
-    if (deviceId == null) return;
+    if (deviceId == null || domeState.isParked) return;
+    final revision = _beginDomeCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     try {
-      final backend = ref.read(backendProvider);
-      if (!isParked) {
-        await backend.domePark(deviceId);
-        if (mounted) {
-          context.showSuccessSnackBar('Parking dome');
-        }
-      } else {
-        // ASCOM domes have no explicit unpark verb; finding home releases the
-        // parked state (standard ASCOM behaviour). Drive it so the "Unpark"
-        // button is functional instead of a no-op hint.
-        await backend.domeFindHome(deviceId);
-        if (mounted) {
-          context.showSuccessSnackBar('Unparking dome (homing)');
-        }
+      await backend.domePark(deviceId);
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
+        context.showSuccessSnackBar('Parking dome');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showErrorSnackBar('Dome park operation failed: $e');
       }
-    }
-  }
-
-  Future<void> _handleDomeSlew(double azimuth) async {
-    final domeState = ref.read(domeStateProvider);
-    final deviceId = domeState.deviceId;
-    if (deviceId == null) return;
-    try {
-      final backend = ref.read(backendProvider);
-      await backend.domeSlewToAzimuth(deviceId, azimuth);
-      if (mounted) {
-        context.showSuccessSnackBar(
-          'Slewing dome to ${azimuth.toStringAsFixed(0)}°',
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Dome slew failed: $e');
-      }
+    } finally {
+      _finishDomeCommand(revision, backend);
     }
   }
 
@@ -340,16 +499,20 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     final domeState = ref.read(domeStateProvider);
     final deviceId = domeState.deviceId;
     if (deviceId == null) return;
+    final revision = _beginDomeCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     try {
-      final backend = ref.read(backendProvider);
       await backend.domeFindHome(deviceId);
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showSuccessSnackBar('Homing dome');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showErrorSnackBar('Dome home failed: $e');
       }
+    } finally {
+      _finishDomeCommand(revision, backend);
     }
   }
 
@@ -357,45 +520,34 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     final domeState = ref.read(domeStateProvider);
     final deviceId = domeState.deviceId;
     if (deviceId == null) return;
+    final revision = _beginDomeCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     try {
-      final backend = ref.read(backendProvider);
       await backend.domeAbortSlew(deviceId);
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showSuccessSnackBar('Stopping dome');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showErrorSnackBar('Dome halt failed: $e');
       }
+    } finally {
+      _finishDomeCommand(revision, backend);
     }
   }
 
-  /// Acknowledge an unsafe safety-monitor condition. This is a headless-server
-  /// concept (the appliance records the acknowledgement and suppresses the
-  /// unsafe gate for the chosen window), so it applies to remote sessions; the
-  /// local desktop manages safety directly through its sequencer settings.
-  Future<void> _handleSafetyAcknowledge() async {
-    final backend = ref.read(backendProvider);
-    if (backend is! NetworkBackend) {
-      if (mounted) {
-        context.showInfoSnackBar(
-          'Safety acknowledgement is managed by the appliance (remote sessions).',
-        );
-      }
-      return;
-    }
-    try {
-      await backend.acknowledgeSafetyCondition(
-        reason: 'Acknowledged from app',
-      );
-      if (mounted) {
-        context.showSuccessSnackBar('Safety condition acknowledged');
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Acknowledge failed: $e');
-      }
-    }
+  /// Route the equipment-card safety override through the same state machine
+  /// as Weather and the run dashboard. That gives local and remote sessions
+  /// identical duration, cancellation and failure behavior.
+  void _handleSafetySnooze() {
+    ref.read(equipmentSafetySnoozeActionProvider)(
+      const Duration(minutes: 15),
+    );
+  }
+
+  void _handleSafetyCancelSnooze() {
+    ref.read(equipmentSafetyCancelSnoozeActionProvider)();
   }
 
   // ============================================================================
@@ -405,47 +557,95 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
   Future<void> _handleCoverToggle(bool isOpen) async {
     final coverState = ref.read(coverCalibratorStateProvider);
     final deviceId = coverState.deviceId;
-    if (deviceId == null) return;
+    if (deviceId == null ||
+        coverState.connectionState != DeviceConnectionState.connected) {
+      return;
+    }
+    final revision = _beginCoverCalibratorCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     try {
-      final backend = ref.read(backendProvider);
       if (isOpen) {
         await backend.coverClose(deviceId);
       } else {
         await backend.coverOpen(deviceId);
       }
-      if (mounted) {
+      if (mounted &&
+          identical(ref.read(backendProvider), backend) &&
+          ref.read(coverCalibratorStateProvider).deviceId == deviceId) {
+        ref
+            .read(coverCalibratorStateProvider.notifier)
+            .updateCoverStatus(CoverStatus.moving);
+        ref.invalidate(equipmentCoverCalibratorCapabilitiesProvider(deviceId));
         context.showSuccessSnackBar(isOpen ? 'Closing cover' : 'Opening cover');
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), backend)) {
         context.showErrorSnackBar('Cover operation failed: $e');
       }
+    } finally {
+      _finishCoverCalibratorCommand(revision, backend);
     }
   }
 
-  Future<void> _handleCalibratorToggle(CoverCalibratorState state) async {
+  Future<void> _handleCalibratorToggle({
+    required bool isOn,
+    required int? brightness,
+    required int maxBrightness,
+  }) async {
+    final state = ref.read(coverCalibratorStateProvider);
     final deviceId = state.deviceId;
-    if (deviceId == null) return;
+    if (deviceId == null ||
+        state.connectionState != DeviceConnectionState.connected) {
+      return;
+    }
+    final revision = _beginCoverCalibratorCommand();
+    if (revision == null) return;
+    final backend = ref.read(backendProvider);
     try {
-      final backend = ref.read(backendProvider);
-      if (state.isCalibratorOn) {
+      if (isOn) {
         await backend.calibratorOff(deviceId);
-        if (mounted) {
+        if (mounted &&
+            identical(ref.read(backendProvider), backend) &&
+            ref.read(coverCalibratorStateProvider).deviceId == deviceId) {
+          ref
+              .read(coverCalibratorStateProvider.notifier)
+              .updateCalibratorStatus(CalibratorStatus.off);
+          ref.invalidate(
+            equipmentCoverCalibratorCapabilitiesProvider(deviceId),
+          );
           context.showSuccessSnackBar('Calibrator light off');
         }
       } else {
-        final brightness =
-            state.brightness > 0 ? state.brightness : state.maxBrightness;
-        await backend.calibratorOn(deviceId, brightness);
-        if (mounted) {
+        if (maxBrightness <= 0) {
+          throw StateError('The driver did not report a usable brightness');
+        }
+        final target = brightness != null && brightness > 0
+            ? brightness.clamp(1, maxBrightness).toInt()
+            : maxBrightness > 0
+                ? (maxBrightness / 2).round().clamp(1, maxBrightness).toInt()
+                : 1;
+        await backend.calibratorOn(deviceId, target);
+        if (mounted &&
+            identical(ref.read(backendProvider), backend) &&
+            ref.read(coverCalibratorStateProvider).deviceId == deviceId) {
+          final notifier = ref.read(coverCalibratorStateProvider.notifier);
+          notifier.updateBrightness(target);
+          notifier.updateCalibratorStatus(CalibratorStatus.notReady);
+          ref.invalidate(
+            equipmentCoverCalibratorCapabilitiesProvider(deviceId),
+          );
           context.showSuccessSnackBar(
-              'Calibrator light on at brightness $brightness');
+            'Calibrator light requested at brightness $target',
+          );
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), backend)) {
         context.showErrorSnackBar('Calibrator operation failed: $e');
       }
+    } finally {
+      _finishCoverCalibratorCommand(revision, backend);
     }
   }
 }

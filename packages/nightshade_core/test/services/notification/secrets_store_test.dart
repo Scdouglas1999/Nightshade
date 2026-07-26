@@ -13,6 +13,19 @@ import 'package:nightshade_core/src/services/notification/secrets_store.dart';
 
 import '../../mocks/mock_database.dart';
 
+class _FailingReadStore implements SecureKeyValueStore {
+  @override
+  Future<void> delete({required String key}) async {}
+
+  @override
+  Future<String?> read({required String key}) async {
+    throw StateError('keyring unavailable');
+  }
+
+  @override
+  Future<void> write({required String key, required String value}) async {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -26,6 +39,9 @@ void main() {
         SecretField.telegramBotToken: '1234:abcd',
         SecretField.discordWebhookUrl:
             'https://discord.com/api/webhooks/123/secret',
+        SecretField.genericWebhookUrl:
+            'https://example.com/hooks/nightshade?token=secret',
+        SecretField.genericWebhookHeaders: '{"Authorization":"Bearer secret"}',
         SecretField.mqttPassword: 'mqtt-pw',
       };
       for (final entry in fields.entries) {
@@ -53,6 +69,17 @@ void main() {
       final store = SecretsStore(InMemorySecureKeyValueStore());
       expect(await store.read(SecretField.mqttPassword), '');
     });
+
+    test(
+      'keyring read failure is not manufactured into an empty secret',
+      () async {
+        final store = SecretsStore(_FailingReadStore());
+        await expectLater(
+          store.read(SecretField.emailPassword),
+          throwsStateError,
+        );
+      },
+    );
   });
 
   group('SecretsStore.migrateFromPlaintext', () {
@@ -76,6 +103,14 @@ void main() {
             'useTls': true,
             'fromAddress': 'alice@example.com',
             'toAddress': 'alice@example.com',
+          }),
+        );
+        await dao.setSetting(
+          'notification_transport_webhookGeneric',
+          jsonEncode({
+            'url': 'https://example.com/hooks/nightshade?token=secret',
+            'headers': {'Authorization': 'Bearer plain-token'},
+            'bodyTemplate': null,
           }),
         );
         await dao.setSetting(
@@ -139,6 +174,14 @@ void main() {
           await store.read(SecretField.discordWebhookUrl),
           'https://discord.example/abc',
         );
+        expect(
+          await store.read(SecretField.genericWebhookUrl),
+          'https://example.com/hooks/nightshade?token=secret',
+        );
+        expect(
+          jsonDecode(await store.read(SecretField.genericWebhookHeaders)),
+          {'Authorization': 'Bearer plain-token'},
+        );
         expect(await store.read(SecretField.mqttPassword), 'plain-mqtt-pw');
 
         // The blobs no longer contain the plaintext secrets.
@@ -153,6 +196,13 @@ void main() {
         );
         expect(pushoverBlob['apiToken'], '');
         expect(pushoverBlob['userKey'], '');
+
+        final webhookBlob = jsonDecode(
+          await dao.getSetting('notification_transport_webhookGeneric')
+              as String,
+        );
+        expect(webhookBlob['url'], '');
+        expect(webhookBlob['headers'], isEmpty);
 
         final telegramBlob = jsonDecode(
           await dao.getSetting('notification_transport_telegram') as String,
@@ -173,7 +223,7 @@ void main() {
 
         // Flag is set.
         expect(
-          await dao.getSetting('notification_secrets_migrated_v1'),
+          await dao.getSetting('notification_secrets_migrated_v2'),
           'true',
         );
       },
@@ -188,7 +238,7 @@ void main() {
 
       // Manually set the flag and seed a secret. Second-run should NOT
       // touch the keyring.
-      await dao.setSetting('notification_secrets_migrated_v1', 'true');
+      await dao.setSetting('notification_secrets_migrated_v2', 'true');
       await dao.setSetting(
         'notification_transport_email',
         jsonEncode({
@@ -212,23 +262,40 @@ void main() {
       expect(blob['password'], 'should-not-be-migrated');
     });
 
-    test('handles missing blobs and malformed JSON gracefully', () async {
-      final db = createTestDatabase();
-      addTearDown(db.close);
-      final dao = SettingsDao(db);
-      final secure = InMemorySecureKeyValueStore();
-      final store = SecretsStore(secure);
+    test(
+      'malformed JSON remains retryable and is never marked migrated',
+      () async {
+        final db = createTestDatabase();
+        addTearDown(db.close);
+        final dao = SettingsDao(db);
+        final secure = InMemorySecureKeyValueStore();
+        final store = SecretsStore(secure);
 
-      // Only one blob, and it's malformed.
-      await dao.setSetting('notification_transport_email', '{not json');
+        // Only one blob, and it's malformed.
+        await dao.setSetting('notification_transport_email', '{not json');
 
-      final migrated = await store.migrateFromPlaintext(dao);
-      expect(migrated, isTrue);
-      // No secret got written (malformed JSON was skipped).
-      expect(await store.read(SecretField.emailPassword), '');
-      // Flag still set so we don't try again on next start.
-      expect(await dao.getSetting('notification_secrets_migrated_v1'), 'true');
-    });
+        final migrated = await store.migrateFromPlaintext(dao);
+        expect(migrated, isFalse);
+        // No secret got written (malformed JSON was skipped).
+        expect(await store.read(SecretField.emailPassword), '');
+        expect(
+          await dao.getSetting('notification_secrets_migrated_v2'),
+          isNull,
+        );
+
+        // Once repaired, the next launch can complete the migration.
+        await dao.setSetting(
+          'notification_transport_email',
+          jsonEncode({'password': 'recovered-secret'}),
+        );
+        expect(await store.migrateFromPlaintext(dao), isTrue);
+        expect(await store.read(SecretField.emailPassword), 'recovered-secret');
+        expect(
+          await dao.getSetting('notification_secrets_migrated_v2'),
+          'true',
+        );
+      },
+    );
 
     test('absent blob does not crash migration', () async {
       final db = createTestDatabase();
@@ -240,7 +307,7 @@ void main() {
       // No transport blobs at all.
       final migrated = await store.migrateFromPlaintext(dao);
       expect(migrated, isTrue);
-      expect(await dao.getSetting('notification_secrets_migrated_v1'), 'true');
+      expect(await dao.getSetting('notification_secrets_migrated_v2'), 'true');
     });
   });
 }

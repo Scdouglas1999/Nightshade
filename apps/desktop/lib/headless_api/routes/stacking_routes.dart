@@ -21,4 +21,15 @@ List<HeadlessRoute> buildStackingRoutes(StackingHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.get, '/api/stacking/stats', h.handleStats),
   HeadlessRoute(HttpMethod.get, '/api/stacking/result', h.handleResult),
   HeadlessRoute(HttpMethod.get, '/api/stacking/preview', h.handlePreview),
+  HeadlessRoute(HttpMethod.get, '/api/stacking/results', h.handleSavedResults),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/stacking/results/<resultId>/preview',
+    h.handleSavedResultPreview,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/stacking/results/<resultId>',
+    h.handleSavedResult,
+  ),
 ];

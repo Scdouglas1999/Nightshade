@@ -26,7 +26,7 @@ impl InstructionNode for DelayInstruction {
             return NodeStatus::Failure;
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         let progress_cb = context.progress_callback.as_ref();
         let total_secs = config.seconds;
 
@@ -46,8 +46,41 @@ impl InstructionNode for DelayInstruction {
             }
         };
 
-        execute_delay(config, &ctx, Some(&progress_fn))
+        execute_delay(config, context, Some(&progress_fn))
             .await
             .log_and_get_status_with_context("Delay", &ctx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::node::context::ExecutionContext;
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn pause_does_not_consume_delay_time() {
+        let context = ExecutionContext::new("delay-test".to_string());
+        let paused = context.is_paused.clone();
+        let resume_context = context.clone();
+        let task = tokio::spawn(async move {
+            execute_delay(&crate::DelayConfig { seconds: 0.5 }, &context, None).await
+        });
+
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        paused.store(true, Ordering::Relaxed);
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        assert!(
+            !task.is_finished(),
+            "a paused delay must not complete on the original wall clock"
+        );
+
+        resume_context.resume();
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("resumed delay should complete")
+            .expect("delay task should not panic");
+        assert_eq!(result.status, NodeStatus::Success);
     }
 }

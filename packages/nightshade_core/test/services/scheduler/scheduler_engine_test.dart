@@ -97,6 +97,37 @@ SchedulerCandidate _candidate({
 
 void main() {
   group('SchedulerEngine - candidate selection', () {
+    test(
+      'refuses to start with no candidate targets and remains idle',
+      () async {
+        final sink = _RecordingSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => const <SchedulerCandidate>[],
+          clock: _fixedNow,
+        );
+
+        await expectLater(
+          engine.start(),
+          throwsA(
+            isA<SchedulerStartException>().having(
+              (error) => error.message,
+              'message',
+              contains('Add at least one target'),
+            ),
+          ),
+        );
+
+        expect(engine.status.state, SchedulerState.idle);
+        expect(engine.status.currentTargetId, isNull);
+        expect(engine.lastDecision, isNull);
+        expect(sink.dispatched, isEmpty);
+        expect(sink.parkCount, 0);
+        await engine.dispose();
+      },
+    );
+
     test('picks the highest-scoring candidate from three options', () async {
       final sink = _RecordingSink();
       late SchedulerEngine engine;
@@ -648,7 +679,7 @@ void main() {
     DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
 
     test(
-      'parks the mount once at end-of-night (Sun up, no eligible target)',
+      'a daytime pre-arm waits quietly until the observing night begins',
       () async {
         final sink = _RecordingSink();
         final candidates = <SchedulerCandidate>[
@@ -672,23 +703,17 @@ void main() {
           isEmpty,
           reason: 'must never slew/expose at dawn',
         );
-        expect(
-          sink.parkCount,
-          1,
-          reason: 'end-of-night must invoke the distinct park hook',
-        );
-        // The empty-eligible path stops a *running* sequence on every tick, but
-        // on the dawn/park path we park instead of issuing a redundant stop.
+        expect(sink.parkCount, 0);
         expect(
           sink.stopCount,
           0,
-          reason: 'the dawn path parks rather than stopping',
+          reason: 'a pre-armed scheduler has no active run to stop',
         );
       },
     );
 
     test(
-      'does NOT park again on subsequent dawn ticks (parks once per dawn)',
+      'does not repeatedly safe a pre-armed scheduler while the Sun is up',
       () async {
         final sink = _RecordingSink();
         final candidates = <SchedulerCandidate>[
@@ -701,18 +726,18 @@ void main() {
           clock: daytime,
         );
         await engine.start();
-        expect(sink.parkCount, 1);
+        expect(sink.parkCount, 0);
 
-        // Several more ticks while the Sun is still up must NOT re-park.
+        // Several more ticks while the Sun is still up remain a quiet wait.
         await engine.evaluateNow();
         await engine.evaluateNow();
         await engine.evaluateNow();
         expect(
           sink.parkCount,
-          1,
+          0,
           reason:
-              'the end-of-night park must fire exactly once per dawn, '
-              'not on every tick while the Sun stays up',
+              'daytime before the first dispatch is not the end of an '
+              'observing night',
         );
       },
     );
@@ -827,11 +852,11 @@ void main() {
     });
 
     test(
-      're-arms after dispatching a new target (parks again next dawn)',
+      'parks at dawn after a pre-armed scheduler dispatched nighttime work',
       () async {
         final sink = _RecordingSink();
-        // Phase 1: dawn -> park. Phase 2: night returns and a target is eligible
-        // -> dispatch (re-arm). Phase 3: dawn again -> must park a SECOND time.
+        // Phase 1: daytime pre-arm -> wait. Phase 2: night returns and a target
+        // is eligible -> dispatch. Phase 3: dawn -> park exactly once.
         var phase = 1;
         DateTime nowFn() => phase == 2
             ? DateTime.utc(2026, 5, 11, 4, 0) // night
@@ -845,7 +870,7 @@ void main() {
           clock: nowFn,
         );
         await engine.start(); // phase 1: dawn
-        expect(sink.parkCount, 1);
+        expect(sink.parkCount, 0);
         expect(sink.dispatched, isEmpty);
 
         phase = 2; // night returns
@@ -861,10 +886,8 @@ void main() {
         await engine.evaluateNow();
         expect(
           sink.parkCount,
-          2,
-          reason:
-              'after a fresh night/dispatch, the next dawn must park '
-              'again (the guard re-arms on dispatch)',
+          1,
+          reason: 'after imaging work was dispatched, the next dawn must park',
         );
       },
     );
@@ -980,6 +1003,35 @@ void main() {
   });
 
   group('SchedulerEngine - lifecycle', () {
+    test(
+      'idle re-evaluation cannot suppress the next start dispatch',
+      () async {
+        final sink = _RecordingSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => <SchedulerCandidate>[
+            _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+          ],
+          clock: _fixedNow,
+        );
+
+        await engine.evaluateNow(reason: 'operator preview');
+        expect(engine.lastDecision!.chosenTargetId, 1);
+        expect(engine.status.state, SchedulerState.idle);
+        expect(
+          engine.status.currentTargetId,
+          isNull,
+          reason: 'an idle preview must not claim target authority',
+        );
+
+        await engine.start();
+        expect(sink.dispatched, hasLength(1));
+        expect(engine.status.currentTargetId, 1);
+        await engine.dispose();
+      },
+    );
+
     test('start / pause / resume / stop drives sequence sink', () async {
       final sink = _RecordingSink();
       final candidates = <SchedulerCandidate>[

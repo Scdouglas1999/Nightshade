@@ -45,10 +45,15 @@ class NightReportPanel extends StatelessWidget {
   /// Which part of the report to render. Defaults to [NightReportSection.both].
   final NightReportSection section;
 
+  /// Tapped on an evidence sub chip: the `captured_images.id` the detector
+  /// blamed, so the host can open that frame. Null leaves the chips inert.
+  final void Function(int imageId)? onEvidenceTap;
+
   const NightReportPanel({
     super.key,
     required this.report,
     this.section = NightReportSection.both,
+    this.onEvidenceTap,
   });
 
   @override
@@ -89,7 +94,10 @@ class NightReportPanel extends StatelessWidget {
                           ? 0
                           : NightshadeTokens.spaceMd,
                     ),
-                    child: _FindingCard(finding: e.value),
+                    child: _FindingCard(
+                      finding: e.value,
+                      onEvidenceTap: onEvidenceTap,
+                    ),
                   ),
                 ),
       ],
@@ -332,8 +340,9 @@ class _GradeChip extends StatelessWidget {
 
 class _FindingCard extends StatelessWidget {
   final NightFinding finding;
+  final void Function(int imageId)? onEvidenceTap;
 
-  const _FindingCard({required this.finding});
+  const _FindingCard({required this.finding, this.onEvidenceTap});
 
   @override
   Widget build(BuildContext context) {
@@ -395,7 +404,10 @@ class _FindingCard extends StatelessWidget {
                     ],
                     if (finding.evidenceSubIds.isNotEmpty) ...[
                       const SizedBox(height: NightshadeTokens.spaceMd),
-                      _EvidenceChips(subIds: finding.evidenceSubIds),
+                      _EvidenceChips(
+                        subIds: finding.evidenceSubIds,
+                        onEvidenceTap: onEvidenceTap,
+                      ),
                     ],
                   ],
                 ),
@@ -483,8 +495,9 @@ class _AdviceRow extends StatelessWidget {
 /// user can jump to the offending frames.
 class _EvidenceChips extends StatelessWidget {
   final List<int> subIds;
+  final void Function(int imageId)? onEvidenceTap;
 
-  const _EvidenceChips({required this.subIds});
+  const _EvidenceChips({required this.subIds, this.onEvidenceTap});
 
   static const int _maxShown = 8;
 
@@ -507,7 +520,11 @@ class _EvidenceChips extends StatelessWidget {
             ),
           ),
         ),
-        for (final id in shown) _EvidenceChip(label: 'sub $id'),
+        for (final id in shown)
+          _EvidenceChip(
+            label: 'sub $id',
+            onTap: onEvidenceTap == null ? null : () => onEvidenceTap!(id),
+          ),
         if (overflow > 0) _EvidenceChip(label: '+$overflow more'),
       ],
     );
@@ -517,12 +534,16 @@ class _EvidenceChips extends StatelessWidget {
 class _EvidenceChip extends StatelessWidget {
   final String label;
 
-  const _EvidenceChip({required this.label});
+  /// When set, the chip becomes tappable and jumps to the backing frame; null
+  /// for the non-frame '+N more' overflow chip.
+  final VoidCallback? onTap;
+
+  const _EvidenceChip({required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceSm,
         vertical: NightshadeTokens.spaceXs,
@@ -546,6 +567,12 @@ class _EvidenceChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+    if (onTap == null) return chip;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+      child: chip,
     );
   }
 }

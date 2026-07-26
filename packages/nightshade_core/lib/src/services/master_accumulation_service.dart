@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/daos/integrated_masters_dao.dart';
 import '../database/database.dart';
+import '../models/calibration/dark_library_match_tolerances.dart';
 import '../models/imaging/integrated_master.dart';
 import '../models/imaging/integration_settings.dart';
 import '../providers/dark_library_provider.dart';
@@ -31,15 +32,25 @@ class MasterAccumulationService {
     required DarkLibraryService darkLibrary,
     required FlatLibraryService flatLibrary,
     required PostSessionSeam seam,
+    DarkLibraryMatchTolerances darkTolerances =
+        DarkLibraryMatchTolerances.defaults,
   }) : _mastersDao = mastersDao,
        _darkLibrary = darkLibrary,
        _flatLibrary = flatLibrary,
-       _seam = seam;
+       _seam = seam,
+       _darkTolerances = darkTolerances;
 
   final IntegratedMastersDao _mastersDao;
   final DarkLibraryService _darkLibrary;
   final FlatLibraryService _flatLibrary;
   final PostSessionSeam _seam;
+
+  /// Dark-frame match tolerances, resolved from
+  /// [darkLibraryMatchTolerancesProvider] at the provider boundary so this
+  /// post-session accumulation matcher agrees with the coverage UI and the live
+  /// calibration path. Previously this call used the code defaults (±1.0°C),
+  /// which could silently disagree with the ±2.0°C the rest of the app uses.
+  final DarkLibraryMatchTolerances _darkTolerances;
 
   /// Create a new accumulating master for [targetId] / [filter] from a
   /// [referenceSub] (the frozen geometric + photometric anchor).
@@ -260,6 +271,7 @@ class MasterAccumulationService {
       binX: binX,
       binY: binY,
       temperature: temperature,
+      tolerances: _darkTolerances,
     );
     final flat = await _flatLibrary.findBestMatch(
       filter: matchFilter,
@@ -299,5 +311,6 @@ final masterAccumulationServiceProvider = Provider<MasterAccumulationService>((
     darkLibrary: ref.watch(darkLibraryServiceProvider),
     flatLibrary: ref.watch(flatLibraryServiceProvider),
     seam: ref.watch(postSessionSeamProvider),
+    darkTolerances: ref.watch(darkLibraryMatchTolerancesProvider),
   );
 });

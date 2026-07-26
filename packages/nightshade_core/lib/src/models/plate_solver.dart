@@ -50,6 +50,15 @@ class PlateSolverDetection {
   /// without a catalog cannot solve, so this guards the "Plate solver
   /// ready" UX.
   bool get astapReady => astapPath != null && catalogPath != null;
+
+  /// Whether this detection snapshot can honor the user's actual selection.
+  bool supports(PlateSolverChoice choice) {
+    return switch (choice) {
+      PlateSolverChoice.auto => hasAnySolver,
+      PlateSolverChoice.astap => astapReady,
+      PlateSolverChoice.astrometry => astrometryPath != null,
+    };
+  }
 }
 
 /// Result of running `--help` against a detected solver binary. Lets the

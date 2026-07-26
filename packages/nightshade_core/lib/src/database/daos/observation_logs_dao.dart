@@ -194,24 +194,7 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Generate CSV string of all observation logs.
   Future<String> exportToCsv() async {
-    final rows = await exportAllLogs();
-    if (rows.isEmpty) return '';
-
-    final headers = rows.first.keys.join(',');
-    final dataRows = rows.map((row) {
-      return row.values
-          .map((v) {
-            final str = v.toString();
-            // Escape values that contain commas, quotes, or newlines
-            if (str.contains(',') || str.contains('"') || str.contains('\n')) {
-              return '"${str.replaceAll('"', '""')}"';
-            }
-            return str;
-          })
-          .join(',');
-    });
-
-    return [headers, ...dataRows].join('\n');
+    return observationLogsToCsv(await getAllLogs());
   }
 
   /// Get total count of observation logs.
@@ -297,6 +280,49 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
   Future<int> deleteAllLogs() {
     return delete(observationLogs).go();
   }
+}
+
+/// Encode observation logs using the same CSV schema on both local and remote
+/// clients. Keeping this pure avoids touching the controller's database when a
+/// remote client exports the host-polled rows.
+String observationLogsToCsv(Iterable<ObservationLogEntry> logs) {
+  final rows = logs
+      .map(
+        (log) => <String, dynamic>{
+          'id': log.id,
+          'timestamp': log.timestamp.toIso8601String(),
+          'object_name': log.objectName,
+          'object_type': log.objectType ?? '',
+          'catalog_id': log.catalogId ?? '',
+          'ra': log.ra,
+          'dec': log.dec,
+          'altitude': log.altitude ?? '',
+          'azimuth': log.azimuth ?? '',
+          'notes': log.notes ?? '',
+          'rating': log.rating ?? '',
+          'seeing_conditions': log.seeingConditions ?? '',
+          'transparency': log.transparency ?? '',
+          'location_name': log.locationName ?? '',
+          'latitude': log.latitude ?? '',
+          'longitude': log.longitude ?? '',
+        },
+      )
+      .toList(growable: false);
+  if (rows.isEmpty) return '';
+
+  final headers = rows.first.keys.join(',');
+  final dataRows = rows.map((row) {
+    return row.values
+        .map((value) {
+          final text = value.toString();
+          if (text.contains(',') || text.contains('"') || text.contains('\n')) {
+            return '"${text.replaceAll('"', '""')}"';
+          }
+          return text;
+        })
+        .join(',');
+  });
+  return [headers, ...dataRows].join('\n');
 }
 
 /// Summary statistics for observation logs.

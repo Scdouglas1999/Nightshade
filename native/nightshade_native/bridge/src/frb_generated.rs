@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -441620728;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1439742888;
 
 // Section: executor
 
@@ -725,6 +725,63 @@ fn wire__crate__api__imaging__api_camera_start_exposure_impl(
                             api_offset,
                             api_bin_x,
                             api_bin_y,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__imaging__api_camera_start_exposure_configured_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    duration_secs: impl CstDecode<f64>,
+    gain: impl CstDecode<Option<i32>>,
+    offset: impl CstDecode<Option<i32>>,
+    bin_x: impl CstDecode<i32>,
+    bin_y: impl CstDecode<i32>,
+    start_x: impl CstDecode<Option<u32>>,
+    start_y: impl CstDecode<Option<u32>>,
+    width: impl CstDecode<Option<u32>>,
+    height: impl CstDecode<Option<u32>>,
+    frame_type: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_camera_start_exposure_configured",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_duration_secs = duration_secs.cst_decode();
+            let api_gain = gain.cst_decode();
+            let api_offset = offset.cst_decode();
+            let api_bin_x = bin_x.cst_decode();
+            let api_bin_y = bin_y.cst_decode();
+            let api_start_x = start_x.cst_decode();
+            let api_start_y = start_y.cst_decode();
+            let api_width = width.cst_decode();
+            let api_height = height.cst_decode();
+            let api_frame_type = frame_type.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_camera_start_exposure_configured(
+                            api_device_id,
+                            api_duration_secs,
+                            api_gain,
+                            api_offset,
+                            api_bin_x,
+                            api_bin_y,
+                            api_start_x,
+                            api_start_y,
+                            api_width,
+                            api_height,
+                            api_frame_type,
                         )
                         .await?;
                         Ok(output_ok)
@@ -3843,6 +3900,34 @@ fn wire__crate__api__diagnostics__api_get_safety_monitor_capabilities_impl(
         },
     )
 }
+fn wire__crate__api__devices__environment__api_get_safety_monitor_status_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_safety_monitor_status",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::devices::environment::api_get_safety_monitor_status(
+                                api_device_id,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__session__api_get_session_state_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
@@ -3973,6 +4058,34 @@ fn wire__crate__api__diagnostics__api_get_weather_capabilities_impl(
                         let output_ok =
                             crate::api::diagnostics::api_get_weather_capabilities(api_device_id)
                                 .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__environment__api_get_weather_conditions_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_get_weather_conditions",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::devices::environment::api_get_weather_conditions(
+                                api_device_id,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5503,6 +5616,7 @@ fn wire__crate__api__phd2__api_phd2_stop_guiding_impl(
 fn wire__crate__api__plate_solve__api_plate_solve_blind_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     file_path: impl CstDecode<String>,
+    timeout_secs: impl CstDecode<Option<u32>>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -5512,11 +5626,15 @@ fn wire__crate__api__plate_solve__api_plate_solve_blind_impl(
         },
         move || {
             let api_file_path = file_path.cst_decode();
+            let api_timeout_secs = timeout_secs.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::plate_solve::api_plate_solve_blind(api_file_path).await?;
+                        let output_ok = crate::api::plate_solve::api_plate_solve_blind(
+                            api_file_path,
+                            api_timeout_secs,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5531,6 +5649,7 @@ fn wire__crate__api__plate_solve__api_plate_solve_near_impl(
     hint_ra: impl CstDecode<f64>,
     hint_dec: impl CstDecode<f64>,
     search_radius: impl CstDecode<f64>,
+    timeout_secs: impl CstDecode<Option<u32>>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -5543,6 +5662,7 @@ fn wire__crate__api__plate_solve__api_plate_solve_near_impl(
             let api_hint_ra = hint_ra.cst_decode();
             let api_hint_dec = hint_dec.cst_decode();
             let api_search_radius = search_radius.cst_decode();
+            let api_timeout_secs = timeout_secs.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
@@ -5551,6 +5671,7 @@ fn wire__crate__api__plate_solve__api_plate_solve_near_impl(
                             api_hint_ra,
                             api_hint_dec,
                             api_search_radius,
+                            api_timeout_secs,
                         )
                         .await?;
                         Ok(output_ok)
@@ -5848,6 +5969,36 @@ fn wire__crate__api__devices__simulation__api_rotator_move_to_impl(
                         let output_ok = crate::api::devices::simulation::api_rotator_move_to(
                             api_device_id,
                             api_angle,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__simulation__api_rotator_set_reverse_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_id: impl CstDecode<String>,
+    reverse: impl CstDecode<bool>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_rotator_set_reverse",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_id = device_id.cst_decode();
+            let api_reverse = reverse.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::devices::simulation::api_rotator_set_reverse(
+                            api_device_id,
+                            api_reverse,
                         )
                         .await?;
                         Ok(output_ok)
@@ -7586,6 +7737,34 @@ fn wire__crate__api__sequencer__api_sequencer_update_location_impl(
                             api_longitude,
                         )
                         .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    config_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sequencer_update_meridian_flip_config",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_config_json = config_json.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::sequencer::api_sequencer_update_meridian_flip_config(
+                                api_config_json,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -10170,6 +10349,27 @@ fn wire__crate__api__devices__simulation__simulated_camera_default_impl(
         },
     )
 }
+fn wire__crate__api__devices__simulation__simulated_dome_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "simulated_dome_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| {
+                transform_result_dco::<_, _, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::devices::simulation::SimulatedDome::default(),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__devices__simulation__simulated_filter_wheel_default_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
@@ -10247,6 +10447,48 @@ fn wire__crate__api__devices__simulation__simulated_rotator_default_impl(
                 transform_result_dco::<_, _, ()>((move || {
                     let output_ok = Result::<_, ()>::Ok(
                         crate::api::devices::simulation::SimulatedRotator::default(),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__simulation__simulated_safety_monitor_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "simulated_safety_monitor_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| {
+                transform_result_dco::<_, _, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::devices::simulation::SimulatedSafetyMonitor::default(),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__devices__simulation__simulated_weather_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "simulated_weather_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| {
+                transform_result_dco::<_, _, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::devices::simulation::SimulatedWeather::default(),
                     )?;
                     Ok(output_ok)
                 })())
@@ -10890,12 +11132,36 @@ impl SseDecode for crate::api::imaging::AutofocusConfigApi {
         let mut var_stepsOut = <i32>::sse_decode(deserializer);
         let mut var_method = <String>::sse_decode(deserializer);
         let mut var_binning = <i32>::sse_decode(deserializer);
+        let mut var_gain = <Option<i32>>::sse_decode(deserializer);
+        let mut var_offset = <Option<i32>>::sse_decode(deserializer);
+        let mut var_numberOfAttempts = <u32>::sse_decode(deserializer);
+        let mut var_exposuresPerPoint = <u32>::sse_decode(deserializer);
+        let mut var_rSquaredThreshold = <f64>::sse_decode(deserializer);
+        let mut var_outerCropRatio = <f64>::sse_decode(deserializer);
+        let mut var_innerCropRatio = <f64>::sse_decode(deserializer);
+        let mut var_useBrightestNStars = <u32>::sse_decode(deserializer);
+        let mut var_focuserSettleTimeMs = <u64>::sse_decode(deserializer);
+        let mut var_backlashCompMethod = <String>::sse_decode(deserializer);
+        let mut var_backlashIn = <i32>::sse_decode(deserializer);
+        let mut var_backlashOut = <i32>::sse_decode(deserializer);
         return crate::api::imaging::AutofocusConfigApi {
             exposure_time: var_exposureTime,
             step_size: var_stepSize,
             steps_out: var_stepsOut,
             method: var_method,
             binning: var_binning,
+            gain: var_gain,
+            offset: var_offset,
+            number_of_attempts: var_numberOfAttempts,
+            exposures_per_point: var_exposuresPerPoint,
+            r_squared_threshold: var_rSquaredThreshold,
+            outer_crop_ratio: var_outerCropRatio,
+            inner_crop_ratio: var_innerCropRatio,
+            use_brightest_n_stars: var_useBrightestNStars,
+            focuser_settle_time_ms: var_focuserSettleTimeMs,
+            backlash_comp_method: var_backlashCompMethod,
+            backlash_in: var_backlashIn,
+            backlash_out: var_backlashOut,
         };
     }
 }
@@ -14291,6 +14557,18 @@ impl SseDecode for crate::device_capabilities::SafetyMonitorCapabilities {
     }
 }
 
+impl SseDecode for crate::device::SafetyStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_connected = <bool>::sse_decode(deserializer);
+        let mut var_isSafe = <bool>::sse_decode(deserializer);
+        return crate::device::SafetyStatus {
+            connected: var_connected,
+            is_safe: var_isSafe,
+        };
+    }
+}
+
 impl SseDecode for crate::event::SchedulerScoreEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14442,6 +14720,10 @@ impl SseDecode for crate::event::SequencerEvent {
                 return crate::event::SequencerEvent::Completed;
             }
             5 => {
+                let mut var_error = <String>::sse_decode(deserializer);
+                return crate::event::SequencerEvent::Failed { error: var_error };
+            }
+            6 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_nodeType = <String>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::NodeStarted {
@@ -14449,7 +14731,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     node_type: var_nodeType,
                 };
             }
-            6 => {
+            7 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_status = <String>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::NodeCompleted {
@@ -14457,7 +14739,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     status: var_status,
                 };
             }
-            7 => {
+            8 => {
                 let mut var_current = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::Progress {
@@ -14465,7 +14747,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     total: var_total,
                 };
             }
-            8 => {
+            9 => {
                 let mut var_targetName = <String>::sse_decode(deserializer);
                 let mut var_ra = <Option<f64>>::sse_decode(deserializer);
                 let mut var_dec = <Option<f64>>::sse_decode(deserializer);
@@ -14475,13 +14757,13 @@ impl SseDecode for crate::event::SequencerEvent {
                     dec: var_dec,
                 };
             }
-            9 => {
+            10 => {
                 let mut var_targetName = <String>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::TargetCompleted {
                     target_name: var_targetName,
                 };
             }
-            10 => {
+            11 => {
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
                 let mut var_filter = <Option<String>>::sse_decode(deserializer);
@@ -14493,7 +14775,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     duration_secs: var_durationSecs,
                 };
             }
-            11 => {
+            12 => {
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
                 let mut var_durationSecs = <f64>::sse_decode(deserializer);
@@ -14503,13 +14785,33 @@ impl SseDecode for crate::event::SequencerEvent {
                     duration_secs: var_durationSecs,
                 };
             }
-            12 => {
+            13 => {
                 let mut var_message = <String>::sse_decode(deserializer);
                 return crate::event::SequencerEvent::Error {
                     message: var_message,
                 };
             }
-            13 => {
+            14 => {
+                let mut var_outcome = <String>::sse_decode(deserializer);
+                let mut var_targetName = <String>::sse_decode(deserializer);
+                let mut var_newPierSide = <String>::sse_decode(deserializer);
+                let mut var_durationSecs = <f64>::sse_decode(deserializer);
+                let mut var_attempts = <u32>::sse_decode(deserializer);
+                let mut var_failedSteps = <Vec<String>>::sse_decode(deserializer);
+                let mut var_error = <Option<String>>::sse_decode(deserializer);
+                let mut var_actionTaken = <Option<String>>::sse_decode(deserializer);
+                return crate::event::SequencerEvent::MeridianFlipOutcome {
+                    outcome: var_outcome,
+                    target_name: var_targetName,
+                    new_pier_side: var_newPierSide,
+                    duration_secs: var_durationSecs,
+                    attempts: var_attempts,
+                    failed_steps: var_failedSteps,
+                    error: var_error,
+                    action_taken: var_actionTaken,
+                };
+            }
+            15 => {
                 let mut var_triggerId = <String>::sse_decode(deserializer);
                 let mut var_triggerName = <String>::sse_decode(deserializer);
                 let mut var_action = <String>::sse_decode(deserializer);
@@ -14519,7 +14821,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     action: var_action,
                 };
             }
-            14 => {
+            16 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_instruction = <String>::sse_decode(deserializer);
                 let mut var_progressPercent = <f64>::sse_decode(deserializer);
@@ -14531,7 +14833,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     detail: var_detail,
                 };
             }
-            15 => {
+            17 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_instruction = <String>::sse_decode(deserializer);
                 let mut var_progressPercent = <f64>::sse_decode(deserializer);
@@ -14545,7 +14847,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     detail_json: var_detailJson,
                 };
             }
-            16 => {
+            18 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
@@ -14567,7 +14869,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     save_path: var_savePath,
                 };
             }
-            17 => {
+            19 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
@@ -14607,7 +14909,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     sensor_temp_at_capture: var_sensorTempAtCapture,
                 };
             }
-            18 => {
+            20 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_decisionCounter = <u32>::sse_decode(deserializer);
                 let mut var_pickedTargetId = <Option<String>>::sse_decode(deserializer);
@@ -14624,7 +14926,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     scores: var_scores,
                 };
             }
-            19 => {
+            21 => {
                 let mut var_targetId = <String>::sse_decode(deserializer);
                 let mut var_filter = <String>::sse_decode(deserializer);
                 let mut var_completedSecs = <f64>::sse_decode(deserializer);
@@ -14640,7 +14942,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     budget_met: var_budgetMet,
                 };
             }
-            20 => {
+            22 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_adaptedSecs = <f64>::sse_decode(deserializer);
                 let mut var_nominalSecs = <f64>::sse_decode(deserializer);
@@ -14656,7 +14958,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     reason: var_reason,
                 };
             }
-            21 => {
+            23 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_targetDesignation = <String>::sse_decode(deserializer);
                 let mut var_referenceStars = <Vec<String>>::sse_decode(deserializer);
@@ -14692,7 +14994,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     apply_differential: var_applyDifferential,
                 };
             }
-            22 => {
+            24 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_frame = <u32>::sse_decode(deserializer);
                 let mut var_total = <u32>::sse_decode(deserializer);
@@ -14708,7 +15010,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     cadence_breaks: var_cadenceBreaks,
                 };
             }
-            23 => {
+            25 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_targetDesignation = <String>::sse_decode(deserializer);
                 let mut var_filter = <String>::sse_decode(deserializer);
@@ -14724,7 +15026,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_reject_reason: var_lastRejectReason,
                 };
             }
-            24 => {
+            26 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14748,7 +15050,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            25 => {
+            27 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14772,7 +15074,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            26 => {
+            28 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14796,7 +15098,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            27 => {
+            29 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14822,7 +15124,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     aborted_by_user: var_abortedByUser,
                 };
             }
-            28 => {
+            30 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
@@ -14838,7 +15140,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     timeout_secs: var_timeoutSecs,
                 };
             }
-            29 => {
+            31 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
@@ -14850,7 +15152,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     detail_json: var_detailJson,
                 };
             }
-            30 => {
+            32 => {
                 let mut var_timestampIso = <String>::sse_decode(deserializer);
                 let mut var_category = <String>::sse_decode(deserializer);
                 let mut var_summary = <String>::sse_decode(deserializer);
@@ -14974,6 +15276,14 @@ impl SseDecode for crate::api::devices::simulation::SimulatedCamera {
     }
 }
 
+impl SseDecode for crate::api::devices::simulation::SimulatedDome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_status = <crate::device::DomeStatus>::sse_decode(deserializer);
+        return crate::api::devices::simulation::SimulatedDome { status: var_status };
+    }
+}
+
 impl SseDecode for crate::api::devices::simulation::SimulatedFilterWheel {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -15003,6 +15313,26 @@ impl SseDecode for crate::api::devices::simulation::SimulatedRotator {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_status = <crate::device::RotatorStatus>::sse_decode(deserializer);
         return crate::api::devices::simulation::SimulatedRotator { status: var_status };
+    }
+}
+
+impl SseDecode for crate::api::devices::simulation::SimulatedSafetyMonitor {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_status = <crate::device::SafetyStatus>::sse_decode(deserializer);
+        return crate::api::devices::simulation::SimulatedSafetyMonitor { status: var_status };
+    }
+}
+
+impl SseDecode for crate::api::devices::simulation::SimulatedWeather {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_connected = <bool>::sse_decode(deserializer);
+        let mut var_conditions = <crate::device::WeatherConditions>::sse_decode(deserializer);
+        return crate::api::devices::simulation::SimulatedWeather {
+            connected: var_connected,
+            conditions: var_conditions,
+        };
     }
 }
 
@@ -15264,6 +15594,34 @@ impl SseDecode for crate::device_capabilities::WeatherCapabilities {
             has_wind_gust: var_hasWindGust,
             has_wind_speed: var_hasWindSpeed,
             average_period: var_averagePeriod,
+        };
+    }
+}
+
+impl SseDecode for crate::device::WeatherConditions {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_temperature = <Option<f64>>::sse_decode(deserializer);
+        let mut var_humidity = <Option<f64>>::sse_decode(deserializer);
+        let mut var_pressure = <Option<f64>>::sse_decode(deserializer);
+        let mut var_cloudCover = <Option<f64>>::sse_decode(deserializer);
+        let mut var_dewPoint = <Option<f64>>::sse_decode(deserializer);
+        let mut var_windSpeed = <Option<f64>>::sse_decode(deserializer);
+        let mut var_windDirection = <Option<f64>>::sse_decode(deserializer);
+        let mut var_skyQuality = <Option<f64>>::sse_decode(deserializer);
+        let mut var_skyTemperature = <Option<f64>>::sse_decode(deserializer);
+        let mut var_rainRate = <Option<f64>>::sse_decode(deserializer);
+        return crate::device::WeatherConditions {
+            temperature: var_temperature,
+            humidity: var_humidity,
+            pressure: var_pressure,
+            cloud_cover: var_cloudCover,
+            dew_point: var_dewPoint,
+            wind_speed: var_windSpeed,
+            wind_direction: var_windDirection,
+            sky_quality: var_skyQuality,
+            sky_temperature: var_skyTemperature,
+            rain_rate: var_rainRate,
         };
     }
 }
@@ -15542,6 +15900,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::AutofocusConfigApi {
             self.steps_out.into_into_dart().into_dart(),
             self.method.into_into_dart().into_dart(),
             self.binning.into_into_dart().into_dart(),
+            self.gain.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
+            self.number_of_attempts.into_into_dart().into_dart(),
+            self.exposures_per_point.into_into_dart().into_dart(),
+            self.r_squared_threshold.into_into_dart().into_dart(),
+            self.outer_crop_ratio.into_into_dart().into_dart(),
+            self.inner_crop_ratio.into_into_dart().into_dart(),
+            self.use_brightest_n_stars.into_into_dart().into_dart(),
+            self.focuser_settle_time_ms.into_into_dart().into_dart(),
+            self.backlash_comp_method.into_into_dart().into_dart(),
+            self.backlash_in.into_into_dart().into_dart(),
+            self.backlash_out.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -18211,6 +18581,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::SafetyMonitor
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::device::SafetyStatus {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.connected.into_into_dart().into_dart(),
+            self.is_safe.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::device::SafetyStatus {}
+impl flutter_rust_bridge::IntoIntoDart<crate::device::SafetyStatus>
+    for crate::device::SafetyStatus
+{
+    fn into_into_dart(self) -> crate::device::SafetyStatus {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::event::SchedulerScoreEntry {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -18344,20 +18732,23 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
             crate::event::SequencerEvent::Resumed => [2.into_dart()].into_dart(),
             crate::event::SequencerEvent::Stopped => [3.into_dart()].into_dart(),
             crate::event::SequencerEvent::Completed => [4.into_dart()].into_dart(),
+            crate::event::SequencerEvent::Failed { error } => {
+                [5.into_dart(), error.into_into_dart().into_dart()].into_dart()
+            }
             crate::event::SequencerEvent::NodeStarted { node_id, node_type } => [
-                5.into_dart(),
+                6.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 node_type.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::SequencerEvent::NodeCompleted { node_id, status } => [
-                6.into_dart(),
+                7.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 status.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::SequencerEvent::Progress { current, total } => [
-                7.into_dart(),
+                8.into_dart(),
                 current.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
             ]
@@ -18367,14 +18758,14 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 ra,
                 dec,
             } => [
-                8.into_dart(),
+                9.into_dart(),
                 target_name.into_into_dart().into_dart(),
                 ra.into_into_dart().into_dart(),
                 dec.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::SequencerEvent::TargetCompleted { target_name } => {
-                [9.into_dart(), target_name.into_into_dart().into_dart()].into_dart()
+                [10.into_dart(), target_name.into_into_dart().into_dart()].into_dart()
             }
             crate::event::SequencerEvent::ExposureStarted {
                 frame,
@@ -18382,7 +18773,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 filter,
                 duration_secs,
             } => [
-                10.into_dart(),
+                11.into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
                 filter.into_into_dart().into_dart(),
@@ -18394,21 +18785,42 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 total,
                 duration_secs,
             } => [
-                11.into_dart(),
+                12.into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
                 duration_secs.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::SequencerEvent::Error { message } => {
-                [12.into_dart(), message.into_into_dart().into_dart()].into_dart()
+                [13.into_dart(), message.into_into_dart().into_dart()].into_dart()
             }
+            crate::event::SequencerEvent::MeridianFlipOutcome {
+                outcome,
+                target_name,
+                new_pier_side,
+                duration_secs,
+                attempts,
+                failed_steps,
+                error,
+                action_taken,
+            } => [
+                14.into_dart(),
+                outcome.into_into_dart().into_dart(),
+                target_name.into_into_dart().into_dart(),
+                new_pier_side.into_into_dart().into_dart(),
+                duration_secs.into_into_dart().into_dart(),
+                attempts.into_into_dart().into_dart(),
+                failed_steps.into_into_dart().into_dart(),
+                error.into_into_dart().into_dart(),
+                action_taken.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::event::SequencerEvent::TriggerFired {
                 trigger_id,
                 trigger_name,
                 action,
             } => [
-                13.into_dart(),
+                15.into_dart(),
                 trigger_id.into_into_dart().into_dart(),
                 trigger_name.into_into_dart().into_dart(),
                 action.into_into_dart().into_dart(),
@@ -18420,7 +18832,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 progress_percent,
                 detail,
             } => [
-                14.into_dart(),
+                16.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 instruction.into_into_dart().into_dart(),
                 progress_percent.into_into_dart().into_dart(),
@@ -18434,7 +18846,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 detail_kind,
                 detail_json,
             } => [
-                15.into_dart(),
+                17.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 instruction.into_into_dart().into_dart(),
                 progress_percent.into_into_dart().into_dart(),
@@ -18453,7 +18865,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 rejected_total,
                 save_path,
             } => [
-                16.into_dart(),
+                18.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
@@ -18485,7 +18897,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 guide_rms_at_capture,
                 sensor_temp_at_capture,
             } => [
-                17.into_dart(),
+                19.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
@@ -18514,7 +18926,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 picked_score,
                 scores,
             } => [
-                18.into_dart(),
+                20.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 decision_counter.into_into_dart().into_dart(),
                 picked_target_id.into_into_dart().into_dart(),
@@ -18531,7 +18943,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 fraction,
                 budget_met,
             } => [
-                19.into_dart(),
+                21.into_dart(),
                 target_id.into_into_dart().into_dart(),
                 filter.into_into_dart().into_dart(),
                 completed_secs.into_into_dart().into_dart(),
@@ -18548,7 +18960,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 filter,
                 reason,
             } => [
-                20.into_dart(),
+                22.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 adapted_secs.into_into_dart().into_dart(),
                 nominal_secs.into_into_dart().into_dart(),
@@ -18575,7 +18987,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 reduce_live,
                 apply_differential,
             } => [
-                21.into_dart(),
+                23.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 target_designation.into_into_dart().into_dart(),
                 reference_stars.into_into_dart().into_dart(),
@@ -18602,7 +19014,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 max_gap_secs,
                 cadence_breaks,
             } => [
-                22.into_dart(),
+                24.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 frame.into_into_dart().into_dart(),
                 total.into_into_dart().into_dart(),
@@ -18619,7 +19031,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 cadence_breaks,
                 last_reject_reason,
             } => [
-                23.into_dart(),
+                25.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 target_designation.into_into_dart().into_dart(),
                 filter.into_into_dart().into_dart(),
@@ -18640,7 +19052,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => [
-                24.into_dart(),
+                26.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18665,7 +19077,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => [
-                25.into_dart(),
+                27.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18690,7 +19102,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => [
-                26.into_dart(),
+                28.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18716,7 +19128,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 last_error,
                 aborted_by_user,
             } => [
-                27.into_dart(),
+                29.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18738,7 +19150,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 display_name,
                 timeout_secs,
             } => [
-                28.into_dart(),
+                30.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 plugin_id.into_into_dart().into_dart(),
                 node_type_id.into_into_dart().into_dart(),
@@ -18753,7 +19165,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 node_type_id,
                 detail_json,
             } => [
-                29.into_dart(),
+                31.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 plugin_id.into_into_dart().into_dart(),
                 node_type_id.into_into_dart().into_dart(),
@@ -18768,7 +19180,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 node_id,
                 sequence_run_id,
             } => [
-                30.into_dart(),
+                32.into_dart(),
                 timestamp_iso.into_into_dart().into_dart(),
                 category.into_into_dart().into_dart(),
                 summary.into_into_dart().into_dart(),
@@ -18911,6 +19323,23 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::Simulate
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedDome {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.status.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::devices::simulation::SimulatedDome
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedDome>
+    for crate::api::devices::simulation::SimulatedDome
+{
+    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedDome {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedFilterWheel {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.status.into_into_dart().into_dart()].into_dart()
@@ -18975,6 +19404,44 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::Simulate
     for crate::api::devices::simulation::SimulatedRotator
 {
     fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedRotator {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedSafetyMonitor {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.status.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::devices::simulation::SimulatedSafetyMonitor
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedSafetyMonitor>
+    for crate::api::devices::simulation::SimulatedSafetyMonitor
+{
+    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedSafetyMonitor {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::devices::simulation::SimulatedWeather {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.connected.into_into_dart().into_dart(),
+            self.conditions.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::devices::simulation::SimulatedWeather
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::SimulatedWeather>
+    for crate::api::devices::simulation::SimulatedWeather
+{
+    fn into_into_dart(self) -> crate::api::devices::simulation::SimulatedWeather {
         self
     }
 }
@@ -19229,6 +19696,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::WeatherCapabi
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::device::WeatherConditions {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.temperature.into_into_dart().into_dart(),
+            self.humidity.into_into_dart().into_dart(),
+            self.pressure.into_into_dart().into_dart(),
+            self.cloud_cover.into_into_dart().into_dart(),
+            self.dew_point.into_into_dart().into_dart(),
+            self.wind_speed.into_into_dart().into_dart(),
+            self.wind_direction.into_into_dart().into_dart(),
+            self.sky_quality.into_into_dart().into_dart(),
+            self.sky_temperature.into_into_dart().into_dart(),
+            self.rain_rate.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::device::WeatherConditions
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::device::WeatherConditions>
+    for crate::device::WeatherConditions
+{
+    fn into_into_dart(self) -> crate::device::WeatherConditions {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::imaging::XisfReadResult {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -19450,6 +19946,18 @@ impl SseEncode for crate::api::imaging::AutofocusConfigApi {
         <i32>::sse_encode(self.steps_out, serializer);
         <String>::sse_encode(self.method, serializer);
         <i32>::sse_encode(self.binning, serializer);
+        <Option<i32>>::sse_encode(self.gain, serializer);
+        <Option<i32>>::sse_encode(self.offset, serializer);
+        <u32>::sse_encode(self.number_of_attempts, serializer);
+        <u32>::sse_encode(self.exposures_per_point, serializer);
+        <f64>::sse_encode(self.r_squared_threshold, serializer);
+        <f64>::sse_encode(self.outer_crop_ratio, serializer);
+        <f64>::sse_encode(self.inner_crop_ratio, serializer);
+        <u32>::sse_encode(self.use_brightest_n_stars, serializer);
+        <u64>::sse_encode(self.focuser_settle_time_ms, serializer);
+        <String>::sse_encode(self.backlash_comp_method, serializer);
+        <i32>::sse_encode(self.backlash_in, serializer);
+        <i32>::sse_encode(self.backlash_out, serializer);
     }
 }
 
@@ -22036,6 +22544,14 @@ impl SseEncode for crate::device_capabilities::SafetyMonitorCapabilities {
     }
 }
 
+impl SseEncode for crate::device::SafetyStatus {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.connected, serializer);
+        <bool>::sse_encode(self.is_safe, serializer);
+    }
+}
+
 impl SseEncode for crate::event::SchedulerScoreEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22127,18 +22643,22 @@ impl SseEncode for crate::event::SequencerEvent {
             crate::event::SequencerEvent::Completed => {
                 <i32>::sse_encode(4, serializer);
             }
-            crate::event::SequencerEvent::NodeStarted { node_id, node_type } => {
+            crate::event::SequencerEvent::Failed { error } => {
                 <i32>::sse_encode(5, serializer);
+                <String>::sse_encode(error, serializer);
+            }
+            crate::event::SequencerEvent::NodeStarted { node_id, node_type } => {
+                <i32>::sse_encode(6, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(node_type, serializer);
             }
             crate::event::SequencerEvent::NodeCompleted { node_id, status } => {
-                <i32>::sse_encode(6, serializer);
+                <i32>::sse_encode(7, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(status, serializer);
             }
             crate::event::SequencerEvent::Progress { current, total } => {
-                <i32>::sse_encode(7, serializer);
+                <i32>::sse_encode(8, serializer);
                 <u32>::sse_encode(current, serializer);
                 <u32>::sse_encode(total, serializer);
             }
@@ -22147,13 +22667,13 @@ impl SseEncode for crate::event::SequencerEvent {
                 ra,
                 dec,
             } => {
-                <i32>::sse_encode(8, serializer);
+                <i32>::sse_encode(9, serializer);
                 <String>::sse_encode(target_name, serializer);
                 <Option<f64>>::sse_encode(ra, serializer);
                 <Option<f64>>::sse_encode(dec, serializer);
             }
             crate::event::SequencerEvent::TargetCompleted { target_name } => {
-                <i32>::sse_encode(9, serializer);
+                <i32>::sse_encode(10, serializer);
                 <String>::sse_encode(target_name, serializer);
             }
             crate::event::SequencerEvent::ExposureStarted {
@@ -22162,7 +22682,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 filter,
                 duration_secs,
             } => {
-                <i32>::sse_encode(10, serializer);
+                <i32>::sse_encode(11, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
                 <Option<String>>::sse_encode(filter, serializer);
@@ -22173,21 +22693,41 @@ impl SseEncode for crate::event::SequencerEvent {
                 total,
                 duration_secs,
             } => {
-                <i32>::sse_encode(11, serializer);
+                <i32>::sse_encode(12, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
                 <f64>::sse_encode(duration_secs, serializer);
             }
             crate::event::SequencerEvent::Error { message } => {
-                <i32>::sse_encode(12, serializer);
+                <i32>::sse_encode(13, serializer);
                 <String>::sse_encode(message, serializer);
+            }
+            crate::event::SequencerEvent::MeridianFlipOutcome {
+                outcome,
+                target_name,
+                new_pier_side,
+                duration_secs,
+                attempts,
+                failed_steps,
+                error,
+                action_taken,
+            } => {
+                <i32>::sse_encode(14, serializer);
+                <String>::sse_encode(outcome, serializer);
+                <String>::sse_encode(target_name, serializer);
+                <String>::sse_encode(new_pier_side, serializer);
+                <f64>::sse_encode(duration_secs, serializer);
+                <u32>::sse_encode(attempts, serializer);
+                <Vec<String>>::sse_encode(failed_steps, serializer);
+                <Option<String>>::sse_encode(error, serializer);
+                <Option<String>>::sse_encode(action_taken, serializer);
             }
             crate::event::SequencerEvent::TriggerFired {
                 trigger_id,
                 trigger_name,
                 action,
             } => {
-                <i32>::sse_encode(13, serializer);
+                <i32>::sse_encode(15, serializer);
                 <String>::sse_encode(trigger_id, serializer);
                 <String>::sse_encode(trigger_name, serializer);
                 <String>::sse_encode(action, serializer);
@@ -22198,7 +22738,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 progress_percent,
                 detail,
             } => {
-                <i32>::sse_encode(14, serializer);
+                <i32>::sse_encode(16, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(instruction, serializer);
                 <f64>::sse_encode(progress_percent, serializer);
@@ -22211,7 +22751,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 detail_kind,
                 detail_json,
             } => {
-                <i32>::sse_encode(15, serializer);
+                <i32>::sse_encode(17, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(instruction, serializer);
                 <f64>::sse_encode(progress_percent, serializer);
@@ -22229,7 +22769,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 rejected_total,
                 save_path,
             } => {
-                <i32>::sse_encode(16, serializer);
+                <i32>::sse_encode(18, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
@@ -22260,7 +22800,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 guide_rms_at_capture,
                 sensor_temp_at_capture,
             } => {
-                <i32>::sse_encode(17, serializer);
+                <i32>::sse_encode(19, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
@@ -22288,7 +22828,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 picked_score,
                 scores,
             } => {
-                <i32>::sse_encode(18, serializer);
+                <i32>::sse_encode(20, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(decision_counter, serializer);
                 <Option<String>>::sse_encode(picked_target_id, serializer);
@@ -22304,7 +22844,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 fraction,
                 budget_met,
             } => {
-                <i32>::sse_encode(19, serializer);
+                <i32>::sse_encode(21, serializer);
                 <String>::sse_encode(target_id, serializer);
                 <String>::sse_encode(filter, serializer);
                 <f64>::sse_encode(completed_secs, serializer);
@@ -22320,7 +22860,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 filter,
                 reason,
             } => {
-                <i32>::sse_encode(20, serializer);
+                <i32>::sse_encode(22, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <f64>::sse_encode(adapted_secs, serializer);
                 <f64>::sse_encode(nominal_secs, serializer);
@@ -22346,7 +22886,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 reduce_live,
                 apply_differential,
             } => {
-                <i32>::sse_encode(21, serializer);
+                <i32>::sse_encode(23, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(target_designation, serializer);
                 <Vec<String>>::sse_encode(reference_stars, serializer);
@@ -22372,7 +22912,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 max_gap_secs,
                 cadence_breaks,
             } => {
-                <i32>::sse_encode(22, serializer);
+                <i32>::sse_encode(24, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <u32>::sse_encode(frame, serializer);
                 <u32>::sse_encode(total, serializer);
@@ -22388,7 +22928,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 cadence_breaks,
                 last_reject_reason,
             } => {
-                <i32>::sse_encode(23, serializer);
+                <i32>::sse_encode(25, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(target_designation, serializer);
                 <String>::sse_encode(filter, serializer);
@@ -22408,7 +22948,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => {
-                <i32>::sse_encode(24, serializer);
+                <i32>::sse_encode(26, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -22432,7 +22972,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => {
-                <i32>::sse_encode(25, serializer);
+                <i32>::sse_encode(27, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -22456,7 +22996,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => {
-                <i32>::sse_encode(26, serializer);
+                <i32>::sse_encode(28, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -22481,7 +23021,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 last_error,
                 aborted_by_user,
             } => {
-                <i32>::sse_encode(27, serializer);
+                <i32>::sse_encode(29, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -22502,7 +23042,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 display_name,
                 timeout_secs,
             } => {
-                <i32>::sse_encode(28, serializer);
+                <i32>::sse_encode(30, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(plugin_id, serializer);
                 <String>::sse_encode(node_type_id, serializer);
@@ -22516,7 +23056,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 node_type_id,
                 detail_json,
             } => {
-                <i32>::sse_encode(29, serializer);
+                <i32>::sse_encode(31, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(plugin_id, serializer);
                 <String>::sse_encode(node_type_id, serializer);
@@ -22530,7 +23070,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 node_id,
                 sequence_run_id,
             } => {
-                <i32>::sse_encode(30, serializer);
+                <i32>::sse_encode(32, serializer);
                 <String>::sse_encode(timestamp_iso, serializer);
                 <String>::sse_encode(category, serializer);
                 <String>::sse_encode(summary, serializer);
@@ -22626,6 +23166,13 @@ impl SseEncode for crate::api::devices::simulation::SimulatedCamera {
     }
 }
 
+impl SseEncode for crate::api::devices::simulation::SimulatedDome {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::device::DomeStatus>::sse_encode(self.status, serializer);
+    }
+}
+
 impl SseEncode for crate::api::devices::simulation::SimulatedFilterWheel {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22651,6 +23198,21 @@ impl SseEncode for crate::api::devices::simulation::SimulatedRotator {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::device::RotatorStatus>::sse_encode(self.status, serializer);
+    }
+}
+
+impl SseEncode for crate::api::devices::simulation::SimulatedSafetyMonitor {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::device::SafetyStatus>::sse_encode(self.status, serializer);
+    }
+}
+
+impl SseEncode for crate::api::devices::simulation::SimulatedWeather {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.connected, serializer);
+        <crate::device::WeatherConditions>::sse_encode(self.conditions, serializer);
     }
 }
 
@@ -22850,6 +23412,22 @@ impl SseEncode for crate::device_capabilities::WeatherCapabilities {
         <bool>::sse_encode(self.has_wind_gust, serializer);
         <bool>::sse_encode(self.has_wind_speed, serializer);
         <Option<f64>>::sse_encode(self.average_period, serializer);
+    }
+}
+
+impl SseEncode for crate::device::WeatherConditions {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<f64>>::sse_encode(self.temperature, serializer);
+        <Option<f64>>::sse_encode(self.humidity, serializer);
+        <Option<f64>>::sse_encode(self.pressure, serializer);
+        <Option<f64>>::sse_encode(self.cloud_cover, serializer);
+        <Option<f64>>::sse_encode(self.dew_point, serializer);
+        <Option<f64>>::sse_encode(self.wind_speed, serializer);
+        <Option<f64>>::sse_encode(self.wind_direction, serializer);
+        <Option<f64>>::sse_encode(self.sky_quality, serializer);
+        <Option<f64>>::sse_encode(self.sky_temperature, serializer);
+        <Option<f64>>::sse_encode(self.rain_rate, serializer);
     }
 }
 
@@ -23111,6 +23689,18 @@ mod io {
                 steps_out: self.steps_out.cst_decode(),
                 method: self.method.cst_decode(),
                 binning: self.binning.cst_decode(),
+                gain: self.gain.cst_decode(),
+                offset: self.offset.cst_decode(),
+                number_of_attempts: self.number_of_attempts.cst_decode(),
+                exposures_per_point: self.exposures_per_point.cst_decode(),
+                r_squared_threshold: self.r_squared_threshold.cst_decode(),
+                outer_crop_ratio: self.outer_crop_ratio.cst_decode(),
+                inner_crop_ratio: self.inner_crop_ratio.cst_decode(),
+                use_brightest_n_stars: self.use_brightest_n_stars.cst_decode(),
+                focuser_settle_time_ms: self.focuser_settle_time_ms.cst_decode(),
+                backlash_comp_method: self.backlash_comp_method.cst_decode(),
+                backlash_in: self.backlash_in.cst_decode(),
+                backlash_out: self.backlash_out.cst_decode(),
             }
         }
     }
@@ -25546,6 +26136,15 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::device::SafetyStatus> for wire_cst_safety_status {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::SafetyStatus {
+            crate::device::SafetyStatus {
+                connected: self.connected.cst_decode(),
+                is_safe: self.is_safe.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::event::SchedulerScoreEntry> for wire_cst_scheduler_score_entry {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::event::SchedulerScoreEntry {
@@ -25640,27 +26239,33 @@ mod io {
                 3 => crate::event::SequencerEvent::Stopped,
                 4 => crate::event::SequencerEvent::Completed,
                 5 => {
+                    let ans = unsafe { self.kind.Failed };
+                    crate::event::SequencerEvent::Failed {
+                        error: ans.error.cst_decode(),
+                    }
+                }
+                6 => {
                     let ans = unsafe { self.kind.NodeStarted };
                     crate::event::SequencerEvent::NodeStarted {
                         node_id: ans.node_id.cst_decode(),
                         node_type: ans.node_type.cst_decode(),
                     }
                 }
-                6 => {
+                7 => {
                     let ans = unsafe { self.kind.NodeCompleted };
                     crate::event::SequencerEvent::NodeCompleted {
                         node_id: ans.node_id.cst_decode(),
                         status: ans.status.cst_decode(),
                     }
                 }
-                7 => {
+                8 => {
                     let ans = unsafe { self.kind.Progress };
                     crate::event::SequencerEvent::Progress {
                         current: ans.current.cst_decode(),
                         total: ans.total.cst_decode(),
                     }
                 }
-                8 => {
+                9 => {
                     let ans = unsafe { self.kind.TargetChanged };
                     crate::event::SequencerEvent::TargetChanged {
                         target_name: ans.target_name.cst_decode(),
@@ -25668,13 +26273,13 @@ mod io {
                         dec: ans.dec.cst_decode(),
                     }
                 }
-                9 => {
+                10 => {
                     let ans = unsafe { self.kind.TargetCompleted };
                     crate::event::SequencerEvent::TargetCompleted {
                         target_name: ans.target_name.cst_decode(),
                     }
                 }
-                10 => {
+                11 => {
                     let ans = unsafe { self.kind.ExposureStarted };
                     crate::event::SequencerEvent::ExposureStarted {
                         frame: ans.frame.cst_decode(),
@@ -25683,7 +26288,7 @@ mod io {
                         duration_secs: ans.duration_secs.cst_decode(),
                     }
                 }
-                11 => {
+                12 => {
                     let ans = unsafe { self.kind.ExposureCompleted };
                     crate::event::SequencerEvent::ExposureCompleted {
                         frame: ans.frame.cst_decode(),
@@ -25691,13 +26296,26 @@ mod io {
                         duration_secs: ans.duration_secs.cst_decode(),
                     }
                 }
-                12 => {
+                13 => {
                     let ans = unsafe { self.kind.Error };
                     crate::event::SequencerEvent::Error {
                         message: ans.message.cst_decode(),
                     }
                 }
-                13 => {
+                14 => {
+                    let ans = unsafe { self.kind.MeridianFlipOutcome };
+                    crate::event::SequencerEvent::MeridianFlipOutcome {
+                        outcome: ans.outcome.cst_decode(),
+                        target_name: ans.target_name.cst_decode(),
+                        new_pier_side: ans.new_pier_side.cst_decode(),
+                        duration_secs: ans.duration_secs.cst_decode(),
+                        attempts: ans.attempts.cst_decode(),
+                        failed_steps: ans.failed_steps.cst_decode(),
+                        error: ans.error.cst_decode(),
+                        action_taken: ans.action_taken.cst_decode(),
+                    }
+                }
+                15 => {
                     let ans = unsafe { self.kind.TriggerFired };
                     crate::event::SequencerEvent::TriggerFired {
                         trigger_id: ans.trigger_id.cst_decode(),
@@ -25705,7 +26323,7 @@ mod io {
                         action: ans.action.cst_decode(),
                     }
                 }
-                14 => {
+                16 => {
                     let ans = unsafe { self.kind.InstructionProgress };
                     crate::event::SequencerEvent::InstructionProgress {
                         node_id: ans.node_id.cst_decode(),
@@ -25714,7 +26332,7 @@ mod io {
                         detail: ans.detail.cst_decode(),
                     }
                 }
-                15 => {
+                17 => {
                     let ans = unsafe { self.kind.InstructionProgressStructured };
                     crate::event::SequencerEvent::InstructionProgressStructured {
                         node_id: ans.node_id.cst_decode(),
@@ -25724,7 +26342,7 @@ mod io {
                         detail_json: ans.detail_json.cst_decode(),
                     }
                 }
-                16 => {
+                18 => {
                     let ans = unsafe { self.kind.FrameAccepted };
                     crate::event::SequencerEvent::FrameAccepted {
                         node_id: ans.node_id.cst_decode(),
@@ -25738,7 +26356,7 @@ mod io {
                         save_path: ans.save_path.cst_decode(),
                     }
                 }
-                17 => {
+                19 => {
                     let ans = unsafe { self.kind.FrameRejected };
                     crate::event::SequencerEvent::FrameRejected {
                         node_id: ans.node_id.cst_decode(),
@@ -25761,7 +26379,7 @@ mod io {
                         sensor_temp_at_capture: ans.sensor_temp_at_capture.cst_decode(),
                     }
                 }
-                18 => {
+                20 => {
                     let ans = unsafe { self.kind.SchedulerDecision };
                     crate::event::SequencerEvent::SchedulerDecision {
                         node_id: ans.node_id.cst_decode(),
@@ -25772,7 +26390,7 @@ mod io {
                         scores: ans.scores.cst_decode(),
                     }
                 }
-                19 => {
+                21 => {
                     let ans = unsafe { self.kind.IntegrationBudget };
                     crate::event::SequencerEvent::IntegrationBudget {
                         target_id: ans.target_id.cst_decode(),
@@ -25783,7 +26401,7 @@ mod io {
                         budget_met: ans.budget_met.cst_decode(),
                     }
                 }
-                20 => {
+                22 => {
                     let ans = unsafe { self.kind.ExposureAdjusted };
                     crate::event::SequencerEvent::ExposureAdjusted {
                         node_id: ans.node_id.cst_decode(),
@@ -25794,7 +26412,7 @@ mod io {
                         reason: ans.reason.cst_decode(),
                     }
                 }
-                21 => {
+                23 => {
                     let ans = unsafe { self.kind.PhotometryFrame };
                     crate::event::SequencerEvent::PhotometryFrame {
                         node_id: ans.node_id.cst_decode(),
@@ -25815,7 +26433,7 @@ mod io {
                         apply_differential: ans.apply_differential.cst_decode(),
                     }
                 }
-                22 => {
+                24 => {
                     let ans = unsafe { self.kind.PhotometryCadenceBroken };
                     crate::event::SequencerEvent::PhotometryCadenceBroken {
                         node_id: ans.node_id.cst_decode(),
@@ -25826,7 +26444,7 @@ mod io {
                         cadence_breaks: ans.cadence_breaks.cst_decode(),
                     }
                 }
-                23 => {
+                25 => {
                     let ans = unsafe { self.kind.PhotometrySummary };
                     crate::event::SequencerEvent::PhotometrySummary {
                         node_id: ans.node_id.cst_decode(),
@@ -25837,7 +26455,7 @@ mod io {
                         last_reject_reason: ans.last_reject_reason.cst_decode(),
                     }
                 }
-                24 => {
+                26 => {
                     let ans = unsafe { self.kind.RecoveryStarted };
                     crate::event::SequencerEvent::RecoveryStarted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25852,7 +26470,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                25 => {
+                27 => {
                     let ans = unsafe { self.kind.RecoveryProgress };
                     crate::event::SequencerEvent::RecoveryProgress {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25867,7 +26485,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                26 => {
+                28 => {
                     let ans = unsafe { self.kind.RecoveryCompleted };
                     crate::event::SequencerEvent::RecoveryCompleted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25882,7 +26500,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                27 => {
+                29 => {
                     let ans = unsafe { self.kind.RecoveryGaveUp };
                     crate::event::SequencerEvent::RecoveryGaveUp {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25898,7 +26516,7 @@ mod io {
                         aborted_by_user: ans.aborted_by_user.cst_decode(),
                     }
                 }
-                28 => {
+                30 => {
                     let ans = unsafe { self.kind.PluginNodeRequested };
                     crate::event::SequencerEvent::PluginNodeRequested {
                         node_id: ans.node_id.cst_decode(),
@@ -25909,7 +26527,7 @@ mod io {
                         timeout_secs: ans.timeout_secs.cst_decode(),
                     }
                 }
-                29 => {
+                31 => {
                     let ans = unsafe { self.kind.PluginNodeProgress };
                     crate::event::SequencerEvent::PluginNodeProgress {
                         node_id: ans.node_id.cst_decode(),
@@ -25918,7 +26536,7 @@ mod io {
                         detail_json: ans.detail_json.cst_decode(),
                     }
                 }
-                30 => {
+                32 => {
                     let ans = unsafe { self.kind.DecisionLogged };
                     crate::event::SequencerEvent::DecisionLogged {
                         timestamp_iso: ans.timestamp_iso.cst_decode(),
@@ -25978,6 +26596,14 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::devices::simulation::SimulatedDome> for wire_cst_simulated_dome {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedDome {
+            crate::api::devices::simulation::SimulatedDome {
+                status: self.status.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::devices::simulation::SimulatedFilterWheel>
         for wire_cst_simulated_filter_wheel
     {
@@ -26009,6 +26635,25 @@ mod io {
         fn cst_decode(self) -> crate::api::devices::simulation::SimulatedRotator {
             crate::api::devices::simulation::SimulatedRotator {
                 status: self.status.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::devices::simulation::SimulatedSafetyMonitor>
+        for wire_cst_simulated_safety_monitor
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedSafetyMonitor {
+            crate::api::devices::simulation::SimulatedSafetyMonitor {
+                status: self.status.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::devices::simulation::SimulatedWeather> for wire_cst_simulated_weather {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::devices::simulation::SimulatedWeather {
+            crate::api::devices::simulation::SimulatedWeather {
+                connected: self.connected.cst_decode(),
+                conditions: self.conditions.cst_decode(),
             }
         }
     }
@@ -26146,6 +26791,23 @@ mod io {
                 has_wind_gust: self.has_wind_gust.cst_decode(),
                 has_wind_speed: self.has_wind_speed.cst_decode(),
                 average_period: self.average_period.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::device::WeatherConditions> for wire_cst_weather_conditions {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::device::WeatherConditions {
+            crate::device::WeatherConditions {
+                temperature: self.temperature.cst_decode(),
+                humidity: self.humidity.cst_decode(),
+                pressure: self.pressure.cst_decode(),
+                cloud_cover: self.cloud_cover.cst_decode(),
+                dew_point: self.dew_point.cst_decode(),
+                wind_speed: self.wind_speed.cst_decode(),
+                wind_direction: self.wind_direction.cst_decode(),
+                sky_quality: self.sky_quality.cst_decode(),
+                sky_temperature: self.sky_temperature.cst_decode(),
+                rain_rate: self.rain_rate.cst_decode(),
             }
         }
     }
@@ -26293,6 +26955,18 @@ mod io {
                 steps_out: Default::default(),
                 method: core::ptr::null_mut(),
                 binning: Default::default(),
+                gain: core::ptr::null_mut(),
+                offset: core::ptr::null_mut(),
+                number_of_attempts: Default::default(),
+                exposures_per_point: Default::default(),
+                r_squared_threshold: Default::default(),
+                outer_crop_ratio: Default::default(),
+                inner_crop_ratio: Default::default(),
+                use_brightest_n_stars: Default::default(),
+                focuser_settle_time_ms: Default::default(),
+                backlash_comp_method: core::ptr::null_mut(),
+                backlash_in: Default::default(),
+                backlash_out: Default::default(),
             }
         }
     }
@@ -27712,6 +28386,19 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_safety_status {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                connected: Default::default(),
+                is_safe: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_safety_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_scheduler_score_entry {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -27873,6 +28560,18 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_simulated_dome {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                status: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_simulated_dome {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_simulated_filter_wheel {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -27917,6 +28616,31 @@ mod io {
         }
     }
     impl Default for wire_cst_simulated_rotator {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_simulated_safety_monitor {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                status: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_simulated_safety_monitor {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_simulated_weather {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                connected: Default::default(),
+                conditions: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_simulated_weather {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -28057,6 +28781,27 @@ mod io {
         }
     }
     impl Default for wire_cst_weather_capabilities {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_weather_conditions {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                temperature: core::ptr::null_mut(),
+                humidity: core::ptr::null_mut(),
+                pressure: core::ptr::null_mut(),
+                cloud_cover: core::ptr::null_mut(),
+                dew_point: core::ptr::null_mut(),
+                wind_speed: core::ptr::null_mut(),
+                wind_direction: core::ptr::null_mut(),
+                sky_quality: core::ptr::null_mut(),
+                sky_temperature: core::ptr::null_mut(),
+                rain_rate: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_weather_conditions {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -28365,6 +29110,37 @@ mod io {
             offset,
             bin_x,
             bin_y,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_camera_start_exposure_configured(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        duration_secs: f64,
+        gain: *mut i32,
+        offset: *mut i32,
+        bin_x: i32,
+        bin_y: i32,
+        start_x: *mut u32,
+        start_y: *mut u32,
+        width: *mut u32,
+        height: *mut u32,
+        frame_type: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__imaging__api_camera_start_exposure_configured_impl(
+            port_,
+            device_id,
+            duration_secs,
+            gain,
+            offset,
+            bin_x,
+            bin_y,
+            start_x,
+            start_y,
+            width,
+            height,
+            frame_type,
         )
     }
 
@@ -29596,6 +30372,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__environment__api_get_safety_monitor_status(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__devices__environment__api_get_safety_monitor_status_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__session__api_get_session_state(
         port_: i64,
     ) {
@@ -29639,6 +30423,14 @@ mod io {
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__diagnostics__api_get_weather_capabilities_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__environment__api_get_weather_conditions(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__devices__environment__api_get_weather_conditions_impl(port_, device_id)
     }
 
     #[unsafe(no_mangle)]
@@ -30185,8 +30977,9 @@ mod io {
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_plate_solve_blind(
         port_: i64,
         file_path: *mut wire_cst_list_prim_u_8_strict,
+        timeout_secs: *mut u32,
     ) {
-        wire__crate__api__plate_solve__api_plate_solve_blind_impl(port_, file_path)
+        wire__crate__api__plate_solve__api_plate_solve_blind_impl(port_, file_path, timeout_secs)
     }
 
     #[unsafe(no_mangle)]
@@ -30196,6 +30989,7 @@ mod io {
         hint_ra: f64,
         hint_dec: f64,
         search_radius: f64,
+        timeout_secs: *mut u32,
     ) {
         wire__crate__api__plate_solve__api_plate_solve_near_impl(
             port_,
@@ -30203,6 +30997,7 @@ mod io {
             hint_ra,
             hint_dec,
             search_radius,
+            timeout_secs,
         )
     }
 
@@ -30305,6 +31100,17 @@ mod io {
         angle: f64,
     ) {
         wire__crate__api__devices__simulation__api_rotator_move_to_impl(port_, device_id, angle)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_set_reverse(
+        port_: i64,
+        device_id: *mut wire_cst_list_prim_u_8_strict,
+        reverse: bool,
+    ) {
+        wire__crate__api__devices__simulation__api_rotator_set_reverse_impl(
+            port_, device_id, reverse,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30942,6 +31748,17 @@ mod io {
         longitude: *mut f64,
     ) {
         wire__crate__api__sequencer__api_sequencer_update_location_impl(port_, latitude, longitude)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config(
+        port_: i64,
+        config_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sequencer__api_sequencer_update_meridian_flip_config_impl(
+            port_,
+            config_json,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -31862,6 +32679,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_dome_default(
+        port_: i64,
+    ) {
+        wire__crate__api__devices__simulation__simulated_dome_default_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_filter_wheel_default(
         port_: i64,
     ) {
@@ -31887,6 +32711,20 @@ mod io {
         port_: i64,
     ) {
         wire__crate__api__devices__simulation__simulated_rotator_default_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_safety_monitor_default(
+        port_: i64,
+    ) {
+        wire__crate__api__devices__simulation__simulated_safety_monitor_default_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__simulation__simulated_weather_default(
+        port_: i64,
+    ) {
+        wire__crate__api__devices__simulation__simulated_weather_default_impl(port_)
     }
 
     #[unsafe(no_mangle)]
@@ -32836,6 +33674,18 @@ mod io {
         steps_out: i32,
         method: *mut wire_cst_list_prim_u_8_strict,
         binning: i32,
+        gain: *mut i32,
+        offset: *mut i32,
+        number_of_attempts: u32,
+        exposures_per_point: u32,
+        r_squared_threshold: f64,
+        outer_crop_ratio: f64,
+        inner_crop_ratio: f64,
+        use_brightest_n_stars: u32,
+        focuser_settle_time_ms: u64,
+        backlash_comp_method: *mut wire_cst_list_prim_u_8_strict,
+        backlash_in: i32,
+        backlash_out: i32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -34613,6 +35463,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_safety_status {
+        connected: bool,
+        is_safe: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_scheduler_score_entry {
         target_id: *mut wire_cst_list_prim_u_8_strict,
         target_name: *mut wire_cst_list_prim_u_8_strict,
@@ -34684,6 +35540,7 @@ mod io {
     #[derive(Clone, Copy)]
     pub union SequencerEventKind {
         Started: wire_cst_SequencerEvent_Started,
+        Failed: wire_cst_SequencerEvent_Failed,
         NodeStarted: wire_cst_SequencerEvent_NodeStarted,
         NodeCompleted: wire_cst_SequencerEvent_NodeCompleted,
         Progress: wire_cst_SequencerEvent_Progress,
@@ -34692,6 +35549,7 @@ mod io {
         ExposureStarted: wire_cst_SequencerEvent_ExposureStarted,
         ExposureCompleted: wire_cst_SequencerEvent_ExposureCompleted,
         Error: wire_cst_SequencerEvent_Error,
+        MeridianFlipOutcome: wire_cst_SequencerEvent_MeridianFlipOutcome,
         TriggerFired: wire_cst_SequencerEvent_TriggerFired,
         InstructionProgress: wire_cst_SequencerEvent_InstructionProgress,
         InstructionProgressStructured: wire_cst_SequencerEvent_InstructionProgressStructured,
@@ -34716,6 +35574,11 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_SequencerEvent_Started {
         sequence_name: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_Failed {
+        error: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -34766,6 +35629,18 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_SequencerEvent_Error {
         message: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_MeridianFlipOutcome {
+        outcome: *mut wire_cst_list_prim_u_8_strict,
+        target_name: *mut wire_cst_list_prim_u_8_strict,
+        new_pier_side: *mut wire_cst_list_prim_u_8_strict,
+        duration_secs: f64,
+        attempts: u32,
+        failed_steps: *mut wire_cst_list_String,
+        error: *mut wire_cst_list_prim_u_8_strict,
+        action_taken: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -35019,6 +35894,11 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_simulated_dome {
+        status: wire_cst_dome_status,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_simulated_filter_wheel {
         status: wire_cst_filter_wheel_status,
     }
@@ -35036,6 +35916,17 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_simulated_rotator {
         status: wire_cst_rotator_status,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_simulated_safety_monitor {
+        status: wire_cst_safety_status,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_simulated_weather {
+        connected: bool,
+        conditions: wire_cst_weather_conditions,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -35153,6 +36044,20 @@ mod io {
         has_wind_gust: bool,
         has_wind_speed: bool,
         average_period: *mut f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_weather_conditions {
+        temperature: *mut f64,
+        humidity: *mut f64,
+        pressure: *mut f64,
+        cloud_cover: *mut f64,
+        dew_point: *mut f64,
+        wind_speed: *mut f64,
+        wind_direction: *mut f64,
+        sky_quality: *mut f64,
+        sky_temperature: *mut f64,
+        rain_rate: *mut f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

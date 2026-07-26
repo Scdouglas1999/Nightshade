@@ -10,44 +10,71 @@ This artifact lists the exact missing input or evidence needed to clear each cur
 
 | Blocker | Category | Required input |
 | --- | --- | --- |
-| Full hardware/control smoke | functionality | A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands. |
+| Windows bundle audit | packaging | A current Windows x64 release bundle built from the exact release candidate on a Windows runner. |
+| Clean release branch / PR staging | process | Owner decision on must ship, generated only, binary/evidence, and defer/exclude bucket lists, then a clean non-main release branch/PR validated against that matrix. |
 | Second-device LAN/firewall smoke | networking | A second physical phone, tablet, or laptop on the same LAN, with the Windows firewall/router path used exactly as a real user would use it. |
-| Real remote-control actions | functionality | Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices. |
 | Final release checklist/sign-off | process | Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. |
 
-## Full hardware/control smoke
+## Windows bundle audit
 
-- ID: `hardware_control_smoke`
-- Category: `functionality`
-- Current gate detail: Required real-or-simulator classes missing on this host: dome, weather, safetyMonitor. Non-simulator gaps: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Command/control smoke remains unverified. External evidence validator did not pass for docs/production-readiness/full-hardware-control-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json. Evidence file is missing or is not valid JSON.
-- Local status: Real-or-simulator classes available here: camera, mount, focuser, filterWheel, rotator, guider. Missing real-or-simulator classes: dome, weather, safetyMonitor. Non-simulator classes available here: guider. Missing non-simulator classes: camera, mount, focuser, filterWheel, rotator, dome, weather, safetyMonitor. Discovery is not command/control smoke.
-- Required input: A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands.
+- ID: `windows_bundle`
+- Category: `packaging`
+- Current gate detail: bundle=apps/desktop/build/windows/x64/runner/Release files=0 missingRequired=16 disallowed=0.
+- Local status: bundle=apps/desktop/build/windows/x64/runner/Release files=0 missingRequired=16 disallowed=0.
+- Required input: A current Windows x64 release bundle built from the exact release candidate on a Windows runner.
 
 Acceptance criteria:
-- Every required device class is discoverable as real or simulator-backed for the smoke environment.
-- Connect/disconnect is exercised for each required class.
-- Safe read/status command is exercised for each required class.
-- Safe control command is exercised where applicable, such as camera short exposure, focuser small move, filter position query/change, rotator angle query/change, guider status, dome status/open-close or simulator equivalent, weather read, and safety state read.
-- The smoke log records device IDs, driver types, command results, and any intentionally skipped unsafe action.
+- `dart run melos run build:desktop:windows --no-select` succeeds on Windows for the release candidate.
+- The bundle contains every required executable, DLL, Flutter asset, and embedded dashboard asset.
+- The bundle audit reports bundleExists=true, missingRequiredFileCount=0, disallowedFileCount=0, and passed=true.
 
 Rerun commands:
-- `dart run melos run audit:public-release-external-evidence --no-select`
-- `dart run melos run audit:hardware-availability --no-select`
+- `dart run melos run build:desktop:windows --no-select`
+- `dart run melos run audit:windows-bundle --no-select`
 - `dart run melos run audit:public-release-gate --no-select`
 
 Expected evidence:
-- `docs/production-readiness/full-hardware-control-smoke-evidence.json`
-- `docs/production-readiness/external-evidence-templates/full-hardware-control-smoke-evidence.template.json`
-- `docs/production-readiness/public-release-external-evidence.json`
-- `docs/production-readiness/hardware-availability-probe.json`
-- `Full hardware/control smoke log with command results`
-- `Screenshots or exported dashboard/device-state evidence if manually driven`
+- `apps/desktop/build/windows/x64/runner/Release/nightshade_desktop.exe`
+- `docs/production-readiness/windows-bundle-audit.json`
+- `docs/production-readiness/windows-bundle-audit.md`
+
+## Clean release branch / PR staging
+
+- ID: `release_staging`
+- Category: `process`
+- Current gate detail: branch=feature/v6-make-it-real entryCount=10217 untrackedReleaseCritical=55. Split plan buckets=10 pathspecFiles=10 pathspecLines=10217 uniquePathspecLines=10217. Split-plan pathspec coverage is exact. Staged-branch validation mode=index passed=false observed=0 issues=2 warnings=2 matrixSourceMatches=true pathspecs=10. A clean non-main release branch/PR is still required.
+- Local status: Current branch is feature/v6-make-it-real with 10217 dirty entries and 55 untracked release-critical entries. Split plan has 10 buckets. Owner matrix must_ship paths=1623. Latest staged-branch validation passed=false.
+- Required input: Owner decision on must ship, generated only, binary/evidence, and defer/exclude bucket lists, then a clean non-main release branch/PR validated against that matrix.
+
+Acceptance criteria:
+- Work is on a non-main release branch.
+- `dart run melos run audit:release-staging --no-select` reports entryCount=0 and untrackedReleaseCriticalCount=0 for the final PR workspace, or the final PR contains only intentionally staged release files with exclusions documented.
+- The owner matrix lists every split-plan bucket under must_ship, generated_only, binary_evidence, or defer_exclude.
+- `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index` or the branch-mode equivalent passes before PR creation.
+- The PR description links the staged bucket pathspecs, uses the draft description for each bucket, and explains any excluded bucket.
+
+Rerun commands:
+- `dart run melos run audit:release-staging --no-select`
+- `dart run melos run audit:release-pr-plan --no-select`
+- `dart run melos run audit:release-pr-owner-matrix --no-select`
+- `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index`
+- `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=branch --base=main`
+- `dart run melos run audit:public-release-gate --no-select`
+
+Expected evidence:
+- `docs/production-readiness/release-staging-audit.json`
+- `docs/production-readiness/release-pr-split-plan.json`
+- `docs/production-readiness/release-pr-owner-decision-matrix.json`
+- `docs/production-readiness/release-pr-owner-decision-matrix.md`
+- `docs/production-readiness/release-pr-staged-branch-validation.json`
+- `docs/production-readiness/release-pr-pathspecs/*.txt`
+- `GitHub PR URL or local branch/review record`
 
 ## Second-device LAN/firewall smoke
 
 - ID: `second_device_lan_firewall`
 - Category: `networking`
-- Current gate detail: No validated artifact proves access from a second physical device/browser through the real firewall/router path. External evidence validator did not pass for docs/production-readiness/second-device-lan-firewall-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/second-device-lan-firewall-smoke-evidence.template.json. Evidence file is missing or is not valid JSON.
+- Current gate detail: No validated artifact proves access from a second physical device/browser through the real firewall/router path. External evidence validator did not pass for docs/production-readiness/second-device-lan-firewall-smoke-evidence.json. Template: docs/production-readiness/external-evidence-templates/second-device-lan-firewall-smoke-evidence.template.json. usedPhysicalSecondDevice must be true. clientDevice is required. clientIp is required. networkPath is required. dashboardLoaded must be true. authPositivePassed must be true. authNegativePassed must be true. websocketConnected must be true. websocketReconnectObserved must be true. evidenceArtifacts must be a non-empty list.
 - Local status: Local non-loopback and Android emulator-host-alias smokes exist, but no second physical device/browser evidence exists.
 - Required input: A second physical phone, tablet, or laptop on the same LAN, with the Windows firewall/router path used exactly as a real user would use it.
 
@@ -72,39 +99,12 @@ Expected evidence:
 - `Manual smoke notes with firewall/router path`
 - `docs/production-readiness/public-release-audit-report.md update`
 
-## Real remote-control actions
-
-- ID: `real_remote_control_actions`
-- Category: `functionality`
-- Current gate detail: No validated artifact proves actual remote control actions against real or simulator-backed devices. External evidence validator did not pass for docs/production-readiness/real-remote-control-actions-evidence.json. Template: docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json. Evidence file is missing or is not valid JSON.
-- Local status: No artifact proves remote control commands against real or simulator-backed devices. Current host is also missing dome, weather, safetyMonitor real-or-simulator classes.
-- Required input: Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices.
-
-Acceptance criteria:
-- Remote client sends at least one safe command per applicable device class.
-- Server logs include request IDs, client key/token scope, action, route, and completion status for high-risk commands.
-- Device state after each command is read back and recorded.
-- Unsafe real-world commands are either performed in simulator mode or explicitly skipped with a safety reason.
-
-Rerun commands:
-- `dart run melos run audit:public-release-external-evidence --no-select`
-- `dart run melos run audit:hardware-availability --no-select`
-- `dart run melos run audit:public-release-gate --no-select`
-
-Expected evidence:
-- `docs/production-readiness/real-remote-control-actions-evidence.json`
-- `docs/production-readiness/external-evidence-templates/real-remote-control-actions-evidence.template.json`
-- `docs/production-readiness/public-release-external-evidence.json`
-- `Remote-control smoke log with command/result pairs`
-- `Dashboard/mobile screenshots showing connected state and command results`
-- `Server audit log excerpt for high-risk commands`
-
 ## Final release checklist/sign-off
 
 - ID: `final_checklist`
 - Category: `process`
-- Current gate detail: Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON.
-- Local status: Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true.
+- Current gate detail: Checklist items=16 checked=11 unchecked=5 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. reviewer is required. date is required. commit is required. date must be an ISO date in yyyy-mm-dd format. commit must be a full 40-character git commit hash. decision must be `ship`. checklistComplete must be true. noUnresolvedBlockers must be true. knownLimitationsReviewed must be true. releaseNotesReady must be true. releaseNotesPath file does not exist: docs/release-notes.md. Checklist audit has uncheckedItemCount=5. Public release gate must be READY with blockerCount=0; decision=NOT_READY ready=false blockerCount=4.
+- Local status: Checklist items=16 checked=11 unchecked=5 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true.
 - Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied.
 
 Acceptance criteria:

@@ -22,7 +22,7 @@ impl InstructionNode for NotificationInstruction {
 
     async fn execute(
         &self,
-        _node_id: &str,
+        node_id: &str,
         node_type: &NodeType,
         context: &mut ExecutionContext,
     ) -> NodeStatus {
@@ -68,7 +68,7 @@ impl InstructionNode for NotificationInstruction {
             explicit_transports: config.explicit_transports.clone(),
         };
 
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         execute_notification(&interpolated, &ctx)
             .await
             .log_and_get_status_with_context("Notification", &ctx)

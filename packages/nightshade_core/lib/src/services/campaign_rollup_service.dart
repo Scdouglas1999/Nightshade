@@ -31,8 +31,21 @@ class CampaignRollupService {
 
   /// Throws when [targetId] does not exist — same fail-loud policy as
   /// `SessionReportService.buildReport`.
-  Future<CampaignRollup> buildForTarget(int targetId) async {
-    final target = await _targetsDao.getTargetById(targetId);
+  Future<CampaignRollup> buildForTarget(
+    int targetId, {
+    Iterable<Target>? targetCatalog,
+  }) async {
+    Target? target;
+    if (targetCatalog != null) {
+      for (final candidate in targetCatalog) {
+        if (candidate.id == targetId) {
+          target = candidate;
+          break;
+        }
+      }
+    } else {
+      target = await _targetsDao.getTargetById(targetId);
+    }
     if (target == null) {
       throw StateError('Target $targetId not found');
     }
@@ -43,8 +56,12 @@ class CampaignRollupService {
   /// catalog. Returns rollups keyed by target id; targets with no sessions
   /// still appear with empty per-filter / per-session lists so the panel
   /// can render "no captures yet" tiles.
-  Future<Map<int, CampaignRollup>> buildForAllTargets() async {
-    final targets = await _targetsDao.getAllTargets();
+  Future<Map<int, CampaignRollup>> buildForAllTargets({
+    Iterable<Target>? targetCatalog,
+  }) async {
+    final targets =
+        targetCatalog?.toList(growable: false) ??
+        await _targetsDao.getAllTargets();
     final out = <int, CampaignRollup>{};
     for (final target in targets) {
       out[target.id] = await _build(target);

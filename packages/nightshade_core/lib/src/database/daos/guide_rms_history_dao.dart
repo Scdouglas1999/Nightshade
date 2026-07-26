@@ -60,6 +60,7 @@ class GuideRmsHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   /// existing [recentForMount] convention. Caller MUST validate / clamp
   /// [limit] and [offset].
   Future<List<GuideRmsHistoryEntry>> listPaginated({
+    String? mountId,
     int? sinceMs,
     int? untilMs,
     int limit = 200,
@@ -68,6 +69,10 @@ class GuideRmsHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     var query = select(guideRmsHistory)
       ..orderBy([(t) => OrderingTerm.desc(t.recordedAt)])
       ..limit(limit, offset: offset);
+    final trimmedMountId = mountId?.trim();
+    if (trimmedMountId != null && trimmedMountId.isNotEmpty) {
+      query = query..where((t) => t.mountId.equals(trimmedMountId));
+    }
     if (sinceMs != null) {
       final since = DateTime.fromMillisecondsSinceEpoch(sinceMs);
       query = query..where((t) => t.recordedAt.isBiggerOrEqualValue(since));
@@ -80,9 +85,17 @@ class GuideRmsHistoryDao extends DatabaseAccessor<NightshadeDatabase>
   }
 
   /// Row count for the same filter set [listPaginated] uses.
-  Future<int> countFiltered({int? sinceMs, int? untilMs}) async {
+  Future<int> countFiltered({
+    String? mountId,
+    int? sinceMs,
+    int? untilMs,
+  }) async {
     final countExpr = guideRmsHistory.id.count();
     final query = selectOnly(guideRmsHistory)..addColumns([countExpr]);
+    final trimmedMountId = mountId?.trim();
+    if (trimmedMountId != null && trimmedMountId.isNotEmpty) {
+      query.where(guideRmsHistory.mountId.equals(trimmedMountId));
+    }
     if (sinceMs != null) {
       final since = DateTime.fromMillisecondsSinceEpoch(sinceMs);
       query.where(guideRmsHistory.recordedAt.isBiggerOrEqualValue(since));

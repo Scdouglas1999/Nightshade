@@ -16,6 +16,11 @@ enum Phd2GuidingState {
   paused,
   settling,
   lostLock,
+
+  /// PHD2 is connected but reported a state we could not classify. Treated as
+  /// possibly-live: the controls offer Stop, never an enabled Start. Mirrors
+  /// `Phd2State.unknown` from the bridge.
+  unknown,
 }
 
 /// Extension for Phd2GuidingState display
@@ -38,6 +43,8 @@ extension Phd2GuidingStateExtension on Phd2GuidingState {
         return 'Settling';
       case Phd2GuidingState.lostLock:
         return 'Lost Lock';
+      case Phd2GuidingState.unknown:
+        return 'Unknown';
     }
   }
 
@@ -46,6 +53,64 @@ extension Phd2GuidingStateExtension on Phd2GuidingState {
       this == Phd2GuidingState.calibrating ||
       this == Phd2GuidingState.looping ||
       this == Phd2GuidingState.settling;
+}
+
+/// Single source of truth for what a guider command surface may offer in each
+/// state. Both the desktop and mobile guiding controls (which share
+/// `GuideControlsPanel`) drive their enable/label logic from these getters so
+/// the two surfaces can never disagree about, e.g., whether Start is legal.
+///
+/// Design rules:
+///   * Start is legal ONLY from a truly idle-but-connected state ([stopped]).
+///     Paused / calibrating / settling / looping / lost-lock / unknown are all
+///     live or transitional and must NEVER offer an enabled Start.
+///   * Stop is legal from every live/transitional/uncertain state — it is the
+///     safe direction and must work from Paused and Lost Lock too.
+///   * unknown is treated as possibly-live: Stop yes, Start no.
+extension Phd2GuidingCapabilities on Phd2GuidingState {
+  /// A guiding session (or looping) is running or transitioning.
+  bool get isBusyPhase =>
+      this == Phd2GuidingState.guiding ||
+      this == Phd2GuidingState.calibrating ||
+      this == Phd2GuidingState.looping ||
+      this == Phd2GuidingState.settling ||
+      this == Phd2GuidingState.paused ||
+      this == Phd2GuidingState.lostLock ||
+      this == Phd2GuidingState.unknown;
+
+  /// Calibration or settle is in progress — a hand-off phase where issuing new
+  /// commands (other than Stop) is unsafe.
+  bool get isTransitional =>
+      this == Phd2GuidingState.calibrating || this == Phd2GuidingState.settling;
+
+  bool get canStart => this == Phd2GuidingState.stopped;
+
+  bool get canStop => isBusyPhase;
+
+  bool get canPause => this == Phd2GuidingState.guiding;
+
+  bool get canResume => this == Phd2GuidingState.paused;
+
+  bool get canDither => this == Phd2GuidingState.guiding;
+
+  bool get canLoop => this == Phd2GuidingState.stopped;
+}
+
+/// Thrown when a guiding command is rejected because another command is
+/// already in flight. The per-controller command gate raises this so a rapid
+/// double-tap (or a UI command racing a programmatic one) resolves to exactly
+/// one native call plus a deterministic, surfaced rejection — never two
+/// conflicting hardware commands.
+class GuidingCommandBusyException implements Exception {
+  const GuidingCommandBusyException(this.command);
+
+  /// The command that was rejected (e.g. 'start', 'dither').
+  final String command;
+
+  @override
+  String toString() =>
+      'A guiding command is already in progress; "$command" was ignored. '
+      'Wait for the current operation to finish, then try again.';
 }
 
 /// Star image data from PHD2's get_star_image API

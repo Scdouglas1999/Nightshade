@@ -65,6 +65,7 @@ class _RemoteConnectionIndicatorState
   Duration? _latency;
   StreamSubscription<Duration>? _latencySubscription;
   NetworkBackend? _trackedBackend;
+  int _backendGeneration = 0;
 
   @override
   void initState() {
@@ -74,6 +75,7 @@ class _RemoteConnectionIndicatorState
 
   @override
   void dispose() {
+    _backendGeneration++;
     _latencySubscription?.cancel();
     super.dispose();
   }
@@ -82,20 +84,22 @@ class _RemoteConnectionIndicatorState
   /// [NetworkBackend]. Resubscribes when a backend swap happens
   /// (connect / disconnect / reconnect creates a new instance).
   void _attachToBackend(NightshadeBackend backend) {
+    if (identical(backend, _trackedBackend)) return;
+    final generation = ++_backendGeneration;
+    _latencySubscription?.cancel();
+    _latencySubscription = null;
     if (backend is NetworkBackend) {
-      if (identical(backend, _trackedBackend)) {
-        return;
-      }
-      _latencySubscription?.cancel();
       _trackedBackend = backend;
       _latency = backend.lastLatency;
       _latencySubscription = backend.latencyStream.listen((value) {
-        if (!mounted) return;
+        if (!mounted ||
+            generation != _backendGeneration ||
+            !identical(_trackedBackend, backend)) {
+          return;
+        }
         setState(() => _latency = value);
       });
     } else {
-      _latencySubscription?.cancel();
-      _latencySubscription = null;
       _trackedBackend = null;
       if (_latency != null) {
         setState(() => _latency = null);
@@ -145,7 +149,7 @@ class _RemoteConnectionIndicatorState
     required NetworkBackend? backend,
   }) {
     return GestureDetector(
-      onTap: () => _showDetails(context, status, backend),
+      onTap: () => _showDetails(context),
       child: widget.dot
           ? _buildDot(context, status)
           : widget.compact
@@ -236,11 +240,7 @@ class _RemoteConnectionIndicatorState
     );
   }
 
-  void _showDetails(
-    BuildContext context,
-    RemoteConnectionStatus status,
-    NetworkBackend? backend,
-  ) {
+  void _showDetails(BuildContext context) {
     final colors = NightshadeColors.of(context);
     showModalBottomSheet(
       context: context,
@@ -251,11 +251,7 @@ class _RemoteConnectionIndicatorState
           top: Radius.circular(NightshadeTokens.radiusLg),
         ),
       ),
-      builder: (_) => _RemoteConnectionSheet(
-        status: status,
-        latency: _latency,
-        backend: backend,
-      ),
+      builder: (_) => const _RemoteConnectionSheet(),
     );
   }
 
@@ -349,15 +345,7 @@ class _LatencyBadge extends StatelessWidget {
 }
 
 class _RemoteConnectionSheet extends ConsumerStatefulWidget {
-  final RemoteConnectionStatus status;
-  final Duration? latency;
-  final NetworkBackend? backend;
-
-  const _RemoteConnectionSheet({
-    required this.status,
-    required this.latency,
-    required this.backend,
-  });
+  const _RemoteConnectionSheet();
 
   @override
   ConsumerState<_RemoteConnectionSheet> createState() =>
@@ -367,17 +355,80 @@ class _RemoteConnectionSheet extends ConsumerStatefulWidget {
 class _RemoteConnectionSheetState
     extends ConsumerState<_RemoteConnectionSheet> {
   bool _reconnecting = false;
+  bool _disconnecting = false;
+  int _reconnectGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (!_reconnecting || previous == null || identical(previous, next)) {
+          return;
+        }
+        _reconnectGeneration++;
+        if (mounted) setState(() => _reconnecting = false);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _reconnectGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
 
   Future<void> _handleReconnect() async {
-    final backend = widget.backend;
-    if (backend == null) return;
+    if (_reconnecting) return;
+    final activeBackend = ref.read(backendProvider);
+    if (activeBackend is! NetworkBackend) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No remote server is selected. Reconnect first.'),
+          ),
+        );
+      }
+      return;
+    }
+    final backend = activeBackend;
+    final generation = ++_reconnectGeneration;
     setState(() => _reconnecting = true);
     try {
       await backend.reconnectNow();
+    } catch (e) {
+      if (mounted && _isCurrentReconnect(generation, backend)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Reconnect failed: $e')),
+        );
+      }
     } finally {
-      if (mounted) {
+      if (_isCurrentReconnect(generation, backend)) {
         setState(() => _reconnecting = false);
       }
+    }
+  }
+
+  bool _isCurrentReconnect(int generation, NetworkBackend backend) =>
+      mounted &&
+      generation == _reconnectGeneration &&
+      identical(ref.read(backendProvider), backend);
+
+  Future<void> _handleDisconnect() async {
+    if (_disconnecting) return;
+    setState(() => _disconnecting = true);
+    try {
+      await ref.read(backendProvider.notifier).disconnect();
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _disconnecting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Disconnect blocked: $e')),
+      );
     }
   }
 
@@ -385,8 +436,12 @@ class _RemoteConnectionSheetState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = NightshadeColors.of(context);
-    final status = widget.status;
-    final backend = widget.backend;
+    final activeBackend = ref.watch(backendProvider);
+    final backend = activeBackend is NetworkBackend ? activeBackend : null;
+    final status = backend == null
+        ? RemoteConnectionStatus.notConnected
+        : _statusForConnectionState(backend.connectionState);
+    final latency = backend?.lastLatency;
 
     return Container(
       decoration: BoxDecoration(
@@ -404,7 +459,11 @@ class _RemoteConnectionSheetState
         children: [
           Row(
             children: [
-              Icon(_headerIcon(status), size: 32, color: _headerColor(context)),
+              Icon(
+                _headerIcon(status),
+                size: 32,
+                color: _headerColor(context, status),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -432,13 +491,12 @@ class _RemoteConnectionSheetState
             _row(theme, colors, 'Host', backend.serverHost),
             _row(theme, colors, 'Port', backend.serverPort.toString()),
           ],
-          if (widget.latency != null &&
-              status == RemoteConnectionStatus.connected)
+          if (latency != null && status == RemoteConnectionStatus.connected)
             _row(
               theme,
               colors,
               'Latency',
-              '${(widget.latency!.inMicroseconds / 1000.0).round()} ms',
+              '${(latency.inMicroseconds / 1000.0).round()} ms',
             ),
           const SizedBox(height: 16),
           if (backend != null && status != RemoteConnectionStatus.notConnected)
@@ -456,12 +514,9 @@ class _RemoteConnectionSheetState
               child: SizedBox(
                 width: double.infinity,
                 child: NightshadeButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ref.read(backendProvider.notifier).disconnect();
-                  },
+                  onPressed: _disconnecting ? null : _handleDisconnect,
                   icon: LucideIcons.logOut,
-                  label: 'Disconnect',
+                  label: _disconnecting ? 'Disconnecting...' : 'Disconnect',
                   variant: ButtonVariant.destructive,
                 ),
               ),
@@ -469,6 +524,23 @@ class _RemoteConnectionSheetState
         ],
       ),
     );
+  }
+
+  RemoteConnectionStatus _statusForConnectionState(
+    BackendConnectionState state,
+  ) {
+    switch (state) {
+      case BackendConnectionState.connected:
+        return RemoteConnectionStatus.connected;
+      case BackendConnectionState.connecting:
+        return RemoteConnectionStatus.connecting;
+      case BackendConnectionState.reconnecting:
+        return RemoteConnectionStatus.reconnecting;
+      case BackendConnectionState.disconnected:
+        return RemoteConnectionStatus.serverOffline;
+      case BackendConnectionState.error:
+        return RemoteConnectionStatus.error;
+    }
   }
 
   Widget _row(
@@ -520,10 +592,10 @@ class _RemoteConnectionSheetState
     }
   }
 
-  Color _headerColor(BuildContext context) {
+  Color _headerColor(BuildContext context, RemoteConnectionStatus status) {
     final theme = Theme.of(context);
     final colors = theme.extension<NightshadeColors>();
-    switch (widget.status) {
+    switch (status) {
       case RemoteConnectionStatus.connected:
         return colors?.success ?? theme.colorScheme.primary;
       case RemoteConnectionStatus.connecting:

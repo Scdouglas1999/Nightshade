@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show apiReadFitsFile;
 
@@ -12,6 +13,8 @@ import '../database/database.dart' as db;
 import '../models/backend/event_types.dart' show EventSeverity;
 import '../models/notification/notification_categories.dart';
 import '../providers/backend_provider.dart';
+import '../providers/constellation_provider.dart'
+    show coImagingSessionServiceProvider;
 import '../providers/database_provider.dart';
 import '../providers/narrator_provider.dart' show narratorServiceProvider;
 import '../providers/notification_router_provider.dart'
@@ -23,6 +26,7 @@ import '../services/sky_atlas/sky_atlas_models.dart';
 import '../services/sky_atlas/sky_atlas_service.dart' show SkyAtlasService;
 import '../services/transients/transient_candidate.dart';
 import '../utils/coordinate_format.dart';
+import '../utils/resilient_poll_stream.dart';
 import '../services/wcs/gnomonic_projection.dart' show SolvedWcs;
 import '../services/wcs/wcs_sip_codec.dart';
 
@@ -42,6 +46,7 @@ class ImagingRecordsRepository {
   final SessionsDao? _sessionsDao;
   final ImagesDao? _imagesDao;
   final NetworkBackend? _remote;
+  final Duration _remotePollInterval;
 
   /// Optional sky-atlas fold hook, fired after a local plate-solve persist.
   final SolvedFrameFoldHook? _onSolvedFrameFold;
@@ -50,10 +55,12 @@ class ImagingRecordsRepository {
     SessionsDao? sessionsDao,
     ImagesDao? imagesDao,
     NetworkBackend? remote,
+    Duration remotePollInterval = const Duration(seconds: 10),
     SolvedFrameFoldHook? onSolvedFrameFold,
   }) : _sessionsDao = sessionsDao,
        _imagesDao = imagesDao,
        _remote = remote,
+       _remotePollInterval = remotePollInterval,
        _onSolvedFrameFold = onSolvedFrameFold {
     assert(
       (sessionsDao != null && imagesDao != null && remote == null) ||
@@ -72,8 +79,13 @@ class ImagingRecordsRepository {
     onSolvedFrameFold: onSolvedFrameFold,
   );
 
-  factory ImagingRecordsRepository.remote(NetworkBackend remote) =>
-      ImagingRecordsRepository._(remote: remote);
+  factory ImagingRecordsRepository.remote(
+    NetworkBackend remote, {
+    Duration pollInterval = const Duration(seconds: 10),
+  }) => ImagingRecordsRepository._(
+    remote: remote,
+    remotePollInterval: pollInterval,
+  );
 
   bool get isRemote => _remote != null;
 
@@ -118,8 +130,8 @@ class ImagingRecordsRepository {
         'getAllSequenceRunsRemote requires a remote (NetworkBackend) repository',
       );
     }
-    final page = await remote.fetchSequenceRuns();
-    return page.items.map(_sequenceRunFromRemote).toList();
+    final runs = await fetchAllRemoteSequenceRuns(remote);
+    return runs.map(_sequenceRunFromRemote).toList();
   }
 
   /// Remote-only: target id -> name map from the host's `/api/targets` list, so
@@ -264,7 +276,11 @@ class ImagingRecordsRepository {
 
   Stream<List<db.CapturedImage>> watchImagesForSession(int sessionId) {
     if (_remote != null) {
-      return _pollRemoteSessionImages(_remote, sessionId);
+      return _pollRemoteSessionImages(
+        _remote,
+        sessionId,
+        interval: _remotePollInterval,
+      );
     }
     return _imagesDao!.watchImagesForSession(sessionId);
   }
@@ -293,6 +309,17 @@ class ImagingRecordsRepository {
       return;
     }
     await _imagesDao!.rejectImage(id, reason);
+  }
+
+  Future<void> acceptImage(int id) async {
+    if (_remote != null) {
+      await _remote.updateCapturedImage(id, {
+        'isAccepted': true,
+        'rejectionReason': null,
+      });
+      return;
+    }
+    await _imagesDao!.acceptImage(id);
   }
 
   Future<void> updatePlateSolveResult(
@@ -425,6 +452,7 @@ class ImagingRecordsRepository {
         producingNodeId: producingNodeId,
         producingRunId: producingRunId,
         limit: limit,
+        interval: _remotePollInterval,
       );
     }
     return _imagesDao!.watchImagesByProducingNode(
@@ -563,14 +591,13 @@ class ImagingRecordsRepository {
 
   static Stream<List<db.CapturedImage>> _pollRemoteSessionImages(
     NetworkBackend backend,
-    int sessionId,
-  ) async* {
-    yield await _fetchRemoteSessionImages(backend, sessionId);
-    while (true) {
-      await Future.delayed(const Duration(seconds: 10));
-      yield await _fetchRemoteSessionImages(backend, sessionId);
-    }
-  }
+    int sessionId, {
+    required Duration interval,
+  }) => _pollRemoteDistinct(
+    () => _fetchRemoteSessionImages(backend, sessionId),
+    listEquals,
+    interval: interval,
+  );
 
   static Future<List<db.CapturedImage>> _fetchRemoteSessionImages(
     NetworkBackend backend,
@@ -588,23 +615,17 @@ class ImagingRecordsRepository {
     required String producingNodeId,
     String? producingRunId,
     int limit = 100,
-  }) async* {
-    yield await _fetchRemoteProducingNodeThumbnails(
+    required Duration interval,
+  }) => _pollRemoteDistinct(
+    () => _fetchRemoteProducingNodeThumbnails(
       backend,
       producingNodeId: producingNodeId,
       producingRunId: producingRunId,
       limit: limit,
-    );
-    while (true) {
-      await Future.delayed(const Duration(seconds: 10));
-      yield await _fetchRemoteProducingNodeThumbnails(
-        backend,
-        producingNodeId: producingNodeId,
-        producingRunId: producingRunId,
-        limit: limit,
-      );
-    }
-  }
+    ),
+    _thumbnailListsEqual,
+    interval: interval,
+  );
 
   static Future<List<ProducingNodeThumbnail>>
   _fetchRemoteProducingNodeThumbnails(
@@ -620,6 +641,56 @@ class ImagingRecordsRepository {
     );
     return rows.map(_producingThumbnailFromApiJson).toList();
   }
+
+  static Stream<T> _pollRemoteDistinct<T>(
+    Future<T> Function() fetch,
+    bool Function(T previous, T next) unchanged, {
+    required Duration interval,
+  }) => resilientDistinctPoll(
+    fetch: fetch,
+    unchanged: unchanged,
+    interval: interval,
+    onRetainedError: (error, stackTrace) {
+      developer.log(
+        'Remote imaging-record poll failed; retaining last value',
+        name: 'ImagingRecordsRepository',
+        level: 900,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    },
+  );
+}
+
+bool _thumbnailListsEqual(
+  List<ProducingNodeThumbnail> previous,
+  List<ProducingNodeThumbnail> next,
+) {
+  if (identical(previous, next)) return true;
+  if (previous.length != next.length) return false;
+  for (var index = 0; index < previous.length; index++) {
+    final a = previous[index];
+    final b = next[index];
+    if (a.id != b.id ||
+        a.filePath != b.filePath ||
+        a.fileName != b.fileName ||
+        a.filter != b.filter ||
+        a.frameType != b.frameType ||
+        a.hfr != b.hfr ||
+        a.eccentricity != b.eccentricity ||
+        a.fwhm != b.fwhm ||
+        a.starCount != b.starCount ||
+        a.exposureDuration != b.exposureDuration ||
+        a.capturedAt != b.capturedAt ||
+        a.isAccepted != b.isAccepted ||
+        a.rejectionReason != b.rejectionReason ||
+        a.runtimeGrade != b.runtimeGrade ||
+        a.producingNodeId != b.producingNodeId ||
+        a.producingRunId != b.producingRunId) {
+      return false;
+    }
+  }
+  return true;
 }
 
 ProducingNodeThumbnail _producingThumbnailFromApiJson(
@@ -749,7 +820,7 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
         // so the production path and its regression test run the SAME logic)
         // folds only when the row is not already stamped, and stamps only after
         // a fold that actually ran.
-        await applyAtlasFoldDedup(
+        final foldSummary = await applyAtlasFoldDedup(
           image: image,
           imagesDao: imagesDao,
           atlas: ref.read(skyAtlasServiceProvider),
@@ -757,6 +828,23 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
           imageHeight: fits.height,
           distortion: distortion,
         );
+
+        // Collaborative Sky WS3 Gap 2 — live co-imaging auto-contribute: a fold
+        // that ACTUALLY ran (non-null summary) means this rig's own-light delta
+        // is now in the atlas, so any live co-imaging session whose target this
+        // frame covers can fold the SAME sub into the shared-target tile and
+        // advance the combined accounting. Ordering is load-bearing: contributing
+        // only AFTER the atlas fold lands is what makes the additive-sum export
+        // non-empty, so the headline depth tracks real fused depth (no undercount
+        // race). A non-fold (re-solve / not foldable) skips — the sub was already
+        // contributed on its first fold.
+        if (foldSummary != null) {
+          await _driveCoImagingAutoContribute(
+            ref: ref,
+            logger: logger,
+            image: image,
+          );
+        }
       } catch (e, st) {
         logger.warning(
           'Sky-atlas auto-fold for image $capturedImageId failed: $e\n$st',
@@ -766,6 +854,62 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
     },
   );
 });
+
+/// Collaborative Sky WS3 Gap 2 — drive the live co-imaging auto-contribute for a
+/// freshly-folded light frame. For every active co-imaging membership whose
+/// session target this frame's solved centre covers, fold the same sub into the
+/// shared-target tile and advance the COMBINED accounting via
+/// [CoImagingSessionService.recordCompletedSub] (which itself fuses, then
+/// reports the TRUE pushed delta, under the operator's persisted consent and
+/// failing closed when none is on record).
+///
+/// Best-effort and self-contained: a no-hub config, no covering session, or any
+/// per-session failure is logged and swallowed so it never disturbs the
+/// solve/fold path. `solvedRa` is app-canonical HOURS; the matcher works in
+/// degrees, so it is converted at the boundary.
+Future<void> _driveCoImagingAutoContribute({
+  required Ref ref,
+  required LoggingService logger,
+  required db.CapturedImage image,
+}) async {
+  if (image.frameType.toLowerCase() != 'light' || !image.isAccepted) return;
+  final ra = image.solvedRa;
+  final dec = image.solvedDec;
+  if (ra == null || dec == null) return;
+  try {
+    final coImaging = ref.read(coImagingSessionServiceProvider);
+    final memberships = await coImaging.membershipsForPoint(
+      raDeg: ra * 15.0,
+      decDeg: dec,
+    );
+    for (final row in memberships) {
+      try {
+        final accounting = await coImaging.recordCompletedSub(
+          row.sessionId,
+          exposureSeconds: image.exposureDuration,
+        );
+        if (accounting != null) {
+          logger.info(
+            'Co-imaging: sub folded into session ${row.sessionId}; combined '
+            'now ${accounting.combinedFrames} frames across '
+            '${accounting.participantCount} rig(s).',
+            source: 'CoImagingSessionService',
+          );
+        }
+      } catch (e) {
+        logger.warning(
+          'Co-imaging auto-contribute for session ${row.sessionId} failed: $e',
+          source: 'CoImagingSessionService',
+        );
+      }
+    }
+  } catch (e) {
+    logger.warning(
+      'Co-imaging auto-contribute resolve failed: $e',
+      source: 'CoImagingSessionService',
+    );
+  }
+}
 
 /// Run the Pillar B difference scan for a freshly-solved light frame, persist any
 /// transients, and feed the survivors to the active-session Narrator so its

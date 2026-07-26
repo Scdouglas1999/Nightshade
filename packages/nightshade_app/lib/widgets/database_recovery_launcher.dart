@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../utils/startup_surface_coordinator.dart';
+import '../utils/startup_ui_context.dart';
+
 /// Surfaces a one-shot dialog telling the user "your database was corrupted
 /// and recovered from backup" on the first launch after the SQLite
 /// integrity-check pre-flight rotated a corrupt `nightshade.db` into a
@@ -22,10 +25,17 @@ class DatabaseRecoveryLauncher extends ConsumerStatefulWidget {
   /// from a temp directory instead of the real `getApplicationDocumentsDirectory()`.
   final Future<DatabaseRecoveryMarker?> Function()? markerConsumer;
 
+  /// Optional acknowledgement hook for a non-consuming [markerConsumer].
+  /// When omitted alongside a custom consumer, the consumer is treated as the
+  /// legacy read-and-delete operation.
+  final Future<void> Function(DatabaseRecoveryMarker marker)?
+      markerAcknowledger;
+
   const DatabaseRecoveryLauncher({
     super.key,
     required this.child,
     this.markerConsumer,
+    this.markerAcknowledger,
   });
 
   @override
@@ -35,7 +45,10 @@ class DatabaseRecoveryLauncher extends ConsumerStatefulWidget {
 
 class _DatabaseRecoveryLauncherState
     extends ConsumerState<DatabaseRecoveryLauncher> {
-  bool _hasChecked = false;
+  bool _hasReadMarker = false;
+  bool _surfaceQueued = false;
+  bool _dialogShown = false;
+  DatabaseRecoveryMarker? _pendingMarker;
   Timer? _deferTimer;
 
   @override
@@ -52,7 +65,7 @@ class _DatabaseRecoveryLauncherState
   }
 
   void _scheduleCheck() {
-    if (_hasChecked || !mounted) return;
+    if (!mounted || _pendingMarker == null && _hasReadMarker) return;
     // Defer slightly so this dialog wins over the first-night wizard but
     // does not collide with the splash transition. 600 ms matches the
     // observed window between MaterialApp first frame and the router's
@@ -61,66 +74,119 @@ class _DatabaseRecoveryLauncherState
   }
 
   Future<void> _maybeShow() async {
-    if (_hasChecked || !mounted) return;
-    _hasChecked = true;
+    if (!mounted || _surfaceQueued) return;
 
-    final consumer =
-        widget.markerConsumer ?? NightshadeDatabase.consumeRecoveryMarker;
-    final marker = await consumer();
-    if (marker == null || !mounted) return;
+    if (!_hasReadMarker) {
+      _hasReadMarker = true;
+      final consumer =
+          widget.markerConsumer ?? NightshadeDatabase.readRecoveryMarker;
+      try {
+        _pendingMarker = await consumer();
+      } catch (_) {
+        if (!mounted) return;
+        _hasReadMarker = false;
+        _scheduleRetry();
+        return;
+      }
+    }
+    if (!mounted || _pendingMarker == null) return;
 
-    await _showRecoveryDialog(marker);
+    if (_dialogShown) {
+      await _acknowledgePendingMarker();
+      return;
+    }
+
+    _surfaceQueued = true;
+    final shown = await _showRecoveryDialog(_pendingMarker!);
+    if (!mounted) return;
+    _surfaceQueued = false;
+    if (!shown) {
+      _scheduleRetry();
+      return;
+    }
+    _dialogShown = true;
+    await _acknowledgePendingMarker();
   }
 
-  Future<void> _showRecoveryDialog(DatabaseRecoveryMarker marker) async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Database recovered'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Nightshade detected that your database file was corrupted '
-                  'and recreated a fresh one so the app could start. Your '
-                  'existing settings, profiles, sessions, and captures from '
-                  'before the corruption are NOT in the new database.',
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'A backup of the corrupt file has been retained on disk '
-                  'so support engineers can recover what is salvageable. '
-                  'Please contact support if you need help extracting '
-                  'historical data.',
-                ),
-                const SizedBox(height: 16),
-                if (marker.backupPath != null) ...[
-                  const Text('Backup file:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  SelectableText(marker.backupPath!),
-                  const SizedBox(height: 8),
+  Future<bool> _showRecoveryDialog(DatabaseRecoveryMarker marker) {
+    return ref.read(startupSurfaceCoordinatorProvider).run(() async {
+      if (!mounted) return false;
+      final uiContext = resolveStartupUiContext(ref, context);
+      if (uiContext == null || !uiContext.mounted) return false;
+      await showDialog<void>(
+        context: uiContext,
+        barrierDismissible: false,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Database recovered'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Nightshade detected that your database file was corrupted '
+                    'and recreated a fresh one so the app could start. Your '
+                    'existing settings, profiles, sessions, and captures from '
+                    'before the corruption are NOT in the new database.',
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'A backup of the corrupt file has been retained on disk '
+                    'so support engineers can recover what is salvageable. '
+                    'Please contact support if you need help extracting '
+                    'historical data.',
+                  ),
+                  const SizedBox(height: 16),
+                  if (marker.backupPath != null) ...[
+                    const Text('Backup file:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    SelectableText(marker.backupPath!),
+                    const SizedBox(height: 8),
+                  ],
+                  if (marker.reason != null) ...[
+                    const Text('Reason reported by SQLite:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    SelectableText(marker.reason!),
+                  ],
                 ],
-                if (marker.reason != null) ...[
-                  const Text('Reason reported by SQLite:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  SelectableText(marker.reason!),
-                ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+      return true;
+    });
+  }
+
+  Future<void> _acknowledgePendingMarker() async {
+    final marker = _pendingMarker;
+    if (marker == null) return;
+    final acknowledge = widget.markerAcknowledger ??
+        (widget.markerConsumer == null
+            ? NightshadeDatabase.acknowledgeRecoveryMarker
+            : null);
+    if (acknowledge == null) {
+      _pendingMarker = null;
+      return;
+    }
+    try {
+      await acknowledge(marker);
+      if (mounted) _pendingMarker = null;
+    } catch (_) {
+      if (mounted) _scheduleRetry();
+    }
+  }
+
+  void _scheduleRetry() {
+    _deferTimer?.cancel();
+    _deferTimer = Timer(const Duration(milliseconds: 100), _maybeShow);
   }
 
   @override

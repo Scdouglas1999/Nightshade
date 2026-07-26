@@ -1,17 +1,23 @@
 /// HTTP handlers for the headless API's first-run pairing flow (audit
 /// §2.1).
 ///
-/// The desktop console prints a 6-digit code; the dashboard or mobile
-/// companion user retypes it into the Pair sheet, and the server mints
-/// a long-lived bearer token in exchange. The code itself is NEVER
-/// returned in any HTTP response body so a network observer (or a
-/// logging proxy) cannot harvest it without console access — only the
-/// operator-visible stdout/log breadcrumb prints the code.
+/// The host generates a pairing code; the dashboard or mobile companion user
+/// retypes it into the Pair sheet, and the server mints a long-lived bearer
+/// token in exchange. The code itself is NEVER returned in any HTTP response
+/// body, and is NEVER written to the [LoggingService] — those entries are
+/// served to authenticated clients over `/api/logs/recent` and
+/// `/api/logs/tail`, so logging the code would publish it to the network.
+///
+/// The code reaches the operator through host-local channels only:
+///   * an owner-only (0600) `pairing-code.txt` in the app-support directory,
+///     written on every start — this is what makes code pairing usable on an
+///     unattended headless appliance with no GUI;
+///   * stdout, when the operator opted in with `--pairing-print-codes`.
 ///
 /// Endpoints owned by this class:
-///   * `POST /api/pairing/start` — begin a fresh pairing attempt. The
-///     code is logged + (optionally) printed to stdout when
-///     [PairingHandlerContext.pairingPrintCodes] is true.
+///   * `POST /api/pairing/start` — begin a fresh pairing attempt. The code is
+///     written to the operator's `pairing-code.txt` + (optionally) printed to
+///     stdout when [pairingPrintCodes] is true.
 ///   * `POST /api/pairing/verify` — exchange a typed code for a session
 ///     token. Successful verify mints a `control`-scoped token by
 ///     default; `admin` is opt-in only via `requestedScope=admin`.
@@ -28,6 +34,7 @@ library;
 import 'dart:io';
 
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 
 import '../auth/pairing_attempt_tracker.dart';
@@ -161,10 +168,10 @@ String headlessRateLimitClientKey(
 
 /// Function the handler calls when a successful verify mints a fresh
 /// session token. The server-side implementation appends the token +
-/// scope to its in-memory `_pairedSessionTokens` map so subsequent
+/// grant to its in-memory `_pairedSessionTokens` map so subsequent
 /// authenticated requests resolve immediately.
 typedef RecordPairedSession =
-    void Function(String sessionToken, HeadlessTokenScope scope);
+    void Function(String sessionToken, HeadlessAuthGrant grant);
 
 /// Function the handler calls to look up the [PairingService], lazily
 /// constructing one on first use. The server's implementation also
@@ -180,16 +187,54 @@ typedef EnsurePairingService = PairingService Function();
 /// header cannot reset the per-client pairing lockout.
 typedef RateLimitClientKey = String Function(Request request);
 
+/// Clears the BEARER-TOKEN failure bucket ([TokenResolver]) for a client key.
+///
+/// Distinct from [PairingAttemptTracker], which counts failed *pairing*
+/// attempts. The two limiters are independent, and only clearing the pairing
+/// one left a freshly-paired operator locked out: see the call sites.
+typedef ClearAuthFailures = void Function(String clientKey);
+
 /// HTTP handlers for the pairing endpoints. Constructed once per
 /// server; the lifecycle callbacks make the dependency on the server's
 /// private state explicit so the handler stays decoupled from the
 /// HeadlessApiServer class.
+/// Basename of the operator-readable file that carries the current pairing
+/// code on a headless appliance.
+const String kPairingCodeFileName = 'pairing-code.txt';
+
 class PairingHandlers {
   final PairingAttemptTracker pairingAttempts;
   final EnsurePairingService ensurePairingService;
   final RecordPairedSession recordPairedSession;
   final RateLimitClientKey rateLimitClientKey;
+
+  /// Invoked on a SUCCESSFUL pairing so the client's bearer-token failure
+  /// bucket is reset. The auth middleware checks that bucket *before* it
+  /// resolves the token — it has to, because the resolve is an O(N*L)
+  /// constant-time scan and letting unauthenticated callers drive it is a
+  /// CPU-burn vector — which means its own "clear on success" line is
+  /// unreachable while the client is limited. So a client that tripped the
+  /// limiter with a stale token stayed locked out even holding a brand-new,
+  /// valid one.
+  ///
+  /// That is the ordinary consequence of an appliance restart: every token is
+  /// invalidated, the paired tablet retries with the one it has, trips the
+  /// limiter, and the operator re-pairs — successfully — only to keep getting
+  /// 429s. Reproduced live: a token issued seconds earlier was still refused
+  /// with "Too many authentication failures".
+  ///
+  /// Clearing here does not weaken the pre-check: an attacker spamming bad
+  /// tokens cannot reach this path without completing a real pairing, which
+  /// requires being on the private LAN (lan-claim) or presenting the operator
+  /// code, and which has its own independent lockout.
+  final ClearAuthFailures clearAuthFailures;
   final bool pairingPrintCodes;
+
+  /// Directory that receives [kPairingCodeFileName]. Defaults to the parent of
+  /// the [LoggingService] log directory (the app-support root), which is where
+  /// a headless operator already goes looking. Injectable so tests can point
+  /// it at a temp dir.
+  final String? operatorCodeDirectory;
 
   /// Resolves the active pairing policy at request time (operators can change
   /// it without restarting in future; today it's fixed at boot).
@@ -201,9 +246,11 @@ class PairingHandlers {
     required this.ensurePairingService,
     required this.recordPairedSession,
     required this.rateLimitClientKey,
+    required this.clearAuthFailures,
     required this.pairingPrintCodes,
     required this.pairingMode,
     required this.logger,
+    this.operatorCodeDirectory,
   });
 
   void _logInfo(String message) =>
@@ -213,14 +260,97 @@ class PairingHandlers {
   void _logError(String message) =>
       logger.error(message, source: 'PairingHandlers');
 
+  /// Resolve the directory the pairing-code file lives in, or `null` when no
+  /// location can be determined (logging never initialised).
+  String? get _resolvedCodeDirectory {
+    final injected = operatorCodeDirectory;
+    if (injected != null && injected.isNotEmpty) return injected;
+    final logDir = logger.logDirectory;
+    if (logDir == null || logDir.isEmpty) return null;
+    // `<appSupport>/logs` -> `<appSupport>`.
+    return p.dirname(logDir);
+  }
+
+  /// Absolute path of the operator's pairing-code file, or `null`.
+  String? get pairingCodeFilePath {
+    final dir = _resolvedCodeDirectory;
+    if (dir == null) return null;
+    return p.join(dir, kPairingCodeFileName);
+  }
+
+  /// Write [code] where a headless operator can actually read it.
+  ///
+  /// Deliberately NOT the structured log. `LoggingService.log()` does not
+  /// write the on-disk `nightshade.log.<date>` file at all — that file carries
+  /// only the native Rust tracing output — it appends to an in-memory ring
+  /// buffer that is served over HTTP by `/api/logs/recent` and `/api/logs/tail`.
+  /// Logging the code therefore did the exact inverse of what this endpoint
+  /// intends: the code never reached the operator's disk, while any already
+  /// authenticated client could harvest it over the network.
+  ///
+  /// The file is written 0600 and lives outside the logs directory, so it is
+  /// not enumerable or downloadable through `/api/logs/files/...` (those routes
+  /// only ever serve `nightshade.log*`).
+  Future<String?> _writeOperatorPairingCode(
+    String code,
+    DateTime expiresAt,
+  ) async {
+    final path = pairingCodeFilePath;
+    if (path == null) {
+      _logWarning(
+        'No app-support directory resolved; the pairing code could not be '
+        'written for the operator. Start the host with '
+        '--pairing-print-codes to read it from stdout.',
+      );
+      return null;
+    }
+    try {
+      final file = File(path);
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        'code=$code\n'
+        'expires=${expiresAt.toUtc().toIso8601String()}\n',
+        flush: true,
+      );
+      // Owner-only: anyone who can read this file can pair with the rig.
+      if (!Platform.isWindows) {
+        final chmod = await Process.run('chmod', ['600', path]);
+        if (chmod.exitCode != 0) {
+          _logWarning(
+            'Could not restrict permissions on the pairing-code file at '
+            '$path (chmod exit ${chmod.exitCode}).',
+          );
+        }
+      }
+      return path;
+    } catch (e) {
+      _logError('Failed to write the pairing-code file at $path: $e');
+      return null;
+    }
+  }
+
+  /// Remove the operator's pairing-code file once the code can no longer be
+  /// used, so a spent secret does not linger on disk.
+  Future<void> _clearOperatorPairingCode() async {
+    final path = pairingCodeFilePath;
+    if (path == null) return;
+    try {
+      final file = File(path);
+      if (await file.exists()) await file.delete();
+    } catch (e) {
+      _logWarning('Failed to clear the pairing-code file at $path: $e');
+    }
+  }
+
   /// `POST /api/pairing/start` — begin a fresh pairing attempt.
   ///
   /// Rate-limited by [PairingAttemptTracker] keyed on the client's IP
   /// (or the supplied forwarded-for header). On success the response
   /// body intentionally omits the code itself — only the
-  /// `expiresAt` / `expiresInSeconds` envelope is returned; the code
-  /// goes to the operator's structured log and, when
-  /// [pairingPrintCodes] is true, to stdout.
+  /// `expiresAt` / `expiresInSeconds` envelope is returned; the code goes to
+  /// the host-local, owner-only [kPairingCodeFileName] and, when
+  /// [pairingPrintCodes] is true, to stdout. It is never logged, because the
+  /// log is remotely readable.
   Future<Response> handlePairingStart(Request request) async {
     final requestId = requestIdFrom(request);
     final clientKey = rateLimitClientKey(request);
@@ -250,20 +380,32 @@ class PairingHandlers {
     final service = ensurePairingService();
     final result = await service.startPairing();
 
-    // The code itself goes only to the operator's stdout/log so an off-host
-    // attacker cannot harvest it from HTTP traces. The dashboard polls for
-    // success on /api/pairing/verify with the user-typed code.
-    _logInfo(
-      '[PAIR][$requestId] Pairing started; enter this code on the companion '
-      'within ${service.codeLifetime.inMinutes} minutes: ${result.code}',
+    // Put the code where the operator can read it: an owner-only file on the
+    // host's own disk. The HTTP response deliberately omits the code, and the
+    // structured log MUST NOT carry it either — `LoggingService` entries are
+    // served over the network by /api/logs/recent and /api/logs/tail, so a log
+    // line containing the code would hand it to exactly the remote caller this
+    // endpoint is trying to keep it away from.
+    final codePath = await _writeOperatorPairingCode(
+      result.code,
+      result.expiresAt,
     );
 
-    // when the headless operator passed --pairing-print-codes (or set
-    // NIGHTSHADE_PAIRING_PRINT_CODES=true), echo the code to stdout. Without
-    // this, a Pi-headless first-run has no way to retrieve the code — the
-    // HTTP response intentionally omits it and the structured log file is
-    // not always tailed. Operators must opt in to this print so accidental
-    // log capture in a CI/recording context does not leak the code.
+    // The log records that pairing started and WHERE to read the code — never
+    // the code itself. The dashboard polls for success on /api/pairing/verify
+    // with the user-typed code.
+    _logInfo(
+      '[PAIR][$requestId] Pairing started; the code is valid for '
+      '${service.codeLifetime.inMinutes} minutes and was written to '
+      '${codePath ?? '(no operator-readable location available)'}',
+    );
+
+    // When the headless operator passed --pairing-print-codes (or set
+    // NIGHTSHADE_PAIRING_PRINT_CODES=true), ALSO echo the code to stdout as a
+    // convenience for an attended console/journalctl session. This stays
+    // opt-in so accidental stdout capture in a CI/recording context does not
+    // leak the code; the always-written 0600 file above is what makes code
+    // pairing usable on an unattended appliance.
     if (pairingPrintCodes) {
       // ignore: avoid_print
       print(
@@ -361,6 +503,7 @@ class PairingHandlers {
       deviceId: deviceId,
       deviceName: deviceName,
       deviceType: deviceType,
+      authGrantSpec: 'control',
     );
     if (verify.outcome != PairingVerifyOutcome.success ||
         verify.sessionToken == null) {
@@ -378,8 +521,12 @@ class PairingHandlers {
     }
 
     final token = verify.sessionToken!;
-    recordPairedSession(token, HeadlessTokenScope.control);
+    recordPairedSession(
+      token,
+      HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control),
+    );
     pairingAttempts.clear(clientKey);
+    clearAuthFailures(clientKey);
     _logInfo(
       '[PAIR][$requestId] LAN one-tap pairing granted to device=$deviceId '
       'from ${source.address}',
@@ -492,9 +639,12 @@ class PairingHandlers {
         optionalString(payload, 'deviceName', maxLength: 128) ?? 'Dashboard';
     final deviceType =
         optionalString(payload, 'deviceType', maxLength: 32) ?? 'browser';
+    // `requestedScope` accepts the coarse names (`view`/`control`/`admin`) AND
+    // a fine-grained spec (e.g. `camera:control,mount:view`). The wider cap
+    // accommodates a multi-resource spec; coarse names stay short.
     final requestedScopeRaw =
-        optionalString(payload, 'requestedScope', maxLength: 16) ?? 'control';
-    final requestedScope = parseHeadlessTokenScope(requestedScopeRaw);
+        optionalString(payload, 'requestedScope', maxLength: 256) ?? 'control';
+    final requestedGrant = _resolveRequestedGrant(requestedScopeRaw);
 
     final service = ensurePairingService();
     final result = await service.verifyPairing(
@@ -502,27 +652,25 @@ class PairingHandlers {
       deviceId: deviceId,
       deviceName: deviceName,
       deviceType: deviceType,
+      authGrantSpec: requestedGrant.toSpec(),
     );
 
     switch (result.outcome) {
       case PairingVerifyOutcome.success:
         final token = result.sessionToken!;
-        // Default to control (imaging + devices). Admin is opt-in only via
-        // requestedScope=admin so a scanned QR or LAN pairing cannot silently
-        // gain backup/filesystem privileges.
-        final grantedScope = requestedScope == HeadlessTokenScope.admin
-            ? HeadlessTokenScope.admin
-            : HeadlessTokenScope.control;
-        recordPairedSession(token, grantedScope);
+        recordPairedSession(token, requestedGrant);
         pairingAttempts.clear(clientKey);
+        clearAuthFailures(clientKey);
+        // The code is spent — do not leave it sitting on disk.
+        await _clearOperatorPairingCode();
         _logInfo(
           '[PAIR][$requestId] Pairing succeeded for device=$deviceId '
-          'scope=${headlessTokenScopeName(grantedScope)}',
+          'scope=${requestedGrant.toSpec()}',
         );
         return jsonOk(
           {
             'token': token,
-            'tokenScope': headlessTokenScopeName(grantedScope),
+            'tokenScope': requestedGrant.toSpec(),
             'expiresAt': result.expiresAt!.toUtc().toIso8601String(),
           },
           headers: {requestIdHeader: requestId},
@@ -563,5 +711,26 @@ class PairingHandlers {
           headers: {requestIdHeader: requestId},
         );
     }
+  }
+
+  /// Resolve the client-requested scope spec to the grant the pairing actually
+  /// receives. The default is `control` (imaging + devices); `admin` is opt-in
+  /// only so a scanned QR or LAN pairing cannot silently gain
+  /// backup/filesystem privileges. A coarse `view`/`control` request keeps the
+  /// historical `control` grant (pre-6.0 verify upgraded `view` to `control`);
+  /// a fine-grained spec (`camera:control,mount:view`) is honoured verbatim.
+  HeadlessAuthGrant _resolveRequestedGrant(String requestedScopeRaw) {
+    final parsed = HeadlessAuthGrant.parseSpec(requestedScopeRaw);
+    if (parsed == null) {
+      return HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
+    }
+    if (parsed.isAdmin) {
+      return HeadlessAuthGrant.admin();
+    }
+    final spec = parsed.toSpec();
+    if (spec == 'view' || spec == 'control') {
+      return HeadlessAuthGrant.fromCoarse(HeadlessTokenScope.control);
+    }
+    return parsed;
   }
 }

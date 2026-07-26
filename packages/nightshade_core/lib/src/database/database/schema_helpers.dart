@@ -294,6 +294,39 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// Add durable display-preview paths for post-session diagnostic maps.
+  ///
+  /// The original v41 schema retained only the scientific rejection-map FITS,
+  /// and retained no drizzle coverage artifact at all. The UI nevertheless
+  /// handed that FITS path to `Image.file`, so its Rejection toggle could never
+  /// decode; Coverage was permanently absent. These nullable v57 columns keep
+  /// both scientific coverage FITS and the two real PNG overlays.
+  Future<void> _ensureIntegratedMastersOverlayColumns() async {
+    if (!await _columnExists(
+      'integrated_masters',
+      'rejection_map_preview_path',
+    )) {
+      await customStatement(
+        'ALTER TABLE integrated_masters '
+        'ADD COLUMN rejection_map_preview_path TEXT',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'coverage_map_path')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN coverage_map_path TEXT',
+      );
+    }
+    if (!await _columnExists(
+      'integrated_masters',
+      'coverage_map_preview_path',
+    )) {
+      await customStatement(
+        'ALTER TABLE integrated_masters '
+        'ADD COLUMN coverage_map_preview_path TEXT',
+      );
+    }
+  }
+
   /// Create the v42 `night_reports` table — one Night Doctor report per session
   /// (and/or target) produced by the Smart Morning Report pipeline — plus its
   /// lookup indexes.
@@ -585,7 +618,16 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'output_master_id INTEGER '
       'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
       'created_at INTEGER NOT NULL,'
-      'updated_at INTEGER NOT NULL)',
+      'updated_at INTEGER NOT NULL,'
+      // v56 (Collaborative Sky WS2): when an owner publishes this project to the
+      // hub as a collaborative mosaic, `hub_mosaic_id` is the hub mosaic id (the
+      // handle claim/upload/assemble act on), `collab_role` is owner|participant,
+      // and `collab_status` mirrors the hub lifecycle (published|assembling|
+      // complete). All nullable — a local-only project never publishes.
+      // Retrofitted onto pre-v56 DBs by the v56 onUpgrade branch.
+      'hub_mosaic_id TEXT,'
+      'collab_role TEXT,'
+      'collab_status TEXT)',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_mosaic_projects_target '
@@ -594,6 +636,10 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_mosaic_projects_status '
       'ON mosaic_projects (status)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_mosaic_projects_hub '
+      'ON mosaic_projects (hub_mosaic_id)',
     );
 
     await customStatement(
@@ -609,6 +655,18 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
       'captured_count INTEGER NOT NULL DEFAULT 0,'
       "status TEXT NOT NULL DEFAULT 'pending',"
+      // v56 (Collaborative Sky WS2): distributed-capture panel claim. When a
+      // mosaic is published to the hub, a panel is claimed by a rig/user (the
+      // hand-off baton pattern), and its uploaded panel master is tracked here.
+      // `assigned_rig_id` / `assigned_user_id` carry the hub identities,
+      // `claim_token` the hub-issued claim baton, and `uploaded_master_id` the
+      // local `integrated_masters.id` of the panel master uploaded. All
+      // nullable — a panel is unclaimed until a rig takes it. Retrofitted onto
+      // pre-v56 DBs by the v56 onUpgrade branch.
+      'assigned_rig_id TEXT,'
+      'assigned_user_id TEXT,'
+      'claim_token TEXT,'
+      'uploaded_master_id INTEGER,'
       'UNIQUE(project_id, panel_index))',
     );
     await customStatement(
@@ -635,6 +693,19 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       "tags_json TEXT NOT NULL DEFAULT '[]',"
       'notes TEXT,'
       'camera_id TEXT,'
+      // v56 (Collaborative Sky WS1): sharing / provenance. `shared_by` is the
+      // sharer's hub account id, `shared_at` an epoch-seconds timestamp,
+      // `license` a `ContributionLicense` wire name, and `provenance_json` a
+      // serialized [Provenance]. `published_remote_id` is the hub master id this
+      // LOCAL master was published under (the WS1 owner-scoped retract handle);
+      // null until the master is shared, cleared again on retract. All nullable —
+      // a master is local-only until shared. Retrofitted onto pre-v56 DBs by the
+      // v56 onUpgrade branch.
+      'shared_by TEXT,'
+      'shared_at INTEGER,'
+      'license TEXT,'
+      'provenance_json TEXT,'
+      'published_remote_id TEXT,'
       'updated_at INTEGER NOT NULL,'
       'UNIQUE(master_type, master_id))',
     );

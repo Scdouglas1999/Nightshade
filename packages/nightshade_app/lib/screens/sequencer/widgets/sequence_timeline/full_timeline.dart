@@ -329,6 +329,10 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
                 colors: widget.colors,
                 color: widget.colors.textMuted,
                 label: 'Wait'),
+            _LegendItem(
+                colors: widget.colors,
+                color: widget.colors.textSecondary,
+                label: 'Other'),
             if (showOverlay) ...[
               const SizedBox(width: 8),
               _LegendItem(

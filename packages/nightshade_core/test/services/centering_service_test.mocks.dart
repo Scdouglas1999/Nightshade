@@ -135,6 +135,12 @@ class MockImagingService extends _i1.Mock implements _i4.ImagingService {
   );
 
   @override
+  void retire() => super.noSuchMethod(
+    Invocation.method(#retire, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   void resetFrameCounter() => super.noSuchMethod(
     Invocation.method(#resetFrameCounter, []),
     returnValueForMissingStub: null,
@@ -205,6 +211,12 @@ class MockPlateSolveService extends _i1.Mock implements _i7.PlateSolveService {
           as _i5.Future<_i2.PlateSolveResult>);
 
   @override
+  void retire() => super.noSuchMethod(
+    Invocation.method(#retire, []),
+    returnValueForMissingStub: null,
+  );
+
+  @override
   _i5.Future<_i3.PlateSolverDetection> detect() =>
       (super.noSuchMethod(
             Invocation.method(#detect, []),
@@ -244,6 +256,15 @@ class MockPlateSolveService extends _i1.Mock implements _i7.PlateSolveService {
   _i5.Future<void> setConfig(_i3.PlateSolverPreference? pref) =>
       (super.noSuchMethod(
             Invocation.method(#setConfig, [pref]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> ensureSolverAvailable() =>
+      (super.noSuchMethod(
+            Invocation.method(#ensureSolverAvailable, []),
             returnValue: _i5.Future<void>.value(),
             returnValueForMissingStub: _i5.Future<void>.value(),
           )
@@ -485,9 +506,13 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           as _i5.Future<void>);
 
   @override
-  _i5.Future<void> connectGuider(String? deviceId) =>
+  _i5.Future<void> connectGuider(String? deviceId, {String? host, int? port}) =>
       (super.noSuchMethod(
-            Invocation.method(#connectGuider, [deviceId]),
+            Invocation.method(
+              #connectGuider,
+              [deviceId],
+              {#host: host, #port: port},
+            ),
             returnValue: _i5.Future<void>.value(),
             returnValueForMissingStub: _i5.Future<void>.value(),
           )
@@ -509,6 +534,12 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             returnValue: false,
           )
           as bool);
+
+  @override
+  void markUserInitiatedDisconnect(String? deviceId) => super.noSuchMethod(
+    Invocation.method(#markUserInitiatedDisconnect, [deviceId]),
+    returnValueForMissingStub: null,
+  );
 
   @override
   _i5.Future<void> connectDome(String? deviceId) =>
@@ -595,6 +626,15 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
   _i5.Future<void> setSwitchChannel(int? channelIndex, bool? on) =>
       (super.noSuchMethod(
             Invocation.method(#setSwitchChannel, [channelIndex, on]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> setSwitchChannelValue(int? channelIndex, double? value) =>
+      (super.noSuchMethod(
+            Invocation.method(#setSwitchChannelValue, [channelIndex, value]),
             returnValue: _i5.Future<void>.value(),
             returnValueForMissingStub: _i5.Future<void>.value(),
           )
@@ -850,6 +890,24 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           as _i5.Future<void>);
 
   @override
+  _i5.Future<void> setRotatorReversed(bool? reversed) =>
+      (super.noSuchMethod(
+            Invocation.method(#setRotatorReversed, [reversed]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> syncRotatorToPa(double? positionAngle) =>
+      (super.noSuchMethod(
+            Invocation.method(#syncRotatorToPa, [positionAngle]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
   _i5.Future<_i2.AutofocusResult> runAutofocus({
     required double? exposureTime,
     required int? stepSize,
@@ -884,9 +942,27 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           as _i5.Future<_i2.AutofocusResult>);
 
   @override
+  _i5.Future<void> cancelAutofocus() =>
+      (super.noSuchMethod(
+            Invocation.method(#cancelAutofocus, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
   _i5.Future<void> setFilterWheelPosition(int? position) =>
       (super.noSuchMethod(
             Invocation.method(#setFilterWheelPosition, [position]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> setFilterWheelNames(List<String>? names) =>
+      (super.noSuchMethod(
+            Invocation.method(#setFilterWheelNames, [names]),
             returnValue: _i5.Future<void>.value(),
             returnValueForMissingStub: _i5.Future<void>.value(),
           )

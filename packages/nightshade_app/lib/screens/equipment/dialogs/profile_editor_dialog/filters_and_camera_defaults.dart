@@ -7,6 +7,10 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
   // ============================================================================
 
   Widget _buildFiltersSection(NightshadeColors colors, ThemeData theme) {
+    final filterWheelState = ref.watch(filterWheelStateProvider);
+    final wheelConnected =
+        filterWheelState.connectionState == DeviceConnectionState.connected &&
+            (filterWheelState.deviceId?.isNotEmpty ?? false);
     return _SectionCard(
       title: 'Filters (${_filterControllers.length} slots)',
       icon: LucideIcons.filter,
@@ -15,7 +19,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
           () => _expandedSections['filters'] = !_expandedSections['filters']!),
       summary: _filterControllers.isEmpty
           ? 'No filters'
-          : '${_filterControllers.length} filters',
+          : countLabel(_filterControllers.length, 'filter'),
       colors: colors,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,11 +110,16 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                 onPressed: _addFilter,
               ),
               const Spacer(),
-              NightshadeButton(
-                label: 'Auto-detect from wheel',
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
-                onPressed: _autoDetectFilters,
+              Tooltip(
+                message: wheelConnected
+                    ? 'Read the filter names from the connected wheel.'
+                    : 'Connect the filter wheel to auto-detect filters',
+                child: NightshadeButton(
+                  label: 'Auto-detect from wheel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  onPressed: wheelConnected ? _autoDetectFilters : null,
+                ),
               ),
             ],
           ),

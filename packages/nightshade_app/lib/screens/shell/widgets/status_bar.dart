@@ -40,14 +40,33 @@ final _savePathStatusProvider = FutureProvider<_SavePathStatus>((ref) async {
     return const _SavePathStatus(path: '', exists: false);
   }
 
+  final backend = ref.watch(backendProvider);
   bool exists;
   try {
-    exists = await Directory(savePath).exists();
+    exists = await configuredSavePathExists(backend, savePath);
   } catch (_) {
     exists = false;
   }
   return _SavePathStatus(path: savePath, exists: exists);
 });
+
+/// Checks the configured capture directory on the machine that performs the
+/// capture. A remote controller cannot infer host-path validity from its own
+/// filesystem.
+Future<bool> configuredSavePathExists(
+  NightshadeBackend backend,
+  String savePath,
+) async {
+  if (backend is NetworkBackend) {
+    final validation = await backend.validateRemoteDirectory(
+      savePath,
+      mustExist: true,
+      mustBeWritable: false,
+    );
+    return validation['valid'] == true;
+  }
+  return Directory(savePath).exists();
+}
 
 class StatusBar extends ConsumerStatefulWidget {
   /// When true, uses a horizontally scrollable strip and hides desktop-only
@@ -117,7 +136,22 @@ class _StatusBarState extends ConsumerState<StatusBar>
 
   @override
   Widget build(BuildContext context) {
+    // The desktop bar's density is chosen from its own width, not the window's,
+    // so an embedded or split view gets the same treatment.
+    return LayoutBuilder(
+      builder: (context, constraints) => _build(context, constraints.maxWidth),
+    );
+  }
+
+  Widget _build(BuildContext context, double availableWidth) {
     final colors = NightshadeColors.of(context);
+    // Below the desktop breakpoint the full-width pills do not fit: the leading
+    // group scrolled, which on a desktop mouse is close to undiscoverable, and
+    // the viewport edge sliced a label mid-word ("Mount Dis") so the bar simply
+    // read as broken. Shedding the static label words buys back ~50 px a pill,
+    // which is enough for the whole strip to fit at 800 px.
+    final dense =
+        !widget.compact && availableWidth < BreakpointTokens.breakpointDesktop;
     final savePathStatus = ref.watch(_savePathStatusProvider).valueOrNull ??
         const _SavePathStatus(path: '', exists: false);
 
@@ -165,6 +199,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         isConnected: cameraConnected,
         colors: colors,
         compact: widget.compact,
+        dense: dense,
       ),
       const SizedBox(width: 8),
       _StatusPillButton(
@@ -177,6 +212,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         isConnected: mountConnected,
         colors: colors,
         compact: widget.compact,
+        dense: dense,
       ),
       const SizedBox(width: 8),
       _StatusPillButton(
@@ -188,6 +224,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         isConnected: guiderConnected,
         colors: colors,
         compact: widget.compact,
+        dense: dense,
       ),
       const SizedBox(width: 8),
       _StatusPillButton(
@@ -199,6 +236,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         isConnected: focuserConnected,
         colors: colors,
         compact: widget.compact,
+        dense: dense,
       ),
       const SizedBox(width: 4),
       _TempCompIndicator(colors: colors),
@@ -269,15 +307,74 @@ class _StatusBarState extends ConsumerState<StatusBar>
                 children: [...leading, ...trailing],
               ),
             )
+          // Desktop: the device pills take the slack and scroll when there is
+          // none; the readouts on the right are never sacrificed. A bare
+          // Row + Spacer silently CLIPPED the trailing group at narrow window
+          // widths — at 1000x700 the clock and LST readouts were gone entirely
+          // and at 800x600 the save-path chip was cut mid-word ("No s"), with
+          // no ellipsis and no way to reach either.
           : Row(
               children: [
-                ...leading,
-                const Spacer(),
+                // Expanded, not Flexible: a SingleChildScrollView shrink-wraps
+                // under a loose constraint, which would let the readouts drift
+                // left off the right edge. A tight fit makes the pill group take
+                // all the slack — the job the old Spacer did — and scroll only
+                // once the slack runs out.
+                Expanded(
+                  child: NotificationListener<ScrollMetricsNotification>(
+                    onNotification: (notification) {
+                      _setPillsOverflow(
+                        notification.metrics.maxScrollExtent > 0,
+                      );
+                      return false;
+                    },
+                    // Even after the labels are shed, a narrow bar with a long
+                    // profile name can still hold more pills than fit. Scrolling
+                    // alone is silent — the bar simply ended and looked complete,
+                    // so a disconnected mount was indistinguishable from no mount
+                    // at all. The fade says "there is more this way"; it appears
+                    // only while the group actually overflows.
+                    child: _pillsOverflow
+                        ? ShaderMask(
+                            shaderCallback: _fadeRightEdge,
+                            blendMode: BlendMode.dstIn,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(children: leading),
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(children: leading),
+                          ),
+                  ),
+                ),
                 ...trailing,
               ],
             ),
     );
   }
+
+  /// True while the pill group has content past its right edge.
+  bool _pillsOverflow = false;
+
+  void _setPillsOverflow(bool value) {
+    if (_pillsOverflow == value) return;
+    // The notification arrives during layout; defer so this is not a setState
+    // inside a build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _pillsOverflow == value) return;
+      setState(() => _pillsOverflow = value);
+    });
+  }
+
+  /// Alpha ramp that dissolves the last 24 px of the pill group.
+  static Shader _fadeRightEdge(Rect bounds) => const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [Colors.white, Colors.white, Colors.transparent],
+        stops: [0.0, 0.92, 1.0],
+      ).createShader(bounds);
 
   String _formatPathLabel(String path) {
     final normalized = p.normalize(path);

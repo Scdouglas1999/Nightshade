@@ -1,9 +1,13 @@
 // Plugin management service.
 //
-// Backs the headless `/api/plugins*` endpoints. Responsibilities:
+// Legacy uploaded-plugin archive registry.
 //
-//   * Persist uploaded plugin archive bytes to disk under
-//     `<appData>/Nightshade/plugins/` (created on demand).
+// Current Dart AOT builds cannot execute uploaded plugin source. The headless
+// plugin handler uses this service only to identify and remove inert archives
+// left by older builds. Live plugin state comes from PluginHost.
+//
+// Historical responsibilities retained for registry migration/tests:
+//   * Persist plugin archive bytes to disk under `<appData>/Nightshade/plugins/`.
 //   * Compute and verify a SHA-256 fingerprint per archive. This is the
 //     real "signature" scheme for this wave: a manifest declares the
 //     expected digest, and on every upload we recompute and compare. A
@@ -11,12 +15,7 @@
 //     SHA-256 path is sufficient to catch corrupted uploads and
 //     tampered-in-transit payloads, which is the actual threat model
 //     for a LAN deployment.
-//   * Track enabled/disabled state in a sidecar JSON file so toggling
-//     a plugin survives a process restart even though the in-memory
-//     [PluginHost] is recreated.
-//   * Expose `listPlugins / install / enable / disable / uninstall` as
-//     pure async methods so the headless handler is a thin shelf-level
-//     wrapper.
+//   * Track the old enabled/disabled preference in a sidecar JSON file.
 //
 // Why this lives in `nightshade_core` (not `nightshade_plugins`):
 // `nightshade_plugins` is the API surface plugin AUTHORS implement.
@@ -56,13 +55,11 @@ class InstalledPluginManifest {
   /// Plugin description.
   final String? description;
 
-  /// Whether the plugin is currently flagged as enabled by the operator.
-  /// Note: this is the persisted preference, not the runtime state of
-  /// any loaded [LoadedPlugin] in PluginHost — the latter only exists
-  /// for plugins the host could compile in. The headless management
-  /// surface is intentionally decoupled so a freshly-installed plugin
-  /// can be marked "enabled" before the next process restart actually
-  /// loads it.
+  /// Historical operator preference stored by the old archive API.
+  ///
+  /// This is never runtime state. Restarting cannot load the archive in a Dart
+  /// AOT build; headless responses override this to false and identify the row
+  /// as a non-runnable uploaded archive.
   final bool enabled;
 
   /// Whether a signature (SHA-256 manifest hash) was supplied at install
@@ -93,8 +90,8 @@ class InstalledPluginManifest {
   /// Original filename submitted with the upload (e.g. `my_plugin.nsplugin`).
   final String? installedFilename;
 
-  /// Surfaced when load attempts failed at the PluginHost layer. Null
-  /// when the plugin loaded cleanly or has not been load-attempted yet.
+  /// Archive verification/availability error. Uploaded archives are not
+  /// passed to PluginHost by current builds.
   final String? loadError;
 
   const InstalledPluginManifest({
@@ -180,6 +177,17 @@ class PluginNotFoundException implements Exception {
   String toString() => 'Plugin not found: $pluginId';
 }
 
+/// Raised when the on-disk legacy plugin registry cannot be trusted. Treating
+/// this as an empty registry would allow the next mutation to erase recoverable
+/// entries, so callers must surface the failure and leave the file untouched.
+class PluginRegistryException implements Exception {
+  final String reason;
+  PluginRegistryException(this.reason);
+
+  @override
+  String toString() => 'Plugin registry error: $reason';
+}
+
 /// Service that owns the on-disk plugin registry. Single producer of
 /// truth — the headless handlers never touch the file system directly.
 class PluginManagementService {
@@ -195,6 +203,7 @@ class PluginManagementService {
   /// Override for the plugin directory. Tests inject this; production
   /// resolves it from `path_provider`.
   final Future<Directory> Function()? _directoryOverride;
+  Future<void> _mutationTail = Future<void>.value();
 
   PluginManagementService({
     required LoggingService logger,
@@ -272,6 +281,18 @@ class PluginManagementService {
     List<int> bytes, {
     required String filename,
     String? declaredSha256,
+  }) => _serializeMutation(
+    () => _installFromBytes(
+      bytes,
+      filename: filename,
+      declaredSha256: declaredSha256,
+    ),
+  );
+
+  Future<InstalledPluginManifest> _installFromBytes(
+    List<int> bytes, {
+    required String filename,
+    String? declaredSha256,
   }) async {
     if (bytes.isEmpty) {
       throw PluginVerificationException('Uploaded plugin is empty');
@@ -305,21 +326,25 @@ class PluginManagementService {
 
     final author = (manifestJson['author'] as String?)?.trim();
     final description = (manifestJson['description'] as String?)?.trim();
+    // Load before writing anything. A corrupt registry must not leave a new
+    // orphan archive behind or be replaced with a one-entry registry.
+    final registry = await _loadRegistry();
+    final previous = registry[id];
 
     // Persist the archive next to existing plugins. The filename is
-    // namespaced by plugin id so two plugins with the same uploaded
-    // filename cannot collide.
-    final safeFilename = '${_sanitizeId(id)}-${path.basename(filename)}';
+    // namespaced by plugin id and content hash. Version updates therefore do
+    // not overwrite the archive referenced by the last committed registry.
+    final safeFilename =
+        '${_sanitizeId(id)}-${actualHash.substring(0, 12)}-'
+        '${path.basename(filename)}';
     final targetFile = File(path.join(pluginDir.path, safeFilename));
     await targetFile.writeAsBytes(bytes, flush: true);
 
-    final registry = await _loadRegistry();
     // Preserve the operator's existing enabled/disabled flag on
     // re-upload (the common case: plugin author publishes a new version
     // of an already-installed plugin). Default to enabled for a fresh
     // install so the operator does not have to enable separately after
     // upload.
-    final previous = registry[id];
     final manifest = InstalledPluginManifest(
       id: id,
       name: name,
@@ -335,28 +360,30 @@ class PluginManagementService {
       installedFilename: safeFilename,
     );
 
-    // If we're replacing a previous version, drop the old archive on
-    // disk — we only keep the latest copy per plugin id.
-    if (previous != null &&
-        previous.installedFilename != null &&
-        previous.installedFilename != safeFilename) {
-      final oldFile = File(
-        path.join(pluginDir.path, previous.installedFilename!),
-      );
+    registry[id] = manifest;
+    try {
+      await _saveRegistry(registry);
+    } catch (_) {
+      if (previous?.installedFilename != safeFilename &&
+          await targetFile.exists()) {
+        await targetFile.delete();
+      }
+      rethrow;
+    }
+
+    // The new registry is durable before the previous archive is removed.
+    if (previous?.installedFilename case final oldFilename?
+        when oldFilename != safeFilename) {
+      final oldFile = File(path.join(pluginDir.path, oldFilename));
       try {
-        if (await oldFile.exists()) {
-          await oldFile.delete();
-        }
+        if (await oldFile.exists()) await oldFile.delete();
       } catch (e) {
-        _logger.debug(
-          'Failed to delete old plugin archive: $e',
+        _logger.warning(
+          'Installed $id but could not remove its superseded archive: $e',
           source: 'PluginManagementService',
         );
       }
     }
-
-    registry[id] = manifest;
-    await _saveRegistry(registry);
     _logger.info(
       'Installed plugin $id (${manifest.version}) sha=${manifest.sha256}',
       source: 'PluginManagementService',
@@ -365,7 +392,10 @@ class PluginManagementService {
   }
 
   /// Set the enabled flag for [pluginId]. Returns the updated manifest.
-  Future<InstalledPluginManifest> setEnabled(
+  Future<InstalledPluginManifest> setEnabled(String pluginId, bool enabled) =>
+      _serializeMutation(() => _setEnabled(pluginId, enabled));
+
+  Future<InstalledPluginManifest> _setEnabled(
     String pluginId,
     bool enabled,
   ) async {
@@ -386,21 +416,29 @@ class PluginManagementService {
 
   /// Uninstall a plugin: remove its archive and registry entry. No-op if
   /// the id is unknown (the caller can treat 404 as idempotent).
-  Future<void> uninstall(String pluginId) async {
+  Future<void> uninstall(String pluginId) =>
+      _serializeMutation(() => _uninstall(pluginId));
+
+  Future<void> _uninstall(String pluginId) async {
     final registry = await _loadRegistry();
     final existing = registry[pluginId];
     if (existing == null) {
       throw PluginNotFoundException(pluginId);
     }
+    registry.remove(pluginId);
+    await _saveRegistry(registry);
     if (existing.installedFilename != null) {
       final pluginDir = await _pluginDirectory();
       final file = File(path.join(pluginDir.path, existing.installedFilename!));
-      if (await file.exists()) {
-        await file.delete();
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (e) {
+        _logger.warning(
+          'Uninstalled $pluginId but could not remove its archived payload: $e',
+          source: 'PluginManagementService',
+        );
       }
     }
-    registry.remove(pluginId);
-    await _saveRegistry(registry);
     _logger.info(
       'Uninstalled plugin $pluginId',
       source: 'PluginManagementService',
@@ -424,52 +462,71 @@ class PluginManagementService {
   Future<Map<String, InstalledPluginManifest>> _loadRegistry() async {
     final pluginDir = await _pluginDirectory();
     final file = File(path.join(pluginDir.path, registryFileName));
+    final backup = File('${file.path}.bak');
     if (!await file.exists()) {
-      return <String, InstalledPluginManifest>{};
+      if (!await backup.exists()) {
+        return <String, InstalledPluginManifest>{};
+      }
+      final recovered = await _decodeRegistryFile(backup);
+      // A save interrupted between moving the old registry aside and promoting
+      // the new file leaves only .bak. Restore a readable main copy while
+      // retaining the backup until the next successful atomic save.
+      await backup.copy(file.path);
+      return recovered;
     }
+
+    return _decodeRegistryFile(file);
+  }
+
+  Future<Map<String, InstalledPluginManifest>> _decodeRegistryFile(
+    File file,
+  ) async {
     try {
       final raw = await file.readAsString();
       if (raw.trim().isEmpty) {
-        return <String, InstalledPluginManifest>{};
+        throw PluginRegistryException('${file.path} is empty');
       }
       final decoded = jsonDecode(raw);
       if (decoded is! Map) {
-        _logger.warning(
-          'Plugin registry is not a JSON object; treating as empty.',
-          source: 'PluginManagementService',
+        throw PluginRegistryException(
+          '${file.path} does not contain a JSON object',
         );
-        return <String, InstalledPluginManifest>{};
       }
       // The on-disk layout is `{"version": N, "plugins": {id: {...}}}`.
       // We iterate the `plugins` sub-map, not the envelope itself, so the
       // `version` field doesn't trip the manifest decoder.
       final pluginsMap = decoded['plugins'];
       if (pluginsMap is! Map) {
-        return <String, InstalledPluginManifest>{};
+        throw PluginRegistryException('${file.path} has no `plugins` object');
       }
       final out = <String, InstalledPluginManifest>{};
       for (final entry in pluginsMap.entries) {
+        final key = entry.key;
         final value = entry.value;
-        if (value is! Map) continue;
-        try {
-          final manifest = _manifestFromRegistryJson(
-            value.cast<String, dynamic>(),
-          );
-          out[manifest.id] = manifest;
-        } catch (e) {
-          _logger.warning(
-            'Skipping malformed registry entry for ${entry.key}: $e',
-            source: 'PluginManagementService',
+        if (key is! String || key.trim().isEmpty || value is! Map) {
+          throw PluginRegistryException(
+            '${file.path} contains a malformed plugin entry',
           );
         }
+        final manifest = _manifestFromRegistryJson(
+          value.cast<String, dynamic>(),
+        );
+        if (manifest.id != key) {
+          throw PluginRegistryException(
+            '${file.path} entry `$key` declares id `${manifest.id}`',
+          );
+        }
+        out[key] = manifest;
       }
       return out;
+    } on PluginRegistryException {
+      rethrow;
     } catch (e, st) {
       _logger.error(
         'Failed to read plugin registry: $e\n$st',
         source: 'PluginManagementService',
       );
-      return <String, InstalledPluginManifest>{};
+      throw PluginRegistryException('Failed to read ${file.path}: $e');
     }
   }
 
@@ -484,12 +541,33 @@ class PluginManagementService {
         for (final entry in registry.entries) entry.key: entry.value.toJson(),
       },
     });
-    await file.writeAsString(encoded, flush: true);
+    final temporary = File('${file.path}.tmp');
+    final backup = File('${file.path}.bak');
+    await temporary.writeAsString(encoded, flush: true);
+    try {
+      if (await backup.exists()) await backup.delete();
+      if (await file.exists()) await file.rename(backup.path);
+      try {
+        await temporary.rename(file.path);
+      } catch (_) {
+        if (!await file.exists() && await backup.exists()) {
+          await backup.rename(file.path);
+        }
+        rethrow;
+      }
+      if (await backup.exists()) await backup.delete();
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 
   InstalledPluginManifest _manifestFromRegistryJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    if (id is! String || id.trim().isEmpty) {
+      throw PluginRegistryException('Plugin registry entry has no valid `id`');
+    }
     return InstalledPluginManifest(
-      id: json['id'] as String,
+      id: id,
       name: json['name'] as String? ?? '',
       version: json['version'] as String? ?? '',
       author: json['author'] as String?,
@@ -505,6 +583,12 @@ class PluginManagementService {
       installedFilename: json['installedFilename'] as String?,
       loadError: json['loadError'] as String?,
     );
+  }
+
+  Future<T> _serializeMutation<T>(Future<T> Function() operation) {
+    final run = _mutationTail.then((_) => operation());
+    _mutationTail = run.then<void>((_) {}, onError: (_, __) {});
+    return run;
   }
 
   /// Inspect the front of an upload's byte stream for an embedded

@@ -63,6 +63,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
   Widget build(BuildContext context) {
     final sequence = ref.watch(currentSequenceProvider);
     final progress = ref.watch(sequenceProgressProvider);
+    final canEdit = ref.watch(canEditSequenceProvider);
     final colors = NightshadeColors.of(context);
 
     if (sequence == null) {
@@ -107,7 +108,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
             // "enter reorder mode"; we keep the standard 500ms hold instead
             // of a custom recogniser so users get the platform feedback.
             buildDefaultDragHandles: true,
-            onReorder: (oldIndex, newIndex) =>
+            onReorderItem: (oldIndex, newIndex) =>
                 _handleReorder(sequence, rows, oldIndex, newIndex),
             itemBuilder: (context, index) {
               final row = rows[index];
@@ -119,6 +120,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
                 isCurrent: isCurrent,
                 progressPct: progress.nodeProgressPercent[row.node.id],
                 colors: colors,
+                canEdit: canEdit,
                 onTap: () => _openProperties(context, row.node),
                 onDismissed: () => _deleteWithUndo(context, sequence, row.node),
               );
@@ -189,13 +191,14 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     if (oldIndex == newIndex) return;
     if (oldIndex < 0 || oldIndex >= rows.length) return;
 
-    // Flutter convention: when moving down, newIndex is the post-removal
-    // slot, so adjust to the actual destination row index.
-    final adjustedNew = oldIndex < newIndex ? newIndex - 1 : newIndex;
-    if (adjustedNew < 0 || adjustedNew >= rows.length) return;
+    // `onReorderItem` supplies the destination index after accounting for
+    // removal of the source row. The deprecated `onReorder` callback did not,
+    // which required a manual moving-down correction and made this easy to
+    // double-adjust during Flutter upgrades.
+    if (newIndex < 0 || newIndex >= rows.length) return;
 
     final src = rows[oldIndex];
-    final dst = rows[adjustedNew];
+    final dst = rows[newIndex];
 
     if (src.parentId != dst.parentId) {
       // Cross-parent moves require a destination picker. Surface the gap
@@ -301,15 +304,17 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
   void _restoreSubtree(_SubtreeSnapshot snap) {
     final notifier = ref.read(currentSequenceProvider.notifier);
     // Re-add the root at the original parent + index, then re-add the
-    // descendants in DFS order. The editor's `addNode` rebuilds the
-    // parent's child list and renumbers orderIndex, so we're safe to
-    // splice the root back into the same slot.
-    final rootNode = snap.nodes.first;
+    // descendants in DFS order. Each node is re-added with its childIds
+    // cleared: `addNode` appends the node to its parent's child list with no
+    // dedup, so re-adding a node whose childIds still listed its descendants
+    // would append each child a second time and duplicate the whole subtree.
+    // The DFS re-add rebuilds every parent's childIds exactly once instead.
+    final rootNode = snap.nodes.first.copyWith(childIds: const []);
     try {
       notifier.addNode(rootNode,
           parentId: snap.parentId, index: snap.indexInParent);
       for (var i = 1; i < snap.nodes.length; i++) {
-        final child = snap.nodes[i];
+        final child = snap.nodes[i].copyWith(childIds: const []);
         final parentId = child.parentId;
         if (parentId == null) continue;
         notifier.addNode(child, parentId: parentId);
@@ -336,7 +341,9 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NightshadeTokens.radiusXl),
+        ),
       ),
       builder: (sheetCtx) => DraggableScrollableSheet(
         expand: false,
@@ -369,7 +376,9 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NightshadeTokens.radiusXl),
+        ),
       ),
       builder: (sheetCtx) => DraggableScrollableSheet(
         expand: false,
@@ -424,6 +433,7 @@ class _MobileNodeRow extends StatelessWidget {
   final bool isCurrent;
   final double? progressPct;
   final NightshadeColors colors;
+  final bool canEdit;
   final VoidCallback onTap;
   final VoidCallback onDismissed;
 
@@ -434,6 +444,7 @@ class _MobileNodeRow extends StatelessWidget {
     required this.isCurrent,
     required this.progressPct,
     required this.colors,
+    required this.canEdit,
     required this.onTap,
     required this.onDismissed,
   });
@@ -445,6 +456,17 @@ class _MobileNodeRow extends StatelessWidget {
     return Dismissible(
       key: ValueKey('mobile-seq-dismiss-${row.node.id}'),
       direction: DismissDirection.endToStart,
+      // While the executor owns the tree, `removeNode` throws and the row
+      // must not dismiss — returning false keeps the Dismissible in the tree
+      // (a dismissed-but-still-present widget red-screens on the next rebuild).
+      confirmDismiss: canEdit
+          ? null
+          : (_) async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Cannot delete while running')),
+              );
+              return false;
+            },
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -846,7 +868,7 @@ class _RecoveryActionsState extends State<_RecoveryActions> {
               variant: ButtonVariant.destructive,
               size: ButtonSize.small,
               isLoading: _abortBusy,
-              onPressed: () {},
+              onPressed: _abort,
             ),
           ),
         ),

@@ -108,7 +108,9 @@ class FilterWheelState extends Equatable {
   });
 
   String? get currentFilterName {
-    if (currentPosition != null && currentPosition! < filterNames.length) {
+    if (currentPosition != null &&
+        currentPosition! >= 0 &&
+        currentPosition! < filterNames.length) {
       return filterNames[currentPosition!];
     }
     return null;

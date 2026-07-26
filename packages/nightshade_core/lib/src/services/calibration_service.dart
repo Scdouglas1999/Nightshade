@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -7,6 +8,8 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:path/path.dart' as path;
 
 import '../backend/network_backend.dart';
+import '../backend/nightshade_backend.dart';
+import '../models/backend/host_mutation_event.dart';
 import '../providers/backend_provider.dart';
 import '../providers/dark_library_provider.dart';
 import '../services/dark_library_service.dart';
@@ -34,12 +37,22 @@ class CalibrationSettings {
   /// Manual dark path override (used if [autoDarkFromLibrary] is false).
   final String? manualDarkPath;
 
+  /// True while a remote controller is loading the imaging host's snapshot.
+  /// Local/host settings are fed by the Drift stream and never use this flag.
+  final bool isLoading;
+
+  /// The last remote snapshot error. Keeping it in the state prevents a
+  /// disconnected phone from presenting default values as the host's truth.
+  final Object? loadError;
+
   const CalibrationSettings({
     this.autoCalibrate = false,
     this.masterFlatPath,
     this.masterBiasPath,
     this.autoDarkFromLibrary = true,
     this.manualDarkPath,
+    this.isLoading = false,
+    this.loadError,
   });
 
   /// Returns a copy with the given fields replaced.
@@ -51,6 +64,8 @@ class CalibrationSettings {
     Object? masterBiasPath = _sentinel,
     bool? autoDarkFromLibrary,
     Object? manualDarkPath = _sentinel,
+    bool? isLoading,
+    Object? loadError = _sentinel,
   }) {
     return CalibrationSettings(
       autoCalibrate: autoCalibrate ?? this.autoCalibrate,
@@ -64,6 +79,38 @@ class CalibrationSettings {
       manualDarkPath: manualDarkPath == _sentinel
           ? this.manualDarkPath
           : manualDarkPath as String?,
+      isLoading: isLoading ?? this.isLoading,
+      loadError: loadError == _sentinel ? this.loadError : loadError,
+    );
+  }
+
+  /// Strictly decode the complete host snapshot returned by
+  /// `GET /api/calibration/settings`.
+  factory CalibrationSettings.fromRemoteJson(Map<String, dynamic> json) {
+    final autoCalibrate = json['autoCalibrate'];
+    final autoDarkFromLibrary = json['autoDarkFromLibrary'];
+    if (autoCalibrate is! bool || autoDarkFromLibrary is! bool) {
+      throw const FormatException(
+        'Malformed calibration settings from imaging host',
+      );
+    }
+
+    String? nullablePath(String key) {
+      final value = json[key];
+      if (value == null) return null;
+      if (value is! String) {
+        throw FormatException('Malformed calibration path "$key"');
+      }
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+
+    return CalibrationSettings(
+      autoCalibrate: autoCalibrate,
+      masterFlatPath: nullablePath('masterFlatPath'),
+      masterBiasPath: nullablePath('masterBiasPath'),
+      autoDarkFromLibrary: autoDarkFromLibrary,
+      manualDarkPath: nullablePath('manualDarkPath'),
     );
   }
 }
@@ -109,12 +156,32 @@ class CalibrationResult {
 /// bias correction) via the FFI bridge.
 class CalibrationService {
   final Ref _ref;
+  final NightshadeBackend _backend;
+  final BackendNotifier _backendNotifier;
+  final LoggingService _logger;
+  bool _retired = false;
 
-  CalibrationService(this._ref);
-
-  LoggingService get _logger => _ref.read(loggingServiceProvider);
+  CalibrationService(Ref ref, {NightshadeBackend? backend})
+    : _ref = ref,
+      _backend = backend ?? ref.read(backendProvider),
+      _backendNotifier = ref.read(backendProvider.notifier),
+      _logger = ref.read(loggingServiceProvider);
 
   DarkLibraryService get _darkLibrary => _ref.read(darkLibraryServiceProvider);
+
+  bool get _hasAuthority =>
+      !_retired && _backendNotifier.isCurrentBackend(_backend);
+
+  void retire() => _retired = true;
+
+  void _ensureAuthority() {
+    if (_hasAuthority) return;
+    throw StateError(
+      'The imaging host changed while calibration was in progress. The '
+      'outgoing result was discarded; calibrate the frame again on the '
+      'current host.',
+    );
+  }
 
   /// Calibrate a light frame file using the provided settings.
   ///
@@ -136,9 +203,10 @@ class CalibrationService {
     int binY = 1,
     double? sensorTemperature,
   }) async {
+    _ensureAuthority();
     _logger.info('Calibrating: $lightPath', source: 'CalibrationService');
 
-    final backend = _ref.read(backendProvider);
+    final backend = _backend;
     final isRemote = backend is NetworkBackend;
 
     // Determine dark frame path. A manual override always wins; the library
@@ -162,6 +230,7 @@ class CalibrationService {
           binY: binY,
           temperature: sensorTemperature,
         );
+        _ensureAuthority();
         if (matchedHostPath != null) {
           darkPath = matchedHostPath;
           _logger.info(
@@ -188,6 +257,7 @@ class CalibrationService {
           temperature: sensorTemperature,
           tolerances: tolerances,
         );
+        _ensureAuthority();
         if (matchingDark != null) {
           darkPath = matchingDark.filePath;
           _logger.info(
@@ -220,6 +290,7 @@ class CalibrationService {
     // Validate files exist (local filesystem only — remote paths are
     // validated on the headless host inside POST /api/imaging/calibrate-file).
     if (!isRemote) {
+      _ensureAuthority();
       if (darkPath != null && !File(darkPath).existsSync()) {
         throw FileSystemException('Dark frame file not found', darkPath);
       }
@@ -246,6 +317,7 @@ class CalibrationService {
         final backupPath = '$lightPath.uncal';
         if (!File(backupPath).existsSync()) {
           await File(lightPath).copy(backupPath);
+          _ensureAuthority();
           _logger.info(
             'Backed up original to: $backupPath',
             source: 'CalibrationService',
@@ -254,6 +326,7 @@ class CalibrationService {
       }
     }
 
+    _ensureAuthority();
     await backend.calibrateImageFile(
       lightPath: lightPath,
       darkPath: darkPath,
@@ -261,6 +334,7 @@ class CalibrationService {
       biasPath: biasPath,
       outputPath: effectiveOutputPath,
     );
+    _ensureAuthority();
 
     _logger.info(
       'Calibration complete: $effectiveOutputPath '
@@ -320,7 +394,10 @@ class CalibrationService {
 
 /// Provider for the CalibrationService.
 final calibrationServiceProvider = Provider<CalibrationService>((ref) {
-  return CalibrationService(ref);
+  final backend = ref.watch(backendProvider);
+  final service = CalibrationService(ref, backend: backend);
+  ref.onDispose(service.retire);
+  return service;
 });
 
 /// Provider for calibration settings, loaded from app settings.
@@ -328,16 +405,53 @@ final calibrationSettingsProvider =
     StateNotifierProvider<CalibrationSettingsNotifier, CalibrationSettings>((
       ref,
     ) {
-      return CalibrationSettingsNotifier(ref);
+      final backend = ref.watch(backendProvider);
+      return CalibrationSettingsNotifier(
+        ref,
+        remote: backend is NetworkBackend ? backend : null,
+      );
     });
 
 /// Manages calibration settings with persistence via app settings.
 class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   final Ref _ref;
+  final NetworkBackend? _remote;
 
   ProviderSubscription? _settingsSub;
+  StreamSubscription? _remoteEventSub;
+  Future<void>? _remoteLoad;
 
-  CalibrationSettingsNotifier(this._ref) : super(const CalibrationSettings()) {
+  CalibrationSettingsNotifier(this._ref, {NetworkBackend? remote})
+    : _remote = remote,
+      super(
+        remote == null
+            ? const CalibrationSettings()
+            : const CalibrationSettings(isLoading: true),
+      ) {
+    if (remote != null) {
+      _remoteEventSub = remote.eventStream.listen(
+        (event) {
+          if (event.eventType != hostStateChangedEventType ||
+              event.data['entityType'] != HostMutationEntity.settings ||
+              event.data['namespace'] != 'calibration') {
+            return;
+          }
+          _remoteLoad = _loadRemote(showLoading: false);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          developer.log(
+            'Calibration settings event stream failed: $error',
+            name: 'CalibrationSettings',
+            level: 1000,
+            error: error,
+            stackTrace: stackTrace,
+          );
+        },
+      );
+      _remoteLoad = _loadRemote(showLoading: true);
+      return;
+    }
+
     // Why: `allSettingsProvider` is async; the first read on construction
     // is typically `AsyncLoading` and `whenData` short-circuits. Use
     // `_ref.listen` so we react as the settings stream resolves and on
@@ -376,12 +490,39 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
       autoDarkFromLibrary:
           settings['calibration.auto_dark_from_library'] != 'false',
       manualDarkPath: _nonEmpty(settings['calibration.manual_dark_path']),
+      isLoading: false,
+      loadError: null,
     );
+  }
+
+  Future<void> _loadRemote({required bool showLoading}) async {
+    final remote = _remote!;
+    if (showLoading) {
+      state = state.copyWith(isLoading: true, loadError: null);
+    }
+    try {
+      final snapshot = CalibrationSettings.fromRemoteJson(
+        await remote.getCalibrationSettings(),
+      );
+      if (!mounted) return;
+      state = snapshot;
+    } catch (error, stackTrace) {
+      if (!mounted) return;
+      state = state.copyWith(isLoading: false, loadError: error);
+      developer.log(
+        'Could not load calibration settings from imaging host: $error',
+        name: 'CalibrationSettings',
+        level: 1000,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   @override
   void dispose() {
     _settingsSub?.close();
+    unawaited(_remoteEventSub?.cancel());
     super.dispose();
   }
 
@@ -398,22 +539,50 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   }
 
   Future<void> setAutoCalibrate(bool enabled) async {
-    state = state.copyWith(autoCalibrate: enabled);
+    if (_remote != null) {
+      await _saveRemote({
+        'autoCalibrate': enabled,
+      }, (current) => current.copyWith(autoCalibrate: enabled));
+      return;
+    }
+    final next = state.copyWith(autoCalibrate: enabled);
+    state = next;
     await _saveSetting('calibration.auto_calibrate', enabled.toString());
   }
 
   Future<void> setMasterFlatPath(String? path) async {
-    state = state.copyWith(masterFlatPath: path);
+    if (_remote != null) {
+      await _saveRemote({
+        'masterFlatPath': path,
+      }, (current) => current.copyWith(masterFlatPath: path));
+      return;
+    }
+    final next = state.copyWith(masterFlatPath: path);
+    state = next;
     await _saveSetting('calibration.master_flat_path', path ?? '');
   }
 
   Future<void> setMasterBiasPath(String? path) async {
-    state = state.copyWith(masterBiasPath: path);
+    if (_remote != null) {
+      await _saveRemote({
+        'masterBiasPath': path,
+      }, (current) => current.copyWith(masterBiasPath: path));
+      return;
+    }
+    final next = state.copyWith(masterBiasPath: path);
+    state = next;
     await _saveSetting('calibration.master_bias_path', path ?? '');
   }
 
   Future<void> setAutoDarkFromLibrary(bool enabled) async {
-    state = state.copyWith(autoDarkFromLibrary: enabled);
+    if (_remote != null) {
+      await _saveRemote({
+        'autoDarkFromLibrary': enabled,
+      }, (current) => current.copyWith(autoDarkFromLibrary: enabled));
+      return;
+    }
+    final next = state.copyWith(autoDarkFromLibrary: enabled);
+    state = next;
     await _saveSetting(
       'calibration.auto_dark_from_library',
       enabled.toString(),
@@ -421,8 +590,32 @@ class CalibrationSettingsNotifier extends StateNotifier<CalibrationSettings> {
   }
 
   Future<void> setManualDarkPath(String? path) async {
-    state = state.copyWith(manualDarkPath: path);
+    if (_remote != null) {
+      await _saveRemote({
+        'manualDarkPath': path,
+      }, (current) => current.copyWith(manualDarkPath: path));
+      return;
+    }
+    final next = state.copyWith(manualDarkPath: path);
+    state = next;
     await _saveSetting('calibration.manual_dark_path', path ?? '');
+  }
+
+  Future<void> _saveRemote(
+    Map<String, dynamic> patch,
+    CalibrationSettings Function(CalibrationSettings current) applyPatch,
+  ) async {
+    await _remoteLoad;
+    final loadError = state.loadError;
+    if (loadError != null) {
+      throw StateError(
+        'Calibration settings are unavailable from the imaging host: '
+        '$loadError',
+      );
+    }
+    await _remote!.updateCalibrationSettings(patch);
+    if (!mounted) return;
+    state = applyPatch(state).copyWith(isLoading: false, loadError: null);
   }
 
   Future<void> _saveSetting(String key, String value) async {

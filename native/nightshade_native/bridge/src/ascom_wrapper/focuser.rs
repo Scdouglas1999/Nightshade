@@ -1,11 +1,11 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
+use crate::device_capabilities::AscomFocuserReadings;
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomFocuser};
+use nightshade_ascom::AscomFocuser;
 use nightshade_native::traits::{NativeDevice, NativeError, NativeFocuser};
 use nightshade_native::NativeVendor;
 use std::fmt::Debug;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -30,6 +30,9 @@ enum AscomFocuserCommand {
     GetStepSize(oneshot::Sender<Result<f64, String>>),
     GetAbsolute(oneshot::Sender<Result<bool, String>>),
     Heartbeat(oneshot::Sender<Result<(), String>>),
+    /// Every property `/api/equipment/focuser/capabilities` needs, read in ONE
+    /// STA round-trip on the live COM object.
+    GetCapabilityReadings(oneshot::Sender<Result<AscomFocuserReadings, String>>),
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
@@ -41,7 +44,6 @@ pub struct AscomFocuserWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomFocuserCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     // Cache static values - these are fetched AFTER connection, not during init
     // Use interior mutability since we update them in the async connect() method
     max_position: std::sync::atomic::AtomicI32,
@@ -63,31 +65,33 @@ impl AscomFocuserWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        // Use a channel to signal that the thread has initialized the ASCOM object
-        // Note: We do NOT fetch max_position/step_size here - they can only be read
-        // reliably AFTER the device is connected. We fetch them in the Connect handler.
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
-
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did. We do
+        // NOT fetch max_position/step_size here — they can only be read reliably
+        // AFTER the device is connected, in the Connect handler.
+        register_device(move || {
             let mut focuser = match AscomFocuser::new(&prog_id_clone) {
                 Ok(f) => f,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!("Failed to create ASCOM focuser: {}", e)));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM focuser: {}", e));
                 }
             };
 
-            // Signal successful initialization (we don't fetch properties here anymore)
-            let _ = init_tx.send(Ok(()));
-
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — the typed `AscomFocuser`
+                        // (and its IDispatch) is released when this closure is
+                        // dropped, still on the STA worker thread that owns the
+                        // apartment. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomFocuserCommand::Connect(reply) => {
                         // Connect first, then fetch properties that require connection
@@ -177,6 +181,25 @@ impl AscomFocuserWrapper {
                     AscomFocuserCommand::Heartbeat(reply) => {
                         let _ = reply.send(focuser.heartbeat().map_err(|e| e.to_string()));
                     }
+                    AscomFocuserCommand::GetCapabilityReadings(reply) => {
+                        // `get_capabilities` + `get_full_status` already swallow
+                        // per-property failures into `None` (a driver raising
+                        // PropertyNotImplemented is normal), so this whole read is
+                        // infallible; only the channel/STA layer can fail.
+                        let caps = focuser.get_capabilities();
+                        let live = focuser.get_full_status();
+                        let _ = reply.send(Ok(AscomFocuserReadings {
+                            max_step: caps.max_step,
+                            max_increment: caps.max_increment,
+                            step_size: caps.step_size,
+                            absolute: caps.absolute,
+                            temp_comp_available: caps.temp_comp_available,
+                            temp_comp: live.temp_comp,
+                            temperature: live.temperature,
+                            position: live.position,
+                            is_moving: live.is_moving,
+                        }));
+                    }
                     AscomFocuserCommand::GetInterfaceVersion(reply) => {
                         let _ = reply.send(focuser.interface_version());
                     }
@@ -190,21 +213,15 @@ impl AscomFocuserWrapper {
                         let _ = reply.send(focuser.supported_actions());
                     }
                 }
-            }
-
-            uninit_com();
-        });
-
-        // Wait for initialization (just confirms thread started OK, not properties)
-        init_rx
-            .recv()
-            .map_err(|e| format!("Failed to receive init result: {}", e))??;
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
         Ok(Self {
             id: prog_id.clone(),
             name: prog_id,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             // Initialize with defaults - real values are fetched after connect()
             max_position: AtomicI32::new(0),
             step_size: AtomicU64::new(0.0f64.to_bits()),
@@ -256,6 +273,25 @@ impl AscomFocuserWrapper {
             .await
             .map_err(|e| NativeError::SdkError(e.to_string()))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "heartbeat").await
+    }
+
+    /// Read the capability + live-status bundle for
+    /// `/api/equipment/focuser/capabilities` from THIS live wrapper.
+    ///
+    /// Exists so the capability probe never has to build a throwaway
+    /// `AscomFocuser` for a device that is already connected — the same reason
+    /// the camera, mount and filter-wheel probes query their registered
+    /// wrappers. A second COM object for the same ProgID is not an independent
+    /// client: many ASCOM local servers share `Connected` state, so a probe that
+    /// connects (or disconnects) its own object mutates the live session, and
+    /// each throwaway also churns an IDispatch on the shared STA apartment.
+    pub async fn capability_readings(&self) -> Result<AscomFocuserReadings, NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomFocuserCommand::GetCapabilityReadings(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "capability_readings").await
     }
 }
 
@@ -461,13 +497,14 @@ impl AscomFocuserWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     fn build_test_wrapper<F>(handler: F) -> AscomFocuserWrapper
     where
         F: FnMut(AscomFocuserCommand) -> bool + Send + 'static,
     {
         let (tx, mut rx) = mpsc::channel(8);
-        let handle = thread::spawn(move || {
+        let _handle = thread::spawn(move || {
             let mut handler = handler;
             while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
@@ -480,7 +517,6 @@ mod tests {
             id: "test-focuser".to_string(),
             name: "Test Focuser".to_string(),
             sender: tx,
-            _thread_handle: Arc::new(handle),
             max_position: AtomicI32::new(0),
             step_size: AtomicU64::new(1.0f64.to_bits()),
             connected: AtomicBool::new(false),

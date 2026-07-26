@@ -15,7 +15,7 @@
 //                 `FramingPreviewFovSlider` so the user can dial the cutout
 //                 they're about to solve and slew to.
 //   3. Solve   — runs `plateSolveServiceProvider.solveWithFallback` on the
-//                 currently-displayed survey center. A `SolverNotAvailableError`
+//                 latest real camera frame. A `SolverNotAvailableError`
 //                 surfaces the existing `PlateSolverRequiredBanner`; a
 //                 successful solve reports the RA/Dec delta versus the target
 //                 in a `NightshadeAlert`.
@@ -29,7 +29,6 @@
 // the failure rather than silently degrading.
 
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,6 +88,32 @@ class FramingActionRail extends ConsumerStatefulWidget {
 class _FramingActionRailState extends ConsumerState<FramingActionRail> {
   bool _isSolving = false;
   _SolveOutcome? _lastSolve;
+  int _solveRevision = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        _solveRevision++;
+        if (mounted && (_isSolving || _lastSolve != null)) {
+          setState(() {
+            _isSolving = false;
+            _lastSolve = null;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -96,11 +121,18 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     final framingState = ref.watch(framingProvider);
     final equipmentAsync = ref.watch(framingFOVProvider);
     final solverDetection = ref.watch(plateSolverDetectionProvider);
+    final solverPreference = ref.watch(plateSolverPreferenceProvider);
 
     final target = framingState.target;
     final hasTarget = target != null;
     final hasSurveyImage = framingState.surveyImageBytes != null;
-    final hasSolver = solverDetection.valueOrNull?.hasAnySolver ?? false;
+    final latestCameraFrame = ref.watch(currentImageProvider);
+    final hasCameraFrame = latestCameraFrame?.filePath != null;
+    final detection = solverDetection.valueOrNull;
+    final preference = solverPreference.valueOrNull;
+    final hasSolver = detection != null &&
+        preference != null &&
+        detection.supports(preference.choice);
 
     final equipment = equipmentAsync.valueOrNull;
     final hasEquipment = equipment?.isReady ?? false;
@@ -195,7 +227,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
           // ---- Step 3: Solve current frame ------------------------------
           _StepRow(
             number: 3,
-            title: 'Solve current frame',
+            title: 'Solve latest camera frame',
             status: (_lastSolve?.result?.success ?? false)
                 ? StatusPillStatus.success
                 : (_lastSolve?.error != null ||
@@ -208,9 +240,9 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
             child: _SolveStep(
               colors: colors,
               isSolving: _isSolving,
-              canSolve: hasTarget && hasSurveyImage && hasSolver && !_isSolving,
+              canSolve: hasTarget && hasCameraFrame && hasSolver && !_isSolving,
               hasTarget: hasTarget,
-              hasSurveyImage: hasSurveyImage,
+              hasCameraFrame: hasCameraFrame,
               hasSolver: hasSolver,
               outcome: _lastSolve,
               onSolve: _solveCurrentFrame,
@@ -259,61 +291,54 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
         child: Divider(height: 1, color: colors.border),
       );
 
-  /// Solve the currently-displayed survey cutout against the resolved target.
-  ///
-  /// The displayed cutout is the bytes already in [FramingState.surveyImageBytes]
-  /// for the current center. We persist those bytes through the framing image
-  /// cache (the canonical on-disk home for survey snapshots) and hand the
-  /// resulting path to `solveWithFallback`, hinting with the target coordinates
-  /// so the solver converges quickly. The solved RA/Dec is then differenced
-  /// against the target to report how far the survey center sits from where the
-  /// user intends to point.
+  /// Solve the latest real camera exposure against the resolved target. Survey
+  /// cutouts already have known sky coordinates and are not evidence of where
+  /// the mount is actually pointing; solving them made this step look useful
+  /// while measuring nothing about the user's rig.
   Future<void> _solveCurrentFrame() async {
+    if (_isSolving) return;
+
     final framingState = ref.read(framingProvider);
     final target = framingState.target;
-    final bytes = framingState.surveyImageBytes;
+    final cameraFrame = ref.read(currentImageProvider);
+    final imagePath = cameraFrame?.filePath;
 
-    if (target == null || bytes == null || bytes.isEmpty) {
+    if (target == null || imagePath == null) {
       // The button is disabled in this state; this guard exists so a stray
       // call can never silently no-op without explanation.
       if (mounted) {
         context.showWarningSnackBar(
-          'Load a survey frame for a resolved target before solving.',
+          target == null
+              ? 'Resolve a target before solving.'
+              : 'Capture a camera frame before solving.',
         );
       }
       return;
     }
 
+    final backend = ref.read(backendProvider);
+    final revision = ++_solveRevision;
     setState(() {
       _isSolving = true;
       _lastSolve = null;
     });
 
     try {
-      final cache = ref.read(framingImageCacheServiceProvider);
-      final entry = await cache.saveSurveyImage(
-        bytes: Uint8List.fromList(bytes),
-        raHours: target.raHours,
-        decDegrees: target.decDegrees,
-        source: framingState.surveySource,
-        targetName: target.name,
-        catalogId: target.catalogId,
-      );
-
       final solver = ref.read(plateSolveServiceProvider);
       final result = await solver.solveWithFallback(
-        imagePath: entry.filePath,
+        imagePath: imagePath,
         hintRaHours: target.raHours,
         hintDecDegrees: target.decDegrees,
         searchRadiusDegrees: 5.0,
       );
 
-      if (!mounted) return;
+      if (!_ownsSolve(backend, revision)) return;
       setState(() {
         _isSolving = false;
         _lastSolve = _SolveOutcome.solved(result, target);
       });
 
+      if (!mounted) return;
       if (result.success) {
         context.showSuccessSnackBar(
           'Frame solved in ${result.solveTimeSecs.toStringAsFixed(1)}s',
@@ -324,20 +349,26 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
         );
       }
     } on SolverNotAvailableError {
-      if (!mounted) return;
+      if (!_ownsSolve(backend, revision)) return;
       setState(() {
         _isSolving = false;
         _lastSolve = const _SolveOutcome.noSolver();
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!_ownsSolve(backend, revision)) return;
       setState(() {
         _isSolving = false;
         _lastSolve = _SolveOutcome.failed(e.toString());
       });
+      if (!mounted) return;
       context.showErrorSnackBar('Solve failed: $e');
     }
   }
+
+  bool _ownsSolve(NightshadeBackend backend, int revision) =>
+      mounted &&
+      revision == _solveRevision &&
+      identical(ref.read(backendProvider), backend);
 }
 
 /// One numbered step: a leading index badge, a title, a trailing [StatusPill],
@@ -525,7 +556,7 @@ class _SolveStep extends StatelessWidget {
   final bool isSolving;
   final bool canSolve;
   final bool hasTarget;
-  final bool hasSurveyImage;
+  final bool hasCameraFrame;
   final bool hasSolver;
   final _SolveOutcome? outcome;
   final VoidCallback onSolve;
@@ -535,7 +566,7 @@ class _SolveStep extends StatelessWidget {
     required this.isSolving,
     required this.canSolve,
     required this.hasTarget,
-    required this.hasSurveyImage,
+    required this.hasCameraFrame,
     required this.hasSolver,
     required this.outcome,
     required this.onSolve,
@@ -549,20 +580,20 @@ class _SolveStep extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: NightshadeButton(
-            label: 'Solve current frame',
+            label: 'Solve latest camera frame',
             icon: NightshadeIcons.crosshair,
             variant: ButtonVariant.outline,
             isLoading: isSolving,
             onPressed: canSolve ? onSolve : null,
           ),
         ),
-        if (!hasTarget || !hasSurveyImage)
+        if (!hasTarget || !hasCameraFrame)
           Padding(
             padding: const EdgeInsets.only(top: NightshadeTokens.spaceXs),
             child: Text(
               !hasTarget
                   ? 'Resolve a target to solve.'
-                  : 'Wait for the survey frame to finish loading.',
+                  : 'Capture a camera frame to measure the mount position.',
               style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
               ),
@@ -571,12 +602,12 @@ class _SolveStep extends StatelessWidget {
         if (outcome != null) ...[
           const SizedBox(height: NightshadeTokens.spaceMd),
           _SolveOutcomeView(colors: colors, outcome: outcome!),
-        ] else if (hasTarget && hasSurveyImage && !hasSolver) ...[
+        ] else if (hasTarget && hasCameraFrame && !hasSolver) ...[
           const SizedBox(height: NightshadeTokens.spaceMd),
           const PlateSolverRequiredBanner(
             contextMessage:
-                'The framing wizard solves the displayed survey cutout to '
-                'measure how far its center is from your target. Set up '
+                'The framing wizard solves the latest camera exposure to '
+                'measure how far the mount is from your target. Set up '
                 'ASTAP (or Astrometry.net) to enable this step.',
           ),
         ],
@@ -599,7 +630,7 @@ class _SolveOutcomeView extends StatelessWidget {
       return const PlateSolverRequiredBanner(
         contextMessage:
             'No plate solver is reachable. Set up ASTAP (or Astrometry.net) '
-            'to solve the displayed survey frame.',
+            'to solve the latest camera frame.',
       );
     }
 

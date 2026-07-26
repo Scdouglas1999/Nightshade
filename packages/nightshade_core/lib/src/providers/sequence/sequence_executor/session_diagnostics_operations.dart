@@ -414,7 +414,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
           );
           return;
         }
-        final backend = _ref.read(backendProvider);
+        final backend = _backend;
         final capturedImage = await backend.cameraGetLastImage(cameraDeviceId);
         if (capturedImage == null) {
           _logger.debug(

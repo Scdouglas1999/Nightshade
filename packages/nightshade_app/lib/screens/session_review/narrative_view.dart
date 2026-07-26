@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
 import 'session_review_controller.dart';
 import 'widgets/growth_curve_panel.dart';
 import 'widgets/improvement_curve_panel.dart';
@@ -41,7 +42,7 @@ class NarrativeView extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Hero: the finished master with toggleable overlays. ──────────
-          _HeroSection(state: state),
+          _HeroSection(state: state, controller: controller),
           const SizedBox(height: NightshadeTokens.spaceLg),
 
           // ── Verdict: big headline + 0..100 score ring. ───────────────────
@@ -51,6 +52,8 @@ class NarrativeView extends ConsumerWidget {
           NightReportPanel(
             report: report,
             section: NightReportSection.verdict,
+            onEvidenceTap: (id) =>
+                FrameDetailDialog.showForFrame(context, imageId: id),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
 
@@ -67,6 +70,8 @@ class NarrativeView extends ConsumerWidget {
             NightReportPanel(
               report: report,
               section: NightReportSection.findings,
+              onEvidenceTap: (id) =>
+                  FrameDetailDialog.showForFrame(context, imageId: id),
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
           ],
@@ -85,8 +90,10 @@ class NarrativeView extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           _CalibratedAnnotatedRow(
             state: state,
-            onColorCalibration: controller.runColorCalibration,
-            onBackgroundExtraction: controller.runBackgroundExtraction,
+            onColorCalibration: () => _runFinishing(context,
+                controller.runColorCalibration, 'Colour calibration applied'),
+            onBackgroundExtraction: () => _runFinishing(context,
+                controller.runBackgroundExtraction, 'Gradient extracted'),
           ),
           // Bottom breathing room so the last card clears the progress bar.
           SizedBox(
@@ -99,29 +106,72 @@ class NarrativeView extends ConsumerWidget {
   }
 }
 
+/// Run a narrative finishing action and, on success (a non-null output path),
+/// surface a success toast — the `state.error` toast (fired by the screen) still
+/// covers the failure path unchanged.
+Future<void> _runFinishing(
+  BuildContext context,
+  Future<String?> Function() action,
+  String successMessage,
+) async {
+  final path = await action();
+  if (path != null && context.mounted) {
+    NightshadeToastHelper.show(
+      context: context,
+      message: successMessage,
+      severity: NightshadeAlertSeverity.success,
+    );
+  }
+}
+
 /// The narrative hero: the finished master rendered through [MasterOverlayView]
 /// (which extends the on-disk [MasterPreviewView] load/stretch path). The
 /// narrative shows annotations on by default and leaves the dense rejection /
-/// coverage toggles to the workbench.
+/// coverage toggles to the workbench. When no master exists yet it offers the
+/// primary Integrate action so the read-first narrative is never a dead end.
 class _HeroSection extends StatelessWidget {
   final SessionReviewState state;
+  final SessionReviewController controller;
 
-  const _HeroSection({required this.state});
+  const _HeroSection({required this.state, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     final outcome = state.lastOutcome;
-    final previewPath = outcome?.result.previewPath;
+    // Fall back to the persisted master's preview so a pre-existing master (DB
+    // row, no in-session integrate) renders instead of an empty hero.
+    final previewPath =
+        outcome?.result.previewPath ?? state.reviewedMaster?.previewPngPath;
 
     if (previewPath == null) {
-      return const NightshadeCard(
+      return NightshadeCard(
         variant: CardVariant.subtle,
-        padding: EdgeInsets.all(NightshadeTokens.spaceLg),
-        child: EmptyState(
-          icon: NightshadeIcons.image,
-          title: 'No finished master yet',
-          body: 'Run an integration to see tonight’s master here, '
-              'annotated with the objects in frame.',
+        padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const EmptyState(
+              icon: NightshadeIcons.image,
+              title: 'No finished master yet',
+              body: 'Run an integration to see tonight’s master here, '
+                  'annotated with the objects in frame.',
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Align(
+              alignment: Alignment.center,
+              child: NightshadeButton(
+                label: state.lastOutcome == null
+                    ? 'Integrate now'
+                    : 'Re-integrate',
+                icon: NightshadeIcons.play,
+                isLoading: state.integrating,
+                onPressed: (state.busy || state.acceptedCount == 0)
+                    ? null
+                    : () => controller.reIntegrate(state.settings),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -133,8 +183,12 @@ class _HeroSection extends StatelessWidget {
         child: MasterOverlayView(
           previewPngPath: previewPath,
           annotations: state.annotationLayer,
-          rejectionMapPngPath: outcome?.result.rejectionMapPath,
+          rejectionMapPngPath: outcome?.result.rejectionMapPreviewPath ??
+              state.reviewedMaster?.rejectionMapPreviewPath,
+          coverageMapPngPath:
+              outcome?.result.coverageMapPreviewPath ?? state.coverageMapPath,
           showAnnotations: true,
+          finishingLayers: finishingLayersForMaster(state.reviewedMaster),
         ),
       ),
     );

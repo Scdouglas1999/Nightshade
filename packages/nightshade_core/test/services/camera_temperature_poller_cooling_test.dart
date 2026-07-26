@@ -5,6 +5,7 @@ import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/backend/device_types.dart'
     as device_types;
 import 'package:nightshade_core/src/models/imaging/imaging_models.dart';
+import 'package:nightshade_core/src/providers/equipment/camera_state_provider.dart';
 import 'package:nightshade_core/src/providers/imaging_provider.dart';
 import 'package:nightshade_core/src/services/camera_temperature_poller.dart';
 
@@ -17,6 +18,7 @@ CameraStatus _coolingStatus({
   double? sensorTemp,
   double? targetTemp,
   double? coolerPower,
+  bool? coolerOn,
 }) {
   return CameraStatus(
     connected: true,
@@ -24,7 +26,7 @@ CameraStatus _coolingStatus({
     sensorTemp: sensorTemp,
     coolerPower: coolerPower,
     targetTemp: targetTemp,
-    coolerOn: (coolerPower ?? 0.0) > 0.0,
+    coolerOn: coolerOn ?? (coolerPower ?? 0.0) > 0.0,
     gain: 100,
     offset: 50,
     binX: 1,
@@ -115,6 +117,40 @@ void main() {
     expect(cooling.isAtTarget, isFalse);
     expect(cooling.coolerPower, 0.0);
   });
+
+  test('authoritative cooler-on remains cooling at zero duty cycle', () async {
+    await pollOnce(
+      _coolingStatus(
+        sensorTemp: -10.0,
+        targetTemp: -10.0,
+        coolerPower: 0.0,
+        coolerOn: true,
+      ),
+    );
+
+    final cooling = container.read(coolingStatusProvider);
+    expect(cooling.isCooling, isTrue);
+    expect(cooling.isAtTarget, isTrue);
+  });
+
+  test(
+    'missing power does not turn off an authoritative active cooler',
+    () async {
+      await pollOnce(
+        _coolingStatus(
+          sensorTemp: -10.0,
+          targetTemp: null,
+          coolerPower: null,
+          coolerOn: true,
+        ),
+      );
+
+      final cooling = container.read(coolingStatusProvider);
+      expect(cooling.isCooling, isTrue);
+      expect(cooling.isAtTarget, isTrue);
+      expect(container.read(cameraStateProvider).coolerPower, isNull);
+    },
+  );
 
   test('null sensor temperature leaves cooling status untouched', () async {
     // Pre-seed a known cooling snapshot, then poll with no live reading.

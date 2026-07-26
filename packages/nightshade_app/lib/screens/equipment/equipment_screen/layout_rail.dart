@@ -235,6 +235,16 @@ class _FlatWizardShortcut extends ConsumerWidget {
 // Main column (shared by desktop + mobile)
 // ============================================================================
 
+/// Height the device cards must keep before the Discovery scanner is allowed
+/// to pin itself to the bottom of the region.
+const double _minPinnedDashboardHeight = 200.0;
+
+/// Working estimate of the COLLAPSED Discovery scanner's natural height. Used
+/// only to decide whether pinning fits; the pinned cap itself is derived from
+/// [_minPinnedDashboardHeight] so the scanner is never squeezed under its own
+/// content.
+const double _discoveryPeekHeight = 140.0;
+
 class _EquipmentMainColumn extends StatelessWidget {
   final EquipmentProfileModel? selectedProfile;
 
@@ -277,18 +287,65 @@ class _EquipmentMainColumn extends StatelessWidget {
   /// The device dashboard (dominant scroll area) plus the Discovery scanner
   /// pinned to the bottom. Shared by both the rail and stacked layouts so the
   /// cards always own the vertical space between the chrome and the scanner.
-  Widget _cardsAndDiscovery() {
-    return Column(
-      children: [
-        Expanded(
-          child: _DeviceDashboard(
+  ///
+  /// [header] is prepended INSIDE the dashboard's scroll view (phone only) so
+  /// the supporting panels scroll with the cards instead of pinning above them.
+  Widget _cardsAndDiscovery({Widget? header}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Discovery must size to its CONTENT and hand every remaining pixel to
+        // the cards. It used to be a `Flexible`, which defaults to `flex: 1` —
+        // the same flex as the dashboard's `Expanded` — so the region was split
+        // 50/50: the cards were squeezed into half the height while the
+        // collapsed scanner painted ~90dp of its 50% share and left the rest
+        // dead. A non-flex child is laid out at its natural height first and
+        // the dashboard's `Expanded` then absorbs all the slack.
+        //
+        // Pinning the scanner is only affordable when the region can seat BOTH.
+        // A 360x640dp phone (with the tour nudge reserving its band) leaves this
+        // region ~132dp — less than the collapsed scanner alone — so capping it
+        // to a FRACTION squeezed it under its natural height and it overflowed
+        // by 8px while the cards were left ~66dp. Below the threshold the
+        // scanner stops being chrome and simply scrolls with the cards, which
+        // is always reachable and can never overflow. The cap for the pinned
+        // case is expressed as "whatever is left after the cards keep
+        // [_minPinnedDashboardHeight]", never a fraction, so it can never fall
+        // under the peek height; it also keeps the incoming height bounded so
+        // DiscoveryPanel's own internal `Flexible` has a bounded parent.
+        final canPin = !constraints.hasBoundedHeight ||
+            constraints.maxHeight >=
+                _minPinnedDashboardHeight + _discoveryPeekHeight;
+
+        if (!canPin) {
+          return _DeviceDashboard(
             profile: selectedProfile,
             onConnectAll: onConnectAll,
             onEditProfile: onEditProfile,
-          ),
-        ),
-        const DiscoveryPanel(),
-      ],
+            header: header,
+            footer: const DiscoveryPanel(),
+          );
+        }
+
+        final discoveryCap = constraints.hasBoundedHeight
+            ? constraints.maxHeight - _minPinnedDashboardHeight
+            : double.infinity;
+        return Column(
+          children: [
+            Expanded(
+              child: _DeviceDashboard(
+                profile: selectedProfile,
+                onConnectAll: onConnectAll,
+                onEditProfile: onEditProfile,
+                header: header,
+              ),
+            ),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: discoveryCap),
+              child: const DiscoveryPanel(),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -316,17 +373,34 @@ class _EquipmentMainColumn extends StatelessWidget {
           );
         }
 
-        // Narrow / mobile: no rail. Health + readiness collapse to thin bars
-        // (collapsed by default) stacked above the cards so they stop eating
-        // vertical space until tapped.
+        // Narrow / mobile: no rail. The supporting panels ride INSIDE the
+        // dashboard's scroll view (as its header) rather than pinned above it.
+        //
+        // They used to be plain Column siblings, which made them fixed chrome:
+        // the collapsed bars plus the two shortcut cards pinned ~330dp above a
+        // 411x914dp phone's card list, clipping the first device card through
+        // its own readouts — and EXPANDING the readiness checklist overflowed
+        // the column by 108px, evicting every device card AND the discovery
+        // scanner off-screen with no way to scroll to them. Scrolling them with
+        // the cards mirrors what the desktop rail already does for the same
+        // widgets (see _EquipmentStatusRail's Expanded/SingleChildScrollView).
         return Column(
           children: [
             _topChrome(),
-            const EquipmentHealthPanel(),
-            const _ReadinessSummaryBar(),
-            const _PolarAlignmentShortcut(),
-            const _FlatWizardShortcut(),
-            Expanded(child: _cardsAndDiscovery()),
+            Expanded(
+              child: _cardsAndDiscovery(
+                header: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    EquipmentHealthPanel(),
+                    _ReadinessSummaryBar(),
+                    _PolarAlignmentShortcut(),
+                    _FlatWizardShortcut(),
+                  ],
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -539,9 +613,23 @@ class _ReadinessSummaryBar extends ConsumerWidget {
           ),
           AnimatedCrossFade(
             firstChild: const SizedBox.shrink(),
-            secondChild: const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: EquipmentReadinessPanel(),
+            // Cap the expanded checklist at just under half the screen and
+            // scroll inside. At full intrinsic height it starved the
+            // Expanded(cards + discovery) below it in the phone column —
+            // the discovery panel rendered a live "BoxConstraints has a
+            // negative minimum height" error strip on screen.
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  // 0.42, not 0.45: with the discovery panel ALSO expanded,
+                  // 45% left the discovery header/subtitle 21px short.
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.42,
+                ),
+                child: const SingleChildScrollView(
+                  child: EquipmentReadinessPanel(),
+                ),
+              ),
             ),
             crossFadeState:
                 expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,

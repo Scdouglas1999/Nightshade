@@ -12,12 +12,14 @@ class _PlannerControlsBar extends ConsumerWidget {
   final TextEditingController controller;
   final SuggestionFilterState filters;
   final AsyncValue<List<TargetSuggestion>> candidatesAsync;
+  final bool keyboardCompact;
 
   const _PlannerControlsBar({
     required this.colors,
     required this.controller,
     required this.filters,
     required this.candidatesAsync,
+    this.keyboardCompact = false,
   });
 
   @override
@@ -37,6 +39,7 @@ class _PlannerControlsBar extends ConsumerWidget {
       controller: controller,
       colors: colors,
       compact: isPhone,
+      height: keyboardCompact ? 32 : 36,
       onChanged: (value) {
         final notifier = ref.read(suggestionFilterProvider.notifier);
         notifier.state = notifier.state.copyWith(searchQuery: value);
@@ -48,9 +51,13 @@ class _PlannerControlsBar extends ConsumerWidget {
     return Container(
       padding: EdgeInsets.fromLTRB(
         NightshadeTokens.spaceLg,
-        isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd,
+        keyboardCompact
+            ? 0
+            : isPhone
+                ? NightshadeTokens.spaceSm
+                : NightshadeTokens.spaceMd,
         NightshadeTokens.spaceLg,
-        NightshadeTokens.spaceSm,
+        keyboardCompact ? 0 : NightshadeTokens.spaceSm,
       ),
       decoration: BoxDecoration(
         color: colors.surface,
@@ -67,6 +74,13 @@ class _PlannerControlsBar extends ConsumerWidget {
                 _FiltersSheetButton(
                   colors: colors,
                   activeCount: filters.activeCount,
+                  height: keyboardCompact ? 32 : 36,
+                  // With the software keyboard up the shell hands the whole
+                  // controls bar a ~34px slot, so the 48dp touch floor cannot
+                  // fit — asking for it there overflows the strip instead of
+                  // growing the target. The floor applies in the resting state,
+                  // which is the state a finger actually aims at.
+                  floorTouchTarget: !keyboardCompact,
                   onTap: () => _openFiltersSheet(
                     context,
                     ref,
@@ -75,7 +89,7 @@ class _PlannerControlsBar extends ConsumerWidget {
                     sizeRange: sizeRange,
                   ),
                 ),
-                if (filters.activeCount > 0) ...[
+                if (filters.activeCount > 0 && !keyboardCompact) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
                   _ResetChip(
                     colors: colors,
@@ -270,11 +284,18 @@ class _FiltersSheetButton extends StatelessWidget {
   final NightshadeColors colors;
   final int activeCount;
   final VoidCallback onTap;
+  final double height;
+
+  /// Whether to floor the hit box at the Android 48dp minimum. Off only when
+  /// the caller's own slot is shorter than that (see the keyboard-compact bar).
+  final bool floorTouchTarget;
 
   const _FiltersSheetButton({
     required this.colors,
     required this.activeCount,
     required this.onTap,
+    this.height = 36,
+    this.floorTouchTarget = true,
   });
 
   @override
@@ -287,56 +308,60 @@ class _FiltersSheetButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
           ).color
         : colors.surfaceAlt;
+    final pill = Container(
+      // Matches the compact phone search-field height (36) so the two sit on
+      // one tidy row. A label + active-count badge keep it self-explanatory
+      // while staying narrow enough to leave the search field most of the
+      // row.
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        border: Border.all(
+          color: active ? colors.primary.withValues(alpha: 0.5) : colors.border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.slidersHorizontal, size: 15, color: fg),
+          const SizedBox(width: 6),
+          Text(
+            'Filters',
+            style: NightshadeTypography.labelStrong.copyWith(
+              color: fg,
+            ),
+          ),
+          if (active) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: colors.primary,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+              ),
+              child: Text(
+                '$activeCount',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  fontWeight: FontWeight.w700,
+                  color: colors.onPrimary,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
     return InkWell(
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       onTap: onTap,
-      child: Container(
-        // Matches the compact phone search-field height (36) so the two sit on
-        // one tidy row. A label + active-count badge keep it self-explanatory
-        // while staying narrow enough to leave the search field most of the row.
-        height: 36,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(
-            color:
-                active ? colors.primary.withValues(alpha: 0.5) : colors.border,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.slidersHorizontal, size: 15, color: fg),
-            const SizedBox(width: 6),
-            Text(
-              'Filters',
-              style: NightshadeTypography.labelStrong.copyWith(
-                color: fg,
-              ),
-            ),
-            if (active) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusXl),
-                ),
-                child: Text(
-                  '$activeCount',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w700,
-                    color: colors.onPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+      // The painted pill keeps its compact height, but the tappable box is
+      // floored at the Android 48dp minimum — measured at 134.7x36.0 on every
+      // phone width before this. `InkResponse` hit-tests opaquely, so the
+      // floored box is genuinely tappable, not just a bigger semantics rect.
+      child: floorTouchTarget ? TouchTargetFloor(child: pill) : pill,
     );
   }
 }

@@ -26,7 +26,9 @@ class IntegratedMastersDao {
 
   static const String _columns =
       'id, target_id, name, master_fits_path, '
-      'preview_png_path, sidecar_path, rejection_map_path, status, '
+      'preview_png_path, sidecar_path, rejection_map_path, '
+      'rejection_map_preview_path, coverage_map_path, '
+      'coverage_map_preview_path, status, '
       'accumulation_mode, channels, width, height, frame_count, '
       'total_integration_seconds, filter, settings_json, stats_json, '
       'created_at, updated_at, '
@@ -49,6 +51,9 @@ class IntegratedMastersDao {
     String? previewPngPath,
     String? sidecarPath,
     String? rejectionMapPath,
+    String? rejectionMapPreviewPath,
+    String? coverageMapPath,
+    String? coverageMapPreviewPath,
     required IntegratedMasterStatus status,
     required AccumulationMode accumulationMode,
     int channels = 1,
@@ -66,10 +71,11 @@ class IntegratedMastersDao {
     return _db.customInsert(
       'INSERT INTO integrated_masters('
       'target_id, name, master_fits_path, preview_png_path, sidecar_path, '
-      'rejection_map_path, status, accumulation_mode, channels, width, height, '
+      'rejection_map_path, rejection_map_preview_path, coverage_map_path, '
+      'coverage_map_preview_path, status, accumulation_mode, channels, width, height, '
       'frame_count, total_integration_seconds, filter, settings_json, '
       'stats_json, created_at, updated_at'
-      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       variables: [
         Variable<int>(targetId),
         Variable<String>(name),
@@ -77,6 +83,9 @@ class IntegratedMastersDao {
         Variable<String>(previewPngPath),
         Variable<String>(sidecarPath),
         Variable<String>(rejectionMapPath),
+        Variable<String>(rejectionMapPreviewPath),
+        Variable<String>(coverageMapPath),
+        Variable<String>(coverageMapPreviewPath),
         Variable<String>(status.wire),
         Variable<String>(accumulationMode.wire),
         Variable<int>(channels),
@@ -160,6 +169,9 @@ class IntegratedMastersDao {
     String? masterFitsPath,
     String? previewPngPath,
     String? rejectionMapPath,
+    String? rejectionMapPreviewPath,
+    String? coverageMapPath,
+    String? coverageMapPreviewPath,
     IntegratedMasterStatus? status,
     int? channels,
     int? width,
@@ -185,6 +197,21 @@ class IntegratedMastersDao {
     }
     if (rejectionMapPath != null) {
       put('rejection_map_path', Variable<String>(rejectionMapPath));
+    }
+    if (rejectionMapPreviewPath != null) {
+      put(
+        'rejection_map_preview_path',
+        Variable<String>(rejectionMapPreviewPath),
+      );
+    }
+    if (coverageMapPath != null) {
+      put('coverage_map_path', Variable<String>(coverageMapPath));
+    }
+    if (coverageMapPreviewPath != null) {
+      put(
+        'coverage_map_preview_path',
+        Variable<String>(coverageMapPreviewPath),
+      );
     }
     if (status != null) put('status', Variable<String>(status.wire));
     if (channels != null) put('channels', Variable<int>(channels));
@@ -451,6 +478,13 @@ class IntegratedMastersDao {
       previewPngPath: row.readNullable<String>('preview_png_path'),
       sidecarPath: row.readNullable<String>('sidecar_path'),
       rejectionMapPath: row.readNullable<String>('rejection_map_path'),
+      rejectionMapPreviewPath: row.readNullable<String>(
+        'rejection_map_preview_path',
+      ),
+      coverageMapPath: row.readNullable<String>('coverage_map_path'),
+      coverageMapPreviewPath: row.readNullable<String>(
+        'coverage_map_preview_path',
+      ),
       status: IntegratedMasterStatus.fromWire(row.read<String>('status')),
       accumulationMode: AccumulationMode.fromWire(
         row.read<String>('accumulation_mode'),

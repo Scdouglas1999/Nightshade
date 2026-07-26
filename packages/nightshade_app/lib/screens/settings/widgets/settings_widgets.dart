@@ -57,7 +57,9 @@ bool settingsTrailingIsNarrow(
 Widget settingsTrailingTextInput({
   required BuildContext context,
   required TextEditingController controller,
-  ValueChanged<String>? onChanged,
+  String? authoritativeValue,
+  Object? authorityKey,
+  FutureOr<void> Function(String)? onChanged,
   String? hint,
   double designWidth = 260,
   bool isMobile = false,
@@ -73,6 +75,8 @@ Widget settingsTrailingTextInput({
       );
       return SettingsTextInput(
         controller: controller,
+        authoritativeValue: authoritativeValue,
+        authorityKey: authorityKey,
         hint: hint,
         width: layout.width,
         flexible: layout.flexible,
@@ -89,7 +93,7 @@ Widget settingsTrailingDropdown({
   required BuildContext context,
   required String value,
   required List<String> items,
-  required ValueChanged<String?> onChanged,
+  required FutureOr<void> Function(String) onChanged,
   double designWidth = 200,
   bool isMobile = false,
   List<String>? itemLabels,

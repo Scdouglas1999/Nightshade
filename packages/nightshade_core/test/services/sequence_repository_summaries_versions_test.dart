@@ -82,6 +82,7 @@ void main() {
       expect(orion.lastRunAt, isNull);
       expect(orion.isFavorite, isFalse);
       expect(orion.tags, isEmpty);
+      expect(orion.createdAt, (await repo.loadSequence(idA))!.createdAt);
     },
   );
 
@@ -135,6 +136,17 @@ void main() {
         beforeRunId: secondRun,
       );
       expect(prior, '{"marker":"first"}');
+
+      final context = await repo.loadRunDiffContext(secondRun);
+      expect(context.sequenceId, id);
+      expect(context.currentSnapshotJson, '{"marker":"second"}');
+      expect(context.previousSnapshotJson, '{"marker":"first"}');
+
+      // An unknown row must not accidentally compare against the newest run.
+      expect(
+        await repo.loadPreviousRunSnapshot(id, beforeRunId: 999999),
+        isNull,
+      );
 
       // Run-history roll-up must now surface in the summary.
       final summary = (await repo.loadSequenceSummaries()).single;

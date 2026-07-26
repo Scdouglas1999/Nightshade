@@ -68,7 +68,21 @@ Future<HarnessHandle> _pumpCard(
   RotatorCapabilities? caps,
 ) async {
   final backend = mockBackend();
-  when(() => backend.rotatorMoveTo(any(), any())).thenAnswer((_) async {});
+  var commandedAngle = 0.0;
+  when(() => backend.rotatorMoveTo(any(), any()))
+      .thenAnswer((invocation) async {
+    commandedAngle = invocation.positionalArguments[1] as double;
+  });
+  when(() => backend.getRotatorStatus(_kDeviceId)).thenAnswer(
+    (_) async => RotatorStatus(
+      connected: true,
+      position: commandedAngle,
+      moving: false,
+      mechanicalPosition: commandedAngle,
+      isMoving: false,
+      canReverse: true,
+    ),
+  );
 
   final handle = await pumpAppScreen(
     tester,
@@ -119,6 +133,14 @@ Future<void> _openDialog(WidgetTester tester) async {
   }
 }
 
+Future<void> _waitForDialogToClose(WidgetTester tester) async {
+  for (var i = 0;
+      i < 20 && find.text('Rotate To Angle').evaluate().isNotEmpty;
+      i++) {
+    await tester.pump(const Duration(milliseconds: 25));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -141,6 +163,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
     verify(() => backend.rotatorMoveTo(_kDeviceId, 200)).called(1);
+    await _waitForDialogToClose(tester);
+    expect(find.text('Rotate To Angle'), findsNothing);
   });
 
   testWidgets('caps_window_honored: 300 rejected for 0..270 caps (no dispatch)',
@@ -175,6 +199,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
     verify(() => backend.rotatorMoveTo(_kDeviceId, 360)).called(1);
+    await _waitForDialogToClose(tester);
 
     // 361 exceeds the fallback ceiling and must be rejected.
     await _rotateTo(tester, '361');
@@ -198,5 +223,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 20));
     }
     verify(() => backend.rotatorMoveTo(_kDeviceId, 350)).called(1);
+    await _waitForDialogToClose(tester);
+    expect(find.text('Rotate To Angle'), findsNothing);
   });
 }

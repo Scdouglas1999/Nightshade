@@ -10,7 +10,7 @@ abstract class CloudMotion with _$CloudMotion {
     /// Cloud movement speed in km/h
     required double speedKmh,
 
-    /// Direction clouds are moving FROM (0-360, 0=N, 90=E, 180=S, 270=W)
+    /// Direction clouds are moving TOWARD (0-360, 0=N, 90=E, 180=S, 270=W)
     required double directionDegrees,
 
     /// Time until clouds reach user location (null if moving away)

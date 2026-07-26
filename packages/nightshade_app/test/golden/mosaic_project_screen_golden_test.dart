@@ -1,3 +1,6 @@
+@Tags(['golden'])
+library;
+
 // Review-PNG goldens for the Mosaic project review screen, written to
 // `docs/design/goldens/` for a reviewer to eyeball. Not pixel-diff guards — the
 // assertions only confirm a real, non-empty image was produced (the harness

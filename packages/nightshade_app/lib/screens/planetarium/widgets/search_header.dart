@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../../../utils/coordinate_format_utils.dart';
@@ -58,19 +59,19 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
   CelestialCoordinate? _parseCoordinates(String input) {
     // Try pattern like "RA 5h 35m, Dec -5d 23'" or "RA 5h 35m Dec -5 23"
     final pattern = RegExp(
-        r'RA\s*(\d+)h\s*(\d+)m.*Dec\s*([+-]?\d+)[°d]?\s*(\d+)',
-        caseSensitive: false);
+      r"^\s*RA\s*(\d+)\s*h\s*(\d+)\s*m?\s*,?\s*Dec\s*([+-]?)\s*(\d+)\s*[°d]?\s*(\d+)\s*['m]?\s*$",
+      caseSensitive: false,
+    );
     final match = pattern.firstMatch(input);
 
     if (match != null) {
-      final raHours = double.parse(match.group(1)!);
-      final raMinutes = double.parse(match.group(2)!);
-      final decDegrees = double.parse(match.group(3)!);
-      final decMinutes = double.parse(match.group(4)!);
-
-      final ra = raHours + raMinutes / 60;
-      final dec =
-          decDegrees + (decDegrees >= 0 ? decMinutes / 60 : -decMinutes / 60);
+      final ra = CoordinateParser.parseRa(
+        '${match.group(1)}:${match.group(2)}:0',
+      );
+      final dec = CoordinateParser.parseDec(
+        '${match.group(3)}${match.group(4)}:${match.group(5)}:0',
+      );
+      if (ra == null || dec == null) return null;
 
       return CelestialCoordinate(ra: ra, dec: dec);
     }

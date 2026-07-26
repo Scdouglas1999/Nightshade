@@ -8,8 +8,8 @@ use windows::{
     Win32::System::{
         Com::{
             CLSIDFromProgID, CoCreateInstance, CoInitializeEx, CoUninitialize, IDispatch,
-            CLSCTX_ALL, COINIT_APARTMENTTHREADED, DISPATCH_METHOD, DISPATCH_PROPERTYGET,
-            DISPATCH_PROPERTYPUT, DISPPARAMS, EXCEPINFO,
+            CLSCTX_ALL, COINIT_APARTMENTTHREADED, DISPATCH_FLAGS, DISPATCH_METHOD,
+            DISPATCH_PROPERTYGET, DISPATCH_PROPERTYPUT, DISPPARAMS, EXCEPINFO,
         },
         Registry::{
             RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER,
@@ -403,6 +403,53 @@ impl AscomDeviceConnection {
         self.get_bool_property("Connected")
     }
 
+    /// Invoke an ASCOM IDispatch member, retrying transient driver exceptions.
+    ///
+    /// # Safety
+    /// `params` and every pointer it contains, plus `pvarresult` and `pexcepinfo`
+    /// when present, must remain valid for all retry attempts. The caller must also
+    /// invoke this on the COM object's owning STA thread.
+    unsafe fn invoke_with_retry(
+        &self,
+        dispid: i32,
+        flags: DISPATCH_FLAGS,
+        params: &DISPPARAMS,
+        pvarresult: Option<*mut VARIANT>,
+        pexcepinfo: Option<*mut EXCEPINFO>,
+    ) -> windows::core::Result<()> {
+        const DISP_E_EXCEPTION: u32 = 0x8002_0009;
+        const MAX_ATTEMPTS: u32 = 3;
+
+        for attempt in 1..=MAX_ATTEMPTS {
+            let result = self.dispatch.Invoke(
+                dispid,
+                &GUID::zeroed(),
+                0,
+                flags,
+                params,
+                pvarresult,
+                pexcepinfo,
+                None,
+            );
+
+            match result {
+                Err(e) if e.code().0 as u32 == DISP_E_EXCEPTION && attempt < MAX_ATTEMPTS => {
+                    tracing::debug!(
+                        "ASCOM IDispatch::Invoke returned DISP_E_EXCEPTION for DISPID {}; \
+                         retrying (attempt {}/{})",
+                        dispid,
+                        attempt + 1,
+                        MAX_ATTEMPTS
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(60));
+                }
+                result => return result,
+            }
+        }
+
+        unreachable!("bounded IDispatch retry loop always returns")
+    }
+
     pub(super) fn get_dispid(&self, name: &str) -> Result<i32, String> {
         // SAFETY: `IDispatch::GetIDsOfNames` is invoked with: a zeroed reserved GUID,
         // a locally-owned NUL-terminated UTF-16 buffer (`name_wide`) wrapped in a stack
@@ -432,18 +479,14 @@ impl AscomDeviceConnection {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(result.as_mut()),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(result.as_mut()),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `variant_to_string` copies the BSTR into an owned `String` before
             // the `OwnedVariant` guard drops and frees the source BSTR.
@@ -463,18 +506,14 @@ impl AscomDeviceConnection {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(result.as_mut()),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(result.as_mut()),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `extract_safearray_string` copies into owned `String`s before the
             // `OwnedVariant` guard drops and frees the source SAFEARRAY.
@@ -492,18 +531,14 @@ impl AscomDeviceConnection {
             let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(result.as_mut()),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(result.as_mut()),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `extract_safearray_i32` copies into an owned `Vec<i32>` before the
             // `OwnedVariant` guard drops and frees the source SAFEARRAY.
@@ -529,18 +564,14 @@ impl AscomDeviceConnection {
             };
 
             let mut result = OwnedVariant::empty();
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(result.as_mut()),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(result.as_mut()),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // VT_R8 is a non-heap arm, but routing the indexed result through
             // `OwnedVariant` keeps cleanup uniform (and covers a driver that
@@ -565,18 +596,14 @@ impl AscomDeviceConnection {
             };
 
             let mut result = OwnedVariant::empty();
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(result.as_mut()),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(result.as_mut()),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             // `variant_to_string` copies the BSTR into an owned `String` before
             // the `OwnedVariant` guard drops and frees the source BSTR.
@@ -594,18 +621,14 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(&mut result),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_bool(&result).ok_or_else(|| format!("Property {} is not a bool", name))
         }
@@ -628,17 +651,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYPUT,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -653,18 +666,14 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(&mut result),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_f64(&result).ok_or_else(|| format!("Property {} is not a double", name))
         }
@@ -686,17 +695,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYPUT,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -711,18 +710,14 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(&mut result),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             variant_to_date(&result).ok_or_else(|| format!("Property {} is not a VT_DATE", name))
         }
@@ -743,17 +738,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYPUT,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -770,18 +755,14 @@ impl AscomDeviceConnection {
             let mut result = VARIANT::default();
             let params = DISPPARAMS::default();
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYGET,
-                    &params,
-                    Some(&mut result),
-                    None,
-                    None,
-                )
-                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+            self.invoke_with_retry(
+                dispid,
+                DISPATCH_PROPERTYGET,
+                &params,
+                Some(&mut result),
+                None,
+            )
+            .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
             let vt = (*result.Anonymous.Anonymous).vt;
             tracing::debug!(
@@ -810,17 +791,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 1,
             };
 
-            self.dispatch
-                .Invoke(
-                    dispid,
-                    &GUID::zeroed(),
-                    0,
-                    DISPATCH_PROPERTYPUT,
-                    &params,
-                    None,
-                    None,
-                    None,
-                )
+            self.invoke_with_retry(dispid, DISPATCH_PROPERTYPUT, &params, None, None)
                 .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
 
             Ok(())
@@ -838,15 +809,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -883,15 +851,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -925,15 +890,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -966,15 +928,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -1011,15 +970,12 @@ impl AscomDeviceConnection {
             let mut excep_info = EXCEPINFO::default();
             let mut result_var = VARIANT::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 Some(&mut result_var),
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -1056,15 +1012,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -1104,15 +1057,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -1148,15 +1098,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -1189,15 +1136,12 @@ impl AscomDeviceConnection {
             // Capture exception info for better error messages
             let mut excep_info = EXCEPINFO::default();
 
-            let result = self.dispatch.Invoke(
+            let result = self.invoke_with_retry(
                 dispid,
-                &GUID::zeroed(),
-                0,
                 DISPATCH_METHOD,
                 &params,
                 None,
                 Some(&mut excep_info),
-                None,
             );
 
             if let Err(e) = result {
@@ -1297,18 +1241,20 @@ impl Drop for AscomDeviceConnection {
 
 // SAFETY: COM objects are apartment-threaded and we manage thread affinity
 // ourselves. All COM property/method calls MUST happen from the thread that
-// called `CoInitialize` (the STA worker thread). The wrapper-thread pattern
-// used in `ascom_wrapper*.rs` enforces this — `Send`/`Sync` here only allows
-// the typed wrapper struct (e.g. `AscomCamera`) to be moved into the worker
-// thread once at construction; from then on every COM call is dispatched onto
-// that worker via mpsc, and `Drop` is a no-op so it is safe to be released on
-// any thread.
+// called `CoInitialize` (the STA apartment thread). The wrapper pattern in
+// `ascom_wrapper*.rs` enforces this: the typed wrapper struct (e.g.
+// `AscomCamera`) is created on, and from then on only ever touched from, the
+// owning apartment thread — the process-wide STA worker
+// (`ascom_wrapper::sta_worker`) for the camera/mount/filter-wheel classes, or a
+// per-device STA worker for the others. Every COM call is dispatched onto that
+// thread via a channel, and `Drop` is a no-op, so the wrapper struct is safe to
+// move/share across other threads (only its handle moves; the IDispatch is
+// released on the apartment thread when the on-thread pump drops it).
 unsafe impl Send for AscomDeviceConnection {}
-// SAFETY: Same justification as the `Send` impl above — the wrapper struct's
-// thread affinity is enforced by the per-device STA worker pattern in
-// `ascom_wrapper*.rs`; concurrent immutable references never reach the
-// underlying IDispatch because every call is funneled through an mpsc channel
-// onto the apartment thread.
+// SAFETY: Same justification as the `Send` impl above — thread affinity is
+// enforced by the STA worker pattern in `ascom_wrapper*.rs`; concurrent
+// immutable references never reach the underlying IDispatch because every call
+// is funneled through a channel onto the apartment thread.
 unsafe impl Sync for AscomDeviceConnection {}
 
 // ============================================================================

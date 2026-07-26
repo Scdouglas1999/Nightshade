@@ -75,6 +75,7 @@ void main() {
       final response = streamResponse(
         const Stream<List<int>>.empty(),
         contentType: 'text/event-stream; charset=utf-8',
+        contentLength: 12,
         headers: const {'cache-control': 'no-cache'},
         context: const {'shelf.io.buffer_output': false},
       );
@@ -85,6 +86,7 @@ void main() {
         'text/event-stream; charset=utf-8',
       );
       expect(response.headers['cache-control'], 'no-cache');
+      expect(response.headers['content-length'], '12');
       expect(response.context['shelf.io.buffer_output'], false);
     });
 

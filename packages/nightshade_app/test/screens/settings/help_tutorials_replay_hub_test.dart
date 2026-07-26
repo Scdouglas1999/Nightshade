@@ -26,6 +26,38 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
 
+class _FailingOnboardingNotifier extends OnboardingNotifier {
+  _FailingOnboardingNotifier(super.ref);
+
+  @override
+  Future<void> reset() async {
+    throw StateError('equipment reset failed');
+  }
+}
+
+class _FailingTutorialNotifier extends TutorialNotifier {
+  _FailingTutorialNotifier(super.dao);
+
+  @override
+  Future<void> restartTutorial(TutorialCategory category) async {
+    throw StateError('tutorial restart failed');
+  }
+}
+
+class _FailingOnboardingTourNotifier extends OnboardingTourNotifier {
+  _FailingOnboardingTourNotifier(Ref ref, TutorialProgressDao progressDao)
+      : super(
+          dao: FirstLaunchTourDao(progressDao),
+          ref: ref,
+          totalCoreSteps: onboardingTourCoreStepCount,
+        );
+
+  @override
+  Future<void> reset() async {
+    throw StateError('onboarding tour reset failed');
+  }
+}
+
 NightshadeDatabase _newInMemoryDb() =>
     NightshadeDatabase.forTesting(NativeDatabase.memory());
 
@@ -36,6 +68,9 @@ NightshadeDatabase _newInMemoryDb() =>
 Future<({ProviderContainer container, GoRouter router})> _pumpHelpScreen(
   WidgetTester tester, {
   required NightshadeDatabase db,
+  bool failEquipmentReset = false,
+  bool failTutorialRestart = false,
+  bool failOnboardingTourReset = false,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1280, 900);
@@ -53,6 +88,21 @@ Future<({ProviderContainer container, GoRouter router})> _pumpHelpScreen(
       appVersionProvider.overrideWithValue(
         const AppVersionInfo(version: '0.0.0-test', buildNumber: 0),
       ),
+      if (failEquipmentReset)
+        onboardingDraftProvider.overrideWith(
+          (ref) => _FailingOnboardingNotifier(ref),
+        ),
+      if (failTutorialRestart)
+        tutorialProvider.overrideWith(
+          (ref) => _FailingTutorialNotifier(db.tutorialProgressDao),
+        ),
+      if (failOnboardingTourReset)
+        onboardingTourProvider.overrideWith(
+          (ref) => _FailingOnboardingTourNotifier(
+            ref,
+            db.tutorialProgressDao,
+          ),
+        ),
     ],
   );
   addTearDown(container.dispose);
@@ -171,6 +221,96 @@ void main() {
       container.read(onboardingDraftProvider).captureDirectory,
       isNot('/tmp/first-light-test'),
       reason: 'the reset must clear the dirtied draft',
+    );
+  });
+
+  testWidgets('failed equipment replay stays put and offers retry feedback',
+      (tester) async {
+    final db = _newInMemoryDb();
+    addTearDown(() async => db.close());
+    final result = await _pumpHelpScreen(
+      tester,
+      db: db,
+      failEquipmentReset: true,
+    );
+
+    final equipmentRow = find.ancestor(
+      of: find.text('Re-run equipment setup'),
+      matching: find.byType(SettingRow),
+    );
+    final rerunButton = find.descendant(
+      of: equipmentRow,
+      matching: find.widgetWithText(NightshadeButton, 'Re-run'),
+    );
+
+    await tester.tap(rerunButton);
+    await tester.pumpAndSettle();
+
+    expect(result.router.routeInformationProvider.value.uri.path, '/help');
+    expect(
+      find.text('Could not reset equipment setup. Please try again.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('failed tutorial start reports the failure without false launch',
+      (tester) async {
+    final db = _newInMemoryDb();
+    addTearDown(() async => db.close());
+    final result = await _pumpHelpScreen(
+      tester,
+      db: db,
+      failTutorialRestart: true,
+    );
+
+    final tutorialRow = find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics &&
+          widget.properties.label == 'Equipment Setup tutorial, Not started',
+    );
+    final startButton = find.descendant(
+      of: tutorialRow,
+      matching: find.widgetWithText(NightshadeButton, 'Start'),
+    );
+    await tester.tap(startButton);
+    await tester.pumpAndSettle();
+
+    expect(result.router.routeInformationProvider.value.uri.path, '/help');
+    expect(
+      find.text('Could not start Equipment Setup. Please try again.'),
+      findsOneWidget,
+    );
+    expect(
+      result.container.read(tutorialProvider).activeCategory,
+      isNull,
+    );
+  });
+
+  testWidgets('failed onboarding-tour replay remains retryable',
+      (tester) async {
+    final db = _newInMemoryDb();
+    addTearDown(() async => db.close());
+    final result = await _pumpHelpScreen(
+      tester,
+      db: db,
+      failOnboardingTourReset: true,
+    );
+
+    final tourRow = find.ancestor(
+      of: find.text('Re-run onboarding tour'),
+      matching: find.byType(SettingRow),
+    );
+    final rerunButton = find.descendant(
+      of: tourRow,
+      matching: find.widgetWithText(NightshadeButton, 'Re-run'),
+    );
+    await tester.tap(rerunButton);
+    await tester.pumpAndSettle();
+
+    expect(result.router.routeInformationProvider.value.uri.path, '/help');
+    expect(
+      find.text('Could not restart the onboarding tour. Please try again.'),
+      findsOneWidget,
     );
   });
 }

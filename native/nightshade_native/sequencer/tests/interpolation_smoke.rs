@@ -109,13 +109,46 @@ fn unknown_variable_returns_error_not_empty() {
 
 #[test]
 fn missing_data_returns_unresolvable_not_empty() {
+    // Load-bearing target data (join keys and coordinates) must still fail
+    // loudly rather than render as empty. `target.ra` stands in for the class.
+    let mut ctx = ctx_with_target();
+    ctx.target_ra = None;
+    let frame = frame_with_burst();
+    let err = interpolate("${target.ra}", &ctx, &frame).expect_err("must error");
+    match err {
+        InterpolationError::Unresolvable { name, .. } => assert_eq!(name, "target.ra"),
+        other => panic!("expected Unresolvable, got {other:?}"),
+    }
+}
+
+/// `${target.name}` is the ONE deliberate exception to the rule above.
+///
+/// It used to be unresolvable too, which aborted the exposure *after the
+/// shutter had already opened* on any untargeted run — every calibration
+/// sequence — discarding real photons and finishing the run with zero frames.
+/// It now renders the explicit `untargeted` label, matching what the
+/// non-template filename path already writes. Note this still honours the
+/// spirit of the test above: the result is a stated fact, never an empty
+/// string. Pinned here as well as in the resolver's own unit tests so the
+/// exception cannot be quietly widened to the strict fields.
+#[test]
+fn missing_target_name_renders_untargeted_rather_than_aborting() {
     let mut ctx = ctx_with_target();
     ctx.target_name = None;
     let frame = frame_with_burst();
-    let err = interpolate("${target.name}", &ctx, &frame).expect_err("must error");
-    match err {
-        InterpolationError::Unresolvable { name, .. } => assert_eq!(name, "target.name"),
-        other => panic!("expected Unresolvable, got {other:?}"),
+    let rendered =
+        interpolate("${target.name}", &ctx, &frame).expect("an untargeted run must still render");
+    assert_eq!(rendered, "untargeted");
+    assert!(!rendered.is_empty(), "must never render as empty");
+
+    // The strict fields are unaffected by that exception.
+    for strict in ["${target.id}", "${target.ra}", "${target.dec}"] {
+        let mut bare = ExecutionContext::new("root".to_string());
+        bare.target_name = None;
+        let frame = frame_with_burst();
+        interpolate(strict, &bare, &frame).expect_err(&format!(
+            "{strict} must stay strict when there is no target"
+        ));
     }
 }
 

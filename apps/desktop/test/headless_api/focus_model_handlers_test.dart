@@ -107,6 +107,61 @@ void main() {
         'No active equipment profile. Load a profile first.',
       );
     });
+
+    test(
+      'should-refocus rejects invalid numeric queries before profile work',
+      () async {
+        final cases = <String, String>{
+          'lastFocusTemp=0': 'currentTemp',
+          'currentTemp=NaN&lastFocusTemp=0': 'currentTemp',
+          'currentTemp=0&lastFocusTemp=Infinity': 'lastFocusTemp',
+          'currentTemp=0&lastFocusTemp=0&maxDriftSteps=nope': 'maxDriftSteps',
+          'currentTemp=0&lastFocusTemp=0&maxDriftSteps=0': 'maxDriftSteps',
+          'currentTemp=0&lastFocusTemp=0&maxDriftSteps=-1': 'maxDriftSteps',
+          'currentTemp=0&lastFocusTemp=0&maxDriftSteps=2000.1': 'maxDriftSteps',
+        };
+
+        for (final entry in cases.entries) {
+          final response = await translateHandlerErrors(
+            handlers.handleShouldRefocus(
+              Request(
+                'GET',
+                Uri.parse(
+                  'http://localhost/api/focus-model/should-refocus?${entry.key}',
+                ),
+              ),
+            ),
+          );
+          expect(response.statusCode, HttpStatus.badRequest, reason: entry.key);
+          final body = jsonDecode(await response.readAsString()) as Map;
+          expect(body['field'], entry.value, reason: entry.key);
+        }
+      },
+    );
+
+    test(
+      'should-refocus accepts the 2000-step boundary before profile guard',
+      () async {
+        final response = await translateHandlerErrors(
+          handlers.handleShouldRefocus(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/focus-model/should-refocus'
+                '?currentTemp=0&lastFocusTemp=0&maxDriftSteps=2000',
+              ),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(
+          body['error'],
+          'No active equipment profile. Load a profile first.',
+        );
+        expect(body.containsKey('field'), isFalse);
+      },
+    );
   });
 
   // ===========================================================================
@@ -217,6 +272,61 @@ void main() {
         expect(prediction['basedOnTemperature'], temp);
       },
     );
+
+    test(
+      'predictive settings expose and persist the run-time model config',
+      () async {
+        await seedTrustedModel();
+        final getResponse = await getJson(
+          handlers.handleGetPredictiveSettings(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/focus-model/predictive'),
+            ),
+          ),
+        );
+        expect((getResponse['models'] as List), hasLength(1));
+        expect((getResponse['models'] as List).single['filter_name'], filter);
+
+        final config = runService.config.copyWith(
+          minSamplesForTrust: 9,
+          driftThresholdSteps: 300,
+        );
+        final update = await getJson(
+          handlers.handleUpdatePredictiveConfig(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/focus-model/predictive/config'),
+              body: jsonEncode(config.toJson()),
+            ),
+          ),
+        );
+        expect(update['status'], 'updated');
+        expect(runService.config.minSamplesForTrust, 9);
+        expect(
+          await database.settingsDao.getSetting(
+            'predictive_af.min_samples_for_trust',
+          ),
+          '9',
+        );
+      },
+    );
+
+    test('predictive config rejects crossed confidence thresholds', () async {
+      final payload = runService.config
+          .copyWith(highConfidenceThreshold: 0.6, lowConfidenceThreshold: 0.7)
+          .toJson();
+      final response = await translateHandlerErrors(
+        handlers.handleUpdatePredictiveConfig(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/focus-model/predictive/config'),
+            body: jsonEncode(payload),
+          ),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.badRequest);
+    });
 
     test('predict without a filter cannot key the per-filter model', () async {
       await seedTrustedModel();

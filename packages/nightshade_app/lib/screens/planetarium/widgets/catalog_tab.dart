@@ -25,7 +25,7 @@ class CatalogTab extends ConsumerWidget {
             name: displayName,
             catalog: catalogTag,
             type: dsoTypeName(dso.type),
-            altitude: dso.magnitude?.toStringAsFixed(1) ?? '-',
+            magnitude: dso.magnitude?.toStringAsFixed(1) ?? '-',
             transit: 'mag',
             colors: colors,
             onTap: () {

@@ -10,8 +10,8 @@
 // equipment area without touching surrounding layout.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -24,10 +24,23 @@ class SecondaryRigCard extends ConsumerWidget {
     final notifier = ref.read(secondaryRigConfigProvider.notifier);
     final statusAsync = ref.watch(secondaryRigStatusProvider);
     final camerasAsync = ref.watch(availableCamerasProvider);
+    final primaryCameraId = ref.watch(
+      cameraStateProvider.select((state) => state.deviceId),
+    );
+    final selectedCameraAvailable = camerasAsync.valueOrNull?.any(
+          (camera) =>
+              camera.id == config.cameraId && camera.id != primaryCameraId,
+        ) ??
+        false;
+    final operationInProgress = ref.watch(
+      secondaryRigOperationInProgressProvider,
+    );
     final theme = Theme.of(context);
 
     final status = statusAsync.value;
-    final isRunning = status?.running ?? false;
+    final statusKnown = statusAsync.hasValue;
+    final isArmed = status != null;
+    final controlsLocked = !statusKnown || isArmed || operationInProgress;
 
     return Card(
       margin: const EdgeInsets.all(8),
@@ -42,7 +55,13 @@ class SecondaryRigCard extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Text('Secondary Rig', style: theme.textTheme.titleMedium),
                 const Spacer(),
-                if (status != null) _StatusBadge(status: status),
+                if (operationInProgress)
+                  const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else if (status != null)
+                  _StatusBadge(status: status),
               ],
             ),
             const SizedBox(height: 4),
@@ -54,20 +73,41 @@ class SecondaryRigCard extends ConsumerWidget {
 
             // Camera selection.
             camerasAsync.when(
-              data: (cameras) => DropdownButtonFormField<String>(
-                initialValue: config.cameraId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Secondary camera',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: [
-                  for (final cam in cameras)
-                    DropdownMenuItem(value: cam.id, child: Text(cam.name)),
-                ],
-                onChanged: isRunning ? null : notifier.setCamera,
-              ),
+              data: (cameras) {
+                final selectable = cameras
+                    .where((camera) => camera.id != primaryCameraId)
+                    .toList(growable: false);
+                final selectedId = selectable.any(
+                  (camera) => camera.id == config.cameraId,
+                )
+                    ? config.cameraId
+                    : null;
+                final helperText = selectable.isEmpty
+                    ? 'No additional camera detected.'
+                    : config.cameraId == primaryCameraId
+                        ? 'Choose a camera other than the primary camera.'
+                        : config.cameraId != null && selectedId == null
+                            ? 'The previously selected camera is unavailable.'
+                            : null;
+                return DropdownButtonFormField<String>(
+                  initialValue: selectedId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: 'Secondary camera',
+                    helperText: helperText,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    for (final camera in selectable)
+                      DropdownMenuItem(
+                        value: camera.id,
+                        child: Text(camera.name),
+                      ),
+                  ],
+                  onChanged: controlsLocked ? null : notifier.setCamera,
+                );
+              },
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Text(
                 'Cameras unavailable.',
@@ -84,8 +124,10 @@ class SecondaryRigCard extends ConsumerWidget {
                   child: _NumberField(
                     label: 'Exposure (s)',
                     value: config.exposureSecs,
-                    enabled: !isRunning,
-                    onChanged: (v) => notifier.setExposure(v),
+                    enabled: !controlsLocked,
+                    requiredValue: true,
+                    onChanged: (value) =>
+                        notifier.setExposure(value ?? double.nan),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -93,8 +135,9 @@ class SecondaryRigCard extends ConsumerWidget {
                   child: _NumberField(
                     label: 'Gain',
                     value: config.gain?.toDouble(),
-                    enabled: !isRunning,
-                    onChanged: (v) => notifier.setGain(v.round()),
+                    enabled: !controlsLocked,
+                    wholeNumber: true,
+                    onChanged: (v) => notifier.setGain(v?.round()),
                   ),
                 ),
               ],
@@ -108,9 +151,10 @@ class SecondaryRigCard extends ConsumerWidget {
                   child: _NumberField(
                     label: 'Frames (blank = until end)',
                     value: config.frameCount?.toDouble(),
-                    enabled: !isRunning,
-                    onChanged: (v) =>
-                        notifier.setFrameCount(v <= 0 ? null : v.round()),
+                    enabled: !controlsLocked,
+                    wholeNumber: true,
+                    onChanged: (v) => notifier
+                        .setFrameCount(v == null || v <= 0 ? null : v.round()),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -127,7 +171,7 @@ class SecondaryRigCard extends ConsumerWidget {
                       for (final p in SecondaryDitherPolicy.values)
                         DropdownMenuItem(value: p, child: Text(p.label)),
                     ],
-                    onChanged: isRunning
+                    onChanged: controlsLocked
                         ? null
                         : (p) {
                             if (p != null) notifier.setDitherPolicy(p);
@@ -141,18 +185,39 @@ class SecondaryRigCard extends ConsumerWidget {
             // Controls.
             Row(
               children: [
-                if (!isRunning)
+                if (statusAsync.hasError) ...[
+                  FilledButton.tonalIcon(
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Stop defensively'),
+                    onPressed:
+                        operationInProgress ? null : () => _stop(context, ref),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry status'),
+                    onPressed: operationInProgress
+                        ? null
+                        : () => ref.invalidate(secondaryRigStatusProvider),
+                  ),
+                ] else if (!statusKnown)
+                  const Text('Checking secondary rig status…')
+                else if (!isArmed)
                   FilledButton.icon(
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Start secondary'),
-                    onPressed:
-                        config.isValid ? () => _start(context, ref) : null,
+                    onPressed: config.isValid &&
+                            selectedCameraAvailable &&
+                            !operationInProgress
+                        ? () => _start(context, ref)
+                        : null,
                   )
                 else
                   FilledButton.tonalIcon(
                     icon: const Icon(Icons.stop),
                     label: const Text('Stop secondary'),
-                    onPressed: () => _stop(context, ref),
+                    onPressed:
+                        operationInProgress ? null : () => _stop(context, ref),
                   ),
                 const SizedBox(width: 8),
                 if (status != null)
@@ -174,6 +239,15 @@ class SecondaryRigCard extends ConsumerWidget {
                 status!.lastError!,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.error),
+              ),
+            ],
+            if (statusAsync.hasError) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Secondary rig status is unavailable. Start is disabled because the host may still be exposing.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               ),
             ],
           ],
@@ -214,7 +288,7 @@ class SecondaryRigCard extends ConsumerWidget {
 
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
-  final bridge_api.SecondaryRigStatusApi status;
+  final SecondaryRigStatus status;
 
   @override
   Widget build(BuildContext context) {
@@ -245,32 +319,55 @@ class _NumberField extends StatelessWidget {
     required this.value,
     required this.enabled,
     required this.onChanged,
+    this.requiredValue = false,
+    this.wholeNumber = false,
   });
   final String label;
   final double? value;
   final bool enabled;
-  final ValueChanged<double> onChanged;
+  final ValueChanged<double?> onChanged;
+  final bool requiredValue;
+  final bool wholeNumber;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       enabled: enabled,
-      initialValue: value == null
-          ? ''
-          : (value == value!.roundToDouble()
-              ? value!.toInt().toString()
-              : value!.toString()),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      initialValue: _formattedValue,
+      keyboardType: TextInputType.numberWithOptions(
+        decimal: !wholeNumber,
+        signed: true,
+      ),
+      inputFormatters: [
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          final pattern =
+              wholeNumber ? RegExp(r'^-?\d*$') : RegExp(r'^-?\d*\.?\d*$');
+          return pattern.hasMatch(newValue.text) ? newValue : oldValue;
+        }),
+      ],
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      validator: (text) {
+        final trimmed = text?.trim() ?? '';
+        if (trimmed.isEmpty) {
+          return requiredValue ? 'Required' : null;
+        }
+        return double.tryParse(trimmed) == null ? 'Enter a number' : null;
+      },
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
         isDense: true,
       ),
       onChanged: (text) {
-        final parsed = double.tryParse(text.trim());
-        if (parsed != null) onChanged(parsed);
-        if (text.trim().isEmpty) onChanged(0);
+        onChanged(double.tryParse(text.trim()));
       },
     );
+  }
+
+  String get _formattedValue {
+    if (value == null || !value!.isFinite) return '';
+    return value == value!.roundToDouble()
+        ? value!.toInt().toString()
+        : value!.toString();
   }
 }

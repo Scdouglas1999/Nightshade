@@ -157,8 +157,49 @@ void main() {
       container.read(_refProvider),
       savePng: savePng,
       saveJpeg: saveJpeg,
+      applicationSupportDirectoryProvider: () async => tempDir,
     );
   }
+
+  group('durable viewer preview', () {
+    test(
+      'writes atomically and links the canonical PNG to the result row',
+      () async {
+        final source = _sampleResult(width: 16, height: 12);
+        final id = await resultsDao.insertResult(source);
+        final result = source.copyWith(id: id);
+
+        final path = await service().persistViewerPreview(
+          result: result,
+          rgba: _rgbaRamp(16, 12),
+        );
+
+        expect(
+          path,
+          p.join(tempDir.path, 'stack_and_share', 'results', 'result_$id.png'),
+        );
+        expect(File(path).existsSync(), isTrue);
+        expect(File('$path.partial.png').existsSync(), isFalse);
+        final decoded = img.decodePng(File(path).readAsBytesSync());
+        expect(decoded, isNotNull);
+        expect(decoded!.width, 16);
+        expect(decoded.height, 12);
+        final stored = await resultsDao.getResultById(id);
+        expect(stored!.exportedImagePath, path);
+      },
+    );
+
+    test('requires a persisted result id before writing anything', () async {
+      await expectLater(
+        service().persistViewerPreview(
+          result: _sampleResult(),
+          rgba: _rgbaRamp(16, 12),
+        ),
+        throwsStateError,
+      );
+      expect(pngSaveCount, 0);
+    });
+  });
 
   group('exportImage — format coverage', () {
     test(
@@ -313,6 +354,30 @@ void main() {
       expect(File(written).existsSync(), isTrue);
       expect(await resultsDao.getRecentResults(), isEmpty);
     });
+
+    test(
+      'remote export does not stamp a controller-local row with the same id',
+      () async {
+        final local = _sampleResult(
+          id: null,
+          width: 8,
+          height: 8,
+        ).copyWith(exportedImagePath: '/host/canonical.png');
+        final id = await resultsDao.insertResult(local);
+        final remote = _sampleResult(id: id, width: 8, height: 8);
+
+        await service().exportImage(
+          result: remote,
+          rgba: _rgbaRamp(8, 8),
+          format: ShareExportFormat.png,
+          outputPath: p.join(tempDir.path, 'controller-export.png'),
+          stampPersistedResult: false,
+        );
+
+        final stored = await resultsDao.getResultById(id);
+        expect(stored!.exportedImagePath, '/host/canonical.png');
+      },
+    );
 
     test('throws on a mis-sized RGBA buffer', () async {
       final result = _sampleResult(width: 16, height: 12);

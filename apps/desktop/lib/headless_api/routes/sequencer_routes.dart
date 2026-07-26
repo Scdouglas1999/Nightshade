@@ -62,6 +62,11 @@ List<HeadlessRoute> buildSequencerRoutes(
   HeadlessRoute(HttpMethod.post, '/api/sequencer/load', h.handleSequencerLoad),
   HeadlessRoute(
     HttpMethod.post,
+    '/api/sequencer/load-and-start',
+    h.handleSequencerLoadAndStart,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
     '/api/sequencer/simulation',
     h.handleSequencerSetSimulationMode,
   ),
@@ -99,6 +104,11 @@ List<HeadlessRoute> buildSequencerRoutes(
     HttpMethod.post,
     '/api/sequencer/update-dither-config',
     h.handleSequencerUpdateDitherConfig,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/sequencer/update-meridian-flip-config',
+    h.handleSequencerUpdateMeridianFlipConfig,
   ),
   HeadlessRoute(
     HttpMethod.post,

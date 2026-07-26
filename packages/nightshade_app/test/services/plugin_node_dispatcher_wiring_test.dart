@@ -117,6 +117,59 @@ void main() {
       expect(result.success, isFalse);
       expect(result.message, contains('reported failure'));
     });
+
+    test('malformed config fails without executing the plugin', () async {
+      final container = ProviderContainer(overrides: [
+        pluginNodeDispatcherOverride(),
+      ]);
+      addTearDown(container.dispose);
+
+      final host = container.read(pluginHostProvider);
+      final plugin = _CapturingPlugin();
+      await host.registerPlugin(plugin);
+
+      final result = await container.read(pluginNodeDispatcherProvider)(
+        const PluginNodeDispatchRequest(
+          nodeId: 'rt-bad-json',
+          pluginId: 'com.example.capture',
+          nodeTypeId: 'capture.echo',
+          configJson: '{not-json',
+          displayName: 'Capture',
+          timeoutSecs: 10,
+        ),
+      );
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('Invalid plugin node configuration'));
+      expect(plugin.lastNode, isNull,
+          reason: 'Malformed input must not be replaced with default params.');
+    });
+
+    test('non-object JSON config fails without executing the plugin', () async {
+      final container = ProviderContainer(overrides: [
+        pluginNodeDispatcherOverride(),
+      ]);
+      addTearDown(container.dispose);
+
+      final host = container.read(pluginHostProvider);
+      final plugin = _CapturingPlugin();
+      await host.registerPlugin(plugin);
+
+      final result = await container.read(pluginNodeDispatcherProvider)(
+        const PluginNodeDispatchRequest(
+          nodeId: 'rt-array-json',
+          pluginId: 'com.example.capture',
+          nodeTypeId: 'capture.echo',
+          configJson: '[]',
+          displayName: 'Capture',
+          timeoutSecs: 10,
+        ),
+      );
+
+      expect(result.success, isFalse);
+      expect(result.message, contains('must be a JSON object'));
+      expect(plugin.lastNode, isNull);
+    });
   });
 }
 

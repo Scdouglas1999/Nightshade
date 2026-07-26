@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../database/daos/stacked_results_dao.dart';
 import '../models/imaging/stack_and_share_models.dart';
@@ -93,17 +94,111 @@ class StackShareExportService {
     SaveRgbaPng? savePng,
     SaveRgbaJpeg? saveJpeg,
     ShareCardRenderer cardRenderer = const ShareCardRenderer(),
+    Future<Directory> Function()? applicationSupportDirectoryProvider,
   }) : _savePng = savePng ?? bridge.apiSaveRgbaPngFile,
        _saveJpeg = saveJpeg ?? bridge.apiSaveRgbaJpegFile,
-       _cardRenderer = cardRenderer;
+       _cardRenderer = cardRenderer,
+       _applicationSupportDirectoryProvider =
+           applicationSupportDirectoryProvider ??
+           getApplicationSupportDirectory;
 
   final Ref _ref;
   final SaveRgbaPng _savePng;
   final SaveRgbaJpeg _saveJpeg;
   final ShareCardRenderer _cardRenderer;
+  final Future<Directory> Function() _applicationSupportDirectoryProvider;
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
   StackedResultsDao get _resultsDao => _ref.read(stackedResultsDaoProvider);
+
+  /// Canonical host-local path for a result's durable viewer preview.
+  ///
+  /// This is intentionally separate from a user-selected export destination:
+  /// later PNG/JPEG/share-card exports may update `exportedImagePath`, but the
+  /// application-owned preview remains stable and reopenable.
+  Future<String> viewerPreviewPath(int resultId) async {
+    if (resultId <= 0) {
+      throw ArgumentError.value(resultId, 'resultId', 'must be positive');
+    }
+    final support = await _applicationSupportDirectoryProvider();
+    return p.normalize(
+      p.absolute(
+        p.join(
+          support.path,
+          'stack_and_share',
+          'results',
+          'result_$resultId.png',
+        ),
+      ),
+    );
+  }
+
+  /// Persist the canonical lossless preview used by result history and remote
+  /// viewers. The write is staged to a sibling partial file and renamed only
+  /// after validation, so a crash or encoder failure cannot leave a corrupt
+  /// path attached to an otherwise successful database row.
+  Future<String> persistViewerPreview({
+    required StackAndShareResult result,
+    required Uint8List rgba,
+  }) async {
+    final id = result.id;
+    if (id == null || id <= 0) {
+      throw StateError(
+        'A stacked result must be persisted before its viewer preview is saved.',
+      );
+    }
+
+    _validateBuffer(rgba: rgba, width: result.width, height: result.height);
+    final outputPath = await viewerPreviewPath(id);
+    // The native image writer infers PNG from the filename extension, so the
+    // staging name must still end in `.png` (a `.partial` suffix would make the
+    // Rust `image` encoder reject the path as an unknown format).
+    final partialPath = '$outputPath.partial.png';
+    await _ensureParentDirectory(outputPath);
+
+    try {
+      final partial = File(partialPath);
+      if (await partial.exists()) {
+        await partial.delete();
+      }
+      await _savePng(
+        filePath: partialPath,
+        width: result.width,
+        height: result.height,
+        rgba: rgba,
+      );
+      await _verifyWritten(partialPath, ShareExportFormat.png);
+
+      final output = File(outputPath);
+      if (await output.exists()) {
+        await output.delete();
+      }
+      await partial.rename(outputPath);
+
+      final updated = await _resultsDao.updateExportedPath(id, outputPath);
+      if (updated != 1) {
+        throw StateError(
+          'Stacked result $id disappeared before its viewer preview could be '
+          'linked.',
+        );
+      }
+    } catch (_) {
+      for (final path in [partialPath, outputPath]) {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      }
+      rethrow;
+    }
+
+    _logger.info(
+      'Persisted Stack-and-Share viewer preview to $outputPath '
+      '(${result.width}x${result.height})',
+      source: 'StackShareExportService',
+    );
+    return outputPath;
+  }
 
   /// Export [result]'s stacked master to [outputPath] in the requested
   /// [format], returning the absolute path written.
@@ -122,7 +217,10 @@ class StackShareExportService {
   ///
   /// When [result] has a persisted [StackAndShareResult.id], the written path is
   /// stamped onto its row via [StackedResultsDao.updateExportedPath] so the
-  /// stacked master can be re-shared later.
+  /// stacked master can be re-shared later. Set [stampPersistedResult] false
+  /// when exporting a result whose id belongs to a remote imaging host; this
+  /// prevents an unrelated controller-local row with the same integer id from
+  /// being modified.
   ///
   /// Throws [ShareExportBufferException] when [rgba] is shorter than
   /// `width * height * 4`, [ArgumentError] when [format] is
@@ -136,6 +234,7 @@ class StackShareExportService {
     required String outputPath,
     ShareCardSpec? cardSpec,
     int jpegQuality = 92,
+    bool stampPersistedResult = true,
   }) async {
     final width = result.width;
     final height = result.height;
@@ -178,7 +277,7 @@ class StackShareExportService {
     await _verifyWritten(absolutePath, format);
 
     final id = result.id;
-    if (id != null) {
+    if (stampPersistedResult && id != null) {
       final updated = await _resultsDao.updateExportedPath(id, absolutePath);
       if (updated == 0) {
         // The result claims a persisted id but no row matched — a stale id is a

@@ -66,13 +66,41 @@ class AnnotationStatusIndicator extends ConsumerWidget {
 
   const AnnotationStatusIndicator({super.key, required this.colors});
 
+  /// True when the "plate solve failed" state is really just "no solver is
+  /// installed on this machine".
+  ///
+  /// Annotations are enabled by default and no plate solver ships with the app,
+  /// so a fresh install showed a RED "Plate solve failed" error pinned over the
+  /// imaging viewport after every single capture — even a plain manual snapshot
+  /// (observed on the desktop build with the simulator camera). Nothing had
+  /// failed: an optional external tool simply is not set up, which the
+  /// Equipment readiness panel already reports as an advisory. This is the same
+  /// distinction the pipeline already draws for `catalogsNotInstalled`, which is
+  /// presented as a warning with a "go install it" hint rather than an error.
+  static bool _isSolverMissing(AnnotationState state) {
+    if (state.status != AnnotationStatus.plateSolveFailed) return false;
+    final text =
+        '${state.message ?? ''} ${state.errorDetails ?? ''}'.toLowerCase();
+    return text.contains('no supported external plate solver') ||
+        text.contains('plate solver is configured') ||
+        text.contains('astap');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final annotationState = ref.watch(annotationStateProvider);
     final annotationSettings =
         ref.watch(annotationSettingsProvider).valueOrNull;
-    final secondaryMessage =
-        annotationState.errorDetails ?? _getActionHint(annotationState.status);
+    final solverMissing = _isSolverMissing(annotationState);
+    // Borrow the "prerequisite not installed" presentation (warning tone, not
+    // error) while keeping solver-specific wording below.
+    final presentationStatus = solverMissing
+        ? AnnotationStatus.catalogsNotInstalled
+        : annotationState.status;
+    final secondaryMessage = solverMissing
+        ? 'Optional: install ASTAP or set its path in Settings to label objects'
+        : (annotationState.errorDetails ??
+            _getActionHint(annotationState.status));
 
     // Don't show anything if annotations are disabled
     if (annotationSettings != null && !annotationSettings.enabled) {
@@ -90,26 +118,28 @@ class AnnotationStatusIndicator extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: _getBackgroundColor(annotationState.status),
+          color: _getBackgroundColor(presentationStatus),
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(
-            color: _getBorderColor(annotationState.status),
+            color: _getBorderColor(presentationStatus),
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _getStatusIcon(annotationState.status),
+            _getStatusIcon(presentationStatus),
             const SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  annotationState.message ??
-                      _getStatusText(annotationState.status),
+                  solverMissing
+                      ? 'No plate solver installed'
+                      : (annotationState.message ??
+                          _getStatusText(annotationState.status)),
                   style: TextStyle(
-                    color: _getTextColor(annotationState.status),
+                    color: _getTextColor(presentationStatus),
                     fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -118,7 +148,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                   Text(
                     secondaryMessage,
                     style: TextStyle(
-                      color: _getTextColor(annotationState.status)
+                      color: _getTextColor(presentationStatus)
                           .withValues(alpha: 0.7),
                       fontSize: NightshadeTypography.fontSize10,
                     ),

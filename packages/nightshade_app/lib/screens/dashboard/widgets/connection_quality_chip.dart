@@ -27,11 +27,10 @@ class ConnectionQualityChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // valueOrNull keeps the chip stable across the stream's loading/error
-    // frames: the provider always seeds a value, so this is effectively
-    // never null, but defaulting to the local snapshot is the safe fallback.
+    // The provider seeds a value, but fail closed if Riverpod itself cannot
+    // produce one. A quality failure must never be presented as local control.
     final quality = ref.watch(connectionQualityProvider).valueOrNull ??
-        ConnectionQuality.local;
+        ConnectionQuality.unavailable;
 
     final color = _color(quality);
     final icon = _icon(quality);

@@ -26,7 +26,8 @@ import 'settings_provider.dart';
 /// as "not satisfied"*. Concretely:
 ///
 /// * Async providers ([appSettingsProvider], [plateSolverDetectionProvider],
-///   [darkLibraryStatsProvider]) are read via `.valueOrNull`; a `null` (still
+///   [plateSolverPreferenceProvider], [darkLibraryStatsProvider]) are read via
+///   `.valueOrNull`; a `null` (still
 ///   loading) or an error state collapses the corresponding flag to `false`.
 ///   We never optimistically assume a setting is configured just because we
 ///   have not finished reading it.
@@ -62,10 +63,9 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
   // on error, both derived flags fail closed to false.
   final settings = ref.watch(appSettingsProvider).valueOrNull;
 
-  // 0.0/0.0 is the unset sentinel used throughout settings_provider; a
-  // location counts as configured only when BOTH coordinates are non-zero.
-  final locationSet =
-      settings != null && settings.latitude != 0.0 && settings.longitude != 0.0;
+  // Only the (0,0) sentinel means unset. Equator and prime-meridian sites are
+  // valid observatory locations and must not fail readiness independently.
+  final locationSet = settings?.isLocationSet ?? false;
 
   // The capture output directory is persisted via
   // `SettingsDao.setDefaultImageDirectory`, surfaced here as
@@ -74,15 +74,14 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
       settings != null && settings.imageOutputPath.trim().isNotEmpty;
 
   // --- Plate solver ---------------------------------------------------------
-  // A rig is solver-ready when ANY usable solver is configured — ASTAP (with a
-  // catalog) OR astrometry.net. `hasAnySolver` encodes exactly that. Gating on
-  // `astapReady` alone would falsely flag an astrometry.net-only setup as
-  // "no solver configured", contradicting `PlateSolveService.solveWithFallback`
-  // which solves via astrometry.net when ASTAP is absent.
-  // Loading/error -> null -> false.
+  // Readiness must reflect the selected solver, not merely some other solver
+  // installed on disk. For Auto, either usable engine is sufficient.
+  final solverDetection = ref.watch(plateSolverDetectionProvider).valueOrNull;
+  final solverPreference = ref.watch(plateSolverPreferenceProvider).valueOrNull;
   final plateSolverReady =
-      ref.watch(plateSolverDetectionProvider).valueOrNull?.hasAnySolver ??
-      false;
+      solverDetection != null &&
+      solverPreference != null &&
+      solverDetection.supports(solverPreference.choice);
 
   // --- Dark library ---------------------------------------------------------
   // Coverage is satisfied once at least one master dark exists. The stats

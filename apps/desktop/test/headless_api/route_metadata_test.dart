@@ -4,6 +4,99 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/route_metadata.dart';
 
 void main() {
+  group('resource-key tagging (fine-grained auth)', () {
+    test('maps device/feature prefixes to their resource key', () {
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/camera/expose'),
+        'camera',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/mount/slew'),
+        'mount',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/filter-wheel/set'),
+        'filter-wheel',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/devices/connect'),
+        'devices',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'GET', path: '/api/calibration/darks'),
+        'calibration',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'GET', path: '/api/calibration-library'),
+        'calibration',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'GET', path: '/api/files/browse'),
+        'filesystem',
+      );
+    });
+
+    test('collaborative-sky routes map to their own resource, not system', () {
+      // Regression: these previously fell through to `system`, conflating
+      // collaborative access with admin (a fine-grained token had to hold
+      // `system`, and any `system` token gained collaborative access).
+      expect(
+        resourceKeyForEndpoint(
+          method: 'POST',
+          path: '/api/mosaic/collaborative/publish',
+        ),
+        'mosaic',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/coimaging/sessions'),
+        'coimaging',
+      );
+      expect(
+        resourceKeyForEndpoint(
+          method: 'GET',
+          path: '/api/constellation/targets',
+        ),
+        'constellation',
+      );
+      // The live collaboration surface (shared-viewer join, broadcast preview,
+      // chat, annotations) is the last collaborative route that still fell
+      // through to `system` — it maps to the collaborative `constellation`
+      // resource, so a fine-grained token no longer needs `system` to run a
+      // shared viewing session (and a `system` grant no longer silently gains
+      // it).
+      expect(
+        resourceKeyForEndpoint(
+          method: 'POST',
+          path: '/api/collaboration/viewers/join',
+        ),
+        'constellation',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/collaboration/chat'),
+        'constellation',
+      );
+      expect(
+        resourceKeyForEndpoint(method: 'GET', path: '/api/collaboration/state'),
+        'constellation',
+      );
+    });
+
+    test('public/system probes map to the info resource', () {
+      expect(resourceKeyForEndpoint(method: 'GET', path: '/api/info'), 'info');
+      expect(
+        resourceKeyForEndpoint(method: 'GET', path: '/api/status'),
+        'info',
+      );
+    });
+
+    test('unmapped paths fail closed to the system resource', () {
+      expect(
+        resourceKeyForEndpoint(method: 'POST', path: '/api/totally-unknown'),
+        'system',
+      );
+    });
+  });
+
   group('OpenAPI route metadata', () {
     test('converts shelf route parameters to OpenAPI parameters', () {
       expect(openApiPath('/api/targets/<id>'), '/api/targets/{id}');
@@ -17,6 +110,7 @@ void main() {
           'GET /api/info',
           'GET /api/files/browse',
           'POST /api/mount/slew',
+          'POST /api/devices/connect',
           'POST /api/targets/<id>/favorite',
           'WS /events',
         ],
@@ -36,6 +130,25 @@ void main() {
       expect(paths, contains('/api/targets/{id}/favorite'));
       expect(paths, isNot(contains('/events')));
       expect(paths['/api/targets/{id}/favorite'], contains('post'));
+      expect(
+        paths['/api/mount/slew']['post']['requestBody']['content'],
+        contains('application/json'),
+      );
+      final connectBody =
+          paths['/api/devices/connect']['post']['requestBody']
+              as Map<String, dynamic>;
+      expect(connectBody['required'], isTrue);
+      final connectSchema =
+          connectBody['content']['application/json']['schema']
+              as Map<String, dynamic>;
+      expect(
+        connectSchema['required'],
+        containsAll(['deviceId', 'deviceType']),
+      );
+      expect(
+        connectSchema['properties']['deviceType']['enum'],
+        containsAll(['camera', 'filterWheel', 'coverCalibrator']),
+      );
       final info = paths['/api/info']['get'] as Map<String, dynamic>;
       expect(info['x-auth-required'], isFalse);
       expect(info['x-required-scope'], 'public');
@@ -201,6 +314,153 @@ void main() {
       }
     });
 
+    test('uses high-risk limits for collaborative-mosaic egress + assemble + '
+        'output download', () {
+      // Both the templated (route-enumeration) and instantiated
+      // (request-time) forms must escalate to the high-risk tier: the
+      // panel upload ships a full-resolution master off the device,
+      // assemble runs a heavy native stitch, and the output download pulls
+      // hub-served bytes and writes them to the appliance filesystem.
+      for (final path in const [
+        '/api/mosaic/projects/<projectId>/panels/<panelIndex>/upload',
+        '/api/mosaic/projects/7/panels/3/upload',
+        '/api/mosaic/projects/<projectId>/assemble',
+        '/api/mosaic/projects/7/assemble',
+        '/api/mosaic/projects/<projectId>/output',
+        '/api/mosaic/projects/7/output',
+      ]) {
+        expect(
+          endpointRateLimitFor(method: 'POST', path: path)!.maxRequests,
+          highRiskControlRateLimitMaxRequests,
+          reason: '$path must use high-risk control limits.',
+        );
+        expect(
+          isHighRiskControlPath(path),
+          isTrue,
+          reason: '$path must be a high-risk control path.',
+        );
+      }
+    });
+
+    test('uses default limits for other collaborative-mosaic controls', () {
+      // publish / join / claim are mutating but neither data egress nor heavy
+      // compute, so they ride the default control window via the
+      // `/api/mosaic/` prefix. (output download is high-risk: covered above.)
+      for (final path in const [
+        '/api/mosaic/projects/7/publish',
+        '/api/mosaic/projects/7/join',
+        '/api/mosaic/projects/7/panels/3/claim',
+      ]) {
+        expect(
+          endpointRateLimitFor(method: 'POST', path: path)!.maxRequests,
+          defaultControlRateLimitMaxRequests,
+          reason: '$path must use default control limits.',
+        );
+        expect(
+          isHighRiskControlPath(path),
+          isFalse,
+          reason: '$path must not be a high-risk control path.',
+        );
+      }
+    });
+
+    test('rate-limits live collaboration mutating endpoints (default tier)', () {
+      // Viewer join / chat / preview / annotations are mutating collaborative
+      // controls, so — like the mosaic/coimaging control surface — they ride the
+      // default control window instead of being unlimited (a joined viewer must
+      // not be able to flood an unattended rig with chat/preview posts).
+      for (final path in const [
+        '/api/collaboration/viewers/join',
+        '/api/collaboration/chat',
+        '/api/collaboration/preview',
+        '/api/collaboration/annotations',
+      ]) {
+        expect(
+          endpointRateLimitFor(method: 'POST', path: path)?.maxRequests,
+          defaultControlRateLimitMaxRequests,
+          reason: '$path must use default control limits, not be unlimited.',
+        );
+      }
+    });
+
+    test(
+      'uses high-risk limits + audits live co-imaging contribute egress',
+      () {
+        // sub-complete + contribute fold this rig's additive sums off-device to
+        // a remote hub (sub-complete also drives heavy native fusion), so both
+        // the templated and instantiated forms escalate to the high-risk tier
+        // AND emit the `coimaging_sub_contribute` audit action.
+        for (final path in const [
+          '/api/coimaging/sessions/<sessionId>/sub-complete',
+          '/api/coimaging/sessions/abc123/sub-complete',
+          '/api/coimaging/sessions/<sessionId>/contribute',
+          '/api/coimaging/sessions/abc123/contribute',
+        ]) {
+          expect(
+            endpointRateLimitFor(method: 'POST', path: path)!.maxRequests,
+            highRiskControlRateLimitMaxRequests,
+            reason: '$path must use high-risk control limits.',
+          );
+          expect(
+            isHighRiskControlPath(path),
+            isTrue,
+            reason: '$path must be a high-risk control path.',
+          );
+          expect(
+            highRiskAuditActionFor(method: 'POST', path: path),
+            'coimaging_sub_contribute',
+            reason: '$path must emit the co-imaging contribute audit action.',
+          );
+        }
+      },
+    );
+
+    test('uses default limits for other live co-imaging + constellation '
+        'controls', () {
+      // create / join / leave / close / baton are mutating but neither data
+      // egress nor heavy fusion, so they ride the default control window via the
+      // `/api/coimaging/` + `/api/constellation/` prefixes.
+      for (final path in const [
+        '/api/coimaging/sessions',
+        '/api/coimaging/sessions/s1/join',
+        '/api/coimaging/sessions/s1/close',
+        '/api/coimaging/sessions/s1/baton/auto',
+        '/api/constellation/contribute',
+      ]) {
+        expect(
+          endpointRateLimitFor(method: 'POST', path: path)!.maxRequests,
+          defaultControlRateLimitMaxRequests,
+          reason: '$path must use default control limits.',
+        );
+        expect(
+          isHighRiskControlPath(path),
+          isFalse,
+          reason: '$path must not be a high-risk control path.',
+        );
+      }
+    });
+
+    test('rate-limits calibration-library mutating endpoints (default '
+        'tier)', () {
+      // The unified Calibration Library Manager write surface sits under the
+      // hyphenated `/api/calibration-library/` prefix, which does NOT match
+      // `/api/calibration/`. It is enrolled in the control prefix list so the
+      // off-device publish and its siblings get the default per-endpoint
+      // window instead of only the coarse write token bucket.
+      for (final path in const [
+        '/api/calibration-library/publish',
+        '/api/calibration-library/match',
+        '/api/calibration-library/accept',
+        '/api/calibration-library/retract',
+      ]) {
+        expect(
+          endpointRateLimitFor(method: 'POST', path: path)?.maxRequests,
+          defaultControlRateLimitMaxRequests,
+          reason: '$path must use default control limits, not be unlimited.',
+        );
+      }
+    });
+
     test('rate limits file browsing without blocking ordinary reads', () {
       expect(
         endpointRateLimitFor(
@@ -288,6 +548,91 @@ void main() {
       expect(
         highRiskAuditActionFor(method: 'GET', path: '/api/files/browse'),
         'file_browse',
+      );
+    });
+
+    test('audits collaborative-mosaic egress + assemble (parameterised)', () {
+      // Both templated and instantiated path forms must produce an audit
+      // row so an operator can trace who triggered the off-device egress
+      // or the heavy stitch.
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/<projectId>/panels/<panelIndex>/upload',
+        ),
+        'mosaic_panel_upload',
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/7/panels/3/upload',
+        ),
+        'mosaic_panel_upload',
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/<projectId>/assemble',
+        ),
+        'mosaic_assemble',
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/7/assemble',
+        ),
+        'mosaic_assemble',
+      );
+      // Owner/admin force-release is a destructive recovery action (evicting a
+      // squatting claim or a poisoned upload), so both path forms must produce
+      // an audit row recording who evicted which panel.
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path:
+              '/api/mosaic/projects/<projectId>/panels/<panelIndex>/'
+              'force-release',
+        ),
+        'mosaic_force_release',
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/7/panels/3/force-release',
+        ),
+        'mosaic_force_release',
+      );
+      // The finished-mosaic download writes hub-served bytes to disk, so both
+      // path forms must produce an audit row too.
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/<projectId>/output',
+        ),
+        'mosaic_output_download',
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/7/output',
+        ),
+        'mosaic_output_download',
+      );
+      // Sibling collaborative POSTs that are neither egress nor heavy
+      // compute must NOT produce an audit action.
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/7/panels/3/claim',
+        ),
+        isNull,
+      );
+      expect(
+        highRiskAuditActionFor(
+          method: 'POST',
+          path: '/api/mosaic/projects/7/publish',
+        ),
+        isNull,
       );
     });
 

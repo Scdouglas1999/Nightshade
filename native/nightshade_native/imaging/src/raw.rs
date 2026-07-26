@@ -22,7 +22,7 @@
 use crate::{ImageData, PixelType};
 use image::GenericImageView;
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_double, c_float, c_int, c_uint, c_ushort};
+use std::os::raw::{c_char, c_double, c_float, c_int, c_uint, c_ushort, c_void};
 use std::path::Path;
 
 // =============================================================================
@@ -75,6 +75,25 @@ struct libraw_processed_image_t {
     // data follows immediately after
 }
 
+// Mirrors `nightshade_cfa_info_t` in libraw_shim.c. Field order and types MUST
+// stay in lockstep with the C definition — the C side fills it from the real
+// LibRaw struct, this is only a transport record.
+#[repr(C)]
+struct nightshade_cfa_info_t {
+    width: c_int,
+    height: c_int,
+    raw_width: c_int,
+    raw_height: c_int,
+    top_margin: c_int,
+    left_margin: c_int,
+    raw_bps: c_int,
+    maximum: c_uint,
+    black: c_uint,
+    filters: c_int,
+    is_xtrans: c_int,
+    cfa: [c_char; 8],
+}
+
 #[repr(C)]
 struct nightshade_libraw_config_t {
     white_balance_mode: c_int,
@@ -106,6 +125,19 @@ extern "C" {
         data: *mut libraw_data_t,
         config: *const nightshade_libraw_config_t,
     );
+    // Fill a `nightshade_cfa_info_t` from an unpacked processor (dims, margins,
+    // bit depth, saturation, CFA orientation). Returns 0 on success.
+    fn nightshade_libraw_extract_cfa_info(
+        data: *mut libraw_data_t,
+        info: *mut nightshade_cfa_info_t,
+    ) -> c_int;
+    // Copy the visible single-channel CFA mosaic (margins trimmed) into
+    // `out` (>= width*height u16 samples). Returns 0 on success.
+    fn nightshade_libraw_copy_cfa_mosaic(
+        data: *mut libraw_data_t,
+        out: *mut c_ushort,
+        out_len: usize,
+    ) -> c_int;
 }
 
 #[cfg_attr(target_os = "windows", link(name = "libraw"))]
@@ -113,7 +145,9 @@ extern "C" {
 extern "C" {
     fn libraw_init(flags: c_uint) -> *mut libraw_data_t;
     fn libraw_open_file(data: *mut libraw_data_t, path: *const c_char) -> c_int;
+    fn libraw_open_buffer(data: *mut libraw_data_t, buffer: *const c_void, size: usize) -> c_int;
     fn libraw_unpack(data: *mut libraw_data_t) -> c_int;
+    fn libraw_raw2image(data: *mut libraw_data_t) -> c_int;
     fn libraw_dcraw_process(data: *mut libraw_data_t) -> c_int;
     fn libraw_dcraw_make_mem_image(
         data: *mut libraw_data_t,
@@ -855,6 +889,341 @@ pub fn read_raw_from_bytes(
     result
 }
 
+/// A 2×2 colour-filter-array (Bayer) pattern in sensor row-major order
+/// (top-left, top-right, bottom-left, bottom-right).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CfaPattern {
+    Rggb,
+    Grbg,
+    Gbrg,
+    Bggr,
+}
+
+/// A decoded RAW frame as its native single-channel LINEAR CFA mosaic.
+///
+/// This is the astro-correct decode: `data` is the sensor's raw Bayer/X-Trans
+/// mosaic at native bit depth — NO demosaic, white balance, gamma, or colour
+/// transform — with the optical-black margins trimmed. `data.len()` is exactly
+/// `width * height`. Contrast with [`read_raw`], which returns a processed
+/// 3-channel sRGB image suitable only for previews/thumbnails and MUST NOT be
+/// fed to the calibration/stacking/photometry pipeline.
+///
+/// The extraction mirrors the INDI reference driver `read_libraw()`
+/// (indi-gphoto/gphoto_readimage.cpp:143-218): `unpack` + `raw2image`, then a
+/// margin-trimmed, de-strided copy of `imgdata.rawdata.raw_image`.
+#[derive(Debug, Clone)]
+pub struct CfaImage {
+    pub width: u32,
+    pub height: u32,
+    /// Single-channel, row-major, linear. `len() == width * height`.
+    pub data: Vec<u16>,
+    /// The 2×2 Bayer orientation, or `None` for X-Trans / non-CFA sensors
+    /// whose mosaic cannot be faithfully described by a 2×2 pattern.
+    pub cfa_pattern: Option<CfaPattern>,
+    /// True for X-Trans (6×6) sensors; `cfa_pattern` is then `None`.
+    pub is_xtrans: bool,
+    /// True sensor bit depth (e.g. 12/14/16), derived from the saturation
+    /// level so `(1 << bits) - 1` is a truthful max ADU for the data.
+    pub bits_per_pixel: u32,
+    /// Saturation / white level (max ADU) reported by LibRaw.
+    pub max_value: u32,
+    /// Global black level reported by LibRaw. Informational only — it is NOT
+    /// subtracted, matching the reference driver which leaves the mosaic
+    /// untouched so downstream calibration can model the pedestal itself.
+    pub black_level: u32,
+}
+
+/// Derive the true sensor bit depth from LibRaw's saturation level.
+///
+/// The data samples span `0..=maximum` at native bit depth (LibRaw does NOT
+/// left-shift the mosaic to fill 16 bits), so we report the smallest bit depth
+/// that contains `maximum`. That makes `(1 << bits) - 1` a truthful max ADU —
+/// unlike the reference driver, which hardcodes 16 and would tell the pipeline
+/// a 14-bit frame saturates at 65535. `raw_bps` is a best-effort fallback for
+/// the rare cameras where LibRaw leaves `maximum` at 0. Clamped to [8, 16].
+fn derive_bits_per_pixel(maximum: u32, raw_bps: c_int) -> u32 {
+    if maximum > 0 {
+        (u32::BITS - maximum.leading_zeros()).clamp(8, 16)
+    } else if (8..=16).contains(&raw_bps) {
+        raw_bps as u32
+    } else {
+        16
+    }
+}
+
+/// Map the 4-letter CFA descriptor (from `libraw_COLOR` × `cdesc`) to a 2×2
+/// Bayer orientation. Returns `None` for X-Trans (6×6 — cannot be described by
+/// a 2×2 pattern), for non-CFA data (`filters == 0`), and for any descriptor
+/// that isn't one of the four canonical Bayer orders — honestly declining to
+/// guess rather than silently mislabelling the mosaic for downstream debayer.
+fn cfa_pattern_from_bytes(cfa: &[u8; 4], is_xtrans: bool, filters: c_int) -> Option<CfaPattern> {
+    if is_xtrans || filters == 0 {
+        return None;
+    }
+    match cfa {
+        b"RGGB" => Some(CfaPattern::Rggb),
+        b"GRBG" => Some(CfaPattern::Grbg),
+        b"GBRG" => Some(CfaPattern::Gbrg),
+        b"BGGR" => Some(CfaPattern::Bggr),
+        _ => None,
+    }
+}
+
+/// Read a RAW file into its native single-channel linear CFA mosaic.
+///
+/// See [`CfaImage`] for the contract. Use this (not [`read_raw`]) for any
+/// astro capture path: DSLR/mirrorless light/dark/flat/bias frames.
+pub fn read_cfa_mosaic(path: &Path) -> Result<(CfaImage, RawMetadata), RawError> {
+    let path_str = path
+        .to_str()
+        .ok_or_else(|| RawError::InvalidPath("Path contains invalid UTF-8".to_string()))?;
+
+    if !path.exists() {
+        return Err(RawError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "File not found",
+        )));
+    }
+
+    // SAFETY: FFI into LibRaw. `processor` is checked non-null; `open_file`
+    // return code is checked; `decode_cfa_common` takes ownership of the
+    // processor and closes it on every path (success and error).
+    unsafe {
+        let processor = libraw_init(0);
+        if processor.is_null() {
+            return Err(RawError::NullPointer);
+        }
+
+        let c_path = CString::new(path_str)
+            .map_err(|_| RawError::InvalidPath("Path contains null bytes".to_string()))?;
+
+        let ret = libraw_open_file(processor, c_path.as_ptr());
+        if ret != LIBRAW_SUCCESS {
+            let err_msg = get_error_string(ret);
+            libraw_close(processor);
+            return Err(RawError::LibRawError(format!(
+                "libraw_open_file failed: {}",
+                err_msg
+            )));
+        }
+
+        decode_cfa_common(processor)
+    }
+}
+
+/// Read a RAW frame from in-memory bytes into its native CFA mosaic.
+///
+/// Decodes directly from the buffer via `libraw_open_buffer` — no temp file,
+/// so no filename collisions between concurrent captures. `extension` is only
+/// used for diagnostics (LibRaw sniffs the real format from the bytes).
+pub fn read_cfa_mosaic_from_bytes(
+    data: &[u8],
+    extension: &str,
+) -> Result<(CfaImage, RawMetadata), RawError> {
+    if data.is_empty() {
+        return Err(RawError::LibRawError(
+            "empty RAW buffer supplied for CFA decode".to_string(),
+        ));
+    }
+
+    tracing::debug!(
+        "read_cfa_mosaic_from_bytes: {} bytes, hint extension '{}'",
+        data.len(),
+        extension
+    );
+
+    // SAFETY: FFI into LibRaw. `processor` is checked non-null; `open_buffer`
+    // borrows `data` only for the duration of the call (LibRaw copies what it
+    // needs during identify/unpack); return code is checked; `decode_cfa_common`
+    // owns and closes the processor on every path.
+    unsafe {
+        let processor = libraw_init(0);
+        if processor.is_null() {
+            return Err(RawError::NullPointer);
+        }
+
+        let ret = libraw_open_buffer(processor, data.as_ptr() as *const c_void, data.len());
+        if ret != LIBRAW_SUCCESS {
+            let err_msg = get_error_string(ret);
+            libraw_close(processor);
+            return Err(RawError::LibRawError(format!(
+                "libraw_open_buffer failed: {}",
+                err_msg
+            )));
+        }
+
+        decode_cfa_common(processor)
+    }
+}
+
+/// Shared tail for the CFA decode: metadata read, unpack + raw2image, then the
+/// margin-trimmed single-channel copy. Takes ownership of `processor` and
+/// ALWAYS closes it before returning.
+///
+/// SAFETY: `processor` must be a valid, freshly `libraw_open_*`-ed handle. The
+/// caller must not use it after this returns.
+unsafe fn decode_cfa_common(
+    processor: *mut libraw_data_t,
+) -> Result<(CfaImage, RawMetadata), RawError> {
+    // ---- Metadata (available post-open, pre-unpack) ------------------------
+    let iparams = libraw_get_iparams(processor);
+    let other = libraw_get_imgother(processor);
+    if iparams.is_null() || other.is_null() {
+        libraw_close(processor);
+        return Err(RawError::NullPointer);
+    }
+    let iparams = &*iparams;
+    let other = &*other;
+
+    let camera_make = CStr::from_ptr(iparams.make.as_ptr())
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    let camera_model = CStr::from_ptr(iparams.model.as_ptr())
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    let color_desc = CStr::from_ptr(iparams.cdesc.as_ptr())
+        .to_string_lossy()
+        .to_string();
+    let is_xtrans_meta = iparams.filters == 9;
+
+    let iso_speed = (other.iso_speed > 0.0).then_some(other.iso_speed);
+    let shutter_speed = (other.shutter > 0.0).then_some(other.shutter);
+    let aperture = (other.aperture > 0.0).then_some(other.aperture);
+    let focal_length = (other.focal_len > 0.0).then_some(other.focal_len);
+    let timestamp = (other.timestamp > 0).then_some(other.timestamp as i64);
+
+    // ---- Unpack + raw2image (NO dcraw_process → stays linear mono) ---------
+    let ret = libraw_unpack(processor);
+    if ret != LIBRAW_SUCCESS {
+        let err_msg = get_error_string(ret);
+        libraw_close(processor);
+        return Err(RawError::LibRawError(format!(
+            "libraw_unpack failed: {}",
+            err_msg
+        )));
+    }
+
+    let ret = libraw_raw2image(processor);
+    if ret != LIBRAW_SUCCESS {
+        let err_msg = get_error_string(ret);
+        libraw_close(processor);
+        return Err(RawError::LibRawError(format!(
+            "libraw_raw2image failed: {}",
+            err_msg
+        )));
+    }
+
+    // ---- Extract geometry / CFA orientation / bit depth from the struct ----
+    let mut info = nightshade_cfa_info_t {
+        width: 0,
+        height: 0,
+        raw_width: 0,
+        raw_height: 0,
+        top_margin: 0,
+        left_margin: 0,
+        raw_bps: 0,
+        maximum: 0,
+        black: 0,
+        filters: 0,
+        is_xtrans: 0,
+        cfa: [0; 8],
+    };
+    let ret = nightshade_libraw_extract_cfa_info(processor, &mut info);
+    if ret != 0 {
+        libraw_close(processor);
+        return Err(RawError::UnsupportedFormat(format!(
+            "this RAW has no single-channel CFA mosaic (LibRaw raw_image absent, code {}); \
+             Foveon/sRAW/already-colour data is not supported by the CFA decode path",
+            ret
+        )));
+    }
+
+    if info.width <= 0 || info.height <= 0 {
+        libraw_close(processor);
+        return Err(RawError::LibRawError(format!(
+            "LibRaw reported non-positive CFA dimensions: {}x{}",
+            info.width, info.height
+        )));
+    }
+
+    let width = info.width as u32;
+    let height = info.height as u32;
+    let pixel_count = (width as usize) * (height as usize);
+
+    // ---- Copy the visible mosaic (margins trimmed) ------------------------
+    let mut data = vec![0u16; pixel_count];
+    let ret = nightshade_libraw_copy_cfa_mosaic(processor, data.as_mut_ptr(), data.len());
+    if ret != 0 {
+        libraw_close(processor);
+        return Err(RawError::LibRawError(format!(
+            "failed to copy CFA mosaic (code {})",
+            ret
+        )));
+    }
+
+    let raw_width_meta = info.raw_width.max(0) as u32;
+    let raw_height_meta = info.raw_height.max(0) as u32;
+
+    // Done with LibRaw — everything below is on owned Rust data.
+    libraw_close(processor);
+
+    // ---- True bit depth: derive from the saturation level so
+    // `(1 << bits) - 1` is a truthful max ADU for the data. -----------------
+    let max_value = info.maximum;
+    let bits_per_pixel = derive_bits_per_pixel(max_value, info.raw_bps);
+
+    // ---- CFA orientation. None for X-Trans (6×6, not a 2×2 pattern) and for
+    // non-CFA data; a genuine 2×2 Bayer maps to one of the four orientations.
+    let is_xtrans = info.is_xtrans != 0 || is_xtrans_meta;
+    let cfa_bytes = [
+        info.cfa[0] as u8,
+        info.cfa[1] as u8,
+        info.cfa[2] as u8,
+        info.cfa[3] as u8,
+    ];
+    let cfa_pattern = cfa_pattern_from_bytes(&cfa_bytes, is_xtrans, info.filters);
+
+    tracing::info!(
+        "CFA decode: {}x{} mono mosaic, pattern={:?}, xtrans={}, {}-bit (max_adu={}, black={})",
+        width,
+        height,
+        cfa_pattern,
+        is_xtrans,
+        bits_per_pixel,
+        max_value,
+        info.black,
+    );
+
+    let metadata = RawMetadata {
+        camera_make,
+        camera_model,
+        iso_speed,
+        shutter_speed,
+        aperture,
+        focal_length,
+        timestamp,
+        color_desc,
+        is_xtrans,
+        raw_width: raw_width_meta,
+        raw_height: raw_height_meta,
+    };
+
+    let image = CfaImage {
+        width,
+        height,
+        data,
+        cfa_pattern,
+        is_xtrans,
+        bits_per_pixel,
+        max_value,
+        black_level: info.black,
+    };
+
+    Ok((image, metadata))
+}
+
 /// Get appropriate file extension for a detected RAW format
 pub fn raw_format_extension(data: &[u8]) -> Option<&'static str> {
     use crate::ImageFormat;
@@ -876,6 +1245,56 @@ pub fn raw_format_extension(data: &[u8]) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn derive_bits_per_pixel_reports_true_depth_from_saturation() {
+        // 14-bit DSLR (Canon/Nikon/Sony): maximum ~16383 -> 14, NOT 16.
+        assert_eq!(derive_bits_per_pixel(16383, 14), 14);
+        assert_eq!(derive_bits_per_pixel(16000, 14), 14); // white below full range
+                                                          // 12-bit body.
+        assert_eq!(derive_bits_per_pixel(4095, 12), 12);
+        // 16-bit (e.g. GFX / some CCDs).
+        assert_eq!(derive_bits_per_pixel(65535, 16), 16);
+        // maximum missing -> fall back to raw_bps.
+        assert_eq!(derive_bits_per_pixel(0, 14), 14);
+        // both missing/bogus -> safe 16.
+        assert_eq!(derive_bits_per_pixel(0, 0), 16);
+        // never below 8 or above 16.
+        assert_eq!(derive_bits_per_pixel(3, 0), 8);
+        assert_eq!(derive_bits_per_pixel(u32::MAX, 99), 16);
+    }
+
+    #[test]
+    fn cfa_pattern_maps_all_four_bayer_orientations() {
+        // Standard Bayer filters value is non-zero; is_xtrans false.
+        let f: c_int = 0x1949_4949; // any non-zero, non-9 Bayer filters mask
+        assert_eq!(
+            cfa_pattern_from_bytes(b"RGGB", false, f),
+            Some(CfaPattern::Rggb)
+        );
+        assert_eq!(
+            cfa_pattern_from_bytes(b"GRBG", false, f),
+            Some(CfaPattern::Grbg)
+        );
+        assert_eq!(
+            cfa_pattern_from_bytes(b"GBRG", false, f),
+            Some(CfaPattern::Gbrg)
+        );
+        assert_eq!(
+            cfa_pattern_from_bytes(b"BGGR", false, f),
+            Some(CfaPattern::Bggr)
+        );
+    }
+
+    #[test]
+    fn cfa_pattern_is_none_for_xtrans_and_noncfa() {
+        // X-Trans (6×6) cannot be a 2×2 pattern.
+        assert_eq!(cfa_pattern_from_bytes(b"RGGB", true, 9), None);
+        // filters == 0 => already-colour / no CFA.
+        assert_eq!(cfa_pattern_from_bytes(b"RGGB", false, 0), None);
+        // Unknown descriptor => decline to guess rather than mislabel.
+        assert_eq!(cfa_pattern_from_bytes(b"XYZW", false, 0x1949_4949), None);
+    }
 
     #[test]
     fn test_is_raw_file() {

@@ -30641,6 +30641,17 @@ class $ConstellationContributionsTable extends ConstellationContributions
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _joinedMeta = const VerificationMeta('joined');
   @override
   late final GeneratedColumn<bool> joined = GeneratedColumn<bool>(
@@ -30713,6 +30724,7 @@ class $ConstellationContributionsTable extends ConstellationContributions
     lastPulledFrames,
     lastPulledIntegrationSeconds,
     lastPulledAt,
+    sessionId,
     joined,
     targetName,
     targetRaDeg,
@@ -30833,6 +30845,12 @@ class $ConstellationContributionsTable extends ConstellationContributions
         ),
       );
     }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
     if (data.containsKey('joined')) {
       context.handle(
         _joinedMeta,
@@ -30929,6 +30947,10 @@ class $ConstellationContributionsTable extends ConstellationContributions
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_pulled_at'],
       ),
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      ),
       joined: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}joined'],
@@ -30986,6 +31008,19 @@ class ConstellationContributionRow extends DataClass
 
   /// Remote receipt id returned by the hub for this tile's contribution.
   /// Unblocks the privacy "Retract" action (subtract exactly what was shipped).
+  ///
+  /// CONSENT/LICENSE (WS4): the AUTHORITATIVE consent + license record for a
+  /// contribution lives on the hub (`consent_records`, joined to the hub's
+  /// contribution row by `consent_id`), recorded BEFORE any bytes are stored and
+  /// stamped `revoked_at` on retraction. The client transmits the user's license
+  /// + attribution-credit choice on every share (see
+  /// `ConstellationService.contributeTarget`/`contributeRawSubs` →
+  /// `ConstellationClient.pushTile`/`pushSubframe`), and this row's
+  /// [contributionId] maps back to that authoritative hub-side consent. The
+  /// local receipt therefore deliberately does NOT mirror a `license` column —
+  /// the consent contract is enforced + retained server-side, where it cannot be
+  /// edited away by a local DB tamper, and the client reads it back via the
+  /// `/v1/attribution` + hub receipt rather than trusting a local copy.
   final String? contributionId;
 
   /// Running tally of own-light frames / integration shipped to this hub for
@@ -30999,6 +31034,14 @@ class ConstellationContributionRow extends DataClass
   final int? lastPulledFrames;
   final double? lastPulledIntegrationSeconds;
   final DateTime? lastPulledAt;
+
+  /// The live co-imaging session (WS3) this tile's contributions belong to, if
+  /// any — the hub's `coimaging_sessions.id`, mirrored locally so a swarm
+  /// contribution receipt can be attributed to a coordinated session rather
+  /// than a one-off async contribution. Null for a plain (non-session) tile
+  /// contribution. The session's own membership row lives in
+  /// [CoImagingSessions], keyed by the same `(hubKey, sessionId)`.
+  final String? sessionId;
 
   /// Whether the user has joined the target this tile belongs to on this hub.
   final bool joined;
@@ -31019,6 +31062,7 @@ class ConstellationContributionRow extends DataClass
     this.lastPulledFrames,
     this.lastPulledIntegrationSeconds,
     this.lastPulledAt,
+    this.sessionId,
     required this.joined,
     this.targetName,
     this.targetRaDeg,
@@ -31055,6 +31099,9 @@ class ConstellationContributionRow extends DataClass
     }
     if (!nullToAbsent || lastPulledAt != null) {
       map['last_pulled_at'] = Variable<DateTime>(lastPulledAt);
+    }
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<String>(sessionId);
     }
     map['joined'] = Variable<bool>(joined);
     if (!nullToAbsent || targetName != null) {
@@ -31097,6 +31144,9 @@ class ConstellationContributionRow extends DataClass
       lastPulledAt: lastPulledAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastPulledAt),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
       joined: Value(joined),
       targetName: targetName == null && nullToAbsent
           ? const Value.absent()
@@ -31137,6 +31187,7 @@ class ConstellationContributionRow extends DataClass
         json['lastPulledIntegrationSeconds'],
       ),
       lastPulledAt: serializer.fromJson<DateTime?>(json['lastPulledAt']),
+      sessionId: serializer.fromJson<String?>(json['sessionId']),
       joined: serializer.fromJson<bool>(json['joined']),
       targetName: serializer.fromJson<String?>(json['targetName']),
       targetRaDeg: serializer.fromJson<double?>(json['targetRaDeg']),
@@ -31164,6 +31215,7 @@ class ConstellationContributionRow extends DataClass
         lastPulledIntegrationSeconds,
       ),
       'lastPulledAt': serializer.toJson<DateTime?>(lastPulledAt),
+      'sessionId': serializer.toJson<String?>(sessionId),
       'joined': serializer.toJson<bool>(joined),
       'targetName': serializer.toJson<String?>(targetName),
       'targetRaDeg': serializer.toJson<double?>(targetRaDeg),
@@ -31185,6 +31237,7 @@ class ConstellationContributionRow extends DataClass
     Value<int?> lastPulledFrames = const Value.absent(),
     Value<double?> lastPulledIntegrationSeconds = const Value.absent(),
     Value<DateTime?> lastPulledAt = const Value.absent(),
+    Value<String?> sessionId = const Value.absent(),
     bool? joined,
     Value<String?> targetName = const Value.absent(),
     Value<double?> targetRaDeg = const Value.absent(),
@@ -31214,6 +31267,7 @@ class ConstellationContributionRow extends DataClass
         ? lastPulledIntegrationSeconds.value
         : this.lastPulledIntegrationSeconds,
     lastPulledAt: lastPulledAt.present ? lastPulledAt.value : this.lastPulledAt,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
     joined: joined ?? this.joined,
     targetName: targetName.present ? targetName.value : this.targetName,
     targetRaDeg: targetRaDeg.present ? targetRaDeg.value : this.targetRaDeg,
@@ -31254,6 +31308,7 @@ class ConstellationContributionRow extends DataClass
       lastPulledAt: data.lastPulledAt.present
           ? data.lastPulledAt.value
           : this.lastPulledAt,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       joined: data.joined.present ? data.joined.value : this.joined,
       targetName: data.targetName.present
           ? data.targetName.value
@@ -31287,6 +31342,7 @@ class ConstellationContributionRow extends DataClass
             'lastPulledIntegrationSeconds: $lastPulledIntegrationSeconds, ',
           )
           ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('sessionId: $sessionId, ')
           ..write('joined: $joined, ')
           ..write('targetName: $targetName, ')
           ..write('targetRaDeg: $targetRaDeg, ')
@@ -31310,6 +31366,7 @@ class ConstellationContributionRow extends DataClass
     lastPulledFrames,
     lastPulledIntegrationSeconds,
     lastPulledAt,
+    sessionId,
     joined,
     targetName,
     targetRaDeg,
@@ -31334,6 +31391,7 @@ class ConstellationContributionRow extends DataClass
           other.lastPulledIntegrationSeconds ==
               this.lastPulledIntegrationSeconds &&
           other.lastPulledAt == this.lastPulledAt &&
+          other.sessionId == this.sessionId &&
           other.joined == this.joined &&
           other.targetName == this.targetName &&
           other.targetRaDeg == this.targetRaDeg &&
@@ -31355,6 +31413,7 @@ class ConstellationContributionsCompanion
   final Value<int?> lastPulledFrames;
   final Value<double?> lastPulledIntegrationSeconds;
   final Value<DateTime?> lastPulledAt;
+  final Value<String?> sessionId;
   final Value<bool> joined;
   final Value<String?> targetName;
   final Value<double?> targetRaDeg;
@@ -31373,6 +31432,7 @@ class ConstellationContributionsCompanion
     this.lastPulledFrames = const Value.absent(),
     this.lastPulledIntegrationSeconds = const Value.absent(),
     this.lastPulledAt = const Value.absent(),
+    this.sessionId = const Value.absent(),
     this.joined = const Value.absent(),
     this.targetName = const Value.absent(),
     this.targetRaDeg = const Value.absent(),
@@ -31392,6 +31452,7 @@ class ConstellationContributionsCompanion
     this.lastPulledFrames = const Value.absent(),
     this.lastPulledIntegrationSeconds = const Value.absent(),
     this.lastPulledAt = const Value.absent(),
+    this.sessionId = const Value.absent(),
     this.joined = const Value.absent(),
     this.targetName = const Value.absent(),
     this.targetRaDeg = const Value.absent(),
@@ -31413,6 +31474,7 @@ class ConstellationContributionsCompanion
     Expression<int>? lastPulledFrames,
     Expression<double>? lastPulledIntegrationSeconds,
     Expression<DateTime>? lastPulledAt,
+    Expression<String>? sessionId,
     Expression<bool>? joined,
     Expression<String>? targetName,
     Expression<double>? targetRaDeg,
@@ -31435,6 +31497,7 @@ class ConstellationContributionsCompanion
       if (lastPulledIntegrationSeconds != null)
         'last_pulled_integration_seconds': lastPulledIntegrationSeconds,
       if (lastPulledAt != null) 'last_pulled_at': lastPulledAt,
+      if (sessionId != null) 'session_id': sessionId,
       if (joined != null) 'joined': joined,
       if (targetName != null) 'target_name': targetName,
       if (targetRaDeg != null) 'target_ra_deg': targetRaDeg,
@@ -31456,6 +31519,7 @@ class ConstellationContributionsCompanion
     Value<int?>? lastPulledFrames,
     Value<double?>? lastPulledIntegrationSeconds,
     Value<DateTime?>? lastPulledAt,
+    Value<String?>? sessionId,
     Value<bool>? joined,
     Value<String?>? targetName,
     Value<double?>? targetRaDeg,
@@ -31477,6 +31541,7 @@ class ConstellationContributionsCompanion
       lastPulledIntegrationSeconds:
           lastPulledIntegrationSeconds ?? this.lastPulledIntegrationSeconds,
       lastPulledAt: lastPulledAt ?? this.lastPulledAt,
+      sessionId: sessionId ?? this.sessionId,
       joined: joined ?? this.joined,
       targetName: targetName ?? this.targetName,
       targetRaDeg: targetRaDeg ?? this.targetRaDeg,
@@ -31530,6 +31595,9 @@ class ConstellationContributionsCompanion
     if (lastPulledAt.present) {
       map['last_pulled_at'] = Variable<DateTime>(lastPulledAt.value);
     }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
     if (joined.present) {
       map['joined'] = Variable<bool>(joined.value);
     }
@@ -31567,10 +31635,981 @@ class ConstellationContributionsCompanion
             'lastPulledIntegrationSeconds: $lastPulledIntegrationSeconds, ',
           )
           ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('sessionId: $sessionId, ')
           ..write('joined: $joined, ')
           ..write('targetName: $targetName, ')
           ..write('targetRaDeg: $targetRaDeg, ')
           ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CoImagingSessionsTable extends CoImagingSessions
+    with TableInfo<$CoImagingSessionsTable, CoImagingSessionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CoImagingSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _hubKeyMeta = const VerificationMeta('hubKey');
+  @override
+  late final GeneratedColumn<String> hubKey = GeneratedColumn<String>(
+    'hub_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetNameMeta = const VerificationMeta(
+    'targetName',
+  );
+  @override
+  late final GeneratedColumn<String> targetName = GeneratedColumn<String>(
+    'target_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetRaDegMeta = const VerificationMeta(
+    'targetRaDeg',
+  );
+  @override
+  late final GeneratedColumn<double> targetRaDeg = GeneratedColumn<double>(
+    'target_ra_deg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetDecDegMeta = const VerificationMeta(
+    'targetDecDeg',
+  );
+  @override
+  late final GeneratedColumn<double> targetDecDeg = GeneratedColumn<double>(
+    'target_dec_deg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('contribute'),
+  );
+  static const VerificationMeta _claimTokenMeta = const VerificationMeta(
+    'claimToken',
+  );
+  @override
+  late final GeneratedColumn<String> claimToken = GeneratedColumn<String>(
+    'claim_token',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _framingOffsetIndexMeta =
+      const VerificationMeta('framingOffsetIndex');
+  @override
+  late final GeneratedColumn<int> framingOffsetIndex = GeneratedColumn<int>(
+    'framing_offset_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _framingOffsetRaArcsecMeta =
+      const VerificationMeta('framingOffsetRaArcsec');
+  @override
+  late final GeneratedColumn<double> framingOffsetRaArcsec =
+      GeneratedColumn<double>(
+        'framing_offset_ra_arcsec',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _framingOffsetDecArcsecMeta =
+      const VerificationMeta('framingOffsetDecArcsec');
+  @override
+  late final GeneratedColumn<double> framingOffsetDecArcsec =
+      GeneratedColumn<double>(
+        'framing_offset_dec_arcsec',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _contributedFramesMeta = const VerificationMeta(
+    'contributedFrames',
+  );
+  @override
+  late final GeneratedColumn<int> contributedFrames = GeneratedColumn<int>(
+    'contributed_frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _contributedIntegrationSecondsMeta =
+      const VerificationMeta('contributedIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> contributedIntegrationSeconds =
+      GeneratedColumn<double>(
+        'contributed_integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _activeMeta = const VerificationMeta('active');
+  @override
+  late final GeneratedColumn<bool> active = GeneratedColumn<bool>(
+    'active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _joinedAtMeta = const VerificationMeta(
+    'joinedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> joinedAt = GeneratedColumn<DateTime>(
+    'joined_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    hubKey,
+    sessionId,
+    targetName,
+    targetRaDeg,
+    targetDecDeg,
+    role,
+    claimToken,
+    framingOffsetIndex,
+    framingOffsetRaArcsec,
+    framingOffsetDecArcsec,
+    contributedFrames,
+    contributedIntegrationSeconds,
+    active,
+    joinedAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'co_imaging_sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CoImagingSessionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('hub_key')) {
+      context.handle(
+        _hubKeyMeta,
+        hubKey.isAcceptableOrUnknown(data['hub_key']!, _hubKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hubKeyMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('target_name')) {
+      context.handle(
+        _targetNameMeta,
+        targetName.isAcceptableOrUnknown(data['target_name']!, _targetNameMeta),
+      );
+    }
+    if (data.containsKey('target_ra_deg')) {
+      context.handle(
+        _targetRaDegMeta,
+        targetRaDeg.isAcceptableOrUnknown(
+          data['target_ra_deg']!,
+          _targetRaDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('target_dec_deg')) {
+      context.handle(
+        _targetDecDegMeta,
+        targetDecDeg.isAcceptableOrUnknown(
+          data['target_dec_deg']!,
+          _targetDecDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    }
+    if (data.containsKey('claim_token')) {
+      context.handle(
+        _claimTokenMeta,
+        claimToken.isAcceptableOrUnknown(data['claim_token']!, _claimTokenMeta),
+      );
+    }
+    if (data.containsKey('framing_offset_index')) {
+      context.handle(
+        _framingOffsetIndexMeta,
+        framingOffsetIndex.isAcceptableOrUnknown(
+          data['framing_offset_index']!,
+          _framingOffsetIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('framing_offset_ra_arcsec')) {
+      context.handle(
+        _framingOffsetRaArcsecMeta,
+        framingOffsetRaArcsec.isAcceptableOrUnknown(
+          data['framing_offset_ra_arcsec']!,
+          _framingOffsetRaArcsecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('framing_offset_dec_arcsec')) {
+      context.handle(
+        _framingOffsetDecArcsecMeta,
+        framingOffsetDecArcsec.isAcceptableOrUnknown(
+          data['framing_offset_dec_arcsec']!,
+          _framingOffsetDecArcsecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contributed_frames')) {
+      context.handle(
+        _contributedFramesMeta,
+        contributedFrames.isAcceptableOrUnknown(
+          data['contributed_frames']!,
+          _contributedFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contributed_integration_seconds')) {
+      context.handle(
+        _contributedIntegrationSecondsMeta,
+        contributedIntegrationSeconds.isAcceptableOrUnknown(
+          data['contributed_integration_seconds']!,
+          _contributedIntegrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('active')) {
+      context.handle(
+        _activeMeta,
+        active.isAcceptableOrUnknown(data['active']!, _activeMeta),
+      );
+    }
+    if (data.containsKey('joined_at')) {
+      context.handle(
+        _joinedAtMeta,
+        joinedAt.isAcceptableOrUnknown(data['joined_at']!, _joinedAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CoImagingSessionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CoImagingSessionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      hubKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hub_key'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
+      targetName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_name'],
+      ),
+      targetRaDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_ra_deg'],
+      ),
+      targetDecDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_dec_deg'],
+      ),
+      role: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}role'],
+      )!,
+      claimToken: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}claim_token'],
+      ),
+      framingOffsetIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}framing_offset_index'],
+      )!,
+      framingOffsetRaArcsec: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}framing_offset_ra_arcsec'],
+      )!,
+      framingOffsetDecArcsec: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}framing_offset_dec_arcsec'],
+      )!,
+      contributedFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}contributed_frames'],
+      )!,
+      contributedIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}contributed_integration_seconds'],
+      )!,
+      active: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}active'],
+      )!,
+      joinedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}joined_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CoImagingSessionsTable createAlias(String alias) {
+    return $CoImagingSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class CoImagingSessionRow extends DataClass
+    implements Insertable<CoImagingSessionRow> {
+  final int id;
+
+  /// Federation endpoint identity — the normalized hub base URL (mirrors
+  /// [ConstellationContributions.hubKey]).
+  final String hubKey;
+
+  /// Remote co-imaging session id this rig joined (the hub's
+  /// `coimaging_sessions.id`).
+  final String sessionId;
+
+  /// Cached human-readable target identity for offline rehydration.
+  final String? targetName;
+  final double? targetRaDeg;
+  final double? targetDecDeg;
+
+  /// This rig's collaborative role in the session — the wire name of a
+  /// `CollaborativeRole` (read / contribute / admin). Defaults to contribute
+  /// because joining a co-imaging session is, by definition, to contribute.
+  final String role;
+
+  /// The hub-issued membership / claim token, used to authenticate this rig's
+  /// contributions to the session (analogous to the hand-off baton's claim
+  /// token). Null until the JOIN completes.
+  final String? claimToken;
+
+  /// The hub-assigned participant slot index (0-based), driving the small
+  /// framing offset so participating rigs tile the field instead of stacking
+  /// identically (better coverage + walking-noise rejection).
+  final int framingOffsetIndex;
+
+  /// The assigned framing offset in arcseconds (RA/Dec) the rig nudges its
+  /// pointing by. Both default to 0 (the anchor slot).
+  final double framingOffsetRaArcsec;
+  final double framingOffsetDecArcsec;
+
+  /// Running tally of own-light frames / integration this rig has contributed
+  /// to the session (cumulative; the hub holds the authoritative combined
+  /// total across all participants).
+  final int contributedFrames;
+  final double contributedIntegrationSeconds;
+
+  /// Locally-cached liveness: whether the rig considers itself an active
+  /// participant. Set false on leave / when the hub reports the session closed.
+  final bool active;
+  final DateTime joinedAt;
+  final DateTime updatedAt;
+  const CoImagingSessionRow({
+    required this.id,
+    required this.hubKey,
+    required this.sessionId,
+    this.targetName,
+    this.targetRaDeg,
+    this.targetDecDeg,
+    required this.role,
+    this.claimToken,
+    required this.framingOffsetIndex,
+    required this.framingOffsetRaArcsec,
+    required this.framingOffsetDecArcsec,
+    required this.contributedFrames,
+    required this.contributedIntegrationSeconds,
+    required this.active,
+    required this.joinedAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['hub_key'] = Variable<String>(hubKey);
+    map['session_id'] = Variable<String>(sessionId);
+    if (!nullToAbsent || targetName != null) {
+      map['target_name'] = Variable<String>(targetName);
+    }
+    if (!nullToAbsent || targetRaDeg != null) {
+      map['target_ra_deg'] = Variable<double>(targetRaDeg);
+    }
+    if (!nullToAbsent || targetDecDeg != null) {
+      map['target_dec_deg'] = Variable<double>(targetDecDeg);
+    }
+    map['role'] = Variable<String>(role);
+    if (!nullToAbsent || claimToken != null) {
+      map['claim_token'] = Variable<String>(claimToken);
+    }
+    map['framing_offset_index'] = Variable<int>(framingOffsetIndex);
+    map['framing_offset_ra_arcsec'] = Variable<double>(framingOffsetRaArcsec);
+    map['framing_offset_dec_arcsec'] = Variable<double>(framingOffsetDecArcsec);
+    map['contributed_frames'] = Variable<int>(contributedFrames);
+    map['contributed_integration_seconds'] = Variable<double>(
+      contributedIntegrationSeconds,
+    );
+    map['active'] = Variable<bool>(active);
+    map['joined_at'] = Variable<DateTime>(joinedAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  CoImagingSessionsCompanion toCompanion(bool nullToAbsent) {
+    return CoImagingSessionsCompanion(
+      id: Value(id),
+      hubKey: Value(hubKey),
+      sessionId: Value(sessionId),
+      targetName: targetName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetName),
+      targetRaDeg: targetRaDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetRaDeg),
+      targetDecDeg: targetDecDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetDecDeg),
+      role: Value(role),
+      claimToken: claimToken == null && nullToAbsent
+          ? const Value.absent()
+          : Value(claimToken),
+      framingOffsetIndex: Value(framingOffsetIndex),
+      framingOffsetRaArcsec: Value(framingOffsetRaArcsec),
+      framingOffsetDecArcsec: Value(framingOffsetDecArcsec),
+      contributedFrames: Value(contributedFrames),
+      contributedIntegrationSeconds: Value(contributedIntegrationSeconds),
+      active: Value(active),
+      joinedAt: Value(joinedAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory CoImagingSessionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CoImagingSessionRow(
+      id: serializer.fromJson<int>(json['id']),
+      hubKey: serializer.fromJson<String>(json['hubKey']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      targetName: serializer.fromJson<String?>(json['targetName']),
+      targetRaDeg: serializer.fromJson<double?>(json['targetRaDeg']),
+      targetDecDeg: serializer.fromJson<double?>(json['targetDecDeg']),
+      role: serializer.fromJson<String>(json['role']),
+      claimToken: serializer.fromJson<String?>(json['claimToken']),
+      framingOffsetIndex: serializer.fromJson<int>(json['framingOffsetIndex']),
+      framingOffsetRaArcsec: serializer.fromJson<double>(
+        json['framingOffsetRaArcsec'],
+      ),
+      framingOffsetDecArcsec: serializer.fromJson<double>(
+        json['framingOffsetDecArcsec'],
+      ),
+      contributedFrames: serializer.fromJson<int>(json['contributedFrames']),
+      contributedIntegrationSeconds: serializer.fromJson<double>(
+        json['contributedIntegrationSeconds'],
+      ),
+      active: serializer.fromJson<bool>(json['active']),
+      joinedAt: serializer.fromJson<DateTime>(json['joinedAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'hubKey': serializer.toJson<String>(hubKey),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'targetName': serializer.toJson<String?>(targetName),
+      'targetRaDeg': serializer.toJson<double?>(targetRaDeg),
+      'targetDecDeg': serializer.toJson<double?>(targetDecDeg),
+      'role': serializer.toJson<String>(role),
+      'claimToken': serializer.toJson<String?>(claimToken),
+      'framingOffsetIndex': serializer.toJson<int>(framingOffsetIndex),
+      'framingOffsetRaArcsec': serializer.toJson<double>(framingOffsetRaArcsec),
+      'framingOffsetDecArcsec': serializer.toJson<double>(
+        framingOffsetDecArcsec,
+      ),
+      'contributedFrames': serializer.toJson<int>(contributedFrames),
+      'contributedIntegrationSeconds': serializer.toJson<double>(
+        contributedIntegrationSeconds,
+      ),
+      'active': serializer.toJson<bool>(active),
+      'joinedAt': serializer.toJson<DateTime>(joinedAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  CoImagingSessionRow copyWith({
+    int? id,
+    String? hubKey,
+    String? sessionId,
+    Value<String?> targetName = const Value.absent(),
+    Value<double?> targetRaDeg = const Value.absent(),
+    Value<double?> targetDecDeg = const Value.absent(),
+    String? role,
+    Value<String?> claimToken = const Value.absent(),
+    int? framingOffsetIndex,
+    double? framingOffsetRaArcsec,
+    double? framingOffsetDecArcsec,
+    int? contributedFrames,
+    double? contributedIntegrationSeconds,
+    bool? active,
+    DateTime? joinedAt,
+    DateTime? updatedAt,
+  }) => CoImagingSessionRow(
+    id: id ?? this.id,
+    hubKey: hubKey ?? this.hubKey,
+    sessionId: sessionId ?? this.sessionId,
+    targetName: targetName.present ? targetName.value : this.targetName,
+    targetRaDeg: targetRaDeg.present ? targetRaDeg.value : this.targetRaDeg,
+    targetDecDeg: targetDecDeg.present ? targetDecDeg.value : this.targetDecDeg,
+    role: role ?? this.role,
+    claimToken: claimToken.present ? claimToken.value : this.claimToken,
+    framingOffsetIndex: framingOffsetIndex ?? this.framingOffsetIndex,
+    framingOffsetRaArcsec: framingOffsetRaArcsec ?? this.framingOffsetRaArcsec,
+    framingOffsetDecArcsec:
+        framingOffsetDecArcsec ?? this.framingOffsetDecArcsec,
+    contributedFrames: contributedFrames ?? this.contributedFrames,
+    contributedIntegrationSeconds:
+        contributedIntegrationSeconds ?? this.contributedIntegrationSeconds,
+    active: active ?? this.active,
+    joinedAt: joinedAt ?? this.joinedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  CoImagingSessionRow copyWithCompanion(CoImagingSessionsCompanion data) {
+    return CoImagingSessionRow(
+      id: data.id.present ? data.id.value : this.id,
+      hubKey: data.hubKey.present ? data.hubKey.value : this.hubKey,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      targetName: data.targetName.present
+          ? data.targetName.value
+          : this.targetName,
+      targetRaDeg: data.targetRaDeg.present
+          ? data.targetRaDeg.value
+          : this.targetRaDeg,
+      targetDecDeg: data.targetDecDeg.present
+          ? data.targetDecDeg.value
+          : this.targetDecDeg,
+      role: data.role.present ? data.role.value : this.role,
+      claimToken: data.claimToken.present
+          ? data.claimToken.value
+          : this.claimToken,
+      framingOffsetIndex: data.framingOffsetIndex.present
+          ? data.framingOffsetIndex.value
+          : this.framingOffsetIndex,
+      framingOffsetRaArcsec: data.framingOffsetRaArcsec.present
+          ? data.framingOffsetRaArcsec.value
+          : this.framingOffsetRaArcsec,
+      framingOffsetDecArcsec: data.framingOffsetDecArcsec.present
+          ? data.framingOffsetDecArcsec.value
+          : this.framingOffsetDecArcsec,
+      contributedFrames: data.contributedFrames.present
+          ? data.contributedFrames.value
+          : this.contributedFrames,
+      contributedIntegrationSeconds: data.contributedIntegrationSeconds.present
+          ? data.contributedIntegrationSeconds.value
+          : this.contributedIntegrationSeconds,
+      active: data.active.present ? data.active.value : this.active,
+      joinedAt: data.joinedAt.present ? data.joinedAt.value : this.joinedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoImagingSessionRow(')
+          ..write('id: $id, ')
+          ..write('hubKey: $hubKey, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetRaDeg: $targetRaDeg, ')
+          ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('role: $role, ')
+          ..write('claimToken: $claimToken, ')
+          ..write('framingOffsetIndex: $framingOffsetIndex, ')
+          ..write('framingOffsetRaArcsec: $framingOffsetRaArcsec, ')
+          ..write('framingOffsetDecArcsec: $framingOffsetDecArcsec, ')
+          ..write('contributedFrames: $contributedFrames, ')
+          ..write(
+            'contributedIntegrationSeconds: $contributedIntegrationSeconds, ',
+          )
+          ..write('active: $active, ')
+          ..write('joinedAt: $joinedAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    hubKey,
+    sessionId,
+    targetName,
+    targetRaDeg,
+    targetDecDeg,
+    role,
+    claimToken,
+    framingOffsetIndex,
+    framingOffsetRaArcsec,
+    framingOffsetDecArcsec,
+    contributedFrames,
+    contributedIntegrationSeconds,
+    active,
+    joinedAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CoImagingSessionRow &&
+          other.id == this.id &&
+          other.hubKey == this.hubKey &&
+          other.sessionId == this.sessionId &&
+          other.targetName == this.targetName &&
+          other.targetRaDeg == this.targetRaDeg &&
+          other.targetDecDeg == this.targetDecDeg &&
+          other.role == this.role &&
+          other.claimToken == this.claimToken &&
+          other.framingOffsetIndex == this.framingOffsetIndex &&
+          other.framingOffsetRaArcsec == this.framingOffsetRaArcsec &&
+          other.framingOffsetDecArcsec == this.framingOffsetDecArcsec &&
+          other.contributedFrames == this.contributedFrames &&
+          other.contributedIntegrationSeconds ==
+              this.contributedIntegrationSeconds &&
+          other.active == this.active &&
+          other.joinedAt == this.joinedAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class CoImagingSessionsCompanion extends UpdateCompanion<CoImagingSessionRow> {
+  final Value<int> id;
+  final Value<String> hubKey;
+  final Value<String> sessionId;
+  final Value<String?> targetName;
+  final Value<double?> targetRaDeg;
+  final Value<double?> targetDecDeg;
+  final Value<String> role;
+  final Value<String?> claimToken;
+  final Value<int> framingOffsetIndex;
+  final Value<double> framingOffsetRaArcsec;
+  final Value<double> framingOffsetDecArcsec;
+  final Value<int> contributedFrames;
+  final Value<double> contributedIntegrationSeconds;
+  final Value<bool> active;
+  final Value<DateTime> joinedAt;
+  final Value<DateTime> updatedAt;
+  const CoImagingSessionsCompanion({
+    this.id = const Value.absent(),
+    this.hubKey = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.targetName = const Value.absent(),
+    this.targetRaDeg = const Value.absent(),
+    this.targetDecDeg = const Value.absent(),
+    this.role = const Value.absent(),
+    this.claimToken = const Value.absent(),
+    this.framingOffsetIndex = const Value.absent(),
+    this.framingOffsetRaArcsec = const Value.absent(),
+    this.framingOffsetDecArcsec = const Value.absent(),
+    this.contributedFrames = const Value.absent(),
+    this.contributedIntegrationSeconds = const Value.absent(),
+    this.active = const Value.absent(),
+    this.joinedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  CoImagingSessionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String hubKey,
+    required String sessionId,
+    this.targetName = const Value.absent(),
+    this.targetRaDeg = const Value.absent(),
+    this.targetDecDeg = const Value.absent(),
+    this.role = const Value.absent(),
+    this.claimToken = const Value.absent(),
+    this.framingOffsetIndex = const Value.absent(),
+    this.framingOffsetRaArcsec = const Value.absent(),
+    this.framingOffsetDecArcsec = const Value.absent(),
+    this.contributedFrames = const Value.absent(),
+    this.contributedIntegrationSeconds = const Value.absent(),
+    this.active = const Value.absent(),
+    this.joinedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : hubKey = Value(hubKey),
+       sessionId = Value(sessionId);
+  static Insertable<CoImagingSessionRow> custom({
+    Expression<int>? id,
+    Expression<String>? hubKey,
+    Expression<String>? sessionId,
+    Expression<String>? targetName,
+    Expression<double>? targetRaDeg,
+    Expression<double>? targetDecDeg,
+    Expression<String>? role,
+    Expression<String>? claimToken,
+    Expression<int>? framingOffsetIndex,
+    Expression<double>? framingOffsetRaArcsec,
+    Expression<double>? framingOffsetDecArcsec,
+    Expression<int>? contributedFrames,
+    Expression<double>? contributedIntegrationSeconds,
+    Expression<bool>? active,
+    Expression<DateTime>? joinedAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (hubKey != null) 'hub_key': hubKey,
+      if (sessionId != null) 'session_id': sessionId,
+      if (targetName != null) 'target_name': targetName,
+      if (targetRaDeg != null) 'target_ra_deg': targetRaDeg,
+      if (targetDecDeg != null) 'target_dec_deg': targetDecDeg,
+      if (role != null) 'role': role,
+      if (claimToken != null) 'claim_token': claimToken,
+      if (framingOffsetIndex != null)
+        'framing_offset_index': framingOffsetIndex,
+      if (framingOffsetRaArcsec != null)
+        'framing_offset_ra_arcsec': framingOffsetRaArcsec,
+      if (framingOffsetDecArcsec != null)
+        'framing_offset_dec_arcsec': framingOffsetDecArcsec,
+      if (contributedFrames != null) 'contributed_frames': contributedFrames,
+      if (contributedIntegrationSeconds != null)
+        'contributed_integration_seconds': contributedIntegrationSeconds,
+      if (active != null) 'active': active,
+      if (joinedAt != null) 'joined_at': joinedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  CoImagingSessionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? hubKey,
+    Value<String>? sessionId,
+    Value<String?>? targetName,
+    Value<double?>? targetRaDeg,
+    Value<double?>? targetDecDeg,
+    Value<String>? role,
+    Value<String?>? claimToken,
+    Value<int>? framingOffsetIndex,
+    Value<double>? framingOffsetRaArcsec,
+    Value<double>? framingOffsetDecArcsec,
+    Value<int>? contributedFrames,
+    Value<double>? contributedIntegrationSeconds,
+    Value<bool>? active,
+    Value<DateTime>? joinedAt,
+    Value<DateTime>? updatedAt,
+  }) {
+    return CoImagingSessionsCompanion(
+      id: id ?? this.id,
+      hubKey: hubKey ?? this.hubKey,
+      sessionId: sessionId ?? this.sessionId,
+      targetName: targetName ?? this.targetName,
+      targetRaDeg: targetRaDeg ?? this.targetRaDeg,
+      targetDecDeg: targetDecDeg ?? this.targetDecDeg,
+      role: role ?? this.role,
+      claimToken: claimToken ?? this.claimToken,
+      framingOffsetIndex: framingOffsetIndex ?? this.framingOffsetIndex,
+      framingOffsetRaArcsec:
+          framingOffsetRaArcsec ?? this.framingOffsetRaArcsec,
+      framingOffsetDecArcsec:
+          framingOffsetDecArcsec ?? this.framingOffsetDecArcsec,
+      contributedFrames: contributedFrames ?? this.contributedFrames,
+      contributedIntegrationSeconds:
+          contributedIntegrationSeconds ?? this.contributedIntegrationSeconds,
+      active: active ?? this.active,
+      joinedAt: joinedAt ?? this.joinedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (hubKey.present) {
+      map['hub_key'] = Variable<String>(hubKey.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (targetName.present) {
+      map['target_name'] = Variable<String>(targetName.value);
+    }
+    if (targetRaDeg.present) {
+      map['target_ra_deg'] = Variable<double>(targetRaDeg.value);
+    }
+    if (targetDecDeg.present) {
+      map['target_dec_deg'] = Variable<double>(targetDecDeg.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (claimToken.present) {
+      map['claim_token'] = Variable<String>(claimToken.value);
+    }
+    if (framingOffsetIndex.present) {
+      map['framing_offset_index'] = Variable<int>(framingOffsetIndex.value);
+    }
+    if (framingOffsetRaArcsec.present) {
+      map['framing_offset_ra_arcsec'] = Variable<double>(
+        framingOffsetRaArcsec.value,
+      );
+    }
+    if (framingOffsetDecArcsec.present) {
+      map['framing_offset_dec_arcsec'] = Variable<double>(
+        framingOffsetDecArcsec.value,
+      );
+    }
+    if (contributedFrames.present) {
+      map['contributed_frames'] = Variable<int>(contributedFrames.value);
+    }
+    if (contributedIntegrationSeconds.present) {
+      map['contributed_integration_seconds'] = Variable<double>(
+        contributedIntegrationSeconds.value,
+      );
+    }
+    if (active.present) {
+      map['active'] = Variable<bool>(active.value);
+    }
+    if (joinedAt.present) {
+      map['joined_at'] = Variable<DateTime>(joinedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CoImagingSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('hubKey: $hubKey, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetRaDeg: $targetRaDeg, ')
+          ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('role: $role, ')
+          ..write('claimToken: $claimToken, ')
+          ..write('framingOffsetIndex: $framingOffsetIndex, ')
+          ..write('framingOffsetRaArcsec: $framingOffsetRaArcsec, ')
+          ..write('framingOffsetDecArcsec: $framingOffsetDecArcsec, ')
+          ..write('contributedFrames: $contributedFrames, ')
+          ..write(
+            'contributedIntegrationSeconds: $contributedIntegrationSeconds, ',
+          )
+          ..write('active: $active, ')
+          ..write('joinedAt: $joinedAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -33163,6 +34202,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $SkyAtlasFoldsTable skyAtlasFolds = $SkyAtlasFoldsTable(this);
   late final $ConstellationContributionsTable constellationContributions =
       $ConstellationContributionsTable(this);
+  late final $CoImagingSessionsTable coImagingSessions =
+      $CoImagingSessionsTable(this);
   late final $TransientDetectionsTable transientDetections =
       $TransientDetectionsTable(this);
   late final $LivingSkyRetentionTable livingSkyRetention =
@@ -33579,6 +34620,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     'idx_constellation_contributions_key',
     'CREATE UNIQUE INDEX idx_constellation_contributions_key ON constellation_contributions (hub_key, tile_id, healpix_order)',
   );
+  late final Index idxCoimagingSessionsKey = Index(
+    'idx_coimaging_sessions_key',
+    'CREATE UNIQUE INDEX idx_coimaging_sessions_key ON co_imaging_sessions (hub_key, session_id)',
+  );
   late final Index idxTransientDetectionsSession = Index(
     'idx_transient_detections_session',
     'CREATE INDEX idx_transient_detections_session ON transient_detections (session_id)',
@@ -33645,6 +34690,9 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final SkyAtlasDao skyAtlasDao = SkyAtlasDao(this as NightshadeDatabase);
   late final ConstellationContributionsDao constellationContributionsDao =
       ConstellationContributionsDao(this as NightshadeDatabase);
+  late final CoImagingSessionsDao coImagingSessionsDao = CoImagingSessionsDao(
+    this as NightshadeDatabase,
+  );
   late final TransientDetectionsDao transientDetectionsDao =
       TransientDetectionsDao(this as NightshadeDatabase);
   late final LivingSkyRetentionDao livingSkyRetentionDao =
@@ -33693,6 +34741,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     skyTiles,
     skyAtlasFolds,
     constellationContributions,
+    coImagingSessions,
     transientDetections,
     livingSkyRetention,
     idxProfilesName,
@@ -33798,6 +34847,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     idxSkyAtlasFoldsTileTime,
     idxSkyAtlasFoldsSession,
     idxConstellationContributionsKey,
+    idxCoimagingSessionsKey,
     idxTransientDetectionsSession,
     idxTransientDetectionsTile,
     idxTransientDetectionsDetected,
@@ -57956,6 +59006,7 @@ typedef $$ConstellationContributionsTableCreateCompanionBuilder =
       Value<int?> lastPulledFrames,
       Value<double?> lastPulledIntegrationSeconds,
       Value<DateTime?> lastPulledAt,
+      Value<String?> sessionId,
       Value<bool> joined,
       Value<String?> targetName,
       Value<double?> targetRaDeg,
@@ -57976,6 +59027,7 @@ typedef $$ConstellationContributionsTableUpdateCompanionBuilder =
       Value<int?> lastPulledFrames,
       Value<double?> lastPulledIntegrationSeconds,
       Value<DateTime?> lastPulledAt,
+      Value<String?> sessionId,
       Value<bool> joined,
       Value<String?> targetName,
       Value<double?> targetRaDeg,
@@ -58049,6 +59101,11 @@ class $$ConstellationContributionsTableFilterComposer
 
   ColumnFilters<DateTime> get lastPulledAt => $composableBuilder(
     column: $table.lastPulledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -58149,6 +59206,11 @@ class $$ConstellationContributionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get joined => $composableBuilder(
     column: $table.joined,
     builder: (column) => ColumnOrderings(column),
@@ -58240,6 +59302,9 @@ class $$ConstellationContributionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
   GeneratedColumn<bool> get joined =>
       $composableBuilder(column: $table.joined, builder: (column) => column);
 
@@ -58322,6 +59387,7 @@ class $$ConstellationContributionsTableTableManager
                 Value<double?> lastPulledIntegrationSeconds =
                     const Value.absent(),
                 Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
                 Value<bool> joined = const Value.absent(),
                 Value<String?> targetName = const Value.absent(),
                 Value<double?> targetRaDeg = const Value.absent(),
@@ -58340,6 +59406,7 @@ class $$ConstellationContributionsTableTableManager
                 lastPulledFrames: lastPulledFrames,
                 lastPulledIntegrationSeconds: lastPulledIntegrationSeconds,
                 lastPulledAt: lastPulledAt,
+                sessionId: sessionId,
                 joined: joined,
                 targetName: targetName,
                 targetRaDeg: targetRaDeg,
@@ -58362,6 +59429,7 @@ class $$ConstellationContributionsTableTableManager
                 Value<double?> lastPulledIntegrationSeconds =
                     const Value.absent(),
                 Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
                 Value<bool> joined = const Value.absent(),
                 Value<String?> targetName = const Value.absent(),
                 Value<double?> targetRaDeg = const Value.absent(),
@@ -58380,6 +59448,7 @@ class $$ConstellationContributionsTableTableManager
                 lastPulledFrames: lastPulledFrames,
                 lastPulledIntegrationSeconds: lastPulledIntegrationSeconds,
                 lastPulledAt: lastPulledAt,
+                sessionId: sessionId,
                 joined: joined,
                 targetName: targetName,
                 targetRaDeg: targetRaDeg,
@@ -58413,6 +59482,444 @@ typedef $$ConstellationContributionsTableProcessedTableManager =
         >,
       ),
       ConstellationContributionRow,
+      PrefetchHooks Function()
+    >;
+typedef $$CoImagingSessionsTableCreateCompanionBuilder =
+    CoImagingSessionsCompanion Function({
+      Value<int> id,
+      required String hubKey,
+      required String sessionId,
+      Value<String?> targetName,
+      Value<double?> targetRaDeg,
+      Value<double?> targetDecDeg,
+      Value<String> role,
+      Value<String?> claimToken,
+      Value<int> framingOffsetIndex,
+      Value<double> framingOffsetRaArcsec,
+      Value<double> framingOffsetDecArcsec,
+      Value<int> contributedFrames,
+      Value<double> contributedIntegrationSeconds,
+      Value<bool> active,
+      Value<DateTime> joinedAt,
+      Value<DateTime> updatedAt,
+    });
+typedef $$CoImagingSessionsTableUpdateCompanionBuilder =
+    CoImagingSessionsCompanion Function({
+      Value<int> id,
+      Value<String> hubKey,
+      Value<String> sessionId,
+      Value<String?> targetName,
+      Value<double?> targetRaDeg,
+      Value<double?> targetDecDeg,
+      Value<String> role,
+      Value<String?> claimToken,
+      Value<int> framingOffsetIndex,
+      Value<double> framingOffsetRaArcsec,
+      Value<double> framingOffsetDecArcsec,
+      Value<int> contributedFrames,
+      Value<double> contributedIntegrationSeconds,
+      Value<bool> active,
+      Value<DateTime> joinedAt,
+      Value<DateTime> updatedAt,
+    });
+
+class $$CoImagingSessionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $CoImagingSessionsTable> {
+  $$CoImagingSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hubKey => $composableBuilder(
+    column: $table.hubKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get claimToken => $composableBuilder(
+    column: $table.claimToken,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get framingOffsetIndex => $composableBuilder(
+    column: $table.framingOffsetIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get framingOffsetRaArcsec => $composableBuilder(
+    column: $table.framingOffsetRaArcsec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get framingOffsetDecArcsec => $composableBuilder(
+    column: $table.framingOffsetDecArcsec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get contributedIntegrationSeconds => $composableBuilder(
+    column: $table.contributedIntegrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get active => $composableBuilder(
+    column: $table.active,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get joinedAt => $composableBuilder(
+    column: $table.joinedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CoImagingSessionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $CoImagingSessionsTable> {
+  $$CoImagingSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hubKey => $composableBuilder(
+    column: $table.hubKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get claimToken => $composableBuilder(
+    column: $table.claimToken,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get framingOffsetIndex => $composableBuilder(
+    column: $table.framingOffsetIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get framingOffsetRaArcsec => $composableBuilder(
+    column: $table.framingOffsetRaArcsec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get framingOffsetDecArcsec => $composableBuilder(
+    column: $table.framingOffsetDecArcsec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get contributedIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.contributedIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<bool> get active => $composableBuilder(
+    column: $table.active,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get joinedAt => $composableBuilder(
+    column: $table.joinedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CoImagingSessionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $CoImagingSessionsTable> {
+  $$CoImagingSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hubKey =>
+      $composableBuilder(column: $table.hubKey, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<String> get claimToken => $composableBuilder(
+    column: $table.claimToken,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get framingOffsetIndex => $composableBuilder(
+    column: $table.framingOffsetIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get framingOffsetRaArcsec => $composableBuilder(
+    column: $table.framingOffsetRaArcsec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get framingOffsetDecArcsec => $composableBuilder(
+    column: $table.framingOffsetDecArcsec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get contributedIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.contributedIntegrationSeconds,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<bool> get active =>
+      $composableBuilder(column: $table.active, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get joinedAt =>
+      $composableBuilder(column: $table.joinedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$CoImagingSessionsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $CoImagingSessionsTable,
+          CoImagingSessionRow,
+          $$CoImagingSessionsTableFilterComposer,
+          $$CoImagingSessionsTableOrderingComposer,
+          $$CoImagingSessionsTableAnnotationComposer,
+          $$CoImagingSessionsTableCreateCompanionBuilder,
+          $$CoImagingSessionsTableUpdateCompanionBuilder,
+          (
+            CoImagingSessionRow,
+            BaseReferences<
+              _$NightshadeDatabase,
+              $CoImagingSessionsTable,
+              CoImagingSessionRow
+            >,
+          ),
+          CoImagingSessionRow,
+          PrefetchHooks Function()
+        > {
+  $$CoImagingSessionsTableTableManager(
+    _$NightshadeDatabase db,
+    $CoImagingSessionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CoImagingSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CoImagingSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CoImagingSessionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> hubKey = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
+                Value<String?> targetName = const Value.absent(),
+                Value<double?> targetRaDeg = const Value.absent(),
+                Value<double?> targetDecDeg = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String?> claimToken = const Value.absent(),
+                Value<int> framingOffsetIndex = const Value.absent(),
+                Value<double> framingOffsetRaArcsec = const Value.absent(),
+                Value<double> framingOffsetDecArcsec = const Value.absent(),
+                Value<int> contributedFrames = const Value.absent(),
+                Value<double> contributedIntegrationSeconds =
+                    const Value.absent(),
+                Value<bool> active = const Value.absent(),
+                Value<DateTime> joinedAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => CoImagingSessionsCompanion(
+                id: id,
+                hubKey: hubKey,
+                sessionId: sessionId,
+                targetName: targetName,
+                targetRaDeg: targetRaDeg,
+                targetDecDeg: targetDecDeg,
+                role: role,
+                claimToken: claimToken,
+                framingOffsetIndex: framingOffsetIndex,
+                framingOffsetRaArcsec: framingOffsetRaArcsec,
+                framingOffsetDecArcsec: framingOffsetDecArcsec,
+                contributedFrames: contributedFrames,
+                contributedIntegrationSeconds: contributedIntegrationSeconds,
+                active: active,
+                joinedAt: joinedAt,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String hubKey,
+                required String sessionId,
+                Value<String?> targetName = const Value.absent(),
+                Value<double?> targetRaDeg = const Value.absent(),
+                Value<double?> targetDecDeg = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<String?> claimToken = const Value.absent(),
+                Value<int> framingOffsetIndex = const Value.absent(),
+                Value<double> framingOffsetRaArcsec = const Value.absent(),
+                Value<double> framingOffsetDecArcsec = const Value.absent(),
+                Value<int> contributedFrames = const Value.absent(),
+                Value<double> contributedIntegrationSeconds =
+                    const Value.absent(),
+                Value<bool> active = const Value.absent(),
+                Value<DateTime> joinedAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => CoImagingSessionsCompanion.insert(
+                id: id,
+                hubKey: hubKey,
+                sessionId: sessionId,
+                targetName: targetName,
+                targetRaDeg: targetRaDeg,
+                targetDecDeg: targetDecDeg,
+                role: role,
+                claimToken: claimToken,
+                framingOffsetIndex: framingOffsetIndex,
+                framingOffsetRaArcsec: framingOffsetRaArcsec,
+                framingOffsetDecArcsec: framingOffsetDecArcsec,
+                contributedFrames: contributedFrames,
+                contributedIntegrationSeconds: contributedIntegrationSeconds,
+                active: active,
+                joinedAt: joinedAt,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CoImagingSessionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $CoImagingSessionsTable,
+      CoImagingSessionRow,
+      $$CoImagingSessionsTableFilterComposer,
+      $$CoImagingSessionsTableOrderingComposer,
+      $$CoImagingSessionsTableAnnotationComposer,
+      $$CoImagingSessionsTableCreateCompanionBuilder,
+      $$CoImagingSessionsTableUpdateCompanionBuilder,
+      (
+        CoImagingSessionRow,
+        BaseReferences<
+          _$NightshadeDatabase,
+          $CoImagingSessionsTable,
+          CoImagingSessionRow
+        >,
+      ),
+      CoImagingSessionRow,
       PrefetchHooks Function()
     >;
 typedef $$TransientDetectionsTableCreateCompanionBuilder =
@@ -59457,6 +60964,8 @@ class $NightshadeDatabaseManager {
         _db,
         _db.constellationContributions,
       );
+  $$CoImagingSessionsTableTableManager get coImagingSessions =>
+      $$CoImagingSessionsTableTableManager(_db, _db.coImagingSessions);
   $$TransientDetectionsTableTableManager get transientDetections =>
       $$TransientDetectionsTableTableManager(_db, _db.transientDetections);
   $$LivingSkyRetentionTableTableManager get livingSkyRetention =>

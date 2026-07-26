@@ -73,6 +73,17 @@ class MainActivity : FlutterActivity() {
         }
         methodChannel = channel
 
+        // FCM push registration bridge — the Android counterpart of the APNs
+        // wiring in ios/Runner/AppDelegate.swift. Dormant (reports
+        // `fcm_unconfigured`) until google-services.json is provisioned.
+        PushBridge.attach(
+            applicationContext,
+            MethodChannel(
+                flutterEngine.dartExecutor.binaryMessenger,
+                PushBridge.CHANNEL,
+            ),
+        )
+
         // If onCreate parsed a launch intent before the channel existed,
         // flush it now. Dart's handler attaches to the channel during
         // VoiceControlService construction; this happens once

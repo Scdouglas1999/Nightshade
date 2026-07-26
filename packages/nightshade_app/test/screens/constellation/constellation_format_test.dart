@@ -3,31 +3,32 @@ import 'package:nightshade_app/screens/constellation/constellation_format.dart';
 
 void main() {
   group('formatYourContribution', () {
-    test('phrases your depth against the swarm total with a percentage', () {
+    test('frames your local depth against the swarm total with a percentage',
+        () {
       expect(
         formatYourContribution(
           yourSeconds: 3600 * 2.0,
           swarmSeconds: 3600 * 10.0,
         ),
-        '2.0h of 10h (20%)',
+        '2.0h available to contribute (20% of swarm)',
       );
     });
 
     test('clamps the percentage to 100 when you exceed the reported total', () {
       expect(
         formatYourContribution(yourSeconds: 7200, swarmSeconds: 3600),
-        '2.0h of 1.0h (100%)',
+        '2.0h available to contribute (100% of swarm)',
       );
     });
 
-    test('falls back to a bare depth when the swarm total is unknown', () {
+    test('drops the swarm comparison when the total is unknown', () {
       expect(
         formatYourContribution(yourSeconds: 3600, swarmSeconds: 0),
-        '1.0h',
+        '1.0h available to contribute',
       );
       expect(
         formatYourContribution(yourSeconds: 0, swarmSeconds: 0),
-        'Nothing yet',
+        'Nothing local yet',
       );
     });
   });

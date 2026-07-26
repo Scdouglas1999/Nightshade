@@ -14,6 +14,20 @@ use super::parser::{parse_template, TemplatePart};
 use crate::node::context::ExecutionContext;
 use chrono::{DateTime, Utc};
 
+/// Synthetic filter label for rigs with no filter wheel.
+///
+/// Must match the label used by the non-template filename path in
+/// `instructions.rs`. Deliberately NOT "L": a missing filter on a
+/// narrowband/RGB capture must not be recorded as luminance.
+pub(crate) const NO_FILTER_LABEL: &str = "nofilter";
+
+/// Synthetic target label for a run with no TargetHeader in scope.
+///
+/// Must match the label used by the non-template filename path in
+/// `instructions.rs`, which already substitutes `"untargeted"` (with a
+/// `warn!`) rather than refusing to save the frame.
+pub(crate) const NO_TARGET_LABEL: &str = "untargeted";
+
 /// Per-call values that vary frame-to-frame inside a single
 /// [`ExecutionContext`]. Built fresh for each call site (e.g. once per frame
 /// in `expose.rs`).
@@ -147,7 +161,50 @@ pub fn resolve_variable(
     }
     match name {
         // -------------------- Target --------------------------------
-        "target.name" => str_or_unresolvable(name, ctx.target_name.as_deref(), "no active target"),
+        // `${target.name}` is in the DEFAULT save-path template
+        // (`${target.name}_${filter}_${frame:04}.fits`), so making it
+        // unresolvable aborted frame 1 of any run with no TargetHeader in
+        // scope — the same shape of failure the `${filter}` arm below already
+        // fixed for OSC/DSLR rigs.
+        //
+        // `expose.rs::calibration_target_label` covers the calibration case by
+        // stamping `Dark`/`Bias`/`Flat`/`DarkFlat` onto the context before the
+        // render, and deliberately does NOT cover on-sky frames — inventing a
+        // sky target for science data would be worse than not naming the file.
+        // That reasoning is right, but it leaves the LIGHT case landing here,
+        // and what happens here is not "the file goes unnamed": the exposure
+        // has already been taken and the whole run is failed, so real photons
+        // are discarded. Observed verbatim on the live rig running a five-node
+        // sequence (change filter -> 2x2s light -> delay -> change filter ->
+        // 1x4s dark) against a real ZWO ASI1600MM:
+        //   "Save-path template render failed for frame 1/2: Variable
+        //    `${target.name}` cannot be resolved: no active target. Aborting
+        //    exposure ..."
+        // -> zero frames written, run terminal state `failed`.
+        //
+        // `untargeted` is not an invented target — it is the explicit
+        // statement that there wasn't one, and it is exactly what the
+        // non-template filename path in `instructions.rs` already writes (with
+        // a `warn!`) for this case. Resolving to it keeps the data, keeps the
+        // frame auditable in a directory listing, and makes the two filename
+        // paths agree. `target.id` / `target.ra` / `target.dec` stay
+        // unresolvable below: those are load-bearing join keys and
+        // coordinates, not display labels, and none appear in the default
+        // template.
+        "target.name" => Ok(VariableValue::Str(
+            match ctx.target_name.as_deref().filter(|n| !n.is_empty()) {
+                Some(name) => name.to_string(),
+                None => {
+                    tracing::warn!(
+                        "[TEMPLATE] `${{target.name}}` has no active target — using the synthetic \
+                         label \"{}\". The sequence was started without a TargetHeader/TargetGroup; \
+                         review the configuration.",
+                        NO_TARGET_LABEL
+                    );
+                    NO_TARGET_LABEL.to_string()
+                }
+            },
+        )),
         "target.id" => str_or_unresolvable(
             name,
             ctx.target_id.as_deref(),
@@ -169,7 +226,26 @@ pub fn resolve_variable(
             "azimuth requires target RA/Dec and observer location",
         ),
         // -------------------- Filter --------------------------------
-        "filter" => str_or_unresolvable(name, ctx.current_filter.as_deref(), "no filter set"),
+        // A rig with no filter wheel (OSC / DSLR) has no filter, and that is
+        // NORMAL — not an error. `${filter}` appears in the DEFAULT save-path
+        // template (`${target.name}_${filter}_${frame:04}.fits`), so making it
+        // unresolvable aborted the very first frame of any sequence on such a
+        // rig: "Save-path template render failed … Variable `${filter}` cannot
+        // be resolved: no filter set. Aborting exposure". Reproduced by running
+        // a plain TakeExposure node with no filter against the simulator camera.
+        //
+        // The sibling filename path in `instructions.rs` already handles this
+        // by substituting the synthetic label `nofilter`, with a comment
+        // explaining it must NOT be "L" (that would mis-label narrowband/RGB
+        // frames as luminance). Resolve to the same label here so the two
+        // filename paths agree instead of one aborting the capture.
+        "filter" => Ok(VariableValue::Str(
+            ctx.current_filter
+                .as_deref()
+                .filter(|f| !f.is_empty())
+                .unwrap_or(NO_FILTER_LABEL)
+                .to_string(),
+        )),
         "filter.position" => int_or_unresolvable(
             name,
             frame
@@ -720,14 +796,27 @@ mod tests {
         }
     }
 
+    /// `${target.name}` renders the synthetic `untargeted` label rather than
+    /// erroring: an untargeted run (every calibration sequence) must still be
+    /// able to save its frames. `${target.id}` below keeps the strict
+    /// behaviour — it is a join key, not a display label.
     #[test]
-    fn missing_target_name_errors() {
+    fn missing_target_name_renders_untargeted_label() {
         let mut ctx = ctx_with_target();
         ctx.target_name = None;
         let frame = frame_with_burst();
-        let err = interpolate("${target.name}", &ctx, &frame).expect_err("must error");
+        let rendered = interpolate("${target.name}", &ctx, &frame).expect("must render");
+        assert_eq!(rendered, "untargeted");
+    }
+
+    #[test]
+    fn missing_target_id_errors() {
+        let mut ctx = ctx_with_target();
+        ctx.target_id = None;
+        let frame = frame_with_burst();
+        let err = interpolate("${target.id}", &ctx, &frame).expect_err("must error");
         match err {
-            InterpolationError::Unresolvable { name, .. } => assert_eq!(name, "target.name"),
+            InterpolationError::Unresolvable { name, .. } => assert_eq!(name, "target.id"),
             other => panic!("expected Unresolvable, got {other:?}"),
         }
     }
@@ -837,4 +926,75 @@ mod tests {
         }
         assert_eq!(rebuilt, original);
     }
+}
+/// A rig with no filter wheel must still render the default save-path
+/// template. `${filter}` used to be Unresolvable, which aborted frame 1 of
+/// every sequence on an OSC/DSLR rig ("Save-path template render failed …
+/// no filter set"). The label matches the non-template filename path in
+/// `instructions.rs` and is deliberately NOT "L".
+#[test]
+fn filter_falls_back_to_nofilter_label_when_unset() {
+    let mut ctx = ExecutionContext::new("root".to_string());
+    ctx.target_name = Some("M31".to_string());
+    ctx.current_filter = None;
+    let frame = EvaluationFrame {
+        frame: Some(1),
+        frame_total: Some(3),
+        ..EvaluationFrame::default()
+    };
+
+    let rendered = interpolate("${target.name}_${filter}_${frame:04}.fits", &ctx, &frame)
+        .expect("default template must render without a filter wheel");
+    assert_eq!(rendered, "M31_nofilter_0001.fits");
+    assert!(!rendered.contains("_L_"), "must not mis-label as luminance");
+}
+
+#[test]
+fn filter_uses_the_real_name_when_set() {
+    let mut ctx = ExecutionContext::new("root".to_string());
+    ctx.target_name = Some("M31".to_string());
+    ctx.current_filter = Some("Ha".to_string());
+    let frame = EvaluationFrame {
+        frame: Some(2),
+        frame_total: Some(3),
+        ..EvaluationFrame::default()
+    };
+    let rendered = interpolate("${target.name}_${filter}_${frame:04}.fits", &ctx, &frame).unwrap();
+    assert_eq!(rendered, "M31_Ha_0002.fits");
+}
+
+/// A calibration / untargeted run must still render the default save-path
+/// template. `${target.name}` used to be Unresolvable, which aborted frame 1 of
+/// every sequence with no TargetHeader ("Save-path template render failed …
+/// no active target"). The label matches the non-template filename path in
+/// `instructions.rs`.
+#[test]
+fn target_name_falls_back_to_untargeted_label_when_unset() {
+    let mut ctx = ExecutionContext::new("root".to_string());
+    ctx.target_name = None;
+    ctx.current_filter = Some("Ha".to_string());
+    let frame = EvaluationFrame {
+        frame: Some(1),
+        frame_total: Some(2),
+        ..EvaluationFrame::default()
+    };
+
+    let rendered = interpolate("${target.name}_${filter}_${frame:04}.fits", &ctx, &frame)
+        .expect("default template must render for an untargeted (calibration) run");
+    assert_eq!(rendered, "untargeted_Ha_0001.fits");
+}
+
+/// The real target name must still win when a TargetHeader is in scope.
+#[test]
+fn target_name_uses_the_real_name_when_set() {
+    let mut ctx = ExecutionContext::new("root".to_string());
+    ctx.target_name = Some("M31".to_string());
+    ctx.current_filter = None;
+    let frame = EvaluationFrame {
+        frame: Some(7),
+        frame_total: Some(9),
+        ..EvaluationFrame::default()
+    };
+    let rendered = interpolate("${target.name}_${filter}_${frame:04}.fits", &ctx, &frame).unwrap();
+    assert_eq!(rendered, "M31_nofilter_0007.fits");
 }

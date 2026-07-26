@@ -65,11 +65,12 @@ class TokenManager {
   final Random _random = Random.secure();
   static const int _maxPairingCreationAttempts = 5;
 
-  /// Listener invoked when a session token must be evicted from any in-memory
-  /// auth caches owned by the host (typically `HeadlessApiServer`).
-  /// Registered by the host via [setRevocationListener]; the manager does not
-  /// know about Shelf or in-memory maps itself.
-  SessionTokenRevocationListener? _revocationListener;
+  /// The process has one hardware-owning host, but GUI and HTTP pairing use
+  /// separate [TokenManager] instances over the same Drift file. Keep the
+  /// host's cache listener process-wide so a revoke initiated by either
+  /// instance evicts the server's in-memory bearer immediately.
+  static TokenManager? _revocationListenerOwner;
+  static SessionTokenRevocationListener? _processRevocationListener;
 
   /// Words for generating memorable pairing codes
   static const _codeWords = [
@@ -163,18 +164,28 @@ class TokenManager {
     throw StateError('Failed to create a unique pairing code.');
   }
 
+  /// Cancel an in-progress pairing session so its code can no longer complete
+  /// a pairing. The operator tapped Cancel before any device used the code;
+  /// deleting the session invalidates it immediately instead of leaving it
+  /// live until its timeout.
+  Future<void> cancelPairing(String code) async {
+    await _database.deletePairingSession(code.trim().toUpperCase());
+  }
+
   /// Verify a pairing attempt and complete the pairing
   Future<PairingResult> verifyPairing({
     required String pairingCode,
     required String deviceId,
     required String deviceName,
     String deviceType = 'mobile',
+    String authGrantSpec = 'control',
   }) async {
     final completion = await completePairing(
       pairingCode: pairingCode,
       deviceId: deviceId,
       deviceName: deviceName,
       deviceType: deviceType,
+      authGrantSpec: authGrantSpec,
     );
     return completion.result;
   }
@@ -193,6 +204,7 @@ class TokenManager {
     required String deviceName,
     String deviceType = 'mobile',
     Duration? tokenLifetime,
+    String authGrantSpec = 'control',
   }) async {
     final normalizedPairingCode = pairingCode.trim().toUpperCase();
     final normalizedDeviceId = deviceId.trim();
@@ -239,6 +251,7 @@ class TokenManager {
       sessionToken: session.sessionToken,
       deviceType: deviceType,
       expiresAt: expiresAt,
+      authGrantSpec: authGrantSpec,
     );
 
     // Clean up used session
@@ -274,7 +287,7 @@ class TokenManager {
     final expiresAt = device.expiresAt;
     if (expiresAt != null && !DateTime.now().isBefore(expiresAt)) {
       // Notify the host so any in-memory cache evicts the entry.
-      _revocationListener?.call(device.sessionToken);
+      _notifyRevocation(device.sessionToken);
       return TokenVerificationResult.expired;
     }
 
@@ -297,7 +310,7 @@ class TokenManager {
     final device = await _database.getPairedDevice(deviceId);
     await _database.revokeDevice(deviceId);
     if (device != null) {
-      _revocationListener?.call(device.sessionToken);
+      _notifyRevocation(device.sessionToken);
     }
   }
 
@@ -306,7 +319,7 @@ class TokenManager {
     final device = await _database.getPairedDevice(deviceId);
     await _database.deletePairedDevice(deviceId);
     if (device != null) {
-      _revocationListener?.call(device.sessionToken);
+      _notifyRevocation(device.sessionToken);
     }
   }
 
@@ -326,9 +339,23 @@ class TokenManager {
   /// be evicted from any in-memory caches (revoke, expiry sweep, delete).
   ///
   /// The headless server calls this at startup so revocation propagates
-  /// without a process restart.
+  /// without a process restart. Registration is process-wide because the GUI
+  /// pairing screen and embedded server intentionally use separate database
+  /// connections; only the hardware-owning server registers a listener.
   void setRevocationListener(SessionTokenRevocationListener? listener) {
-    _revocationListener = listener;
+    if (listener == null) {
+      if (identical(_revocationListenerOwner, this)) {
+        _revocationListenerOwner = null;
+        _processRevocationListener = null;
+      }
+      return;
+    }
+    _revocationListenerOwner = this;
+    _processRevocationListener = listener;
+  }
+
+  void _notifyRevocation(String sessionToken) {
+    _processRevocationListener?.call(sessionToken);
   }
 
   /// Sweep `paired_devices`: surface tokens that the in-memory auth map must
@@ -367,14 +394,11 @@ class TokenManager {
       await _database.deleteExpiredPairedDevices(now);
     }
     // Notify the host so in-memory caches drop the entries.
-    final listener = _revocationListener;
-    if (listener != null) {
-      for (final token in expired) {
-        listener(token);
-      }
-      for (final token in revoked) {
-        listener(token);
-      }
+    for (final token in expired) {
+      _notifyRevocation(token);
+    }
+    for (final token in revoked) {
+      _notifyRevocation(token);
     }
     return TokenSweepResult(expiredTokens: expired, revokedTokens: revoked);
   }

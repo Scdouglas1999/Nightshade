@@ -41,13 +41,13 @@ class TargetGroupProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: belt-and-suspenders gate. The parent
-    // `NodePropertiesPanel` already wraps the editor body in
-    // AbsorbPointer when [canEditSequenceProvider] is false, but we
-    // also wrap our own subtree in IgnorePointer here. This guarantees
-    // that any future refactor that extracts this widget out of the
-    // panel can't lose the gate silently — the safety reads as
-    // intentional in the code, not implicit through ancestor wrapping.
+    // Trust-patch §B: belt-and-suspenders gate. The parent `_NodeEditor`
+    // already wraps the editor body in IgnorePointer when
+    // [canEditSequenceProvider] is false, but we also wrap our own subtree
+    // in IgnorePointer here. This guarantees that any future refactor that
+    // extracts this widget out of the panel can't lose the gate silently —
+    // the safety reads as intentional in the code, not implicit through
+    // ancestor wrapping.
     final canEdit = ref.watch(canEditSequenceProvider);
     return IgnorePointer(
       ignoring: !canEdit,
@@ -242,107 +242,139 @@ class TargetGroupProperties extends ConsumerWidget {
           NodePropertyField(
             colors: colors,
             label: 'Start After (optional)',
-            child: GestureDetector(
-              onTap: () async {
-                final time = await showTimePicker(
-                  context: context,
-                  initialTime:
-                      TimeOfDay.fromDateTime(node.startAfter ?? DateTime.now()),
-                );
-                if (time != null) {
-                  final now = DateTime.now();
-                  var targetDate = DateTime(
-                      now.year, now.month, now.day, time.hour, time.minute);
-                  if (targetDate.isBefore(now)) {
-                    targetDate = targetDate.add(const Duration(days: 1));
-                  }
-                  ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(startAfter: targetDate),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(
+                            node.startAfter ?? DateTime.now()),
                       );
-                }
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  border: Border.all(color: colors.border),
-                ),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        node.startAfter != null
-                            ? '${node.startAfter!.hour.toString().padLeft(2, '0')}:${node.startAfter!.minute.toString().padLeft(2, '0')}'
-                            : 'Not set',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: node.startAfter != null
-                              ? colors.textPrimary
-                              : colors.textMuted,
-                        ),
+                      if (time != null) {
+                        final now = DateTime.now();
+                        var targetDate = DateTime(now.year, now.month, now.day,
+                            time.hour, time.minute);
+                        if (targetDate.isBefore(now)) {
+                          targetDate = targetDate.add(const Duration(days: 1));
+                        }
+                        ref.read(currentSequenceProvider.notifier).updateNode(
+                              node.copyWith(startAfter: targetDate),
+                            );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.clock,
+                              size: 14, color: colors.textMuted),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              node.startAfter != null
+                                  ? '${node.startAfter!.hour.toString().padLeft(2, '0')}:${node.startAfter!.minute.toString().padLeft(2, '0')}'
+                                  : 'Not set',
+                              style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize13,
+                                color: node.startAfter != null
+                                    ? colors.textPrimary
+                                    : colors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                if (node.startAfter != null)
+                  IconButton(
+                    onPressed: () =>
+                        _clearTimeConstraint(ref, clearStart: true),
+                    icon:
+                        Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                    tooltip: 'Clear',
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
             ),
           ),
           NodePropertyField(
             colors: colors,
             label: 'End Before (optional)',
-            child: GestureDetector(
-              onTap: () async {
-                final time = await showTimePicker(
-                  context: context,
-                  initialTime:
-                      TimeOfDay.fromDateTime(node.endBefore ?? DateTime.now()),
-                );
-                if (time != null) {
-                  final now = DateTime.now();
-                  var targetDate = DateTime(
-                      now.year, now.month, now.day, time.hour, time.minute);
-                  if (targetDate.isBefore(now)) {
-                    targetDate = targetDate.add(const Duration(days: 1));
-                  }
-                  ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(endBefore: targetDate),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(
+                            node.endBefore ?? DateTime.now()),
                       );
-                }
-              },
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  border: Border.all(color: colors.border),
-                ),
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        node.endBefore != null
-                            ? '${node.endBefore!.hour.toString().padLeft(2, '0')}:${node.endBefore!.minute.toString().padLeft(2, '0')}'
-                            : 'Not set',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          color: node.endBefore != null
-                              ? colors.textPrimary
-                              : colors.textMuted,
-                        ),
+                      if (time != null) {
+                        final now = DateTime.now();
+                        var targetDate = DateTime(now.year, now.month, now.day,
+                            time.hour, time.minute);
+                        if (targetDate.isBefore(now)) {
+                          targetDate = targetDate.add(const Duration(days: 1));
+                        }
+                        ref.read(currentSequenceProvider.notifier).updateNode(
+                              node.copyWith(endBefore: targetDate),
+                            );
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline8),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.clock,
+                              size: 14, color: colors.textMuted),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              node.endBefore != null
+                                  ? '${node.endBefore!.hour.toString().padLeft(2, '0')}:${node.endBefore!.minute.toString().padLeft(2, '0')}'
+                                  : 'Not set',
+                              style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize13,
+                                color: node.endBefore != null
+                                    ? colors.textPrimary
+                                    : colors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                if (node.endBefore != null)
+                  IconButton(
+                    onPressed: () =>
+                        _clearTimeConstraint(ref, clearStart: false),
+                    icon:
+                        Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                    tooltip: 'Clear',
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
             ),
           ),
           // start_when / end_when crossings editor.
@@ -389,6 +421,40 @@ class TargetGroupProperties extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Clear a legacy Start After / End Before wall-clock constraint back to
+  /// unset. These fields use plain `?? this.startAfter` copyWith semantics, so
+  /// `copyWith(startAfter: null)` keeps the old value — clearing is
+  /// rebuild-explicit, mirroring the integration-budget toggle recipe.
+  void _clearTimeConstraint(WidgetRef ref, {required bool clearStart}) {
+    ref.read(currentSequenceProvider.notifier).updateNode(
+          TargetHeaderNode(
+            id: node.id,
+            name: node.name,
+            isEnabled: node.isEnabled,
+            childIds: node.childIds,
+            parentId: node.parentId,
+            orderIndex: node.orderIndex,
+            comment: node.comment,
+            targetName: node.targetName,
+            raHours: node.raHours,
+            decDegrees: node.decDegrees,
+            rotation: node.rotation,
+            priority: node.priority,
+            minAltitude: node.minAltitude,
+            maxAltitude: node.maxAltitude,
+            startAfter: clearStart ? null : node.startAfter,
+            endBefore: clearStart ? node.endBefore : null,
+            mosaicPanel: node.mosaicPanel,
+            integrationBudget: node.integrationBudget,
+            startWhen: node.startWhen,
+            endWhen: node.endWhen,
+            triggerPollIntervalSecs: node.triggerPollIntervalSecs,
+            brightnessTierHint: node.brightnessTierHint,
+            catalogTargetId: node.catalogTargetId,
+          ),
+        );
   }
 }
 

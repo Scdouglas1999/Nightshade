@@ -16,6 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
 
+import '../headless_api/handler_test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -25,7 +27,7 @@ void main() {
     late Uri baseUri;
 
     setUp(() async {
-      container = ProviderContainer(
+      container = createHeadlessTestContainer(
         overrides: [
           appVersionProvider.overrideWithValue(
             const AppVersionInfo(version: '2.5.0', buildNumber: 5),

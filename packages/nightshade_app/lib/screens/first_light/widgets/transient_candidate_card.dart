@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../services/mount_command_service.dart';
+import '../../../utils/snackbar_helper.dart';
 import '../first_light_detail_screen.dart';
 import 'cutout_strip.dart';
 import 'transient_submit_dialog.dart';
@@ -327,12 +328,9 @@ class _ActionsRow extends StatelessWidget {
   /// first because moving the mount mid-session is consequential.
   Future<void> _chase(BuildContext context) async {
     final mount = ref.read(mountCommandServiceProvider);
-    final messenger = ScaffoldMessenger.maybeOf(context);
     if (!mount.isConnected) {
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text('No mount connected — connect a mount to chase.'),
-        ),
+      context.showWarningSnackBar(
+        'No mount connected — connect a mount to chase.',
       );
       return;
     }
@@ -373,9 +371,7 @@ class _ActionsRow extends StatelessWidget {
       detection.decDeg,
     );
     if (!context.mounted) return;
-    messenger?.showSnackBar(
-      SnackBar(content: Text(result.message ?? 'Slewing to candidate...')),
-    );
+    context.showCommandActionResult(result);
   }
 
   @override

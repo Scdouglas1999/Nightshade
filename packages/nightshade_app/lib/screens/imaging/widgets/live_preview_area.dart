@@ -57,6 +57,11 @@ class LivePreviewArea extends ConsumerStatefulWidget {
   ConsumerState<LivePreviewArea> createState() => _LivePreviewAreaState();
 }
 
+/// Vertical band at the bottom of the preview canvas owned by the corner
+/// readouts (histogram bottom-left, image stats bottom-right). Content centred
+/// in the canvas must keep clear of it.
+const double _cornerReadoutBandHeight = 120.0;
+
 class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
   /// How long the pointer can sit still over the image before the corner
   /// readout chrome (histogram / stats / quality / annotation status) fades
@@ -120,11 +125,11 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
     final lastStats = ref.watch(lastImageStatsProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final starDetectionResult = ref.watch(starDetectionResultProvider);
-    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
+    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull;
     final scienceVizPrefs =
-        ref.watch(scienceVisualizationPrefsProvider).valueOrNull ??
-            const ScienceVisualizationPrefs();
+        ref.watch(scienceVisualizationPrefsProvider).valueOrNull;
+    final scienceOverlaysEnabled =
+        scienceSettings?.overlayEnabled == true && scienceVizPrefs != null;
     final scienceMode = ref.watch(scienceModeStateProvider);
     final scienceOverlay = ref.watch(scienceOverlayStateProvider);
     final sessionId = ref.watch(sessionStateProvider).dbSessionId;
@@ -199,10 +204,10 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
         : ref.watch(capturedImageWcsProvider(currentFrameImageId)).valueOrNull;
 
     final annotationSettingsValue = ref.watch(annotationSettingsProvider);
-    final annotationSettingsObj =
-        annotationSettingsValue.valueOrNull ?? const AnnotationSettings();
-    final gridType = annotationSettingsObj.gridType;
-    final annotationShowResiduals = annotationSettingsObj.showSolveResiduals;
+    final annotationSettingsObj = annotationSettingsValue.valueOrNull;
+    final gridType = annotationSettingsObj?.gridType ?? GridType.none;
+    final annotationShowResiduals =
+        annotationSettingsObj?.showSolveResiduals ?? false;
     final currentAnnotation = ref.watch(currentAnnotationProvider);
     final currentSkySolution = currentImage == null
         ? const _CurrentImageSkySolution()
@@ -299,8 +304,25 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                 ),
                                 child: Center(
                                   child: Padding(
-                                    padding: const EdgeInsets.all(
-                                        NightshadeTokens.spaceLg),
+                                    // The bottom corners of this same canvas
+                                    // are permanently occupied by the
+                                    // histogram and the HFR/Stars/Median/Mean
+                                    // readout (both `Positioned(bottom: 16)`).
+                                    // Centring the empty state in the FULL
+                                    // canvas ran "Take a snapshot or start a
+                                    // capture loop" straight through both
+                                    // cards — legible neither as prompt nor as
+                                    // readout, and worse at a 1.3 system font
+                                    // scale where the sentence is wider.
+                                    // Reserve the readout band so the prompt
+                                    // centres in the space actually free.
+                                    padding: const EdgeInsets.fromLTRB(
+                                      NightshadeTokens.spaceLg,
+                                      NightshadeTokens.spaceLg,
+                                      NightshadeTokens.spaceLg,
+                                      NightshadeTokens.spaceLg +
+                                          _cornerReadoutBandHeight,
+                                    ),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
@@ -467,7 +489,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.overlayEnabled &&
+                        scienceOverlaysEnabled &&
                         scienceOverlay.showPsfHeatmap &&
                         psfTiles.isNotEmpty)
                       Positioned.fill(
@@ -487,7 +509,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     if (currentImage != null &&
                         residualVectors.isNotEmpty &&
                         (annotationShowResiduals ||
-                            (scienceSettings.overlayEnabled &&
+                            (scienceOverlaysEnabled &&
                                 scienceOverlay.showResidualVectors)))
                       Positioned.fill(
                         child: IgnorePointer(
@@ -502,7 +524,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.overlayEnabled &&
+                        scienceOverlaysEnabled &&
                         scienceOverlay.showUniformityMap &&
                         uniformityTiles.isNotEmpty)
                       Positioned.fill(
@@ -521,7 +543,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.overlayEnabled &&
+                        scienceOverlaysEnabled &&
                         (scienceOverlay.showClipHighMap ||
                             scienceOverlay.showClipLowMap))
                       Positioned.fill(
@@ -545,7 +567,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.overlayEnabled &&
+                        scienceOverlaysEnabled &&
                         scienceOverlay.showMovingObjectTracks &&
                         projectedMovingTracks.isNotEmpty)
                       Positioned.fill(
@@ -610,37 +632,37 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     // and the HUD self-gates on advanced mode, so this column
                     // occupies zero height until there is something to show and
                     // the two stack without overlapping when both are present.
-                    Positioned(
-                      top: 56,
-                      right: 16,
-                      child: _fadeChrome(
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: Responsive.previewOverlayMaxWidth(
-                              viewportSize.width,
+                    if (viewportSize.height > 120)
+                      Positioned(
+                        top: 56,
+                        right: 16,
+                        child: _fadeChrome(
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: Responsive.previewOverlayMaxWidth(
+                                viewportSize.width,
+                              ),
+                              maxHeight: viewportSize.height - 72,
                             ),
-                            maxHeight: (viewportSize.height - 72)
-                                .clamp(120.0, viewportSize.height),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const NarratorTicker(),
-                              if (scienceMode.scienceHudVisible) ...[
-                                const SizedBox(
-                                    height: NightshadeTokens.spaceSm),
-                                Flexible(
-                                  child: SingleChildScrollView(
-                                    child: ScienceHudPanel(colors: colors),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const NarratorTicker(),
+                                if (scienceMode.scienceHudVisible) ...[
+                                  const SizedBox(
+                                      height: NightshadeTokens.spaceSm),
+                                  Flexible(
+                                    child: SingleChildScrollView(
+                                      child: ScienceHudPanel(colors: colors),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
 
                     // Bottom-left histogram overlay
                     Positioned(

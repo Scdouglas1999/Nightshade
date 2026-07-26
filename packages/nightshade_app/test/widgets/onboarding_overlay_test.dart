@@ -27,9 +27,24 @@ NightshadeDatabase _newInMemoryDb() {
   return NightshadeDatabase.forTesting(NativeDatabase.memory());
 }
 
+class _FailingFirstLaunchTourDao extends FirstLaunchTourDao {
+  _FailingFirstLaunchTourDao(super.progressDao);
+
+  @override
+  Future<void> markSkipped() async {
+    throw StateError('skip persistence failed');
+  }
+
+  @override
+  Future<void> markCompleted() async {
+    throw StateError('completion persistence failed');
+  }
+}
+
 Future<void> _pumpOverlayDirect(
   WidgetTester tester, {
   required NightshadeDatabase db,
+  FirstLaunchTourDao? tourDaoOverride,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1200, 800);
@@ -42,6 +57,8 @@ Future<void> _pumpOverlayDirect(
     ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(db),
+        if (tourDaoOverride != null)
+          firstLaunchTourDaoProvider.overrideWithValue(tourDaoOverride),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -172,6 +189,36 @@ void main() {
           reason: 'Done must persist completion=true');
       expect(progress.dismissed, isFalse,
           reason: 'Completion is distinct from skip');
+    });
+
+    testWidgets('failed Skip stays open, remains retryable, and reports error',
+        (tester) async {
+      final db = _newInMemoryDb();
+      addTearDown(() async => db.close());
+      await _pumpOverlayDirect(
+        tester,
+        db: db,
+        tourDaoOverride: _FailingFirstLaunchTourDao(
+          db.tutorialProgressDao,
+        ),
+      );
+
+      await tester.tap(find.text('Show me around'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Connect your gear'), findsOneWidget);
+      expect(find.text('Skip'), findsOneWidget);
+      expect(
+        find.text('Could not save tour progress. Please try again.'),
+        findsOneWidget,
+      );
+      expect(
+        await db.tutorialProgressDao.getProgress(firstLaunchTourCategory),
+        isNull,
+      );
+      expect(tester.takeException(), isNull);
     });
   });
 

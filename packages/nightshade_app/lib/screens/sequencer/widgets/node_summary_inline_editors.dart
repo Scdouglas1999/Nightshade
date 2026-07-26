@@ -707,7 +707,7 @@ class _ExposureFilterEditor extends ConsumerWidget {
         onCommit: (text) {
           final filter = text.isEmpty ? null : text;
           ref.read(currentSequenceProvider.notifier).updateNode(
-                node.copyWith(filter: filter),
+                node.copyWith(filter: filter, clearFilter: filter == null),
               );
           ref
               .read(sequencerDefaultsProvider.notifier)
@@ -718,7 +718,11 @@ class _ExposureFilterEditor extends ConsumerWidget {
 
     void select(String? filter, int? index) {
       ref.read(currentSequenceProvider.notifier).updateNode(
-            node.copyWith(filter: filter, filterIndex: index),
+            node.copyWith(
+              filter: filter,
+              filterIndex: index,
+              clearFilter: filter == null && index == null,
+            ),
           );
       ref
           .read(sequencerDefaultsProvider.notifier)

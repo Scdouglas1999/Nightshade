@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -8,6 +11,7 @@ import 'package:nightshade_app/widgets/phd2_connection_dialog.dart';
 import 'package:nightshade_app/widgets/phd2/guide_controls_panel.dart';
 import 'package:nightshade_app/widgets/phd2/guide_target_display.dart';
 import 'package:nightshade_app/utils/phd2_helper.dart';
+import 'package:nightshade_app/utils/confirm_dialog.dart';
 import '../../widgets/tutorial_keys/guiding_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 
@@ -58,6 +62,15 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
 
     ref.watch(phd2ControllerProvider);
 
+    // Seed the settle/dither controls from the canonical persisted settings the
+    // first time they are available. Watching the provider means a fresh screen
+    // (post-reconstruction) re-hydrates from the persisted values.
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull;
+    if (settings != null) {
+      _hydrateGuidingSettings(settings);
+    }
+
     return ContextualTourPrompt(
       screenId: 'guiding',
       tourCategory: TutorialCategory.guidingTour,
@@ -66,6 +79,11 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
       child: Scaffold(
+        // Connection/settings inputs live in modal dialogs that handle their
+        // own IME insets. Resizing the complex guiding dashboard behind the
+        // modal can make its fixed status chrome overflow in short landscape
+        // viewports even though the user cannot interact with it.
+        resizeToAvoidBottomInset: false,
         backgroundColor: colors.background,
         body: SafeArea(
           bottom: false,
@@ -73,6 +91,17 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             children: [
               // Status bar - adapts for phone
               _buildStatusBar(colors, isConnected, phd2State, guideStats),
+              if (settingsAsync.hasError)
+                _GuidingSettingsAuthorityBanner(
+                  error: settingsAsync.error!,
+                  onRetry: () => ref.invalidate(appSettingsProvider),
+                )
+              else if (settingsAsync.isLoading)
+                LinearProgressIndicator(
+                  minHeight: 2,
+                  color: colors.primary,
+                  backgroundColor: colors.border,
+                ),
               // Main content. A phone is a phone in either orientation — a
               // large phone held in landscape is ~932 px wide yet must NOT get
               // the desktop split (its narrow side panels overflow). Branch on
@@ -89,6 +118,46 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GuidingSettingsAuthorityBanner extends StatelessWidget {
+  const _GuidingSettingsAuthorityBanner({
+    required this.error,
+    required this.onRetry,
+  });
+
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: colors.error.withValues(alpha: 0.1),
+      child: Row(
+        children: [
+          Icon(LucideIcons.alertTriangle, size: 15, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Guiding defaults unavailable: $error. '
+              'Settle and dither edits are disabled.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize11,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }

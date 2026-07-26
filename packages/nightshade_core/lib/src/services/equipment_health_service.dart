@@ -50,7 +50,24 @@ class EquipmentHealthReport {
   final double score;
   final List<EquipmentHealthInsight> insights;
 
-  const EquipmentHealthReport({required this.score, required this.insights});
+  /// Whether [score] is backed by any evidence.
+  ///
+  /// The score is a DEGRADATION score: it starts at 100 and subtracts for
+  /// guiding/HFR drift, failed exposures, and unhealthy heartbeats. With no
+  /// session history and no connected devices there is nothing to subtract,
+  /// so a brand-new rig used to render as "100 - Excellent" in green —
+  /// directly above the readiness panel telling the same user that no camera
+  /// is connected and they cannot capture. Observed on a fresh profile.
+  ///
+  /// When this is false the UI must present the score as un-assessed rather
+  /// than perfect: absence of evidence is not evidence of health.
+  final bool assessed;
+
+  const EquipmentHealthReport({
+    required this.score,
+    required this.insights,
+    this.assessed = true,
+  });
 }
 
 /// Connected-device descriptor used by [EquipmentHealthService.buildSnapshots]
@@ -210,20 +227,34 @@ class EquipmentHealthService {
       );
     }
 
+    // No history AND no devices to watch means nothing could have been
+    // measured — say so instead of implying a clean bill of health.
+    final assessed = recentSessions.isNotEmpty || deviceHealth.isNotEmpty;
+
     if (insights.isEmpty) {
       insights.add(
-        const EquipmentHealthInsight(
-          title: 'Equipment health stable',
-          message:
-              'No negative trend exceeded alert thresholds in the recent session history.',
-          severity: EquipmentHealthSeverity.info,
-        ),
+        assessed
+            ? const EquipmentHealthInsight(
+                title: 'Equipment health stable',
+                message:
+                    'No negative trend exceeded alert thresholds in the recent session history.',
+                severity: EquipmentHealthSeverity.info,
+              )
+            : const EquipmentHealthInsight(
+                title: 'Not enough data yet',
+                message:
+                    'No completed sessions and no connected devices to measure, so '
+                    'equipment health has not been assessed. It appears after your '
+                    'first session.',
+                severity: EquipmentHealthSeverity.info,
+              ),
       );
     }
 
     return EquipmentHealthReport(
       score: score.clamp(0.0, 100.0),
       insights: insights,
+      assessed: assessed,
     );
   }
 

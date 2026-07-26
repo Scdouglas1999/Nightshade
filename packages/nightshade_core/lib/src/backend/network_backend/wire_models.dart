@@ -45,9 +45,12 @@ class RemoteDirectoryEntry {
   const RemoteDirectoryEntry({required this.name, required this.path});
 
   factory RemoteDirectoryEntry.fromJson(Map<String, dynamic> json) {
+    // Tolerate a non-string name/path (older/buggy host, truncated frame)
+    // rather than throwing on the `as String` cast — a malformed entry must
+    // not abort the whole listing parse.
     return RemoteDirectoryEntry(
-      name: json['name'] as String? ?? '',
-      path: json['path'] as String? ?? '',
+      name: json['name'] is String ? json['name'] as String : '',
+      path: json['path'] is String ? json['path'] as String : '',
     );
   }
 }
@@ -64,14 +67,71 @@ class RemoteDirectoryListing {
   });
 
   factory RemoteDirectoryListing.fromJson(Map<String, dynamic> json) {
-    final directories = (json['directories'] as List? ?? const [])
-        .cast<Map<String, dynamic>>()
-        .map(RemoteDirectoryEntry.fromJson)
-        .toList();
+    // Parse defensively: skip entries that are not JSON objects (a lazy
+    // `.cast<Map<String, dynamic>>()` would instead throw at iteration time
+    // on the first bad element and drop the entire browse response). Non-list
+    // `directories`, a numeric `currentPath`, etc. degrade to empty/null so a
+    // partially-malformed frame still renders the well-formed folders. Root
+    // listings legitimately carry a null `currentPath`/`parentPath`.
+    final rawDirectories = json['directories'];
+    final directories = <RemoteDirectoryEntry>[];
+    if (rawDirectories is List) {
+      for (final entry in rawDirectories) {
+        if (entry is Map) {
+          final name = entry['name'];
+          final path = entry['path'];
+          if (name is! String || path is! String || path.trim().isEmpty) {
+            continue;
+          }
+          directories.add(
+            RemoteDirectoryEntry(
+              name: name.trim().isEmpty ? path : name,
+              path: path,
+            ),
+          );
+        }
+      }
+    }
     return RemoteDirectoryListing(
-      currentPath: json['currentPath'] as String?,
-      parentPath: json['parentPath'] as String?,
+      currentPath: json['currentPath'] is String
+          ? json['currentPath'] as String
+          : null,
+      parentPath: json['parentPath'] is String
+          ? json['parentPath'] as String
+          : null,
       directories: directories,
+    );
+  }
+}
+
+/// Wire shape for one entry of `GET /api/logs` — an on-disk log file the
+/// host is willing to stream via `GET /api/logs/files/<name>/download`.
+///
+/// Mirrors `LogHandlers.handleListFiles`. `modifiedAt` is null when the
+/// host sent a malformed timestamp; the listing still renders.
+class RemoteLogFileInfo {
+  final String name;
+  final int sizeBytes;
+  final DateTime? modifiedAt;
+
+  /// True for the file the daily-rolling appender is currently writing.
+  final bool isCurrent;
+
+  const RemoteLogFileInfo({
+    required this.name,
+    required this.sizeBytes,
+    required this.modifiedAt,
+    required this.isCurrent,
+  });
+
+  factory RemoteLogFileInfo.fromJson(Map<String, dynamic> json) {
+    return RemoteLogFileInfo(
+      name: json['name'] is String ? json['name'] as String : '',
+      sizeBytes: json['sizeBytes'] is int ? json['sizeBytes'] as int : 0,
+      modifiedAt: json['modifiedAt'] is String
+          ? DateTime.tryParse(json['modifiedAt'] as String)
+          : null,
+      isCurrent: json['isCurrent'] == true,
     );
   }
 }
@@ -156,13 +216,36 @@ class RemoteJob {
   bool get isTerminal =>
       state == 'succeeded' || state == 'failed' || state == 'cancelled';
 
-  factory RemoteJob.fromJson(Map<String, dynamic> json) {
+  factory RemoteJob.fromJson(
+    Map<String, dynamic> json, {
+    String? fallbackOperation,
+  }) {
+    final jobId = json['jobId'];
+    if (jobId is! String || jobId.trim().isEmpty) {
+      throw const FormatException('Remote job response is missing `jobId`.');
+    }
+    final rawOperation = json['operation'];
+    final operation = rawOperation is String && rawOperation.trim().isNotEmpty
+        ? rawOperation
+        : fallbackOperation;
+    if (operation == null || operation.trim().isEmpty) {
+      throw const FormatException(
+        'Remote job response is missing `operation`.',
+      );
+    }
+    // Admission endpoints return `{jobId, status: queued}` while snapshots
+    // return `{jobId, operation, state: ...}`. Treat both as the same wire
+    // contract instead of turning every newly-started job into `unknown`.
+    final rawState = json['state'] ?? json['status'];
+    if (rawState is! String || rawState.trim().isEmpty) {
+      throw const FormatException('Remote job response is missing job state.');
+    }
     return RemoteJob(
-      jobId: json['jobId'] as String? ?? '',
-      operation: json['operation'] as String? ?? '',
+      jobId: jobId,
+      operation: operation,
       deviceId: json['deviceId'] as String?,
       commandId: json['commandId'] as String?,
-      state: json['state'] as String? ?? 'unknown',
+      state: rawState,
       progress: (json['progress'] as num?)?.toDouble(),
       progressMessage: json['progressMessage'] as String?,
       result: json['result'] is Map
@@ -211,7 +294,11 @@ class RemoteJob {
 class RemoteVersionInfo {
   final String currentVersion;
   final int buildNumber;
-  final String channel;
+
+  /// OTA channel the host follows. Null when the host runs without a
+  /// provisioned update stack — the always-on `/api/system/version` fallback
+  /// (headless hosts, dev builds) reports build info with no channel.
+  final String? channel;
   final String platform;
   final String? dataDir;
   final String? updateServerUrl;
@@ -221,7 +308,7 @@ class RemoteVersionInfo {
   const RemoteVersionInfo({
     required this.currentVersion,
     required this.buildNumber,
-    required this.channel,
+    this.channel,
     required this.platform,
     this.dataDir,
     this.updateServerUrl,
@@ -235,13 +322,46 @@ class RemoteVersionInfo {
       return DateTime.tryParse(raw);
     }
 
+    final rawUpdateServerUrl = json['updateServerUrl'];
+    final safeUpdateServerUrl = rawUpdateServerUrl is String
+        ? sanitizeEndpointForDisplay(rawUpdateServerUrl)
+        : '';
+
+    final currentVersion = json['currentVersion'];
+    final buildNumber = json['buildNumber'];
+    final channel = json['channel'];
+    final platform = json['platform'];
+    if (currentVersion is! String || currentVersion.trim().isEmpty) {
+      throw const FormatException(
+        'System version response is missing `currentVersion`.',
+      );
+    }
+    if (buildNumber is! num ||
+        !buildNumber.toDouble().isFinite ||
+        buildNumber < 0 ||
+        buildNumber.toInt() != buildNumber) {
+      throw const FormatException(
+        'System version response has an invalid `buildNumber`.',
+      );
+    }
+    // `channel` is absent on hosts without a provisioned update stack (the
+    // always-on version fallback) — treat missing/blank as "no channel".
+    final safeChannel = channel is String && channel.trim().isNotEmpty
+        ? channel
+        : null;
+    if (platform is! String || platform.trim().isEmpty) {
+      throw const FormatException(
+        'System version response is missing `platform`.',
+      );
+    }
+
     return RemoteVersionInfo(
-      currentVersion: json['currentVersion'] as String? ?? '',
-      buildNumber: (json['buildNumber'] as num?)?.toInt() ?? 0,
-      channel: json['channel'] as String? ?? 'stable',
-      platform: json['platform'] as String? ?? '',
-      dataDir: json['dataDir'] as String?,
-      updateServerUrl: json['updateServerUrl'] as String?,
+      currentVersion: currentVersion,
+      buildNumber: buildNumber.toInt(),
+      channel: safeChannel,
+      platform: platform,
+      dataDir: json['dataDir'] is String ? json['dataDir'] as String : null,
+      updateServerUrl: safeUpdateServerUrl.isEmpty ? null : safeUpdateServerUrl,
       lastUpdateCheck: parse(json['lastUpdateCheck']),
       lastUpdateApplied: parse(json['lastUpdateApplied']),
     );
@@ -254,21 +374,33 @@ class RemoteVersionInfo {
 /// branches on the wire name.
 class RemoteUpdateStatus {
   final String state;
+  final String? availableVersion;
+  final int? availableBuildNumber;
+  final bool requiresManualUpgrade;
   final String? stagedVersion;
   final DateTime? stagedAt;
   final double? progressPct;
   final String? message;
   final String? lastError;
+  final bool rollbackAvailable;
+  final bool canAuthenticateUpdates;
 
   const RemoteUpdateStatus({
     required this.state,
+    this.availableVersion,
+    this.availableBuildNumber,
+    this.requiresManualUpgrade = false,
     this.stagedVersion,
     this.stagedAt,
     this.progressPct,
     this.message,
     this.lastError,
+    this.rollbackAvailable = false,
+    this.canAuthenticateUpdates = true,
   });
 
+  bool get hasAvailableUpdate =>
+      state == 'available' || availableVersion != null;
   bool get hasStagedUpdate => stagedVersion != null;
   bool get isInFlight =>
       state == 'checking' ||
@@ -282,15 +414,78 @@ class RemoteUpdateStatus {
       return DateTime.tryParse(raw);
     }
 
+    final state = json['state'];
+    if (state is! String || state.trim().isEmpty) {
+      throw const FormatException('Update status response is missing `state`.');
+    }
+    final rawProgress = json['progressPct'];
+    final progress = rawProgress is num ? rawProgress.toDouble() : null;
+    if (rawProgress != null &&
+        (progress == null ||
+            !progress.isFinite ||
+            progress < 0 ||
+            progress > 100)) {
+      throw const FormatException(
+        'Update status response has invalid `progressPct`.',
+      );
+    }
+    final rawAvailableBuild = json['availableBuildNumber'];
+    if (rawAvailableBuild != null &&
+        (rawAvailableBuild is! num ||
+            !rawAvailableBuild.toDouble().isFinite ||
+            rawAvailableBuild < 0 ||
+            rawAvailableBuild.toInt() != rawAvailableBuild)) {
+      throw const FormatException(
+        'Update status response has invalid `availableBuildNumber`.',
+      );
+    }
+
     return RemoteUpdateStatus(
-      state: json['state'] as String? ?? 'idle',
-      stagedVersion: json['stagedVersion'] as String?,
+      state: state,
+      availableVersion: json['availableVersion'] is String
+          ? json['availableVersion'] as String
+          : null,
+      availableBuildNumber: rawAvailableBuild is num
+          ? rawAvailableBuild.toInt()
+          : null,
+      requiresManualUpgrade: json['requiresManualUpgrade'] is bool
+          ? json['requiresManualUpgrade'] as bool
+          : false,
+      stagedVersion: json['stagedVersion'] is String
+          ? json['stagedVersion'] as String
+          : null,
       stagedAt: parse(json['stagedAt']),
-      progressPct: (json['progressPct'] as num?)?.toDouble(),
-      message: json['message'] as String?,
-      lastError: json['lastError'] as String?,
+      progressPct: progress,
+      message: json['message'] is String ? json['message'] as String : null,
+      lastError: json['lastError'] is String
+          ? json['lastError'] as String
+          : null,
+      rollbackAvailable: json['rollbackAvailable'] is bool
+          ? json['rollbackAvailable'] as bool
+          : false,
+      // Older hosts never advertised whether a trusted vendor key was
+      // provisioned. Unknown must be fail-closed: let the user check for an
+      // update, but never enable a package download on an assumption.
+      canAuthenticateUpdates: json['canAuthenticateUpdates'] is bool
+          ? json['canAuthenticateUpdates'] as bool
+          : false,
     );
   }
+}
+
+/// Sanitized durable Stack-and-Share record returned by an imaging host.
+///
+/// [result.exportedImagePath] is always null: host filesystem paths never cross
+/// the remote boundary. [previewAvailable] tells the client whether the
+/// authenticated binary preview endpoint can supply pixels.
+class RemoteStackedResult {
+  final StackAndShareResult result;
+  final bool previewAvailable;
+
+  const RemoteStackedResult({
+    required this.result,
+    required this.previewAvailable,
+  });
 }
 
 /// Client-side mirror of `GET /api/system/update/staged`. Returned by

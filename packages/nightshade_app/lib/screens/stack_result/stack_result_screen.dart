@@ -1,6 +1,7 @@
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart' show XTypeGroup;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -17,10 +18,10 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../widgets/astro_image_viewer.dart';
 
-/// Signature of the native save-file picker used by the Stack Result viewer to
-/// choose an export destination.
+/// Signature of the save-file picker used by the Stack Result viewer to choose
+/// an export destination.
 ///
-/// Defaults to [FilePicker.platform.saveFile]; injected via
+/// Defaults to [_defaultSavePicker]; injected via
 /// [stackResultSavePickerProvider] so widget tests can stub the picker without
 /// invoking platform channels.
 typedef StackResultSavePicker = Future<String?> Function({
@@ -29,17 +30,31 @@ typedef StackResultSavePicker = Future<String?> Function({
   required List<String> allowedExtensions,
 });
 
+/// Resolve the export destination for [fileName].
+///
+/// Goes through [chooseExportTarget] rather than `FilePicker.saveFile`: on
+/// Android/iOS `file_picker` throws `ArgumentError('Bytes are required on
+/// Android & iOS when saving a file.')` when called without `bytes:`, which
+/// dead-ended all four actions in the phone-only overflow menu (the exported
+/// bytes don't exist yet at picker time — the service renders them into the
+/// chosen path). Desktop still gets the native save dialog; on touch the path
+/// is inside the app sandbox and the caller finishes with the share sheet.
 Future<String?> _defaultSavePicker({
   required String dialogTitle,
   required String fileName,
   required List<String> allowedExtensions,
-}) {
-  return FilePicker.platform.saveFile(
-    dialogTitle: dialogTitle,
-    fileName: fileName,
-    type: FileType.custom,
-    allowedExtensions: allowedExtensions,
+}) async {
+  final target = await chooseExportTarget(
+    suggestedName: fileName,
+    acceptedTypeGroups: [
+      XTypeGroup(
+        label: allowedExtensions.map((e) => e.toUpperCase()).join(' / '),
+        extensions: allowedExtensions,
+      ),
+    ],
+    confirmButtonText: dialogTitle,
   );
+  return target?.path;
 }
 
 /// Signature of the OS share-sheet call used after an export completes.
@@ -139,6 +154,9 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final resultAsync = ref.watch(stackResultViewerProvider(widget.resultId));
+    final previewAsync = ref.watch(
+      stackResultPreviewProvider(widget.resultId),
+    );
     final liveState = ref.watch(stackAndShareProvider);
 
     return Scaffold(
@@ -148,18 +166,38 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
         error: (error, _) => _buildNotFound(context, error),
-        data: (result) => _buildLoaded(context, colors, result, liveState),
+        data: (result) => _buildLoaded(
+          context,
+          colors,
+          result,
+          liveState,
+          previewAsync,
+        ),
       ),
     );
   }
 
   Widget _buildNotFound(BuildContext context, Object error) {
+    final isMissing =
+        (error is ServerError && error.code == 'stack_result_not_found') ||
+            (error is StateError &&
+                error.toString().contains('No stacked result found'));
     return EmptyState(
       icon: NightshadeIcons.imageOff,
-      title: 'Result not found',
-      body: 'No stacked result exists for id ${widget.resultId}. '
-          'It may have been deleted.',
+      title: isMissing ? 'Result not found' : 'Could not load result',
+      body: isMissing
+          ? 'No stacked result exists for id ${widget.resultId}. It may have '
+              'been deleted.'
+          : _resultLoadErrorMessage(error),
     );
+  }
+
+  String _resultLoadErrorMessage(Object error) {
+    final message = _cleanErrorMessage(error);
+    return message.isEmpty
+        ? 'The imaging host could not be reached. Try again when the '
+            'connection is available.'
+        : message;
   }
 
   Widget _buildLoaded(
@@ -167,6 +205,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     NightshadeColors colors,
     StackAndShareResult result,
     StackAndShareState liveState,
+    AsyncValue<Uint8List?> previewAsync,
   ) {
     // The in-memory integrated buffer is only available when this screen is
     // showing the run that just completed (the live orchestrator retains it).
@@ -176,7 +215,18 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     final isOwnRun = liveState.result?.id == result.id;
     final mono = isOwnRun ? liveState.resultMono : null;
     final channels = isOwnRun ? liveState.resultChannels : result.channels;
-    final rgba = _resolveDisplayRgba(result, liveState, mono, channels);
+    final durableRgba = previewAsync.when(
+      data: (value) => value,
+      loading: () => null,
+      error: (_, __) => null,
+    );
+    final rgba = _resolveDisplayRgba(
+      result,
+      liveState,
+      mono,
+      channels,
+      durableRgba,
+    );
 
     final subtitle = '${result.framesStacked} frame'
         '${result.framesStacked == 1 ? '' : 's'} · '
@@ -199,8 +249,22 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           // viewer at that height. On desktop the live window width still drives
           // the split as before.
           child: Responsive.isMobile(context)
-              ? _buildMobileLayout(context, colors, result, rgba, mono)
-              : _buildDesktopLayout(context, colors, result, rgba, mono),
+              ? _buildMobileLayout(
+                  context,
+                  colors,
+                  result,
+                  rgba,
+                  mono,
+                  previewAsync,
+                )
+              : _buildDesktopLayout(
+                  context,
+                  colors,
+                  result,
+                  rgba,
+                  mono,
+                  previewAsync,
+                ),
         ),
       ],
     );
@@ -321,11 +385,14 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     StackAndShareResult result,
     Uint8List? rgba,
     Uint16List? mono,
+    AsyncValue<Uint8List?> previewAsync,
   ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: _buildViewer(context, colors, result, rgba)),
+        Expanded(
+          child: _buildViewer(context, colors, result, rgba, previewAsync),
+        ),
         Container(
           width: 320,
           decoration: BoxDecoration(
@@ -346,6 +413,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     StackAndShareResult result,
     Uint8List? rgba,
     Uint16List? mono,
+    AsyncValue<Uint8List?> previewAsync,
   ) {
     // Phone portrait is too short to give the viewer a flexible Expanded AND a
     // 40%-capped panel without the viewer's contents (e.g. the EmptyState
@@ -361,7 +429,13 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         children: [
           SizedBox(
             height: viewerHeight,
-            child: _buildViewer(context, colors, result, rgba),
+            child: _buildViewer(
+              context,
+              colors,
+              result,
+              rgba,
+              previewAsync,
+            ),
           ),
           Container(
             decoration: BoxDecoration(
@@ -381,19 +455,24 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     NightshadeColors colors,
     StackAndShareResult result,
     Uint8List? rgba,
+    AsyncValue<Uint8List?> previewAsync,
   ) {
     if (rgba == null) {
-      // No pixels in memory and no on-disk export to re-load: tell the user the
-      // master is no longer resident rather than rendering a black canvas.
-      return EmptyState(
-        icon: NightshadeIcons.imageOff,
-        title: 'Image not available',
-        body: result.exportedImagePath != null
-            ? 'This stacked master was exported to '
-                '${result.exportedImagePath}. Re-run Stack & Share to view it '
-                'in the app.'
-            : 'The integrated pixels are no longer in memory. Re-run Stack & '
-                'Share to view this result.',
+      return previewAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        error: (error, _) => EmptyState(
+          icon: NightshadeIcons.imageOff,
+          title: 'Preview unavailable',
+          body: _previewErrorMessage(error),
+        ),
+        data: (_) => const EmptyState(
+          icon: NightshadeIcons.imageOff,
+          title: 'Image not available',
+          body: 'This legacy result has no durable preview. Re-run Stack & '
+              'Share to recreate it.',
+        ),
       );
     }
     return Container(
@@ -526,6 +605,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     StackAndShareState liveState,
     Uint16List? buffer,
     int channels,
+    Uint8List? durablePreview,
   ) {
     if (buffer != null) {
       // Recompute only when the source buffer or selected stretch changed.
@@ -540,7 +620,26 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     if (liveState.result?.id == result.id && liveState.resultRgba != null) {
       return liveState.resultRgba;
     }
-    return null;
+    return durablePreview;
+  }
+
+  String _previewErrorMessage(Object error) {
+    final message = _cleanErrorMessage(error);
+    return message.isEmpty ? 'The saved preview could not be opened.' : message;
+  }
+
+  String _cleanErrorMessage(Object error) {
+    var message = error.toString().trim();
+    for (final prefix in const [
+      'StateError: ',
+      'Bad state: ',
+      'FormatException: ',
+    ]) {
+      if (message.startsWith(prefix)) {
+        message = message.substring(prefix.length).trim();
+      }
+    }
+    return message;
   }
 
   /// Render [buffer] to display RGBA under the current [_stretch].
@@ -663,9 +762,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     Uint8List rgba,
     ShareExportFormat format,
   ) async {
+    if (_exporting) return;
     final picker = ref.read(stackResultSavePickerProvider);
     final share = ref.read(stackResultShareProvider);
     final service = ref.read(stackShareExportServiceProvider);
+    final stampPersistedResult = ref.read(backendProvider) is! NetworkBackend;
 
     final (extension, allowed, title) = switch (format) {
       ShareExportFormat.png => ('png', ['png'], 'Export PNG'),
@@ -677,16 +778,15 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         ),
     };
 
-    final outputPath = await picker(
-      dialogTitle: title,
-      fileName: _suggestedFileName(result, extension),
-      allowedExtensions: allowed,
-    );
-    if (outputPath == null) return; // User cancelled the save picker.
-    if (!mounted) return;
-
     setState(() => _exporting = true);
     try {
+      final outputPath = await picker(
+        dialogTitle: title,
+        fileName: _suggestedFileName(result, extension),
+        allowedExtensions: allowed,
+      );
+      if (outputPath == null || !mounted) return;
+
       final cardSpec = format == ShareExportFormat.shareCard
           ? _buildShareCardSpec(result)
           : null;
@@ -696,15 +796,40 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         format: format,
         outputPath: outputPath,
         cardSpec: cardSpec,
+        // Remote ids belong to the imaging host. Never stamp a controller-local
+        // row that happens to share the same integer id.
+        stampPersistedResult: stampPersistedResult,
       );
-      // Package-boundary share call lives here (share_plus is a UI dependency).
-      await share(written, text: result.targetName ?? 'Stacked result');
       if (!mounted) return;
       NightshadeToastHelper.show(
         context: context,
         message: 'Exported ${p.basename(written)}',
         severity: NightshadeAlertSeverity.success,
       );
+
+      // The share card always hands the written file to the OS share sheet. On
+      // Android/iOS so must PNG/JPEG: there is no save dialog on those
+      // platforms, so the export landed in the app sandbox and the toast alone
+      // would name a file the user cannot open. On desktop those two stay
+      // save-only — the user picked the path. A share failure never means the
+      // export failed — the file is already on disk — so it surfaces as a
+      // non-fatal warning.
+      final handOffToShareSheet = format == ShareExportFormat.shareCard ||
+          Platform.isAndroid ||
+          Platform.isIOS;
+      if (handOffToShareSheet) {
+        try {
+          // share_plus is a UI dependency, so the call lives at this boundary.
+          await share(written, text: result.targetName ?? 'Stacked result');
+        } catch (e) {
+          if (!mounted) return;
+          NightshadeToastHelper.show(
+            context: context,
+            message: 'Saved, but sharing failed.',
+            severity: NightshadeAlertSeverity.warning,
+          );
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       await ErrorDialog.show(

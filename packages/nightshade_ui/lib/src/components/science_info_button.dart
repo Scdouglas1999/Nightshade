@@ -16,13 +16,6 @@ void showScienceInfoDialog(BuildContext context, String title, String body) {
         icon: LucideIcons.info,
         width: 520,
         height: 420,
-        child: Text(
-          body.trim(),
-          style: NightshadeTypography.bodySm.copyWith(
-            color: colors.textSecondary,
-            height: 1.6,
-          ),
-        ),
         actions: [
           NightshadeButton(
             onPressed: () => Navigator.pop(context),
@@ -30,6 +23,13 @@ void showScienceInfoDialog(BuildContext context, String title, String body) {
             variant: ButtonVariant.ghost,
           ),
         ],
+        child: Text(
+          body.trim(),
+          style: NightshadeTypography.bodySm.copyWith(
+            color: colors.textSecondary,
+            height: 1.6,
+          ),
+        ),
       );
     },
   );

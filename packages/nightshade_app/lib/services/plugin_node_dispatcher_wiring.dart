@@ -39,10 +39,10 @@ Override pluginNodeDispatcherOverride() {
     final executor = PluginNodeExecutor(host: host, registry: registry);
 
     return (request) async {
-      // Parse the opaque config JSON the Rust side forwarded. Empty /
-      // unparseable JSON degrades to an empty params map; the plugin's
-      // own `validate()` is the canonical surface for "this config is
-      // bad" errors.
+      // Parse the opaque config JSON the Rust side forwarded. Empty means the
+      // normal default object. Malformed JSON (or a non-object JSON value) is
+      // a node failure: silently replacing it with `{}` can execute a plugin
+      // with defaults that the operator never selected.
       Map<String, dynamic> params = const {};
       if (request.configJson.isNotEmpty) {
         try {
@@ -54,10 +54,17 @@ Override pluginNodeDispatcherOverride() {
             // already, but some toolchains produce a Map<dynamic,
             // dynamic> when the source is hand-built. Coerce by key.
             params = decoded.map((k, v) => MapEntry(k.toString(), v));
+          } else {
+            return _invalidPluginConfigResult(
+              request,
+              'configuration must be a JSON object',
+            );
           }
-        } catch (_) {
-          // Fall through with an empty map; the plugin will surface
-          // the validation error itself.
+        } catch (error) {
+          return _invalidPluginConfigResult(
+            request,
+            'configuration is not valid JSON: $error',
+          );
         }
       }
 
@@ -86,4 +93,21 @@ Override pluginNodeDispatcherOverride() {
       );
     };
   });
+}
+
+PluginNodeDispatchResult _invalidPluginConfigResult(
+  PluginNodeDispatchRequest request,
+  String reason,
+) {
+  final message = 'Invalid plugin node configuration: $reason';
+  return PluginNodeDispatchResult(
+    success: false,
+    message: message,
+    structuredDetailJson: jsonEncode({
+      'plugin_id': request.pluginId,
+      'node_type_id': request.nodeTypeId,
+      'success': false,
+      'message': message,
+    }),
+  );
 }

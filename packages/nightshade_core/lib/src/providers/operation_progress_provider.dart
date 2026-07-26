@@ -241,22 +241,27 @@ class ActiveOperationsNotifier extends StateNotifier<ActiveOperationsState> {
     OperationType type, {
     double? progress,
     String? currentStep,
+    String? operationId,
   }) {
+    if (operationId != null && state[type]?.id != operationId) return;
     state = state.withUpdatedOperation(type, (op) {
       return op.copyWith(progress: progress, currentStep: currentStep);
     });
   }
 
-  /// Mark an operation as complete and remove it.
-  void completeOperation(OperationType type) {
+  /// Mark an operation as complete and remove it. When [operationId] is
+  /// supplied, a stale completion from an older same-type request cannot clear
+  /// the newer request that replaced it in the status map.
+  void completeOperation(OperationType type, {String? operationId}) {
+    if (operationId != null && state[type]?.id != operationId) return;
     state = state.withoutOperation(type);
   }
 
   /// Cancel an operation (if cancellable).
-  void cancelOperation(OperationType type) {
+  void cancelOperation(OperationType type, {String? operationId}) {
     // The actual cancellation logic would be handled by the caller
     // This just removes the tracking
-    state = state.withoutOperation(type);
+    completeOperation(type, operationId: operationId);
   }
 
   /// Clear all operations (e.g., on disconnect or error).

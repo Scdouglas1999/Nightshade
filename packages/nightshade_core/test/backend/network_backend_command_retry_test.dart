@@ -1,5 +1,5 @@
 // Regression guard for MOBILE-001: non-idempotent hardware command POSTs
-// (relative focuser/rotator moves, mount move-axis, camera expose) must NOT be
+// (relative focuser/rotator moves, mount move-axis/pulse-guide, camera expose) must NOT be
 // auto-retried by the transient-failure retry wrapper. A single user-issued
 // relative move / exposure must result in at most ONE hardware actuation, even
 // when the first request times out on a slow remote link — otherwise an
@@ -115,7 +115,9 @@ void main() {
       await expectLater(
         backend.cameraStartExposure(
           deviceId: 'cam-1',
-          exposureTime: 30,
+          // Keep the exposure component at zero so this transport-level test
+          // still exercises the deliberately tiny 300 ms request ceiling.
+          exposureTime: 0,
           frameType: FrameType.light,
         ),
         throwsA(isA<TimeoutException>()),
@@ -139,6 +141,27 @@ void main() {
       );
 
       expect(hitCounts['/api/mount/move-axis'], 1);
+    });
+
+    test('mountPulseGuide actuates at most once when the first '
+        'response times out', () async {
+      delayFirstHitPaths.add('/api/mount/pulse-guide');
+      final backend = buildBackend();
+
+      await expectLater(
+        backend.mountPulseGuide(
+          deviceId: 'mount-1',
+          direction: 'north',
+          durationMs: 500,
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+
+      expect(
+        hitCounts['/api/mount/pulse-guide'],
+        1,
+        reason: 'a timed-out guide pulse must NOT be auto-resent',
+      );
     });
   });
 
@@ -207,6 +230,14 @@ void main() {
     expectSingleAttemptOnTransient5xx(
       '/api/mount/move-axis',
       (b) => b.mountMoveAxis('mount-1', 0, 2.0),
+    );
+    expectSingleAttemptOnTransient5xx(
+      '/api/mount/pulse-guide',
+      (b) => b.mountPulseGuide(
+        deviceId: 'mount-1',
+        direction: 'north',
+        durationMs: 500,
+      ),
     );
     expectSingleAttemptOnTransient5xx(
       '/api/camera/expose',

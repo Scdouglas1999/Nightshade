@@ -43,6 +43,16 @@ class _SciencePhotometryPropertiesState
   late TextEditingController _gainCtl;
   late TextEditingController _offsetCtl;
 
+  final _targetFocus = FocusNode();
+  final _exposureFocus = FocusNode();
+  final _countFocus = FocusNode();
+  final _maxCadenceFocus = FocusNode();
+  final _minSnrFocus = FocusNode();
+  final _maxFwhmFocus = FocusNode();
+  final _maxAirmassFocus = FocusNode();
+  final _gainFocus = FocusNode();
+  final _offsetFocus = FocusNode();
+
   bool _qualityExpanded = false;
 
   @override
@@ -72,6 +82,50 @@ class _SciencePhotometryPropertiesState
   }
 
   @override
+  void didUpdateWidget(SciencePhotometryProperties oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The dispatching _NodeEditor is unkeyed, so this State is reused when
+    // widget.node changes — an undo/redo on the same node or a switch to a
+    // different SciencePhotometryNode. Resync each controller from the model
+    // so the text fields never lag the dropdowns/switches. A field that is
+    // being typed into (focused) is left alone to avoid clobbering the caret;
+    // a node id change forces a resync regardless.
+    final node = widget.node;
+    final idChanged = oldWidget.node.id != node.id;
+    _syncField(_targetCtl, _targetFocus, node.targetDesignation,
+        force: idChanged);
+    _syncField(_exposureCtl, _exposureFocus, node.exposureSecs.toString(),
+        force: idChanged);
+    _syncField(_countCtl, _countFocus, node.count.toString(), force: idChanged);
+    _syncField(
+        _maxCadenceCtl, _maxCadenceFocus, node.maxCadenceGapSecs.toString(),
+        force: idChanged);
+    _syncField(_minSnrCtl, _minSnrFocus, node.quality.minSnr.toString(),
+        force: idChanged);
+    _syncField(
+        _maxFwhmCtl, _maxFwhmFocus, node.quality.maxFwhmArcsec.toString(),
+        force: idChanged);
+    _syncField(
+        _maxAirmassCtl, _maxAirmassFocus, node.quality.maxAirmass.toString(),
+        force: idChanged);
+    _syncField(_gainCtl, _gainFocus, node.gain?.toString() ?? '',
+        force: idChanged);
+    _syncField(_offsetCtl, _offsetFocus, node.offset?.toString() ?? '',
+        force: idChanged);
+    if (idChanged) _addRefCtl.clear();
+  }
+
+  void _syncField(
+    TextEditingController ctl,
+    FocusNode focus,
+    String value, {
+    required bool force,
+  }) {
+    if (!force && focus.hasFocus) return;
+    if (ctl.text != value) ctl.text = value;
+  }
+
+  @override
   void dispose() {
     _targetCtl.dispose();
     _addRefCtl.dispose();
@@ -83,6 +137,15 @@ class _SciencePhotometryPropertiesState
     _maxAirmassCtl.dispose();
     _gainCtl.dispose();
     _offsetCtl.dispose();
+    _targetFocus.dispose();
+    _exposureFocus.dispose();
+    _countFocus.dispose();
+    _maxCadenceFocus.dispose();
+    _minSnrFocus.dispose();
+    _maxFwhmFocus.dispose();
+    _maxAirmassFocus.dispose();
+    _gainFocus.dispose();
+    _offsetFocus.dispose();
     super.dispose();
   }
 
@@ -206,6 +269,7 @@ class _SciencePhotometryPropertiesState
         _sectionLabel(theme, colors, 'Target'),
         NightshadeTextField(
           controller: _targetCtl,
+          focusNode: _targetFocus,
           label: 'Target designation',
           hint:
               'AAVSO / catalogue identifier (e.g. "V0376 Per", "TIC 38846515")',
@@ -269,6 +333,8 @@ class _SciencePhotometryPropertiesState
               child: NightshadeTextField(
                 controller: _addRefCtl,
                 hint: 'Catalogue id, e.g. AAVSO 000-BMP-364',
+                textInputAction: TextInputAction.done,
+                onSubmitted: _addReferenceStar,
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
@@ -312,6 +378,7 @@ class _SciencePhotometryPropertiesState
             Expanded(
               child: NightshadeTextField(
                 controller: _exposureCtl,
+                focusNode: _exposureFocus,
                 label: 'Exposure (s)',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
@@ -327,6 +394,7 @@ class _SciencePhotometryPropertiesState
             Expanded(
               child: NightshadeTextField(
                 controller: _countCtl,
+                focusNode: _countFocus,
                 label: 'Frame count',
                 keyboardType: TextInputType.number,
                 onChanged: (v) {
@@ -341,6 +409,7 @@ class _SciencePhotometryPropertiesState
         const SizedBox(height: NightshadeTokens.spaceMd),
         NightshadeTextField(
           controller: _maxCadenceCtl,
+          focusNode: _maxCadenceFocus,
           label: 'Max cadence gap (s)',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (v) {
@@ -387,6 +456,7 @@ class _SciencePhotometryPropertiesState
             Expanded(
               child: NightshadeTextField(
                 controller: _gainCtl,
+                focusNode: _gainFocus,
                 label: 'Gain',
                 hint: 'leave blank for default',
                 keyboardType: TextInputType.number,
@@ -405,6 +475,7 @@ class _SciencePhotometryPropertiesState
             Expanded(
               child: NightshadeTextField(
                 controller: _offsetCtl,
+                focusNode: _offsetFocus,
                 label: 'Offset',
                 hint: 'leave blank for default',
                 keyboardType: TextInputType.number,
@@ -481,6 +552,7 @@ class _SciencePhotometryPropertiesState
               Expanded(
                 child: NightshadeTextField(
                   controller: _minSnrCtl,
+                  focusNode: _minSnrFocus,
                   label: 'Min SNR',
                   hint: 'AAVSO research-grade ≥ 50',
                   keyboardType: const TextInputType.numberWithOptions(
@@ -499,6 +571,7 @@ class _SciencePhotometryPropertiesState
               Expanded(
                 child: NightshadeTextField(
                   controller: _maxFwhmCtl,
+                  focusNode: _maxFwhmFocus,
                   label: 'Max FWHM (")',
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
@@ -517,6 +590,7 @@ class _SciencePhotometryPropertiesState
           const SizedBox(height: NightshadeTokens.spaceMd),
           NightshadeTextField(
             controller: _maxAirmassCtl,
+            focusNode: _maxAirmassFocus,
             label: 'Max airmass',
             hint: 'AAVSO BSM cutoff ≈ 2.5',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),

@@ -4,10 +4,35 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+
+import '../../../services/push_delivery_targets_provider.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'notification_routing_settings.dart';
 import 'settings_widgets.dart';
+
+/// Subtitle for the "Push critical alerts to mobile" row.
+///
+/// Reports the host's real delivery state rather than restating the toggle's
+/// intent. The row is a preference switch, so it stays operable — but it must
+/// not imply that turning it on makes alerts arrive when nothing can receive
+/// them.
+String pushDeliverySubtitleFor(AsyncValue<PushDeliveryTargets> async) {
+  if (async.isLoading && !async.hasValue) {
+    return 'Checking which devices can receive push alerts…';
+  }
+  final targets = async.valueOrNull ?? PushDeliveryTargets.none;
+  if (targets.canDeliver) {
+    final devices = targets.registeredDeviceCount;
+    return devices == 1
+        ? 'Delivering to 1 registered device'
+        : 'Delivering to $devices registered devices';
+  }
+  final reason = targets.blockedReason ?? 'Push delivery is unavailable';
+  return '$reason — critical alerts will only appear in the app '
+      'while it is open on your network.';
+}
 
 class NotificationSettings extends ConsumerStatefulWidget {
   final bool isMobile;
@@ -23,13 +48,29 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
   final _discordController = TextEditingController();
   final _pushoverKeyController = TextEditingController();
   final _pushoverUserController = TextEditingController();
-  bool _initialized = false;
-  bool _testingDiscord = false;
-  bool _testingPushover = false;
-  bool _testingPushToMobile = false;
+  _NotificationTest? _activeTest;
+  int _testGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next)) return;
+        _testGeneration++;
+        if (mounted && _activeTest != null) {
+          setState(() => _activeTest = null);
+        }
+      },
+    );
+  }
 
   @override
   void dispose() {
+    _testGeneration++;
+    _backendSubscription?.close();
     _discordController.dispose();
     _pushoverKeyController.dispose();
     _pushoverUserController.dispose();
@@ -37,17 +78,25 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
   }
 
   Future<void> _testDiscord() async {
-    if (_discordController.text.isEmpty) {
+    if (_activeTest != null) return;
+    final webhook = _discordController.text.trim();
+    if (webhook.isEmpty) {
       context.showWarningSnackBar('Please enter a Discord webhook URL');
       return;
     }
 
-    setState(() => _testingDiscord = true);
+    final authority = ref.read(backendProvider);
+    final generation = ++_testGeneration;
+    setState(() => _activeTest = _NotificationTest.discord);
     try {
       final notificationService = ref.read(notificationServiceProvider);
-      final success =
-          await notificationService.testDiscordWebhook(_discordController.text);
-      if (mounted) {
+      final success = await notificationService.testDiscordWebhook(webhook);
+      if (mounted &&
+          _isCurrentTest(
+            authority,
+            generation,
+            _NotificationTest.discord,
+          )) {
         if (success) {
           context.showSuccessSnackBar(
               'Discord test notification sent successfully!');
@@ -56,26 +105,48 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
               'Failed to send Discord notification. Check your webhook URL.');
         }
       }
+    } catch (e) {
+      if (mounted &&
+          _isCurrentTest(
+            authority,
+            generation,
+            _NotificationTest.discord,
+          )) {
+        context.showErrorSnackBar('Failed to test Discord notification: $e');
+      }
     } finally {
-      if (mounted) setState(() => _testingDiscord = false);
+      if (mounted &&
+          _isCurrentTest(
+            authority,
+            generation,
+            _NotificationTest.discord,
+          )) {
+        setState(() => _activeTest = null);
+      }
     }
   }
 
   Future<void> _testPushover() async {
-    if (_pushoverKeyController.text.isEmpty ||
-        _pushoverUserController.text.isEmpty) {
+    if (_activeTest != null) return;
+    final key = _pushoverKeyController.text.trim();
+    final user = _pushoverUserController.text.trim();
+    if (key.isEmpty || user.isEmpty) {
       context.showWarningSnackBar('Please enter both API key and User key');
       return;
     }
 
-    setState(() => _testingPushover = true);
+    final authority = ref.read(backendProvider);
+    final generation = ++_testGeneration;
+    setState(() => _activeTest = _NotificationTest.pushover);
     try {
       final notificationService = ref.read(notificationServiceProvider);
-      final success = await notificationService.testPushover(
-        _pushoverKeyController.text,
-        _pushoverUserController.text,
-      );
-      if (mounted) {
+      final success = await notificationService.testPushover(key, user);
+      if (mounted &&
+          _isCurrentTest(
+            authority,
+            generation,
+            _NotificationTest.pushover,
+          )) {
         if (success) {
           context.showSuccessSnackBar(
               'Pushover test notification sent successfully!');
@@ -84,42 +155,76 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
               'Failed to send Pushover notification. Check your API and User keys.');
         }
       }
+    } catch (e) {
+      if (mounted &&
+          _isCurrentTest(
+            authority,
+            generation,
+            _NotificationTest.pushover,
+          )) {
+        context.showErrorSnackBar('Failed to test Pushover notification: $e');
+      }
     } finally {
-      if (mounted) setState(() => _testingPushover = false);
+      if (mounted &&
+          _isCurrentTest(
+            authority,
+            generation,
+            _NotificationTest.pushover,
+          )) {
+        setState(() => _activeTest = null);
+      }
     }
   }
 
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _discordController.text = settings.discordWebhook;
-      _pushoverKeyController.text = settings.pushoverKey;
-      _pushoverUserController.text = settings.pushoverUser;
-      _initialized = true;
-    }
-  }
-
-  void _testPushToMobile() {
-    setState(() => _testingPushToMobile = true);
+  Future<void> _testPushToMobile() async {
+    if (_activeTest != null) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_testGeneration;
+    setState(() => _activeTest = _NotificationTest.push);
     try {
       final pushService = ref.read(pushNotificationServiceProvider);
-      pushService.sendTestNotification();
-      if (mounted) {
+      await pushService.sendTestNotification();
+      if (mounted &&
+          _isCurrentTest(authority, generation, _NotificationTest.push)) {
         context.showSuccessSnackBar(
-            'Test notification sent to connected mobile devices');
+          'Test queued to the active push transport. Cloud delivery requires '
+          'FCM/APNs credentials and a registered mobile token.',
+        );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          _isCurrentTest(authority, generation, _NotificationTest.push)) {
         context.showErrorSnackBar('Failed to send test notification: $e');
       }
     } finally {
-      if (mounted) setState(() => _testingPushToMobile = false);
+      if (_isCurrentTest(authority, generation, _NotificationTest.push)) {
+        setState(() => _activeTest = null);
+      }
     }
   }
+
+  bool _isCurrentTest(
+    NightshadeBackend authority,
+    int generation,
+    _NotificationTest test,
+  ) =>
+      mounted &&
+      generation == _testGeneration &&
+      _activeTest == test &&
+      identical(ref.read(backendProvider), authority);
 
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
-    final pushConfigAsync = ref.watch(pushNotificationConfigProvider);
+    final authority = ref.watch(backendProvider);
+    final isRemoteController = authority is NetworkBackend;
+    final AsyncValue<PushNotificationConfig>? pushConfigAsync =
+        isRemoteController ? null : ref.watch(pushNotificationConfigProvider);
+    // Real delivery state, so the critical-alert row can stop asserting a
+    // capability the system may not have.
+    final pushTargetsAsync = ref.watch(pushDeliveryTargetsProvider);
+    final pushTargets =
+        pushTargetsAsync.valueOrNull ?? PushDeliveryTargets.none;
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
@@ -131,9 +236,12 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
-        final pushConfig =
-            pushConfigAsync.valueOrNull ?? const PushNotificationConfig();
+        final pushConfig = pushConfigAsync?.valueOrNull ??
+            const PushNotificationConfig(enabled: false);
+        final pushConfigReady = pushConfigAsync != null &&
+            pushConfigAsync.hasValue &&
+            !pushConfigAsync.isLoading &&
+            !pushConfigAsync.hasError;
 
         return SettingsPage(
           key: SettingsTutorialKeys.notifications,
@@ -150,7 +258,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: SettingsSwitch(
                     value: settings.notificationsEnabled,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setNotificationsEnabled(value);
                     },
@@ -163,7 +271,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: SettingsSwitch(
                     value: settings.soundEnabled,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSoundEnabled(value);
                     },
@@ -182,7 +290,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: SettingsSwitch(
                     value: settings.notifyOnSequenceComplete,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setNotifyOnSequenceComplete(value);
                     },
@@ -195,7 +303,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: SettingsSwitch(
                     value: settings.notifyOnError,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setNotifyOnError(value);
                     },
@@ -208,7 +316,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: SettingsSwitch(
                     value: settings.notifyOnMeridianFlip,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setNotifyOnMeridianFlip(value);
                     },
@@ -230,7 +338,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: SettingsSwitch(
                     value: settings.audibleAlertsOnCritical,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setAudibleAlertsOnCritical(value);
                     },
@@ -245,22 +353,30 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                     items: const ['systemBell', 'none'],
                     itemLabels: const ['System bell', 'None (silent)'],
                     onChanged: (value) {
-                      if (value == null) return;
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setCriticalAlertSound(value);
                     },
                   ),
                 ),
+                // The switch is a PREFERENCE ("forward criticals when you
+                // can"), but it used to read as a statement of capability. It
+                // rendered ON with nothing indicating that no device could
+                // receive a push — and on Android, in a stock build, none ever
+                // can: the FCM client is a dormant scaffold pending Firebase
+                // provisioning, so the phone never registers a token. The
+                // subtitle now reports the host's ACTUAL delivery state
+                // instead of describing an intent.
                 SettingRow(
-                  icon: LucideIcons.smartphone,
+                  icon: pushTargets.canDeliver
+                      ? LucideIcons.smartphone
+                      : LucideIcons.smartphoneNfc,
                   title: 'Push critical alerts to mobile',
-                  subtitle:
-                      'Forward critical events to paired phones (separate from per-event push toggles below)',
+                  subtitle: pushDeliverySubtitleFor(pushTargetsAsync),
                   trailing: SettingsSwitch(
                     value: settings.pushCriticalAlerts,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setPushCriticalAlerts(value);
                     },
@@ -269,156 +385,205 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                 ),
               ],
             ),
-            SettingsSection(
-              title: 'Push to Mobile',
-              children: [
-                SettingRow(
-                  icon: LucideIcons.smartphone,
-                  title: 'Enable push to mobile',
-                  subtitle: 'Send alerts to connected mobile devices',
-                  trailing: SettingsSwitch(
-                    value: pushConfig.enabled,
-                    onChanged: (value) {
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setEnabled(value);
-                    },
+            if (isRemoteController)
+              const SettingsSection(
+                title: 'Push to Mobile',
+                children: [
+                  SettingRow(
+                    icon: LucideIcons.server,
+                    title: 'Configure push on the Nightshade host',
+                    subtitle: 'The master push gate and event toggles are '
+                        'host-owned. This controller will not edit an '
+                        'unrelated local copy.',
+                    trailing: SizedBox.shrink(),
+                    isLast: true,
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.checkCircle,
-                  title: 'Sequence completed',
-                  subtitle: 'Push when sequence finishes',
-                  trailing: SettingsSwitch(
-                    value: pushConfig.notifySequenceCompleted &&
-                        pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifySequenceCompleted(value);
-                    },
+                ],
+              )
+            else if (pushConfigAsync!.isLoading)
+              const SettingsSection(
+                title: 'Push to Mobile',
+                children: [
+                  SettingRow(
+                    icon: LucideIcons.smartphone,
+                    title: 'Loading push configuration…',
+                    subtitle: 'Push controls will be available when the '
+                        'saved configuration has loaded.',
+                    trailing: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    isLast: true,
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.alertTriangle,
-                  title: 'Sequence failed',
-                  subtitle: 'Push on sequence errors or stops',
-                  trailing: SettingsSwitch(
-                    value:
-                        pushConfig.notifySequenceFailed && pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifySequenceFailed(value);
-                    },
+                ],
+              )
+            else if (pushConfigAsync.hasError)
+              SettingsSection(
+                title: 'Push to Mobile',
+                children: [
+                  SettingRow(
+                    icon: LucideIcons.alertTriangle,
+                    title: 'Could not load push configuration',
+                    subtitle: pushConfigAsync.error.toString(),
+                    trailing: NightshadeButton(
+                      label: 'Retry',
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: () =>
+                          ref.invalidate(pushNotificationConfigProvider),
+                    ),
+                    isLast: true,
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.rotateCw,
-                  title: 'Meridian flip',
-                  subtitle: 'Push on meridian flip events',
-                  trailing: SettingsSwitch(
-                    value: pushConfig.notifyMeridianFlip && pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifyMeridianFlip(value);
-                    },
+                ],
+              ),
+            if (pushConfigReady)
+              SettingsSection(
+                title: 'Push to Mobile',
+                children: [
+                  SettingRow(
+                    icon: LucideIcons.smartphone,
+                    title: 'Enable push to mobile',
+                    subtitle: 'Send alerts to connected mobile devices',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setEnabled(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.cloudRain,
-                  title: 'Weather unsafe',
-                  subtitle: 'Push when safety monitor reports unsafe',
-                  trailing: SettingsSwitch(
-                    value: pushConfig.notifyWeatherUnsafe && pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifyWeatherUnsafe(value);
-                    },
+                  SettingRow(
+                    icon: LucideIcons.checkCircle,
+                    title: 'Sequence completed',
+                    subtitle: 'Push when sequence finishes',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifySequenceCompleted,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifySequenceCompleted(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.crosshair,
-                  title: 'Guiding lost',
-                  subtitle: 'Push when guide star is lost',
-                  trailing: SettingsSwitch(
-                    value: pushConfig.notifyGuidingLost && pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifyGuidingLost(value);
-                    },
+                  SettingRow(
+                    icon: LucideIcons.alertTriangle,
+                    title: 'Sequence failed',
+                    subtitle: 'Push on sequence errors or stops',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifySequenceFailed,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifySequenceFailed(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.cameraOff,
-                  title: 'Exposure failed',
-                  subtitle: 'Push when camera exposure fails',
-                  trailing: SettingsSwitch(
-                    value:
-                        pushConfig.notifyExposureFailed && pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifyExposureFailed(value);
-                    },
+                  SettingRow(
+                    icon: LucideIcons.rotateCw,
+                    title: 'Meridian flip',
+                    subtitle: 'Push on meridian flip events',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifyMeridianFlip,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifyMeridianFlip(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.focus,
-                  title: 'Autofocus failed',
-                  subtitle: 'Push when autofocus fails',
-                  trailing: SettingsSwitch(
-                    value:
-                        pushConfig.notifyAutofocusFailed && pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifyAutofocusFailed(value);
-                    },
+                  SettingRow(
+                    icon: LucideIcons.cloudRain,
+                    title: 'Weather unsafe',
+                    subtitle: 'Push when safety monitor reports unsafe',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifyWeatherUnsafe,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifyWeatherUnsafe(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.unplug,
-                  title: 'Equipment disconnected',
-                  subtitle: 'Push when a device disconnects',
-                  trailing: SettingsSwitch(
-                    value: pushConfig.notifyEquipmentDisconnected &&
-                        pushConfig.enabled,
-                    onChanged: (value) {
-                      if (!pushConfig.enabled) return;
-                      ref
-                          .read(pushNotificationConfigProvider.notifier)
-                          .setNotifyEquipmentDisconnected(value);
-                    },
+                  SettingRow(
+                    icon: LucideIcons.crosshair,
+                    title: 'Guiding lost',
+                    subtitle: 'Push when guide star is lost',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifyGuidingLost,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifyGuidingLost(value);
+                      },
+                    ),
                   ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.send,
-                  title: 'Test push notification',
-                  subtitle: 'Send a test notification to mobile devices',
-                  trailing: NightshadeButton(
-                    label: 'Test',
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
-                    isLoading: _testingPushToMobile,
-                    onPressed: (pushConfig.enabled && !_testingPushToMobile)
-                        ? _testPushToMobile
-                        : null,
+                  SettingRow(
+                    icon: LucideIcons.cameraOff,
+                    title: 'Exposure failed',
+                    subtitle: 'Push when camera exposure fails',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifyExposureFailed,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifyExposureFailed(value);
+                      },
+                    ),
                   ),
-                  isLast: true,
-                ),
-              ],
-            ),
+                  SettingRow(
+                    icon: LucideIcons.focus,
+                    title: 'Autofocus failed',
+                    subtitle: 'Push when autofocus fails',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifyAutofocusFailed,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifyAutofocusFailed(value);
+                      },
+                    ),
+                  ),
+                  SettingRow(
+                    icon: LucideIcons.unplug,
+                    title: 'Equipment disconnected',
+                    subtitle: 'Push when a device disconnects',
+                    trailing: SettingsSwitch(
+                      value: pushConfig.notifyEquipmentDisconnected,
+                      enabled: pushConfig.enabled,
+                      onChanged: (value) {
+                        return ref
+                            .read(pushNotificationConfigProvider.notifier)
+                            .setNotifyEquipmentDisconnected(value);
+                      },
+                    ),
+                  ),
+                  SettingRow(
+                    icon: LucideIcons.send,
+                    title: 'Test push notification',
+                    subtitle:
+                        'Queue a test to the active transport (host logs report cloud failures)',
+                    trailing: NightshadeButton(
+                      label: 'Test',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      isLoading: _activeTest == _NotificationTest.push,
+                      onPressed: (pushConfig.enabled && _activeTest == null)
+                          ? _testPushToMobile
+                          : null,
+                    ),
+                    isLast: true,
+                  ),
+                ],
+              ),
             SettingsSection(
               title: 'Discord',
               children: [
@@ -429,11 +594,13 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   trailing: settingsTrailingTextInput(
                     context: context,
                     controller: _discordController,
+                    authoritativeValue: settings.discordWebhook,
+                    authorityKey: authority,
                     hint: 'https://discord.com/api/webhooks/...',
                     isMobile: widget.isMobile,
                     obscure: true,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setDiscordWebhook(value);
                     },
@@ -447,8 +614,8 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                     label: 'Test',
                     variant: ButtonVariant.primary,
                     size: ButtonSize.small,
-                    isLoading: _testingDiscord,
-                    onPressed: _testingDiscord ? null : _testDiscord,
+                    isLoading: _activeTest == _NotificationTest.discord,
+                    onPressed: _activeTest == null ? _testDiscord : null,
                   ),
                   isLast: true,
                 ),
@@ -463,11 +630,13 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   subtitle: 'Pushover application API key',
                   trailing: SettingsTextInput(
                     controller: _pushoverKeyController,
+                    authoritativeValue: settings.pushoverKey,
+                    authorityKey: authority,
                     hint: 'API key',
                     width: 200,
                     obscure: true,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setPushoverKey(value);
                     },
@@ -479,11 +648,13 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                   subtitle: 'Pushover user/group key',
                   trailing: SettingsTextInput(
                     controller: _pushoverUserController,
+                    authoritativeValue: settings.pushoverUser,
+                    authorityKey: authority,
                     hint: 'User key',
                     width: 200,
                     obscure: true,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setPushoverUser(value);
                     },
@@ -497,8 +668,8 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                     label: 'Test',
                     variant: ButtonVariant.primary,
                     size: ButtonSize.small,
-                    isLoading: _testingPushover,
-                    onPressed: _testingPushover ? null : _testPushover,
+                    isLoading: _activeTest == _NotificationTest.pushover,
+                    onPressed: _activeTest == null ? _testPushover : null,
                   ),
                   isLast: true,
                 ),
@@ -519,3 +690,5 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
     );
   }
 }
+
+enum _NotificationTest { discord, pushover, push }

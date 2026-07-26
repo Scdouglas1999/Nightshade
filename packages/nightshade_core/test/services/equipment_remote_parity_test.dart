@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -20,6 +22,14 @@ class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
   }
+}
+
+class _SwappableBackendNotifier extends BackendNotifier {
+  _SwappableBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+
+  void switchTo(NightshadeBackend backend) => state = backend;
 }
 
 void main() {
@@ -191,6 +201,49 @@ void main() {
         final saved = captured.single as remote_profile.EquipmentProfile;
         expect(saved.id, '9');
         expect(saved.cameraId, 'new-cam');
+      },
+    );
+
+    test(
+      'a delayed profile assignment cannot be retargeted to a new host',
+      () async {
+        final hostA = _MockNetworkBackend();
+        final hostB = _MockNetworkBackend();
+        final profiles = Completer<List<remote_profile.EquipmentProfile>>();
+        for (final backend in [hostA, hostB]) {
+          when(
+            () => backend.eventStream,
+          ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+        }
+        when(() => hostA.getProfiles()).thenAnswer((_) => profiles.future);
+
+        late _SwappableBackendNotifier backendNotifier;
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith((ref) {
+              backendNotifier = _SwappableBackendNotifier(ref, hostA);
+              return backendNotifier;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final assigning = container
+            .read(profileServiceProvider)
+            .updateProfileDevices(9, cameraId: 'new-cam');
+        await untilCalled(() => hostA.getProfiles());
+        backendNotifier.switchTo(hostB);
+        profiles.complete([
+          const remote_profile.EquipmentProfile(
+            id: '9',
+            name: 'Host A rig',
+            cameraId: 'old-cam',
+          ),
+        ]);
+
+        await expectLater(assigning, throwsStateError);
+        verifyNever(() => hostA.saveProfile(any()));
+        verifyNever(() => hostB.saveProfile(any()));
       },
     );
 

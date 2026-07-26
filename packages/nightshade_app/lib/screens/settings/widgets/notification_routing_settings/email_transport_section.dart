@@ -19,6 +19,7 @@ class _EmailTransportSectionState
   final _to = TextEditingController();
   bool _useTls = true;
   bool _initialized = false;
+  bool _clearPassword = false;
 
   @override
   void dispose() {
@@ -36,21 +37,67 @@ class _EmailTransportSectionState
     final cfgAsync = ref.watch(emailTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => const NightshadeInlineBanner(
-        message: 'Could not load email routing configuration.',
-        severity: NightshadeAlertSeverity.error,
-      ),
+      error: (e, _) {
+        // Re-seed the controllers on the next successful load in case a retry
+        // brings back a changed config.
+        _initialized = false;
+        return _transportErrorSection(
+          title: 'Email (SMTP)',
+          error: e,
+          onRetry: () => ref.invalidate(emailTransportConfigProvider),
+        );
+      },
       data: (cfg) {
         if (!_initialized) {
           _host.text = cfg.smtpHost;
           _port.text = cfg.smtpPort.toString();
           _user.text = cfg.username;
-          _pass.text = cfg.password;
+          _pass.clear();
           _from.text = cfg.fromAddress;
           _to.text = cfg.toAddress;
           _useTls = cfg.useTls;
+          _clearPassword = false;
           _initialized = true;
         }
+        Future<_PrepResult> saveConfig() async {
+          final parsedPort = _parsePortField(_port.text, defaultPort: 587);
+          if (parsedPort.error != null) {
+            return _PrepResult.fail(parsedPort.error);
+          }
+          final host = _host.text.trim();
+          final from = _from.text.trim();
+          final to = _to.text.trim();
+          if (host.isNotEmpty || from.isNotEmpty || to.isNotEmpty) {
+            if (host.isEmpty) {
+              return const _PrepResult.fail('Enter an SMTP host.');
+            }
+            if (from.isEmpty || to.isEmpty) {
+              return const _PrepResult.fail(
+                'Enter both From and To email addresses.',
+              );
+            }
+            final fromError = _validateEmailAddress(from);
+            if (fromError != null) return _PrepResult.fail(fromError);
+            final toError = _validateEmailAddress(to);
+            if (toError != null) return _PrepResult.fail(toError);
+          }
+          final updated = EmailTransportConfig(
+            smtpHost: host,
+            smtpPort: parsedPort.port!,
+            username: _user.text.trim(),
+            password: _clearPassword
+                ? ''
+                : (_pass.text.isEmpty ? cfg.password : _pass.text),
+            useTls: _useTls,
+            fromAddress: from,
+            toAddress: to,
+          );
+          await ref.read(emailTransportConfigProvider.notifier).save(updated);
+          _pass.clear();
+          _clearPassword = false;
+          return const _PrepResult.ok();
+        }
+
         return SettingsSection(
           title: 'Email (SMTP)',
           children: [
@@ -67,6 +114,8 @@ class _EmailTransportSectionState
               hasStoredValue: cfg.password.isNotEmpty,
               isMobile: widget.isMobile,
               hint: 'app password / SMTP password',
+              onChanged: (_) => _clearPassword = false,
+              onClear: () => setState(() => _clearPassword = true),
             ),
             SettingRow(
               icon: LucideIcons.lock,
@@ -84,35 +133,19 @@ class _EmailTransportSectionState
             SettingRow(
               icon: LucideIcons.save,
               title: 'Save SMTP settings',
-              trailing: NightshadeButton(
-                label: 'Save',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () async {
-                  final updated = EmailTransportConfig(
-                    smtpHost: _host.text.trim(),
-                    smtpPort: int.tryParse(_port.text) ?? 587,
-                    username: _user.text,
-                    password: _pass.text,
-                    useTls: _useTls,
-                    fromAddress: _from.text.trim(),
-                    toAddress: _to.text.trim(),
-                  );
-                  await ref
-                      .read(emailTransportConfigProvider.notifier)
-                      .save(updated);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Email config saved')),
-                  );
-                },
+              trailing: _SaveButton(
+                successMessage: 'Email config saved',
+                onSave: saveConfig,
               ),
             ),
-            const SettingRow(
+            SettingRow(
               icon: LucideIcons.send,
               title: 'Test email',
               subtitle: 'Send a test email through the configured SMTP server',
-              trailing: _TestSendButton(kind: NotificationTransportKind.email),
+              trailing: _TestSendButton(
+                kind: NotificationTransportKind.email,
+                onBeforeSend: saveConfig,
+              ),
               isLast: true,
             ),
           ],

@@ -94,6 +94,14 @@ class ConnectionQuality {
     liveness: ConnectionLiveness.local,
   );
 
+  /// Fail-closed UI fallback when the quality stream itself is unavailable.
+  /// This must never look local: doing so would tell a remote operator that
+  /// commands are executing on-device when the link state is actually unknown.
+  static const ConnectionQuality unavailable = ConnectionQuality(
+    mode: ConnectionMode.remote,
+    liveness: ConnectionLiveness.error,
+  );
+
   /// `true` when the remote session is up (or we're local, which is always
   /// "usable"). Drives the chip's healthy/unhealthy styling.
   bool get isHealthy =>
@@ -184,15 +192,40 @@ final connectionQualityProvider = StreamProvider<ConnectionQuality>((ref) {
   final controller = StreamController<ConnectionQuality>();
   controller.add(current);
 
+  void emit(ConnectionQuality next) {
+    current = next;
+    if (!controller.isClosed) controller.add(current);
+  }
+
+  void emitTelemetryError(Object _, StackTrace __) {
+    emit(
+      ConnectionQuality(
+        mode: ConnectionMode.remote,
+        liveness: ConnectionLiveness.error,
+        remoteHost: current.remoteHost,
+        isRemoteHost: current.isRemoteHost,
+      ),
+    );
+  }
+
   final stateSub = backend.connectionStateStream.listen((state) {
-    current = current.copyWith(liveness: _livenessForState(state));
-    controller.add(current);
-  }, onError: controller.addError);
+    final liveness = _livenessForState(state);
+    emit(
+      ConnectionQuality(
+        mode: ConnectionMode.remote,
+        liveness: liveness,
+        latency: liveness == ConnectionLiveness.connected
+            ? current.latency
+            : null,
+        remoteHost: current.remoteHost,
+        isRemoteHost: current.isRemoteHost,
+      ),
+    );
+  }, onError: emitTelemetryError);
 
   final latencySub = backend.latencyStream.listen((latency) {
-    current = current.copyWith(latency: latency);
-    controller.add(current);
-  }, onError: controller.addError);
+    emit(current.copyWith(latency: latency));
+  }, onError: emitTelemetryError);
 
   ref.onDispose(() {
     stateSub.cancel();

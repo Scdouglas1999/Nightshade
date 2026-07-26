@@ -109,9 +109,14 @@ void main() {
       expect(OnboardingStep.focuser.isOptional, isTrue);
       expect(OnboardingStep.filterWheel.isOptional, isTrue);
       expect(OnboardingStep.guider.isOptional, isTrue);
+      expect(OnboardingStep.site.isOptional, isTrue);
       expect(OnboardingStep.camera.isOptional, isFalse);
       expect(OnboardingStep.mount.isOptional, isFalse);
       expect(OnboardingStep.opticalTrain.isOptional, isFalse);
+    });
+
+    test('site step sits immediately before summary', () {
+      expect(OnboardingStep.site.order, OnboardingStep.summary.order - 1);
     });
 
     test('step order maps to display index', () {

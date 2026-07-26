@@ -1,3 +1,6 @@
+@Tags(['golden'])
+library;
+
 // Golden (review-artifact) capture of the imaging GuidingPanel with the
 // built-in multi-star guider active and seeded per-star data (Phase F,
 // guider-ui).

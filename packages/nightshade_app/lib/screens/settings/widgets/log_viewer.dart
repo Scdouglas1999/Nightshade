@@ -9,6 +9,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../services/file_download_service.dart';
+import '../../../utils/exported_file_reveal.dart';
+
 /// Log viewer settings page with live-tailing, filtering, and export.
 class LogViewer extends ConsumerStatefulWidget {
   final bool isMobile;
@@ -35,11 +38,40 @@ class _LogViewerState extends ConsumerState<LogViewer>
   List<LogEntry> _filteredLogs = [];
   List<LogEntry> _allLogs = [];
   Set<String> _availableSources = {};
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _backendGeneration = 0;
+  int _nextRefreshRequest = 0;
+  int _lastAppliedRequest = 0;
+  Object? _actionToken;
+  bool _isExporting = false;
+  bool _isClearing = false;
+  bool _isDownloadingFile = false;
+
+  bool get _isActionBusy => _actionToken != null;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _backendGeneration++;
+        _lastAppliedRequest = 0;
+        _actionToken = null;
+        setState(() {
+          _allLogs = [];
+          _filteredLogs = [];
+          _availableSources = {};
+          _sourceFilter = null;
+          _isExporting = false;
+          _isClearing = false;
+          _isDownloadingFile = false;
+        });
+        _refreshLogs();
+      },
+    );
     _refreshLogs();
     _startRefreshTimer();
   }
@@ -69,6 +101,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _backendSubscription?.close();
     _refreshTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
@@ -81,6 +114,8 @@ class _LogViewerState extends ConsumerState<LogViewer>
     // logs, not the local (empty) ring buffer. The local LoggingService
     // path is preserved for FFI / disconnected backends.
     final backend = ref.read(backendProvider);
+    final backendGeneration = _backendGeneration;
+    final request = ++_nextRefreshRequest;
     if (backend is NetworkBackend) {
       // Fire-and-forget refresh; the user's filters apply once the
       // response lands. Errors silently fall back to whatever was last
@@ -88,7 +123,13 @@ class _LogViewerState extends ConsumerState<LogViewer>
       // operator still gets feedback when the action they triggered
       // failed.
       backend.fetchRecentServerLogs(limit: 500).then((logs) {
-        if (!mounted) return;
+        if (!mounted ||
+            backendGeneration != _backendGeneration ||
+            request < _lastAppliedRequest ||
+            !identical(ref.read(backendProvider), backend)) {
+          return;
+        }
+        _lastAppliedRequest = request;
         setState(() {
           _allLogs = logs;
           _availableSources =
@@ -113,7 +154,13 @@ class _LogViewerState extends ConsumerState<LogViewer>
     final loggingService = ref.read(loggingServiceProvider);
     final logs = loggingService.getRecentLogs();
 
-    if (!mounted) return;
+    if (!mounted ||
+        backendGeneration != _backendGeneration ||
+        request < _lastAppliedRequest ||
+        !identical(ref.read(backendProvider), backend)) {
+      return;
+    }
+    _lastAppliedRequest = request;
 
     setState(() {
       _allLogs = logs;
@@ -192,12 +239,20 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   Future<void> _exportLogs() async {
+    if (_isActionBusy) return;
     // Log tail — on a remote session the local ring buffer is
     // empty; the entries on-screen were fetched from the host. Export those
     // in-memory entries instead of the (empty) local buffer.
     final backend = ref.read(backendProvider);
+    final logs = List<LogEntry>.unmodifiable(_filteredLogs);
+    final loggingService =
+        backend is NetworkBackend ? null : ref.read(loggingServiceProvider);
+    final token = Object();
+    _actionToken = token;
+    setState(() => _isExporting = true);
     try {
       final docsDir = await getApplicationDocumentsDirectory();
+      if (!_isCurrentAction(token, backend)) return;
       final timestamp = DateTime.now()
           .toIso8601String()
           .replaceAll(':', '-')
@@ -211,27 +266,28 @@ class _LogViewerState extends ConsumerState<LogViewer>
         output.writeln('=== Nightshade Log Export (remote) ===');
         output.writeln('Exported: ${DateTime.now().toIso8601String()}');
         output.writeln('Host: ${backend.serverHost}:${backend.serverPort}');
-        output.writeln('Entries: ${_filteredLogs.length}');
+        output.writeln('Entries: ${logs.length}');
         output.writeln('');
-        for (final entry in _filteredLogs) {
+        for (final entry in logs) {
           output.writeln(entry.toString());
         }
         await File(outputPath).writeAsString(output.toString());
       } else {
-        final loggingService = ref.read(loggingServiceProvider);
-        await loggingService.exportLogs(outputPath);
+        await loggingService!.exportLogs(outputPath);
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Logs exported to: $outputPath'),
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
+      if (!mounted || !_isCurrentAction(token, backend)) return;
+      // On a phone/tablet, getApplicationDocumentsDirectory() is the app's
+      // PRIVATE sandbox — a path snackbar names a file the user can't reach in
+      // Files/Photos. Share on mobile so it's retrievable; path on desktop.
+      await revealExportedFile(
+        context,
+        outputPath,
+        subject: 'Nightshade logs',
+        desktopMessage: 'Logs exported to: $outputPath',
+      );
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentAction(token, backend)) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Export failed: $e'),
@@ -239,52 +295,297 @@ class _LogViewerState extends ConsumerState<LogViewer>
           ),
         );
       }
+    } finally {
+      if (mounted && identical(_actionToken, token)) {
+        _actionToken = null;
+        setState(() => _isExporting = false);
+      }
     }
   }
 
-  Future<void> _clearLogs() async {
-    // Log tail — Clear on a remote session must target the
-    // server's log files; otherwise the operator presses Clear and sees
-    // no change because we're clearing the local (already-empty) buffer.
+  /// Pull one full log FILE off the remote host onto this device (share
+  /// sheet on mobile, save picker on desktop). Complements Export, which
+  /// only writes the on-screen recent entries — a support bundle wants the
+  /// complete rolling file.
+  Future<void> _downloadLogFile() async {
+    if (_isActionBusy) return;
     final backend = ref.read(backendProvider);
-    if (backend is NetworkBackend) {
+    if (backend is! NetworkBackend) return;
+    final token = Object();
+    _actionToken = token;
+    setState(() => _isDownloadingFile = true);
+    try {
+      final List<RemoteLogFileInfo> files;
       try {
-        await backend.clearServerLogs();
+        files = await backend.listServerLogFiles();
       } catch (e) {
-        if (mounted) {
+        if (mounted && _isCurrentAction(token, backend)) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Clear failed: $e'),
+              content: Text('Could not list the host’s log files: $e'),
               backgroundColor: NightshadeColors.of(context).error,
             ),
           );
         }
         return;
       }
+      if (!mounted || !_isCurrentAction(token, backend)) return;
+      if (files.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The host has no log files.')),
+        );
+        return;
+      }
+      final selected = await _pickLogFile(files);
+      if (selected == null || !mounted || !_isCurrentAction(token, backend)) {
+        return;
+      }
+      final outcome = await downloadFileToDevice(
+        fileName: selected.name,
+        tempKey: 'log',
+        fetch: (localPath, onProgress) => backend.downloadServerLogFile(
+          selected.name,
+          localPath,
+          onProgress: onProgress,
+        ),
+      );
+      if (!mounted || !_isCurrentAction(token, backend)) return;
+      switch (outcome.status) {
+        case FileDownloadStatus.saved:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Saved to ${outcome.savedPath}')),
+          );
+        case FileDownloadStatus.shared:
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Log file ready to share')),
+          );
+        case FileDownloadStatus.cancelled:
+          break;
+        case FileDownloadStatus.failed:
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(outcome.error ?? 'Download failed'),
+              backgroundColor: NightshadeColors.of(context).error,
+            ),
+          );
+      }
+    } finally {
+      if (mounted && identical(_actionToken, token)) {
+        _actionToken = null;
+        setState(() => _isDownloadingFile = false);
+      }
+    }
+  }
+
+  Future<RemoteLogFileInfo?> _pickLogFile(List<RemoteLogFileInfo> files) {
+    // Current file first, then the dated rollovers newest-first (the daily
+    // appender's names sort chronologically).
+    final ordered = [...files]..sort((a, b) {
+        if (a.isCurrent != b.isCurrent) return a.isCurrent ? -1 : 1;
+        return b.name.compareTo(a.name);
+      });
+    return showDialog<RemoteLogFileInfo>(
+      context: context,
+      builder: (ctx) {
+        final colors = NightshadeColors.of(ctx);
+        return AlertDialog(
+          backgroundColor: colors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            side: BorderSide(color: colors.border),
+          ),
+          title: Text(
+            'Download log file',
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
+          ),
+          content: SizedBox(
+            width: 420,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: ordered.length,
+              itemBuilder: (_, index) {
+                final file = ordered[index];
+                return ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    LucideIcons.fileText,
+                    size: 18,
+                    color:
+                        file.isCurrent ? colors.primary : colors.textSecondary,
+                  ),
+                  title: Text(
+                    file.name,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize13,
+                      fontFamily: 'monospace',
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${_formatFileSize(file.sizeBytes)}'
+                    '${file.isCurrent ? ' · current' : ''}',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  onTap: () => Navigator.pop(ctx, file),
+                );
+              },
+            ),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '$bytes B';
+  }
+
+  Future<void> _confirmClearLogs() async {
+    if (_isActionBusy) return;
+    final backend = ref.read(backendProvider);
+    final token = Object();
+    _actionToken = token;
+    setState(() => _isClearing = true);
+    final message = backend is NetworkBackend
+        ? 'This permanently deletes the remote host’s server log files. '
+            'This action cannot be undone.'
+        : 'This permanently deletes old local log files. This action cannot '
+            'be undone.';
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          final colors = NightshadeColors.of(ctx);
+          return AlertDialog(
+            backgroundColor: colors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              side: BorderSide(color: colors.border),
+            ),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    colors.error,
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  ),
+                  child: Icon(
+                    LucideIcons.alertTriangle,
+                    color: colors.error,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Clear logs?',
+                  style: NightshadeTypography.h4
+                      .copyWith(color: colors.textPrimary),
+                ),
+              ],
+            ),
+            content: Text(
+              message,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize13,
+              ),
+            ),
+            actions: [
+              NightshadeButton(
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.pop(ctx, false),
+              ),
+              NightshadeButton(
+                label: 'Clear',
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.pop(ctx, true),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmed != true || !mounted) return;
+      if (!_isCurrentAction(token, backend)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Clear cancelled because the imaging host changed.'),
+          ),
+        );
+        return;
+      }
+      await _clearLogs(backend, token);
+    } finally {
+      if (mounted && identical(_actionToken, token)) {
+        _actionToken = null;
+        setState(() => _isClearing = false);
+      }
+    }
+  }
+
+  Future<void> _clearLogs(NightshadeBackend backend, Object token) async {
+    // Log tail — Clear on a remote session must target the
+    // server's log files; otherwise the operator presses Clear and sees
+    // no change because we're clearing the local (already-empty) buffer.
+    try {
+      if (backend is NetworkBackend) {
+        await backend.clearServerLogs();
+      } else {
+        await ref.read(loggingServiceProvider).clearLogs();
+      }
+      if (!mounted || !_isCurrentAction(token, backend)) return;
       _refreshLogs();
-      if (mounted) {
+      if (backend is NetworkBackend) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Server log files cleared'),
             duration: Duration(seconds: 2),
           ),
         );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Old log files cleared'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
-      return;
-    }
-
-    final loggingService = ref.read(loggingServiceProvider);
-    await loggingService.clearLogs();
-    _refreshLogs();
-    if (mounted) {
+    } catch (e) {
+      if (!mounted || !_isCurrentAction(token, backend)) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Old log files cleared'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text('Clear failed: $e'),
+          backgroundColor: NightshadeColors.of(context).error,
         ),
       );
     }
   }
+
+  bool _isCurrentAction(Object token, NightshadeBackend backend) =>
+      mounted &&
+      identical(_actionToken, token) &&
+      identical(ref.read(backendProvider), backend);
 
   @override
   Widget build(BuildContext context) {
@@ -500,6 +801,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   Widget _buildActionBar(NightshadeColors colors, bool isMobile) {
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -520,18 +822,31 @@ class _LogViewerState extends ConsumerState<LogViewer>
           onPressed: _filteredLogs.isEmpty ? null : _copyAllToClipboard,
         ),
         NightshadeButton(
-          label: 'Export',
+          label: _isExporting ? 'Exporting...' : 'Export',
           icon: LucideIcons.download,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          onPressed: _exportLogs,
+          isLoading: _isExporting,
+          onPressed: _isActionBusy ? null : _exportLogs,
         ),
+        // Full-file download only exists for a remote host — locally the
+        // files are already on this machine and Export covers the need.
+        if (isRemote)
+          NightshadeButton(
+            label: _isDownloadingFile ? 'Downloading...' : 'Download file',
+            icon: LucideIcons.fileDown,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            isLoading: _isDownloadingFile,
+            onPressed: _isActionBusy ? null : _downloadLogFile,
+          ),
         NightshadeButton(
-          label: 'Clear',
+          label: _isClearing ? 'Clearing...' : 'Clear',
           icon: LucideIcons.trash2,
           variant: ButtonVariant.destructive,
           size: ButtonSize.small,
-          onPressed: _clearLogs,
+          isLoading: _isClearing,
+          onPressed: _isActionBusy ? null : _confirmClearLogs,
         ),
       ],
     );

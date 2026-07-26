@@ -11,6 +11,8 @@
 // We back the notifier with a real in-memory Drift database (the production
 // settings schema, no mocks) so the seed round-trips through persistence.
 
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -431,6 +433,70 @@ void main() {
       }
 
       verify(() => mockBackend.cameraGetRecommendedSettings(any())).called(1);
+    });
+
+    test('discards a late recommendation from the previous camera', () async {
+      final cameraAGate = Completer<CameraRecommendedSettings>();
+      final cameraBGate = Completer<CameraRecommendedSettings>();
+      when(
+        () => mockBackend.cameraGetRecommendedSettings('camera-a'),
+      ).thenAnswer((_) => cameraAGate.future);
+      when(
+        () => mockBackend.cameraGetRecommendedSettings('camera-b'),
+      ).thenAnswer((_) => cameraBGate.future);
+      when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
+        (_) async => const CameraCapabilities(
+          maxWidth: 100,
+          maxHeight: 100,
+          bitDepth: 16,
+          gainMin: 0,
+          gainMax: 600,
+        ),
+      );
+
+      connectContainer = buildContainer();
+      await waitForPresets(connectContainer);
+      connectContainer.read(cameraPresetsSeedOnConnectProvider);
+      final cameraNotifier = connectContainer.read(
+        cameraStateProvider.notifier,
+      );
+
+      cameraNotifier.setConnecting('camera-a', 'Camera A');
+      cameraNotifier.setConnected();
+      await Future<void>.delayed(Duration.zero);
+      cameraNotifier.setDisconnected();
+      cameraNotifier.setConnecting('camera-b', 'Camera B');
+      cameraNotifier.setConnected();
+      await Future<void>.delayed(Duration.zero);
+
+      cameraAGate.complete(
+        const CameraRecommendedSettings(
+          unityGain: 200,
+          defaultOffset: 20,
+          notes: 'stale camera A',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        unityPresetOf(connectContainer).gain,
+        kDefaultUnityGain,
+        reason: 'camera A is no longer authorized to seed the preset',
+      );
+
+      cameraBGate.complete(
+        const CameraRecommendedSettings(
+          unityGain: 90,
+          defaultOffset: 15,
+          notes: 'current camera B',
+        ),
+      );
+      await pumpUntilUnitySeeded(connectContainer, expectedGain: 90);
+
+      final unity = unityPresetOf(connectContainer);
+      expect(unity.gain, 90);
+      expect(unity.offset, 15);
+      verifyNever(() => mockBackend.getCameraCapabilities('camera-a'));
+      verify(() => mockBackend.getCameraCapabilities('camera-b')).called(1);
     });
   });
 }

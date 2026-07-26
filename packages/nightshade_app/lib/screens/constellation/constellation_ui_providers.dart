@@ -28,6 +28,22 @@ const String constellationPublicKeySettingKey = 'constellation.public_key';
 /// the [ConstellationPrivacy.name] (`sums` | `subs`); default is `sums`.
 const String constellationPrivacySettingKey = 'constellation.privacy';
 
+/// Clear the identity-bearing hub credentials as one settings write.
+///
+/// Keeping this operation shared prevents the Constellation and Collaborative
+/// Sky surfaces from drifting, while [SettingsDao.setSettings] avoids exposing
+/// a half-signed-out identity between four separate writes.
+Future<void> clearConstellationCredentials(SettingsDao settings) {
+  return settings.setSettings({
+    constellationHubUrlSettingKey: '',
+    constellationHubTokenSettingKey: '',
+    constellationAccountIdSettingKey: '',
+    // Mint a fresh per-install identity on the next connection instead of
+    // colliding with the public key still registered on the old hub account.
+    constellationPublicKeySettingKey: '',
+  });
+}
+
 /// What a contributor sends to the hub. `sums` (default) shares only the same
 /// additive accumulator the master integration already keeps — never the raw
 /// individual subframes. `subs` is the heavier, more revealing option a user
@@ -71,7 +87,7 @@ enum ConstellationPrivacy {
 /// the contribute sheet all agree on slave detection.
 final isConstellationHostActionEnabledProvider = Provider<bool>((ref) {
   final backend = ref.watch(backendProvider);
-  return backend is! NetworkBackend;
+  return backend is! NetworkBackend && backend is! DisconnectedBackend;
 });
 
 /// The hub identity once connectivity + tiling have been verified, or null when
@@ -89,6 +105,16 @@ final constellationDisplayNameProvider = FutureProvider<String>((ref) async {
   return (await settings.getSetting(constellationDisplayNameSettingKey)) ?? '';
 });
 
+/// The persisted hub account id for this imager (the id the hub records a
+/// co-imaging session's owner and a baton holder against), or null before the
+/// user has registered with a hub. Drives owner-only affordances — notably the
+/// "End session" control, which appears only when this id equals a session's
+/// [CoImagingSession.ownerAccountId] (itself emitted only to that privileged
+/// caller), so a non-owner can never shut a live pool.
+final constellationAccountIdProvider = FutureProvider<String?>((ref) async {
+  return resolveConstellationAccountId(ref.watch(settingsDaoProvider));
+});
+
 /// The persisted contribution privacy choice (defaults to [ConstellationPrivacy.sums]).
 final constellationPrivacyProvider =
     FutureProvider<ConstellationPrivacy>((ref) async {
@@ -101,9 +127,11 @@ final constellationPrivacyProvider =
 });
 
 /// The user's locally-imaged integration depth (seconds) inside a shared
-/// target's cone — the numerator of the "your contribution" bar. Reads the
+/// target's cone — the numerator of the "your local depth" bar. Reads the
 /// personal atlas coverage and sums every local tile whose centre falls within
-/// [_contributionRadiusDeg] of the target.
+/// the target's shared [SharedTarget.radiusDeg] cone, so the displayed overlap
+/// matches the swarm radius chosen when the target was shared (and what
+/// contribute ships).
 final yourContributionSecondsProvider =
     FutureProvider.family<double, SharedTarget>((ref, target) async {
   final coverage = await ref.watch(skyAtlasCoverageProvider.future);
@@ -115,16 +143,12 @@ final yourContributionSecondsProvider =
       tile.centerRaDeg,
       tile.centerDecDeg,
     );
-    if (sep <= _contributionRadiusDeg) {
+    if (sep <= target.radiusDeg) {
       total += tile.integrationSeconds;
     }
   }
   return total;
 });
-
-/// Matches the contribute/pull cone radius the [ConstellationService] uses so
-/// the displayed "your contribution" depth lines up with what actually ships.
-const double _contributionRadiusDeg = 1.5;
 
 /// Great-circle separation (deg) via the haversine formula.
 double _angularSeparationDeg(

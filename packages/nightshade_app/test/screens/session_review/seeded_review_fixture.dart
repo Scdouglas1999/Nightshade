@@ -322,7 +322,8 @@ class SeededReviewController extends SessionReviewController {
       null;
 
   @override
-  Future<int> cullToRecommended() async => 0;
+  Future<CullToRecommendedResult> cullToRecommended() async =>
+      CullToRecommendedResult.staleCurve;
 }
 
 /// Build the provider overrides that mount a [SeededReviewController] for

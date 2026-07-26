@@ -45,10 +45,35 @@ use super::*;
 // =============================================================================
 
 use std::sync::atomic::{AtomicBool as PolarAtomicBool, Ordering as PolarOrdering};
+use tokio::task::JoinHandle;
 
 /// Track whether polar alignment is running
 pub(crate) static POLAR_ALIGN_RUNNING: OnceLock<PolarAtomicBool> = OnceLock::new();
 pub(crate) static POLAR_ALIGN_CANCEL: OnceLock<PolarAtomicBool> = OnceLock::new();
+
+/// Monotonic per-run generation. Bumped when a run is admitted; the spawned
+/// task carries the value it was born with and treats a mismatch as "a newer
+/// run now owns the hardware — exit silently without clearing its flag or
+/// emitting over its status". This is the belt-and-suspenders that makes a
+/// stale, force-aborted task unable to corrupt a subsequent run.
+static POLAR_ALIGN_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// The currently-owned alignment task handle. [`api_stop_polar_alignment`]
+/// takes and awaits it (bounded) so stop returns only once the run is actually
+/// terminated — never while the old task can still touch the camera/mount.
+static POLAR_ALIGN_TASK: OnceLock<Mutex<Option<JoinHandle<()>>>> = OnceLock::new();
+
+/// Serializes start setup with stop teardown. The running atomic alone cannot
+/// protect the interval between admitting a run and storing its task handle:
+/// without this lock, Stop can observe `running=true`, find no handle yet,
+/// clear the flag, and return while Start subsequently launches an orphaned
+/// camera/mount task.
+static POLAR_ALIGN_CONTROL: OnceLock<Mutex<()>> = OnceLock::new();
+
+/// Bounded grace for a cooperative stop before we force-abort the task.
+const POLAR_STOP_CLEAN_GRACE_SECS: u64 = 6;
+/// Bounded grace to confirm the task unwound after a force-abort.
+const POLAR_STOP_ABORT_GRACE_SECS: u64 = 4;
 
 pub(crate) fn get_polar_align_flag() -> &'static PolarAtomicBool {
     POLAR_ALIGN_RUNNING.get_or_init(|| PolarAtomicBool::new(false))
@@ -56,6 +81,206 @@ pub(crate) fn get_polar_align_flag() -> &'static PolarAtomicBool {
 
 pub(crate) fn get_polar_align_cancel() -> &'static PolarAtomicBool {
     POLAR_ALIGN_CANCEL.get_or_init(|| PolarAtomicBool::new(false))
+}
+
+fn polar_generation() -> &'static AtomicU64 {
+    &POLAR_ALIGN_GENERATION
+}
+
+fn polar_task_slot() -> &'static Mutex<Option<JoinHandle<()>>> {
+    POLAR_ALIGN_TASK.get_or_init(|| Mutex::new(None))
+}
+
+fn polar_control_lock() -> &'static Mutex<()> {
+    POLAR_ALIGN_CONTROL.get_or_init(|| Mutex::new(()))
+}
+
+/// Atomically admit a new run. Returns `None` when another run already owns
+/// the hardware. A load-then-store check is insufficient because two FRB calls
+/// may execute concurrently on Tokio and both observe `false`.
+fn try_admit_polar_run() -> Option<u64> {
+    get_polar_align_flag()
+        .compare_exchange(false, true, PolarOrdering::AcqRel, PolarOrdering::Acquire)
+        .ok()?;
+    get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+    // fetch_add returns the previous value; our generation is that + 1.
+    Some(polar_generation().fetch_add(1, PolarOrdering::Relaxed) + 1)
+}
+
+/// Clear the running flag only if `generation` is still the current run. A
+/// task that has been superseded must not clear a newer run's flag.
+fn release_polar_run_if_current(generation: u64) {
+    if polar_generation().load(PolarOrdering::Relaxed) == generation {
+        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+    }
+}
+
+/// Store the owning task handle for the current run, replacing (and dropping)
+/// any finished handle left from a prior run.
+async fn store_polar_task(handle: JoinHandle<()>) {
+    *polar_task_slot().lock().await = Some(handle);
+}
+
+/// Outcome of a per-iteration stop check inside a running alignment task.
+enum PolarLoopControl {
+    /// Keep running — this task still owns the run and no cancel is pending.
+    Continue,
+    /// A newer run has taken the generation; exit silently so we neither stomp
+    /// its status nor clear its running flag.
+    Superseded,
+    /// The user cancelled this run; exit and emit an idle status.
+    Cancelled,
+}
+
+/// Combined generation + cancellation checkpoint. Prefer this over a bare
+/// cancel-flag read inside alignment loops so a superseded task bails without
+/// emitting over a newer run.
+fn polar_loop_control(generation: u64) -> PolarLoopControl {
+    if polar_generation().load(PolarOrdering::Relaxed) != generation {
+        PolarLoopControl::Superseded
+    } else if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
+        PolarLoopControl::Cancelled
+    } else {
+        PolarLoopControl::Continue
+    }
+}
+
+// =============================================================================
+// Slew-to-pole start mode (start_from_current = false)
+// =============================================================================
+
+/// Max wall-clock for the pole-region slew to settle before we abort + fail.
+const POLE_SLEW_TIMEOUT_SECS: u64 = 120;
+/// Fallback settle wait when the driver cannot report `slewing`.
+const POLE_SLEW_SETTLE_SECS: u64 = 8;
+/// How far from the true pole the pole-region target sits, in degrees. 30° puts
+/// the scope at the outer edge of the classic TPPA region (≈30° around the
+/// pole) while keeping the 3-point rotation-arc geometry well conditioned
+/// (cos 60° = 0.5 of the RA step projects onto the sky, versus a near-degenerate
+/// projection right at the pole).
+const POLE_REGION_OFFSET_DEG: f64 = 30.0;
+
+/// Outcome of the pole-region slew preamble.
+enum SlewOutcome {
+    /// The mount reached and settled on the pole-region target.
+    Settled,
+    /// The user cancelled during the slew (the mount was aborted).
+    Cancelled,
+    /// A newer run took over during the slew (the mount was aborted).
+    Superseded,
+}
+
+/// Compute the "slew to pole region" target `(ra_hours, dec_degrees)`.
+///
+/// The target sits on the local meridian (RA == LST, i.e. hour angle 0) so it
+/// culminates — highest above the horizon, least atmosphere, best for plate
+/// solving — and [`POLE_REGION_OFFSET_DEG`] from the celestial pole toward the
+/// equator so the subsequent three-point RA arc keeps good geometry. Northern
+/// observers point at +Dec, southern at −Dec.
+///
+/// Pure and deterministic given `(lst_hours, is_north)` so it can be unit
+/// tested without hardware.
+pub(crate) fn pole_region_target(lst_hours: f64, is_north: bool) -> (f64, f64) {
+    let ra_hours = lst_hours.rem_euclid(24.0);
+    let dec_degrees = if is_north {
+        90.0 - POLE_REGION_OFFSET_DEG
+    } else {
+        -90.0 + POLE_REGION_OFFSET_DEG
+    };
+    (ra_hours, dec_degrees)
+}
+
+/// Slew the mount to the pole region and wait — with abort ordering — until the
+/// motion actually settles.
+///
+/// Ordering guarantees (adversarially important): a cancellation or supersession
+/// observed *while slewing* issues `mount_abort_slew` BEFORE returning, so the
+/// mount is commanded to stop before the caller settles/idles. A driver that
+/// cannot report `slewing` falls back to a bounded fixed settle rather than
+/// spinning. A hard timeout also aborts and fails truthfully — it never reports
+/// the slew as done early.
+async fn slew_to_pole_region(
+    mount_id: &str,
+    is_north: bool,
+    longitude_deg: f64,
+    generation: u64,
+) -> Result<SlewOutcome, String> {
+    use nightshade_sequencer::meridian::{julian_day, local_sidereal_time};
+
+    let now = chrono::Utc::now();
+    let jd = julian_day(&now);
+    let lst = local_sidereal_time(jd, longitude_deg);
+    let (target_ra_h, target_dec) = pole_region_target(lst, is_north);
+
+    emit_polar_status(
+        &format!(
+            "Slewing to pole region (RA {:.2}h, Dec {:.0}°)...",
+            target_ra_h, target_dec
+        ),
+        "measuring",
+        0,
+    );
+
+    let device_ops = create_unified_device_ops();
+
+    // Honour a cancel/supersede that arrives before the slew is even issued.
+    match polar_loop_control(generation) {
+        PolarLoopControl::Continue => {}
+        PolarLoopControl::Superseded => return Ok(SlewOutcome::Superseded),
+        PolarLoopControl::Cancelled => return Ok(SlewOutcome::Cancelled),
+    }
+
+    device_ops
+        .mount_slew_to_coordinates(mount_id, target_ra_h, target_dec)
+        .await
+        .map_err(|e| format!("Failed to slew to pole region: {}", e))?;
+
+    // Wait for settle. `mount_slew_to_coordinates` may return before the mount
+    // physically stops (async drivers), so poll `slewing`.
+    let deadline = Instant::now() + Duration::from_secs(POLE_SLEW_TIMEOUT_SECS);
+    loop {
+        match polar_loop_control(generation) {
+            PolarLoopControl::Continue => {}
+            PolarLoopControl::Superseded => {
+                let _ = device_ops.mount_abort_slew(mount_id).await;
+                return Ok(SlewOutcome::Superseded);
+            }
+            PolarLoopControl::Cancelled => {
+                let _ = device_ops.mount_abort_slew(mount_id).await;
+                return Ok(SlewOutcome::Cancelled);
+            }
+        }
+
+        match device_ops.mount_is_slewing(mount_id).await {
+            Ok(false) => break, // settled
+            Ok(true) => {}      // keep waiting
+            Err(e) => {
+                // Driver can't report slew state — do a bounded fixed settle
+                // rather than busy-looping forever, then proceed.
+                tracing::warn!(
+                    "mount_is_slewing failed ({}); using {}s fixed settle",
+                    e,
+                    POLE_SLEW_SETTLE_SECS
+                );
+                tokio::time::sleep(Duration::from_secs(POLE_SLEW_SETTLE_SECS)).await;
+                break;
+            }
+        }
+
+        if Instant::now() >= deadline {
+            let _ = device_ops.mount_abort_slew(mount_id).await;
+            return Err(format!(
+                "Timed out after {}s waiting for the mount to reach the pole region",
+                POLE_SLEW_TIMEOUT_SECS
+            ));
+        }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
+    // Short mechanical settle after motion stops before the first exposure.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    Ok(SlewOutcome::Settled)
 }
 
 /// Emit a polar alignment status update (JSON-serializable for Dart)
@@ -100,6 +325,13 @@ pub(crate) fn emit_polar_error(
             target_dec: tgt_dec,
         }),
     ));
+}
+
+/// Unit boundary for plate-solve output consumed by polar geometry. The
+/// bridge result already reports RA in degrees; keep that explicit so this
+/// path cannot silently reintroduce the historical hours-to-degrees multiply.
+fn plate_solve_ra_degrees(ra_degrees: f64) -> f64 {
+    ra_degrees
 }
 
 /// Emit polar alignment image for UI display
@@ -178,18 +410,16 @@ pub async fn api_start_polar_alignment(
     start_from_current: Option<bool>,
     auto_complete_threshold: Option<f64>,
 ) -> Result<(), NightshadeError> {
-    // Check if already running
-    if get_polar_align_flag().load(PolarOrdering::Relaxed) {
-        return Err(NightshadeError::OperationFailed(
-            "Polar alignment already running".to_string(),
-        ));
-    }
+    // Hold through task-handle publication so Stop cannot clear ownership in
+    // the admission→spawn gap and leave an untracked task running.
+    let _control = polar_control_lock().lock().await;
 
-    get_polar_align_flag().store(true, PolarOrdering::Relaxed);
-    get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+    let generation = try_admit_polar_run().ok_or_else(|| {
+        NightshadeError::OperationFailed("Polar alignment already running".to_string())
+    })?;
 
     tracing::info!(
-        "Starting polar alignment: exposure={}s, step={}°, binning={}, north={}, manual={}, east={}",
+        "Starting polar alignment (gen {generation}): exposure={}s, step={}°, binning={}, north={}, manual={}, east={}",
         exposure_time, step_size, binning, is_north, manual_rotation, rotate_east
     );
 
@@ -209,32 +439,42 @@ pub async fn api_start_polar_alignment(
         .map(|d| d.id.clone());
 
     let camera_id = camera_id.ok_or_else(|| {
-        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        release_polar_run_if_current(generation);
         NightshadeError::DeviceNotFound("No camera connected".to_string())
     })?;
 
     let mount_id = mount_id.ok_or_else(|| {
-        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        release_polar_run_if_current(generation);
         NightshadeError::DeviceNotFound("No mount connected".to_string())
     })?;
 
-    // Spawn background task for polar alignment.
-    // Why: each unwrap_or here applies the documented
-    // Nightshade default surfaced in the Polar-Align wizard UI when the
-    // FFI caller omits the optional field:
-    //   - gain/offset 0 → "keep camera's current value" (start_exposure
-    //     wrapper short-circuits when the requested value equals cached)
-    //   - solve_timeout 60s → matches the plate-solve panel's default
-    //   - start_from_current true → standard "use mount's current pointing"
-    //   - auto_complete_threshold 1.0 arcmin → the recommended PA accuracy
-    //     for typical 1000mm-focal-length imaging (per the wizard UI tooltip)
-    let gain_val = gain.unwrap_or(0);
-    let offset_val = offset.unwrap_or(0);
+    // Only the non-hardware options carry a fixed default. gain/offset stay
+    // `Option` and are threaded through so `None` means "use the camera's
+    // current value" — never forced to 0.
     let solve_timeout_val = solve_timeout.unwrap_or(60.0);
     let start_from_current_val = start_from_current.unwrap_or(true);
     let auto_complete_threshold_val = auto_complete_threshold.unwrap_or(1.0); // Default 1 arcminute
 
-    crate::util::supervisor::spawn_supervised_oneshot(
+    // Accurate physical altitude/azimuth correction directions require the
+    // observer's horizontal frame, even when measuring from the current
+    // pointing. Resolve the site up front instead of labelling equatorial
+    // tangent components as mount-bolt directions.
+    let location_for_run = get_state()
+        .get_observer_location()
+        .map_err(|e| {
+            release_polar_run_if_current(generation);
+            NightshadeError::OperationFailed(format!("Failed to read observer location: {}", e))
+        })?
+        .ok_or_else(|| {
+            release_polar_run_if_current(generation);
+            NightshadeError::OperationFailed(
+                "Observer latitude/longitude is required for polar alignment correction directions. \
+                 Set your site location before starting."
+                    .to_string(),
+            )
+        })?;
+
+    let handle = crate::util::supervisor::spawn_supervised_oneshot(
         "polar_align_monitor",
         async move {
             let result = run_polar_alignment(
@@ -247,28 +487,42 @@ pub async fn api_start_polar_alignment(
                 manual_rotation,
                 rotate_east,
                 start_from_current_val,
-                gain_val,
-                offset_val,
+                gain,
+                offset,
                 solve_timeout_val,
                 auto_complete_threshold_val,
+                location_for_run.latitude,
+                location_for_run.longitude,
+                generation,
             )
             .await;
 
             if let Err(e) = result {
-                tracing::error!("Polar alignment failed: {}", e);
-                emit_polar_status(&format!("Error: {}", e), "error", 0);
+                // Only surface an error over the status channel if we still own
+                // the run; a superseded/aborted task must stay silent.
+                if polar_generation().load(PolarOrdering::Relaxed) == generation {
+                    tracing::error!("Polar alignment failed: {}", e);
+                    emit_polar_status(&format!("Error: {}", e), "error", 0);
+                }
             }
 
-            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            release_polar_run_if_current(generation);
         },
-        // If the polar-align task panics, the busy flag would otherwise
-        // remain stuck `true` forever and the user could never restart it.
-        // Clear the flag and surface the panic via the status channel.
-        Some(|panic_msg: &str| {
-            emit_polar_status(&format!("Polar alignment crashed: {panic_msg}"), "error", 0);
-            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        // If the polar-align task panics, the busy flag would otherwise remain
+        // stuck `true` forever and the user could never restart it. Clear the
+        // flag (only if still ours) and surface the panic via the status
+        // channel.
+        Some(move |panic_msg: &str| {
+            if polar_generation().load(PolarOrdering::Relaxed) == generation {
+                emit_polar_status(&format!("Polar alignment crashed: {panic_msg}"), "error", 0);
+            }
+            release_polar_run_if_current(generation);
         }),
     );
+
+    // Hand the owned task handle to the stop path so a subsequent stop can
+    // await real termination.
+    store_polar_task(handle).await;
 
     Ok(())
 }
@@ -284,26 +538,39 @@ pub(crate) async fn run_polar_alignment(
     manual_rotation: bool,
     rotate_east: bool,
     start_from_current: bool,
-    gain: i32,
-    offset: i32,
+    gain: Option<i32>,
+    offset: Option<i32>,
     solve_timeout_secs: f64,
     auto_complete_threshold: f64,
+    observer_latitude: f64,
+    observer_longitude: f64,
+    generation: u64,
 ) -> Result<(), String> {
+    // Slew-to-pole start mode: point the mount at the pole region before
+    // measuring, instead of measuring from wherever it currently points.
     if !start_from_current {
-        return Err(
-            "Polar alignment with start_from_current=false is not supported by this workflow"
-                .to_string(),
-        );
+        match slew_to_pole_region(&mount_id, is_north, observer_longitude, generation).await? {
+            SlewOutcome::Settled => {}
+            SlewOutcome::Cancelled => {
+                emit_polar_status("Cancelled by user", "idle", 0);
+                return Ok(());
+            }
+            SlewOutcome::Superseded => return Ok(()),
+        }
     }
 
     let mut solved_points: Vec<(f64, f64)> = Vec::new();
 
     // Phase 1: Capture and solve 3 points
     for point in 1..=3 {
-        // Check for cancellation
-        if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
-            emit_polar_status("Cancelled by user", "idle", 0);
-            return Ok(());
+        // Check for cancellation / supersession before starting hardware work.
+        match polar_loop_control(generation) {
+            PolarLoopControl::Continue => {}
+            PolarLoopControl::Superseded => return Ok(()),
+            PolarLoopControl::Cancelled => {
+                emit_polar_status("Cancelled by user", "idle", 0);
+                return Ok(());
+            }
         }
 
         emit_polar_status(
@@ -312,9 +579,9 @@ pub(crate) async fn run_polar_alignment(
             point as i32,
         );
 
-        // Capture image using existing API
-        // api_camera_start_exposure(device_id, duration_secs, gain, offset, bin_x, bin_y)
-        api_camera_start_exposure(
+        // Capture image. gain/offset are Option — None leaves the camera's
+        // current value untouched (never forced to 0).
+        crate::api::imaging::camera_start_exposure_opt(
             camera_id.clone(),
             exposure_time,
             gain,
@@ -325,9 +592,13 @@ pub(crate) async fn run_polar_alignment(
         .await
         .map_err(|e| format!("Failed to capture: {:?}", e))?;
 
-        if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
-            emit_polar_status("Cancelled by user", "idle", 0);
-            return Ok(());
+        match polar_loop_control(generation) {
+            PolarLoopControl::Continue => {}
+            PolarLoopControl::Superseded => return Ok(()),
+            PolarLoopControl::Cancelled => {
+                emit_polar_status("Cancelled by user", "idle", 0);
+                return Ok(());
+            }
         }
 
         emit_polar_status(
@@ -354,7 +625,10 @@ pub(crate) async fn run_polar_alignment(
         }
 
         // Plate solve with configurable timeout
-        let solve_future = api_plate_solve_blind(temp_path_str.clone());
+        let solve_future = api_plate_solve_blind(
+            temp_path_str.clone(),
+            Some(solve_timeout_secs.ceil().clamp(1.0, 3600.0) as u32),
+        );
         let solve_result = match tokio::time::timeout(
             tokio::time::Duration::from_secs_f64(solve_timeout_secs),
             solve_future,
@@ -379,12 +653,14 @@ pub(crate) async fn run_polar_alignment(
         let _ = std::fs::remove_file(&temp_path);
 
         if solve_result.success {
-            let ra_degrees = solve_result.ra * 15.0; // RA hours to degrees
+            // PlateSolveResult follows the native solver contract: RA is
+            // already degrees. Multiplying by 15 here corrupted both the
+            // rotation-center fit and the next mount slew target.
+            let ra_degrees = plate_solve_ra_degrees(solve_result.ra);
             solved_points.push((ra_degrees, solve_result.dec));
             tracing::info!(
-                "Point {} solved: RA={:.4}h ({:.4}°), Dec={:.4}°",
+                "Point {} solved: RA={:.4}°, Dec={:.4}°",
                 point,
-                solve_result.ra,
                 ra_degrees,
                 solve_result.dec
             );
@@ -446,7 +722,8 @@ pub(crate) async fn run_polar_alignment(
     // Phase 2: Calculate center of rotation
     emit_polar_status("Calculating polar alignment error...", "adjusting", 3);
 
-    let (mut center_ra, mut center_dec) = calculate_rotation_center(&solved_points);
+    let (mut center_ra, mut center_dec) =
+        nightshade_sequencer::calculate_center_of_rotation(&solved_points);
     let pole_dec = if is_north { 90.0 } else { -90.0 };
 
     tracing::info!(
@@ -498,14 +775,18 @@ pub(crate) async fn run_polar_alignment(
     const MAX_FAILURES: i32 = 5;
 
     loop {
-        if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
-            emit_polar_status("Stopped", "idle", 0);
-            return Ok(());
+        match polar_loop_control(generation) {
+            PolarLoopControl::Continue => {}
+            PolarLoopControl::Superseded => return Ok(()),
+            PolarLoopControl::Cancelled => {
+                emit_polar_status("Stopped", "idle", 0);
+                return Ok(());
+            }
         }
 
         // Capture and solve to get current position
         emit_polar_status("Capturing...", "adjusting", 0);
-        if let Err(e) = api_camera_start_exposure(
+        if let Err(e) = crate::api::imaging::camera_start_exposure_opt(
             camera_id.clone(),
             exposure_time,
             gain,
@@ -535,9 +816,13 @@ pub(crate) async fn run_polar_alignment(
             continue;
         }
 
-        if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
-            emit_polar_status("Stopped", "idle", 0);
-            return Ok(());
+        match polar_loop_control(generation) {
+            PolarLoopControl::Continue => {}
+            PolarLoopControl::Superseded => return Ok(()),
+            PolarLoopControl::Cancelled => {
+                emit_polar_status("Stopped", "idle", 0);
+                return Ok(());
+            }
         }
 
         // Get the captured image
@@ -595,7 +880,7 @@ pub(crate) async fn run_polar_alignment(
         emit_polar_status("Solving...", "adjusting", 0);
 
         // Plate solve with 30 second timeout (shorter for adjustment loop)
-        let solve_future = api_plate_solve_blind(temp_path_str.clone());
+        let solve_future = api_plate_solve_blind(temp_path_str.clone(), Some(30));
         let solve_result =
             match tokio::time::timeout(tokio::time::Duration::from_secs(30), solve_future).await {
                 Ok(Ok(result)) => {
@@ -650,7 +935,8 @@ pub(crate) async fn run_polar_alignment(
             // Reset failure counter on success
             consecutive_failures = 0;
 
-            let ra_degrees = solve_result.ra * 15.0; // hours to degrees
+            // Native plate-solve results report RA in degrees.
+            let ra_degrees = plate_solve_ra_degrees(solve_result.ra);
 
             // Emit image again with plate solve coordinates
             emit_polar_image(
@@ -667,30 +953,20 @@ pub(crate) async fn run_polar_alignment(
             // degenerate re-fit-from-stationary-points collapse.
             let (ref_ra, ref_dec) = *reference_solve.get_or_insert((ra_degrees, solve_result.dec));
 
-            // Displacement of the boresight since the reference frame. RA is
-            // scaled by cos(dec) to convert to a true angular offset and the
-            // shortest-arc convention is applied so a wrap across 0/360° does
-            // not produce a spurious ~360° jump.
-            let mut d_ra = ra_degrees - ref_ra;
-            if d_ra > 180.0 {
-                d_ra -= 360.0;
-            } else if d_ra < -180.0 {
-                d_ra += 360.0;
-            }
-            let d_ra_ang = d_ra * ref_dec.to_radians().cos();
-            let d_dec = solve_result.dec - ref_dec;
-
-            // Apply the same displacement to the measured axis to get the
-            // current axis. (First-order rigid-shift model of a small mount
-            // adjustment; exact enough at the sub-degree errors PA targets.)
-            let cur_axis_ra =
-                initial_axis.0 + d_ra_ang / initial_axis.1.to_radians().cos().max(1e-6);
-            let cur_axis_dec = initial_axis.1 + d_dec;
+            // Apply the exact geodesic rotation that moved the solved
+            // boresight to the measured mechanical axis. This remains stable
+            // near the pole where dividing a first-order RA delta by cos(dec)
+            // becomes singular and can explode a tiny adjustment.
+            let (cur_axis_ra, cur_axis_dec) = nightshade_sequencer::rotate_axis_by_star_motion(
+                initial_axis,
+                (ref_ra, ref_dec),
+                (ra_degrees, solve_result.dec),
+            );
 
             tracing::debug!(
                 "Adjustment: boresight Δ=({:.4}°,{:.4}°) → current axis RA={:.4}°, Dec={:.4}°",
-                d_ra_ang,
-                d_dec,
+                ra_degrees - ref_ra,
+                solve_result.dec - ref_dec,
                 cur_axis_ra,
                 cur_axis_dec
             );
@@ -699,8 +975,17 @@ pub(crate) async fn run_polar_alignment(
             // 30"/60" colour bands; the old code emitted arcMINUTES, so a real
             // 5' error displayed as 5" — 60x too small — and the auto-complete
             // fired ~60x too early).
+            let (az_arcmin, alt_arcmin, total_arcmin) =
+                nightshade_sequencer::calculate_alignment_error_arcmin(
+                    cur_axis_ra,
+                    cur_axis_dec,
+                    is_north,
+                    observer_latitude,
+                    observer_longitude,
+                    chrono::Utc::now(),
+                );
             let (az_error, alt_error, total_error) =
-                polar_axis_error_arcsec(cur_axis_ra, cur_axis_dec, pole_dec);
+                (az_arcmin * 60.0, alt_arcmin * 60.0, total_arcmin * 60.0);
             center_ra = cur_axis_ra;
             center_dec = cur_axis_dec;
 
@@ -852,129 +1137,71 @@ pub(crate) fn write_temp_fits_for_solve(
         .map_err(|e| format!("FITS write error: {:?}", e))
 }
 
-/// Polar-alignment error of a measured rotation axis relative to the pole,
-/// expressed in ARCSECONDS to match the Dart UI (which labels every value with
-/// `"` and uses 30"/60" colour bands) and the arcsecond `auto_complete_threshold`.
+/// Stop the polar alignment process.
 ///
-/// Returns `(azimuth_error_arcsec, altitude_error_arcsec, total_error_arcsec)`.
+/// Returns only once the run is actually terminated. Signals cooperative
+/// cancellation, then awaits the owned task handle with a bounded grace; if the
+/// task is still mid-exposure it force-aborts (dropping the in-flight future)
+/// and confirms termination. If termination cannot be confirmed it returns a
+/// truthful timeout error and, crucially, leaves the running flag set and never
+/// publishes idle — so a new Start stays blocked until the run truly settles.
 ///
-/// Geometry: the mount's RA axis points at `(axis_ra_deg, axis_dec_deg)`; a
-/// perfectly aligned mount points its axis at the celestial pole
-/// (`dec = ±90°`). The TOTAL error is the true angular separation between the
-/// axis unit vector and the pole unit vector — `90° − axis_dec` for the north
-/// pole — which is robust and only reaches 0 when the axis genuinely sits on
-/// the pole (the previous `(0 − center_ra)·cos(dec)` formula collapsed to ~0
-/// whenever the rolling fit drifted toward the pole, under-reporting the error).
-///
-/// The total offset is decomposed into two orthogonal tangent-plane components
-/// at the pole so that `sqrt(alt² + az²) == total` exactly:
-///   - altitude component along the RA=0/12h meridian: `θ·cos(axis_ra)`
-///   - azimuth component along the RA=6h/18h meridian: `θ·sin(axis_ra)`
-///
-/// NOTE (needs on-mount validation): this decomposition is in the equatorial
-/// tangent frame, not the observer's local horizontal alt/az frame (which would
-/// require latitude + LST). The TOTAL magnitude and the convergence-to-zero
-/// behaviour are correct; the alt-vs-az split direction must be confirmed
-/// against a real mount so the "move up/down vs left/right" guidance matches.
-pub(crate) fn polar_axis_error_arcsec(
-    axis_ra_deg: f64,
-    axis_dec_deg: f64,
-    pole_dec_deg: f64,
-) -> (f64, f64, f64) {
-    // Total angular separation between the axis and the pole, in degrees.
-    // For the north pole this is (90 - axis_dec); for the south pole the axis
-    // dec is negative, so the separation is (axis_dec - (-90)) = axis_dec + 90,
-    // i.e. |pole_dec - axis_dec| with both on the same hemisphere. Use the
-    // dot-product form to stay correct for any axis_dec.
-    let axis_dec = axis_dec_deg.to_radians();
-    let axis_ra = axis_ra_deg.to_radians();
-    let pole_z = if pole_dec_deg >= 0.0 { 1.0 } else { -1.0 };
-    // a·p where p = (0, 0, ±1) and a = (cos d cos r, cos d sin r, sin d)
-    let cos_sep = (axis_dec.sin() * pole_z).clamp(-1.0, 1.0);
-    let sep_rad = cos_sep.acos();
-    let sep_arcsec = sep_rad.to_degrees() * 3600.0;
-
-    // Tangent-plane decomposition at the pole. cos/sin of the axis RA give the
-    // direction of the offset around the pole; for the south pole the RA sense
-    // mirrors, so flip the azimuth sign to keep a right-handed local frame.
-    let alt_arcsec = sep_arcsec * axis_ra.cos();
-    let az_arcsec = sep_arcsec * axis_ra.sin() * pole_z;
-
-    (az_arcsec, alt_arcsec, sep_arcsec)
-}
-
-/// Calculate the center of rotation from 3 solved points using 3D plane fitting
-pub(crate) fn calculate_rotation_center(points: &[(f64, f64)]) -> (f64, f64) {
-    if points.len() < 3 {
-        return (0.0, 90.0);
-    }
-
-    // Convert spherical (RA, Dec) to Cartesian unit vectors
-    let vectors: Vec<(f64, f64, f64)> = points
-        .iter()
-        .map(|(ra, dec)| {
-            let ra_rad = ra.to_radians();
-            let dec_rad = dec.to_radians();
-            (
-                dec_rad.cos() * ra_rad.cos(),
-                dec_rad.cos() * ra_rad.sin(),
-                dec_rad.sin(),
-            )
-        })
-        .collect();
-
-    // The three points define a plane. The rotation axis is the normal to this plane.
-    let p1 = vectors[0];
-    let p2 = vectors[1];
-    let p3 = vectors[2];
-
-    let v1 = (p2.0 - p1.0, p2.1 - p1.1, p2.2 - p1.2);
-    let v2 = (p3.0 - p1.0, p3.1 - p1.1, p3.2 - p1.2);
-
-    // Cross product for normal
-    let nx = v1.1 * v2.2 - v1.2 * v2.1;
-    let ny = v1.2 * v2.0 - v1.0 * v2.2;
-    let nz = v1.0 * v2.1 - v1.1 * v2.0;
-
-    // Normalize
-    let mag = (nx * nx + ny * ny + nz * nz).sqrt();
-    if mag < 1e-9 {
-        return (0.0, 90.0);
-    }
-
-    let nx = nx / mag;
-    let ny = ny / mag;
-    let nz = nz / mag;
-
-    // Convert back to RA/Dec
-    let center_dec_rad = nz.asin();
-    let mut center_ra_rad = ny.atan2(nx);
-
-    if center_ra_rad < 0.0 {
-        center_ra_rad += 2.0 * std::f64::consts::PI;
-    }
-
-    (center_ra_rad.to_degrees(), center_dec_rad.to_degrees())
-}
-
-/// Stop the polar alignment process
+/// This is applied to *both* TPPA and all-sky, which share this stop path and
+/// the single owned task slot, so neither can leave a task running under a new
+/// run.
 pub async fn api_stop_polar_alignment() -> Result<(), NightshadeError> {
+    // Serialize with Start until its task handle is stored; Stop must never
+    // report success while an admitted task can still appear afterward.
+    let _control = polar_control_lock().lock().await;
     if !get_polar_align_flag().load(PolarOrdering::Relaxed) {
         return Ok(()); // Already stopped
     }
 
-    // Signal cancellation
+    // Signal cooperative cancellation.
     get_polar_align_cancel().store(true, PolarOrdering::Relaxed);
+    tracing::info!("Stopping polar alignment; awaiting task termination");
 
-    tracing::info!("Stopping polar alignment");
+    // Take the owned task handle and await bounded termination. We never
+    // publish idle (or admit a new Start) while the old task could still touch
+    // the camera/mount.
+    let handle = { polar_task_slot().lock().await.take() };
+    if let Some(mut h) = handle {
+        let abort = h.abort_handle();
 
-    // Give the background task time to clean up
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        // First give the task a bounded chance to exit cooperatively at one of
+        // its cancel/generation checkpoints.
+        let terminated =
+            match tokio::time::timeout(Duration::from_secs(POLAR_STOP_CLEAN_GRACE_SECS), &mut h)
+                .await
+            {
+                Ok(_join) => true,
+                Err(_elapsed) => {
+                    // Likely blocked in a long exposure. Force-abort to drop the
+                    // in-flight future, then confirm the task actually unwound.
+                    tracing::warn!(
+                        "Polar alignment did not stop cooperatively in {}s; aborting task",
+                        POLAR_STOP_CLEAN_GRACE_SECS
+                    );
+                    abort.abort();
+                    tokio::time::timeout(Duration::from_secs(POLAR_STOP_ABORT_GRACE_SECS), &mut h)
+                        .await
+                        .is_ok()
+                }
+            };
+
+        if !terminated {
+            // Could not confirm termination. Keep the run blocked: leave the
+            // running flag set, do NOT publish idle, and put the handle back so
+            // a later stop can try again.
+            *polar_task_slot().lock().await = Some(h);
+            return Err(NightshadeError::OperationFailed(
+                "Polar alignment stop timed out; task is still terminating".to_string(),
+            ));
+        }
+    }
 
     get_polar_align_flag().store(false, PolarOrdering::Relaxed);
-
     emit_polar_status("Stopped", "idle", 0);
-
     Ok(())
 }
 
@@ -1035,12 +1262,7 @@ pub async fn api_start_all_sky_polar_alignment(
     };
     use nightshade_sequencer::{Binning, InstructionContext};
 
-    // Reject re-entrant starts.
-    if get_polar_align_flag().load(PolarOrdering::Relaxed) {
-        return Err(NightshadeError::OperationFailed(
-            "Polar alignment already running".to_string(),
-        ));
-    }
+    let _control = polar_control_lock().lock().await;
 
     // Fail loudly if the plate solver isn't installed — the all-sky
     // algorithm is plate-solve-only by design.
@@ -1050,11 +1272,12 @@ pub async fn api_start_all_sky_polar_alignment(
         ));
     }
 
-    get_polar_align_flag().store(true, PolarOrdering::Relaxed);
-    get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+    let generation = try_admit_polar_run().ok_or_else(|| {
+        NightshadeError::OperationFailed("Polar alignment already running".to_string())
+    })?;
 
     tracing::info!(
-        "Starting all-sky polar alignment: exposure={}s, threshold={}\", cadence={}s, north={}",
+        "Starting all-sky polar alignment (gen {generation}): exposure={}s, threshold={}\", cadence={}s, north={}",
         exposure_time,
         acceptance_threshold_arcsec,
         iteration_cadence_secs,
@@ -1068,7 +1291,7 @@ pub async fn api_start_all_sky_polar_alignment(
         .find(|d| d.device_type == DeviceType::Camera)
         .map(|d| d.id.clone())
         .ok_or_else(|| {
-            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            release_polar_run_if_current(generation);
             NightshadeError::DeviceNotFound("No camera connected".to_string())
         })?;
     let mount_id = connected
@@ -1076,7 +1299,7 @@ pub async fn api_start_all_sky_polar_alignment(
         .find(|d| d.device_type == DeviceType::Mount)
         .map(|d| d.id.clone())
         .ok_or_else(|| {
-            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            release_polar_run_if_current(generation);
             NightshadeError::DeviceNotFound("No mount connected".to_string())
         })?;
 
@@ -1084,11 +1307,11 @@ pub async fn api_start_all_sky_polar_alignment(
     let location = get_state()
         .get_observer_location()
         .map_err(|e| {
-            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            release_polar_run_if_current(generation);
             NightshadeError::OperationFailed(format!("Failed to read observer location: {}", e))
         })?
         .ok_or_else(|| {
-            get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+            release_polar_run_if_current(generation);
             NightshadeError::OperationFailed(
                 "Observer latitude/longitude is required for all-sky polar alignment".to_string(),
             )
@@ -1114,6 +1337,9 @@ pub async fn api_start_all_sky_polar_alignment(
     // and the per-task cancellation token used by InstructionContext.
     tokio::spawn(async move {
         loop {
+            if polar_generation().load(PolarOrdering::Relaxed) != generation {
+                break;
+            }
             if get_polar_align_cancel().load(PolarOrdering::Relaxed) {
                 cancel_flag_outer.store(true, Ordering::Relaxed);
                 break;
@@ -1139,8 +1365,9 @@ pub async fn api_start_all_sky_polar_alignment(
     let event_tx_for_align =
         crate::util::executor_event_bridge::spawn_executor_event_bridge(get_state().clone());
 
-    tokio::spawn(async move {
+    let align_handle = tokio::spawn(async move {
         let ctx = InstructionContext {
+            node_id: String::new(),
             target_ra: None,
             target_dec: None,
             target_name: None,
@@ -1248,98 +1475,145 @@ pub async fn api_start_all_sky_polar_alignment(
         let result =
             perform_all_sky_polar_alignment(&config, &ctx, status_cb, image_cb, error_cb).await;
 
-        match result {
-            Ok(()) => {
-                emit_polar_status("All-sky polar alignment complete", "complete", 0);
-            }
-            Err(PolarAlignError::Cancelled) => {
-                emit_polar_status("Stopped", "idle", 0);
-            }
-            Err(PolarAlignError::SolverUnavailable) => {
-                emit_polar_status(
-                    "Plate solver required — install ASTAP and re-run all-sky polar alignment",
-                    "error",
-                    0,
-                );
-                tracing::error!("All-sky polar alignment aborted: plate solver not available");
-            }
-            Err(e) => {
-                emit_polar_status(&format!("Error: {}", e), "error", 0);
-                tracing::error!("All-sky polar alignment failed: {}", e);
+        // Only emit terminal status if we still own the run; a superseded /
+        // force-aborted task must stay silent so it can't stomp a newer run.
+        if polar_generation().load(PolarOrdering::Relaxed) == generation {
+            match result {
+                Ok(()) => {
+                    emit_polar_status("All-sky polar alignment complete", "complete", 0);
+                }
+                Err(PolarAlignError::Cancelled) => {
+                    emit_polar_status("Stopped", "idle", 0);
+                }
+                Err(PolarAlignError::SolverUnavailable) => {
+                    emit_polar_status(
+                        "Plate solver required — install ASTAP and re-run all-sky polar alignment",
+                        "error",
+                        0,
+                    );
+                    tracing::error!("All-sky polar alignment aborted: plate solver not available");
+                }
+                Err(e) => {
+                    emit_polar_status(&format!("Error: {}", e), "error", 0);
+                    tracing::error!("All-sky polar alignment failed: {}", e);
+                }
             }
         }
 
-        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        release_polar_run_if_current(generation);
     });
+
+    // Hand the owned alignment task to the stop path so a subsequent stop can
+    // await real termination (same owned slot as TPPA — one run at a time).
+    store_polar_task(align_handle).await;
 
     Ok(())
 }
 
 #[cfg(test)]
-mod polar_error_tests {
-    use super::polar_axis_error_arcsec;
+mod polar_run_control_tests {
+    use super::{
+        get_polar_align_cancel, get_polar_align_flag, plate_solve_ra_degrees, polar_generation,
+        polar_loop_control, pole_region_target, release_polar_run_if_current, try_admit_polar_run,
+        PolarLoopControl, PolarOrdering, POLE_REGION_OFFSET_DEG,
+    };
 
-    /// A perfectly aligned axis (sitting on the north pole) reports ~0 error.
     #[test]
-    fn aligned_axis_reports_zero() {
-        let (az, alt, total) = polar_axis_error_arcsec(0.0, 90.0, 90.0);
-        assert!(total.abs() < 1e-6, "total should be ~0, got {total}");
-        assert!(az.abs() < 1e-6 && alt.abs() < 1e-6);
+    fn plate_solve_ra_is_already_degrees_for_polar_geometry() {
+        assert_eq!(plate_solve_ra_degrees(10.0), 10.0);
     }
 
-    /// The emitted error is in ARCSECONDS, not arcminutes. An axis 1° below the
-    /// pole must report 3600", NOT 60. This is the core 60x bug: the old code
-    /// multiplied degrees by 60 (arcmin), but the Dart UI labels values with `"`.
+    /// The pole-region slew target sits on the meridian (RA == LST, wrapped into
+    /// [0,24)) and `POLE_REGION_OFFSET_DEG` from the pole toward the equator,
+    /// with the correct sign per hemisphere.
     #[test]
-    fn error_is_in_arcseconds_not_arcminutes() {
-        // Axis at dec = 89° (1° from the pole). Total separation = 1° = 3600".
-        let (_, _, total) = polar_axis_error_arcsec(0.0, 89.0, 90.0);
+    fn pole_region_target_on_meridian_and_offset_from_pole() {
+        let (ra, dec) = pole_region_target(6.5, true);
+        assert!((ra - 6.5).abs() < 1e-9, "north RA should equal LST");
         assert!(
-            (total - 3600.0).abs() < 1.0,
-            "1° offset must be 3600 arcsec, got {total}"
+            (dec - (90.0 - POLE_REGION_OFFSET_DEG)).abs() < 1e-9,
+            "north dec should be 90 - offset, got {dec}"
         );
-        // Sanity: definitely not the old arcminute value (60).
-        assert!(total > 1000.0, "must not be the old arcminute scale");
-    }
 
-    /// The decomposition is consistent: sqrt(alt² + az²) == total exactly, so
-    /// the displayed components never disagree with the displayed total.
-    #[test]
-    fn components_compose_to_total() {
-        for &(ra, dec) in &[(45.0, 89.5), (123.0, 88.0), (270.0, 89.9), (310.0, 85.0)] {
-            let (az, alt, total) = polar_axis_error_arcsec(ra, dec, 90.0);
-            let composed = (az * az + alt * alt).sqrt();
-            assert!(
-                (composed - total).abs() < 1e-6,
-                "sqrt(alt^2+az^2)={composed} must equal total={total} (ra={ra},dec={dec})"
-            );
-        }
-    }
-
-    /// The error grows monotonically as the axis drifts further from the pole —
-    /// it does NOT collapse to ~0 for a misaligned axis (the old 3-point re-fit
-    /// reported ~0 from a stationary, badly-aligned mount).
-    #[test]
-    fn error_grows_with_misalignment_no_collapse() {
-        let small = polar_axis_error_arcsec(30.0, 89.9, 90.0).2;
-        let medium = polar_axis_error_arcsec(30.0, 89.0, 90.0).2;
-        let large = polar_axis_error_arcsec(30.0, 87.0, 90.0).2;
-        assert!(small < medium && medium < large, "{small} {medium} {large}");
+        let (_, dec_s) = pole_region_target(6.5, false);
         assert!(
-            large > 10_000.0,
-            "3° misalignment must be a large arcsec value"
+            (dec_s - (-90.0 + POLE_REGION_OFFSET_DEG)).abs() < 1e-9,
+            "south dec should be -90 + offset, got {dec_s}"
+        );
+
+        // LST wraps into [0, 24) both above 24 and below 0.
+        assert!((pole_region_target(25.0, true).0 - 1.0).abs() < 1e-9);
+        assert!((pole_region_target(-1.0, true).0 - 23.0).abs() < 1e-9);
+
+        // The offset keeps the target within the ≈30° pole region but off the
+        // degenerate pole itself.
+        let (_, dec_n) = pole_region_target(0.0, true);
+        assert!(
+            (60.0..90.0).contains(&dec_n),
+            "north dec in pole region: {dec_n}"
         );
     }
 
-    /// Works for the south celestial pole too (axis_dec near -90).
+    /// The generation + owned-run primitives that back the no-overlap guarantee:
+    /// admitting a run bumps the generation and sets the flag; a superseding run
+    /// makes the old generation stale; and a *stale* release must never clear a
+    /// newer run's flag (which would let a third Start overlap the live run).
+    ///
+    /// All the global-state assertions live in ONE test so they can't race with
+    /// each other over the process-wide statics.
     #[test]
-    fn south_pole_alignment() {
-        let aligned = polar_axis_error_arcsec(0.0, -90.0, -90.0).2;
-        assert!(aligned.abs() < 1e-6, "south-pole aligned should be ~0");
-        let off = polar_axis_error_arcsec(0.0, -89.0, -90.0).2;
+    fn generation_admission_and_release_no_overlap() {
+        // Clean baseline.
+        get_polar_align_flag().store(false, PolarOrdering::Relaxed);
+        get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+
+        // Admitting a run flips the flag and clears cancel.
+        let g1 = try_admit_polar_run().expect("first run admitted");
+        assert!(get_polar_align_flag().load(PolarOrdering::Relaxed));
+        assert!(!get_polar_align_cancel().load(PolarOrdering::Relaxed));
+        assert!(matches!(polar_loop_control(g1), PolarLoopControl::Continue));
+
+        // Atomic admission rejects a concurrent second owner.
+        assert!(try_admit_polar_run().is_none());
+
+        // Once the first run releases, a new generation can be admitted.
+        release_polar_run_if_current(g1);
+        let g2 = try_admit_polar_run().expect("second run admitted after release");
+        assert!(g2 > g1, "generation must be monotonic: {g1} -> {g2}");
+        assert!(matches!(
+            polar_loop_control(g1),
+            PolarLoopControl::Superseded
+        ));
+        assert!(matches!(polar_loop_control(g2), PolarLoopControl::Continue));
+
+        // Cancellation only cancels the *current* generation; a stale gen still
+        // reports Superseded (generation is checked before cancel).
+        get_polar_align_cancel().store(true, PolarOrdering::Relaxed);
+        assert!(matches!(
+            polar_loop_control(g2),
+            PolarLoopControl::Cancelled
+        ));
+        assert!(matches!(
+            polar_loop_control(g1),
+            PolarLoopControl::Superseded
+        ));
+
+        // A stale-generation release must NOT clear the live run's flag —
+        // otherwise a superseded/aborted task could unblock a third Start while
+        // the current run still owns the hardware.
+        release_polar_run_if_current(g1);
         assert!(
-            (off - 3600.0).abs() < 1.0,
-            "1° south offset = 3600\", got {off}"
+            get_polar_align_flag().load(PolarOrdering::Relaxed),
+            "stale release cleared the live run's flag"
         );
+
+        // The current generation's release clears the flag.
+        release_polar_run_if_current(g2);
+        assert!(!get_polar_align_flag().load(PolarOrdering::Relaxed));
+
+        // Leave globals clean for any other test.
+        get_polar_align_cancel().store(false, PolarOrdering::Relaxed);
+        // Nudge the generation so a later admission is still strictly greater.
+        let _ = polar_generation().load(PolarOrdering::Relaxed);
     }
 }

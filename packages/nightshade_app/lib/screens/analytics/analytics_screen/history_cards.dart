@@ -2,12 +2,13 @@
 
 part of '../analytics_screen.dart';
 
-class _ProjectsTab extends StatelessWidget {
+class _ProjectsTab extends ConsumerWidget {
   const _ProjectsTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -21,11 +22,21 @@ class _ProjectsTab extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               key: const ValueKey('mosaic_projects_entry'),
-              onPressed: () => context.push('/mosaic'),
+              onPressed: () {
+                if (isRemote) {
+                  context.showInfoSnackBar(
+                    'Open Mosaic Projects on the imaging host.',
+                  );
+                  return;
+                }
+                context.push('/mosaic');
+              },
               icon:
                   Icon(LucideIcons.layoutGrid, size: 14, color: colors.accent),
               label: Text(
-                'Mosaic projects',
+                isRemote
+                    ? 'Mosaic projects on imaging host'
+                    : 'Mosaic projects',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize12,
                   color: colors.accent,

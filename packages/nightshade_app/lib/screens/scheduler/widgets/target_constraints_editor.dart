@@ -57,11 +57,27 @@ class TargetConstraintsEditor extends ConsumerStatefulWidget {
 class _TargetConstraintsEditorState
     extends ConsumerState<TargetConstraintsEditor> {
   late Future<_LoadedConstraints> _future;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        setState(() {
+          _future = _load();
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
   }
 
   Future<_LoadedConstraints> _load() async {
@@ -94,36 +110,65 @@ class _TargetConstraintsEditorState
     }
 
     return _LoadedConstraints(
+      authority: backend,
+      service: svc,
       constraints: constraints,
       horizonProfiles: profiles,
     );
   }
 
-  Future<void> _refresh() async {
+  bool _isCurrentAuthority(_LoadedConstraints loaded) =>
+      mounted && identical(ref.read(backendProvider), loaded.authority);
+
+  void _showAuthorityChanged() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'The imaging host changed. Reopen the constraint editor.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _refresh(_LoadedConstraints loaded) async {
+    if (!_isCurrentAuthority(loaded)) return;
     setState(() {
       _future = _load();
     });
     final result = await _future;
-    if (!mounted) return;
+    if (!_isCurrentAuthority(loaded)) return;
     setState(() {});
     widget.onChanged?.call();
     return Future.value(result).then((_) {});
   }
 
-  Future<void> _upsertConstraint(TargetConstraint c) async {
-    final svc = ref.read(targetConstraintServiceProvider);
+  Future<void> _upsertConstraint(
+    TargetConstraint c,
+    _LoadedConstraints loaded,
+  ) async {
+    if (!_isCurrentAuthority(loaded)) {
+      _showAuthorityChanged();
+      return;
+    }
+    final svc = loaded.service;
     if (c.id == null) {
       await svc.insert(c);
     } else {
       await svc.update(c);
     }
-    await _refresh();
+    if (!_isCurrentAuthority(loaded)) return;
+    await _refresh(loaded);
   }
 
-  Future<void> _deleteConstraint(int id) async {
-    final svc = ref.read(targetConstraintServiceProvider);
-    await svc.delete(id);
-    await _refresh();
+  Future<void> _deleteConstraint(int id, _LoadedConstraints loaded) async {
+    if (!_isCurrentAuthority(loaded)) {
+      _showAuthorityChanged();
+      return;
+    }
+    await loaded.service.delete(id);
+    if (!_isCurrentAuthority(loaded)) return;
+    await _refresh(loaded);
   }
 
   Future<void> _openWizard(_LoadedConstraints loaded) async {
@@ -138,7 +183,11 @@ class _TargetConstraintsEditorState
       ),
     );
     if (created == null) return;
-    await _upsertConstraint(created);
+    if (!_isCurrentAuthority(loaded)) {
+      _showAuthorityChanged();
+      return;
+    }
+    await _upsertConstraint(created, loaded);
   }
 
   @override
@@ -196,8 +245,8 @@ class _TargetConstraintsEditorState
               _ConstraintRow(
                 constraint: c,
                 horizonProfiles: loaded.horizonProfiles,
-                onChange: _upsertConstraint,
-                onDelete: () => _deleteConstraint(c.id!),
+                onChange: (constraint) => _upsertConstraint(constraint, loaded),
+                onDelete: () => _deleteConstraint(c.id!, loaded),
               ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             _AddConstraintButton(

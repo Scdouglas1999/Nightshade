@@ -21,7 +21,7 @@ class PairingDatabase extends _$PairingDatabase {
   PairingDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration {
@@ -43,6 +43,12 @@ class PairingDatabase extends _$PairingDatabase {
         if (from < 3) {
           await m.createTable(devicePushTokens);
           await m.createTable(devicePushPrefs);
+        }
+        // v3 -> v4: persist the exact authorization grant associated with each
+        // paired session token. Legacy rows receive `control`, matching the
+        // pre-v4 pairing default without granting admin privileges.
+        if (from < 4) {
+          await m.addColumn(pairedDevices, pairedDevices.authGrantSpec);
         }
       },
       beforeOpen: (details) async {
@@ -105,12 +111,15 @@ class PairingDatabase extends _$PairingDatabase {
   /// MUST be rejected by `TokenManager.verifySessionToken` and by the headless
   /// auth middleware. May be `null` only for callers that explicitly opt out
   /// (test fixtures); the production pairing flow always populates it.
+  /// [authGrantSpec] is opaque to this storage package and defaults to the
+  /// historical `control` grant. The headless host validates it before use.
   Future<void> addPairedDevice({
     required String deviceId,
     required String deviceName,
     required String sessionToken,
     required String deviceType,
     DateTime? expiresAt,
+    String authGrantSpec = 'control',
   }) async {
     await into(pairedDevices).insert(
       PairedDevicesCompanion.insert(
@@ -120,6 +129,7 @@ class PairingDatabase extends _$PairingDatabase {
         pairedAt: DateTime.now(),
         deviceType: Value(deviceType),
         expiresAt: Value(expiresAt),
+        authGrantSpec: Value(authGrantSpec),
       ),
     );
   }
@@ -193,6 +203,13 @@ class PairingDatabase extends _$PairingDatabase {
     await (update(pairingSessions)
           ..where((tbl) => tbl.pairingCode.equals(pairingCode)))
         .write(const PairingSessionsCompanion(isUsed: Value(true)));
+  }
+
+  /// Delete a pairing session by its code (operator cancelled before use).
+  Future<void> deletePairingSession(String pairingCode) async {
+    await (delete(
+      pairingSessions,
+    )..where((tbl) => tbl.pairingCode.equals(pairingCode))).go();
   }
 
   /// Delete expired pairing sessions (cleanup)

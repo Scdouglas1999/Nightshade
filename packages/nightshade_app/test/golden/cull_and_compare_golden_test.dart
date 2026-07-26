@@ -1,3 +1,6 @@
+@Tags(['golden'])
+library;
+
 // Renders the two workbench culling/compare panels — [SubCullRail] and
 // [AbComparePanel] — to inspectable review PNGs under `docs/design/goldens/`.
 //

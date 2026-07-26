@@ -11,6 +11,7 @@ import 'package:nightshade_core/nightshade_core.dart'
         gateCapability,
         slewCoordinatesProvider,
         CoordinateParser,
+        CoordinateUtils,
         DeviceConnectionState;
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
@@ -67,7 +68,7 @@ class _MountTabState extends ConsumerState<MountTab> {
   }
 
   /// Sync mount to coordinates from text fields with validation
-  void _handleSync() {
+  Future<void> _handleSync() async {
     final ra = CoordinateParser.parseRa(_raController.text);
     final dec = CoordinateParser.parseDec(_decController.text);
     if (ra == null || dec == null) {
@@ -75,17 +76,22 @@ class _MountTabState extends ConsumerState<MountTab> {
           "Invalid coordinates. Supported formats: decimal, HH:MM:SS, DD:MM:SS");
       return;
     }
-    ref.read(mountCommandServiceProvider).sync(ra, dec).then((result) {
-      if (mounted) {
-        context.showCommandActionResult(result);
-      }
-    });
+    final result = await ref.read(mountCommandServiceProvider).sync(ra, dec);
+    if (!mounted) return;
+    context.showCommandActionResult(result);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final mountState = ref.watch(mountStateProvider);
+    // Watch the persisted text state so validation and the command payload
+    // rebuild on every edit. Reading only the TextEditingControllers inside a
+    // Builder left the disabled/enabled state and captured coordinates stale.
+    final slewCoordinates = ref.watch(slewCoordinatesProvider);
+    final targetRa = CoordinateParser.parseRa(slewCoordinates.raText);
+    final targetDec = CoordinateParser.parseDec(slewCoordinates.decText);
+    final hasValidTarget = targetRa != null && targetDec != null;
     final isConnected =
         mountState.connectionState == DeviceConnectionState.connected;
     final isMobile = Responsive.isMobile(context);
@@ -119,6 +125,36 @@ class _MountTabState extends ConsumerState<MountTab> {
       (c) => c.canAbortSlew,
       loadingDefault: true,
     );
+    final canSync = gateCapability<MountCapabilities>(
+      mountCapsAsync,
+      (c) => c.canSync,
+      loadingDefault: false,
+    );
+    final canSlew = gateCapability<MountCapabilities>(
+      mountCapsAsync,
+      (c) => c.canSlew || c.canSlewAsync,
+      loadingDefault: false,
+    );
+    final canPulseGuide = gateCapability<MountCapabilities>(
+      mountCapsAsync,
+      (c) => c.canPulseGuide,
+      loadingDefault: false,
+    );
+    final mountCaps = mountCapsAsync.valueOrNull;
+    final minimumPulseMs = mountCaps?.minPulseGuideMs?.ceil() ?? 1;
+    final maximumPulseMs = mountCaps?.maxPulseGuideMs?.floor();
+    final hasValidPulseRange = minimumPulseMs > 0 &&
+        (maximumPulseMs == null || maximumPulseMs >= minimumPulseMs);
+    var pulseDurationMs = 500;
+    if (pulseDurationMs < minimumPulseMs) pulseDurationMs = minimumPulseMs;
+    if (maximumPulseMs != null && pulseDurationMs > maximumPulseMs) {
+      pulseDurationMs = maximumPulseMs;
+    }
+    final pulseControlsEnabled = isConnected &&
+        canPulseGuide &&
+        hasValidPulseRange &&
+        !mountState.isParked &&
+        !mountState.isSlewing;
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 24),
@@ -131,8 +167,11 @@ class _MountTabState extends ConsumerState<MountTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       Text(
                         'Mount Status',
@@ -165,10 +204,17 @@ class _MountTabState extends ConsumerState<MountTab> {
                     children: [
                       _InfoRow(
                           label: 'RA',
-                          value: mountState.ra?.toStringAsFixed(4) ?? '--'),
+                          // Mount RA is hours (0-24); render sexagesimal so
+                          // astronomers read HH MM SS rather than raw decimals.
+                          value: mountState.ra != null
+                              ? CoordinateUtils.formatRA(mountState.ra!)
+                              : '--'),
                       _InfoRow(
                           label: 'Dec',
-                          value: mountState.dec?.toStringAsFixed(4) ?? '--'),
+                          // Mount Dec is degrees (-90..+90); render signed DMS.
+                          value: mountState.dec != null
+                              ? CoordinateUtils.formatDec(mountState.dec!)
+                              : '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -177,12 +223,14 @@ class _MountTabState extends ConsumerState<MountTab> {
                     children: [
                       _InfoRow(
                           label: 'Alt',
-                          value:
-                              mountState.altitude?.toStringAsFixed(2) ?? '--'),
+                          value: mountState.altitude != null
+                              ? '${mountState.altitude!.toStringAsFixed(2)}°'
+                              : '--'),
                       _InfoRow(
                           label: 'Az',
-                          value:
-                              mountState.azimuth?.toStringAsFixed(2) ?? '--'),
+                          value: mountState.azimuth != null
+                              ? '${mountState.azimuth!.toStringAsFixed(2)}°'
+                              : '--'),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -227,12 +275,13 @@ class _MountTabState extends ConsumerState<MountTab> {
                           // fail-closed capability lookup — see
                           // gateCapability above.
                           onPressed: isConnected &&
+                                  !mountState.isSlewing &&
                                   (mountState.isParked ? canUnpark : canPark)
                               ? () => ref
                                       .read(mountCommandServiceProvider)
                                       .togglePark()
                                       .then((result) {
-                                    if (mounted) {
+                                    if (context.mounted) {
                                       context.showCommandActionResult(result);
                                     }
                                   })
@@ -250,12 +299,15 @@ class _MountTabState extends ConsumerState<MountTab> {
                               ? ButtonVariant.outline
                               : ButtonVariant.primary,
                           // Gate on canSetTracking capability.
-                          onPressed: isConnected && canSetTracking
+                          onPressed: isConnected &&
+                                  canSetTracking &&
+                                  !mountState.isParked &&
+                                  !mountState.isSlewing
                               ? () => ref
                                       .read(mountCommandServiceProvider)
                                       .setTracking(!mountState.isTracking)
                                       .then((result) {
-                                    if (mounted) {
+                                    if (context.mounted) {
                                       context.showCommandActionResult(result);
                                     }
                                   })
@@ -279,7 +331,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                                   .read(mountCommandServiceProvider)
                                   .abortSlew()
                                   .then((result) {
-                                if (mounted) {
+                                if (context.mounted) {
                                   context.showCommandActionResult(result);
                                 }
                               })
@@ -370,35 +422,23 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Row(
                     children: [
                       Expanded(
-                        child: Builder(
-                          builder: (context) {
-                            // Parse coordinates for the slew dropdown
-                            final ra =
-                                CoordinateParser.parseRa(_raController.text);
-                            final dec =
-                                CoordinateParser.parseDec(_decController.text);
-                            final hasValidCoords = ra != null && dec != null;
-
-                            if (!hasValidCoords) {
-                              // Show disabled button if coordinates are invalid
-                              return const NightshadeButton(
+                        child: !hasValidTarget
+                            ? const NightshadeButton(
                                 label: 'Slew',
                                 icon: NightshadeIcons.move,
-                                // onPressed null makes button appear disabled
                                 onPressed: null,
-                              );
-                            }
-
-                            return SlewDropdownButton(
-                              ra: ra,
-                              dec: dec,
-                              targetName: 'Manual Coordinates',
-                              // No rotation from manual coordinate entry
-                              targetRotation: null,
-                              isEnabled: isConnected,
-                            );
-                          },
-                        ),
+                              )
+                            : SlewDropdownButton(
+                                ra: targetRa,
+                                dec: targetDec,
+                                targetName: 'Manual Coordinates',
+                                // No rotation from manual coordinate entry
+                                targetRotation: null,
+                                isEnabled: isConnected &&
+                                    canSlew &&
+                                    !mountState.isParked &&
+                                    !mountState.isSlewing,
+                              ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -406,7 +446,13 @@ class _MountTabState extends ConsumerState<MountTab> {
                           label: 'Sync',
                           icon: NightshadeIcons.refresh,
                           variant: ButtonVariant.outline,
-                          onPressed: _handleSync,
+                          onPressed: isConnected &&
+                                  canSync &&
+                                  hasValidTarget &&
+                                  !mountState.isParked &&
+                                  !mountState.isSlewing
+                              ? _handleSync
+                              : null,
                         ),
                       ),
                     ],
@@ -430,6 +476,24 @@ class _MountTabState extends ConsumerState<MountTab> {
                     style: NightshadeTypography.h5
                         .copyWith(color: colors.textPrimary),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    !isConnected
+                        ? 'Connect a mount to send guide corrections.'
+                        : !canPulseGuide
+                            ? 'Pulse guiding is unavailable for this mount.'
+                            : !hasValidPulseRange
+                                ? 'The mount reported an invalid pulse-duration range.'
+                                : mountState.isParked
+                                    ? 'Unpark the mount before pulse guiding.'
+                                    : mountState.isSlewing
+                                        ? 'Pulse guiding is disabled during a slew.'
+                                        : '$pulseDurationMs ms correction pulses',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textSecondary,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   Center(
                     child: Column(
@@ -437,53 +501,75 @@ class _MountTabState extends ConsumerState<MountTab> {
                         _PulseButton(
                             icon: NightshadeIcons.chevronUp,
                             label: "N",
-                            onPressed: () => ref
-                                    .read(mountCommandServiceProvider)
-                                    .pulseGuide("north")
-                                    .then((result) {
-                                  if (mounted) {
-                                    context.showCommandActionResult(result);
-                                  }
-                                })),
+                            onPressed: pulseControlsEnabled
+                                ? () => ref
+                                        .read(mountCommandServiceProvider)
+                                        .pulseGuide(
+                                          "north",
+                                          durationMs: pulseDurationMs,
+                                        )
+                                        .then((result) {
+                                      if (context.mounted) {
+                                        context.showCommandActionResult(result);
+                                      }
+                                    })
+                                : null),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             _PulseButton(
                                 icon: NightshadeIcons.chevronLeft,
                                 label: "W",
-                                onPressed: () => ref
-                                        .read(mountCommandServiceProvider)
-                                        .pulseGuide("west")
-                                        .then((result) {
-                                      if (mounted) {
-                                        context.showCommandActionResult(result);
-                                      }
-                                    })),
+                                onPressed: pulseControlsEnabled
+                                    ? () => ref
+                                            .read(mountCommandServiceProvider)
+                                            .pulseGuide(
+                                              "west",
+                                              durationMs: pulseDurationMs,
+                                            )
+                                            .then((result) {
+                                          if (context.mounted) {
+                                            context.showCommandActionResult(
+                                                result);
+                                          }
+                                        })
+                                    : null),
                             const SizedBox(width: 48),
                             _PulseButton(
                                 icon: NightshadeIcons.chevronRight,
                                 label: "E",
-                                onPressed: () => ref
-                                        .read(mountCommandServiceProvider)
-                                        .pulseGuide("east")
-                                        .then((result) {
-                                      if (mounted) {
-                                        context.showCommandActionResult(result);
-                                      }
-                                    })),
+                                onPressed: pulseControlsEnabled
+                                    ? () => ref
+                                            .read(mountCommandServiceProvider)
+                                            .pulseGuide(
+                                              "east",
+                                              durationMs: pulseDurationMs,
+                                            )
+                                            .then((result) {
+                                          if (context.mounted) {
+                                            context.showCommandActionResult(
+                                                result);
+                                          }
+                                        })
+                                    : null),
                           ],
                         ),
                         _PulseButton(
                             icon: NightshadeIcons.chevronDown,
                             label: "S",
-                            onPressed: () => ref
-                                    .read(mountCommandServiceProvider)
-                                    .pulseGuide("south")
-                                    .then((result) {
-                                  if (mounted) {
-                                    context.showCommandActionResult(result);
-                                  }
-                                })),
+                            onPressed: pulseControlsEnabled
+                                ? () => ref
+                                        .read(mountCommandServiceProvider)
+                                        .pulseGuide(
+                                          "south",
+                                          durationMs: pulseDurationMs,
+                                        )
+                                        .then((result) {
+                                      if (context.mounted) {
+                                        context.showCommandActionResult(result);
+                                      }
+                                    })
+                                : null),
                       ],
                     ),
                   ),
@@ -555,7 +641,7 @@ class _StatusBadge extends StatelessWidget {
 class _PulseButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _PulseButton(
       {required this.icon, required this.label, required this.onPressed});
@@ -563,6 +649,7 @@ class _PulseButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final enabled = onPressed != null;
     return Column(
       children: [
         Material(
@@ -575,7 +662,10 @@ class _PulseButton extends StatelessWidget {
               width: 48,
               height: 48,
               alignment: Alignment.center,
-              child: Icon(icon, color: colors.primary),
+              child: Icon(
+                icon,
+                color: enabled ? colors.primary : colors.textMuted,
+              ),
             ),
           ),
         ),

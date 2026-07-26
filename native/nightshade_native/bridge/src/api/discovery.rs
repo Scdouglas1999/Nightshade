@@ -475,11 +475,12 @@ pub(crate) fn drivers_for_device_type(device_type: DeviceType) -> Vec<DriverType
             DriverType::Indi,
             DriverType::Simulator,
         ],
-        DeviceType::Dome => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
-        DeviceType::Weather => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
-        DeviceType::SafetyMonitor => {
-            vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi]
-        }
+        DeviceType::Dome | DeviceType::Weather | DeviceType::SafetyMonitor => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Indi,
+            DriverType::Simulator,
+        ],
         DeviceType::CoverCalibrator => {
             vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi]
         }
@@ -512,8 +513,8 @@ async fn scan_devices_for_pair(
 // — public hot-plug entry points. The hot-plug poller in
 // `crate::hotplug` walks the native and (on Windows) ASCOM device lists
 // without the per-(type,driver) cache wrapper so a freshly-plugged USB
-// device shows up on the very next 4 s tick instead of waiting for the
-// 60 s cache TTL to roll over. We keep the inner `scan_*_for_type`
+// device shows up on the next hot-plug diff instead of waiting for the native
+// discovery cache TTL to roll over. We keep the inner `scan_*_for_type`
 // helpers private to this module and expose thin re-exports here so the
 // hot-plug module doesn't have to be `super`-private. Marked
 // `frb(ignore)` because they take crate-private error types and aren't
@@ -531,6 +532,42 @@ pub async fn scan_ascom_for_type_public(
     device_type: DeviceType,
 ) -> Result<Vec<DeviceInfo>, String> {
     scan_ascom_for_type(device_type).await
+}
+
+/// Whether an ASCOM driver should be omitted from discovery results.
+///
+/// Both arguments must already be lowercased. Simulators are hidden because the
+/// equipment list is meant to show hardware the operator actually owns.
+///
+/// Hub drivers are deliberately NOT hidden. An earlier `is_diagnostic` rule
+/// dropped any ProgID containing `"hub."`, which silently removed ASCOM Device
+/// Hub (`ASCOM.DeviceHub.Telescope`) and JustAHub (`ASCOM.JustAHub.Camera`)
+/// from every equipment list. Those are not diagnostic tools: Device Hub is the
+/// ASCOM Platform's own recommended way to share a single mount/focuser/dome
+/// between several applications at once (Nightshade sequencing while PHD2
+/// guides, say), and an operator who installed a hub chose it deliberately.
+/// That rule was also provably inconsistent — `ASCOM.JustAHub64.*` slipped
+/// through only because `"hub64."` does not contain `"hub."`, so the 64-bit
+/// build of one product was listed while the 32-bit build of the same product
+/// vanished. On the Windows rig `ASCOM.DeviceHub.Telescope` connects and
+/// reports state normally, so hiding it merely made a working device
+/// unreachable through the UI and the API's own device list.
+///
+/// Kept free of `#[cfg(windows)]` on purpose: a Windows-only helper is silently
+/// skipped by `cargo test` on Linux, which is where this logic is gated in CI.
+// Only `scan_ascom_for_type` (Windows-only) calls this outside of tests.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn ascom_device_is_hidden(prog_id_lower: &str, name_lower: &str) -> bool {
+    prog_id_lower.contains("simulator")
+        || name_lower.contains("simulator")
+        || prog_id_lower.contains("sim.")
+        || prog_id_lower.ends_with("sim")
+        || prog_id_lower.starts_with("ccdsim")
+        || prog_id_lower.starts_with("scopesim")
+        || prog_id_lower.starts_with("focussim")
+        || prog_id_lower.starts_with("domesim")
+        || prog_id_lower.starts_with("filterwheelsim")
+        || name_lower == "simulator"
 }
 
 #[cfg(windows)]
@@ -559,26 +596,7 @@ async fn scan_ascom_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>,
         let prog_id_lower = ascom_dev.prog_id.to_lowercase();
         let name_lower = ascom_dev.name.to_lowercase();
 
-        // Filter out simulators and diagnostic tools.
-        let is_simulator = prog_id_lower.contains("simulator")
-            || name_lower.contains("simulator")
-            || prog_id_lower.contains("sim.")
-            || prog_id_lower.ends_with("sim")
-            || prog_id_lower.starts_with("ccdsim")
-            || prog_id_lower.starts_with("scopesim")
-            || prog_id_lower.starts_with("focussim")
-            || prog_id_lower.starts_with("domesim")
-            || prog_id_lower.starts_with("filterwheelsim")
-            || name_lower == "simulator";
-
-        let is_diagnostic = prog_id_lower.contains("hub.")
-            || prog_id_lower.contains("pipe.")
-            || prog_id_lower.contains("poth.")
-            || prog_id_lower.starts_with("hub.")
-            || prog_id_lower.starts_with("pipe.")
-            || prog_id_lower.starts_with("poth.");
-
-        if is_simulator || is_diagnostic {
+        if ascom_device_is_hidden(&prog_id_lower, &name_lower) {
             tracing::trace!(
                 "Filtering out ASCOM device: {} ({})",
                 ascom_dev.name,
@@ -850,13 +868,16 @@ fn scan_simulator_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
         DeviceType::Focuser => ("sim_focuser_1", "Simulated Focuser"),
         DeviceType::FilterWheel => ("sim_filterwheel_1", "Simulated Filter Wheel"),
         DeviceType::Rotator => ("sim_rotator_1", "Simulated Rotator"),
+        DeviceType::Dome => ("sim_dome_1", "Simulated Dome"),
+        DeviceType::Weather => ("sim_weather_1", "Simulated Weather Station"),
+        DeviceType::SafetyMonitor => ("sim_safety_monitor_1", "Simulated Safety Monitor"),
         _ => return Vec::new(),
     };
 
     // The `sim_` prefix is the simulator id convention the native device layer
     // keys off. Only advertise device types backed by simulation.rs singletons;
-    // dome, weather, safety monitor, switch, and cover calibrator still fail
-    // loudly until they have real simulator implementations.
+    // switch and cover calibrator still fail loudly until they have real
+    // simulator implementations.
     vec![DeviceInfo {
         id: id.to_string(),
         name: name.to_string(),
@@ -1011,6 +1032,81 @@ mod tests {
     use super::*;
     use crate::api::{get_discovery_cache, DiscoveryCacheEntry, DISCOVERY_CACHE_TTL};
 
+    /// Convenience wrapper matching how `scan_ascom_for_type` calls the filter:
+    /// it lowercases the ProgID and display name before testing them.
+    fn hidden(prog_id: &str, name: &str) -> bool {
+        ascom_device_is_hidden(&prog_id.to_lowercase(), &name.to_lowercase())
+    }
+
+    #[test]
+    fn ascom_hub_drivers_are_discoverable() {
+        // Regression: an `is_diagnostic` rule matching `contains("hub.")` hid
+        // ASCOM Device Hub and 32-bit JustAHub from every equipment list while
+        // letting `JustAHub64` through, because "hub64." does not contain
+        // "hub.". All four were verified to connect on the Windows rig, so none
+        // of them may be filtered.
+        for (prog_id, name) in [
+            ("ASCOM.DeviceHub.Telescope", "Device Hub Telescope"),
+            ("ASCOM.DeviceHub.Focuser", "Device Hub Focuser"),
+            ("ASCOM.DeviceHub.Dome", "Device Hub Dome"),
+            (
+                "ASCOM.JustAHub.Camera",
+                "JustAHub Camera (for 32bit drivers)",
+            ),
+            (
+                "ASCOM.JustAHub64.Camera",
+                "JustAHub Camera (for 64bit drivers)",
+            ),
+            ("ASCOM.JustAHub.FilterWheel", "JustAHub Filter Wheel"),
+            ("Pipe.Telescope", "Pipe hub"),
+            ("POTH.Telescope", "POTH hub"),
+        ] {
+            assert!(
+                !hidden(prog_id, name),
+                "{prog_id} is a user-selectable hub and must stay discoverable"
+            );
+        }
+    }
+
+    #[test]
+    fn ascom_simulators_stay_hidden() {
+        // The simulator filter is deliberate product behaviour and must not
+        // regress while un-hiding hubs.
+        for (prog_id, name) in [
+            ("ASCOM.Simulator.Camera", "Camera V3 simulator"),
+            ("ASCOM.OmniSim.Camera", "ASCOM OmniSim Camera"),
+            ("CCDSimulator.Camera", "Simulator"),
+            ("ScopeSim.Telescope", "Simulator"),
+            ("FocusSim.Focuser", "Simulator"),
+            ("DomeSim.Dome", "Simulator"),
+            ("FilterWheelSim.FilterWheel", "Simulator"),
+            ("ASCOM.Simulator.Focuser", "ASCOM Simulator Focuser Driver"),
+        ] {
+            assert!(hidden(prog_id, name), "{prog_id} should be hidden");
+        }
+    }
+
+    #[test]
+    fn ascom_real_vendor_drivers_are_discoverable() {
+        // Guards the simulator substrings against catching real hardware.
+        for (prog_id, name) in [
+            ("ASCOM.ASICamera2.Camera", "ASI Camera (1)"),
+            ("ASCOM.PegasusAstroNYX101.Telescope", "PegasusAstro NYX101"),
+            ("ASCOM.EAF.Focuser", "ZWO Focuser (1)"),
+            ("ASCOM.EFW2.FilterWheel", "ZWO FilterWheel (1)"),
+            ("ASCOM.ASICAA.Rotator", "ZWO CAA"),
+            (
+                "ASCOM.OCH.ObservingConditions",
+                "ASCOM Observing Conditions Hub (OCH)",
+            ),
+        ] {
+            assert!(
+                !hidden(prog_id, name),
+                "{prog_id} is real hardware and must stay discoverable"
+            );
+        }
+    }
+
     fn make_device(id: &str, name: &str, dt: DeviceType, drv: DriverType) -> DeviceInfo {
         DeviceInfo {
             id: id.to_string(),
@@ -1056,13 +1152,9 @@ mod tests {
         assert!(drivers_for_device_type(DeviceType::FilterWheel).contains(&DriverType::Simulator));
         assert!(drivers_for_device_type(DeviceType::Rotator).contains(&DriverType::Simulator));
 
-        // Dome/safety/weather have no simulator singleton and must remain
-        // real-driver-only until their operation paths stop failing loudly.
-        assert!(!drivers_for_device_type(DeviceType::Dome).contains(&DriverType::Simulator));
-        assert!(
-            !drivers_for_device_type(DeviceType::SafetyMonitor).contains(&DriverType::Simulator)
-        );
-        assert!(!drivers_for_device_type(DeviceType::Weather).contains(&DriverType::Simulator));
+        assert!(drivers_for_device_type(DeviceType::Dome).contains(&DriverType::Simulator));
+        assert!(drivers_for_device_type(DeviceType::SafetyMonitor).contains(&DriverType::Simulator));
+        assert!(drivers_for_device_type(DeviceType::Weather).contains(&DriverType::Simulator));
 
         // Guider has its own focused driver set (Native covers the built-in
         // guider + PHD2; INDI covers INDI guiders). It must not request
@@ -1083,14 +1175,14 @@ mod tests {
         assert_eq!(rotators[0].id, "sim_rotator_1");
         assert_eq!(rotators[0].driver_type, DriverType::Simulator);
 
-        assert!(
-            scan_simulator_for_type(DeviceType::Dome).is_empty(),
-            "dome must stay hidden until it has simulator operations",
-        );
-        assert!(
-            scan_simulator_for_type(DeviceType::SafetyMonitor).is_empty(),
-            "safety monitor must stay hidden until it has simulator operations",
-        );
+        let dome = scan_simulator_for_type(DeviceType::Dome);
+        assert_eq!(dome[0].id, "sim_dome_1");
+
+        let weather = scan_simulator_for_type(DeviceType::Weather);
+        assert_eq!(weather[0].id, "sim_weather_1");
+
+        let safety = scan_simulator_for_type(DeviceType::SafetyMonitor);
+        assert_eq!(safety[0].id, "sim_safety_monitor_1");
     }
 
     /// A fresh cache entry within TTL must be returned without rescanning the

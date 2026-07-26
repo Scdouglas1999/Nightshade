@@ -255,8 +255,11 @@ mixin _MobileReconnectOps on _MobileConnectionState {
 
   @override
   Future<void> _connectToServer(DiscoveredServer server) async {
+    if (!mounted) return;
+    final operationGeneration = ++_connectionOperationGeneration;
     setState(() {
       _statusMessage = 'Connecting to ${server.name}...';
+      _error = null;
     });
 
     try {
@@ -266,6 +269,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
       // to connect for this session but refuse to write the server to
       // disk (next launch should re-discover or re-prompt).
       final fetched = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+      if (!_isCurrentConnectionOperation(operationGeneration)) return;
       var enrichedServer = fetched ?? server;
       final compatibility = NightshadeServerCompatibility.check(
         enrichedServer.apiVersion ?? enrichedServer.version,
@@ -303,6 +307,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
               pinnedFingerprint: enrichedServer.fingerprint,
             );
             final lanResult = await lanPairing.lanClaim();
+            if (!_isCurrentConnectionOperation(operationGeneration)) return;
             if (lanResult != null &&
                 lanResult.success &&
                 lanResult.token != null &&
@@ -321,7 +326,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
             // Fail-closed: the lan-claim pre-flight refused the identity.
             // Surface it rather than silently dropping to the code dialog —
             // a mismatch means the host we reached is not the one we trust.
-            if (!mounted) return;
+            if (!_isCurrentConnectionOperation(operationGeneration)) return;
             setState(() {
               _isDiscovering = false;
               _statusMessage = '';
@@ -339,6 +344,8 @@ mixin _MobileReconnectOps on _MobileConnectionState {
           }
         }
 
+        if (!_isCurrentConnectionOperation(operationGeneration)) return;
+
         if (authToken == null || authToken.isEmpty) {
           final pairedToken = await _pairWithServer(
             host: enrichedServer.host,
@@ -350,6 +357,7 @@ mixin _MobileReconnectOps on _MobileConnectionState {
             // path.
             pinnedFingerprint: enrichedServer.fingerprint,
           );
+          if (!_isCurrentConnectionOperation(operationGeneration)) return;
           if (pairedToken == null) {
             return;
           }
@@ -369,40 +377,10 @@ mixin _MobileReconnectOps on _MobileConnectionState {
         // rigs keep scheme=='http' and probe unchanged.
         scheme: enrichedServer.scheme,
       );
+      if (!_isCurrentConnectionOperation(operationGeneration)) return;
 
       if (isReachable) {
         developer.log('Connection successful!', name: 'Discovery', level: 800);
-
-        // Update state
-        setState(() {
-          _connectedServer = enrichedServer;
-          _isDiscovering = false;
-          _statusMessage = '';
-        });
-
-        if (fetched != null) {
-          // Only persist after fetchServerInfo confirmed real metadata.
-          // Otherwise we'd cache the synthetic manual-entry defaults
-          // (version='unknown' / placeholder signalingPort) rather than the
-          // server's real values.
-          await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
-          // Saved Servers is the single source of truth for the roaming list:
-          // mirror the same record there so a rig paired through the normal
-          // connect flow shows up in the Saved Servers screen, not just in the
-          // legacy single "last server" slot. A relay session is persisted
-          // separately by _connectViaRelay via upsertRelay (keyed on the
-          // relay URL + appliance id), so skip the direct upsert for the
-          // synthetic loopback host a relay tunnel exposes.
-          if (_activeRelayTunnel == null) {
-            await _upsertSavedServer(enrichedServer);
-          }
-        } else {
-          developer.log(
-            'Skipping saveLastServer — /api/info did not return metadata',
-            name: 'Discovery',
-            level: 900,
-          );
-        }
 
         // Update global backend state to use NetworkBackend.
         //
@@ -418,38 +396,98 @@ mixin _MobileReconnectOps on _MobileConnectionState {
         final collabIdentity = await _buildCollaborationIdentity(
           enrichedServer.authToken,
         );
-        await ref
-            .read(backendProvider.notifier)
-            .connect(
-              enrichedServer.host,
-              enrichedServer.webPort,
-              authToken: enrichedServer.authToken,
-              // Carry the transport scheme so a TLS-fronted tailnet host is
-              // dialled over wss, not plain ws. NetworkBackend classifies the
-              // host (LAN vs tailnet) itself for timeout tuning.
-              scheme: enrichedServer.scheme,
-              // Pin the server identity (when /api/info advertised one) so the
-              // handshake verifies it before opening the socket — a mismatch
-              // becomes a terminal identity error rather than a connect. This
-              // is the MITM defense on the tailnet / Internet-reachable path.
-              pinnedFingerprint: enrichedServer.fingerprint,
-              collaborationViewerId: collabIdentity.viewerId,
-              collaborationDeviceName: collabIdentity.deviceName,
-              collaborationDisplayName: collabIdentity.displayName,
+        if (!_isCurrentConnectionOperation(operationGeneration)) return;
+        final backendNotifier = ref.read(backendProvider.notifier);
+        await backendNotifier.connect(
+          enrichedServer.host,
+          enrichedServer.webPort,
+          authToken: enrichedServer.authToken,
+          // Carry the transport scheme so a TLS-fronted tailnet host is
+          // dialled over wss, not plain ws. NetworkBackend classifies the
+          // host (LAN vs tailnet) itself for timeout tuning.
+          scheme: enrichedServer.scheme,
+          // Pin the server identity (when /api/info advertised one) so the
+          // handshake verifies it before opening the socket — a mismatch
+          // becomes a terminal identity error rather than a connect.
+          pinnedFingerprint: enrichedServer.fingerprint,
+          collaborationViewerId: collabIdentity.viewerId,
+          collaborationDeviceName: collabIdentity.deviceName,
+          collaborationDisplayName: collabIdentity.displayName,
+        );
+        final connectedBackend = backendNotifier.currentBackend;
+        if (!_isCurrentConnectionOperation(operationGeneration) ||
+            !backendNotifier.isCurrentBackend(connectedBackend)) {
+          return;
+        }
+
+        // A reachable /api/info probe is not a live session. Publish the
+        // selected server only after the WebSocket handshake above succeeds.
+        setState(() {
+          _connectedServer = enrichedServer;
+          _isDiscovering = false;
+          _statusMessage = '';
+          // The manual form did its job. Leaving it latched meant that after
+          // any manual connect the flag stayed true for the rest of the app's
+          // life, and the "don't fight the operator while they are typing"
+          // guard on the lost-session auto-retry then suppressed every retry
+          // forever — the app sat on "Retrying automatically" without ever
+          // actually retrying.
+          _showManualEntry = false;
+          _lostSessionServer = null;
+        });
+
+        if (fetched != null) {
+          // Persistence is secondary to the already-live session. A disk or
+          // keychain failure must not turn a successful connection into a
+          // misleading connection error.
+          try {
+            await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
+          } catch (e, stackTrace) {
+            developer.log(
+              'Could not cache connected server for startup reconnect: $e',
+              name: 'Discovery',
+              level: 1000,
+              error: e,
+              stackTrace: stackTrace,
             );
+          }
+          if (!_isCurrentConnectionOperation(operationGeneration) ||
+              !backendNotifier.isCurrentBackend(connectedBackend)) {
+            return;
+          }
+          // Relay sessions are persisted by _connectViaRelay under their
+          // stable relay identity, not their ephemeral loopback port.
+          if (_activeRelayTunnel == null) {
+            await _upsertSavedServer(enrichedServer);
+          }
+          if (!_isCurrentConnectionOperation(operationGeneration) ||
+              !backendNotifier.isCurrentBackend(connectedBackend)) {
+            return;
+          }
+        } else {
+          developer.log(
+            'Skipping saveLastServer — /api/info did not return metadata',
+            name: 'Discovery',
+            level: 900,
+          );
+        }
 
         // Start monitoring the WS heartbeat
         _startConnectionMonitor();
 
-        // Phase E (iOS): register this device's APNs token with the desktop so
-        // it can deliver cellular critical alerts when the phone is asleep and
-        // out of LAN-UDP push range. No-op on non-iOS and best-effort (never
-        // throws) — a registration failure must not affect the live session.
-        unawaited(_registerPushTokenIfIos());
+        // Register this device's push token (APNs/FCM) with the desktop so it
+        // can deliver critical alerts when the phone is asleep and out of
+        // LAN-UDP push range. No-op off iOS/Android (and on unprovisioned FCM
+        // builds) and best-effort (never throws) — a registration failure
+        // must not affect the live session.
+        unawaited(_registerPushToken());
 
         // Reload host-backed providers now that NetworkBackend is live.
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
+          if (!_isCurrentConnectionOperation(operationGeneration) ||
+              !backendNotifier.isCurrentBackend(connectedBackend)) {
+            return;
+          }
           ref.invalidate(appSettingsProvider);
           ref.invalidate(equipmentProfilesProvider);
         });
@@ -467,7 +505,10 @@ mixin _MobileReconnectOps on _MobileConnectionState {
               'Could not connect to ${enrichedServer.host}:${enrichedServer.webPort}\n\nServer may be offline, or this device is not authorized.$authMessage';
         });
       }
+    } on BackendTransitionSupersededException {
+      return;
     } catch (e, stackTrace) {
+      if (!_isCurrentConnectionOperation(operationGeneration)) return;
       developer.log(
         'Connection error: $e',
         name: 'Discovery',
@@ -483,7 +524,8 @@ mixin _MobileReconnectOps on _MobileConnectionState {
     }
   }
 
-  void _skipConnection() {
+  Future<void> _skipConnection() async {
+    ++_connectionOperationGeneration;
     setState(() {
       _skippedConnection = true;
       _isDiscovering = false;
@@ -493,7 +535,16 @@ mixin _MobileReconnectOps on _MobileConnectionState {
     // connect to a (possibly different) desktop re-POSTs the token rather than
     // assuming it is already registered there (Blocker #8).
     _pushRegistration?.reset();
-    ref.read(backendProvider.notifier).disconnect();
+    try {
+      await ref.read(backendProvider.notifier).disconnect();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _skippedConnection = false;
+        _error = 'Cannot leave this host yet: $e';
+      });
+      return;
+    }
     // v4 relay: tear down any active loopback tunnel on explicit skip.
     unawaited(_closeActiveRelayTunnel());
   }
@@ -515,38 +566,40 @@ mixin _MobileReconnectOps on _MobileConnectionState {
         // Get checkpoint info
         final info = await executor.getCheckpointInfo();
         if (info == null || !info.canResume) return;
+        if (!context.mounted) return;
 
-        // Show dialog to user
-        if (context.mounted) {
+        // Keep recovery actionable until the selected operation succeeds.
+        // Closing the prompt before a failed resume/discard used to strand
+        // the checkpoint for the rest of this connection because
+        // `_checkpointChecked` remains true.
+        while (true) {
+          if (!context.mounted) return;
           final shouldResume = await CheckpointResumeDialog.show(context, info);
+          if (shouldResume == null || !context.mounted) return;
 
-          if (shouldResume == true) {
-            // Resume from checkpoint
-            try {
+          try {
+            if (shouldResume) {
               await executor.resumeFromCheckpoint();
-              if (context.mounted) {
-                final colors = Theme.of(context).extension<NightshadeColors>();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Sequence resumed from checkpoint'),
-                    backgroundColor:
-                        colors?.success ??
-                        Theme.of(context).colorScheme.primary,
-                  ),
-                );
-              }
-            } catch (e) {
-              // [error parsing] — surface parsed ServerError
-              // {code, message} via the shared mobile helper so the
-              // operator sees a machine-actionable code instead of
-              // "Exception: Future was already completed."
-              if (context.mounted) {
-                showApiErrorWithPrefix(context, 'Failed to resume', e);
-              }
+              if (!context.mounted) return;
+              final colors = Theme.of(context).extension<NightshadeColors>();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Sequence resumed from checkpoint'),
+                  backgroundColor:
+                      colors?.success ?? Theme.of(context).colorScheme.primary,
+                ),
+              );
+            } else {
+              await executor.discardCheckpoint();
             }
-          } else if (shouldResume == false) {
-            // Discard checkpoint
-            await executor.discardCheckpoint();
+            return;
+          } catch (e) {
+            if (!context.mounted) return;
+            showApiErrorWithPrefix(
+              context,
+              shouldResume ? 'Failed to resume' : 'Failed to discard',
+              e,
+            );
           }
         }
       } catch (e) {

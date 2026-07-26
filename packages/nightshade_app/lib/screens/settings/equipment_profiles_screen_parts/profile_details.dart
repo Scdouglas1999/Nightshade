@@ -11,7 +11,7 @@ class _ProfileDetails extends ConsumerStatefulWidget {
   final VoidCallback onDuplicate;
   final VoidCallback onDelete;
   final VoidCallback onExport;
-  final VoidCallback onRefresh;
+  final Future<bool> Function(int, NightshadeBackend) onRefresh;
   final bool isMobile;
   final VoidCallback? onBack;
 
@@ -46,7 +46,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
   late int _binX;
   late int _binY;
   late List<TextEditingController> _filterControllers;
-  late Map<String, TextEditingController> _filterOffsetControllers;
+  late List<TextEditingController> _filterOffsetControllers;
 
   // Device IDs for editing
   late String? _cameraId;
@@ -59,6 +59,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
   late String? _weatherId;
   bool _isSyncingFilters = false;
 
+  // In-flight guard for the Save button: prevents a double-tap from issuing two
+  // updateProfile calls, and drives the button's disabled/loading state.
+  bool _isSaving = false;
+  int _operationGeneration = 0;
+
   @override
   void initState() {
     super.initState();
@@ -68,7 +73,14 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
   @override
   void didUpdateWidget(_ProfileDetails oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.profile.id != widget.profile.id) {
+    if (oldWidget.profile.id != widget.profile.id ||
+        (oldWidget.isEditing && !widget.isEditing)) {
+      if (oldWidget.profile.id != widget.profile.id) {
+        _operationGeneration++;
+        _isSaving = false;
+        _isSyncingFilters = false;
+      }
+      _disposeControllers();
       _initControllers();
     }
   }
@@ -95,13 +107,14 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             .map((f) => TextEditingController(text: f))
             .toList();
 
-    // Initialize filter focus offset controllers
-    _filterOffsetControllers = {};
-    for (final filterName in widget.profile.filterNames) {
-      final offset = widget.profile.filterFocusOffsets[filterName] ?? 0;
-      _filterOffsetControllers[filterName] =
-          TextEditingController(text: offset.toString());
-    }
+    // Focus offset controllers run parallel to _filterControllers so a rename
+    // keeps its offset (offsets are indexed, not keyed by filter name).
+    _filterOffsetControllers = widget.profile.filterNames.isEmpty
+        ? [TextEditingController(text: '0')]
+        : widget.profile.filterNames.map((f) {
+            final offset = widget.profile.filterFocusOffsets[f] ?? 0;
+            return TextEditingController(text: offset.toString());
+          }).toList();
 
     // Initialize device IDs
     _cameraId = widget.profile.cameraId;
@@ -114,8 +127,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
     _weatherId = widget.profile.weatherId;
   }
 
-  @override
-  void dispose() {
+  void _disposeControllers() {
     _nameController.dispose();
     _descController.dispose();
     _focalLengthController.dispose();
@@ -126,40 +138,105 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
     for (final c in _filterControllers) {
       c.dispose();
     }
-    for (final c in _filterOffsetControllers.values) {
+    for (final c in _filterOffsetControllers) {
       c.dispose();
     }
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _disposeControllers();
     super.dispose();
   }
 
-  EquipmentProfileModel _buildUpdatedProfile() {
-    final filterNames = _filterControllers
-        .map((c) => c.text.trim())
-        .where((f) => f.isNotEmpty)
-        .toList();
+  bool _isCurrentOperation(
+    int generation,
+    int? profileId,
+    NightshadeBackend authority,
+  ) =>
+      mounted &&
+      generation == _operationGeneration &&
+      widget.profile.id == profileId &&
+      identical(ref.read(backendProvider), authority);
 
-    // Build filter focus offsets map
-    final filterFocusOffsets = <String, int>{};
-    for (final entry in _filterOffsetControllers.entries) {
-      final offset = int.tryParse(entry.value.text) ?? 0;
-      // Only include if the filter name is still in the list
-      if (filterNames.contains(entry.key)) {
-        filterFocusOffsets[entry.key] = offset;
-      }
+  /// Validate + normalize every edited field through the shared
+  /// [ProfileValidator] contract and return the updated model, or null (after
+  /// surfacing a summary error and leaving the editor in edit mode) when any
+  /// field is invalid. Called BEFORE any provider/DB write.
+  EquipmentProfileModel? _validateAndBuild() {
+    final nameResult = ProfileValidator.parseName(_nameController.text);
+    final focalResult =
+        ProfileValidator.parseFocalLength(_focalLengthController.text);
+    final apertureResult =
+        ProfileValidator.parseAperture(_apertureController.text);
+    final gainResult = ProfileValidator.parseOptionalWholeNonNegative(
+        _gainController.text,
+        label: 'Gain');
+    final offsetResult = ProfileValidator.parseOptionalWholeNonNegative(
+        _offsetController.text,
+        label: 'Offset');
+    final coolingResult =
+        ProfileValidator.parseCoolingTarget(_coolingController.text);
+    final binXResult = ProfileValidator.parseBinning(_binX, label: 'Binning X');
+    final binYResult = ProfileValidator.parseBinning(_binY, label: 'Binning Y');
+
+    // Filter names and offsets share an index with the parallel controller
+    // lists; zip them into rows for the shared validator.
+    final filterResult = ProfileValidator.parseFilterRows([
+      for (var i = 0; i < _filterControllers.length; i++)
+        ProfileFilterRowInput(
+          name: _filterControllers[i].text,
+          offset: i < _filterOffsetControllers.length
+              ? _filterOffsetControllers[i].text
+              : '',
+        ),
+    ]);
+
+    // Individually in-range optics can still describe an impossible system, so
+    // cross-check the pair through the same shared contract once both parsed.
+    final trainError = focalResult.isValid && apertureResult.isValid
+        ? ProfileValidator.validateOpticalTrain(
+            focalLengthMm: focalResult.value!,
+            apertureMm: apertureResult.value!,
+          )
+        : null;
+
+    final errors = <String>[
+      if (!nameResult.isValid) nameResult.error!,
+      if (!focalResult.isValid) focalResult.error!,
+      if (!apertureResult.isValid) apertureResult.error!,
+      if (trainError != null) trainError,
+      if (!gainResult.isValid) gainResult.error!,
+      if (!offsetResult.isValid) offsetResult.error!,
+      if (!coolingResult.isValid) coolingResult.error!,
+      if (!binXResult.isValid) binXResult.error!,
+      if (!binYResult.isValid) binYResult.error!,
+      if (!filterResult.isValid) ...filterResult.errors,
+    ];
+
+    if (errors.isNotEmpty) {
+      context.showErrorSnackBar(errors.join('\n'));
+      return null;
     }
 
+    final focalLength = focalResult.value!;
+    final aperture = apertureResult.value!;
+    final description = _descController.text.trim();
+
     return widget.profile.copyWith(
-      name: _nameController.text,
-      description: _descController.text.isEmpty ? null : _descController.text,
-      focalLength: double.tryParse(_focalLengthController.text) ?? 0,
-      aperture: double.tryParse(_apertureController.text) ?? 0,
-      defaultGain: int.tryParse(_gainController.text),
-      defaultOffset: int.tryParse(_offsetController.text),
-      defaultCoolingTemp: double.tryParse(_coolingController.text),
-      defaultBinX: _binX,
-      defaultBinY: _binY,
-      filterNames: filterNames,
-      filterFocusOffsets: filterFocusOffsets,
+      name: nameResult.value!,
+      description: description.isEmpty ? null : description,
+      focalLength: focalLength,
+      aperture: aperture,
+      focalRatio: aperture > 0 ? focalLength / aperture : null,
+      defaultGain: gainResult.value,
+      defaultOffset: offsetResult.value,
+      defaultCoolingTemp: coolingResult.value,
+      defaultBinX: binXResult.value,
+      defaultBinY: binYResult.value,
+      filterNames: filterResult.config!.names,
+      filterFocusOffsets: filterResult.config!.offsets,
       cameraId: _cameraId,
       mountId: _mountId,
       focuserId: _focuserId,
@@ -171,33 +248,70 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
     );
   }
 
+  /// Validate, then persist through the parent's [onSave]. Guards against
+  /// duplicate in-flight submissions, keeps the editor open + retryable on
+  /// failure, and only reports success after the save actually completes.
+  Future<void> _handleSave() async {
+    if (_isSaving) return; // in-flight guard: ignore duplicate taps
+    final updated = _validateAndBuild();
+    if (updated == null) return; // invalid — stay in edit mode, errors shown
+
+    final profileId = widget.profile.id;
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
+    setState(() => _isSaving = true);
+    try {
+      await widget.onSave(updated);
+      if (mounted && _isCurrentOperation(generation, profileId, authority)) {
+        context.showSuccessSnackBar('Profile saved successfully');
+      }
+    } catch (e) {
+      if (mounted && _isCurrentOperation(generation, profileId, authority)) {
+        context.showErrorSnackBar('Failed to save profile: $e');
+      }
+    } finally {
+      if (_isCurrentOperation(generation, profileId, authority)) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   Future<void> _syncFiltersFromHardware() async {
     if (_isSyncingFilters) return;
 
+    final profileId = widget.profile.id;
+    if (profileId == null) {
+      context.showErrorSnackBar('Save this profile before syncing filters');
+      return;
+    }
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
     setState(() => _isSyncingFilters = true);
 
     try {
       final profileService = ref.read(profileServiceProvider);
-      final synced =
-          await profileService.syncFiltersToProfile(widget.profile.id!);
+      final synced = await profileService.syncFiltersToProfile(profileId);
+
+      if (!_isCurrentOperation(generation, profileId, authority)) return;
 
       if (synced) {
-        // Refresh the profile to get the updated filter names
-        widget.onRefresh();
-        if (mounted) {
+        final refreshed = await widget.onRefresh(profileId, authority);
+        if (mounted &&
+            refreshed &&
+            _isCurrentOperation(generation, profileId, authority)) {
           context.showSuccessSnackBar('Filters synced from hardware');
         }
       } else {
-        if (mounted) {
+        if (mounted && _isCurrentOperation(generation, profileId, authority)) {
           context.showWarningSnackBar('No filter wheel connected');
         }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _isCurrentOperation(generation, profileId, authority)) {
         context.showErrorSnackBar('Failed to sync filters: $e');
       }
     } finally {
-      if (mounted) {
+      if (_isCurrentOperation(generation, profileId, authority)) {
         setState(() => _isSyncingFilters = false);
       }
     }

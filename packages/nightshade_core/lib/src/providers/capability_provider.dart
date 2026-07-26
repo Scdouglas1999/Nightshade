@@ -20,8 +20,12 @@ final mountCapabilitiesProvider =
       return backend.getMountCapabilities(deviceId);
     });
 
-/// Default binning options when no capabilities are available
-const List<String> defaultBinningOptions = ['1x1', '2x2', '3x3', '4x4'];
+/// Safe binning option while capabilities are unavailable or unsupported.
+///
+/// Advertising 2x2–4x4 without a driver capability was a fabricated default:
+/// selecting one could send an invalid command to cameras that only support
+/// native 1x1. Unknown capability must fail closed.
+const List<String> defaultBinningOptions = ['1x1'];
 
 /// Generate binning options based on camera capabilities
 ///
@@ -31,7 +35,7 @@ const List<String> defaultBinningOptions = ['1x1', '2x2', '3x3', '4x4'];
 List<String> getBinningOptionsFromCapabilities(
   CameraCapabilities? capabilities,
 ) {
-  // If no capabilities or binning not supported, return defaults
+  // Unknown or explicitly unsupported binning must not fabricate controls.
   if (capabilities == null || !capabilities.canBin) {
     return defaultBinningOptions;
   }
@@ -39,7 +43,7 @@ List<String> getBinningOptionsFromCapabilities(
   final maxBinX = capabilities.maxBinX;
   final maxBinY = capabilities.maxBinY;
 
-  // If max values are unreasonable, return defaults
+  // Invalid driver ranges are capability-unknown, so retain only native 1x1.
   if (maxBinX < 1 || maxBinY < 1 || maxBinX > 8 || maxBinY > 8) {
     return defaultBinningOptions;
   }

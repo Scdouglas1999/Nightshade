@@ -57,6 +57,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   // Local capture state
   bool _isLooping = false;
   bool _isSingleCapture = false;
+  bool _singleCapturePreviewReady = false;
+  bool _isStoppingCapture = false;
+  ImagingService? _manualCaptureService;
 
   void _update(VoidCallback callback) => setState(callback);
 
@@ -77,6 +80,14 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
 
   @override
   void dispose() {
+    if ((_isSingleCapture || _isLooping) && _manualCaptureService != null) {
+      // Manual capture belongs to this screen. In particular, a Loop must not
+      // keep exposing indefinitely after navigation removes its only Stop
+      // control. ImagingService targets the backend/device admitted at start.
+      // ConsumerState.ref is already invalid while Riverpod unmounts this
+      // element, so retain the service admitted by the active action.
+      _manualCaptureService!.cancelExposure();
+    }
     _fadeController.dispose();
     super.dispose();
   }
@@ -236,6 +247,14 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                         constraints.maxWidth >= 560;
                 if (controlsInLandscapeSplit) return panel;
                 return Column(
+                  // Stretch, for the same reason _buildPreviewColumn stretches:
+                  // a Column defaults to CrossAxisAlignment.center and hands
+                  // its children LOOSE width constraints. The capture bar then
+                  // shrink-wrapped to its Wrap's widest run (292dp) and sat
+                  // CENTRED on a 411dp phone, so its surface fill and top
+                  // border stopped ~60dp short of each edge and the preview's
+                  // black showed through either side of the toolbar.
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: panel),
                     _buildPhoneCaptureBar(colors),
@@ -267,6 +286,11 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
         // panel which dropped the whole Stats section below ~600px.
         final showStats =
             constraints.maxWidth >= BreakpointTokens.breakpointPhone;
+        // The shared shell can leave this pane shorter than the toolbar while
+        // a route field owns the keyboard. In that state the image toolbar is
+        // not actionable; give its height to the preview instead of letting a
+        // fixed row overflow over the focused controls pane.
+        final showPreviewToolbar = constraints.maxHeight >= 96;
         return Column(
           // Stretch so every child (toolbar, preview, control banner) gets a
           // TIGHT width equal to the column. Without this the column defaults
@@ -282,19 +306,20 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             // Slim off-canvas toolbar above the preview — status readouts,
             // Overlays menu, annotate toggle and view controls live here so the
             // image canvas itself stays unobstructed.
-            ImagingPreviewToolbar(
-              colors: colors,
-              zoomLevel: viewerState.zoomLevel,
-              showCrosshair: viewerState.showCrosshair,
-              showStarOverlay: viewerState.showStarOverlay,
-              onZoomIn: _zoomIn,
-              onZoomOut: _zoomOut,
-              onFitToWindow: _fitToWindow,
-              onZoom1to1: _zoom1to1,
-              onAbortCapture: _abortCapture,
-              onToggleCrosshair: _viewer.toggleCrosshair,
-              onToggleStarOverlay: _viewer.toggleStarOverlay,
-            ),
+            if (showPreviewToolbar)
+              ImagingPreviewToolbar(
+                colors: colors,
+                zoomLevel: viewerState.zoomLevel,
+                showCrosshair: viewerState.showCrosshair,
+                showStarOverlay: viewerState.showStarOverlay,
+                onZoomIn: _zoomIn,
+                onZoomOut: _zoomOut,
+                onFitToWindow: _fitToWindow,
+                onZoom1to1: _zoom1to1,
+                onAbortCapture: _abortCapture,
+                onToggleCrosshair: _viewer.toggleCrosshair,
+                onToggleStarOverlay: _viewer.toggleStarOverlay,
+              ),
             // Live preview area — dominant, absorbs all free height.
             Expanded(
               child: LivePreviewArea(
@@ -324,6 +349,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   colors: colors,
                   isLooping: _isLooping,
                   isSingleCapture: _isSingleCapture,
+                  isSavingCapture: _singleCapturePreviewReady,
+                  isStoppingCapture: _isStoppingCapture,
                   showStats: showStats,
                   onSnapshot: _takeSnapshot,
                   onToggleLoop: _toggleLoop,
@@ -391,8 +418,17 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
               compact: phone,
             );
             if (constraints.maxHeight.isFinite) {
+              // PanelTabs is a fixed two-row grid (~78 px). When the outer
+              // shell has already consumed the keyboard inset, keeping that
+              // grid can leave the focused Capture field zero height. Hide the
+              // navigation chrome in the tiny transient viewport and dedicate
+              // all remaining room to the scrollable active tab.
+              final showTabs = constraints.maxHeight >= 140;
               return Column(
-                children: [tabs, Expanded(child: stack)],
+                children: [
+                  if (showTabs) tabs,
+                  Expanded(child: stack),
+                ],
               );
             }
             final bodyHeight = MediaQuery.sizeOf(context).height * 0.52;
@@ -478,7 +514,13 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   icon: _isSingleCapture
                       ? NightshadeIcons.loading
                       : NightshadeIcons.camera,
-                  label: _isSingleCapture ? 'Taking...' : 'Snapshot$hostSuffix',
+                  label: _isSingleCapture
+                      ? (_isStoppingCapture
+                          ? 'Stopping...'
+                          : _singleCapturePreviewReady
+                              ? 'Saving...'
+                              : 'Taking...')
+                      : 'Snapshot$hostSuffix',
                   color: colors.primary,
                   isLoading: _isSingleCapture,
                   isEnabled: isConnected && !isCapturing,
@@ -491,10 +533,19 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 width: 120,
                 child: BigActionButton(
                   key: ImagingTutorialKeys.loopBtn,
-                  icon: _isLooping ? NightshadeIcons.stop : LucideIcons.video,
-                  label: _isLooping ? 'Stop' : 'Loop',
+                  icon: _isStoppingCapture
+                      ? NightshadeIcons.loading
+                      : _isLooping
+                          ? NightshadeIcons.stop
+                          : LucideIcons.video,
+                  label: _isStoppingCapture
+                      ? 'Stopping...'
+                      : _isLooping
+                          ? 'Stop'
+                          : 'Loop',
                   color: _isLooping ? colors.error : colors.accent,
-                  isEnabled: isConnected && !_isSingleCapture,
+                  isEnabled:
+                      isConnected && !_isSingleCapture && !_isStoppingCapture,
                   onPressed: _toggleLoop,
                   isMobile: true,
                 ),

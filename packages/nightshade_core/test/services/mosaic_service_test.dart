@@ -432,6 +432,58 @@ void main() {
       expect(targetGroups.length, equals(4)); // 2x2 grid
     });
 
+    test('stamps panel identity and a complete parent-child graph', () {
+      const config = MosaicConfig(
+        centerRa: 12.0,
+        centerDec: 30.0,
+        panelWidthArcmin: 60.0,
+        panelHeightArcmin: 40.0,
+        panelsHorizontal: 2,
+        panelsVertical: 2,
+      );
+      const exposure = MosaicExposureSettings(
+        exposureSeconds: 60.0,
+        exposuresPerPanel: 10,
+      );
+
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'Test Mosaic',
+        config: config,
+        exposure: exposure,
+      );
+      final root = nodes.values.whereType<InstructionSetNode>().single;
+      final headers = nodes.values.whereType<TargetHeaderNode>().toList()
+        ..sort(
+          (a, b) =>
+              a.mosaicPanel!.panelIndex.compareTo(b.mosaicPanel!.panelIndex),
+        );
+
+      expect(root.childIds, hasLength(4));
+      expect(headers, hasLength(4));
+      for (var i = 0; i < headers.length; i++) {
+        final header = headers[i];
+        expect(header.parentId, root.id);
+        expect(root.childIds.where((id) => id == header.id), hasLength(1));
+        expect(
+          header.mosaicPanel,
+          const MosaicPanelInfo(
+            mosaicName: 'Test Mosaic',
+            panelIndex: 0,
+            totalPanels: 4,
+            row: 0,
+            column: 0,
+          ).copyWith(panelIndex: i, row: i ~/ 2, column: i % 2),
+        );
+      }
+
+      for (final node in nodes.values) {
+        if (node.id == root.id) continue;
+        final parent = nodes[node.parentId];
+        expect(parent, isNotNull, reason: '${node.name} has no parent');
+        expect(parent!.childIds.where((id) => id == node.id), hasLength(1));
+      }
+    });
+
     test('generates sequence with slew and center nodes', () {
       const config = MosaicConfig(
         centerRa: 12.0,

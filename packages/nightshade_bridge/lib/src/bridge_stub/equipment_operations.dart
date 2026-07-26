@@ -679,11 +679,17 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
   }
 
   /// Plate solve blind
-  Future<PlateSolveResult> plateSolveBlind(String filePath) async {
+  Future<PlateSolveResult> plateSolveBlind(
+    String filePath, [
+    int? timeoutSeconds,
+  ]) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('plateSolveBlind');
     }
-    return gen_api.apiPlateSolveBlind(filePath: filePath);
+    return gen_api.apiPlateSolveBlind(
+      filePath: filePath,
+      timeoutSecs: timeoutSeconds,
+    );
   }
 
   /// Plate solve near coordinates
@@ -691,8 +697,9 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     String filePath,
     double hintRa,
     double hintDec,
-    double searchRadius,
-  ) async {
+    double searchRadius, [
+    int? timeoutSeconds,
+  ]) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('plateSolveNear');
     }
@@ -701,6 +708,7 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
       hintRa: hintRa,
       hintDec: hintDec,
       searchRadius: searchRadius,
+      timeoutSecs: timeoutSeconds,
     );
   }
 

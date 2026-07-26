@@ -29,6 +29,9 @@
 mod math;
 mod preview;
 
+pub use math::{
+    calculate_alignment_error_arcmin, calculate_center_of_rotation, rotate_axis_by_star_motion,
+};
 pub use preview::prepare_image_for_display;
 
 use crate::wizard::{
@@ -64,10 +67,30 @@ pub struct PolarAlignConfig {
     pub gain: Option<i32>,
     pub offset: Option<i32>,
     pub binning: Option<i32>,
+    // These three were added after the original config shape shipped, so
+    // sequence JSON authored before the serializer emitted them (or by an
+    // older client) must still deserialize — without the defaults a single
+    // Polar Alignment node hard-failed the WHOLE sequence load with
+    // "missing field `start_from_current`". Defaults mirror `Default`.
+    #[serde(default = "default_start_from_current")]
     pub start_from_current: bool,
+    #[serde(default = "default_is_north")]
     pub is_north: bool,
     /// Auto-complete threshold in arcseconds (default 30").
+    #[serde(default = "default_auto_complete_threshold")]
     pub auto_complete_threshold: f64,
+}
+
+fn default_start_from_current() -> bool {
+    true
+}
+
+fn default_is_north() -> bool {
+    true
+}
+
+fn default_auto_complete_threshold() -> f64 {
+    30.0
 }
 
 impl Default for PolarAlignConfig {
@@ -530,4 +553,32 @@ pub async fn perform_polar_alignment(
     let executor = WizardExecutor::new(&progress, &SINK);
     let (result, _status) = executor.run(wizard, ctx).await;
     result
+}
+
+#[cfg(test)]
+mod config_serde_tests {
+    use super::PolarAlignConfig;
+
+    /// Sequence JSON authored before the serializer emitted
+    /// `start_from_current` / `is_north` / `auto_complete_threshold` (or by an
+    /// older client) must still deserialize — without the serde defaults a
+    /// single Polar Alignment node hard-failed the WHOLE sequence load.
+    #[test]
+    fn legacy_config_without_late_fields_deserializes_to_defaults() {
+        let legacy = r#"{
+            "step_size": 20.0,
+            "exposure_time": 2.0,
+            "solve_timeout": 60.0,
+            "manual_rotation": false,
+            "rotate_east": true,
+            "gain": null,
+            "offset": null,
+            "binning": 2
+        }"#;
+        let cfg: PolarAlignConfig =
+            serde_json::from_str(legacy).expect("legacy polar config must parse");
+        assert!(cfg.start_from_current);
+        assert!(cfg.is_north);
+        assert!((cfg.auto_complete_threshold - 30.0).abs() < 1e-9);
+    }
 }

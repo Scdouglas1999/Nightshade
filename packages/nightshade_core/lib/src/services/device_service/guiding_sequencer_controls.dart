@@ -5,10 +5,12 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
   // Guiding Control
   // ===========================================================================
 
-  /// Get the connected guider device ID
-  /// First checks the currently connected guider state, then falls back to active profile
-  Future<String?> _getGuiderDeviceId() async {
-    // First check if we have a currently connected guider
+  /// Get the live connected guider device ID.
+  ///
+  /// A profile records configuration, not connection authority. Falling back
+  /// to its guider id would dispatch commands to a stale/unopened driver after
+  /// a disconnect or host/profile transition.
+  String? _getGuiderDeviceId() {
     final guiderState = _ref.read(guiderStateProvider);
     if (guiderState.connectionState == DeviceConnectionState.connected &&
         guiderState.deviceId != null &&
@@ -16,7 +18,7 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
       return guiderState.deviceId;
     }
 
-    return _activeProfileDeviceId((profile) => profile.guiderId);
+    return null;
   }
 
   /// Start guiding
@@ -25,13 +27,13 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    final deviceId = await _getGuiderDeviceId();
+    final deviceId = _getGuiderDeviceId();
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No guider connected');
     }
 
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.guideSettle,
       description: 'Starting guiding and settling',
       currentStep: 'Calibrating...',
@@ -48,13 +50,16 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
       final guiderNotifier = _ref.read(guiderStateProvider.notifier);
       guiderNotifier.setGuiding(true);
     } finally {
-      operationsNotifier.completeOperation(OperationType.guideSettle);
+      operationsNotifier.completeOperation(
+        OperationType.guideSettle,
+        operationId: operationId,
+      );
     }
   }
 
   /// Stop guiding
   Future<void> _stopGuiding() async {
-    final deviceId = await _getGuiderDeviceId();
+    final deviceId = _getGuiderDeviceId();
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No guider connected');
     }
@@ -73,13 +78,13 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
     double settleTime = 10.0,
     double settleTimeout = 60.0,
   }) async {
-    final deviceId = await _getGuiderDeviceId();
+    final deviceId = _getGuiderDeviceId();
     if (deviceId == null || deviceId.isEmpty) {
       throw Exception('No guider connected');
     }
 
     final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
-    operationsNotifier.startOperation(
+    final operationId = operationsNotifier.startOperation(
       type: OperationType.dither,
       description: 'Dithering ${amount.toStringAsFixed(1)} px',
       currentStep: 'Moving...',
@@ -95,7 +100,10 @@ extension _DeviceServiceGuidingSequencerControls on DeviceService {
         settleTimeout: settleTimeout,
       );
     } finally {
-      operationsNotifier.completeOperation(OperationType.dither);
+      operationsNotifier.completeOperation(
+        OperationType.dither,
+        operationId: operationId,
+      );
     }
   }
 

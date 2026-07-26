@@ -558,14 +558,28 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
 
     let peak_above_bg = peak - ctx.background;
 
-    // Calculate sharpness: ratio of peak intensity to average flux per pixel
-    // Hot pixels have very high sharpness (most flux in one pixel)
-    // Real stars have lower sharpness (flux spread across many pixels)
-    let avg_flux_per_pixel = sum_flux / pixel_count as f64;
-    let sharpness = if avg_flux_per_pixel > 0.0 {
-        (peak_above_bg / avg_flux_per_pixel).min(1.0)
+    // Sharpness: the FRACTION of the source's flux sitting in its brightest
+    // pixel. A hot pixel puts nearly all of it there (→ ~1.0); a real star
+    // spreads it over its PSF (→ 0.1-0.5, as the field's docs state).
+    //
+    // This divided by the MEAN flux per pixel instead of the TOTAL, which
+    // inverts the discriminator: peak/mean exceeds 1 for ANY peaked source, so
+    // `.min(1.0)` pinned every real star at exactly 1.0 — above the 0.95
+    // default — while a single hot pixel (peak == mean over a 1-pixel footprint)
+    // scored 1.0 too. With `StarDetectionConfig::default()` the filter therefore
+    // rejected EVERYTHING: autofocus reported "Insufficient stars detected. Only
+    // 0 stars found (minimum: 10)", HFR-based grading and the HFR /
+    // focus-drift triggers had nothing to measure, and every frame logged "no
+    // stars detected for HFR calculation". Found while making the simulator emit
+    // a detectable star field: a clean 45-star Gaussian frame scored 0 stars
+    // under the default config and 40 under `max_sharpness: 1.1`.
+    //
+    // Dividing by total flux is bounded to (0, 1] by construction, so the clamp
+    // is now only a guard against floating-point overshoot.
+    let sharpness = if sum_flux > 0.0 {
+        (peak_above_bg / sum_flux).clamp(0.0, 1.0)
     } else {
-        1.0 // Default to high sharpness (reject) if can't calculate
+        1.0 // Default to high sharpness (reject) if it cannot be calculated
     };
 
     // Stamp the visited mask as the actual star aperture (audit IMG-).
@@ -1789,5 +1803,58 @@ mod tests {
         assert!(!visited[14 * width + 14]);
         // Inside on the diagonal: (10+2, 10+2) — distance √8 ≈ 2.83 < 4.
         assert!(visited[12 * width + 12]);
+    }
+
+    /// Regression: the sharpness filter must discriminate stars from hot pixels,
+    /// not reject everything.
+    ///
+    /// `sharpness` was `peak / mean_flux_per_pixel`, which exceeds 1 for any
+    /// peaked source and was then clamped to exactly 1.0 — above the 0.95
+    /// default — so `detect_stars_with_stats` returned ZERO stars for real star
+    /// fields. Downstream that read as "Insufficient stars detected. Only 0
+    /// stars found (minimum: 10)" from autofocus, no HFR for grading, and
+    /// nothing for the HFR / focus-drift triggers to measure.
+    #[test]
+    fn sharpness_passes_a_star_and_rejects_a_hot_pixel() {
+        const W: usize = 120;
+        const H: usize = 120;
+        const BG: u16 = 300;
+
+        // A Gaussian star: flux spread over its PSF.
+        let mut star = vec![BG; W * H];
+        let (cx, cy, sigma, amp) = (60.0f64, 60.0f64, 2.0f64, 20_000.0f64);
+        for y in 0..H {
+            for x in 0..W {
+                let r_sq = (x as f64 - cx).powi(2) + (y as f64 - cy).powi(2);
+                let v = amp * (-r_sq / (2.0 * sigma * sigma)).exp();
+                if v >= 1.0 {
+                    star[y * W + x] = star[y * W + x].saturating_add(v as u16);
+                }
+            }
+        }
+        let image = ImageData::from_u16(W as u32, H as u32, 1, &star);
+        let found = detect_stars_with_stats(&image, &StarDetectionConfig::default());
+        assert_eq!(
+            found.stars.len(),
+            1,
+            "a clean Gaussian star must be detected under the DEFAULT config"
+        );
+        let sharpness = found.stars[0].sharpness;
+        assert!(
+            sharpness > 0.0 && sharpness < 0.6,
+            "a star spreads its flux, so sharpness {sharpness} should be well              below the 0.95 hot-pixel bar"
+        );
+
+        // A single hot pixel: all of its flux in one pixel. It must NOT be
+        // reported as a star — here via the area floor, and its sharpness must
+        // sit at the top of the range rather than in star territory.
+        let mut hot = vec![BG; W * H];
+        hot[60 * W + 60] = 40_000;
+        let hot_image = ImageData::from_u16(W as u32, H as u32, 1, &hot);
+        let hot_found = detect_stars_with_stats(&hot_image, &StarDetectionConfig::default());
+        assert!(
+            hot_found.stars.is_empty(),
+            "a lone hot pixel must not be reported as a star"
+        );
     }
 }

@@ -282,6 +282,20 @@ void main() {
         friendlyNameFromDeviceId('alpaca:http://host:11111:filterwheel:0'),
         'Alpaca Filter Wheel',
       );
+      expect(
+        friendlyNameFromDeviceId(
+          'alpaca:http://host:11111:observingconditions:0',
+        ),
+        'Alpaca Weather Station',
+      );
+      expect(
+        friendlyNameFromDeviceId('alpaca:http://host:11111:safetymonitor:0'),
+        'Alpaca Safety Monitor',
+      );
+      expect(
+        friendlyNameFromDeviceId('alpaca:http://host:11111:camera:0'),
+        'Alpaca Camera',
+      );
       // Unknown id returns the id unchanged.
       expect(friendlyNameFromDeviceId('native:zwo:0'), 'native:zwo:0');
     });

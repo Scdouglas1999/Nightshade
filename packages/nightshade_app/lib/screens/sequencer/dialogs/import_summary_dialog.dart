@@ -481,39 +481,37 @@ class _DestinationPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('After import',
-            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
-        const SizedBox(height: 6),
-        RadioListTile<ImportDestination>(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          value: ImportDestination.openInEditor,
-          groupValue: destination,
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-          title: Text('Open in editor (save + load)',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: colors.textPrimary)),
-        ),
-        RadioListTile<ImportDestination>(
-          dense: true,
-          contentPadding: EdgeInsets.zero,
-          value: ImportDestination.saveToLibrary,
-          groupValue: destination,
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-          title: Text('Save to library (do not open)',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: colors.textPrimary)),
-        ),
-      ],
+    return RadioGroup<ImportDestination>(
+      groupValue: destination,
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('After import',
+              style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
+          const SizedBox(height: 6),
+          RadioListTile<ImportDestination>(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: ImportDestination.openInEditor,
+            title: Text('Open in editor (save + load)',
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    color: colors.textPrimary)),
+          ),
+          RadioListTile<ImportDestination>(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: ImportDestination.saveToLibrary,
+            title: Text('Save to library (do not open)',
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize13,
+                    color: colors.textPrimary)),
+          ),
+        ],
+      ),
     );
   }
 }

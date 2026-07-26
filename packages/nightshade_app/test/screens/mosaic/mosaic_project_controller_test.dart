@@ -192,6 +192,8 @@ void main() {
   MosaicProjectController makeController(
     int projectId, {
     MosaicCaptureLauncher? captureLauncher,
+    CollaborativeMosaicService? collaborativeService,
+    bool hubConfigured = true,
   }) {
     return MosaicProjectController(
       projectId: projectId,
@@ -199,6 +201,8 @@ void main() {
       panelsDao: panelsDao,
       mastersDao: mastersDao,
       service: spy,
+      collaborativeService: collaborativeService,
+      hubConfigured: hubConfigured,
       captureLauncher: captureLauncher,
       panelOutputPathBuilder: (panel) =>
           '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
@@ -321,6 +325,419 @@ void main() {
     expect(c.state.error, contains('unavailable'));
     c.dispose();
   });
+
+  group('collaborative mosaics (WS2)', () {
+    late _FakeCollab collab;
+
+    MosaicProjectController collabController(int projectId) =>
+        makeController(projectId, collaborativeService: collab);
+
+    setUp(() {
+      collab = _FakeCollab(
+        projectsDao: projectsDao,
+        panelsDao: panelsDao,
+        mastersDao: mastersDao,
+        projectService: spy,
+      );
+    });
+
+    test('publishToHub drives the service, reloads, and surfaces published',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.publishToHub();
+
+      expect(collab.publishCalls, 1);
+      expect(c.state.isPublishing, isFalse);
+      expect(c.state.isPublished, isTrue);
+      expect(c.state.hubMosaicId, 'mos-1');
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('claimPanel sets the claiming flag, claims, and reloads', () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.claimPanel(0);
+
+      expect(collab.claimedIndices, [0]);
+      expect(c.state.isClaiming, isFalse);
+      final panel = c.state.panels.firstWhere((p) => p.panelIndex == 0);
+      expect(panel.isClaimed, isTrue);
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('uploadPanelMaster drives the service and reloads', () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+      spy.panelsToLink = 2;
+      final c = collabController(projectId);
+      await waitForLoad(c);
+      await c.integratePanels();
+
+      await c.uploadPanelMaster(
+        0,
+        license: ContributionLicense.ccBy,
+        attributionConsent: true,
+      );
+
+      expect(collab.uploadedIndices, [0]);
+      expect(c.state.isUploading, isFalse);
+      expect(c.state.panelsUploaded, 1);
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('assembleFromHub drives the service and reloads', () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.assembleFromHub();
+
+      expect(collab.assembleCalls, 1);
+      expect(c.state.isAssembling, isFalse);
+      expect(c.state.collabStatus, 'complete');
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('joinAsParticipant links the project as a participant + reloads',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.joinAsParticipant('mos-9');
+
+      expect(collab.joinedHubIds, ['mos-9']);
+      expect(c.state.isJoining, isFalse);
+      expect(c.state.isPublished, isTrue);
+      expect(c.state.hubMosaicId, 'mos-9');
+      expect(c.state.project?.collabRole, 'participant');
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('discoverMosaics returns the hub listing', () async {
+      final projectId = await seedProject(cols: 2);
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      final mosaics = await c.discoverMosaics();
+
+      expect(collab.listCalls, 1);
+      expect(mosaics, hasLength(1));
+      expect(mosaics.first.mosaicId, 'mos-9');
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('refreshStatus refreshes the collab lifecycle + reloads', () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.refreshStatus();
+
+      expect(collab.refreshCalls, 1);
+      expect(c.state.isRefreshing, isFalse);
+      expect(c.state.collabStatus, 'assembling');
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('downloadOutput pulls the finished mosaic + surfaces the hero',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.downloadOutput();
+
+      expect(collab.downloadCalls, 1);
+      expect(c.state.isDownloading, isFalse);
+      expect(c.state.collabStatus, 'complete');
+      expect(c.state.stitchedMaster, isNotNull);
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('a collaborative action surfaces a thrown service error', () async {
+      final projectId = await seedProject(cols: 2);
+      collab.throwOnPublish = true;
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.publishToHub();
+
+      expect(c.state.isPublishing, isFalse);
+      expect(c.state.error, contains('Publish failed'));
+      c.dispose();
+    });
+
+    test('forceReleasePanel drives the service, reloads, and clears busy',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+      await c.claimPanel(0);
+
+      await c.forceReleasePanel(0);
+
+      expect(collab.forceReleasedIndices, [0]);
+      expect(c.state.isClaiming, isFalse);
+      final panel = c.state.panels.firstWhere((p) => p.panelIndex == 0);
+      expect(panel.status, MosaicPanelStatus.pending);
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('forceReleasePanel surfaces a thrown auth error (non-owner)',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      collab.throwOnForceRelease = true;
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.forceReleasePanel(0);
+
+      expect(c.state.isClaiming, isFalse);
+      expect(c.state.error, contains('Force-release failed'));
+      c.dispose();
+    });
+
+    test('collaborative actions are unavailable without a wired service',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      final c = makeController(projectId); // no collaborativeService
+      await waitForLoad(c);
+
+      await c.publishToHub();
+
+      expect(c.state.error, contains('unavailable'));
+      c.dispose();
+    });
+
+    test('canCollaborate is false when the hub is not configured/signed-in',
+        () async {
+      final projectId = await seedProject(cols: 2);
+      // A hub-aware service is wired (as it always is in the real provider), but
+      // no hub is configured: the collaborative affordances must stay disabled
+      // rather than enabled-then-failing at the tap.
+      final unconfigured = makeController(
+        projectId,
+        collaborativeService: collab,
+        hubConfigured: false,
+      );
+      await waitForLoad(unconfigured);
+      expect(unconfigured.canCollaborate, isFalse);
+      unconfigured.dispose();
+
+      final configured = makeController(
+        projectId,
+        collaborativeService: collab,
+        hubConfigured: true,
+      );
+      await waitForLoad(configured);
+      expect(configured.canCollaborate, isTrue);
+      configured.dispose();
+    });
+  });
+}
+
+/// A fake [CollaborativeMosaicService] that records calls and mutates the DB so
+/// the controller's reload reflects the new collab state — the controller's
+/// actions are pinned without HTTP.
+class _FakeCollab extends CollaborativeMosaicService {
+  _FakeCollab({
+    required this.projectsDao,
+    required this.panelsDao,
+    required this.mastersDao,
+    required super.projectService,
+  }) : super(
+          credentialsResolver: _noCreds,
+          projectsDao: projectsDao,
+          panelsDao: panelsDao,
+          mastersDao: mastersDao,
+          logger: LoggingService(),
+          assemblyDirResolver: _tmpDir,
+        );
+
+  static Future<ConstellationCredentials?> _noCreds() async => null;
+  static Future<String> _tmpDir(String id) async => '/tmp/$id';
+
+  final MosaicProjectsDao projectsDao;
+  final MosaicPanelsDao panelsDao;
+  final IntegratedMastersDao mastersDao;
+
+  int publishCalls = 0;
+  int assembleCalls = 0;
+  final List<int> claimedIndices = [];
+  final List<int> uploadedIndices = [];
+  final List<int> forceReleasedIndices = [];
+  bool throwOnPublish = false;
+  bool throwOnForceRelease = false;
+
+  @override
+  Future<CollabMosaic> publishProject(int projectId) async {
+    publishCalls++;
+    if (throwOnPublish) throw StateError('boom');
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+    return const CollabMosaic(
+      mosaicId: 'mos-1',
+      ownerAccountId: 'acct-1',
+      name: 'Veil',
+      rows: 1,
+      cols: 2,
+      overlapPct: 15.0,
+      positionAngleDeg: 0.0,
+      centerRaDeg: 300.0,
+      centerDecDeg: 30.0,
+      status: 'open',
+      outputPresent: false,
+    );
+  }
+
+  @override
+  Future<List<MosaicPanelClaim>> claimPanels(
+    int projectId,
+    List<int> indices,
+  ) async {
+    claimedIndices.addAll(indices);
+    final claims = <MosaicPanelClaim>[];
+    for (final index in indices) {
+      final panel = await panelsDao.getByIndex(projectId, index);
+      await panelsDao.setClaim(
+        panel!.id!,
+        claimToken: 'baton-$index',
+        rigId: 'rig-1',
+        accountId: 'acct-1',
+      );
+      claims.add(MosaicPanelClaim(
+        mosaicId: 'mos-1',
+        panelIndex: index,
+        claimToken: 'baton-$index',
+        expiresAt: DateTime.now().toUtc(),
+      ));
+    }
+    return claims;
+  }
+
+  @override
+  Future<CollabMosaicPanel> uploadPanelMaster(
+    int projectId,
+    int panelIndex, {
+    ContributionLicense? license,
+    bool? attributionConsent,
+  }) async {
+    uploadedIndices.add(panelIndex);
+    final panel = await panelsDao.getByIndex(projectId, panelIndex);
+    await panelsDao.setUploaded(panel!.id!, panel.integratedMasterId ?? 1);
+    return const CollabMosaicPanel(
+      panelIndex: 0,
+      centerRaDeg: 0.0,
+      centerDecDeg: 0.0,
+      status: 'uploaded',
+      assignedAccountId: 'acct-1',
+      assignedRigId: 'rig-1',
+      uploaded: true,
+    );
+  }
+
+  @override
+  Future<bool> forceReleasePanel(int projectId, int panelIndex) async {
+    if (throwOnForceRelease) {
+      throw StateError('only the mosaic owner or an admin may force-release');
+    }
+    forceReleasedIndices.add(panelIndex);
+    final panel = await panelsDao.getByIndex(projectId, panelIndex);
+    await panelsDao.updateStatus(panel!.id!, MosaicPanelStatus.pending);
+    return true;
+  }
+
+  @override
+  Future<MosaicStitchOutcome> assembleMosaic(int projectId) async {
+    assembleCalls++;
+    await projectsDao.setCollabStatus(projectId, 'complete');
+    return const MosaicStitchOutcome(
+      outputMasterId: 1,
+      panelCount: 2,
+      result: MosaicStitchResult(
+        outputPath: '/tmp/mosaic.fits',
+        previewPath: '/tmp/mosaic.png',
+        outWidth: 200,
+        outHeight: 80,
+        overlapPairs: 1,
+        meanPanelGain: 1.0,
+      ),
+    );
+  }
+
+  int listCalls = 0;
+  final List<String> joinedHubIds = [];
+  int refreshCalls = 0;
+  int downloadCalls = 0;
+
+  @override
+  Future<List<CollabMosaic>> listMosaics() async {
+    listCalls++;
+    return const [
+      CollabMosaic(
+        mosaicId: 'mos-9',
+        ownerAccountId: '',
+        ownerDisplayName: 'Andromeda Club',
+        name: 'Veil',
+        rows: 1,
+        cols: 2,
+        overlapPct: 15.0,
+        positionAngleDeg: 0.0,
+        centerRaDeg: 300.0,
+        centerDecDeg: 30.0,
+        status: 'open',
+        outputPresent: false,
+      ),
+    ];
+  }
+
+  @override
+  Future<void> joinAsParticipant(int projectId, String hubMosaicId) async {
+    joinedHubIds.add(hubMosaicId);
+    await projectsDao.setHubMosaic(projectId, hubMosaicId, 'participant');
+  }
+
+  @override
+  Future<CollabMosaic?> refreshStatus(int projectId) async {
+    refreshCalls++;
+    await projectsDao.setCollabStatus(projectId, 'assembling');
+    return null;
+  }
+
+  @override
+  Future<String> downloadOutput(int projectId, {String? outPath}) async {
+    downloadCalls++;
+    final masterId = await mastersDao.insertMaster(
+      targetId: null,
+      name: 'out',
+      masterFitsPath: outPath ?? '/tmp/out.fits',
+      status: IntegratedMasterStatus.finalized,
+      accumulationMode: AccumulationMode.batch,
+    );
+    await projectsDao.setOutputMaster(projectId, masterId);
+    await projectsDao.setCollabStatus(projectId, 'complete');
+    return outPath ?? '/tmp/out.fits';
+  }
 }
 
 /// A throwaway [PostSessionSeam] for wiring the unused integration service in

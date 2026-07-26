@@ -243,51 +243,104 @@ class CatalogManager {
   /// Canonical list of catalogs the headless API knows how to manage.
   /// Keyed by the catalog `name` exposed on the wire (`stars`, `dso`,
   /// `annotation`).
-  static const Map<String, CatalogDescriptor> knownCatalogs = {
-    'stars': CatalogDescriptor(
-      name: 'stars',
-      displayName: 'HYG Star Database',
-      description:
-          'Combined Hipparcos, Yale Bright Star, and Gliese catalogs; ~120k stars.',
-      fileName: 'hyg_v42.csv',
+  ///
+  /// Derived from the legacy [CatalogSource] constants ([hygStarCatalog],
+  /// [openNgcCatalog], [gladePlusCatalog]) so the two catalog subsystems have a
+  /// SINGLE source of truth for the download URLs, asset names, hashes, and
+  /// file names — the desktop/mobile `CatalogSettingsScreen` (legacy) and the
+  /// headless `/api/catalog` surface (unified) can no longer drift.
+  static final Map<String, CatalogDescriptor> knownCatalogs = {
+    'stars': _descriptorFrom(
+      source: hygStarCatalog,
+      wireName: 'stars',
       metadataFileName: 'stars_metadata.json',
-      version: '4.2',
       approximateSizeBytes: 35 * 1024 * 1024,
-      downloadUrl:
-          'https://codeberg.org/astronexus/hyg/media/branch/main/data/hyg/CURRENT/hyg_v42.csv.gz',
-      isGzipped: true,
       // Plate solving needs a star catalog; this is the minimum.
       requiredForPlateSolve: true,
     ),
-    'dso': CatalogDescriptor(
-      name: 'dso',
-      displayName: 'OpenNGC Deep Sky Objects',
-      description: 'NGC/IC deep sky objects with ~13k objects.',
-      fileName: 'NGC.csv',
+    'dso': _descriptorFrom(
+      source: openNgcCatalog,
+      wireName: 'dso',
+      displayNameOverride: 'OpenNGC Deep Sky Objects',
       metadataFileName: 'dso_metadata.json',
-      version: '2023.12',
       approximateSizeBytes: 5 * 1024 * 1024,
-      downloadUrl:
-          'https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/NGC.csv',
-      isGzipped: false,
       requiredForPlateSolve: false,
     ),
-    'annotation': CatalogDescriptor(
-      name: 'annotation',
-      displayName: 'GLADE+ Galaxy Catalog',
-      description:
-          'Galaxy List for the Advanced Detector Era (B-magnitude ≤ 17 tier).',
-      fileName: 'glade_plus_galaxies.csv',
+    'annotation': _descriptorFrom(
+      source: gladePlusCatalog,
+      wireName: 'annotation',
       metadataFileName: 'annotation_metadata.json',
-      version: '2022',
       // GLADE+ standard tier ≈ 50 MB; complete is ~2 GB.
       approximateSizeBytes: 50 * 1024 * 1024,
-      // Built dynamically via [buildGladePlusUrl] for the `standard` tier.
-      downloadUrl: '',
-      isGzipped: false,
       requiredForPlateSolve: false,
     ),
   };
+
+  /// Build a [CatalogDescriptor] from a legacy [CatalogSource] so both
+  /// subsystems share one definition of each catalog's URLs / hash / files.
+  static CatalogDescriptor _descriptorFrom({
+    required CatalogSource source,
+    required String wireName,
+    required String metadataFileName,
+    required int approximateSizeBytes,
+    required bool requiredForPlateSolve,
+    String? displayNameOverride,
+  }) => CatalogDescriptor(
+    name: wireName,
+    displayName: displayNameOverride ?? source.name,
+    description: source.description,
+    fileName: source.fileName,
+    metadataFileName: metadataFileName,
+    version: source.version,
+    approximateSizeBytes: approximateSizeBytes,
+    downloadUrl: source.downloadUrl,
+    githubAssetName: source.githubAssetName,
+    sha256: source.sha256,
+    isGzipped: source.isGzipped,
+    requiredForPlateSolve: requiredForPlateSolve,
+  );
+
+  /// Config file (in the catalog directory) that persists a runtime override
+  /// for the catalog release base URL, letting a self-hoster repoint downloads
+  /// without a rebuild. Mirrors [DeepStarCatalogManager]'s `config.json`.
+  String get _catalogSourceConfigPath =>
+      path.join(catalogDirectory, 'catalog_source_config.json');
+
+  /// The resolved base URL for GitHub release catalog assets: a persisted
+  /// override when set, otherwise the compile-time [kCatalogReleaseBaseUrl].
+  Future<String> getCatalogBaseUrl() async {
+    try {
+      final file = File(_catalogSourceConfigPath);
+      if (await file.exists()) {
+        final decoded = jsonDecode(await file.readAsString());
+        if (decoded is Map) {
+          final url = decoded['baseUrl'];
+          if (url is String && url.trim().isNotEmpty) {
+            return url.trim();
+          }
+        }
+      }
+    } catch (e) {
+      developer.log(
+        '[Catalog] catalog base URL config read failed: $e',
+        name: 'CatalogManager',
+        level: 900,
+      );
+    }
+    return kCatalogReleaseBaseUrl;
+  }
+
+  /// Persist a runtime override for the catalog release base URL. An empty
+  /// string clears the override (falls back to [kCatalogReleaseBaseUrl]).
+  Future<void> setCatalogBaseUrl(String url) async {
+    final dir = Directory(catalogDirectory);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    await File(
+      _catalogSourceConfigPath,
+    ).writeAsString(jsonEncode({'baseUrl': url.trim()}));
+  }
 
   HygCatalogLoader _getStarLoader(String path) {
     if (_starLoader == null || _starLoaderPath != path) {

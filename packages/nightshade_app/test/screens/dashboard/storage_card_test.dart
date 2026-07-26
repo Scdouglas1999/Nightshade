@@ -125,4 +125,36 @@ void main() {
 
     expect(find.textContaining('Run will leave'), findsOneWidget);
   });
+
+  testWidgets('surfaces projection failure and offers a retry', (tester) async {
+    var projectionReads = 0;
+    await tester.pumpWidget(_wrap([
+      captureDirDiskSpaceProvider.overrideWith((ref) async* {
+        yield DiskSpaceInfo(
+          path: 'D:\\images',
+          totalBytes: _gb(500),
+          freeBytes: _gb(150),
+          sampledAt: DateTime.now(),
+        );
+      }),
+      sequenceDiskProjectionProvider.overrideWith((ref) {
+        projectionReads++;
+        return Future<SequenceDiskProjectionSnapshot>.error(
+          StateError('camera capabilities unavailable'),
+        );
+      }),
+    ]));
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('150'), findsOneWidget);
+    expect(find.text('Sequence storage estimate unavailable'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(projectionReads, 1);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    expect(projectionReads, 2);
+  });
 }

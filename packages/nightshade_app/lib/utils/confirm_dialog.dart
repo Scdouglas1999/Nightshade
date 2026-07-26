@@ -93,7 +93,9 @@ class ConfirmDialog {
         context: context,
         title: 'Restore Backup?',
         message:
-            'This will replace your current data with the backup "$backupName". This action cannot be undone.',
+            'This imports "$backupName" without deleting your current data. '
+            'Settings with the same keys may be updated, and library items '
+            'from the backup may be added.',
         confirmLabel: 'Restore',
         isDestructive: true,
       );

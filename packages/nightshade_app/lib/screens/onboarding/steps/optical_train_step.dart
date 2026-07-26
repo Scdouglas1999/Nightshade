@@ -69,24 +69,47 @@ class _OnboardingOpticalTrainStepState
     super.dispose();
   }
 
-  void _commit() {
+  void _commit(_OpticalField editedField) {
     final fl = double.tryParse(_focalLengthController.text.trim());
     final ap = double.tryParse(_apertureController.text.trim());
     final px = double.tryParse(_pixelSizeController.text.trim());
     final rd = double.tryParse(_reducerController.text.trim());
 
     setState(() {
-      _focalLengthError = (fl != null && fl > 0)
-          ? null
-          : 'Enter a positive focal length in mm.';
-      _apertureError =
-          (ap != null && ap > 0) ? null : 'Enter a positive aperture in mm.';
-      _pixelSizeError = (px != null && px > 0)
-          ? null
-          : 'Enter a positive pixel size in microns.';
-      _reducerError = (rd != null && rd > 0)
-          ? null
-          : 'Reducer must be > 0 (use 1.0 for no reducer).';
+      switch (editedField) {
+        case _OpticalField.focalLength:
+          _focalLengthError = _boundError(
+            fl,
+            min: OpticalTrainLimits.minFocalLengthMm,
+            max: OpticalTrainLimits.maxFocalLengthMm,
+            unit: 'mm',
+            missing: 'Enter a positive focal length in mm.',
+          );
+        case _OpticalField.aperture:
+          _apertureError = _boundError(
+            ap,
+            min: OpticalTrainLimits.minApertureMm,
+            max: OpticalTrainLimits.maxApertureMm,
+            unit: 'mm',
+            missing: 'Enter a positive aperture in mm.',
+          );
+        case _OpticalField.pixelSize:
+          _pixelSizeError = _boundError(
+            px,
+            min: OpticalTrainLimits.minPixelSizeMicrons,
+            max: OpticalTrainLimits.maxPixelSizeMicrons,
+            unit: 'microns',
+            missing: 'Enter a positive pixel size in microns.',
+          );
+        case _OpticalField.reducer:
+          _reducerError = _boundError(
+            rd,
+            min: OpticalTrainLimits.minReducerFactor,
+            max: OpticalTrainLimits.maxReducerFactor,
+            unit: '',
+            missing: 'Reducer must be > 0 (use 1.0 for no reducer).',
+          );
+      }
     });
 
     ref.read(onboardingDraftProvider.notifier).setOpticalTrain(
@@ -96,6 +119,42 @@ class _OnboardingOpticalTrainStepState
           reducerFactor: rd,
         );
   }
+
+  /// Inline error for one field, or null when the value is plausible.
+  ///
+  /// The numbers come from the shared [OpticalTrainLimits] constants — the same
+  /// ones that block Next — so the red field message and the wizard's blocking
+  /// message can never disagree about where the boundary is. Field-level errors
+  /// matter here because the step-level message names one problem at a time:
+  /// this points at the field to fix.
+  static String? _boundError(
+    double? value, {
+    required double min,
+    required double max,
+    required String unit,
+    required String missing,
+  }) {
+    if (value == null || value <= 0) return missing;
+    if (value < min || value > max) {
+      final suffix = unit.isEmpty ? '.' : ' $unit.';
+      return 'Must be between ${_trim(min)} and ${_trim(max)}$suffix';
+    }
+    return null;
+  }
+
+  /// True when [value] is present and inside its bounds, false when it is
+  /// present but implausible, null when it has not been entered yet. The three
+  /// states are distinct because a missing input and a rejected input need
+  /// different words in the computed panel.
+  static bool? _plausible(double? value, double min, double max) {
+    if (value == null || value <= 0) return null;
+    return value >= min && value <= max;
+  }
+
+  /// Drop a trailing `.0` so a bound reads as `50000`, not `50000.0`.
+  static String _trim(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toString();
 
   /// Open the telescope library and, on selection, apply the preset to the
   /// draft and reflect the new optics in the focal-length / aperture fields.
@@ -113,8 +172,13 @@ class _OnboardingOpticalTrainStepState
 
     _focalLengthController.text = preset.focalLengthMm.toStringAsFixed(1);
     _apertureController.text = preset.apertureMm.toStringAsFixed(1);
-    // Re-run validation so the inline errors clear for the now-valid optics.
-    _commit();
+    // The preset owns only these two fields. Clear their stale errors without
+    // validating untouched camera/reducer inputs as a side effect of choosing
+    // a telescope.
+    setState(() {
+      _focalLengthError = null;
+      _apertureError = null;
+    });
   }
 
   @override
@@ -130,6 +194,36 @@ class _OnboardingOpticalTrainStepState
             effectiveFocal != null)
         ? effectiveFocal / draft.apertureMm!
         : null;
+
+    // A derived number is only presented as a computed fact when every input it
+    // depends on is inside the shared plausibility bounds. Printing it
+    // unconditionally is what rendered "f/9999999990000.00" from a focal length
+    // of 999999999 mm and an aperture of 0.0001 mm — the panel dressed an
+    // impossible optical system up as arithmetic the user could trust.
+    final focalOk = _plausible(
+      draft.focalLengthMm,
+      OpticalTrainLimits.minFocalLengthMm,
+      OpticalTrainLimits.maxFocalLengthMm,
+    );
+    final apertureOk = _plausible(
+      draft.apertureMm,
+      OpticalTrainLimits.minApertureMm,
+      OpticalTrainLimits.maxApertureMm,
+    );
+    final pixelOk = _plausible(
+      draft.pixelSizeMicrons,
+      OpticalTrainLimits.minPixelSizeMicrons,
+      OpticalTrainLimits.maxPixelSizeMicrons,
+    );
+    final reducerOk = _plausible(
+      draft.reducerFactor,
+      OpticalTrainLimits.minReducerFactor,
+      OpticalTrainLimits.maxReducerFactor,
+    );
+    final fRatioOk = fRatio == null
+        ? null
+        : fRatio >= OpticalTrainLimits.minFRatio &&
+            fRatio <= OpticalTrainLimits.maxFRatio;
 
     return SingleChildScrollView(
       child: Column(
@@ -155,15 +249,20 @@ class _OnboardingOpticalTrainStepState
           // chosen.
           Row(
             children: [
-              NightshadeButton(
-                // lucide_icons 0.257.0 ships no `telescope` glyph; `aperture`
-                // is this codebase's established optics/telescope icon
-                // (equipment_profiles_screen, framing optical config panel).
-                icon: NightshadeIcons.aperture,
-                label: 'Choose from telescope library',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: _pickFromLibrary,
+              // Flexible so a narrow phone column bounds the button and its
+              // label ellipsizes; unbounded it took its full intrinsic width and
+              // overflowed the row.
+              Flexible(
+                child: NightshadeButton(
+                  // lucide_icons 0.257.0 ships no `telescope` glyph; `aperture`
+                  // is this codebase's established optics/telescope icon
+                  // (equipment_profiles_screen, framing optical config panel).
+                  icon: NightshadeIcons.aperture,
+                  label: 'Choose from telescope library',
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: _pickFromLibrary,
+                ),
               ),
               if (draft.telescopeName != null) ...[
                 const SizedBox(width: NightshadeTokens.spaceMd),
@@ -199,7 +298,7 @@ class _OnboardingOpticalTrainStepState
             hint: 'e.g. 500, 1000, 2000',
             suffix: 'mm',
             errorText: _focalLengthError,
-            onChanged: _commit,
+            onChanged: () => _commit(_OpticalField.focalLength),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NumericField(
@@ -210,7 +309,7 @@ class _OnboardingOpticalTrainStepState
             hint: 'e.g. 80, 102, 200',
             suffix: 'mm',
             errorText: _apertureError,
-            onChanged: _commit,
+            onChanged: () => _commit(_OpticalField.aperture),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NumericField(
@@ -221,7 +320,7 @@ class _OnboardingOpticalTrainStepState
             hint: '1.0 = no reducer, 0.79 = 0.79x reducer, 2.0 = 2x Barlow',
             suffix: 'x',
             errorText: _reducerError,
-            onChanged: _commit,
+            onChanged: () => _commit(_OpticalField.reducer),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NumericField(
@@ -232,7 +331,7 @@ class _OnboardingOpticalTrainStepState
             hint: 'Look this up in your camera spec sheet',
             suffix: 'µm',
             errorText: _pixelSizeError,
-            onChanged: _commit,
+            onChanged: () => _commit(_OpticalField.pixelSize),
           ),
           const SizedBox(height: NightshadeTokens.spaceXl),
           // Live preview of derived values. Renders with placeholder "--"
@@ -257,12 +356,14 @@ class _OnboardingOpticalTrainStepState
                   effectiveFocal != null
                       ? '${effectiveFocal.toStringAsFixed(1)} mm'
                       : null,
+                  inputs: [focalOk, reducerOk],
                 ),
                 _row(
                   theme,
                   colors,
                   'Focal ratio',
                   fRatio != null ? 'f/${fRatio.toStringAsFixed(2)}' : null,
+                  inputs: [focalOk, apertureOk, reducerOk, fRatioOk],
                 ),
                 _row(
                   theme,
@@ -271,6 +372,7 @@ class _OnboardingOpticalTrainStepState
                   imageScale != null
                       ? '${imageScale.toStringAsFixed(2)} arcsec/px'
                       : null,
+                  inputs: [focalOk, reducerOk, pixelOk],
                 ),
               ],
             ),
@@ -280,13 +382,22 @@ class _OnboardingOpticalTrainStepState
     );
   }
 
+  /// One derived readout.
+  ///
+  /// [inputs] are the per-input plausibility flags this row depends on (see
+  /// [_plausible]): null = not entered yet, false = entered but out of bounds.
+  /// Any false input suppresses the number in favour of an explicit rejection,
+  /// so the panel never presents an implausible result as a computed value.
   Widget _row(
     ThemeData theme,
     NightshadeColors colors,
     String label,
-    String? value,
-  ) {
-    final hasValue = value != null;
+    String? value, {
+    required List<bool?> inputs,
+  }) {
+    final rejected = inputs.contains(false);
+    final hasValue = value != null && !rejected;
+    final placeholder = rejected ? 'Check your inputs' : 'Awaiting inputs…';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -294,15 +405,22 @@ class _OnboardingOpticalTrainStepState
           Icon(LucideIcons.calculator,
               size: NightshadeTokens.iconXs, color: colors.textSecondary),
           const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colors.textSecondary,
+          // The label yields, not the number: in a narrow wizard body this row
+          // overflowed horizontally, and truncating a computed quantity is
+          // worse than truncating the word for it.
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.textSecondary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
-            hasValue ? value : 'Awaiting inputs…',
+            hasValue ? value : placeholder,
             // Numeric readouts use the mono type ramp so the digits line up
             // and the value reads as a computed quantity, not prose.
             style: hasValue
@@ -310,13 +428,17 @@ class _OnboardingOpticalTrainStepState
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w600,
                   )
-                : theme.textTheme.bodySmall?.copyWith(color: colors.textMuted),
+                : theme.textTheme.bodySmall?.copyWith(
+                    color: rejected ? colors.warning : colors.textMuted,
+                  ),
           ),
         ],
       ),
     );
   }
 }
+
+enum _OpticalField { focalLength, aperture, reducer, pixelSize }
 
 /// A labelled numeric input with an inline [FieldHelpLabel]. Mirrors the
 /// onboarding wizard's existing field styling (dense outlined [TextField] on a

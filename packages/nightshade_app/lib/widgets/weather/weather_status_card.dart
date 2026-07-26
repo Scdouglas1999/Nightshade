@@ -388,7 +388,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
             ),
             const SizedBox(width: 8),
             Text(
-              'Moving from ',
+              'Moving toward ',
               style: TextStyle(
                 fontSize: 12,
                 color: colors.textSecondary,

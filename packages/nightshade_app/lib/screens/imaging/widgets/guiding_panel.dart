@@ -23,56 +23,113 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
   bool _isStartingGuiding = false;
   bool _isDithering = false;
   bool _configExpanded = false;
+  ProviderSubscription<DeviceService>? _serviceSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _serviceSubscription = ref.listenManual<DeviceService>(
+      deviceServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted) {
+          setState(() {
+            _isStartingGuiding = false;
+            _isDithering = false;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _serviceSubscription?.close();
+    super.dispose();
+  }
 
   Future<void> _startGuiding() async {
+    if (_isStartingGuiding) return;
+    final deviceService = ref.read(deviceServiceProvider);
     setState(() => _isStartingGuiding = true);
     final ditherSettings = ref.read(ditherSettingsProvider);
     try {
-      final deviceService = ref.read(deviceServiceProvider);
       await deviceService.startGuiding(
         settlePixels: ditherSettings.settlePixels,
         settleTime: ditherSettings.settleTime,
       );
-      ref.read(sessionStateProvider.notifier).setGuiding(true);
+      if (_isCurrentService(deviceService)) {
+        ref.read(sessionStateProvider.notifier).setGuiding(true);
+      }
     } catch (e) {
-      if (!mounted) return;
-      context.showErrorSnackBar('Failed to start guiding: $e');
+      if (mounted && _isCurrentService(deviceService)) {
+        context.showErrorSnackBar('Failed to start guiding: $e');
+      }
     } finally {
-      if (mounted) setState(() => _isStartingGuiding = false);
+      if (_isCurrentService(deviceService)) {
+        setState(() => _isStartingGuiding = false);
+      }
     }
   }
 
   Future<void> _stopGuiding() async {
+    final deviceService = ref.read(deviceServiceProvider);
     try {
-      final deviceService = ref.read(deviceServiceProvider);
       await deviceService.stopGuiding();
-      ref.read(sessionStateProvider.notifier).setGuiding(false);
+      if (_isCurrentService(deviceService)) {
+        ref.read(sessionStateProvider.notifier).setGuiding(false);
+      }
     } catch (e) {
-      if (!mounted) return;
-      context.showErrorSnackBar('Failed to stop guiding: $e');
+      if (mounted && _isCurrentService(deviceService)) {
+        context.showErrorSnackBar('Failed to stop guiding: $e');
+      }
     }
   }
 
   Future<void> _dither() async {
+    if (_isDithering) return;
+    final deviceService = ref.read(deviceServiceProvider);
     setState(() => _isDithering = true);
     ref.read(sessionStateProvider.notifier).setDithering(true);
     final ditherSettings = ref.read(ditherSettingsProvider);
     try {
-      final deviceService = ref.read(deviceServiceProvider);
       await deviceService.dither(
         amount: ditherSettings.ditherAmount,
         settlePixels: ditherSettings.settlePixels,
         settleTime: ditherSettings.settleTime,
       );
     } catch (e) {
-      if (!mounted) return;
-      context.showErrorSnackBar('Dither failed: $e');
+      if (mounted && _isCurrentService(deviceService)) {
+        context.showErrorSnackBar('Dither failed: $e');
+      }
     } finally {
-      if (mounted) {
+      if (_isCurrentService(deviceService)) {
         setState(() => _isDithering = false);
         ref.read(sessionStateProvider.notifier).setDithering(false);
       }
     }
+  }
+
+  bool _isCurrentService(DeviceService service) =>
+      mounted && identical(ref.read(deviceServiceProvider), service);
+
+  /// Strips stacked `Exception:` / `Operation failed:` prefixes so a guider
+  /// failure reads as English. The raw chain arrives as
+  /// "Exception: Guiding stopped: Operation failed: Calibration star match
+  /// failed" — each layer adds its own label on the way up from Rust.
+  static String _cleanErrorText(String raw) {
+    var text = raw.trim();
+    final prefixes = RegExp(
+      r'^(Exception|_Exception|StateError|Operation failed|NightshadeException(\([^)]*\))?)\s*:\s*',
+      caseSensitive: false,
+    );
+    // Peel repeatedly: the chain nests more than one label deep.
+    for (var i = 0; i < 4; i++) {
+      final stripped = text.replaceFirst(prefixes, '').trim();
+      if (stripped == text || stripped.isEmpty) break;
+      text = stripped;
+    }
+    return text.isEmpty ? raw.trim() : text;
   }
 
   @override
@@ -102,27 +159,46 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Connection status
+          // Connection status.
+          //
+          // A guider that FAILED must not be reported as absent. The built-in
+          // guider connects fine and then its task can die asynchronously
+          // ("Built-in guider task failed: Calibration star match failed" was
+          // reproduced with the simulator camera), which leaves this panel
+          // non-connected. Saying "No guider connected" then sends the operator
+          // to re-check cables and device selection for what is really a
+          // calibration/guiding failure the log already named. Show the error.
           if (!isConnected)
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
-                widget.colors.warning,
+                guiderState.lastError != null
+                    ? widget.colors.error
+                    : widget.colors.warning,
                 borderRadius:
                     BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
                   Icon(LucideIcons.alertCircle,
-                      size: 16, color: widget.colors.warning),
+                      size: 16,
+                      color: guiderState.lastError != null
+                          ? widget.colors.error
+                          : widget.colors.warning),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'No guider connected',
+                      guiderState.lastError != null
+                          ? 'Guider error: ${_cleanErrorText(guiderState.lastError!.message)}'
+                          : (guiderState.deviceId != null
+                              ? 'Guider ${guiderState.deviceName ?? guiderState.deviceId!} is not connected'
+                              : 'No guider connected'),
                       style: TextStyle(
                           fontSize: NightshadeTypography.fontSize12,
-                          color: widget.colors.warning),
+                          color: guiderState.lastError != null
+                              ? widget.colors.error
+                              : widget.colors.warning),
                     ),
                   ),
                 ],
@@ -419,6 +495,7 @@ class _BuiltinGuiderConfigFormState
   late TextEditingController _minPulseController;
   late TextEditingController _maxPulseController;
   late TextEditingController _settleSleepController;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -482,7 +559,8 @@ class _BuiltinGuiderConfigFormState
     return (min: pulseMin, max: pulseMax);
   }
 
-  void _applyConfig(MountCapabilities? mountCaps) {
+  Future<void> _applyConfig(MountCapabilities? mountCaps) async {
+    if (_saving) return;
     final exposure = double.tryParse(_exposureController.text);
     final gain = int.tryParse(_gainController.text);
     final calibrationMs = int.tryParse(_calibrationMsController.text);
@@ -535,11 +613,29 @@ class _BuiltinGuiderConfigFormState
       settleSleepMs: settleSleep,
     );
 
-    ref.read(builtinGuiderConfigProvider.notifier).updateConfig(newConfig);
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(builtinGuiderConfigProvider.notifier)
+          .updateConfig(newConfig);
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Failed to apply settings: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
-  void _resetDefaults() {
-    ref.read(builtinGuiderConfigProvider.notifier).resetToDefaults();
+  Future<void> _resetDefaults() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(builtinGuiderConfigProvider.notifier).resetToDefaults();
+      if (mounted) context.showSuccessSnackBar('Guider defaults restored');
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Failed to reset settings: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -638,6 +734,7 @@ class _BuiltinGuiderConfigFormState
                   label: 'Apply',
                   icon: NightshadeIcons.check,
                   colors: widget.colors,
+                  isEnabled: !_saving,
                   onTap: () => _applyConfig(mountCaps),
                 ),
               ),
@@ -648,6 +745,7 @@ class _BuiltinGuiderConfigFormState
                   icon: NightshadeIcons.undo,
                   isOutline: true,
                   colors: widget.colors,
+                  isEnabled: !_saving,
                   onTap: _resetDefaults,
                 ),
               ),
@@ -861,7 +959,8 @@ class CompactGuidingGraph extends StatelessWidget {
                 Container(
                     width: 12,
                     height: 2,
-                    color: NightshadeChartColors.seriesRed),
+                    color: NightshadeChartColors.forTheme(
+                        NightshadeChartColors.seriesRed, colors)),
                 const SizedBox(width: 4),
                 Text('RA',
                     style: TextStyle(
@@ -871,7 +970,8 @@ class CompactGuidingGraph extends StatelessWidget {
                 Container(
                     width: 12,
                     height: 2,
-                    color: NightshadeChartColors.seriesBlue),
+                    color: NightshadeChartColors.forTheme(
+                        NightshadeChartColors.seriesBlue, colors)),
                 const SizedBox(width: 4),
                 Text('Dec',
                     style: TextStyle(
@@ -911,12 +1011,16 @@ class _CompactGuidingGraphPainter extends CustomPainter {
     if (data.isEmpty) return;
 
     final raPaint = Paint()
-      ..color = NightshadeChartColors.seriesRed.withValues(alpha: 0.8)
+      ..color = NightshadeChartColors.forTheme(
+              NightshadeChartColors.seriesRed, colors)
+          .withValues(alpha: 0.8)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     final decPaint = Paint()
-      ..color = NightshadeChartColors.seriesBlue.withValues(alpha: 0.8)
+      ..color = NightshadeChartColors.forTheme(
+              NightshadeChartColors.seriesBlue, colors)
+          .withValues(alpha: 0.8)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 

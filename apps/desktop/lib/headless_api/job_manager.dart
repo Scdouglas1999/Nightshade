@@ -6,6 +6,9 @@
 // 30s timeout (or an OS-level background TCP teardown on mobile) kills the
 // connection while the server-side op continues unobserved — there is no
 // job handle to re-query, no way for a second client to cancel the run.
+// Polar-alignment Start is excluded: the backend call only admits an async
+// run and returns quickly, while its progress and Stop command have dedicated
+// protocol surfaces. Queuing that admission would hide immediate failures.
 //
 // This module fixes that by making long-running ops register as `Job`s
 // owned by a `JobManager`. The action POST returns `{jobId, status: queued}`
@@ -360,12 +363,12 @@ class JobManager {
       _transitionSucceeded(jobId, result);
     } on JobCancelledException catch (e) {
       _transitionCancelled(jobId, reason: e.reason);
-    } catch (e, st) {
+    } catch (e) {
       _transitionFailed(
         jobId,
         code: 'job_failed',
         message: e.toString(),
-        details: {'stackTrace': st.toString()},
+        details: {'exceptionType': e.runtimeType.toString()},
       );
     }
   }

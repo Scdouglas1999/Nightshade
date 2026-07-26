@@ -20,7 +20,13 @@ class _SaveTemplateDialog extends ConsumerStatefulWidget {
 class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late final NightshadeBackend _authority;
+  late final SequenceRepository _repository;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
   bool _isSaving = false;
+
+  bool get _isExistingTemplate =>
+      widget.sequence.isTemplate && widget.sequence.databaseId != null;
 
   @override
   void initState() {
@@ -28,12 +34,25 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
     _nameController = TextEditingController(text: widget.sequence.name);
     _descriptionController =
         TextEditingController(text: widget.sequence.description);
+    _authority = ref.read(backendProvider);
+    _repository = ref.read(sequenceRepositoryProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        context.showWarningSnackBar(
+          'The connected host changed. Template save cancelled.',
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _backendSubscription?.close();
     super.dispose();
   }
 
@@ -43,13 +62,18 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       return;
     }
 
+    if (!identical(ref.read(backendProvider), _authority)) {
+      context.showWarningSnackBar(
+        'The connected host changed. Reopen the template editor.',
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
-      final repository = ref.read(sequenceRepositoryProvider);
-
-      // Create a new sequence with the template name and description
       final templateSequence = Sequence.create(
+        databaseId: _isExistingTemplate ? widget.sequence.databaseId : null,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         nodes: widget.sequence.nodes,
@@ -58,12 +82,24 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       );
 
       final savedId =
-          await repository.saveSequence(templateSequence, isTemplate: true);
+          await _repository.saveSequence(templateSequence, isTemplate: true);
+
+      if (!mounted || !identical(ref.read(backendProvider), _authority)) {
+        return;
+      }
+
+      ref.read(currentSequenceProvider.notifier).applyPersistedSave(
+            expectedSequenceId: widget.sequence.id,
+            databaseId: savedId,
+            name: templateSequence.name,
+            description: templateSequence.description,
+            isTemplate: true,
+          );
 
       notifySequenceCatalogChanged(
         ref,
         sequenceId: savedId,
-        action: 'saved',
+        action: _isExistingTemplate ? 'updated' : 'saved',
         name: templateSequence.name,
         isTemplate: true,
       );
@@ -72,15 +108,18 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       if (mounted) {
         Navigator.pop(context);
 
-        context
-            .showSuccessSnackBar('Template "${_nameController.text}" saved!');
+        context.showSuccessSnackBar(
+          _isExistingTemplate
+              ? 'Template "${_nameController.text}" updated!'
+              : 'Template "${_nameController.text}" saved!',
+        );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), _authority)) {
         context.showErrorSnackBar('Failed to save template: $e');
       }
     } finally {
-      if (mounted) {
+      if (mounted && identical(ref.read(backendProvider), _authority)) {
         setState(() => _isSaving = false);
       }
     }
@@ -90,7 +129,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
   Widget build(BuildContext context) {
     final isMobile = Responsive.isMobile(context);
 
-    return Dialog(
+    final dialog = Dialog(
       backgroundColor: widget.colors.surface,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
@@ -128,7 +167,9 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Save as Template',
+                          _isExistingTemplate
+                              ? 'Update Template'
+                              : 'Save as Template',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize18,
                             fontWeight: FontWeight.w700,
@@ -136,7 +177,9 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                           ),
                         ),
                         Text(
-                          'Save this sequence for later reuse',
+                          _isExistingTemplate
+                              ? 'Replace the saved template with these changes'
+                              : 'Save this sequence for later reuse',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize12,
                             color: widget.colors.textMuted,
@@ -233,7 +276,13 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'This will save ${widget.sequence.nodes.length} nodes from the current sequence.',
+                          _isExistingTemplate
+                              ? 'This will replace the saved template with '
+                                  '${widget.sequence.nodes.length} nodes from '
+                                  'the editor.'
+                              : 'This will save '
+                                  '${widget.sequence.nodes.length} nodes from '
+                                  'the current sequence.',
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize12,
                             color: widget.colors.textSecondary,
@@ -259,7 +308,11 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                     ),
                     const SizedBox(width: 12),
                     NightshadeButton(
-                      label: _isSaving ? 'Saving...' : 'Save Template',
+                      label: _isSaving
+                          ? 'Saving...'
+                          : _isExistingTemplate
+                              ? 'Update Template'
+                              : 'Save Template',
                       icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
                       onPressed: _isSaving ? null : _saveTemplate,
                       size: ButtonSize.small,
@@ -272,6 +325,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
         ),
       ),
     );
+    return PopScope(canPop: !_isSaving, child: dialog);
   }
 }
 

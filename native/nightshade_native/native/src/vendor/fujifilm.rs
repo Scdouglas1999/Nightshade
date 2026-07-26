@@ -207,6 +207,20 @@ const API_CODE_SET_FOCUS_MODE: c_long = 0x2201;
 #[allow(dead_code)]
 const API_CODE_GET_FOCUS_MODE: c_long = 0x2202;
 
+// RAW output depth (XAPIOpt.H lines 228-229 for the Set/Get API codes, line 263
+// for the capability code). GFX-class bodies can be switched between 14-bit and
+// 16-bit RAW output, which changes the container full scale of every delivered
+// frame from 16383 to 65535.
+const API_CODE_GET_RAW_OUTPUT_DEPTH: c_long = 0x2161;
+#[allow(dead_code)]
+const API_CODE_SET_RAW_OUTPUT_DEPTH: c_long = 0x2160;
+#[allow(dead_code)]
+const API_CODE_CAP_RAW_OUTPUT_DEPTH: c_long = 0x2193;
+
+// RAW output depth values (XAPIOpt.H lines 584-585)
+const SDK_RAWOUTPUTDEPTH_14BIT: c_long = 0x0001;
+const SDK_RAWOUTPUTDEPTH_16BIT: c_long = 0x0002;
+
 // Focus mode constants
 #[allow(dead_code)]
 const SDK_FOCUS_MODE_MF: c_long = 0x0001;
@@ -498,7 +512,36 @@ impl FujifilmModel {
         )
     }
 
+    /// Whether this body can be switched to 16-bit RAW output.
+    ///
+    /// Taken from the per-model capability headers under
+    /// `SDKs/Fujifilm/extracted/SDK13410/HEADERS/`, where
+    /// `API_PARAM_CapRAWOutputDepth` is `2` (supported) on GFX100.h:244,
+    /// GFX100S.h:245, GFX50SII.h:245, GFX100II.h:255, GFX100SII.h:255 and
+    /// GFX100RF.h:255, and `-1` (unsupported) on X-T5.h:255, X-H2.h:255,
+    /// X-H2S.h:255, X-M5.h:255, X-S20.h:255 and GFXETERNA55.h:255. GFX50R.h and
+    /// GFX50S.h declare no `CapRAWOutputDepth` entry at all — 14-bit only.
+    ///
+    /// `from_product_name` folds "GFX 100S" into `Gfx100`, so that body is
+    /// covered by the `Gfx100` arm.
+    fn supports_16bit_raw(&self) -> bool {
+        matches!(
+            self,
+            Self::Gfx100 | Self::Gfx100II | Self::Gfx100SII | Self::Gfx50SII
+        )
+    }
+
     /// Get sensor specifications (width, height, pixel_size_um, bit_depth)
+    ///
+    /// The bit depth here is the LOWEST-authority source of a frame's sample
+    /// depth — a static pre-first-frame estimate. 14 is the only depth the
+    /// bodies outside [`Self::supports_16bit_raw`] can deliver, since the SDK
+    /// defines exactly two RAW output depths (XAPIOpt.H:584-585) and their
+    /// capability headers reject the 16-bit one. For a GFX-class body it is a
+    /// coin toss this table cannot resolve: switched to
+    /// `SDK_RAWOUTPUTDEPTH_16BIT` (XAPIOpt.H:585) the body delivers 65535-scale
+    /// samples. `FujifilmCamera::refresh_raw_depth` ranks the sources:
+    /// measured-from-frame > SDK-reported > this table.
     fn sensor_specs(&self) -> (u32, u32, f64, u32) {
         match self {
             Self::Gfx100 | Self::Gfx100II | Self::Gfx100SII => (11648, 8736, 3.76, 14),
@@ -986,6 +1029,20 @@ pub struct FujifilmCamera {
     firmware_version: String,
     sensor_info: SensorInfo,
 
+    // RAW sample-depth provenance. `refresh_raw_depth` folds these into
+    // `sensor_info.bit_depth` / `sensor_info.max_adu`, preferring
+    // measured-from-frame over SDK-reported over the model table.
+    /// Bit depth the camera reports for itself: `XSDK_GetProp` with
+    /// `API_CODE_GetRAWOutputDepth` (XAPIOpt.H:229) at connect, then
+    /// `XSDK_ImageInformation::lImageBitDepth` (XAPI.H:123) for every RAW frame
+    /// `XSDK_ReadImageInfo` describes.
+    sdk_reported_bit_depth: Option<u32>,
+    /// True bit depth of the last decoded RAF: `CfaImage::bits_per_pixel`.
+    measured_bit_depth: Option<u32>,
+    /// Container full scale of the last decoded RAF: `CfaImage::max_value`,
+    /// i.e. LibRaw's `color.maximum` saturation level.
+    measured_white_level: Option<u32>,
+
     // Exposure state
     is_exposing: bool,
     is_bulb_mode: bool,
@@ -1029,7 +1086,10 @@ impl FujifilmCamera {
                 height,
                 pixel_size_x: pixel_size,
                 pixel_size_y: pixel_size,
-                max_adu: (1 << bit_depth) - 1,
+                // Pre-first-frame estimate. Superseded by the camera-reported
+                // depth at connect and by the decoded frame's measured white
+                // level thereafter — see `refresh_raw_depth`.
+                max_adu: resolve_max_adu(None, bit_depth),
                 bit_depth,
                 color: true,
                 bayer_pattern: if device_info.model.is_xtrans() {
@@ -1038,6 +1098,9 @@ impl FujifilmCamera {
                     Some(BayerPattern::Rggb) // GFX uses standard Bayer
                 },
             },
+            sdk_reported_bit_depth: None,
+            measured_bit_depth: None,
+            measured_white_level: None,
             is_exposing: false,
             is_bulb_mode: false,
             exposure_start: None,
@@ -1051,6 +1114,30 @@ impl FujifilmCamera {
             supported_isos: Vec::new(),
             supports_bulb: true,
         }
+    }
+
+    /// Recompute the published sample depth from the best evidence available.
+    ///
+    /// Authority order, highest first:
+    ///
+    /// 1. **Measured from the frame** — `CfaImage::bits_per_pixel` and
+    ///    `CfaImage::max_value` (LibRaw `color.maximum`) for the RAF this
+    ///    driver last decoded. Exact, and the only source that survives the
+    ///    user changing the body's RAW settings behind our back.
+    /// 2. **Reported by the camera** — `XSDK_ImageInformation::lImageBitDepth`
+    ///    (XAPI.H:123), populated by `XSDK_ReadImageInfo` for every frame, and
+    ///    `XSDK_GetProp(API_CODE_GetRAWOutputDepth)` (XAPIOpt.H:229) at connect.
+    ///    This is the only pre-decode source that tracks a GFX body switched to
+    ///    `SDK_RAWOUTPUTDEPTH_16BIT` (XAPIOpt.H:585).
+    /// 3. **Model table** — [`FujifilmModel::sensor_specs`], a static estimate.
+    fn refresh_raw_depth(&mut self) {
+        let bit_depth = resolve_bit_depth(
+            self.measured_bit_depth,
+            self.sdk_reported_bit_depth,
+            self.model.sensor_specs().3,
+        );
+        self.sensor_info.bit_depth = bit_depth;
+        self.sensor_info.max_adu = resolve_max_adu(self.measured_white_level, bit_depth);
     }
 
     /// Start a bulb exposure
@@ -1584,14 +1671,49 @@ impl NativeDevice for FujifilmCamera {
         let actual_name = cstr_to_string(&dev_info.str_product);
         if !actual_name.is_empty() {
             self.model = FujifilmModel::from_product_name(&actual_name);
-            let (width, height, pixel_size, bit_depth) = self.model.sensor_specs();
+            // Depth deliberately dropped here: `refresh_raw_depth` below picks
+            // it from the highest-authority source available.
+            let (width, height, pixel_size, _) = self.model.sensor_specs();
             self.sensor_info.width = width;
             self.sensor_info.height = height;
             self.sensor_info.pixel_size_x = pixel_size;
             self.sensor_info.pixel_size_y = pixel_size;
-            self.sensor_info.bit_depth = bit_depth;
-            self.sensor_info.max_adu = (1 << bit_depth) - 1;
         }
+
+        // 5b. Ask the body which RAW output depth it is set to. A GFX switched
+        //     to SDK_RAWOUTPUTDEPTH_16BIT (XAPIOpt.H:585) delivers samples that
+        //     reach 65535, four times the model table's 16383 estimate, and a
+        //     max_adu that low makes every such frame look saturated. Only the
+        //     bodies whose capability header declares support are asked; the
+        //     rest answer XSDK_ERRCODE_API_NOTFOUND, and we keep the estimate.
+        if self.model.supports_16bit_raw() {
+            let mut raw_output_depth: c_long = 0;
+            // SAFETY: fujifilm_mutex held above (in connect); `camera_handle` was opened via XSDK_OpenEx earlier in this function; `&mut raw_output_depth` is a valid stack out-pointer to a c_long. The `API_CODE_GetRAWOutputDepth` variant of XSDK_GetProp takes a single c_long out-pointer, the same shape as the `API_CODE_GET_FOCUS_POS` call in `get_focus_position`.
+            let result = unsafe {
+                (sdk.get_prop)(
+                    camera_handle,
+                    API_CODE_GET_RAW_OUTPUT_DEPTH,
+                    0, // lApiParam
+                    &mut raw_output_depth,
+                )
+            };
+
+            if result == XSDK_COMPLETE {
+                self.sdk_reported_bit_depth = raw_output_depth_to_bits(raw_output_depth);
+                tracing::info!(
+                    "Fujifilm: camera reports RAW output depth code {} -> {:?} bits",
+                    raw_output_depth,
+                    self.sdk_reported_bit_depth
+                );
+            } else {
+                tracing::debug!(
+                    "Fujifilm: XSDK_GetProp(GetRAWOutputDepth) returned {}; keeping the model-table depth estimate",
+                    result
+                );
+            }
+        }
+
+        self.refresh_raw_depth();
 
         // 6. Query ISO capabilities
         let mut iso_count: c_long = 0;
@@ -1820,9 +1942,30 @@ impl NativeCamera for FujifilmCamera {
         let img_format = img_info.l_format;
         let data_size = img_info.l_data_size as usize;
 
-        // Verify we got RAW format
+        // Require RAW. The download path always LibRaw-decodes the bytes as a
+        // RAF, so a JPEG (or any non-RAW) frame would either fail opaquely in
+        // LibRaw or, worse, be mis-decoded. The X Acquire SDK exposes no still-
+        // image quality setter we can drive to force RAW, so we fail here with
+        // an actionable message rather than shipping a corrupt/failed frame.
         if img_format != XSDK_IMAGEFORMAT_RAW {
-            tracing::warn!("Expected RAW format (1), got format {}", img_format);
+            return Err(NativeError::SdkError(format!(
+                "Fujifilm: camera returned a non-RAW frame (format code {}, expected RAW={}). \
+                 Set the camera's Image Quality to RAW (not JPEG or RAW+JPEG) — astro capture \
+                 requires the linear RAW sensor data.",
+                img_format, XSDK_IMAGEFORMAT_RAW
+            )));
+        }
+
+        // The SDK fills lImageBitDepth (XAPI.H:123) on every XSDK_ReadImageInfo
+        // and it tracks the body's live RAW output depth, so a GFX switched to
+        // SDK_RAWOUTPUTDEPTH_16BIT reports 16 here while the model table still
+        // says 14. Read only after the RAW guard above: a live-view or JPEG
+        // frame describes a different pipeline and must not redefine the
+        // sensor's container. Implausible values are ignored, not adopted.
+        let sdk_bit_depth = img_info.l_image_bit_depth;
+        if (8..=16).contains(&sdk_bit_depth) {
+            self.sdk_reported_bit_depth = Some(sdk_bit_depth as u32);
+            self.refresh_raw_depth();
         }
 
         // Download image data (RAF format)
@@ -1847,8 +1990,39 @@ impl NativeCamera for FujifilmCamera {
 
         self.is_exposing = false;
 
-        // Process RAF file with LibRaw
-        let (width, height, data) = process_raf_buffer(&buffer, self.model.is_xtrans())?;
+        // Decode the RAF into its native linear CFA mosaic (single channel).
+        let cfa = process_raf_buffer(&buffer, self.model.is_xtrans())?;
+
+        // Adopt the decoder's ground truth — the highest-authority source.
+        // `max_value` IS LibRaw's `color.maximum` (the saturation level) and
+        // `bits_per_pixel` is derived from it. The RAF is decoded with `unpack`
+        // + `raw2image` and never `dcraw_process` (imaging/src/raw.rs:1097-1108,
+        // contract in imaging/src/libraw_shim.c:98-102), so the mosaic is
+        // RIGHT-JUSTIFIED at its native depth: the white level is already the
+        // container full scale and must not be scaled up into 16 bits.
+        if (8..=16).contains(&cfa.bits_per_pixel) {
+            self.measured_bit_depth = Some(cfa.bits_per_pixel);
+        }
+        if cfa.max_value > 0 {
+            self.measured_white_level = Some(cfa.max_value);
+        }
+        self.refresh_raw_depth();
+
+        // Bayer orientation: X-Trans (6×6) has no valid 2×2 pattern → None
+        // (downstream then treats the mosaic as luminance rather than double-
+        // debayering it as if it were Bayer). GFX bodies are true Bayer → use
+        // LibRaw's detected orientation, falling back to the sensor default.
+        let bayer_pattern = if cfa.is_xtrans {
+            None
+        } else {
+            match cfa.cfa_pattern {
+                Some(nightshade_imaging::CfaPattern::Rggb) => Some(BayerPattern::Rggb),
+                Some(nightshade_imaging::CfaPattern::Grbg) => Some(BayerPattern::Grbg),
+                Some(nightshade_imaging::CfaPattern::Gbrg) => Some(BayerPattern::Gbrg),
+                Some(nightshade_imaging::CfaPattern::Bggr) => Some(BayerPattern::Bggr),
+                None => self.sensor_info.bayer_pattern,
+            }
+        };
 
         let metadata = ImageMetadata {
             exposure_time: self.exposure_duration.as_secs_f64(),
@@ -1864,11 +2038,12 @@ impl NativeCamera for FujifilmCamera {
         };
 
         Ok(ImageData {
-            width,
-            height,
-            data,
-            bits_per_pixel: self.sensor_info.bit_depth,
-            bayer_pattern: self.sensor_info.bayer_pattern,
+            width: cfa.width,
+            height: cfa.height,
+            data: cfa.data,
+            // Truthful sensor bit depth derived from LibRaw's saturation level.
+            bits_per_pixel: cfa.bits_per_pixel,
+            bayer_pattern,
             metadata,
         })
     }
@@ -1969,60 +2144,100 @@ impl NativeCamera for FujifilmCamera {
 }
 
 // =============================================================================
+// RAW SAMPLE DEPTH
+// =============================================================================
+
+/// A bit depth this driver is willing to believe. LibRaw clamps its own derived
+/// depth to 8..=16 and `SensorInfo` pixels are `u16`, so anything outside that
+/// range is a bad read rather than a real sensor.
+fn is_plausible_bit_depth(bits: &u32) -> bool {
+    (8..=16).contains(bits)
+}
+
+/// Map an `XSDK` RAW-output-depth code to a bit count.
+///
+/// XAPIOpt.H:584-585: `SDK_RAWOUTPUTDEPTH_14BIT = 0x0001`,
+/// `SDK_RAWOUTPUTDEPTH_16BIT = 0x0002`. Anything else means the body did not
+/// answer the query (X-series bodies declare `CapRAWOutputDepth = -1`).
+fn raw_output_depth_to_bits(code: c_long) -> Option<u32> {
+    match code {
+        SDK_RAWOUTPUTDEPTH_14BIT => Some(14),
+        SDK_RAWOUTPUTDEPTH_16BIT => Some(16),
+        _ => None,
+    }
+}
+
+/// Resolve `SensorInfo::bit_depth` from the three sources this driver has, in
+/// descending order of authority: measured from the decoded frame
+/// (`CfaImage::bits_per_pixel`), reported by the camera
+/// (`XSDK_ImageInformation::lImageBitDepth`, XAPI.H:123, or
+/// `XSDK_GetProp(API_CODE_GetRAWOutputDepth)`, XAPIOpt.H:229), then the
+/// `FujifilmModel::sensor_specs` table.
+fn resolve_bit_depth(
+    measured_bits: Option<u32>,
+    sdk_reported_bits: Option<u32>,
+    model_table_bits: u32,
+) -> u32 {
+    measured_bits
+        .filter(is_plausible_bit_depth)
+        .or_else(|| sdk_reported_bits.filter(is_plausible_bit_depth))
+        .unwrap_or(model_table_bits)
+        .clamp(8, 16)
+}
+
+/// Resolve `SensorInfo::max_adu` — the largest value a pixel in the delivered
+/// buffer can actually take.
+///
+/// A measured white level (`CfaImage::max_value`, LibRaw `color.maximum`) is
+/// exact and wins; otherwise the resolved `bit_depth` gives `(1 << bits) - 1`.
+///
+/// That formula is correct HERE because the RAF decode is `unpack` +
+/// `raw2image` with no `dcraw_process` (imaging/src/raw.rs:1097-1108; contract
+/// in imaging/src/libraw_shim.c:98-102), so samples are RIGHT-JUSTIFIED at the
+/// sensor's native depth. This path must NEVER left-shift the value into a
+/// 16-bit container the way a left-justifying astro-CMOS SDK requires — see the
+/// `SensorInfo` type docs in `crate::camera`.
+fn resolve_max_adu(measured_white_level: Option<u32>, bit_depth: u32) -> u32 {
+    match measured_white_level {
+        Some(white) if white > 0 => white,
+        _ => (1u32 << bit_depth.clamp(8, 16)) - 1,
+    }
+}
+
+// =============================================================================
 // RAF PROCESSING
 // =============================================================================
 
-/// Process RAF buffer and convert to 16-bit image data
+/// Decode a RAF buffer into its native single-channel LINEAR CFA mosaic.
+///
+/// Decodes straight from the buffer (no temp file → no filename collision
+/// between concurrent captures) via `read_cfa_mosaic_from_bytes`, which does
+/// `unpack` + `raw2image` with NO `dcraw_process` — so the result is the
+/// sensor's raw linear mosaic, one u16 per pixel, NOT a demosaiced/white-
+/// balanced/gamma-encoded 3-channel sRGB image. Feeding processed RGB into the
+/// mono-mosaic contract corrupts every frame (3× oversize, non-linear, and —
+/// for the Bayer GFX bodies — double-debayered).
 fn process_raf_buffer(
     buffer: &[u8],
     _is_xtrans: bool,
-) -> Result<(u32, u32, Vec<u16>), NativeError> {
-    // Write to temp file for LibRaw processing
-    let temp_path = std::env::temp_dir().join(format!("fuji_raw_{}.raf", std::process::id()));
-    std::fs::write(&temp_path, buffer)
-        .map_err(|e| NativeError::SdkError(format!("Failed to write temp RAF file: {}", e)))?;
+) -> Result<nightshade_imaging::CfaImage, NativeError> {
+    let (cfa, _metadata) = nightshade_imaging::read_cfa_mosaic_from_bytes(buffer, "raf")
+        .map_err(|e| NativeError::SdkError(format!("LibRaw processing failed: {}", e)))?;
 
-    // Use LibRaw to process
-    // Use nightshade_imaging LibRaw integration and return its result.
-    let result = process_raf_with_libraw(&temp_path);
-
-    // Cleanup temp file
-    let _ = std::fs::remove_file(&temp_path);
-
-    result
-}
-
-/// Process RAF file with LibRaw
-fn process_raf_with_libraw(path: &std::path::Path) -> Result<(u32, u32, Vec<u16>), NativeError> {
-    // Try to use nightshade_imaging's LibRaw integration
-    // Use DHT demosaic for best X-Trans quality
-    let params = nightshade_imaging::RawProcessingParams {
-        output_bps: 16, // 16-bit output
-        ..Default::default()
-    };
-
-    match nightshade_imaging::read_raw(path, Some(&params)) {
-        Ok((image_data, _metadata)) => {
-            // Convert ImageData to Vec<u16>
-            // ImageData stores bytes, need to convert to u16
-            let u16_data = if let Some(data) = image_data.as_u16() {
-                data
-            } else {
-                // Fallback: convert raw bytes to u16
-                image_data
-                    .data
-                    .chunks_exact(2)
-                    .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-                    .collect()
-            };
-
-            Ok((image_data.width, image_data.height, u16_data))
-        }
-        Err(e) => Err(NativeError::SdkError(format!(
-            "LibRaw processing failed: {}",
-            e
-        ))),
+    // Contract guard: the mono mosaic MUST be exactly width*height samples.
+    let expected = (cfa.width as usize) * (cfa.height as usize);
+    if cfa.data.len() != expected {
+        return Err(NativeError::SdkError(format!(
+            "Fujifilm: CFA decode produced {} samples for a {}x{} frame (expected {}) — \
+             refusing to emit a corrupt frame",
+            cfa.data.len(),
+            cfa.width,
+            cfa.height,
+            expected
+        )));
     }
+
+    Ok(cfa)
 }
 
 // =============================================================================
@@ -2271,6 +2486,158 @@ mod tests {
         let (w, h, _, _) = FujifilmModel::XS20.sensor_specs();
         assert_eq!(w, 6240);
         assert_eq!(h, 4160);
+    }
+
+    // =========================================================================
+    // RAW SAMPLE DEPTH TESTS
+    // =========================================================================
+
+    fn camera_for(model: FujifilmModel) -> FujifilmCamera {
+        FujifilmCamera::new(&FujifilmDeviceInfo {
+            name: "Fujifilm test body".to_string(),
+            serial_number: Some("TESTSERIAL".to_string()),
+            firmware_version: None,
+            model,
+            connection_type: "USB".to_string(),
+        })
+    }
+
+    #[test]
+    fn test_supports_16bit_raw_matches_the_capability_headers() {
+        // API_PARAM_CapRAWOutputDepth == 2 (supported).
+        assert!(FujifilmModel::Gfx100.supports_16bit_raw());
+        assert!(FujifilmModel::Gfx100II.supports_16bit_raw());
+        assert!(FujifilmModel::Gfx100SII.supports_16bit_raw());
+        assert!(FujifilmModel::Gfx50SII.supports_16bit_raw());
+
+        // API_PARAM_CapRAWOutputDepth == -1, or no entry at all.
+        assert!(!FujifilmModel::XT5.supports_16bit_raw());
+        assert!(!FujifilmModel::XH2.supports_16bit_raw());
+        assert!(!FujifilmModel::XH2S.supports_16bit_raw());
+        assert!(!FujifilmModel::XM5.supports_16bit_raw());
+        assert!(!FujifilmModel::XS20.supports_16bit_raw());
+        assert!(!FujifilmModel::Gfx50R.supports_16bit_raw());
+        assert!(!FujifilmModel::Gfx50S.supports_16bit_raw());
+        assert!(!FujifilmModel::Unknown.supports_16bit_raw());
+    }
+
+    #[test]
+    fn test_raw_output_depth_code_maps_to_bits() {
+        assert_eq!(raw_output_depth_to_bits(SDK_RAWOUTPUTDEPTH_14BIT), Some(14));
+        assert_eq!(raw_output_depth_to_bits(SDK_RAWOUTPUTDEPTH_16BIT), Some(16));
+        // Not answered / unsupported.
+        assert_eq!(raw_output_depth_to_bits(0), None);
+        assert_eq!(raw_output_depth_to_bits(-1), None);
+    }
+
+    #[test]
+    fn test_max_adu_falls_back_to_model_table_before_any_frame() {
+        // Nothing measured and nothing reported yet: the model-table estimate
+        // is all we have, and it must be a right-justified 14-bit ceiling.
+        let info = camera_for(FujifilmModel::XT5).get_sensor_info();
+        assert_eq!(info.bit_depth, 14);
+        assert_eq!(info.max_adu, 16383);
+
+        let info = camera_for(FujifilmModel::Gfx100II).get_sensor_info();
+        assert_eq!(info.bit_depth, 14);
+        assert_eq!(info.max_adu, 16383);
+    }
+
+    #[test]
+    fn test_measured_12bit_white_level_overrides_the_14bit_estimate() {
+        let mut camera = camera_for(FujifilmModel::XT5);
+        assert_eq!(camera.get_sensor_info().max_adu, 16383);
+
+        // What download_image does with the decoded frame.
+        camera.measured_bit_depth = Some(12);
+        camera.measured_white_level = Some(4095);
+        camera.refresh_raw_depth();
+
+        let info = camera.get_sensor_info();
+        assert_eq!(info.max_adu, 4095, "the measured white level must win");
+        assert_ne!(
+            info.max_adu, 16383,
+            "the model-table guess must not survive"
+        );
+        assert_eq!(info.bit_depth, 12);
+    }
+
+    #[test]
+    fn test_measured_16bit_white_level_is_adopted_on_a_gfx_body() {
+        // A GFX set to SDK_RAWOUTPUTDEPTH_16BIT (XAPIOpt.H:585) really does
+        // deliver samples at 65535; reporting 16383 understates it 4x and makes
+        // every frame look saturated.
+        let mut camera = camera_for(FujifilmModel::Gfx100II);
+        camera.measured_bit_depth = Some(16);
+        camera.measured_white_level = Some(65535);
+        camera.refresh_raw_depth();
+
+        let info = camera.get_sensor_info();
+        assert_eq!(info.max_adu, 65535);
+        assert_ne!(info.max_adu, 16383, "the 14-bit estimate must not survive");
+        assert_eq!(info.bit_depth, 16);
+    }
+
+    #[test]
+    fn test_measured_white_level_is_never_container_scaled() {
+        // GUARD: the RAF mosaic is RIGHT-JUSTIFIED (unpack + raw2image, never
+        // dcraw_process — imaging/src/raw.rs:1097-1108), so a 14-bit frame
+        // saturates at 16383. Left-shifting it into a 16-bit container
+        // (16383 << 2 == 65532), which is the correct fix for a left-justifying
+        // astro-CMOS SDK, would be a 4x OVERstatement on this path.
+        let mut camera = camera_for(FujifilmModel::Gfx100II);
+        camera.measured_bit_depth = Some(14);
+        camera.measured_white_level = Some(16383);
+        camera.refresh_raw_depth();
+
+        let info = camera.get_sensor_info();
+        assert_eq!(info.max_adu, 16383);
+        assert_ne!(info.max_adu, 65532, "this path must not left-justify");
+        assert_eq!(info.bit_depth, 14);
+    }
+
+    #[test]
+    fn test_sdk_reported_depth_outranks_the_table_and_loses_to_the_frame() {
+        let mut camera = camera_for(FujifilmModel::Gfx100II);
+
+        // XSDK_GetProp / lImageBitDepth says 16 while the table still says 14.
+        camera.sdk_reported_bit_depth = Some(16);
+        camera.refresh_raw_depth();
+        let info = camera.get_sensor_info();
+        assert_eq!(info.bit_depth, 16);
+        assert_eq!(info.max_adu, 65535);
+
+        // The decoded frame then measures a 14-bit white level — the frame in
+        // hand outranks what the camera claimed about itself.
+        camera.measured_bit_depth = Some(14);
+        camera.measured_white_level = Some(16383);
+        camera.refresh_raw_depth();
+        let info = camera.get_sensor_info();
+        assert_eq!(info.bit_depth, 14);
+        assert_eq!(info.max_adu, 16383);
+    }
+
+    #[test]
+    fn test_resolve_bit_depth_ignores_implausible_sources() {
+        // 0 and 32 are bad reads, not sensors: fall through to the next source.
+        assert_eq!(resolve_bit_depth(Some(0), Some(16), 14), 16);
+        assert_eq!(resolve_bit_depth(Some(32), None, 14), 14);
+        assert_eq!(resolve_bit_depth(None, Some(0), 14), 14);
+        assert_eq!(resolve_bit_depth(None, None, 14), 14);
+        assert_eq!(resolve_bit_depth(Some(12), Some(16), 14), 12);
+        // A corrupt table entry still cannot publish an out-of-range depth.
+        assert_eq!(resolve_bit_depth(None, None, 0), 8);
+        assert_eq!(resolve_bit_depth(None, None, 64), 16);
+    }
+
+    #[test]
+    fn test_resolve_max_adu_ignores_an_unmeasured_white_level() {
+        // LibRaw leaves color.maximum at 0 for a few bodies; a 0 ceiling would
+        // be unreachable, so the resolved bit depth is used instead.
+        assert_eq!(resolve_max_adu(Some(0), 14), 16383);
+        assert_eq!(resolve_max_adu(None, 16), 65535);
+        assert_eq!(resolve_max_adu(Some(65535), 14), 65535);
+        assert_eq!(resolve_max_adu(None, 0), 255);
     }
 
     // =========================================================================

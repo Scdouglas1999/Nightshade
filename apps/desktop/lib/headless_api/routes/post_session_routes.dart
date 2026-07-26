@@ -19,6 +19,16 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildPostSessionRoutes(PostSessionHandlers h) =>
     <HeadlessRoute>[
       HeadlessRoute(
+        HttpMethod.get,
+        '/api/post-session/settings',
+        h.handleGetSettings,
+      ),
+      HeadlessRoute(
+        HttpMethod.post,
+        '/api/post-session/settings',
+        h.handleUpdateSettings,
+      ),
+      HeadlessRoute(
         HttpMethod.post,
         '/api/post-session/integrate',
         h.handleIntegrateSession,

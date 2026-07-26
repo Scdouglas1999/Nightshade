@@ -273,11 +273,36 @@ class _DeviceDashboard extends ConsumerWidget {
   /// can attach equipment without hunting through the sidebar menu.
   final void Function(EquipmentProfileModel) onEditProfile;
 
+  /// Optional chrome rendered above the cards INSIDE this dashboard's scroll
+  /// view (phone layout). Pinning these panels as Column siblings starved and
+  /// clipped the card list, so they scroll with the cards instead. Rendered in
+  /// the empty states too, otherwise the readiness checklist and the Polar
+  /// Alignment / Flat Wizard shortcuts would vanish whenever nothing is
+  /// connected — which is exactly when an operator needs them.
+  final Widget? header;
+
+  /// Chrome rendered BELOW the cards, inside the same scroll view. Used for the
+  /// Discovery scanner on viewports too short to pin it (see
+  /// [_EquipmentMainColumn._cardsAndDiscovery]).
+  final Widget? footer;
+
   const _DeviceDashboard({
     this.profile,
     required this.onConnectAll,
     required this.onEditProfile,
+    this.header,
+    this.footer,
   });
+
+  /// A scroll view hands its child UNBOUNDED height, which would trip the
+  /// `Flexible` inside DiscoveryPanel's own column. Bounding the footer keeps
+  /// that resolvable while still letting it size to its content.
+  Widget? get _boundedFooter => footer == null
+      ? null
+      : ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 500),
+          child: footer!,
+        );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -379,6 +404,8 @@ class _DeviceDashboard extends ConsumerWidget {
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     if (profile == null && (!isRemoteMode || connectedCards.isEmpty)) {
       return _EquipmentEmptyState(
+        header: header,
+        footer: _boundedFooter,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -418,6 +445,8 @@ class _DeviceDashboard extends ConsumerWidget {
       if (hasDevicesAssigned) {
         // Profile has devices but none connected
         return _EquipmentEmptyState(
+          header: header,
+          footer: _boundedFooter,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -449,6 +478,8 @@ class _DeviceDashboard extends ConsumerWidget {
       } else {
         // Profile has no devices assigned
         return _EquipmentEmptyState(
+          header: header,
+          footer: _boundedFooter,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -484,26 +515,53 @@ class _DeviceDashboard extends ConsumerWidget {
     // each card's action rows have the whole viewport to lay out in.
     if (Responsive.isPhone(context)) {
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (var i = 0; i < connectedCards.length; i++) ...[
-              if (i > 0) const SizedBox(height: 12),
-              connectedCards[i],
-            ],
+            // Header sits OUTSIDE the card padding so the health / readiness
+            // bars keep their full-bleed edge-to-edge rules.
+            if (header != null) header!,
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < connectedCards.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    connectedCards[i],
+                  ],
+                ],
+              ),
+            ),
+            if (_boundedFooter != null) _boundedFooter!,
           ],
         ),
       );
     }
 
     // Desktop/tablet: a responsive grid of fixed-width tiles.
+    //
+    // The header is honoured here too. The caller's "mobile" test is wider than
+    // [Responsive.isPhone] (it also covers any viewport narrower than the
+    // tablet breakpoint), so a tablet-width window takes the no-rail layout and
+    // passes a header while landing in THIS branch. Dropping it there would
+    // silently lose System Health, the readiness checklist and both wizard
+    // shortcuts on exactly those widths.
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        children: connectedCards,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (header != null) header!,
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: connectedCards,
+            ),
+          ),
+          if (_boundedFooter != null) _boundedFooter!,
+        ],
       ),
     );
   }
@@ -517,20 +575,43 @@ class _DeviceDashboard extends ConsumerWidget {
 class _EquipmentEmptyState extends StatelessWidget {
   final Widget child;
 
-  const _EquipmentEmptyState({required this.child});
+  /// Same phone-layout header as [_DeviceDashboard.header]; kept above the
+  /// centered empty-state copy so the readiness checklist and wizard shortcuts
+  /// stay reachable while no device is connected.
+  final Widget? header;
+
+  /// Same phone-layout footer as [_DeviceDashboard.footer]. With no devices
+  /// connected the Discovery scanner is the ONLY way forward, so it must not
+  /// disappear on the short viewports that unpin it.
+  final Widget? footer;
+
+  const _EquipmentEmptyState({required this.child, this.header, this.footer});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight:
-                  constraints.hasBoundedHeight ? constraints.maxHeight - 48 : 0,
-            ),
-            child: Center(child: child),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (header != null) header!,
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    // The header has already consumed part of the viewport, so
+                    // only the REMAINDER should be reserved for centering —
+                    // otherwise the empty state pushes itself off the bottom.
+                    minHeight: constraints.hasBoundedHeight && header == null
+                        ? constraints.maxHeight - 48
+                        : 0,
+                  ),
+                  child: Center(child: child),
+                ),
+              ),
+              if (footer != null) footer!,
+            ],
           ),
         );
       },

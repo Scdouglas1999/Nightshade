@@ -169,8 +169,7 @@ class _DiscordConfigDialogState extends State<_DiscordConfigDialog> {
     if (parsed == null || parsed.scheme != 'https') {
       return 'The webhook URL must be an https URL.';
     }
-    if (!parsed.host.endsWith('discord.com') &&
-        !parsed.host.endsWith('discordapp.com')) {
+    if (!isDiscordWebhookHost(parsed.host)) {
       return 'The host must be discord.com or discordapp.com (got '
           '${parsed.host}).';
     }
@@ -184,6 +183,7 @@ class _DiscordConfigDialogState extends State<_DiscordConfigDialog> {
       title: 'Configure Discord Webhook',
       icon: LucideIcons.messageSquare,
       width: 520,
+      closeEnabled: !_saving && !_testing,
       actions: [
         NightshadeButton(
           label: 'Test send',

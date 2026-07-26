@@ -55,6 +55,15 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
   Future<AppSettingsState> build() async => _initial;
 }
 
+class _FailingSettingsDao extends SettingsDao {
+  _FailingSettingsDao(super.db);
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    throw StateError('write failed');
+  }
+}
+
 /// Fixed-`pairingCode` pairing notifier.
 ///
 /// Subclasses the production [PairingNotifier] (the provider is typed to it).
@@ -181,6 +190,41 @@ const _runningNoTailnet = WebServerState(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('failed port save restores the last confirmed value',
+      (tester) async {
+    final database = mockDatabase();
+    addTearDown(database.close);
+    await pumpAppScreen(
+      tester,
+      const RemoteAccessSettings(),
+      size: const Size(900, 1400),
+      database: database,
+      registerTearDown: false,
+      extraOverrides: [
+        ..._overrides(
+          webState: _runningNoTailnet,
+          pairingCode: 'STAR-LYRA-1234',
+        ),
+        settingsDaoProvider.overrideWithValue(_FailingSettingsDao(database)),
+      ],
+    );
+
+    final portField = find.byKey(const ValueKey('remote-access-port'));
+    expect(tester.widget<TextField>(portField).controller!.text, '8080');
+
+    await tester.enterText(portField, '9090');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.widget<TextField>(portField).controller!.text, '8080');
+    expect(
+      find.text('Could not save the port. The previous value was restored.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
       'reachable_renders_tailnet_host_not_lan: shows the 100.x host + URL, '
       'never the LAN address', (tester) async {
@@ -197,9 +241,12 @@ void main() {
     // The reachable pill shows the tailnet host.
     expect(find.textContaining('100.96.0.7'), findsWidgets,
         reason: 'Reachable panel must surface the tailnet host');
-    // The bracket-correct (IPv4 here) URL is shown for copy/verify.
-    expect(find.text('http://100.96.0.7:8080'), findsOneWidget,
-        reason: 'Reachable panel must show the tailnet URL');
+    // The bracket-correct (IPv4 here) URL is shown for copy/verify. It carries
+    // WebServerState.dashboardPath, because bare `host:port` is not the
+    // dashboard entry point — pasting it would land the operator on a 404.
+    expect(find.text('http://100.96.0.7:8080${WebServerState.dashboardPath}'),
+        findsOneWidget,
+        reason: 'Reachable panel must show the tailnet dashboard URL');
 
     // A QR carrying the *tailnet* host is armed (pairing code is active). The
     // screen also shows the separate LAN pairing QR; we identify the Tailscale

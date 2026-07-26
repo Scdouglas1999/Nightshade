@@ -2,8 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/first_light/first_light_view.dart';
+import 'package:nightshade_app/services/mount_command_service.dart';
+import 'package:nightshade_app/models/command_action_result.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+class _ResultMountService extends MountCommandService {
+  _ResultMountService(super.ref, this.result);
+
+  final CommandActionResult result;
+
+  @override
+  bool get isConnected => true;
+
+  @override
+  Future<CommandActionResult> slewTo(
+    double ra,
+    double dec, {
+    bool showFeedback = true,
+  }) async =>
+      result;
+}
 
 TransientDetectionRow _detection({
   int id = 1,
@@ -39,6 +58,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required List<TransientDetectionRow> candidates,
   List<NarratorEvent> narrator = const [],
+  List<Override> overrides = const [],
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -49,6 +69,7 @@ Future<void> _pump(
         recentNarratorFeedProvider.overrideWith(
           (ref) => Stream.value(narrator),
         ),
+        ...overrides,
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -195,6 +216,37 @@ void main() {
         find.textContaining('No mount connected'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('Chase renders command failures as errors', (tester) async {
+      await _pump(
+        tester,
+        candidates: [_detection()],
+        overrides: [
+          mountCommandServiceProvider.overrideWith(
+            (ref) => _ResultMountService(
+              ref,
+              const CommandActionResult.failure(
+                'This mount reports that GoTo slewing is unsupported',
+              ),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Chase'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Slew'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('This mount reports that GoTo slewing is unsupported'),
+        findsOneWidget,
+      );
+      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+      final context = tester.element(find.byType(FirstLightView));
+      expect(snackBar.backgroundColor, NightshadeColors.of(context).error);
     });
 
     testWidgets('shows the empty state when there are no candidates', (

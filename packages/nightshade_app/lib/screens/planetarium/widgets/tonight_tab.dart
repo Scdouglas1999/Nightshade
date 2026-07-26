@@ -445,7 +445,6 @@ class _SatellitePassesSectionState
                 onPressed: () {
                   ref.read(showSatellitesProvider.notifier).state = true;
                   ref.read(skyRenderConfigProvider.notifier).toggleSatellites();
-                  ref.read(passPredictionProvider.notifier).computePasses();
                   setState(() => _isExpanded = true);
                 },
                 label: 'Enable',
@@ -727,7 +726,7 @@ class _LocationIndicator extends StatelessWidget {
                           isDefaultLocation ? colors.warning : colors.success),
                 ),
                 Text(
-                  '${location.latitude.toStringAsFixed(2)}\u00b0N, ${location.longitude.abs().toStringAsFixed(2)}\u00b0${location.longitude >= 0 ? 'E' : 'W'}',
+                  '${location.latitude.abs().toStringAsFixed(2)}\u00b0${location.latitude >= 0 ? 'N' : 'S'}, ${location.longitude.abs().toStringAsFixed(2)}\u00b0${location.longitude >= 0 ? 'E' : 'W'}',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize10,
                     color: isDefaultLocation

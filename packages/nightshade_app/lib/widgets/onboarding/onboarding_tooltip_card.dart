@@ -28,6 +28,12 @@ class OnboardingTooltipCard extends StatelessWidget {
   final VoidCallback? onSkip;
   final VoidCallback? onDone;
 
+  /// Terminal persistence is in flight. All actions are disabled so Skip,
+  /// Done, keyboard shortcuts and scrim taps cannot enqueue duplicate writes.
+  final bool isBusy;
+  final bool isSkipping;
+  final bool isCompleting;
+
   /// Label for the primary button. Defaults to "Next" but the welcome
   /// card uses "Show me around" and the completion card uses "Done".
   final String primaryLabel;
@@ -50,6 +56,9 @@ class OnboardingTooltipCard extends StatelessWidget {
     this.onNext,
     this.onSkip,
     this.onDone,
+    this.isBusy = false,
+    this.isSkipping = false,
+    this.isCompleting = false,
     this.primaryLabel = 'Next',
     this.secondaryLabel,
     this.onSecondary,
@@ -234,14 +243,16 @@ class OnboardingTooltipCard extends StatelessWidget {
             label: 'Skip',
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
-            onPressed: onSkip,
+            isLoading: isSkipping,
+            onPressed: isBusy ? null : onSkip,
           ),
         if (secondaryLabel != null && onSecondary != null)
           NightshadeButton(
             label: secondaryLabel!,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: onSecondary,
+            isLoading: isSkipping,
+            onPressed: isBusy ? null : onSecondary,
           ),
         if (onBack != null)
           NightshadeButton(
@@ -249,7 +260,7 @@ class OnboardingTooltipCard extends StatelessWidget {
             icon: LucideIcons.chevronLeft,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
-            onPressed: onBack,
+            onPressed: isBusy ? null : onBack,
           ),
         if (onDone != null)
           NightshadeButton(
@@ -257,7 +268,8 @@ class OnboardingTooltipCard extends StatelessWidget {
             icon: LucideIcons.check,
             variant: ButtonVariant.primary,
             size: ButtonSize.small,
-            onPressed: onDone,
+            isLoading: isCompleting,
+            onPressed: isBusy ? null : onDone,
           )
         else if (onNext != null)
           NightshadeButton(
@@ -265,7 +277,7 @@ class OnboardingTooltipCard extends StatelessWidget {
             icon: LucideIcons.chevronRight,
             variant: ButtonVariant.primary,
             size: ButtonSize.small,
-            onPressed: onNext,
+            onPressed: isBusy ? null : onNext,
           ),
       ],
     );

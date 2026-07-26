@@ -249,11 +249,30 @@ class TourSelectionSheet extends ConsumerWidget {
     );
   }
 
-  void _startTour(
-      BuildContext context, WidgetRef ref, TutorialCategory category) {
-    final tutorialNotifier = ref.read(tutorialProvider.notifier);
-    tutorialNotifier.startTutorial(category);
-    Navigator.of(context).pop();
+  Future<void> _startTour(
+    BuildContext context,
+    WidgetRef ref,
+    TutorialCategory category,
+  ) async {
+    try {
+      final notifier = ref.read(tutorialProvider.notifier);
+      final shouldResume = notifier.hasCategoryProgress(category) &&
+          !notifier.isCategoryCompletedSync(category);
+      if (shouldResume) {
+        await notifier.resumeTutorial(category);
+      } else {
+        await notifier.startTutorial(category);
+      }
+      if (context.mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Could not start the tour. Please try again.'),
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -312,14 +331,14 @@ class _SheetHeader extends StatelessWidget {
   }
 }
 
-class _TourListItem extends StatelessWidget {
+class _TourListItem extends StatefulWidget {
   final TutorialCategory category;
   final String title;
   final String description;
   final int durationMinutes;
   final TutorialProgress tutorialState;
   final NightshadeColors colors;
-  final VoidCallback onStart;
+  final Future<void> Function() onStart;
 
   const _TourListItem({
     required this.category,
@@ -332,6 +351,23 @@ class _TourListItem extends StatelessWidget {
   });
 
   @override
+  State<_TourListItem> createState() => _TourListItemState();
+}
+
+class _TourListItemState extends State<_TourListItem> {
+  bool _starting = false;
+
+  Future<void> _start() async {
+    if (_starting) return;
+    setState(() => _starting = true);
+    try {
+      await widget.onStart();
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final status = _getTourStatus();
     final progress = _getTourProgress();
@@ -339,21 +375,21 @@ class _TourListItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+        color: widget.colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
+        border: Border.all(color: widget.colors.border),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
-          onTap: onStart,
+          onTap: _starting ? null : _start,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 // Status icon
-                _StatusIcon(status: status, colors: colors),
+                _StatusIcon(status: status, colors: widget.colors),
                 const SizedBox(width: 16),
 
                 // Content
@@ -362,18 +398,18 @@ class _TourListItem extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        title,
+                        widget.title,
                         style: TextStyle(
-                          color: colors.textPrimary,
+                          color: widget.colors.textPrimary,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        description,
+                        widget.description,
                         style: TextStyle(
-                          color: colors.textSecondary,
+                          color: widget.colors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -386,16 +422,17 @@ class _TourListItem extends StatelessWidget {
                 _StatusBadge(
                   status: status,
                   progress: progress,
-                  durationMinutes: durationMinutes,
-                  colors: colors,
+                  durationMinutes: widget.durationMinutes,
+                  colors: widget.colors,
                 ),
                 const SizedBox(width: 12),
 
                 // Action button
                 _ActionButton(
                   status: status,
-                  colors: colors,
-                  onPressed: onStart,
+                  colors: widget.colors,
+                  onPressed: _starting ? null : _start,
+                  isLoading: _starting,
                 ),
               ],
             ),
@@ -406,10 +443,10 @@ class _TourListItem extends StatelessWidget {
   }
 
   _TourStatus _getTourStatus() {
-    final steps = TutorialDefinitions.getStepsForCategory(category);
+    final steps = TutorialDefinitions.getStepsForCategory(widget.category);
     final completedCount = steps
         .where(
-          (step) => tutorialState.completedSteps.contains(step.id),
+          (step) => widget.tutorialState.completedSteps.contains(step.id),
         )
         .length;
 
@@ -423,10 +460,10 @@ class _TourListItem extends StatelessWidget {
   }
 
   String _getTourProgress() {
-    final steps = TutorialDefinitions.getStepsForCategory(category);
+    final steps = TutorialDefinitions.getStepsForCategory(widget.category);
     final completedCount = steps
         .where(
-          (step) => tutorialState.completedSteps.contains(step.id),
+          (step) => widget.tutorialState.completedSteps.contains(step.id),
         )
         .length;
     return '$completedCount/${steps.length}';
@@ -537,12 +574,14 @@ class _StatusBadge extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   final _TourStatus status;
   final NightshadeColors colors;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isLoading;
 
   const _ActionButton({
     required this.status,
     required this.colors,
     required this.onPressed,
+    this.isLoading = false,
   });
 
   @override
@@ -571,6 +610,7 @@ class _ActionButton extends StatelessWidget {
       icon: LucideIcons.arrowRight,
       variant: isPrimary ? ButtonVariant.primary : ButtonVariant.outline,
       size: ButtonSize.small,
+      isLoading: isLoading,
     );
   }
 }

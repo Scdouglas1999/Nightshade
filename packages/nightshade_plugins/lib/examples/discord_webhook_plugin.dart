@@ -25,6 +25,17 @@ import 'package:http/http.dart' as http;
 
 import '../src/plugin_api.dart';
 
+/// True only for Discord itself or one of its subdomains. A plain
+/// `endsWith('discord.com')` check also accepts attacker-controlled hosts such
+/// as `evil-discord.com`.
+bool isDiscordWebhookHost(String host) {
+  final normalized = host.toLowerCase();
+  return normalized == 'discord.com' ||
+      normalized.endsWith('.discord.com') ||
+      normalized == 'discordapp.com' ||
+      normalized.endsWith('.discordapp.com');
+}
+
 class DiscordWebhookPlugin extends SequencePlugin {
   /// Optional HTTP client factory (test seam).
   final http.Client Function()? clientBuilder;
@@ -135,8 +146,7 @@ class _DiscordWebhookNode implements PluginSequenceNode {
     if (parsed == null || parsed.scheme != 'https') {
       return 'Discord webhook URL must be an https URL';
     }
-    if (!parsed.host.endsWith('discord.com') &&
-        !parsed.host.endsWith('discordapp.com')) {
+    if (!isDiscordWebhookHost(parsed.host)) {
       return 'Webhook URL host must be discord.com or discordapp.com '
           '(got ${parsed.host})';
     }

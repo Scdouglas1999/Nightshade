@@ -25,7 +25,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
   final _cloudController = TextEditingController();
   final _distanceController = TextEditingController();
   final _leadTimeController = TextEditingController();
-  bool _initialized = false;
+  WeatherSettings? _controllerSettings;
 
   @override
   void dispose() {
@@ -37,16 +37,14 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
     super.dispose();
   }
 
-  void _initControllers(WeatherSettings settings) {
-    if (_initialized) {
-      return;
-    }
+  void _syncControllers(WeatherSettings settings) {
+    if (_controllerSettings == settings) return;
     _humidityController.text = settings.maxHumidityPercent.toStringAsFixed(0);
     _windController.text = settings.maxWindSpeedKph.toStringAsFixed(0);
     _cloudController.text = settings.maxCloudCoverPercent.toStringAsFixed(0);
     _distanceController.text = settings.triggerDistanceKm.toStringAsFixed(0);
     _leadTimeController.text = settings.leadTimeMinutes.toString();
-    _initialized = true;
+    _controllerSettings = settings;
   }
 
   Future<void> _updateSettings({
@@ -59,7 +57,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
     bool? autoParkEnabled,
     bool? autoResumeEnabled,
   }) {
-    return ref.read(databaseProvider).weatherSettingsDao.updateSettings(
+    return ref.read(weatherSettingsActionsProvider).updateSettings(
           triggerDistanceKm: triggerDistanceKm,
           leadTimeMinutes: leadTimeMinutes,
           weatherSafetyEnabled: weatherSafetyEnabled,
@@ -73,9 +71,37 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
 
   @override
   Widget build(BuildContext context) {
-    final settings = ref.watch(weatherSettingsProvider);
     final l10n = context.l10n;
-    _initControllers(settings);
+    final settingsAsync = ref.watch(weatherSettingsDataProvider);
+    final settings = settingsAsync.valueOrNull;
+
+    if (settings == null) {
+      return SettingsPage(
+        title: l10n.text('weatherSafetyTitle'),
+        description: l10n.text('weatherSafetyDescription'),
+        isMobile: widget.isMobile,
+        hideHeader: widget.isMobile,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: settingsAsync.hasError
+                ? Column(
+                    children: [
+                      const Text('Could not load weather safety settings.'),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () =>
+                            ref.invalidate(weatherSettingsDataProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  )
+                : const Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+    _syncControllers(settings);
 
     return SettingsPage(
       title: l10n.text('weatherSafetyTitle'),

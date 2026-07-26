@@ -25,6 +25,8 @@ class _TestBackendNotifier extends BackendNotifier {
   _TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  void swapTo(NightshadeBackend backend) => state = backend;
 }
 
 /// Build a typed `FrameRejected` `NightshadeEvent` matching what
@@ -290,6 +292,55 @@ void main() {
         expect(reset.hfrSparkline, isEmpty);
       },
     );
+
+    test('backend switch clears old-host quality and ignores late events',
+        () async {
+      final oldBackend = mockBackend();
+      final newBackend = mockBackend();
+      final container = ProviderContainer(overrides: [
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, oldBackend),
+        ),
+      ]);
+      addTearDown(container.dispose);
+      container.read(runDashboardQualitySummaryProvider);
+
+      oldBackend.emitEvent(_typedFrameAccepted(
+        frame: 1,
+        total: 10,
+        hfr: 2.4,
+        acceptedTotal: 1,
+        rejectedTotal: 0,
+      ));
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(runDashboardQualitySummaryProvider).total, 1);
+
+      (container.read(backendProvider.notifier) as _TestBackendNotifier)
+          .swapTo(newBackend);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(runDashboardQualitySummaryProvider).total, 0);
+
+      oldBackend.emitEvent(_typedFrameRejected(
+        frame: 2,
+        total: 10,
+        reason: 'late old-host frame',
+        consecutiveRejects: 1,
+        acceptedTotal: 1,
+        rejectedTotal: 1,
+      ));
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(runDashboardQualitySummaryProvider).total, 0);
+
+      newBackend.emitEvent(_typedFrameAccepted(
+        frame: 1,
+        total: 5,
+        hfr: 1.9,
+        acceptedTotal: 1,
+        rejectedTotal: 0,
+      ));
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(runDashboardQualitySummaryProvider).total, 1);
+    });
   });
 
   group('FrameGradeEvent.fromTypedData (typed contract)', () {

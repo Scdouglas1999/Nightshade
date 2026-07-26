@@ -3,13 +3,30 @@ part of '../settings_widgets.dart';
 class SettingsTextInput extends StatefulWidget {
   final TextEditingController controller;
 
+  /// Latest value owned by the settings provider.
+  ///
+  /// Supplying this keeps a long-lived controller in sync with server pushes
+  /// and backend changes. A same-authority update does not overwrite text the
+  /// user is actively editing, but it does become the rollback value if that
+  /// edit fails to save.
+  final String? authoritativeValue;
+
+  /// Identity of the backend that owns [authoritativeValue].
+  ///
+  /// When this identity changes, any edit or queued save from the previous
+  /// backend is discarded and the new authoritative value is shown
+  /// immediately, even if the field still has focus.
+  final Object? authorityKey;
+
   final String? hint;
 
   final double? width;
 
   final bool obscure;
 
-  final ValueChanged<String>? onChanged;
+  /// May be asynchronous so failed persistence can restore the last confirmed
+  /// value instead of leaving the field visually out of sync.
+  final FutureOr<void> Function(String)? onChanged;
 
   final bool isMobile;
 
@@ -20,6 +37,8 @@ class SettingsTextInput extends StatefulWidget {
   const SettingsTextInput({
     super.key,
     required this.controller,
+    this.authoritativeValue,
+    this.authorityKey,
     this.hint,
     this.width,
     this.obscure = false,
@@ -34,6 +53,121 @@ class SettingsTextInput extends StatefulWidget {
 
 class _SettingsTextInputState extends State<SettingsTextInput> {
   bool _obscured = true;
+  final FocusNode _focusNode = FocusNode();
+  late String _confirmedValue;
+  late String _lastSubmittedValue;
+  int _editGeneration = 0;
+  Future<void> _writeTail = Future<void>.value();
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.authoritativeValue ?? widget.controller.text;
+    _setControllerText(initial);
+    _confirmedValue = initial;
+    _lastSubmittedValue = initial;
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsTextInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      final value = widget.authoritativeValue ?? widget.controller.text;
+      _acceptAuthoritativeValue(value, forceVisible: true);
+      return;
+    }
+
+    final authorityChanged =
+        !identical(oldWidget.authorityKey, widget.authorityKey);
+    final authoritativeChanged =
+        oldWidget.authoritativeValue != widget.authoritativeValue;
+    if (authorityChanged || authoritativeChanged) {
+      final value = widget.authoritativeValue ?? widget.controller.text;
+      _acceptAuthoritativeValue(value, forceVisible: authorityChanged);
+    }
+  }
+
+  void _setControllerText(String value) {
+    if (widget.controller.text == value) return;
+    widget.controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  void _acceptAuthoritativeValue(
+    String value, {
+    required bool forceVisible,
+  }) {
+    final priorConfirmed = _confirmedValue;
+    _editGeneration += 1;
+    _confirmedValue = value;
+    _lastSubmittedValue = value;
+
+    // Preserve a real in-progress edit when another client changes the same
+    // host setting. A backend switch is different: carrying host A's text into
+    // host B would make the next blur write it to the wrong rig.
+    final hasDirtyEdit =
+        _focusNode.hasFocus && widget.controller.text != priorConfirmed;
+    if (forceVisible || !hasDirtyEdit) {
+      _setControllerText(value);
+    }
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
+  }
+
+  void _commit() {
+    final value = widget.controller.text;
+    if (value == _lastSubmittedValue) return;
+    _lastSubmittedValue = value;
+    final generation = ++_editGeneration;
+    final callback = widget.onChanged;
+    final authority = widget.authorityKey;
+    if (callback == null) {
+      _confirmedValue = value;
+      return;
+    }
+
+    final operation = _writeTail.then((_) async {
+      try {
+        if (!mounted ||
+            !identical(widget.authorityKey, authority) ||
+            generation != _editGeneration) {
+          return;
+        }
+        await Future<void>.sync(() => callback(value));
+        if (!mounted ||
+            !identical(widget.authorityKey, authority) ||
+            generation != _editGeneration) {
+          return;
+        }
+        _confirmedValue = value;
+      } catch (_) {
+        if (!mounted ||
+            !identical(widget.authorityKey, authority) ||
+            generation != _editGeneration) {
+          return;
+        }
+        _lastSubmittedValue = _confirmedValue;
+        _setControllerText(_confirmedValue);
+      }
+    });
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    unawaited(operation);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +176,9 @@ class _SettingsTextInputState extends State<SettingsTextInput> {
 
     Widget input = NightshadeTextField(
       controller: widget.controller,
+      focusNode: _focusNode,
       hint: widget.hint,
-      onChanged: widget.onChanged,
+      onSubmitted: (_) => _commit(),
       obscureText: widget.obscure && _obscured,
       suffixWidget: widget.obscure
           ? GestureDetector(
@@ -73,8 +208,15 @@ class _SettingsTextInputState extends State<SettingsTextInput> {
 
 /// Number input field for settings.
 
-class SettingsNumberInput extends StatelessWidget {
+class SettingsNumberInput extends StatefulWidget {
   final TextEditingController controller;
+
+  /// Latest numeric value owned by the settings provider. See
+  /// [SettingsTextInput.authoritativeValue].
+  final double? authoritativeValue;
+
+  /// Identity of the backend that owns [authoritativeValue].
+  final Object? authorityKey;
 
   final String suffix;
 
@@ -84,15 +226,22 @@ class SettingsNumberInput extends StatelessWidget {
 
   final int decimals;
 
-  final ValueChanged<double> onChanged;
+  /// May be asynchronous so failed persistence can restore the last confirmed
+  /// value instead of leaving a clamped-but-unsaved number visible.
+  final FutureOr<void> Function(double) onChanged;
 
   final double? width;
 
   final bool isMobile;
 
+  /// If true, let the input expand to constraints supplied by its parent.
+  final bool flexible;
+
   const SettingsNumberInput({
     super.key,
     required this.controller,
+    this.authoritativeValue,
+    this.authorityKey,
     required this.suffix,
     required this.min,
     required this.max,
@@ -100,34 +249,183 @@ class SettingsNumberInput extends StatelessWidget {
     required this.onChanged,
     this.width,
     this.isMobile = false,
-  });
+    this.flexible = false,
+  })  : assert(min <= max),
+        assert(decimals >= 0);
+
+  @override
+  State<SettingsNumberInput> createState() => _SettingsNumberInputState();
+}
+
+class _SettingsNumberInputState extends State<SettingsNumberInput> {
+  final FocusNode _focusNode = FocusNode();
+  late double _confirmedValue;
+  late double _lastSubmittedValue;
+  bool _hasCommittedValue = false;
+  int _editGeneration = 0;
+  Future<void> _writeTail = Future<void>.value();
+
+  @override
+  void initState() {
+    super.initState();
+    _resetCommittedValue(forceVisible: true);
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsNumberInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller ||
+        oldWidget.min != widget.min ||
+        oldWidget.max != widget.max ||
+        oldWidget.decimals != widget.decimals) {
+      _resetCommittedValue(forceVisible: true);
+      return;
+    }
+
+    final authorityChanged =
+        !identical(oldWidget.authorityKey, widget.authorityKey);
+    final authoritativeChanged =
+        oldWidget.authoritativeValue != widget.authoritativeValue;
+    if (authorityChanged || authoritativeChanged) {
+      _resetCommittedValue(forceVisible: authorityChanged);
+    }
+  }
+
+  void _resetCommittedValue({required bool forceVisible}) {
+    final priorConfirmed = _hasCommittedValue
+        ? _confirmedValue
+        : _parseControllerValue() ?? widget.min;
+    final parsed = widget.authoritativeValue ?? _parseControllerValue();
+    final value = (parsed != null && parsed.isFinite ? parsed : widget.min)
+        .clamp(widget.min, widget.max)
+        .toDouble();
+    _editGeneration += 1;
+    _confirmedValue = value;
+    _lastSubmittedValue = value;
+    _hasCommittedValue = true;
+
+    final hasDirtyEdit = _focusNode.hasFocus &&
+        (_parseControllerValue() != priorConfirmed ||
+            widget.controller.text.trim().isEmpty);
+    if (forceVisible || !hasDirtyEdit) {
+      _setControllerText(_format(value));
+    }
+  }
+
+  double? _parseControllerValue() {
+    final parsed = double.tryParse(widget.controller.text.trim());
+    return parsed != null && parsed.isFinite ? parsed : null;
+  }
+
+  void _setControllerText(String value) {
+    if (widget.controller.text == value) return;
+    widget.controller.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+  }
+
+  void _handleFocusChange() {
+    if (!_focusNode.hasFocus) _commit();
+  }
+
+  void _commit() {
+    final parsed = double.tryParse(widget.controller.text.trim());
+    if (parsed == null || !parsed.isFinite) {
+      widget.controller.text = _format(_lastSubmittedValue);
+      return;
+    }
+
+    final value = parsed.clamp(widget.min, widget.max).toDouble();
+    final formatted = _format(value);
+    if (widget.controller.text != formatted) {
+      widget.controller.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    if (value == _lastSubmittedValue) return;
+    _lastSubmittedValue = value;
+    final generation = ++_editGeneration;
+    final authority = widget.authorityKey;
+    final operation = _writeTail.then((_) async {
+      try {
+        if (!mounted ||
+            !identical(widget.authorityKey, authority) ||
+            generation != _editGeneration) {
+          return;
+        }
+        await Future<void>.sync(() => widget.onChanged(value));
+        if (!mounted ||
+            !identical(widget.authorityKey, authority) ||
+            generation != _editGeneration) {
+          return;
+        }
+        _confirmedValue = value;
+      } catch (_) {
+        if (!mounted ||
+            !identical(widget.authorityKey, authority) ||
+            generation != _editGeneration) {
+          return;
+        }
+        _lastSubmittedValue = _confirmedValue;
+        final restored = _format(_confirmedValue);
+        _setControllerText(restored);
+      }
+    });
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    unawaited(operation);
+  }
+
+  String _format(double value) {
+    if (widget.decimals == 0) return value.round().toString();
+    return value
+        .toStringAsFixed(widget.decimals)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+
+  TextInputFormatter get _numberFormatter {
+    final sign = widget.min < 0 ? '-?' : '';
+    final pattern = widget.decimals == 0
+        ? RegExp('^$sign\\d*\$')
+        : RegExp('^$sign\\d*(?:\\.\\d{0,${widget.decimals}})?\$');
+    return TextInputFormatter.withFunction((oldValue, newValue) {
+      return pattern.hasMatch(newValue.text) ? newValue : oldValue;
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final designWidth = width ?? (isMobile ? 100.0 : 120.0);
+    final designWidth = widget.width ?? (widget.isMobile ? 100.0 : 120.0);
     final effectiveWidth = dialogMaxWidth(context, designWidth);
 
-    return SizedBox(
-      width: effectiveWidth,
-      child: NightshadeTextField(
-        controller: controller,
-        keyboardType: TextInputType.numberWithOptions(decimal: decimals > 0),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-        ],
-        textAlign: TextAlign.right,
-        suffix: suffix,
-        onChanged: (value) {
-          final parsed = double.tryParse(value);
-
-          if (parsed != null) {
-            final clamped = parsed.clamp(min, max);
-
-            onChanged(clamped);
-          }
-        },
+    final input = NightshadeTextField(
+      controller: widget.controller,
+      focusNode: _focusNode,
+      keyboardType: TextInputType.numberWithOptions(
+        decimal: widget.decimals > 0,
+        signed: widget.min < 0,
       ),
+      inputFormatters: [_numberFormatter],
+      textAlign: TextAlign.right,
+      suffix: widget.suffix,
+      onSubmitted: (_) => _commit(),
     );
+
+    if (widget.flexible) return input;
+    return SizedBox(width: effectiveWidth, child: input);
   }
 }
 

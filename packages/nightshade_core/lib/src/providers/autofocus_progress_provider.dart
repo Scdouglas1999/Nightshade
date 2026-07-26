@@ -2,8 +2,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/autofocus_progress.dart';
-import '../models/backend/autofocus_result.dart';
-import '../models/backend/event_types.dart';
 import 'backend_provider.dart';
 
 /// State for the non-blocking autofocus progress overlay
@@ -107,6 +105,7 @@ class AutofocusOverlayState {
 class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   final Ref _ref;
   StreamSubscription? _eventSubscription;
+  int _backendGeneration = 0;
 
   AutofocusOverlayNotifier(this._ref) : super(const AutofocusOverlayState()) {
     _listenToEvents();
@@ -124,9 +123,11 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   }
 
   void _bindToBackend(DiagnosticsBackend backend) {
+    final generation = ++_backendGeneration;
     _eventSubscription?.cancel();
     _eventSubscription = backend.eventStream.listen((event) {
       if (!mounted) return;
+      if (generation != _backendGeneration) return;
       if (event.category == EventCategory.equipment &&
           event.eventType == 'AutofocusProgress') {
         _handleAutofocusProgress(event);
@@ -151,7 +152,12 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
     // overlay is not currently running (or we were showing results from a
     // previous run), reset all state so old V-curve points and star crops
     // from the prior run don't persist.
-    if (progressData.point == 1 && (!state.isRunning || state.result != null)) {
+    if (!state.isRunning || state.result != null) {
+      if (progressData.point != 1) {
+        // A queued progress frame from a run that has already completed or
+        // cancelled must not resurrect the overlay as Running.
+        return;
+      }
       onAutofocusStarted();
     }
 
@@ -206,6 +212,25 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
       isRunning: false,
       hasError: true,
       status: 'Failed: $error',
+    );
+  }
+
+  void onAutofocusCancellationRequested() {
+    if (!state.isRunning) return;
+    state = state.copyWith(status: 'Cancelling autofocus...');
+  }
+
+  void onAutofocusCancelFailed() {
+    if (!state.isRunning) return;
+    state = state.copyWith(status: 'Cancellation failed — autofocus continues');
+  }
+
+  void onAutofocusCancelled() {
+    state = state.copyWith(
+      isRunning: false,
+      hasError: false,
+      status: 'Autofocus cancelled',
+      clearResult: true,
     );
   }
 

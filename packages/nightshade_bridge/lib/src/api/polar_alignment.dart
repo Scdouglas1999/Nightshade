@@ -7,8 +7,8 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `calculate_rotation_center`, `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `get_polar_align_cancel`, `get_polar_align_flag`, `polar_axis_error_arcsec`, `run_polar_alignment`, `write_temp_fits_for_solve`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `PolarAlignmentMode`
+// These functions are ignored because they are not marked as `pub`: `emit_polar_error`, `emit_polar_image`, `emit_polar_status`, `get_polar_align_cancel`, `get_polar_align_flag`, `plate_solve_ra_degrees`, `polar_control_lock`, `polar_generation`, `polar_loop_control`, `polar_task_slot`, `pole_region_target`, `release_polar_run_if_current`, `run_polar_alignment`, `slew_to_pole_region`, `store_polar_task`, `try_admit_polar_run`, `write_temp_fits_for_solve`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `PolarAlignmentMode`, `PolarLoopControl`, `SlewOutcome`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`
 
 /// Start three-point polar alignment
@@ -46,7 +46,18 @@ Future<void> apiStartPolarAlignment({
   autoCompleteThreshold: autoCompleteThreshold,
 );
 
-/// Stop the polar alignment process
+/// Stop the polar alignment process.
+///
+/// Returns only once the run is actually terminated. Signals cooperative
+/// cancellation, then awaits the owned task handle with a bounded grace; if the
+/// task is still mid-exposure it force-aborts (dropping the in-flight future)
+/// and confirms termination. If termination cannot be confirmed it returns a
+/// truthful timeout error and, crucially, leaves the running flag set and never
+/// publishes idle — so a new Start stays blocked until the run truly settles.
+///
+/// This is applied to *both* TPPA and all-sky, which share this stop path and
+/// the single owned task slot, so neither can leave a task running under a new
+/// run.
 Future<void> apiStopPolarAlignment() =>
     RustLib.instance.api.crateApiPolarAlignmentApiStopPolarAlignment();
 

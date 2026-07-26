@@ -1,11 +1,11 @@
 # Release PR Owner Decision Matrix
 
 - Source split plan: `docs/production-readiness/release-pr-split-plan.json`
-- Source generated at: `2026-06-16T19:35:32.397361Z`
-- Branch at planning time: `release/hardening-audit-2026-06-16`
-- HEAD at planning time: `bd4b2544`
-- Buckets: `8`
-- Paths: `189`
+- Source generated at: `2026-07-21T15:07:21.334419Z`
+- Branch at planning time: `feature/v6-make-it-real`
+- HEAD at planning time: `250049463`
+- Buckets: `10`
+- Paths: `10217`
 
 This file turns the generated pathspec buckets into owner-reviewable PR drafts and validation rules. It does not stage files or approve any bucket by itself.
 
@@ -13,10 +13,10 @@ This file turns the generated pathspec buckets into owner-reviewable PR drafts a
 
 | Group | Buckets | Paths | Validation rule | Related release list | Pathspecs |
 | --- | ---: | ---: | --- | --- | --- |
-| Must Ship | 6 | 187 | `required_all` | `docs/production-readiness/release-pr-lists/01-must-ship.txt` | `docs/production-readiness/release-pr-pathspecs/02-release-infra-evidence.txt`<br>`docs/production-readiness/release-pr-pathspecs/03-headless-remote-api.txt`<br>`docs/production-readiness/release-pr-pathspecs/04-native-driver-bridge.txt`<br>`docs/production-readiness/release-pr-pathspecs/05-core-data-model.txt`<br>`docs/production-readiness/release-pr-pathspecs/06-desktop-ui-workflows.txt`<br>`docs/production-readiness/release-pr-pathspecs/07-tests-and-support-tooling.txt` |
-| Generated Only | 0 | 0 | `optional_all_or_none` | `docs/production-readiness/release-pr-lists/02-generated-only.txt` |  |
-| Binary / Evidence | 1 | 1 | `optional_all_or_none` | `docs/production-readiness/release-pr-lists/03-binary-evidence.txt` | `docs/production-readiness/release-pr-pathspecs/01-binary-and-evidence-artifacts.txt` |
-| Defer / Exclude | 1 | 1 | `forbidden` | `docs/production-readiness/release-pr-lists/04-defer-exclude.txt` | `docs/production-readiness/release-pr-pathspecs/08-out-of-release-scope-review.txt` |
+| Must Ship | 7 | 1623 | `required_all` | `docs/production-readiness/release-pr-lists/01-must-ship.txt` | `docs/production-readiness/release-pr-pathspecs/03-release-infra-evidence.txt`<br>`docs/production-readiness/release-pr-pathspecs/04-headless-remote-api.txt`<br>`docs/production-readiness/release-pr-pathspecs/05-mobile-remote-client.txt`<br>`docs/production-readiness/release-pr-pathspecs/06-native-driver-bridge.txt`<br>`docs/production-readiness/release-pr-pathspecs/07-core-data-model.txt`<br>`docs/production-readiness/release-pr-pathspecs/08-desktop-ui-workflows.txt`<br>`docs/production-readiness/release-pr-pathspecs/09-tests-and-support-tooling.txt` |
+| Generated Only | 1 | 31 | `optional_all_or_none` | `docs/production-readiness/release-pr-lists/02-generated-only.txt` | `docs/production-readiness/release-pr-pathspecs/01-generated-files.txt` |
+| Binary / Evidence | 1 | 17 | `optional_all_or_none` | `docs/production-readiness/release-pr-lists/03-binary-evidence.txt` | `docs/production-readiness/release-pr-pathspecs/02-binary-and-evidence-artifacts.txt` |
+| Defer / Exclude | 1 | 8546 | `forbidden` | `docs/production-readiness/release-pr-lists/04-defer-exclude.txt` | `docs/production-readiness/release-pr-pathspecs/10-out-of-release-scope-review.txt` |
 
 ## Release Triage Lists
 
@@ -24,10 +24,10 @@ These aggregate lists classify every dirty path by release triage. The decision 
 
 | List | Paths | Pathspec | Description |
 | --- | ---: | --- | --- |
-| Must Ship | 163 | `docs/production-readiness/release-pr-lists/01-must-ship.txt` | Release-critical source, docs, and tooling paths that are not generated outputs or binary/evidence artifacts. |
-| Generated Only | 0 | `docs/production-readiness/release-pr-lists/02-generated-only.txt` | Generated files that should be reviewed against their source changes and generator commands. |
-| Binary And Evidence | 1 | `docs/production-readiness/release-pr-lists/03-binary-evidence.txt` | Binary payloads, screenshots, APKs, DLLs, and other evidence artifacts that need explicit artifact review. |
-| Defer Or Exclude | 25 | `docs/production-readiness/release-pr-lists/04-defer-exclude.txt` | Non-release-critical paths that need owner review before they are staged into a public release branch. |
+| Must Ship | 968 | `docs/production-readiness/release-pr-lists/01-must-ship.txt` | Release-critical source, docs, and tooling paths that are not generated outputs or binary/evidence artifacts. |
+| Generated Only | 31 | `docs/production-readiness/release-pr-lists/02-generated-only.txt` | Generated files that should be reviewed against their source changes and generator commands. |
+| Binary And Evidence | 17 | `docs/production-readiness/release-pr-lists/03-binary-evidence.txt` | Binary payloads, screenshots, APKs, DLLs, and other evidence artifacts that need explicit artifact review. |
+| Defer Or Exclude | 9201 | `docs/production-readiness/release-pr-lists/04-defer-exclude.txt` | Non-release-critical paths that need owner review before they are staged into a public release branch. |
 
 ## Validation Commands
 
@@ -36,13 +36,60 @@ These aggregate lists classify every dirty path by release triage. The decision 
 
 ## Draft PR Descriptions
 
+### Generated Files
+
+- Decision group: `Generated Only`
+- Bucket ID: `generated-files`
+- Paths: `31`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/01-generated-files.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/01-generated-files.txt`
+
+Suggested PR title:
+
+```text
+Release staging: Generated Files
+```
+
+Suggested PR body:
+
+```markdown
+## Scope
+Review regenerated Dart, Drift, Freezed, bridge, and lock files apart from human-authored source.
+
+## Owner Decision
+- Decision group: `Generated Only`
+- Validation rule: `optional_all_or_none`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/01-generated-files.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/01-generated-files.txt`
+
+## Counts
+- Paths: `31`
+- Tracked changes: `30`
+- Untracked: `1`
+- Deleted: `0`
+- Generated: `31`
+- Binary/evidence: `0`
+- Release-critical: `20`
+
+## Review Notes
+Regenerate from source, verify generator commands, then stage only outputs that correspond to reviewed model/API changes.
+
+## Category Mix
+- `generated`: `31`
+
+## Verification
+- Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
+- Validate staged files before commit: `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index`
+- Validate committed branch before PR: `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=branch --base=main`
+```
+
 ### Binary And Evidence Artifacts
 
 - Decision group: `Binary / Evidence`
 - Bucket ID: `binary-and-evidence-artifacts`
-- Paths: `1`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/01-binary-and-evidence-artifacts.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/01-binary-and-evidence-artifacts.txt`
+- Paths: `17`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/02-binary-and-evidence-artifacts.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/02-binary-and-evidence-artifacts.txt`
 
 Suggested PR title:
 
@@ -59,23 +106,23 @@ Review DLLs, APKs, screenshots, databases, and other binary artifacts outside no
 ## Owner Decision
 - Decision group: `Binary / Evidence`
 - Validation rule: `optional_all_or_none`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/01-binary-and-evidence-artifacts.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/01-binary-and-evidence-artifacts.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/02-binary-and-evidence-artifacts.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/02-binary-and-evidence-artifacts.txt`
 
 ## Counts
-- Paths: `1`
-- Tracked changes: `1`
+- Paths: `17`
+- Tracked changes: `17`
 - Untracked: `0`
 - Deleted: `0`
 - Generated: `0`
-- Binary/evidence: `1`
+- Binary/evidence: `17`
 - Release-critical: `0`
 
 ## Review Notes
 Keep release payload binaries and smoke evidence in a deliberate artifact review; exclude scratch screenshots and research blobs from the release PR.
 
 ## Category Mix
-- `binary-native-artifact`: `1`
+- `binary-native-artifact`: `17`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -87,9 +134,9 @@ Keep release payload binaries and smoke evidence in a deliberate artifact review
 
 - Decision group: `Must Ship`
 - Bucket ID: `release-infra-evidence`
-- Paths: `67`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/02-release-infra-evidence.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/02-release-infra-evidence.txt`
+- Paths: `71`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/03-release-infra-evidence.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/03-release-infra-evidence.txt`
 
 Suggested PR title:
 
@@ -106,26 +153,25 @@ Keep release gates, production audit tools, public readiness docs, and operation
 ## Owner Decision
 - Decision group: `Must Ship`
 - Validation rule: `required_all`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/02-release-infra-evidence.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/02-release-infra-evidence.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/03-release-infra-evidence.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/03-release-infra-evidence.txt`
 
 ## Counts
-- Paths: `67`
-- Tracked changes: `67`
-- Untracked: `0`
-- Deleted: `1`
+- Paths: `71`
+- Tracked changes: `70`
+- Untracked: `1`
+- Deleted: `16`
 - Generated: `0`
 - Binary/evidence: `0`
-- Release-critical: `67`
+- Release-critical: `71`
 
 ## Review Notes
 Stage audit tooling and evidence docs as the release-readiness PR only after confirming each artifact is current and reproducible.
 
 ## Category Mix
-- `docs`: `3`
-- `other`: `15`
-- `release-evidence-docs`: `47`
-- `release-tooling`: `2`
+- `other`: `4`
+- `release-evidence-docs`: `52`
+- `release-tooling`: `15`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -137,9 +183,9 @@ Stage audit tooling and evidence docs as the release-readiness PR only after con
 
 - Decision group: `Must Ship`
 - Bucket ID: `headless-remote-api`
-- Paths: `33`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/03-headless-remote-api.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/03-headless-remote-api.txt`
+- Paths: `87`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/04-headless-remote-api.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/04-headless-remote-api.txt`
 
 Suggested PR title:
 
@@ -156,23 +202,70 @@ Review headless server routes, auth policy, dashboard assets, LAN behavior, and 
 ## Owner Decision
 - Decision group: `Must Ship`
 - Validation rule: `required_all`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/03-headless-remote-api.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/03-headless-remote-api.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/04-headless-remote-api.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/04-headless-remote-api.txt`
 
 ## Counts
-- Paths: `33`
-- Tracked changes: `33`
-- Untracked: `0`
+- Paths: `87`
+- Tracked changes: `82`
+- Untracked: `5`
 - Deleted: `0`
 - Generated: `0`
 - Binary/evidence: `0`
-- Release-critical: `30`
+- Release-critical: `85`
 
 ## Review Notes
 Pair this bucket with route contract tests, dashboard smoke logs, auth/LAN evidence, and reconnect evidence.
 
 ## Category Mix
-- `headless-remote`: `33`
+- `headless-remote`: `87`
+
+## Verification
+- Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
+- Validate staged files before commit: `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=index`
+- Validate committed branch before PR: `dart run melos run audit:release-pr-staged-branch --no-select -- --mode=branch --base=main`
+```
+
+### Mobile Remote Client
+
+- Decision group: `Must Ship`
+- Bucket ID: `mobile-remote-client`
+- Paths: `57`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/05-mobile-remote-client.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/05-mobile-remote-client.txt`
+
+Suggested PR title:
+
+```text
+Release staging: Mobile Remote Client
+```
+
+Suggested PR body:
+
+```markdown
+## Scope
+Review Android/mobile remote-client code and mobile smoke tooling separately from desktop/headless server changes.
+
+## Owner Decision
+- Decision group: `Must Ship`
+- Validation rule: `required_all`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/05-mobile-remote-client.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/05-mobile-remote-client.txt`
+
+## Counts
+- Paths: `57`
+- Tracked changes: `41`
+- Untracked: `16`
+- Deleted: `0`
+- Generated: `0`
+- Binary/evidence: `0`
+- Release-critical: `32`
+
+## Review Notes
+Stage with Android build metadata and emulator smoke artifacts only after confirming the server API bucket it depends on is reviewed.
+
+## Category Mix
+- `mobile`: `57`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -184,9 +277,9 @@ Pair this bucket with route contract tests, dashboard smoke logs, auth/LAN evide
 
 - Decision group: `Must Ship`
 - Bucket ID: `native-driver-bridge`
-- Paths: `19`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/04-native-driver-bridge.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/04-native-driver-bridge.txt`
+- Paths: `48`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/06-native-driver-bridge.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/06-native-driver-bridge.txt`
 
 Suggested PR title:
 
@@ -203,24 +296,24 @@ Review Rust native code, driver integrations, Flutter Rust Bridge source, and br
 ## Owner Decision
 - Decision group: `Must Ship`
 - Validation rule: `required_all`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/04-native-driver-bridge.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/04-native-driver-bridge.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/06-native-driver-bridge.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/06-native-driver-bridge.txt`
 
 ## Counts
-- Paths: `19`
-- Tracked changes: `19`
-- Untracked: `0`
+- Paths: `48`
+- Tracked changes: `46`
+- Untracked: `2`
 - Deleted: `0`
 - Generated: `0`
 - Binary/evidence: `0`
-- Release-critical: `19`
+- Release-critical: `47`
 
 ## Review Notes
 Keep source changes apart from compiled DLLs; require platform build evidence and driver capability notes before release staging.
 
 ## Category Mix
-- `bridge`: `1`
-- `native-rust`: `18`
+- `bridge`: `15`
+- `native-rust`: `33`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -232,9 +325,9 @@ Keep source changes apart from compiled DLLs; require platform build evidence an
 
 - Decision group: `Must Ship`
 - Bucket ID: `core-data-model`
-- Paths: `25`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/05-core-data-model.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/05-core-data-model.txt`
+- Paths: `303`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/07-core-data-model.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/07-core-data-model.txt`
 
 Suggested PR title:
 
@@ -251,23 +344,23 @@ Review database, model, provider, backend, migration, and shared service changes
 ## Owner Decision
 - Decision group: `Must Ship`
 - Validation rule: `required_all`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/05-core-data-model.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/05-core-data-model.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/07-core-data-model.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/07-core-data-model.txt`
 
 ## Counts
-- Paths: `25`
-- Tracked changes: `25`
-- Untracked: `0`
+- Paths: `303`
+- Tracked changes: `282`
+- Untracked: `21`
 - Deleted: `0`
 - Generated: `0`
 - Binary/evidence: `0`
-- Release-critical: `25`
+- Release-critical: `303`
 
 ## Review Notes
-Stage with focused tests and a real older-profile migration artifact; generated DB/model files stay in the generated-files bucket.
+Stage with focused tests and a release-authentic older-profile migration artifact; generated DB/model files stay in the generated-files bucket.
 
 ## Category Mix
-- `core`: `25`
+- `core`: `303`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -279,9 +372,9 @@ Stage with focused tests and a real older-profile migration artifact; generated 
 
 - Decision group: `Must Ship`
 - Bucket ID: `desktop-ui-workflows`
-- Paths: `27`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/06-desktop-ui-workflows.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/06-desktop-ui-workflows.txt`
+- Paths: `513`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/08-desktop-ui-workflows.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/08-desktop-ui-workflows.txt`
 
 Suggested PR title:
 
@@ -298,26 +391,29 @@ Review app UI, shared UI system, planetarium, plugin, updater, WebRTC, and deskt
 ## Owner Decision
 - Decision group: `Must Ship`
 - Validation rule: `required_all`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/06-desktop-ui-workflows.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/06-desktop-ui-workflows.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/08-desktop-ui-workflows.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/08-desktop-ui-workflows.txt`
 
 ## Counts
-- Paths: `27`
-- Tracked changes: `27`
-- Untracked: `0`
-- Deleted: `0`
+- Paths: `513`
+- Tracked changes: `474`
+- Untracked: `39`
+- Deleted: `1`
 - Generated: `0`
 - Binary/evidence: `0`
-- Release-critical: `22`
+- Release-critical: `430`
 
 ## Review Notes
 Use UI consistency audit results and focused screenshot/smoke evidence before moving these paths into a release PR.
 
 ## Category Mix
-- `app-ui`: `22`
-- `other`: `1`
-- `remote-protocol`: `3`
-- `updater`: `1`
+- `app-ui`: `430`
+- `other`: `9`
+- `planetarium`: `18`
+- `plugins`: `8`
+- `remote-protocol`: `15`
+- `ui-system`: `18`
+- `updater`: `15`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -329,9 +425,9 @@ Use UI consistency audit results and focused screenshot/smoke evidence before mo
 
 - Decision group: `Must Ship`
 - Bucket ID: `tests-and-support-tooling`
-- Paths: `16`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/07-tests-and-support-tooling.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/07-tests-and-support-tooling.txt`
+- Paths: `544`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/09-tests-and-support-tooling.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/09-tests-and-support-tooling.txt`
 
 Suggested PR title:
 
@@ -348,13 +444,13 @@ Review non-release test files, scripts, package config, and developer tooling se
 ## Owner Decision
 - Decision group: `Must Ship`
 - Validation rule: `required_all`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/07-tests-and-support-tooling.txt`
-- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/07-tests-and-support-tooling.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/09-tests-and-support-tooling.txt`
+- Owner command: `git add --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/09-tests-and-support-tooling.txt`
 
 ## Counts
-- Paths: `16`
-- Tracked changes: `16`
-- Untracked: `0`
+- Paths: `544`
+- Tracked changes: `208`
+- Untracked: `336`
 - Deleted: `0`
 - Generated: `0`
 - Binary/evidence: `0`
@@ -364,8 +460,9 @@ Review non-release test files, scripts, package config, and developer tooling se
 Stage only support changes needed to verify the release; defer unrelated audit scratch or developer-only helpers.
 
 ## Category Mix
-- `tests`: `14`
-- `tooling`: `2`
+- `package-config`: `3`
+- `tests`: `540`
+- `tooling`: `1`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`
@@ -377,9 +474,9 @@ Stage only support changes needed to verify the release; defer unrelated audit s
 
 - Decision group: `Defer / Exclude`
 - Bucket ID: `out-of-release-scope-review`
-- Paths: `1`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/08-out-of-release-scope-review.txt`
-- Owner command: `git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/08-out-of-release-scope-review.txt`
+- Paths: `8546`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/10-out-of-release-scope-review.txt`
+- Owner command: `git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/10-out-of-release-scope-review.txt`
 
 Suggested PR title:
 
@@ -396,13 +493,13 @@ Quarantine scratch reports, research files, goal tracking, and broad miscellaneo
 ## Owner Decision
 - Decision group: `Defer / Exclude`
 - Validation rule: `forbidden`
-- Pathspec: `docs/production-readiness/release-pr-pathspecs/08-out-of-release-scope-review.txt`
-- Owner command: `git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/08-out-of-release-scope-review.txt`
+- Pathspec: `docs/production-readiness/release-pr-pathspecs/10-out-of-release-scope-review.txt`
+- Owner command: `git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-pathspecs/10-out-of-release-scope-review.txt`
 
 ## Counts
-- Paths: `1`
-- Tracked changes: `0`
-- Untracked: `1`
+- Paths: `8546`
+- Tracked changes: `17`
+- Untracked: `8529`
 - Deleted: `0`
 - Generated: `0`
 - Binary/evidence: `0`
@@ -412,7 +509,8 @@ Quarantine scratch reports, research files, goal tracking, and broad miscellaneo
 Do not stage into the public release branch without owner review and an explicit reason.
 
 ## Category Mix
-- `other`: `1`
+- `docs`: `7`
+- `other`: `8539`
 
 ## Verification
 - Regenerate the owner matrix: `dart run melos run audit:release-pr-owner-matrix --no-select`

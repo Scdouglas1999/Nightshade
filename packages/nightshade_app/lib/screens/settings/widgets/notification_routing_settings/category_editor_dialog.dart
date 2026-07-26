@@ -23,6 +23,8 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
   late TextEditingController _debounceController;
   late TextEditingController _titleTemplateController;
   late TextEditingController _bodyTemplateController;
+  String? _validationError;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final c = NightshadeColors.of(context);
-    return AlertDialog(
+    final dialog = AlertDialog(
       backgroundColor: c.surface,
       title: Text(
         widget.category.label,
@@ -96,6 +98,16 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                   );
                 }).toList(),
               ),
+              if (_selectedTransports.isEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'No transports selected — defaulting to in-app only.',
+                  style: TextStyle(
+                    color: c.textMuted,
+                    fontSize: NightshadeTypography.fontSize11,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Text('Minimum severity',
                   style: TextStyle(color: c.textSecondary)),
@@ -161,41 +173,82 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
                     fontSize: NightshadeTypography.fontSize12,
                     fontStyle: FontStyle.italic),
               ),
+              if (_validationError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _validationError!,
+                  style: TextStyle(
+                    color: c.error,
+                    fontSize: NightshadeTypography.fontSize12,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         TextButton(
-          onPressed: () async {
-            final maxPerHour = int.tryParse(_maxPerHourController.text) ?? 0;
-            final debounce = int.tryParse(_debounceController.text) ?? 0;
-            final updated = NotificationRoutingRule(
-              transports: _selectedTransports.isEmpty
-                  ? const [NotificationTransportKind.inApp]
-                  : _selectedTransports.toList(),
-              minSeverity: _minSeverity,
-              maxPerHour: maxPerHour,
-              debounceSeconds: debounce,
-              titleTemplate: _titleTemplateController.text.trim().isEmpty
-                  ? null
-                  : _titleTemplateController.text,
-              bodyTemplate: _bodyTemplateController.text.trim().isEmpty
-                  ? null
-                  : _bodyTemplateController.text,
-              enabled: _enabled,
-            );
-            await widget.onSave(updated);
-            if (context.mounted) Navigator.of(context).pop();
-          },
-          child: const Text('Save'),
+          onPressed: _saving
+              ? null
+              : () async {
+                  final maxPerHour = _parseNonNegativeIntField(
+                    _maxPerHourController.text,
+                    label: 'Max per hour',
+                  );
+                  if (maxPerHour.error != null) {
+                    setState(() => _validationError = maxPerHour.error);
+                    return;
+                  }
+                  final debounce = _parseNonNegativeIntField(
+                    _debounceController.text,
+                    label: 'Debounce seconds',
+                  );
+                  if (debounce.error != null) {
+                    setState(() => _validationError = debounce.error);
+                    return;
+                  }
+                  final updated = NotificationRoutingRule(
+                    transports: _selectedTransports.isEmpty
+                        ? const [NotificationTransportKind.inApp]
+                        : _selectedTransports.toList(),
+                    minSeverity: _minSeverity,
+                    maxPerHour: maxPerHour.value!,
+                    debounceSeconds: debounce.value!,
+                    titleTemplate: _titleTemplateController.text.trim().isEmpty
+                        ? null
+                        : _titleTemplateController.text,
+                    bodyTemplate: _bodyTemplateController.text.trim().isEmpty
+                        ? null
+                        : _bodyTemplateController.text,
+                    enabled: _enabled,
+                  );
+                  setState(() {
+                    _saving = true;
+                    _validationError = null;
+                  });
+                  try {
+                    await widget.onSave(updated);
+                    if (context.mounted) Navigator.of(context).pop();
+                  } catch (_) {
+                    if (mounted) {
+                      setState(() {
+                        _saving = false;
+                        _validationError =
+                            'Could not save this routing rule. Please try again.';
+                      });
+                    }
+                  }
+                },
+          child: Text(_saving ? 'Saving…' : 'Save'),
         ),
       ],
     );
+    return PopScope(canPop: !_saving, child: dialog);
   }
 
   Widget _numericField(

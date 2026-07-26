@@ -165,3 +165,18 @@ packages/nightshade_core/lib/src/services/notification/transports/system_push_tr
 packages/nightshade_core/lib/src/services/notification/transports/system_push_transport.dart:69:    return NotificationResult.ok();
 packages/nightshade_core/lib/src/services/sync/sync_target.dart:119:  Never _unimplemented() => throw UnimplementedError(
 packages/nightshade_core/lib/src/services/sync/sync_target.dart:120:    'S3-compatible sync targets are not implemented yet. '
+native/nightshade_native/imaging/src/platesolve.rs:3044:            .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:3103:                .unwrap_or_default()
+native/nightshade_native/imaging/src/platesolve.rs:715:        let stdout_bytes = stdout_reader.join().unwrap_or_default();
+native/nightshade_native/imaging/src/platesolve.rs:716:        let stderr_bytes = stderr_reader.join().unwrap_or_default();
+native/nightshade_native/sequencer/src/instructions.rs:3143:                config.filter.as_deref().unwrap_or_default().trim()
+packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/discord_transport_section.dart:60:          return const _PrepResult.ok();
+packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/email_transport_section.dart:98:          return const _PrepResult.ok();
+packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/mqtt_transport_section.dart:101:          return const _PrepResult.ok();
+packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/pushover_transport_section.dart:76:          return const _PrepResult.ok();
+packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/telegram_transport_section.dart:66:          return const _PrepResult.ok();
+packages/nightshade_app/lib/screens/settings/widgets/notification_routing_settings/webhook_transport_section.dart:64:          return const _PrepResult.ok();
+packages/nightshade_app/lib/services/sequence_action_service.dart:159:  /// this async callback) we return a silent no-op instead of issuing a
+native/nightshade_native/imaging/src/platesolve.rs:2083:        stdout: stdout_reader.join().unwrap_or_default(),
+native/nightshade_native/imaging/src/platesolve.rs:2084:        stderr: stderr_reader.join().unwrap_or_default(),
+native/nightshade_native/imaging/src/platesolve.rs:3011:        let combined = auto_result.error.unwrap_or_default();

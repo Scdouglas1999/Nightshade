@@ -24,6 +24,7 @@
 library;
 
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:shelf/shelf.dart';
 
 import '../request_context.dart';
@@ -43,7 +44,23 @@ class PushHandlers {
   final EnsurePairingService ensurePairingService;
   final LoggingService logger;
 
-  PushHandlers({required this.ensurePairingService, required this.logger});
+  /// Whether the host has a [RemotePushDelivery] wired (an FCM service
+  /// account, an APNs key, or an explicit dev mock). Supplied as a closure so
+  /// the handler reads the LIVE value — delivery can be (re)configured after
+  /// the handler is constructed.
+  ///
+  /// Without this, `/api/push/targets` could only report whether anyone had
+  /// registered, which is half the truth: registered tokens with no configured
+  /// channel still deliver nothing.
+  final bool Function() cloudDeliveryConfigured;
+
+  PushHandlers({
+    required this.ensurePairingService,
+    required this.logger,
+    bool Function()? cloudDeliveryConfigured,
+  }) : cloudDeliveryConfigured = cloudDeliveryConfigured ?? _noCloudDelivery;
+
+  static bool _noCloudDelivery() => false;
 
   void _logInfo(String message) => logger.info(message, source: 'PushHandlers');
   void _logWarning(String message) =>
@@ -291,6 +308,49 @@ class PushHandlers {
       },
       headers: {requestIdHeader: requestId},
     );
+  }
+
+  /// `GET /api/push/targets` — can a critical alert actually reach a phone
+  /// right now?
+  ///
+  /// Exists because the desktop's "Push critical alerts to mobile" switch used
+  /// to render ON with nothing indicating that no device could receive the
+  /// push. On Android that was never true in a stock build — the FCM client is
+  /// a dormant scaffold pending Firebase provisioning, so the phone never
+  /// registers a token and the count here stays 0.
+  ///
+  /// Deliberately returns COUNTS and a verdict, never token values or device
+  /// identifiers: a client that can read this must not be able to enumerate
+  /// who else is paired, or lift another device's push token. Unlike the
+  /// per-device preference routes this is not scoped to the caller's own
+  /// device — it answers a host-wide capability question ("will an unattended
+  /// failure reach anyone?") that any paired client is entitled to ask.
+  Future<Response> handleGetTargets(Request request) async {
+    final requestId = requestIdFrom(request);
+    final db = ensurePairingService().database;
+
+    final tokens = await db.getAllPushTokens();
+    final deviceIds = <String>{};
+    var fcm = 0;
+    var apns = 0;
+    for (final token in tokens) {
+      deviceIds.add(token.deviceId);
+      switch (token.platform) {
+        case 'fcm':
+          fcm++;
+        case 'apns':
+          apns++;
+      }
+    }
+
+    final targets = PushDeliveryTargets(
+      registeredDeviceCount: deviceIds.length,
+      fcmTokenCount: fcm,
+      apnsTokenCount: apns,
+      cloudDeliveryConfigured: cloudDeliveryConfigured(),
+    );
+
+    return jsonOk(targets.toJson(), headers: {requestIdHeader: requestId});
   }
 
   /// `PUT /api/push/preferences` — body `{deviceId, enabled, mute*}`.

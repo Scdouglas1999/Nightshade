@@ -6,14 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+import 'package:nightshade_updater/nightshade_updater.dart';
 
 import 'desktop_app_bootstrap.dart';
 import 'desktop_logging_init.dart';
 import 'headless/headless_auth_config.dart';
+import 'headless/headless_auto_connect_bootstrap.dart';
 import 'headless/headless_disk_watchdog_bootstrap.dart';
 import 'headless/headless_discovery_bootstrap.dart';
 import 'headless/headless_relay_bootstrap.dart';
 import 'headless/headless_services_bootstrap.dart';
+import 'headless/headless_shutdown.dart';
 import 'headless_api/update_wiring.dart';
 import 'headless_api_server.dart';
 
@@ -41,9 +44,18 @@ const _headlessLogSource = 'HeadlessMain';
 ///   --control-token=`<token>`
 ///                         Set an imaging-control token
 ///   --require-auth        Generate a random token
+///   --allow-unauthenticated
+///                         Opt into the legacy fully-open behaviour: serve EVERY
+///                         endpoint without a token when none is configured.
+///                         Unsafe; default is FAIL CLOSED (only the
+///                         pairing/dashboard bootstrap surface is reachable until
+///                         a device pairs or a token is set). A prominent warning
+///                         is logged at startup when this is set.
 ///   --allow-unauthenticated-lan
 ///                         Bind to the LAN without auth. Unsafe; intended only
-///                         for isolated development networks.
+///                         for isolated development networks. Governs the bind
+///                         interface, not authentication — pair it with
+///                         --allow-unauthenticated to serve open on the LAN.
 ///   --cors-origin=`<origin>`
 ///                         Add an origin to the CORS allow-list (may be passed
 ///                         multiple times). Why explicit list: the dashboard's
@@ -75,6 +87,14 @@ const _headlessLogSource = 'HeadlessMain';
 ///   NIGHTSHADE_VIEW_TOKEN  Optional read-only token
 ///   NIGHTSHADE_CONTROL_TOKEN
 ///                         Optional imaging-control token
+///   NIGHTSHADE_SCOPED_TOKEN
+///                         Fine-grained token(s). One or more
+///                         `<token>=<grant-spec>` entries separated by `;`,
+///                         where a grant-spec is a coarse name (`view`,
+///                         `control`, `admin`) or a per-resource list such as
+///                         `camera:control,mount:view`. Same effect as passing
+///                         --scoped-token repeatedly. Existing coarse tokens are
+///                         unchanged — a coarse token covers every resource.
 ///   NIGHTSHADE_PORT        Server port (default: 8080)
 ///   NIGHTSHADE_DATA_DIR    Native persistence root (defect maps, etc.). When
 ///                         unset, matches the GUI application-support path.
@@ -86,6 +106,8 @@ const _headlessLogSource = 'HeadlessMain';
 ///                         Semicolon-separated remote directory browse roots
 ///                         for headless clients, e.g.
 ///                         Captures=/mnt/captures;USB=/media/nightshade.
+///   NIGHTSHADE_ALLOW_UNAUTHENTICATED=true
+///                         Same as --allow-unauthenticated
 ///   NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN=true
 ///                         Same as --allow-unauthenticated-lan
 ///   NIGHTSHADE_TRUST_PROXY=true
@@ -132,10 +154,52 @@ void main(List<String> args) async {
   // headless OTA update stack. Owned at the entry point so SIGINT
   // can shut both the controller and the LAN push receiver cleanly.
   UpdateStack? updateStack;
+  AutoSaveService? autoSaveService;
   // v4 couch-grade remote: outbound relay uplink (optional). Owned here so
   // SIGINT/SIGTERM tear down the WebSocket cleanly. Null unless a relay URL
   // was supplied via --relay-url / NIGHTSHADE_RELAY_URL.
   RelayUplink? relayUplink;
+
+  Future<void> safeRigForShutdown() async {
+    final activeContainer = container;
+    if (activeContainer == null) return;
+    await activeContainer
+        .read(safeRigServiceProvider)
+        .safeTheRig(
+          reason: 'Headless host is stopping',
+          park: true,
+          closeDome: true,
+          closeCover: true,
+          abortExposure: true,
+          disableCooling: true,
+          notify: false,
+        );
+  }
+
+  List<ShutdownStep> buildTeardownSteps() => [
+    (
+      name: 'disk watchdog subscription',
+      action: () async => diskWatchdogSubscription?.cancel(),
+    ),
+    (name: 'disk guard', action: () async => diskGuard?.stop()),
+    (name: 'discovery socket', action: () async => stopDiscoverySocket()),
+    (name: 'mDNS advertisement', action: () async => stopMdnsAdvertisement()),
+    (
+      name: 'relay uplink',
+      action: () async {
+        await relayUplink?.stop();
+        relayUplink = null;
+      },
+    ),
+    (
+      name: 'update controller detach',
+      action: () async => apiServer?.setUpdateController(null),
+    ),
+    (name: 'API server', action: () async => apiServer?.stop()),
+    (name: 'OTA update stack', action: () async => updateStack?.dispose()),
+    (name: 'auto-save service', action: () async => autoSaveService?.stop()),
+    (name: 'provider container', action: () async => container?.dispose()),
+  ];
 
   try {
     final appVersion = await loadDesktopAppVersion();
@@ -149,6 +213,7 @@ void main(List<String> args) async {
     container = ProviderContainer(
       overrides: [
         appVersionProvider.overrideWithValue(appVersion),
+        pluginHostAppVersionOverride(appVersion.version),
         pluginNodeDispatcherOverride(),
         // even in headless mode we install the palette
         // blueprint override so an upstream UI client (mobile companion,
@@ -166,13 +231,32 @@ void main(List<String> args) async {
     final runtimeLogger = container.read(loggingServiceProvider);
     logger = runtimeLogger;
     await runtimeLogger.initialize();
+
+    // A daemon has no Integrations settings screen to lazily register the
+    // bundled plugins. Do this before the API server accepts sequence starts.
+    try {
+      await initializeBundledPluginRuntime(container);
+      runtimeLogger.info(
+        'Bundled plugin runtime initialized',
+        source: _headlessLogSource,
+      );
+    } catch (e, st) {
+      runtimeLogger.error(
+        'Bundled plugin runtime failed to initialize: $e\n$st',
+        source: _headlessLogSource,
+      );
+    }
     await initialiseCatalogManager(runtimeLogger);
-    // Why unawaited: the backend notifier's local-backend wiring is
-    // fire-and-forget; the rest of bootstrap reads `backendProvider`
-    // synchronously and `useLocalBackend()` just installs the FfiBackend
-    // before any reads occur on this isolate. This matches the original
-    // pre-refactor behaviour.
-    unawaited(container.read(backendProvider.notifier).useLocalBackend());
+    // The backend notifier's local-backend wiring is fire-and-forget for the
+    // synchronous reads below (the rest of bootstrap reads `backendProvider`
+    // synchronously and `useLocalBackend()` installs the FfiBackend before any
+    // reads occur on this isolate — the original pre-refactor behaviour). We
+    // DO capture the future so startup auto-connect can deterministically await
+    // the FfiBackend swap before it activates a profile / connects hardware,
+    // instead of racing a still-`DisconnectedBackend` container.
+    final localBackendReady = container
+        .read(backendProvider.notifier)
+        .useLocalBackend();
     runtimeLogger.info('Services initialized', source: _headlessLogSource);
 
     final authConfig = parseHeadlessAuthConfig(args);
@@ -186,7 +270,9 @@ void main(List<String> args) async {
       logger: runtimeLogger,
       authToken: authConfig.token,
       scopedAuthTokens: authConfig.scopedTokens,
+      fineGrainedAuthTokens: authConfig.fineGrainedTokens,
       requireAuth: authConfig.requireAuth,
+      allowUnauthenticated: authConfig.allowUnauthenticated,
       bindLocalOnly: authConfig.bindLocalOnly,
       port: authConfig.port,
       corsAllowedOrigins: authConfig.corsAllowedOrigins,
@@ -200,6 +286,54 @@ void main(List<String> args) async {
       'Headless API server started',
       source: _headlessLogSource,
     );
+
+    // Startup equipment auto-connect. Deterministic ordering: the API server is
+    // already up (so the operator can recover remotely if a device is offline),
+    // then the FfiBackend-swap readiness future AND the auto-connect attempt are
+    // both handled INSIDE the fail-soft bootstrap seam, BEFORE the "running"
+    // ready banner below. Passing `localBackendReady` in (rather than awaiting
+    // it here) is deliberate: a readiness FAILURE must be logged loudly and
+    // tolerated so the already-started server survives — awaiting it here would
+    // let a readiness throw escape to the outer catch and shut the server down.
+    await headlessAutoConnectBootstrap(
+      container: container,
+      logger: runtimeLogger,
+      backendReady: localBackendReady,
+    );
+
+    // The desktop widget tree watches this provider in GUI mode. Headless mode
+    // has no widget tree, so instantiate it explicitly after backend readiness
+    // and startup auto-connect. Starting it inside startHeadlessServices was
+    // too early: that function runs while useLocalBackend() may still be
+    // swapping out DisconnectedBackend, and the one-shot read was then retired
+    // before it could observe the connected camera. The initial pass here sees
+    // live capabilities (for example 12-bit / 4095 ADU), and its listener owns
+    // all later manual connection changes.
+    container.read(scienceCameraAutoConfigProvider);
+    runtimeLogger.info(
+      'Science camera auto-configuration initialized',
+      source: _headlessLogSource,
+    );
+
+    // There is no widget tree in daemon mode, so eagerly attach the same
+    // host-only run-completion coordinator used by the GUI. Without this,
+    // `post_session.auto_integrate` is silently inert on the appliance.
+    container.read(autoIntegrationCoordinatorProvider);
+
+    // A headless appliance has no widget tree to lazily create services.
+    // Start host-owned automatic backups explicitly from persisted settings.
+    try {
+      autoSaveService = await container.read(autoSaveLifecycleProvider.future);
+      runtimeLogger.info(
+        'Automatic backup service started',
+        source: _headlessLogSource,
+      );
+    } catch (e, st) {
+      runtimeLogger.error(
+        'Automatic backup service failed to start: $e\n$st',
+        source: _headlessLogSource,
+      );
+    }
 
     // v4 couch-grade remote: if a relay URL was supplied, dial OUT to the
     // self-hosted relay and proxy the loopback headless API through it so the
@@ -305,6 +439,24 @@ void main(List<String> args) async {
       );
     }
 
+    // The GUI shell normally owns these always-on meridian services. A
+    // headless host has no widget tree, so mount them explicitly: the monitor
+    // must keep polling when the operator closes the phone, and the disconnect
+    // guard must clear an in-flight flip if the mount drops offline.
+    try {
+      container.read(meridianFlipDisconnectGuardProvider);
+      container.read(meridianFlipStandaloneMonitorProvider);
+      runtimeLogger.info(
+        'Standalone meridian-flip monitor mounted',
+        source: _headlessLogSource,
+      );
+    } catch (e, st) {
+      runtimeLogger.error(
+        'Failed to mount standalone meridian-flip monitor: $e\n$st',
+        source: _headlessLogSource,
+      );
+    }
+
     // v4 couch-grade remote: eager-mount Home Assistant MQTT discovery —
     // a headless appliance is exactly where the observatory should show
     // up as native HA entities. No-op until enabled in settings.
@@ -338,6 +490,26 @@ void main(List<String> args) async {
       );
     }
 
+    // Collaborative Sky WS3 Gap 3 — eager-mount the longitude-baton scheduler so
+    // an unattended appliance self-drives the hand-off: each tick evaluates every
+    // active co-imaging membership's target altitude at the configured site and
+    // claims/releases the baton on the rise/set, resuming/pausing the autopilot.
+    // The provider is otherwise lazy, so without this read it would never tick on
+    // a headless host (no widget tree to build it). No-op until the rig has
+    // joined a session and a site is configured.
+    try {
+      container.read(coImagingBatonSchedulerProvider);
+      runtimeLogger.info(
+        'Co-imaging longitude-baton scheduler mounted',
+        source: _headlessLogSource,
+      );
+    } catch (e, st) {
+      runtimeLogger.error(
+        'Failed to mount co-imaging baton scheduler: $e\n$st',
+        source: _headlessLogSource,
+      );
+    }
+
     // provision the OTA update stack and wire it into the
     // headless API server. Without this, paired phones could not check,
     // download, or apply updates on a headless host because the entire
@@ -350,6 +522,8 @@ void main(List<String> args) async {
         currentBuildNumber: appVersion.buildNumber,
         logger: runtimeLogger,
         logSource: _headlessLogSource,
+        applySafetyCheck: () =>
+            defaultUpdateApplySafetyCheckWithReader(container!.read),
       );
       if (stack != null) {
         updateStack = stack;
@@ -408,50 +582,40 @@ void main(List<String> args) async {
       source: _headlessLogSource,
     );
 
-    Future<void> shutdown(String reason) async {
-      logger?.info('$reason; shutting down', source: _headlessLogSource);
-      await diskWatchdogSubscription?.cancel();
-      diskGuard?.stop();
-      stopDiscoverySocket();
-      // mDNS unregister BEFORE the HTTP server stops so peers stop trying to
-      // dial a port that is about to go away. Failures inside stop() are
-      // already swallowed and logged by the class itself.
-      await stopMdnsAdvertisement();
-      // Drop the relay uplink BEFORE the HTTP server so in-flight tunnelled
-      // streams fail fast instead of dangling on a port that's about to close.
-      await relayUplink?.stop();
-      relayUplink = null;
-      // detach the update controller from the server BEFORE
-      // stopping it so the controller's event subscription is cancelled
-      // cleanly. The stack dispose call below then closes the controller
-      // and stops the LAN push receiver.
-      apiServer?.setUpdateController(null);
-      await apiServer?.stop();
-      await updateStack?.dispose();
-      container?.dispose();
-      exit(0);
-    }
+    // Bounded, idempotent, repeated-signal-safe shutdown. Every teardown step
+    // is time-bounded and guarded so a single hung/throwing stop() cannot wedge
+    // the daemon with the exit() unreachable; a second SIGINT/SIGTERM during a
+    // slow teardown forces an immediate exit instead of being swallowed. See
+    // [HeadlessShutdown].
+    final shutdownCoordinator = HeadlessShutdown(
+      safeRig: safeRigForShutdown,
+      // Ordered exactly as the previous inline teardown: quiesce the local
+      // watchdogs, then withdraw discovery/mDNS and the relay uplink BEFORE the
+      // HTTP server so peers stop dialing a port that is about to close, then
+      // detach the update controller before stopping the server, then dispose
+      // the OTA stack, auto-save, and finally the provider container.
+      teardownSteps: buildTeardownSteps,
+      exitProcess: (code) => exit(code),
+      onInfo: (message, {error}) => logger?.info(
+        error == null ? message : '$message: $error',
+        source: _headlessLogSource,
+      ),
+      onCritical: (message, {error}) => logger?.critical(
+        error == null ? message : '$message: $error',
+        source: _headlessLogSource,
+      ),
+      onStderr: stderr.writeln,
+    );
 
-    ProcessSignal.sigint.watch().listen((_) async {
-      await shutdown('Received SIGINT');
+    ProcessSignal.sigint.watch().listen((_) {
+      unawaited(shutdownCoordinator.request('Received SIGINT'));
     });
 
     if (Platform.isLinux || Platform.isMacOS) {
-      ProcessSignal.sigterm.watch().listen((_) async {
-        await shutdown('Received SIGTERM');
+      ProcessSignal.sigterm.watch().listen((_) {
+        unawaited(shutdownCoordinator.request('Received SIGTERM'));
       });
     }
-
-    final backend = container.read(diagnosticsBackendProvider);
-    backend.eventStream.listen(
-      (event) => apiServer?.broadcastEvent(event),
-      onError: (Object error, StackTrace stackTrace) {
-        logger?.warning(
-          'Backend event stream error: $error',
-          source: _headlessLogSource,
-        );
-      },
-    );
 
     while (true) {
       await Future.delayed(const Duration(seconds: 1));
@@ -466,15 +630,27 @@ void main(List<String> args) async {
     // still needs to see why the daemon refused to start.
     stderr.writeln('Error starting headless mode: $e');
     stderr.writeln('Stack trace: $stackTrace');
-    await diskWatchdogSubscription?.cancel();
-    diskGuard?.stop();
-    await stopMdnsAdvertisement();
-    await relayUplink?.stop();
-    relayUplink = null;
-    apiServer?.setUpdateController(null);
-    await apiServer?.stop();
-    await updateStack?.dispose();
-    container?.dispose();
-    exit(1);
+    // A startup failure can land after hardware auto-connect and after any
+    // subset of network services has started. Reuse the same bounded,
+    // attempt-every-step coordinator as SIGTERM so one throwing cleanup cannot
+    // leak the API socket/relay/container, and safe any connected hardware
+    // before tearing its providers down. Startup failure exits non-zero even
+    // when cleanup itself succeeds.
+    final startupFailureShutdown = HeadlessShutdown(
+      safeRig: safeRigForShutdown,
+      teardownSteps: buildTeardownSteps,
+      exitProcess: (code) => exit(code),
+      completionExitCode: 1,
+      onInfo: (message, {error}) => logger?.info(
+        error == null ? message : '$message: $error',
+        source: _headlessLogSource,
+      ),
+      onCritical: (message, {error}) => logger?.critical(
+        error == null ? message : '$message: $error',
+        source: _headlessLogSource,
+      ),
+      onStderr: stderr.writeln,
+    );
+    await startupFailureShutdown.request('Startup failed');
   }
 }

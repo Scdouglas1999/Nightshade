@@ -72,6 +72,7 @@ class _Header extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final canLoad = ref.watch(canEditSequenceProvider);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
@@ -102,12 +103,17 @@ class _Header extends ConsumerWidget {
               ],
             ),
           ),
-          NightshadeButton(
-            label: 'Load',
-            icon: LucideIcons.folderOpen,
-            size: ButtonSize.medium,
-            variant: ButtonVariant.outline,
-            onPressed: () => _showLoadPicker(context, ref),
+          Tooltip(
+            message: canLoad
+                ? 'Load sequence'
+                : 'Stop the active sequence before loading another',
+            child: NightshadeButton(
+              label: 'Load',
+              icon: LucideIcons.folderOpen,
+              size: ButtonSize.medium,
+              variant: ButtonVariant.outline,
+              onPressed: canLoad ? () => _showLoadPicker(context, ref) : null,
+            ),
           ),
         ],
       ),
@@ -168,18 +174,76 @@ Future<void> _showLoadPicker(BuildContext context, WidgetRef ref) async {
                       '${_formatHms(s.totalIntegrationSecs)}',
                       style: const TextStyle(fontSize: 11),
                     ),
-                    onTap: () {
-                      ref
-                          .read(currentSequenceProvider.notifier)
-                          .loadSequence(s);
-                      Navigator.of(dialogCtx).pop();
-                    },
+                    onTap: () => _loadPickedSequence(dialogCtx, ref, s),
                   );
                 },
               ),
       );
     },
   );
+}
+
+Future<void> _loadPickedSequence(
+  BuildContext pickerContext,
+  WidgetRef ref,
+  Sequence sequence,
+) async {
+  final editor = ref.read(currentSequenceProvider.notifier);
+  try {
+    editor.loadSequence(sequence);
+  } on UnsavedChangesException catch (e) {
+    if (!pickerContext.mounted) return;
+    final discard = await showDialog<bool>(
+      context: pickerContext,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard unsaved changes?'),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 440,
+          ),
+          child: Text(
+            '"${e.currentSequenceName}" has unsaved changes. Loading '
+            '"${sequence.name}" will discard them.',
+          ),
+        ),
+        actions: [
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          NightshadeButton(
+            label: 'Discard and load',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (discard != true || !pickerContext.mounted) return;
+    try {
+      editor.loadSequence(sequence, discardUnsaved: true);
+    } on SequenceLockedException catch (e) {
+      _showSequenceLoadError(pickerContext, e.message);
+      return;
+    }
+  } on SequenceLockedException catch (e) {
+    if (pickerContext.mounted) {
+      _showSequenceLoadError(pickerContext, e.message);
+    }
+    return;
+  }
+
+  if (pickerContext.mounted) Navigator.of(pickerContext).pop();
+}
+
+void _showSequenceLoadError(BuildContext context, String message) {
+  ScaffoldMessenger.maybeOf(
+    context,
+  )?.showSnackBar(SnackBar(content: Text(message)));
 }
 
 class _NoSequenceState extends StatelessWidget {
@@ -320,6 +384,12 @@ class _ExecBadge extends StatelessWidget {
       // warning palette so the user sees something is wrong but the run
       // isn't dead yet.
       SequenceExecutionState.recovering => ('Recovering', colors.warning),
+      SequenceExecutionState.stopFailed => ('Stop failed', colors.error),
+      SequenceExecutionState.cleanupFailed => (
+        'Cleanup failed',
+        colors.warning,
+      ),
+      SequenceExecutionState.finalizing => ('Finalizing', colors.info),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -375,75 +445,113 @@ class _ControlButtons extends ConsumerStatefulWidget {
   ConsumerState<_ControlButtons> createState() => _ControlButtonsState();
 }
 
+/// Test seam for the sequencer's host-authoritative run controls.
+///
+/// Keeping the test focused on this stateful boundary avoids constructing the
+/// editor's database streams and weather timers when exercising async command
+/// ownership.
+@visibleForTesting
+Widget buildSequencerControlButtonsForTesting({
+  required Sequence? sequence,
+  required SequenceExecutionState execState,
+}) => _ControlButtons(sequence: sequence, execState: execState);
+
 class _ControlButtonsState extends ConsumerState<_ControlButtons> {
   bool _busy = false;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous != null && !identical(previous, next)) {
+          _retireOperation();
+        }
+      },
+    );
+  }
+
+  @override
+  void didUpdateWidget(_ControlButtons oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sequence?.id != widget.sequence?.id) _retireOperation();
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  void _retireOperation() {
+    _operationGeneration++;
+    if (mounted && _busy) setState(() => _busy = false);
+  }
 
   Future<void> _start() async {
     if (widget.sequence == null) return;
-    setState(() => _busy = true);
-    try {
-      await ref.read(sequenceExecutorProvider).start();
-    } catch (e) {
-      if (mounted) {
-        // [error parsing] — typed envelope, severity-tinted snack.
-        showApiError(context, e);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    await _runAction((executor) => executor.start());
   }
 
   Future<void> _stop() async {
-    setState(() => _busy = true);
-    try {
-      await ref.read(sequenceExecutorProvider).stop();
-    } catch (e) {
-      if (mounted) {
-        // [error parsing] — typed envelope, severity-tinted snack.
-        showApiError(context, e);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    // Operator-initiated stop preserves the checkpoint so the run can resume.
+    await _runAction((executor) => executor.stop(preserveCheckpoint: true));
   }
 
   Future<void> _pause() async {
-    setState(() => _busy = true);
-    try {
-      await ref.read(sequenceExecutorProvider).pause();
-    } catch (e) {
-      if (mounted) {
-        // [error parsing] — typed envelope, severity-tinted snack.
-        showApiError(context, e);
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    await _runAction((executor) => executor.pause());
   }
 
   Future<void> _resume() async {
+    await _runAction((executor) => executor.resume());
+  }
+
+  Future<void> _runAction(
+    Future<void> Function(SequenceExecutor executor) action,
+  ) async {
+    if (_busy) return;
+    final backend = ref.read(backendProvider);
+    final executor = ref.read(sequenceExecutorProvider);
+    final sequenceId = widget.sequence?.id;
+    final operationGeneration = ++_operationGeneration;
     setState(() => _busy = true);
     try {
-      await ref.read(sequenceExecutorProvider).resume();
+      await action(executor);
     } catch (e) {
-      if (mounted) {
+      if (_isCurrentOperation(backend, sequenceId, operationGeneration)) {
+        if (!mounted) return;
         // [error parsing] — typed envelope, severity-tinted snack.
         showApiError(context, e);
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isCurrentOperation(backend, sequenceId, operationGeneration)) {
+        setState(() => _busy = false);
+      }
     }
   }
+
+  bool _isCurrentOperation(
+    NightshadeBackend backend,
+    String? sequenceId,
+    int operationGeneration,
+  ) =>
+      mounted &&
+      operationGeneration == _operationGeneration &&
+      identical(ref.read(backendProvider), backend) &&
+      widget.sequence?.id == sequenceId;
 
   @override
   Widget build(BuildContext context) {
     final isRunning = widget.execState == SequenceExecutionState.running;
     final isPaused = widget.execState == SequenceExecutionState.paused;
-    final canStart =
-        widget.sequence != null &&
-        !isRunning &&
-        !isPaused &&
-        widget.execState != SequenceExecutionState.stopping;
+    // Start only from a settled state (idle / completed / failed) with a
+    // sequence loaded — never over a live run or one whose stop / cleanup is
+    // still pending (stopFailed / cleanupFailed).
+    final canStart = widget.sequence != null && widget.execState.canStart;
 
     return Row(
       children: [
@@ -466,7 +574,9 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
         const SizedBox(width: 8),
         Expanded(
           child: _HoldToStopButton(
-            enabled: !_busy && (isRunning || isPaused),
+            // Enabled wherever a stop is meaningful, including a retry from
+            // stopFailed / cleanupFailed.
+            enabled: !_busy && widget.execState.canStop,
             onConfirmed: _stop,
           ),
         ),
@@ -572,49 +682,56 @@ class _WeatherSafetyExpansion extends ConsumerWidget {
         LucideIcons.bellOff,
       ),
     };
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Theme(
-        // Strip the default ExpansionTile divider so the header reads as
-        // part of the sticky header strip rather than a floating tile.
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          leading: Icon(LucideIcons.shield, size: 18, color: colors.primary),
-          title: Text(
-            'Weather safety',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
+    // ExpansionTile builds its header from ListTile, which needs a Material
+    // ancestor for its background and ink. A colored DecoratedBox hides both.
+    return Material(
+      color: colors.surface,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.border)),
+        ),
+        child: Theme(
+          // Strip the default ExpansionTile divider so the header reads as
+          // part of the sticky header strip rather than a floating tile.
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 0,
             ),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 12, color: tint),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: tint,
-                  fontWeight: FontWeight.w700,
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            leading: Icon(LucideIcons.shield, size: 18, color: colors.primary),
+            title: Text(
+              'Weather safety',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 12, color: tint),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: tint,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Icon(
-                LucideIcons.chevronDown,
-                size: 16,
-                color: colors.textSecondary,
-              ),
-            ],
+                const SizedBox(width: 6),
+                Icon(
+                  LucideIcons.chevronDown,
+                  size: 16,
+                  color: colors.textSecondary,
+                ),
+              ],
+            ),
+            children: const [RunDashboardWeatherSafetyCard()],
           ),
-          children: const [RunDashboardWeatherSafetyCard()],
         ),
       ),
     );

@@ -331,6 +331,7 @@ class _PanelLayer extends StatelessWidget {
       child: Transform.rotate(
         angle: rotation * math.pi / 180.0,
         child: GestureDetector(
+          key: ValueKey('mosaic_panel_${p.row}_${p.col}'),
           onTap: () => onPanelToggle(p),
           child: Container(
             width: pxWidth,

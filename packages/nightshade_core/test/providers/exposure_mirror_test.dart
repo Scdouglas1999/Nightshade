@@ -3,6 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
 
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
+
 /// Tests for the slave-side per-frame exposure-countdown mirror
 /// (`_applyExposureMirror`, reached via [applyRemoteSyncEvent] for
 /// imaging-category exposure events). A remote companion has no local capture
@@ -28,10 +34,16 @@ void main() {
   test(
     'ExposureStarted marks the camera exposing and seeds the countdown',
     () async {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
       final backend = slaveBackend();
       addTearDown(backend.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
       await applyRemoteSyncEvent(
         container,
@@ -52,10 +64,16 @@ void main() {
   );
 
   test('ExposureProgress drives the live remaining-time countdown', () async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
     final backend = slaveBackend();
     addTearDown(backend.dispose);
+    final container = ProviderContainer(
+      overrides: [
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, backend),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
     await applyRemoteSyncEvent(
       container,
@@ -75,10 +93,16 @@ void main() {
   });
 
   test('ExposureComplete clears the exposing state', () async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
     final backend = slaveBackend();
     addTearDown(backend.dispose);
+    final container = ProviderContainer(
+      overrides: [
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, backend),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
 
     await applyRemoteSyncEvent(
       container,

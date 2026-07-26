@@ -24,6 +24,18 @@ const _pluginB = 'com.test.plugin_b';
 const _pluginC = 'com.test.plugin_c';
 const _allIds = [_pluginA, _pluginB, _pluginC];
 
+class _ControllableSettingsDao extends SettingsDao {
+  _ControllableSettingsDao(super.db);
+
+  bool failWrites = false;
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    if (failWrites) throw StateError('write failed');
+    await super.setSetting(key, value);
+  }
+}
+
 Future<String?> _readSetting(NightshadeDatabase db) {
   return SettingsDao(db).getSetting(kPluginEnablementSettingKey);
 }
@@ -270,10 +282,12 @@ void main() {
     late NightshadeDatabase database;
     late PluginHost host;
     late _LifecyclePlugin plugin;
+    late _ControllableSettingsDao settingsDao;
 
     setUp(() async {
       database = NightshadeDatabase.forTesting(NativeDatabase.memory());
       host = PluginHost();
+      settingsDao = _ControllableSettingsDao(database);
       plugin = _LifecyclePlugin(_pluginA);
       // Register enabled so the starting state is "on" — disabling must then
       // run onDisable exactly once. registerPlugin runs onEnable once for an
@@ -286,6 +300,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           databaseProvider.overrideWithValue(database),
+          settingsDaoProvider.overrideWithValue(settingsDao),
           managedPluginIdsProvider.overrideWithValue(_allIds),
           pluginHostProvider.overrideWithValue(host),
         ],
@@ -348,6 +363,49 @@ void main() {
       expect(plugin.enableCount, 0);
       expect(plugin.disableCount, 0);
     });
+
+    test('parallel toggles preserve both persisted choices', () async {
+      await container.read(pluginEnablementProvider.future);
+      final notifier = container.read(pluginEnablementProvider.notifier);
+
+      await Future.wait([
+        notifier.setEnabled(_pluginA, false),
+        notifier.setEnabled(_pluginB, false),
+      ]);
+
+      expect(jsonDecode((await _readSetting(database))!), {
+        _pluginA: false,
+        _pluginB: false,
+      });
+      expect(
+        container.read(pluginEnablementProvider).requireValue,
+        unorderedEquals([_pluginC]),
+      );
+    });
+
+    test(
+      'failed persistence rolls the live host back to its prior state',
+      () async {
+        await container.read(pluginEnablementProvider.future);
+        settingsDao.failWrites = true;
+
+        await expectLater(
+          container
+              .read(pluginEnablementProvider.notifier)
+              .setEnabled(_pluginA, false),
+          throwsStateError,
+        );
+
+        expect(host.isEnabled(_pluginA), isTrue);
+        expect(plugin.disableCount, 1);
+        expect(plugin.enableCount, 1);
+        expect(await _readSetting(database), isNull);
+        expect(
+          container.read(pluginEnablementProvider).requireValue,
+          contains(_pluginA),
+        );
+      },
+    );
   });
 }
 

@@ -16,6 +16,7 @@
 // driven by a fake `http.Client` (package:http/testing MockClient) injected via
 // `planningCloudProviderFactoryProvider`, so no real network access occurs.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show InsertMode, Value;
@@ -26,12 +27,35 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/src/database/daos/settings_dao.dart';
+import 'package:nightshade_core/src/backend/network_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/scheduler/integration_goal.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/planning_provider.dart';
 import 'package:nightshade_core/src/services/planning/project_service.dart';
 import 'package:nightshade_core/src/services/scheduler/integration_goal_service.dart';
 import 'package:nightshade_core/src/services/weather/providers/openmeteo_cloud_provider.dart';
+
+class _FailingSettingsDao extends SettingsDao {
+  _FailingSettingsDao(super.db);
+
+  @override
+  Future<void> setSetting(String key, String value) async {
+    throw StateError('write failed');
+  }
+}
+
+class _TestBackendNotifier extends BackendNotifier {
+  _TestBackendNotifier(super.ref, NightshadeBackend initial) {
+    state = initial;
+  }
+
+  void replaceWith(NightshadeBackend backend) {
+    state = backend;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -212,6 +236,114 @@ void main() {
       await notifier.loaded;
       expect(container.read(activeProjectIdProvider), isNull);
     });
+
+    test(
+      'failed persistence leaves the confirmed selection unchanged',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            settingsDaoProvider.overrideWithValue(
+              _FailingSettingsDao(database),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(activeProjectIdProvider.notifier);
+        await notifier.loaded;
+
+        await expectLater(notifier.setActiveProject(9), throwsStateError);
+
+        expect(container.read(activeProjectIdProvider), isNull);
+      },
+    );
+
+    test(
+      'rapid selections persist and expose the last requested project',
+      () async {
+        final container = makeContainer();
+        final notifier = container.read(activeProjectIdProvider.notifier);
+        await notifier.loaded;
+
+        await Future.wait([
+          notifier.setActiveProject(3),
+          notifier.setActiveProject(8),
+        ]);
+
+        expect(container.read(activeProjectIdProvider), 8);
+        expect(
+          await database.settingsDao.getSetting('planning.active_project_id'),
+          '8',
+        );
+      },
+    );
+
+    test('rejects invalid persisted project ids', () async {
+      final container = makeContainer();
+      final notifier = container.read(activeProjectIdProvider.notifier);
+      await notifier.loaded;
+
+      await expectLater(notifier.setActiveProject(0), throwsArgumentError);
+
+      expect(container.read(activeProjectIdProvider), isNull);
+      expect(
+        await database.settingsDao.getSetting('planning.active_project_id'),
+        isNot('0'),
+      );
+    });
+
+    test(
+      'keeps active project selections isolated per remote imaging host',
+      () async {
+        final hostA = NetworkBackend(
+          serverHost: 'rig-a.local',
+          serverPort: 8080,
+          pinnedFingerprint: 'fingerprint-a',
+          autoConnectWebSocket: false,
+        );
+        final hostB = NetworkBackend(
+          serverHost: 'rig-b.local',
+          serverPort: 8080,
+          pinnedFingerprint: 'fingerprint-b',
+          autoConnectWebSocket: false,
+        );
+        late _TestBackendNotifier backendNotifier;
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWithValue(database),
+            backendProvider.overrideWith((ref) {
+              backendNotifier = _TestBackendNotifier(ref, hostA);
+              return backendNotifier;
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+        addTearDown(hostA.dispose);
+        addTearDown(hostB.dispose);
+
+        final notifier = container.read(activeProjectIdProvider.notifier);
+        await notifier.loaded;
+        await notifier.setActiveProject(11);
+        expect(container.read(activeProjectIdProvider), 11);
+
+        backendNotifier.replaceWith(hostB);
+        await notifier.loaded;
+        expect(container.read(activeProjectIdProvider), isNull);
+        await notifier.setActiveProject(22);
+        expect(container.read(activeProjectIdProvider), 22);
+
+        final hostAReconnected = NetworkBackend(
+          serverHost: 'RIG-A.LOCAL',
+          serverPort: 8080,
+          pinnedFingerprint: 'FINGERPRINT-A',
+          autoConnectWebSocket: false,
+        );
+        backendNotifier.replaceWith(hostAReconnected);
+        await notifier.loaded;
+
+        expect(container.read(activeProjectIdProvider), 11);
+      },
+    );
   });
 
   group('projectListProvider', () {
@@ -234,6 +366,19 @@ void main() {
         if (latest.isNotEmpty) break;
       }
       expect(latest, hasLength(1));
+    });
+
+    test('provider disposal closes the project mutation stream', () async {
+      final container = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(database)],
+      );
+      final service = container.read(projectServiceProvider);
+      final done = Completer<void>();
+      service.watchChanges().listen(null, onDone: done.complete);
+
+      container.dispose();
+
+      await done.future.timeout(const Duration(seconds: 1));
     });
   });
 

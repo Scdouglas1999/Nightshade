@@ -2,9 +2,6 @@ part of '../sequence_toolbar.dart';
 
 class _PlaybackControls extends StatelessWidget {
   final NightshadeColors colors;
-  final bool isIdle;
-  final bool isRunning;
-  final bool isPaused;
   final SequenceExecutionState executionState;
   final VoidCallback onStart;
   final VoidCallback onPause;
@@ -15,9 +12,6 @@ class _PlaybackControls extends StatelessWidget {
 
   const _PlaybackControls({
     required this.colors,
-    required this.isIdle,
-    required this.isRunning,
-    required this.isPaused,
     required this.executionState,
     required this.onStart,
     required this.onPause,
@@ -29,53 +23,60 @@ class _PlaybackControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Reset is enabled when sequence is idle, completed, or failed (not running/paused)
-    final canReset = executionState == SequenceExecutionState.idle ||
-        executionState == SequenceExecutionState.completed ||
-        executionState == SequenceExecutionState.failed;
+    final state = executionState;
 
     return Row(
       children: [
-        // Play/Pause button
-        if (isIdle || isPaused)
+        // Primary transport button, driven by the centralized state
+        // capabilities so every surface agrees:
+        //   * running                     -> Pause
+        //   * paused                      -> Resume
+        //   * idle / completed / failed   -> a FUNCTIONAL Start (completed/
+        //     failed re-arm the same sequence — never a dead Pause or a silent
+        //     exact-idle no-op)
+        //   * stopping / recovering / stopFailed / cleanupFailed -> a disabled
+        //     Start, so the operator's action funnels to the (enabled) Stop.
+        if (state.canPause)
+          _PauseButton(colors: colors, onPressed: onPause)
+        else
           _PlayButton(
             colors: colors,
-            onPressed: isIdle ? onStart : onResume,
-            label: isIdle ? 'Start' : 'Resume',
-          )
-        else
-          _PauseButton(colors: colors, onPressed: onPause),
+            onPressed:
+                state.canResume ? onResume : (state.canStart ? onStart : null),
+            label: state.canResume ? 'Resume' : 'Start',
+          ),
 
         const SizedBox(width: 8),
 
-        // Stop button
+        // Stop button — enabled wherever a stop is meaningful, including a
+        // retry from stopFailed / cleanupFailed.
         _ControlButton(
           icon: LucideIcons.square,
           tooltip: 'Stop',
           colors: colors,
-          onPressed: (isRunning || isPaused) ? onStop : null,
+          onPressed: state.canStop ? onStop : null,
         ),
 
         const SizedBox(width: 8),
 
-        // Skip button — enabled while paused too: the backend skip simply
-        // advances the node pointer, which is valid in both running and
-        // paused states (matches the Stop gate above).
+        // Skip button — the backend skip advances the node pointer, valid in
+        // both running and paused states.
         _ControlButton(
           icon: LucideIcons.skipForward,
           tooltip: 'Skip to Next',
           colors: colors,
-          onPressed: (isRunning || isPaused) ? onSkip : null,
+          onPressed: state.canSkip ? onSkip : null,
         ),
 
         const SizedBox(width: 8),
 
-        // Reset button - resets execution state without modifying sequence config
+        // Reset — resets execution state without modifying the sequence config.
+        // Only from a settled state (idle / completed / failed).
         _ControlButton(
           icon: LucideIcons.rotateCcw,
           tooltip: 'Reset Sequence',
           colors: colors,
-          onPressed: canReset ? onReset : null,
+          onPressed: state.canReset ? onReset : null,
         ),
       ],
     );
@@ -84,7 +85,11 @@ class _PlaybackControls extends StatelessWidget {
 
 class _PlayButton extends StatefulWidget {
   final NightshadeColors colors;
-  final VoidCallback onPressed;
+
+  /// Null renders a disabled Start (used for the transient / needs-attention
+  /// states where Start is not admissible but the button holds its place so
+  /// the row layout stays stable and the Stop button reads clearly).
+  final VoidCallback? onPressed;
   final String label;
 
   const _PlayButton({
@@ -102,11 +107,15 @@ class _PlayButtonState extends State<_PlayButton> {
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = widget.onPressed == null;
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    final foreground = isDisabled ? widget.colors.textMuted : onPrimary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
+      cursor:
+          isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onPressed,
         child: AnimatedContainer(
@@ -114,8 +123,8 @@ class _PlayButtonState extends State<_PlayButton> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           decoration: NightshadeDecorations.filledButton(
             widget.colors.success,
-            isHovered: _isHovered,
-            isDisabled: false,
+            isHovered: _isHovered && !isDisabled,
+            isDisabled: isDisabled,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -123,13 +132,13 @@ class _PlayButtonState extends State<_PlayButton> {
               Icon(
                 LucideIcons.play,
                 size: 16,
-                color: onPrimary,
+                color: foreground,
               ),
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style:
-                    NightshadeTypography.labelStrong.copyWith(color: onPrimary),
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: foreground),
               ),
             ],
           ),

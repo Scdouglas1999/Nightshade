@@ -81,6 +81,11 @@ class SchedulerEngine {
   // observing night has begun, so the next dawn must park afresh.
   bool _parkedForEndOfNight = false;
 
+  // A daytime start is an ARMED scheduler waiting for tonight, not evidence
+  // that an observing night has just ended. Only a run that successfully
+  // dispatched work owns a rig that needs the scheduler's dawn-safe action.
+  bool _dispatchedSinceStart = false;
+
   SchedulerStatus _status = const SchedulerStatus();
   final _statusController = StreamController<SchedulerStatus>.broadcast(
     sync: false,
@@ -114,9 +119,16 @@ class SchedulerEngine {
 
   Future<void> start() async {
     if (_status.state == SchedulerState.running) return;
+    final candidates = await _candidateLoader();
+    if (candidates.isEmpty) {
+      throw const SchedulerStartException(
+        'Add at least one target to the scheduler before starting autopilot.',
+      );
+    }
     // Fresh run: re-arm the end-of-night park so a previous dawn's park does
     // not suppress parking on this run's dawn.
     _parkedForEndOfNight = false;
+    _dispatchedSinceStart = false;
     _updateStatus(
       _status.copyWith(
         state: SchedulerState.running,
@@ -125,7 +137,7 @@ class SchedulerEngine {
       ),
     );
     _restartTimer();
-    await _evaluateWithReason('engine start');
+    await _evaluateWithReason('engine start', candidates: candidates);
   }
 
   Future<void> pause() async {
@@ -244,7 +256,10 @@ class SchedulerEngine {
     });
   }
 
-  Future<void> _evaluateWithReason(String reason) async {
+  Future<void> _evaluateWithReason(
+    String reason, {
+    List<SchedulerCandidate>? candidates,
+  }) async {
     if (_evaluating) {
       // Queue this caller; they'll be released after the in-flight
       // evaluation finishes. This serializes evaluations without dropping
@@ -255,7 +270,7 @@ class SchedulerEngine {
     }
     _evaluating = true;
     try {
-      await _evaluateOnce(reason);
+      await _evaluateOnce(reason, candidates: candidates);
     } finally {
       _evaluating = false;
       if (_pendingEvaluations.isNotEmpty) {
@@ -274,9 +289,12 @@ class SchedulerEngine {
     }
   }
 
-  Future<void> _evaluateOnce(String reason) async {
+  Future<void> _evaluateOnce(
+    String reason, {
+    List<SchedulerCandidate>? candidates,
+  }) async {
     final now = _clock();
-    final candidates = await _candidateLoader();
+    final loadedCandidates = candidates ?? await _candidateLoader();
 
     // Pure, side-effect-free evaluation against the engine's CURRENT
     // hysteresis state (_status.currentTargetId). This computes the exact
@@ -285,13 +303,19 @@ class SchedulerEngine {
     // read-only preview path (previewDecision/previewRanking) can reuse the
     // same _evaluate without ever touching them.
     final outcome = _evaluate(
-      candidates: candidates,
+      candidates: loadedCandidates,
       now: now,
       currentTargetId: _status.currentTargetId,
       reason: reason,
     );
 
     _publishDecision(outcome.decision);
+
+    // Re-evaluate while idle/paused is a read-only operator preview. Mutating
+    // currentTargetId here used to make a later Start see isSwitch=false and
+    // skip dispatch entirely; paused re-evaluations could similarly claim a
+    // target switch the sequencer never performed.
+    if (_status.state != SchedulerState.running) return;
 
     if (outcome.winner == null) {
       await _handleNoEligibleTarget(now);
@@ -301,7 +325,7 @@ class SchedulerEngine {
     if (outcome.isSwitch) {
       final winner = outcome.winner!;
       if (_status.state == SchedulerState.running) {
-        final chosenCandidate = candidates.firstWhere(
+        final chosenCandidate = loadedCandidates.firstWhere(
           (c) => c.targetId == winner.targetId,
         );
         final seq = buildSequenceForCandidate(chosenCandidate);
@@ -339,16 +363,7 @@ class SchedulerEngine {
         // A target was dispatched: a (new) observing night is under way, so
         // re-arm the end-of-night park for the next dawn.
         _parkedForEndOfNight = false;
-      } else {
-        // Not running (preview/idle paths never reach here from a live tick,
-        // but keep the hysteresis state consistent): record the winner so a
-        // subsequent start() does not treat it as a fresh switch.
-        _updateStatus(
-          _status.copyWith(
-            currentTargetId: winner.targetId,
-            currentTargetName: winner.targetName,
-          ),
-        );
+        _dispatchedSinceStart = true;
       }
     }
   }
@@ -617,6 +632,10 @@ class SchedulerEngine {
     if (!running) return;
 
     if (_isEndOfNight(now)) {
+      // Starting the autopilot before sunset is an ordinary pre-arm workflow.
+      // Until this run has actually dispatched a target there is no completed
+      // observing night to safe, so wait quietly for a later eligible tick.
+      if (!_dispatchedSinceStart) return;
       // Dawn: park the mount so it stops tracking into the ground/daylight.
       // Guarded so we park once per dawn, not on every subsequent tick while
       // the Sun stays up. Park first (the safety-critical action), then the

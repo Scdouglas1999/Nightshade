@@ -171,11 +171,85 @@ class PassPredictionState {
   });
 }
 
+typedef PassPredictionComputer =
+    Future<List<SatellitePass>> Function({
+      required List<OrbitalElements> elements,
+      required double latitude,
+      required double longitude,
+      required DateTime startTime,
+      required Duration predictionWindow,
+    });
+
+final passPredictionComputerProvider = Provider<PassPredictionComputer>((ref) {
+  return ({
+    required elements,
+    required latitude,
+    required longitude,
+    required startTime,
+    required predictionWindow,
+  }) {
+    return compute(
+      _computePassesIsolate,
+      _ComputePassesArgs(
+        elements: elements,
+        latitude: latitude,
+        longitude: longitude,
+        startTime: startTime,
+        durationMinutes: predictionWindow.inMinutes,
+      ),
+    );
+  };
+});
+
 /// Computes satellite pass predictions in the background.
 class PassPredictionNotifier extends StateNotifier<PassPredictionState> {
   final Ref _ref;
+  int _computeGeneration = 0;
 
-  PassPredictionNotifier(this._ref) : super(const PassPredictionState());
+  PassPredictionNotifier(this._ref) : super(const PassPredictionState()) {
+    _ref.listen<bool>(showSatellitesProvider, (previous, next) {
+      if (!next) {
+        _computeGeneration++;
+        state = const PassPredictionState();
+        return;
+      }
+      _refreshForCurrentInputs();
+    });
+    _ref.listen<AsyncValue<List<OrbitalElements>>>(satelliteTleProvider, (
+      previous,
+      next,
+    ) {
+      if (_ref.read(showSatellitesProvider)) _refreshForCurrentInputs();
+    });
+    _ref.listen<PlanetariumObserver>(observerLocationProvider, (_, __) {
+      if (_ref.read(showSatellitesProvider) &&
+          _ref.read(satelliteTleProvider).valueOrNull?.isNotEmpty == true) {
+        unawaited(computePasses());
+      }
+    });
+  }
+
+  void _refreshForCurrentInputs() {
+    final tleData = _ref.read(satelliteTleProvider);
+    final elements = tleData.valueOrNull;
+    if (elements != null && elements.isNotEmpty) {
+      unawaited(computePasses());
+      return;
+    }
+
+    // Loading is expected immediately after the satellite layer is enabled.
+    // Keep a spinner up and let the TLE listener start prediction when ready.
+    _computeGeneration++;
+    if (tleData.isLoading) {
+      state = const PassPredictionState(isComputing: true);
+    } else if (tleData.hasError) {
+      state = PassPredictionState(
+        error: 'Could not load satellite data: ${tleData.error}',
+      );
+    } else {
+      state = const PassPredictionState(error: 'No satellite data loaded');
+    }
+  }
 
   /// Compute pass predictions for all loaded satellites.
   /// This can take several seconds for many satellites, so runs in isolate.
@@ -183,36 +257,57 @@ class PassPredictionNotifier extends StateNotifier<PassPredictionState> {
     Duration predictionWindow = const Duration(hours: 48),
   }) async {
     if (!mounted) return;
+    if (!_ref.read(showSatellitesProvider)) {
+      _computeGeneration++;
+      state = const PassPredictionState();
+      return;
+    }
+    if (predictionWindow <= Duration.zero) {
+      _computeGeneration++;
+      state = const PassPredictionState(
+        error: 'Prediction window must be greater than zero',
+      );
+      return;
+    }
 
     final tleData = _ref.read(satelliteTleProvider);
     final elements = tleData.valueOrNull;
-    if (elements == null || elements.isEmpty) {
+    if (elements == null) {
+      _refreshForCurrentInputs();
+      return;
+    }
+    if (elements.isEmpty) {
+      _computeGeneration++;
       state = const PassPredictionState(error: 'No satellite data loaded');
       return;
     }
 
     final location = _ref.read(observerLocationProvider);
+    final generation = ++_computeGeneration;
 
     state = const PassPredictionState(isComputing: true);
 
     try {
-      final passes = await compute(
-        _computePassesIsolate,
-        _ComputePassesArgs(
-          elements: elements,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          startTime: DateTime.now().toUtc(),
-          durationHours: predictionWindow.inHours,
-        ),
+      final passes = await _ref.read(passPredictionComputerProvider)(
+        elements: elements,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        startTime: DateTime.now().toUtc(),
+        predictionWindow: predictionWindow,
       );
 
-      if (!mounted) return;
+      if (!_canPublish(generation)) return;
       state = PassPredictionState(passes: passes);
     } catch (e) {
-      if (!mounted) return;
+      if (!_canPublish(generation)) return;
       state = PassPredictionState(error: 'Pass prediction failed: $e');
     }
+  }
+
+  bool _canPublish(int generation) {
+    return mounted &&
+        generation == _computeGeneration &&
+        _ref.read(showSatellitesProvider);
   }
 }
 
@@ -222,14 +317,14 @@ class _ComputePassesArgs {
   final double latitude;
   final double longitude;
   final DateTime startTime;
-  final int durationHours;
+  final int durationMinutes;
 
   _ComputePassesArgs({
     required this.elements,
     required this.latitude,
     required this.longitude,
     required this.startTime,
-    required this.durationHours,
+    required this.durationMinutes,
   });
 }
 
@@ -243,7 +338,7 @@ List<SatellitePass> _computePassesIsolate(_ComputePassesArgs args) {
       latitude: args.latitude,
       longitude: args.longitude,
       startTime: args.startTime,
-      duration: Duration(hours: args.durationHours),
+      duration: Duration(minutes: args.durationMinutes),
       minElevation: 10.0, // Only include passes with max elev > 10 degrees
     );
     allPasses.addAll(passes);

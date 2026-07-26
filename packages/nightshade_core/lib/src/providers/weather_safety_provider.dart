@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/weather/weather_models.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/settings/app_settings.dart';
-import '../models/sequence/sequence_models.dart' show ConditionsScoreWeights;
+import '../models/sequence/sequence_models.dart'
+    show ConditionsScoreWeights, SequenceExecutionState;
+import '../backend/disconnected_backend.dart';
+import '../backend/nightshade_backend.dart';
+import '../backend/network_backend.dart';
 import '../services/scheduler/sky_calculations.dart';
 import '../services/adaptive_swap_service.dart';
 import '../services/safe_rig_service.dart';
@@ -18,6 +22,7 @@ import 'equipment_provider.dart';
 import 'settings_provider.dart';
 import 'ui_notification_provider.dart';
 import 'backend_provider.dart';
+import 'sequence_provider.dart';
 
 /// How a [SafetyFailMode] resolves the "no usable safety/weather data"
 /// situation (no connected source on the Dart side; poll error on the Rust
@@ -136,17 +141,21 @@ class WeatherSafetyState {
     this.lastEvaluation,
   });
 
-  factory WeatherSafetyState.initial() => WeatherSafetyState(
-    status: WeatherSafetyStatus.safe,
-    actions: WeatherSafetyActions.safe,
+  factory WeatherSafetyState.initial() => const WeatherSafetyState(
+    status: WeatherSafetyStatus.unsafe,
+    actions: WeatherSafetyActions(
+      shouldPause: true,
+      reason: 'Weather safety has not been evaluated yet',
+    ),
     currentAlertLevel: AlertLevel.clear,
-    lastEvaluation: DateTime.now(),
+    dataSource: SafetyDataSource.unavailable,
+    hardwareWeatherSafe: false,
+    safetyMonitorSafe: false,
+    apiWeatherSafe: false,
   );
 
   /// Check if conditions are safe for imaging
-  bool get isSafe =>
-      status == WeatherSafetyStatus.safe ||
-      status == WeatherSafetyStatus.snoozed;
+  bool get isSafe => status == WeatherSafetyStatus.safe;
 
   WeatherSafetyState copyWith({
     WeatherSafetyStatus? status,
@@ -185,6 +194,8 @@ class WeatherSafetyState {
 /// Notifier for weather safety state
 class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   final Ref _ref;
+  final BackendNotifier _backendNotifier;
+  final Duration _autoResumeDelay;
   StreamSubscription? _alertSubscription;
   Timer? _snoozeTimer;
   Timer? _periodicEvalTimer;
@@ -195,15 +206,22 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   // re-evaluations.
   Timer? _cloudMotionPushTimer;
   Timer? _adaptiveConditionsPushTimer;
+  Timer? _remoteStatusTimer;
+  Timer? _sourceChangeEvaluationTimer;
+  bool _remoteFetchInFlight = false;
+  bool _evaluationInFlight = false;
+  bool _evaluationPending = false;
   bool _resumeInFlight = false;
+  int _autoResumeGeneration = 0;
 
-  /// Latch ensuring the safe-the-rig enforcement fires exactly once per
-  /// unsafe episode. Set when we enforce on the safe -> unsafe transition;
-  /// cleared when conditions return to safe. Without it, every 5-minute
-  /// periodic re-evaluation while still unsafe would re-pause/re-park an
-  /// already-safed rig (and re-spam the critical notification).
+  /// Latch ensuring a successful safe-the-rig enforcement fires exactly once
+  /// per unsafe episode. Set only after every requested action succeeds and
+  /// cleared when conditions return to safe. A failed attempt stays re-armed
+  /// for the next periodic evaluation.
   bool _safeRigEnforced = false;
   bool _enforceInFlight = false;
+  bool _weatherPausedSequence = false;
+  bool _weatherParkedMount = false;
 
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
@@ -235,14 +253,150 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   /// sample before committing to the resume.
   static const _autoResumeHoldoff = Duration(minutes: 5);
 
-  WeatherSafetyNotifier(this._ref) : super(WeatherSafetyState.initial()) {
+  WeatherSafetyNotifier(
+    Ref ref, {
+    Duration autoResumeDelay = _autoResumeHoldoff,
+  }) : _ref = ref,
+       _backendNotifier = ref.read(backendProvider.notifier),
+       _autoResumeDelay = autoResumeDelay,
+       super(WeatherSafetyState.initial()) {
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      _startRemoteStatusPolling();
+      return;
+    }
+    if (backend is DisconnectedBackend) {
+      // UI-only mode has no rig to protect and no authority to issue hardware
+      // commands. Keep the conservative unknown/unsafe verdict so imaging is
+      // never presented as weather-safe, but make the state passive: evaluating
+      // the fail-closed policy here would invoke SafeRig against a deliberately
+      // disconnected backend and report a pair of false CRITICAL failures.
+      state = state.copyWith(
+        actions: WeatherSafetyActions.safe,
+        failModeWarning:
+            'Connect to an imaging host to evaluate weather safety.',
+      );
+      return;
+    }
     _subscribeToAlerts();
+    // Hardware connection and telemetry changes must update the consolidated
+    // verdict promptly. Previously only alert changes and the five-minute
+    // timer triggered evaluation, so a newly connected weather/safety device
+    // could remain labelled "unavailable" for minutes.
+    _ref.listen<WeatherState>(weatherStateProvider, (_, __) {
+      _scheduleSourceChangeEvaluation();
+    });
+    _ref.listen<SafetyMonitorState>(safetyMonitorStateProvider, (_, __) {
+      _scheduleSourceChangeEvaluation();
+    });
+    // Configuration changes are safety inputs too. Persisting
+    // weatherSafetyEnabled/failMode previously updated Drift and the settings
+    // UI but left this notifier's verdict unchanged until the five-minute
+    // timer (or an unrelated device event) fired.
+    _ref.listen<AsyncValue<WeatherSettings>>(weatherSettingsDataProvider, (
+      _,
+      __,
+    ) {
+      _scheduleSourceChangeEvaluation();
+    });
+    _ref.listen<AsyncValue<AppSettingsState>>(appSettingsProvider, (_, __) {
+      _scheduleSourceChangeEvaluation();
+    });
     _startPeriodicEvaluation();
     // Start the cloud-motion forwarding loop so the Rust
     // sequencer's cloud-aware triggers see live data the first time the
     // notifier is constructed (typically at app launch).
     _startCloudMotionPush();
     _startAdaptiveConditionsPush();
+  }
+
+  void _startRemoteStatusPolling() {
+    unawaited(_refreshRemoteStatus());
+    _remoteStatusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      unawaited(_refreshRemoteStatus());
+    });
+  }
+
+  Future<void> _refreshRemoteStatus() async {
+    if (_remoteFetchInFlight || !mounted) return;
+    final backend = _ref.read(backendProvider);
+    if (backend is! NetworkBackend) return;
+    _remoteFetchInFlight = true;
+    try {
+      final response = await backend.getSafetyStatus();
+      if (!mounted) return;
+      final rawStatus = response['safetyStatus'];
+      final status = WeatherSafetyStatus.values.firstWhere(
+        (candidate) => candidate.name == rawStatus,
+        orElse: () => WeatherSafetyStatus.unsafe,
+      );
+      final rawSource = response['dataSource'];
+      final dataSource = SafetyDataSource.values.firstWhere(
+        (candidate) => candidate.name == rawSource,
+        orElse: () => SafetyDataSource.unavailable,
+      );
+      final isSafe = status == WeatherSafetyStatus.safe;
+      final failModeWarning = response['failModeWarning'] is String
+          ? response['failModeWarning'] as String
+          : null;
+      final rawActions = response['actions'];
+      bool actionFlag(String key, bool fallback) {
+        if (rawActions is! Map) return fallback;
+        final value = rawActions[key];
+        return value is bool ? value : fallback;
+      }
+
+      String? actionText(String key) {
+        if (rawActions is! Map) return null;
+        final value = rawActions[key];
+        return value is String ? value : null;
+      }
+
+      DateTime? wireDate(Object? value) =>
+          value is String ? DateTime.tryParse(value) : null;
+
+      final rawAlertLevel = response['currentAlertLevel'];
+      final alertLevel = AlertLevel.values.firstWhere(
+        (candidate) => candidate.name == rawAlertLevel,
+        // Compatibility with pre-parity hosts: their aggregate response did
+        // not carry severity, so retain the old conservative unsafe=warning
+        // projection rather than treating an unknown value as clear.
+        orElse: () => isSafe ? AlertLevel.clear : AlertLevel.warning,
+      );
+      final lastEvaluationRaw = response['lastEvaluation'];
+      final snoozeUntilRaw = response['snoozeUntil'];
+      state = WeatherSafetyState(
+        status: status,
+        actions: WeatherSafetyActions(
+          shouldPause: actionFlag(
+            'shouldPause',
+            status == WeatherSafetyStatus.unsafe,
+          ),
+          shouldPark: actionFlag('shouldPark', false),
+          shouldCloseDome: actionFlag('shouldCloseDome', false),
+          reason:
+              actionText('reason') ??
+              (status == WeatherSafetyStatus.unsafe ? failModeWarning : null),
+          resumeCheckTime: wireDate(actionText('resumeCheckTime')),
+        ),
+        snoozeUntil: wireDate(snoozeUntilRaw),
+        currentAlertLevel: alertLevel,
+        dataSource: dataSource,
+        hardwareWeatherSafe: response['hardwareWeatherSafe'] as bool? ?? isSafe,
+        safetyMonitorSafe: response['safetyMonitorSafe'] as bool? ?? isSafe,
+        apiWeatherSafe: response['apiWeatherSafe'] as bool? ?? isSafe,
+        failModeWarning: failModeWarning,
+        lastEvaluation: wireDate(lastEvaluationRaw),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      state = WeatherSafetyState.initial().copyWith(
+        failModeWarning: 'Imaging host safety status unavailable: $error',
+        lastEvaluation: DateTime.now(),
+      );
+    } finally {
+      _remoteFetchInFlight = false;
+    }
   }
 
   /// Start periodic re-evaluation timer independent of weather screen
@@ -262,13 +416,62 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     });
   }
 
+  void _scheduleSourceChangeEvaluation() {
+    _sourceChangeEvaluationTimer?.cancel();
+    _sourceChangeEvaluationTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) {
+        _evaluateAllSources();
+      }
+    });
+  }
+
   /// Evaluate all safety sources (API weather, hardware weather, safety monitor)
   void _evaluateAllSources() {
+    unawaited(_evaluateAllSourcesAsync());
+  }
+
+  Future<void> _evaluateAllSourcesAsync() async {
     if (!mounted) return;
-    final weatherSettings = _ref.read(weatherSettingsProvider);
-    final appSettings = _ref.read(appSettingsProvider).valueOrNull;
-    final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
-    final parkPolicyEnabled = appSettings?.parkOnUnsafeWeather ?? true;
+    if (_evaluationInFlight) {
+      _evaluationPending = true;
+      return;
+    }
+    _evaluationInFlight = true;
+    try {
+      final weatherSettings = await _ref.read(
+        weatherSettingsDataProvider.future,
+      );
+      final appSettings = await _ref.read(appSettingsProvider.future);
+      if (!mounted) return;
+      _evaluateAllSourcesWithConfiguration(weatherSettings, appSettings);
+    } catch (error) {
+      if (!mounted) return;
+      final failure = WeatherSafetyState.initial().copyWith(
+        failModeWarning: 'Weather safety configuration unavailable: $error',
+        lastEvaluation: DateTime.now(),
+      );
+      state = failure;
+      _cancelPendingAutoResume();
+      unawaited(_pushWeatherVerdict(true));
+      if (!_safeRigEnforced) {
+        unawaited(_enforceSafetyActionsAndLatch(failure.actions));
+      }
+    } finally {
+      _evaluationInFlight = false;
+      if (_evaluationPending && mounted) {
+        _evaluationPending = false;
+        _evaluateAllSources();
+      }
+    }
+  }
+
+  void _evaluateAllSourcesWithConfiguration(
+    WeatherSettings weatherSettings,
+    AppSettingsState appSettings,
+  ) {
+    if (!mounted) return;
+    final failMode = appSettings.safetyFailMode;
+    final parkPolicyEnabled = appSettings.parkOnUnsafeWeather;
     final shouldAutoPark = parkPolicyEnabled && weatherSettings.autoParkEnabled;
     final dawnParkDue = _isParkBeforeDawnDue(appSettings);
     var shouldShowFailModeWarning = false;
@@ -287,7 +490,10 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     bool hardwareWeatherSafe = true;
     if (isWeatherDeviceConnected) {
       // Check if conditions are safe based on hardware weather data
-      hardwareWeatherSafe = _evaluateHardwareWeather(weatherDeviceState);
+      hardwareWeatherSafe = _evaluateHardwareWeather(
+        weatherDeviceState,
+        weatherSettings,
+      );
     }
 
     // Evaluate safety monitor
@@ -467,7 +673,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 
     if (previousStatus == WeatherSafetyStatus.unsafe &&
         finalStatus == WeatherSafetyStatus.safe &&
-        weatherSettings.autoResumeEnabled) {
+        weatherSettings.autoResumeEnabled &&
+        (_weatherPausedSequence || _weatherParkedMount)) {
       _scheduleAutoResume();
     } else if (finalStatus == WeatherSafetyStatus.unsafe) {
       // Why: if conditions re-degrade during the hold-off window we cancel
@@ -478,14 +685,12 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     // Enforce the computed safety actions on the hardware. Before this the
     // actions were COMPUTED but never EXECUTED — every consumer was UI-only,
     // so an unattended rig kept tracking/exposing into unsafe weather. We
-    // enforce on the *transition into* unsafe (latched once per episode) so
-    // the running sequence is paused, the mount parked, and the dome closed
-    // exactly once — not re-fired on every 5-minute re-evaluation while the
-    // weather stays bad.
+    // enforce until one attempt fully succeeds, then latch for the rest of the
+    // unsafe episode. A partial failure must stay re-armed so the next
+    // 5-minute evaluation retries any incomplete pause / park / dome action.
     if (finalStatus == WeatherSafetyStatus.unsafe) {
       if (!_safeRigEnforced) {
-        _safeRigEnforced = true;
-        unawaited(_enforceSafetyActions(finalActions));
+        unawaited(_enforceSafetyActionsAndLatch(finalActions));
       }
     } else if (finalStatus == WeatherSafetyStatus.safe) {
       // Episode over (or never started) — re-arm enforcement for the next one.
@@ -496,23 +701,54 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     // already reflects whether we enforced for this episode.
   }
 
+  /// Execute and latch the computed actions only after every requested SafeRig
+  /// step succeeds. Failed attempts deliberately leave the episode re-armed.
+  Future<void> _enforceSafetyActionsAndLatch(
+    WeatherSafetyActions actions,
+  ) async {
+    if (_safeRigEnforced || _enforceInFlight) return;
+    final succeeded = await _enforceSafetyActions(actions);
+    if (!mounted) return;
+    if (succeeded && state.status == WeatherSafetyStatus.unsafe) {
+      _safeRigEnforced = true;
+    }
+  }
+
   /// Execute the computed weather-safety actions on the hardware via the
   /// shared [SafeRigService]. Idempotent enough to be safe even if the latch
   /// were bypassed: SafeRig skips an already-parked mount / already-closed
   /// dome. Fail-closed: SafeRig throws on partial failure and surfaces a
   /// CRITICAL notification; we additionally log a warning banner here so the
   /// operator sees the weather-safety framing.
-  Future<void> _enforceSafetyActions(WeatherSafetyActions actions) async {
-    if (_enforceInFlight) return;
+  Future<bool> _enforceSafetyActions(WeatherSafetyActions actions) async {
+    // Authority may change while an evaluation is in flight. Neither a remote
+    // client nor disconnected UI-only mode may execute the host's local
+    // SafeRig workflow.
+    final backend = _ref.read(backendProvider);
+    if (backend is DisconnectedBackend || backend is NetworkBackend) {
+      return false;
+    }
+    if (_enforceInFlight) return false;
     _enforceInFlight = true;
+    final executionBefore = _ref.read(sequenceExecutionStateProvider);
+    final mountBefore = _ref.read(mountStateProvider);
+    void recordOwnership(SafeRigResult result) {
+      _weatherPausedSequence =
+          actions.shouldPause &&
+          executionBefore == SequenceExecutionState.running &&
+          result.sequencePaused;
+      _weatherParkedMount =
+          actions.shouldPark && !mountBefore.isParked && result.mountParked;
+    }
+
     try {
       if (!actions.shouldPause &&
           !actions.shouldPark &&
           !actions.shouldCloseDome) {
-        return;
+        return true;
       }
       final safeRig = _ref.read(safeRigServiceProvider);
-      await safeRig.safeTheRig(
+      final result = await safeRig.safeTheRig(
         reason: actions.reason ?? 'Weather turned unsafe',
         park: actions.shouldPark,
         closeDome: actions.shouldCloseDome,
@@ -520,18 +756,34 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
         // dome shutter they also warrant closing a flip-flat / cover.
         closeCover: actions.shouldCloseDome,
       );
+      recordOwnership(result);
+      return true;
+    } on SafeRigException catch (e) {
+      recordOwnership(e.result);
+      if (mounted) {
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showError(
+              'Weather safety enforcement did not fully complete: $e',
+              title: 'Weather Safety',
+              duration: const Duration(seconds: 15),
+            );
+      }
+      return false;
     } catch (e) {
       // SafeRig already posted a CRITICAL notification with the per-step
       // failures; add the weather-safety context so the operator knows what
       // tripped it. Do not rethrow — the periodic evaluator must keep running.
-      if (!mounted) return;
-      _ref
-          .read(uiNotificationProvider.notifier)
-          .showError(
-            'Weather safety enforcement did not fully complete: $e',
-            title: 'Weather Safety',
-            duration: const Duration(seconds: 15),
-          );
+      if (mounted) {
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showError(
+              'Weather safety enforcement did not fully complete: $e',
+              title: 'Weather Safety',
+              duration: const Duration(seconds: 15),
+            );
+      }
+      return false;
     } finally {
       _enforceInFlight = false;
     }
@@ -543,10 +795,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     // here is the same UI surface that announced the park so the operator
     // sees the full park-then-resume narrative in one place.
     _resumeDelayTimer?.cancel();
-    final resumeAt = DateTime.now().add(_autoResumeHoldoff);
+    final generation = ++_autoResumeGeneration;
+    final resumeAt = DateTime.now().add(_autoResumeDelay);
     Future<void>.microtask(() {
-      if (!mounted) return;
-      final mins = _autoResumeHoldoff.inMinutes;
+      if (!mounted || generation != _autoResumeGeneration) return;
+      final mins = _autoResumeDelay.inMinutes;
       _ref
           .read(uiNotificationProvider.notifier)
           .showInfo(
@@ -558,8 +811,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
             duration: const Duration(seconds: 10),
           );
     });
-    _resumeDelayTimer = Timer(_autoResumeHoldoff, () {
-      if (!mounted) return;
+    _resumeDelayTimer = Timer(_autoResumeDelay, () {
+      if (!mounted || generation != _autoResumeGeneration) return;
       // Re-check just before resuming. If the periodic evaluator pushed us
       // back to unsafe during the wait we abort.
       if (state.status != WeatherSafetyStatus.safe) {
@@ -575,11 +828,16 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
         });
         return;
       }
-      unawaited(_autoResumeAfterWeatherClear());
+      unawaited(_autoResumeAfterWeatherClear(generation));
     });
   }
 
   void _cancelPendingAutoResume() {
+    // Invalidating the generation also retires a recovery that has already
+    // passed the hold-off timer and is awaiting an unpark/resume command.
+    // Cancelling only the Timer allowed that stale continuation to resume the
+    // sequence after conditions had turned unsafe again.
+    _autoResumeGeneration++;
     _resumeDelayTimer?.cancel();
     _resumeDelayTimer = null;
   }
@@ -751,19 +1009,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
           ? motion!.etaToLocation!.inSeconds / 60.0
           : null;
 
-      // Opening prediction: the current analyzer does not yet model a
-      // future-opening curve, so we extract a coarse signal from current
-      // coverage — when cover is well below the user's threshold we
-      // synthesise a "clear opening now (0 min away)" with a generous
-      // 30-minute duration. This is an honest approximation that keeps
-      // the CloudOpeningIn trigger usable until the analyzer exposes
-      // forecast data.
-      double? openingMinutes;
-      double? openingDurationSecs;
-      if (cover != null && cover < 30.0) {
-        openingMinutes = 0.0;
-        openingDurationSecs = 30 * 60.0;
-      }
+      // The analyzer does not yet model future openings. Preserve that honest
+      // absence instead of manufacturing "opening now for 30 minutes" from a
+      // single low-cover sample: doing so can fire CloudOpeningIn and resume a
+      // paused sequence without any forecast evidence. Current cover still
+      // drives CloudCoverThreshold independently.
 
       // Clear-sky direction: the analyzer does not yet report a single
       // (alt, az) target. Until that lands we leave the direction
@@ -774,8 +1024,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       await backend.sequencerUpdateCloudMotion(
         currentCoverPercent: cover,
         predictedArrivalMinutes: arrivalMinutes,
-        predictedOpeningMinutes: openingMinutes,
-        predictedOpeningDurationSecs: openingDurationSecs,
+        predictedOpeningMinutes: null,
+        predictedOpeningDurationSecs: null,
         predictedClearSkyAlt: null,
         predictedClearSkyAz: null,
       );
@@ -811,7 +1061,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
         recentHfr: hfrValues,
         hardwareCloudCoverPercent: weather.cloudCover,
         apiCloudCoverPercent: cloudCover,
-        windKph: weather.windSpeed,
+        windKph: weather.windSpeedKph,
       );
       final weights = _conditionsScoreWeights(appSettings);
       final driver = AdaptiveSwapDriver(
@@ -859,28 +1109,117 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     return dawn.difference(now) <= _parkBeforeDawnLeadTime;
   }
 
-  Future<void> _autoResumeAfterWeatherClear() async {
+  bool _canContinueAutoResume(NightshadeBackend backend, int generation) =>
+      mounted &&
+      generation == _autoResumeGeneration &&
+      state.status == WeatherSafetyStatus.safe &&
+      _backendNotifier.isCurrentBackend(backend);
+
+  Future<void> _restoreSafetyAfterInterruptedResume({
+    required NightshadeBackend backend,
+    required bool sequenceResumeIssued,
+    required bool mountUnparkIssued,
+    required String? mountDeviceId,
+  }) async {
+    // A command can finish after weather re-degrades. The normal unsafe
+    // enforcement may have run while that command was still pending, so undo
+    // our own late completion explicitly; otherwise an unpark/resume can be
+    // the final command and leave an unattended rig active in unsafe weather.
+    if (!mounted ||
+        state.status != WeatherSafetyStatus.unsafe ||
+        !_backendNotifier.isCurrentBackend(backend)) {
+      return;
+    }
+
+    final failures = <String>[];
+    if (sequenceResumeIssued) {
+      try {
+        await backend.sequencerPause();
+      } catch (error) {
+        failures.add('pause sequence: $error');
+      }
+    }
+    if (mountUnparkIssued && mountDeviceId != null) {
+      try {
+        await backend.mountPark(mountDeviceId);
+      } catch (error) {
+        failures.add('park mount: $error');
+      }
+    }
+
+    if (failures.isNotEmpty && mounted) {
+      _ref
+          .read(uiNotificationProvider.notifier)
+          .showError(
+            'Weather became unsafe during automatic recovery, and Nightshade '
+            'could not fully restore the safe state (${failures.join('; ')}).',
+            title: 'Weather Safety',
+            duration: const Duration(seconds: 15),
+          );
+    }
+  }
+
+  Future<void> _autoResumeAfterWeatherClear(int generation) async {
     if (_resumeInFlight) return;
     _resumeInFlight = true;
+    final backend = _backendNotifier.currentBackend;
+    var mountUnparkIssued = false;
+    var sequenceResumeIssued = false;
+    String? mountDeviceId;
     try {
-      final backend = _ref.read(backendProvider);
-      final mount = _ref.read(mountStateProvider);
-      if (mount.connectionState == DeviceConnectionState.connected &&
-          mount.deviceId != null &&
-          mount.isParked) {
-        await backend.mountUnpark(mount.deviceId!);
+      if (!_canContinueAutoResume(backend, generation)) return;
+      if (_weatherParkedMount) {
+        final mount = _ref.read(mountStateProvider);
+        final connected =
+            mount.connectionState == DeviceConnectionState.connected &&
+            mount.deviceId != null &&
+            mount.deviceId!.isNotEmpty;
+        if (!connected) {
+          throw StateError(
+            'Cannot auto-resume: the weather-parked mount is disconnected',
+          );
+        }
+        mountDeviceId = mount.deviceId!;
+        if (mount.isParked) {
+          await backend.mountUnpark(mountDeviceId);
+          mountUnparkIssued = true;
+        }
+        if (!_canContinueAutoResume(backend, generation)) {
+          await _restoreSafetyAfterInterruptedResume(
+            backend: backend,
+            sequenceResumeIssued: sequenceResumeIssued,
+            mountUnparkIssued: mountUnparkIssued,
+            mountDeviceId: mountDeviceId,
+          );
+          return;
+        }
+        _weatherParkedMount = false;
       }
-      await backend.sequencerResume();
-      if (!mounted) return;
+      if (_weatherPausedSequence) {
+        if (!_canContinueAutoResume(backend, generation)) return;
+        await backend.sequencerResume();
+        sequenceResumeIssued = true;
+        if (!_canContinueAutoResume(backend, generation)) {
+          await _restoreSafetyAfterInterruptedResume(
+            backend: backend,
+            sequenceResumeIssued: sequenceResumeIssued,
+            mountUnparkIssued: mountUnparkIssued,
+            mountDeviceId: mountDeviceId,
+          );
+          return;
+        }
+        _weatherPausedSequence = false;
+      }
+      if (!_canContinueAutoResume(backend, generation)) return;
       _ref
           .read(uiNotificationProvider.notifier)
           .showInfo(
-            'Weather is safe again; sequence resume was requested.',
+            'Weather is safe again; weather-owned safing actions were reversed.',
             title: 'Weather Safety',
             duration: const Duration(seconds: 8),
           );
     } catch (e) {
-      if (!mounted) return;
+      if (!_canContinueAutoResume(backend, generation)) return;
       _ref
           .read(uiNotificationProvider.notifier)
           .showWarning(
@@ -900,13 +1239,15 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   /// has one definition and is unit-testable in isolation. This method just
   /// adapts the provider's [WeatherState] / [WeatherSettings] into the
   /// evaluator's plain inputs.
-  bool _evaluateHardwareWeather(WeatherState weatherState) {
-    final settings = _ref.read(weatherSettingsProvider);
+  bool _evaluateHardwareWeather(
+    WeatherState weatherState,
+    WeatherSettings settings,
+  ) {
     const evaluator = WeatherThresholdEvaluator();
     final result = evaluator.evaluate(
       WeatherReading(
         humidityPercent: weatherState.humidity,
-        windSpeedKph: weatherState.windSpeed,
+        windSpeedKph: weatherState.windSpeedKph,
         rainRate: weatherState.rainRate,
         cloudCoverPercent: weatherState.cloudCover,
       ),
@@ -953,6 +1294,27 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       actions: WeatherSafetyActions.safe,
     );
 
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      unawaited(
+        backend
+            .acknowledgeSafetyCondition(
+              reason: 'Remote operator snoozed weather safety alerts',
+              durationMinutes: duration.inMinutes.clamp(1, 1440),
+            )
+            .then((_) => _refreshRemoteStatus())
+            .catchError((Object error) {
+              if (mounted) {
+                state = WeatherSafetyState.initial().copyWith(
+                  failModeWarning: 'Could not snooze host safety: $error',
+                  lastEvaluation: DateTime.now(),
+                );
+              }
+            }),
+      );
+      return;
+    }
+
     // Start timer to end snooze
     _snoozeTimer = Timer(duration, () {
       if (!mounted) return;
@@ -965,14 +1327,59 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     _snoozeTimer?.cancel();
     _snoozeTimer = null;
 
-    // Clear snooze and re-evaluate all sources
-    state = state.copyWith(clearSnooze: true);
+    // Clear the acknowledgement immediately and fail closed while fresh
+    // conditions are being fetched. Merely clearing `snoozeUntil` used to
+    // leave `status == snoozed` until an asynchronous evaluation completed,
+    // so the Cancel Snooze button appeared to do nothing and a stalled remote
+    // refresh could leave the client snoozed indefinitely.
+    state = state.copyWith(
+      status: WeatherSafetyStatus.unsafe,
+      actions: const WeatherSafetyActions(
+        shouldPause: true,
+        reason: 'Weather safety snooze cancelled; re-evaluating conditions',
+      ),
+      clearSnooze: true,
+    );
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      unawaited(
+        backend
+            .cancelSafetyAcknowledgement()
+            .then((_) => _refreshRemoteStatus())
+            .catchError((Object error) {
+              if (mounted) {
+                state = WeatherSafetyState.initial().copyWith(
+                  failModeWarning: 'Could not cancel host snooze: $error',
+                  lastEvaluation: DateTime.now(),
+                );
+              }
+            }),
+      );
+      return;
+    }
     _evaluateAllSources();
   }
 
   /// Force immediate re-evaluation of all safety sources
   void forceEvaluation() {
+    if (_ref.read(backendProvider) is NetworkBackend) {
+      unawaited(_refreshRemoteStatus());
+      return;
+    }
     _evaluateAllSources();
+  }
+
+  /// Force a safety evaluation and wait until it and any coalesced follow-up
+  /// evaluation have completed.
+  Future<void> evaluateNow() async {
+    if (_ref.read(backendProvider) is NetworkBackend) {
+      await _refreshRemoteStatus();
+      return;
+    }
+    _evaluateAllSources();
+    while (mounted && (_evaluationInFlight || _evaluationPending)) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
   }
 
   @override
@@ -980,9 +1387,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     _alertSubscription?.cancel();
     _snoozeTimer?.cancel();
     _periodicEvalTimer?.cancel();
-    _resumeDelayTimer?.cancel();
+    _cancelPendingAutoResume();
     _cloudMotionPushTimer?.cancel();
     _adaptiveConditionsPushTimer?.cancel();
+    _remoteStatusTimer?.cancel();
+    _sourceChangeEvaluationTimer?.cancel();
     super.dispose();
   }
 }
@@ -990,6 +1399,7 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
 /// Provider for weather safety state
 final weatherSafetyProvider =
     StateNotifierProvider<WeatherSafetyNotifier, WeatherSafetyState>((ref) {
+      ref.watch(backendProvider);
       return WeatherSafetyNotifier(ref);
     });
 

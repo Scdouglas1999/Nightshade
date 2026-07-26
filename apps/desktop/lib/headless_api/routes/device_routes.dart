@@ -159,4 +159,9 @@ List<HeadlessRoute> buildDeviceRoutes(DeviceHandlers h) => <HeadlessRoute>[
   ),
   HeadlessRoute(HttpMethod.post, '/api/rotator/halt', h.handleRotatorHalt),
   HeadlessRoute(HttpMethod.post, '/api/rotator/sync', h.handleRotatorSync),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/rotator/set-reverse',
+    h.handleRotatorSetReverse,
+  ),
 ];

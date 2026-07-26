@@ -21,9 +21,29 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   final _angleFocusNode = FocusNode();
   final _syncController = TextEditingController();
   bool _isGoingTo = false;
+  bool _isCommandInFlight = false;
+  ProviderSubscription<DeviceService>? _serviceSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _serviceSubscription = ref.listenManual<DeviceService>(
+      deviceServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted && (_isGoingTo || _isCommandInFlight)) {
+          setState(() {
+            _isGoingTo = false;
+            _isCommandInFlight = false;
+          });
+        }
+      },
+    );
+  }
 
   @override
   void dispose() {
+    _serviceSubscription?.close();
     _angleController.dispose();
     _angleFocusNode.dispose();
     _syncController.dispose();
@@ -47,16 +67,26 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
         .valueOrNull;
     final min = caps?.minAngleDeg ?? 0.0;
     final max = caps?.maxAngleDeg ?? 360.0;
-    if (min >= max) return (min: 0.0, max: 360.0);
+    if (!min.isFinite || !max.isFinite || min >= max) {
+      return (min: 0.0, max: 360.0);
+    }
     return (min: min, max: max);
   }
 
   Future<void> _moveRelative(double delta) async {
-    if (_isMoving) return;
+    if (_isMoving || _isCommandInFlight) return;
+    final service = ref.read(deviceServiceProvider);
+    setState(() => _isCommandInFlight = true);
     try {
-      await ref.read(deviceServiceProvider).moveRotatorRelative(delta);
+      await service.moveRotatorRelative(delta);
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Failed to move rotator: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Failed to move rotator: $e');
+      }
+    } finally {
+      if (_isCurrentService(service)) {
+        setState(() => _isCommandInFlight = false);
+      }
     }
   }
 
@@ -64,7 +94,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     final range = _angleRange();
     final text = _angleController.text.trim();
     final angle = double.tryParse(text);
-    if (angle == null) {
+    if (angle == null || !angle.isFinite) {
       context.showErrorSnackBar(
         'Enter a valid angle '
         '(${range.min.toStringAsFixed(0)}-${range.max.toStringAsFixed(0)})',
@@ -79,21 +109,36 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
       return;
     }
 
-    setState(() => _isGoingTo = true);
+    if (_isGoingTo || _isCommandInFlight) return;
+    final service = ref.read(deviceServiceProvider);
+    setState(() {
+      _isGoingTo = true;
+      _isCommandInFlight = true;
+    });
     try {
-      await ref.read(deviceServiceProvider).moveRotatorTo(angle);
+      await service.moveRotatorTo(angle);
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Failed to move rotator: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Failed to move rotator: $e');
+      }
     } finally {
-      if (mounted) setState(() => _isGoingTo = false);
+      if (_isCurrentService(service)) {
+        setState(() {
+          _isGoingTo = false;
+          _isCommandInFlight = false;
+        });
+      }
     }
   }
 
   Future<void> _halt() async {
+    final service = ref.read(deviceServiceProvider);
     try {
-      await ref.read(deviceServiceProvider).haltRotator();
+      await service.haltRotator();
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Failed to halt rotator: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Failed to halt rotator: $e');
+      }
     }
   }
 
@@ -102,25 +147,35 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   /// mechanical↔sky offset without moving the rotator.
   Future<void> _syncToPa() async {
     final pa = double.tryParse(_syncController.text);
-    if (pa == null || pa < 0 || pa > 360) {
+    if (pa == null || !pa.isFinite || pa < 0 || pa > 360) {
       if (mounted) {
         context.showErrorSnackBar('Enter a sky PA between 0 and 360°');
       }
       return;
     }
-    final deviceId = _rotatorState.deviceId;
-    if (deviceId == null) return;
+    if (_isCommandInFlight || _isMoving) return;
+    final service = ref.read(deviceServiceProvider);
+    setState(() => _isCommandInFlight = true);
     try {
-      await ref.read(deviceBackendProvider).rotatorSyncToPa(deviceId, pa);
-      if (mounted) {
+      await service.syncRotatorToPa(pa);
+      if (mounted && _isCurrentService(service)) {
         context.showSuccessSnackBar(
           'Synced rotator to ${pa.toStringAsFixed(1)}° sky PA',
         );
       }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Failed to sync rotator: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Failed to sync rotator: $e');
+      }
+    } finally {
+      if (_isCurrentService(service)) {
+        setState(() => _isCommandInFlight = false);
+      }
     }
   }
+
+  bool _isCurrentService(DeviceService service) =>
+      mounted && identical(ref.read(deviceServiceProvider), service);
 
   @override
   Widget build(BuildContext context) {
@@ -135,12 +190,14 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     final canMoveAbsolute = gateCapability<RotatorCapabilities>(
       rotatorCapsAsync,
       (c) => c.canMoveAbsolute,
-      loadingDefault: true,
     );
     final canHalt = gateCapability<RotatorCapabilities>(
       rotatorCapsAsync,
       (c) => c.canHalt,
-      loadingDefault: true,
+    );
+    final canSync = gateCapability<RotatorCapabilities>(
+      rotatorCapsAsync,
+      (c) => c.canSync,
     );
 
     // Valid absolute-angle range for the Go-To input hint. Mirrors the
@@ -149,7 +206,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     final caps = rotatorCapsAsync.valueOrNull;
     final rawMin = caps?.minAngleDeg ?? 0.0;
     final rawMax = caps?.maxAngleDeg ?? 360.0;
-    final hasValidRange = rawMin < rawMax;
+    final hasValidRange = rawMin.isFinite && rawMax.isFinite && rawMin < rawMax;
     final minAngle = hasValidRange ? rawMin : 0.0;
     final maxAngle = hasValidRange ? rawMax : 360.0;
 
@@ -180,14 +237,17 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
         ),
         const SizedBox(height: 16),
 
-        // Sync section — calibrate the mechanical↔sky offset (IRotatorV3 Sync)
-        // without moving. Available on any connected rotator.
-        PanelSection(
-          title: 'Sync Sky PA',
-          colors: colors,
-          child: _buildSyncSection(colors),
-        ),
-        const SizedBox(height: 16),
+        // Sync section — calibrate the mechanical↔sky offset (IRotatorV3
+        // Sync) without moving. Drivers that cannot sync do not get a dead
+        // control.
+        if (canSync) ...[
+          PanelSection(
+            title: 'Sync Sky PA',
+            colors: colors,
+            child: _buildSyncSection(colors, canSync: canSync),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // Halt button — only meaningful when the driver supports halt
         // and the rotator is currently moving.
@@ -291,7 +351,8 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     double minAngle,
     double maxAngle,
   ) {
-    final canGoTo = _isConnected && !_isMoving && !_isGoingTo;
+    final canGoTo =
+        _isConnected && !_isMoving && !_isGoingTo && !_isCommandInFlight;
 
     return Row(
       children: [
@@ -328,7 +389,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              enabled: _isConnected,
+              enabled: _isConnected && !_isCommandInFlight,
               onSubmitted: (_) {
                 if (canGoTo) _goToAngle();
               },
@@ -347,8 +408,12 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     );
   }
 
-  Widget _buildSyncSection(NightshadeColors colors) {
-    final canSync = _isConnected && !_isMoving;
+  Widget _buildSyncSection(
+    NightshadeColors colors, {
+    required bool canSync,
+  }) {
+    final syncEnabled =
+        _isConnected && !_isMoving && !_isCommandInFlight && canSync;
     return Row(
       children: [
         Expanded(
@@ -382,9 +447,9 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              enabled: _isConnected,
+              enabled: syncEnabled,
               onSubmitted: (_) {
-                if (canSync) _syncToPa();
+                if (syncEnabled) _syncToPa();
               },
             ),
           ),
@@ -394,7 +459,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
           label: 'Sync',
           icon: LucideIcons.link,
           colors: colors,
-          isEnabled: canSync,
+          isEnabled: syncEnabled,
           onTap: _syncToPa,
         ),
       ],
@@ -402,7 +467,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   }
 
   Widget _buildRelativeMoveSection(NightshadeColors colors) {
-    final canMove = _isConnected && !_isMoving;
+    final canMove = _isConnected && !_isMoving && !_isCommandInFlight;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,

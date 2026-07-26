@@ -16,6 +16,7 @@ final cameraStateProvider =
 class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
   final Ref _ref;
   int _retryAttempts = 0;
+  int _connectionRevision = 0;
 
   CameraStateNotifier(this._ref) : super(const CameraStateSnapshot());
 
@@ -23,20 +24,25 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
     String deviceId, {
     int maxRetries = kDefaultMaxRetries,
   }) async {
+    final revision = ++_connectionRevision;
     _retryAttempts = 0;
-    await _connectWithRetry(deviceId, maxRetries);
+    _setConnectingState(deviceId, deviceId);
+    await _connectWithRetry(deviceId, maxRetries, revision);
   }
 
-  Future<void> _connectWithRetry(String deviceId, int maxRetries) async {
+  Future<void> _connectWithRetry(
+    String deviceId,
+    int maxRetries,
+    int revision,
+  ) async {
     try {
-      setConnecting(deviceId, deviceId);
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectCamera(deviceId);
-      if (!mounted) return;
+      if (!_isCurrentConnection(deviceId, revision)) return;
       _retryAttempts = 0;
       setConnected();
     } catch (e) {
-      if (!mounted) return;
+      if (!_isCurrentAttempt(deviceId, revision)) return;
       _retryAttempts++;
       final error = DeviceError.fromException(
         e,
@@ -47,8 +53,9 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
       if (error.recoverable && _retryAttempts < maxRetries) {
         state = state.copyWith(lastError: error);
         await Future.delayed(kDefaultRetryDelay * _retryAttempts);
-        if (!mounted) return;
-        await _connectWithRetry(deviceId, maxRetries);
+        if (!_isCurrentAttempt(deviceId, revision)) return;
+        _setConnectingState(deviceId, deviceId);
+        await _connectWithRetry(deviceId, maxRetries, revision);
       } else {
         state = state.copyWith(
           connectionState: DeviceConnectionState.error,
@@ -72,28 +79,17 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
 
   Future<void> disconnect() async {
     if (state.deviceId == null && state.deviceName == null) return;
-    try {
-      final deviceService = _ref.read(deviceServiceProvider);
-      await deviceService.disconnectCamera();
-    } catch (e) {
-      _safeLogDisconnectError('camera', e);
-    } finally {
-      setDisconnected();
-    }
-  }
-
-  void _safeLogDisconnectError(String deviceType, Object error) {
-    // Disconnect errors are logged but must not leave the UI showing
-    // "connected with error" — setDisconnected runs in finally.
-    try {
-      // ignore: avoid_print
-      print('CameraStateNotifier: disconnect $deviceType failed: $error');
-    } on Object {
-      // No-op — logging must not mask disconnect cleanup.
-    }
+    final revision = ++_connectionRevision;
+    final deviceService = _ref.read(deviceServiceProvider);
+    await deviceService.disconnectCamera();
+    if (mounted && revision == _connectionRevision) setDisconnected();
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    _setConnectingState(deviceId, deviceName);
+  }
+
+  void _setConnectingState(String deviceId, [String? deviceName]) {
     // Preserve `lastError` across the Connecting transition so
     // the equipment card can keep showing the most recent driver error
     // while the reconnect is in flight. It is cleared only when the
@@ -122,10 +118,23 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
     state = CameraStateSnapshot(autoReconnectEnabled: preservedAutoReconnect);
   }
 
-  void updateTemperature(double temp, double power) {
+  bool _isCurrentConnection(String deviceId, int revision) {
+    return mounted &&
+        revision == _connectionRevision &&
+        state.deviceId == deviceId;
+  }
+
+  bool _isCurrentAttempt(String deviceId, int revision) {
+    return mounted &&
+        revision == _connectionRevision &&
+        (state.deviceId == null || state.deviceId == deviceId);
+  }
+
+  void updateTemperature(double temp, [double? power]) {
     state = state.copyWith(
       temperature: temp,
       coolerPower: power,
+      clearCoolerPower: power == null,
       lastSuccessfulCommunication: DateTime.now(),
     );
   }
@@ -143,6 +152,18 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
   /// Update warming state (gradual warm-up in progress)
   void setWarming(bool isWarming) {
     state = state.copyWith(isWarming: isWarming);
+  }
+
+  /// Apply an acknowledged cooler-off command without leaving stale telemetry
+  /// that makes shutdown/risk UI believe the TEC is still energized. A future
+  /// device status event may repopulate cooler power if the driver reports it.
+  void markCoolingDisabled() {
+    state = state.copyWith(
+      isCooling: false,
+      isWarming: false,
+      clearCoolerPower: true,
+      lastSuccessfulCommunication: DateTime.now(),
+    );
   }
 
   void setExposing(bool isExposing, {double? progress}) {

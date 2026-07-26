@@ -105,11 +105,16 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
       ),
       body: decisionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text('Failed to load replay log: $err',
-                style: TextStyle(color: colors.error)),
+        error: (err, _) => EmptyState(
+          icon: LucideIcons.alertTriangle,
+          title: 'Could not load replay log',
+          body: '$err',
+          action: NightshadeButton(
+            label: 'Retry',
+            icon: NightshadeIcons.refresh,
+            onPressed: () => ref.invalidate(
+              decisionsForRunProvider(widget.sequenceRunId),
+            ),
           ),
         ),
         data: (decisions) {
@@ -353,7 +358,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
   /// (silent insert) so the operator's next visit to the run's notes
   /// list shows the entry; a snackbar confirms.
   Future<void> _addNoteForDecision(ReplayDecision d) async {
-    final notesService = ref.read(notesServiceProvider);
+    final notesService = ref.read(notesRepositoryProvider);
     final body = StringBuffer()
       ..writeln(
           'At ${DateFormat.yMd().add_Hms().format(d.timestamp.toLocal())}: ${d.summary}')

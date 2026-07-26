@@ -10,20 +10,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/settings/plate_solving_settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/solver_detection_card.dart';
 // SolverDetectionCard imports the model leaf directly to avoid a circular
 // dependency on the core barrel; the screen-level tests below need the
 // detection / preference providers, so they reach in through the barrel.
 import 'package:nightshade_core/src/models/plate_solver.dart';
+import 'package:nightshade_core/src/backend/network_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/plate_solver_provider.dart';
+import 'package:nightshade_core/src/services/plate_solve_service.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _MockPlateSolveService extends Mock implements PlateSolveService {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
+  }
+}
 
 Future<void> _pumpCard(
   WidgetTester tester, {
   required PlateSolverDetection detection,
+  PlateSolverChoice choice = PlateSolverChoice.auto,
   PlateSolverInfo? verifyInfo,
   String? verifyError,
+  PlateSolverInfo? astrometryVerifyInfo,
+  String? astrometryVerifyError,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(900, 1200);
@@ -41,8 +59,11 @@ Future<void> _pumpCard(
             padding: const EdgeInsets.all(16),
             child: SolverDetectionCard(
               detection: detection,
+              choice: choice,
               astapVerifyInfo: verifyInfo,
               astapVerifyError: verifyError,
+              astrometryVerifyInfo: astrometryVerifyInfo,
+              astrometryVerifyError: astrometryVerifyError,
             ),
           ),
         ),
@@ -54,6 +75,7 @@ Future<void> _pumpCard(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  registerFallbackValue(const PlateSolverPreference());
 
   group('SolverDetectionCard', () {
     testWidgets('shows install link when no solver is detected',
@@ -177,6 +199,57 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('explicit Astrometry selection is not masked by ready ASTAP',
+        (tester) async {
+      await _pumpCard(
+        tester,
+        choice: PlateSolverChoice.astrometry,
+        detection: const PlateSolverDetection(
+          astapPath: '/opt/astap/astap',
+          catalogPath: '/opt/astap',
+        ),
+      );
+
+      expect(
+        find.text('Selected Astrometry.net solver is not installed'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('ASTAP detected'), findsNothing);
+    });
+
+    testWidgets('Auto reports Astrometry fallback as ready', (tester) async {
+      await _pumpCard(
+        tester,
+        detection: const PlateSolverDetection(
+          astapPath: '/opt/astap/astap',
+          astrometryPath: '/usr/bin/solve-field',
+        ),
+      );
+
+      expect(
+        find.text('Astrometry.net ready — Auto fallback active'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('catalog missing'), findsNothing);
+    });
+
+    testWidgets('surfaces Astrometry verification result', (tester) async {
+      await _pumpCard(
+        tester,
+        choice: PlateSolverChoice.astrometry,
+        detection: const PlateSolverDetection(
+          astrometryPath: '/usr/bin/solve-field',
+        ),
+        astrometryVerifyInfo: const PlateSolverInfo(
+          path: '/usr/bin/solve-field',
+          flavour: 'Astrometry.net',
+          versionLine: 'Revision 0.95',
+        ),
+      );
+
+      expect(find.textContaining('Revision 0.95'), findsOneWidget);
+    });
   });
 
   group('PlateSolvingSettingsScreen empty states', () {
@@ -285,6 +358,87 @@ void main() {
       // The three-step quick-start must NOT render when ASTAP is detected.
       expect(find.text('Get started in 3 steps'), findsNothing);
     });
+  });
+
+  testWidgets('remote Browse edits and saves a path on the imaging host',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 1400);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final service = _MockPlateSolveService();
+    when(() => service.setConfig(any())).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, _MockNetworkBackend()),
+          ),
+          plateSolveServiceProvider.overrideWithValue(service),
+          plateSolverDetectionProvider.overrideWith(
+            (ref) async => const PlateSolverDetection(
+              astapPath: '/host/old-astap',
+              catalogPath: '/host/catalog',
+            ),
+          ),
+          plateSolverPreferenceProvider.overrideWith(
+            (ref) async => const PlateSolverPreference(
+              astapPath: '/host/old-astap',
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlateSolvingSettings()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final astapPathInput = find.byKey(
+      const ValueKey('plate_solver_astap_path'),
+    );
+    final browseButton = find.descendant(
+      of: astapPathInput,
+      matching: find.byType(GestureDetector),
+    );
+    expect(browseButton, findsOneWidget);
+    await tester.tap(browseButton);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.text('ASTAP executable on imaging host'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Paths on this controlling device are not visible'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('remote_host_path_input')),
+      '/host/new-astap',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('remote_host_path_submit')));
+    await tester.pumpAndSettle();
+
+    verify(
+      () => service.setConfig(
+        any(
+          that: isA<PlateSolverPreference>().having(
+            (preference) => preference.astapPath,
+            'astapPath',
+            '/host/new-astap',
+          ),
+        ),
+      ),
+    ).called(1);
+    expect(find.text('Plate-solver settings saved.'), findsOneWidget);
   });
 
   group('PlateSolverChoice serialization', () {

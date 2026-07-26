@@ -40,6 +40,14 @@ mixin _GuidingMobileSections
       top: false,
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // The shared app shell may already have consumed a modal keyboard's
+          // inset before this backing route is laid out. At the resulting
+          // near-zero height neither the graph nor the tab chrome is usable;
+          // keep the covered background quiet instead of overflowing behind
+          // the PHD2 dialog.
+          if (constraints.maxHeight < 80) {
+            return ColoredBox(color: colors.background);
+          }
           final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
           // Landscape with enough width: graph beside controls. TwoPane keeps
@@ -363,6 +371,12 @@ mixin _GuidingMobileSections
     Phd2State phd2State,
   ) {
     final calibrationData = ref.watch(calibrationStateProvider);
+    final guiderId = ref.watch(guiderStateProvider).deviceId;
+    final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final canPersistGuidingSettings = settingsAsync.hasValue &&
+        !settingsAsync.isLoading &&
+        !settingsAsync.hasError;
 
     return Padding(
       padding: const EdgeInsets.all(12),
@@ -375,34 +389,69 @@ mixin _GuidingMobileSections
               state: _mapPhd2State(phd2State),
               isConnected: isConnected,
               onStartGuiding: () =>
-                  ref.read(phd2ControllerProvider).startGuiding(),
+                  ref.read(phd2ControllerProvider).startGuiding(
+                        settlePixels: _settlePixels,
+                        settleTime: _settleTime,
+                        settleTimeout: _settleTimeout,
+                      ),
               onStopGuiding: () =>
                   ref.read(phd2ControllerProvider).stopGuiding(),
+              onPauseGuiding: isPhd2Guider
+                  ? () => ref.read(phd2ControllerProvider).pauseGuiding()
+                  : null,
+              onResumeGuiding: isPhd2Guider
+                  ? () => ref.read(phd2ControllerProvider).resumeGuiding()
+                  : null,
               onLoop: () => ref.read(phd2ControllerProvider).loop(),
               onFindStar: () =>
                   ref.read(lockPositionProvider.notifier).findStar(),
-              onDeselectStar: () => _deselectStar(),
-              onDither: () => ref.read(phd2ControllerProvider).dither(),
+              onDeselectStar: _deselectStar,
+              ditherAmount: _ditherAmount,
+              ditherRaOnly: _ditherRaOnly,
+              onDitherAmountChanged:
+                  canPersistGuidingSettings ? _setDitherAmount : null,
+              onDitherRaOnlyChanged:
+                  canPersistGuidingSettings ? _setDitherRaOnly : null,
+              onDither: () => ref.read(phd2ControllerProvider).dither(
+                    amount: _ditherAmount,
+                    raOnly: _ditherRaOnly,
+                    settlePixels: _settlePixels,
+                    settleTime: _settleTime,
+                    settleTimeout: _settleTimeout,
+                  ),
+              settlePixels: _settlePixels,
+              settleTime: _settleTime,
+              settleTimeout: _settleTimeout,
+              onSettlePixelsChanged:
+                  canPersistGuidingSettings ? _setSettlePixels : null,
+              onSettleTimeChanged:
+                  canPersistGuidingSettings ? _setSettleTime : null,
+              onSettleTimeoutChanged:
+                  canPersistGuidingSettings ? _setSettleTimeout : null,
             ),
           ),
           const SizedBox(height: 12),
           Expanded(
             flex: 2,
-            child: CalibrationPanel(
-              state: calibrationData.isCalibrated
-                  ? CalibrationState.calibrated
-                  : CalibrationState.notCalibrated,
-              data: CalibrationData(
-                hasCalibration: calibrationData.isCalibrated,
-                raAngle: calibrationData.rotationAngle,
-                decAngle: null,
-                raRate: calibrationData.raRate,
-                decRate: calibrationData.decRate,
-              ),
-              isConnected: isConnected,
-              onClearCalibration: () => _clearCalibration(),
-              onFlipCalibration: () => _flipCalibration(),
-            ),
+            child: isPhd2Guider
+                ? CalibrationPanel(
+                    state: calibrationData.isCalibrated
+                        ? CalibrationState.calibrated
+                        : (phd2State == Phd2State.calibrating
+                            ? CalibrationState.calibrating
+                            : CalibrationState.notCalibrated),
+                    data: CalibrationData(
+                      hasCalibration: calibrationData.isCalibrated,
+                      raAngle: calibrationData.rotationAngle,
+                      decAngle: null,
+                      raRate: calibrationData.raRate,
+                      decRate: calibrationData.decRate,
+                    ),
+                    isConnected: isConnected,
+                    onClearCalibration: () => _clearCalibration(),
+                    onFlipCalibration: () => _flipCalibration(),
+                  )
+                : _buildNonPhd2GuiderInfo(colors),
           ),
         ],
       ),
@@ -410,6 +459,29 @@ mixin _GuidingMobileSections
   }
 
   Widget _buildMobileSettingsTab(NightshadeColors colors) {
+    final guiderId = ref.watch(guiderStateProvider).deviceId;
+    final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
+
+    if (!isPhd2Guider) {
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            NightshadeButton(
+              key: GuidingTutorialKeys.brainBtn,
+              label: 'Open Guider Settings',
+              icon: NightshadeIcons.settings,
+              variant: ButtonVariant.outline,
+              onPressed: () => context.go('/equipment'),
+            ),
+            const SizedBox(height: 12),
+            Expanded(child: _buildNonPhd2GuiderInfo(colors)),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(

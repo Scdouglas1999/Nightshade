@@ -34,7 +34,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: remote.alpacaServerHost,
       alpacaServerPort: remote.alpacaServerPort,
       alpacaAutoDiscover: remote.alpacaAutoDiscover,
-      useSimulationMode: remote.useSimulationMode,
+      useSimulationMode: effectiveSimulationMode(remote.useSimulationMode),
       imageOutputPath: remote.imageOutputPath,
       safetyFailMode: remote.safetyFailMode,
       // Image Grading — carried by the wire model so an unattended
@@ -86,6 +86,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       backlashCompensation: remote.backlashCompensation,
       settleThreshold: remote.settleThreshold,
       settleTimeout: remote.settleTimeout,
+      settleTime: remote.settleTime,
+      ditherRaOnly: remote.ditherRaOnly,
       plateSolver: remote.plateSolver,
       blindSolve: remote.blindSolve,
       bortleClass: remote.bortleClass,
@@ -157,8 +159,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       useFilterFocusOffsets: remote.useFilterFocusOffsets,
       astrometryPath: remote.astrometryPath,
       observerName: remote.observerName,
-      imageFormat: remote.imageFormat,
-      bitDepth: remote.bitDepth,
+      imageFormat: _normalizeCaptureImageFormat(remote.imageFormat),
+      bitDepth: _normalizeCaptureBitDepth(remote.bitDepth),
       timezone: remote.timezone,
       useSystemTime: remote.useSystemTime,
       // Settings round-trip gap closure (G5 / G7) — sequencer output path,
@@ -271,6 +273,8 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       backlashCompensation: settings.backlashCompensation,
       settleThreshold: settings.settleThreshold,
       settleTimeout: settings.settleTimeout,
+      settleTime: settings.settleTime,
+      ditherRaOnly: settings.ditherRaOnly,
       plateSolver: settings.plateSolver,
       blindSolve: settings.blindSolve,
       bortleClass: settings.bortleClass,
@@ -463,7 +467,9 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
             : null;
       case 'useSimulationMode':
         return value is bool
-            ? current.copyWith(useSimulationMode: value)
+            ? current.copyWith(
+                useSimulationMode: effectiveSimulationMode(value),
+              )
             : null;
       case 'imageOutputPath':
         return value is String
@@ -634,6 +640,12 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         return value is num
             ? current.copyWith(settleTimeout: value.toInt())
             : null;
+      case 'settleTime':
+        return value is num
+            ? current.copyWith(settleTime: value.toInt())
+            : null;
+      case 'ditherRaOnly':
+        return value is bool ? current.copyWith(ditherRaOnly: value) : null;
       case 'plateSolver':
         return value is String ? current.copyWith(plateSolver: value) : null;
       case 'blindSolve':
@@ -869,9 +881,13 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'observerName':
         return value is String ? current.copyWith(observerName: value) : null;
       case 'imageFormat':
-        return value is String ? current.copyWith(imageFormat: value) : null;
+        return value is String
+            ? current.copyWith(imageFormat: _normalizeCaptureImageFormat(value))
+            : null;
       case 'bitDepth':
-        return value is String ? current.copyWith(bitDepth: value) : null;
+        return value is String
+            ? current.copyWith(bitDepth: _normalizeCaptureBitDepth(value))
+            : null;
       case 'timezone':
         return value is String ? current.copyWith(timezone: value) : null;
       case 'useSystemTime':

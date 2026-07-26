@@ -11,9 +11,12 @@
 // Coverage for both is enough to guarantee the gate flips correctly;
 // the wizard UI itself is covered by a smoke render test.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_mobile/screens/setup/first_run_setup_screen.dart';
 import 'package:nightshade_mobile/services/mobile_preferences.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -97,6 +100,54 @@ void main() {
     });
   });
 
+  test('first-run detection fails closed when server checks fail', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final prefs = MobilePreferences(await SharedPreferences.getInstance());
+    final backend = _DetectionFailureBackend();
+    final container = ProviderContainer(
+      overrides: [
+        mobilePreferencesProvider.overrideWith((ref) async => prefs),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(mobilePreferencesProvider.future);
+    final needs = await container.read(shouldRunFirstRunSetupProvider.future);
+
+    expect(needs.missingImageOutputPath, isTrue);
+    expect(needs.missingProfiles, isTrue);
+    expect(needs.missingCatalogs, isTrue);
+  });
+
+  test('first-run detection waits for the preference latch', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final pendingPrefs = Completer<MobilePreferences>();
+    final container = ProviderContainer(
+      overrides: [
+        mobilePreferencesProvider.overrideWith((ref) => pendingPrefs.future),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    var completed = false;
+    final detection = container
+        .read(shouldRunFirstRunSetupProvider.future)
+        .then((value) {
+          completed = true;
+          return value;
+        });
+    await Future<void>.delayed(Duration.zero);
+    expect(completed, isFalse);
+
+    pendingPrefs.complete(
+      MobilePreferences(await SharedPreferences.getInstance()),
+    );
+    expect(await detection, FirstRunSetupNeeds.none);
+  });
+
   group('FirstRunSetupScreen smoke render', () {
     setUp(() {
       SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -140,5 +191,210 @@ void main() {
       // Wizard hasn't completed yet.
       expect(onCompletedFired, isFalse);
     });
+
+    testWidgets(
+      'catalog failure does not discard successfully loaded profiles',
+      (tester) async {
+        final backend = _CatalogFailureBackend();
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              backendProvider.overrideWith(
+                (ref) => _TestBackendNotifier(ref, backend),
+              ),
+            ],
+            child: MaterialApp(
+              theme: ThemeData(extensions: const [NightshadeColors.dark]),
+              home: FirstRunSetupScreen(
+                needs: const FirstRunSetupNeeds(
+                  missingImageOutputPath: false,
+                  missingProfiles: false,
+                  missingCatalogs: true,
+                ),
+                onCompleted: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('Could not list catalogs'), findsOneWidget);
+        await tester.tap(find.text('Skip catalogs'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Observatory'), findsOneWidget);
+        expect(find.text('Finish setup'), findsOneWidget);
+      },
+    );
+
+    testWidgets('rejects a host capture path that fails validation', (
+      tester,
+    ) async {
+      final backend = _PathValidationBackend(
+        validationResult: const {
+          'valid': false,
+          'exists': false,
+          'writable': false,
+          'error': 'Folder does not exist on the imaging host',
+        },
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [NightshadeColors.dark]),
+            home: FirstRunSetupScreen(
+              needs: const FirstRunSetupNeeds(
+                missingImageOutputPath: true,
+                missingProfiles: false,
+                missingCatalogs: false,
+              ),
+              onCompleted: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '/missing/captures');
+      await tester.tap(find.text('Save and continue'));
+      await tester.pumpAndSettle();
+
+      expect(backend.validatedPath, '/missing/captures');
+      expect(backend.requiredExistingDirectory, isTrue);
+      expect(backend.requiredWritableDirectory, isTrue);
+      expect(backend.updatedSettings, isNull);
+      expect(
+        find.textContaining('Folder does not exist on the imaging host'),
+        findsOneWidget,
+      );
+      expect(find.text('Host capture directory'), findsOneWidget);
+    });
+
+    testWidgets('persists the normalized host capture path', (tester) async {
+      final backend = _PathValidationBackend(
+        validationResult: const {
+          'valid': true,
+          'exists': true,
+          'writable': true,
+          'normalizedPath': '/srv/nightshade/captures',
+        },
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [NightshadeColors.dark]),
+            home: FirstRunSetupScreen(
+              needs: const FirstRunSetupNeeds(
+                missingImageOutputPath: true,
+                missingProfiles: false,
+                missingCatalogs: true,
+              ),
+              onCompleted: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '/host/captures/../data');
+      await tester.tap(find.text('Save and continue'));
+      await tester.pumpAndSettle();
+
+      expect(backend.validatedPath, '/host/captures/../data');
+      expect(
+        backend.updatedSettings?.imageOutputPath,
+        '/srv/nightshade/captures',
+      );
+      expect(find.textContaining('Pick catalogs to install'), findsOneWidget);
+    });
   });
+}
+
+class _PathValidationBackend extends NetworkBackend {
+  _PathValidationBackend({required this.validationResult})
+    : super(serverHost: '127.0.0.1', autoConnectWebSocket: false);
+
+  final Map<String, dynamic> validationResult;
+  String? validatedPath;
+  bool? requiredExistingDirectory;
+  bool? requiredWritableDirectory;
+  AppSettings? updatedSettings;
+
+  @override
+  Future<Map<String, dynamic>> validateRemoteDirectory(
+    String path, {
+    bool mustExist = false,
+    bool mustBeWritable = false,
+  }) async {
+    validatedPath = path;
+    requiredExistingDirectory = mustExist;
+    requiredWritableDirectory = mustBeWritable;
+    return validationResult;
+  }
+
+  @override
+  Future<AppSettings> getSettings() async => const AppSettings();
+
+  @override
+  Future<void> updateSettings(AppSettings settings) async {
+    updatedSettings = settings;
+  }
+
+  @override
+  Future<List<RemoteAvailableCatalog>> listAvailableCatalogs() async =>
+      const [];
+
+  @override
+  Future<List<EquipmentProfile>> getProfiles() async => const [];
+}
+
+class _CatalogFailureBackend extends NetworkBackend {
+  _CatalogFailureBackend()
+    : super(serverHost: '127.0.0.1', autoConnectWebSocket: false);
+
+  @override
+  Future<List<RemoteAvailableCatalog>> listAvailableCatalogs() {
+    throw StateError('catalog endpoint unavailable');
+  }
+
+  @override
+  Future<List<EquipmentProfile>> getProfiles() async => const [
+    EquipmentProfile(id: 'profile-1', name: 'Observatory'),
+  ];
+}
+
+class _DetectionFailureBackend extends NetworkBackend {
+  _DetectionFailureBackend()
+    : super(serverHost: '127.0.0.1', autoConnectWebSocket: false);
+
+  @override
+  Future<AppSettings> getSettings() {
+    throw StateError('settings endpoint unavailable');
+  }
+
+  @override
+  Future<List<EquipmentProfile>> getProfiles() {
+    throw StateError('profiles endpoint unavailable');
+  }
+
+  @override
+  Future<RemoteCatalogStatusResponse> getCatalogStatus() {
+    throw StateError('catalog status endpoint unavailable');
+  }
+}
+
+class _TestBackendNotifier extends BackendNotifier {
+  _TestBackendNotifier(super.ref, NightshadeBackend backend) {
+    state = backend;
+  }
 }

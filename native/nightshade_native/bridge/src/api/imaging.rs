@@ -90,6 +90,18 @@ pub struct AutofocusConfigApi {
     pub steps_out: i32,
     pub method: String, // "VCurve", "Hyperbolic", "Parabolic"
     pub binning: i32,
+    pub gain: Option<i32>,
+    pub offset: Option<i32>,
+    pub number_of_attempts: u32,
+    pub exposures_per_point: u32,
+    pub r_squared_threshold: f64,
+    pub outer_crop_ratio: f64,
+    pub inner_crop_ratio: f64,
+    pub use_brightest_n_stars: u32,
+    pub focuser_settle_time_ms: u64,
+    pub backlash_comp_method: String,
+    pub backlash_in: i32,
+    pub backlash_out: i32,
 }
 
 /// A single focus data point (position and HFR)
@@ -126,7 +138,51 @@ pub async fn api_run_autofocus(
         device_id
     );
 
-    use nightshade_sequencer::instructions::{execute_autofocus, InstructionContext};
+    if !config.exposure_time.is_finite() || config.exposure_time <= 0.0 {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus exposure time must be finite and positive".to_string(),
+        ));
+    }
+    if config.step_size <= 0 || !(1..=50).contains(&config.steps_out) {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus step size must be positive and steps out must be 1..50".to_string(),
+        ));
+    }
+    if !(1..=4).contains(&config.binning)
+        || !(1..=10).contains(&config.number_of_attempts)
+        || !(1..=20).contains(&config.exposures_per_point)
+    {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus binning, attempts, or exposures-per-point is out of range".to_string(),
+        ));
+    }
+    if !config.r_squared_threshold.is_finite()
+        || !(0.0..=1.0).contains(&config.r_squared_threshold)
+        || !config.outer_crop_ratio.is_finite()
+        || !config.inner_crop_ratio.is_finite()
+        || config.outer_crop_ratio <= 0.0
+        || config.outer_crop_ratio > 1.0
+        || config.inner_crop_ratio < 0.0
+        || config.inner_crop_ratio >= config.outer_crop_ratio
+    {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus R²/crop settings are invalid".to_string(),
+        ));
+    }
+    if config.focuser_settle_time_ms > 10_000 || config.backlash_in < 0 || config.backlash_out < 0 {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus settle/backlash settings are out of range".to_string(),
+        ));
+    }
+    if config.gain.is_some_and(|gain| gain < 0) || config.offset.is_some_and(|offset| offset < 0) {
+        return Err(NightshadeError::InvalidParameter(
+            "autofocus gain and offset cannot be negative".to_string(),
+        ));
+    }
+
+    use nightshade_sequencer::instructions::{
+        execute_autofocus_admitted, try_admit_autofocus_run, InstructionContext,
+    };
     use nightshade_sequencer::{AutofocusConfig, AutofocusMethod, Binning, NodeStatus};
     use serde::Deserialize;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -139,7 +195,13 @@ pub async fn api_run_autofocus(
         focus_data: Vec<(i32, f64)>,
     }
 
-    // Reset cancellation token
+    let autofocus_guard = try_admit_autofocus_run().ok_or_else(|| NightshadeError::DeviceBusy {
+        device_id: device_id.clone(),
+        current_operation: "autofocus".to_string(),
+    })?;
+
+    // Reset cancellation token only after admission. A rejected second Start
+    // must never clear the active run's pending cancellation request.
     let cancel_token = get_autofocus_cancel_token();
     cancel_token.store(false, Ordering::Relaxed);
 
@@ -161,6 +223,10 @@ pub async fn api_run_autofocus(
         _ => Binning::One,
     };
 
+    let backlash_enabled = !config
+        .backlash_comp_method
+        .trim()
+        .eq_ignore_ascii_case("none");
     let af_config = AutofocusConfig {
         exposure_duration: config.exposure_time,
         step_size: config.step_size,
@@ -168,7 +234,26 @@ pub async fn api_run_autofocus(
         method,
         binning,
         filter: None, // Optional: add filter support
+        gain: config.gain,
+        offset: config.offset,
         max_duration_secs: 600.0,
+        number_of_attempts: config.number_of_attempts,
+        exposures_per_point: config.exposures_per_point,
+        r_squared_threshold: config.r_squared_threshold,
+        outer_crop_ratio: config.outer_crop_ratio,
+        inner_crop_ratio: config.inner_crop_ratio,
+        use_brightest_n_stars: config.use_brightest_n_stars,
+        focuser_settle_time_ms: config.focuser_settle_time_ms,
+        backlash_compensation: if backlash_enabled {
+            config.backlash_in
+        } else {
+            0
+        },
+        backlash_out_compensation: if backlash_enabled {
+            config.backlash_out
+        } else {
+            0
+        },
         ..AutofocusConfig::default()
     };
 
@@ -196,6 +281,8 @@ pub async fn api_run_autofocus(
     let progress_focuser_id = device_id.clone();
 
     let ctx = InstructionContext {
+        // One-shot bridge capture: no producing sequence node.
+        node_id: String::new(),
         target_ra: None,
         target_dec: None,
         target_name: None,
@@ -285,7 +372,8 @@ pub async fn api_run_autofocus(
         );
     };
 
-    let result = execute_autofocus(&af_config, &ctx, Some(&progress_fn)).await;
+    let result =
+        execute_autofocus_admitted(&af_config, &ctx, Some(&progress_fn), autofocus_guard).await;
 
     // Get current timestamp
     let timestamp = SystemTime::now()
@@ -521,6 +609,10 @@ pub(crate) async fn store_captured_image_atomically(
 
 /// Start a camera exposure
 /// Returns progress updates via events, final image available via api_get_last_image
+/// Public bridge entry point. Gain/offset are explicit (`i32`) here so the
+/// generated FFI signature stays stable; this delegates to
+/// [`camera_start_exposure_opt`] with `Some(..)`, commanding both values
+/// exactly as before.
 pub async fn api_camera_start_exposure(
     device_id: String,
     duration_secs: f64,
@@ -529,8 +621,146 @@ pub async fn api_camera_start_exposure(
     bin_x: i32,
     bin_y: i32,
 ) -> Result<(), NightshadeError> {
+    camera_start_exposure_opt(
+        device_id,
+        duration_secs,
+        Some(gain),
+        Some(offset),
+        bin_x,
+        bin_y,
+    )
+    .await
+}
+
+/// Start an exposure without collapsing omitted controls to zero and with the
+/// complete per-frame geometry/frame-type contract.
+#[allow(clippy::too_many_arguments)]
+pub async fn api_camera_start_exposure_configured(
+    device_id: String,
+    duration_secs: f64,
+    gain: Option<i32>,
+    offset: Option<i32>,
+    bin_x: i32,
+    bin_y: i32,
+    start_x: Option<u32>,
+    start_y: Option<u32>,
+    width: Option<u32>,
+    height: Option<u32>,
+    frame_type: String,
+) -> Result<(), NightshadeError> {
+    let supplied = [
+        start_x.is_some(),
+        start_y.is_some(),
+        width.is_some(),
+        height.is_some(),
+    ];
+    let subframe = if supplied.iter().all(|value| *value) {
+        let width = width.expect("checked above");
+        let height = height.expect("checked above");
+        if width == 0 || height == 0 {
+            return Err(NightshadeError::InvalidParameter(
+                "Camera subframe width and height must be positive".to_string(),
+            ));
+        }
+        Some(nightshade_sequencer::CameraSubframe {
+            start_x: start_x.expect("checked above"),
+            start_y: start_y.expect("checked above"),
+            width,
+            height,
+        })
+    } else if supplied.iter().any(|value| *value) {
+        return Err(NightshadeError::InvalidParameter(
+            "Camera subframe requires start_x, start_y, width, and height together".to_string(),
+        ));
+    } else {
+        None
+    };
+
+    camera_start_exposure_configured_opt(
+        device_id,
+        duration_secs,
+        gain,
+        offset,
+        bin_x,
+        bin_y,
+        subframe,
+        nightshade_native::camera::FrameType::from_str_lenient(&frame_type),
+    )
+    .await
+}
+
+/// Start a camera exposure with *optional* gain/offset.
+///
+/// `None` means "leave the camera's current gain/offset unchanged": it is
+/// threaded through to the device layer (which skips the setter for `None`)
+/// and is NOT collapsed to `0`, which on drivers that honor it would actively
+/// command a gain/offset of zero. Internal callers that carry the documented
+/// "camera default" semantics (e.g. polar alignment) use this directly.
+pub(crate) async fn camera_start_exposure_opt(
+    device_id: String,
+    duration_secs: f64,
+    gain: Option<i32>,
+    offset: Option<i32>,
+    bin_x: i32,
+    bin_y: i32,
+) -> Result<(), NightshadeError> {
+    camera_start_exposure_configured_opt(
+        device_id,
+        duration_secs,
+        gain,
+        offset,
+        bin_x,
+        bin_y,
+        None,
+        nightshade_native::camera::FrameType::Light,
+    )
+    .await
+}
+
+/// Turn a `DeviceOps` capture error into the narrowest `NightshadeError` that
+/// still describes it.
+///
+/// Why this exists: `camera_start_exposure_configured` reports every failure as
+/// a bare `String`, and mapping the lot to [`NightshadeError::OperationFailed`]
+/// made the headless API answer HTTP 500 `internal_error` for outcomes that are
+/// neither internal nor faults. Observed on the rig with a real ASI1600MM: a
+/// daylight frame came back completely saturated and the API returned
+///
+/// ```text
+/// HTTP 500 {"error":"internal_error","message":"Image validation failed: Image
+/// is completely saturated (min value 65224 >= 65024) - significantly reduce
+/// exposure time or gain"}
+/// ```
+///
+/// The camera had worked perfectly and the message was already actionable; only
+/// the envelope was wrong, and a client with retry-on-5xx would have retried a
+/// request that can only fail again. Frames rejected by validation now become
+/// [`NightshadeError::ExposureFailed`], which the headless mapper renders as 422.
+/// Everything else keeps falling through to `OperationFailed` (HTTP 500), so
+/// genuine driver and transport faults are unaffected.
+fn classify_exposure_failure(device_id: &str, error: String) -> NightshadeError {
+    match error.strip_prefix(crate::unified_device_ops::IMAGE_VALIDATION_FAILED_PREFIX) {
+        Some(reason) => NightshadeError::ExposureFailed {
+            camera_id: device_id.to_string(),
+            reason: reason.to_string(),
+        },
+        None => NightshadeError::OperationFailed(error),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn camera_start_exposure_configured_opt(
+    device_id: String,
+    duration_secs: f64,
+    gain: Option<i32>,
+    offset: Option<i32>,
+    bin_x: i32,
+    bin_y: i32,
+    subframe: Option<nightshade_sequencer::CameraSubframe>,
+    frame_type: nightshade_native::camera::FrameType,
+) -> Result<(), NightshadeError> {
     tracing::info!(
-        "Starting {}s exposure with gain={}, offset={}, bin={}x{}",
+        "Starting {}s exposure with gain={:?}, offset={:?}, bin={}x{}",
         duration_secs,
         gain,
         offset,
@@ -587,12 +817,19 @@ pub async fn api_camera_start_exposure(
             camera.status.state = CameraState::Reading;
         }
 
-        // Generate simulated image
-        let sensor_width = 4144 / bin_x as u32;
-        let sensor_height = 2822 / bin_y as u32;
+        // Generate simulated image. The simulator commands no real hardware,
+        // so an unspecified (None) gain falls back to 0 for brightness math —
+        // stars are added regardless, keeping the frame solvable.
+        let sim_gain = gain.unwrap_or(0);
+        let full_width = 4144 / bin_x as u32;
+        let full_height = 2822 / bin_y as u32;
+        let (sensor_width, sensor_height) = subframe
+            .as_ref()
+            .map(|roi| (roi.width, roi.height))
+            .unwrap_or((full_width, full_height));
 
         let (raw_data, display_data_raw, histogram, stats, star_count) =
-            generate_simulated_image(sensor_width, sensor_height, gain, duration_secs);
+            generate_simulated_image(sensor_width, sensor_height, sim_gain, duration_secs);
 
         // Convert grayscale display data to RGBA for Flutter rendering
         let display_data = display_data_to_rgba(&display_data_raw, false);
@@ -653,16 +890,20 @@ pub async fn api_camera_start_exposure(
 
         // Start exposure and get raw data (blocks until complete, events published by UnifiedDeviceOps)
         let seq_image = device_ops
-            .camera_start_exposure(
+            .camera_start_exposure_configured(
                 &device_id,
                 duration_secs,
-                Some(gain),
-                Some(offset),
+                // Already Option: None leaves the driver's current value
+                // untouched instead of forcing it to 0.
+                gain,
+                offset,
                 bin_x,
                 bin_y,
+                subframe,
+                frame_type.as_str(),
             )
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e.to_string()))?;
+            .map_err(|e| classify_exposure_failure(&device_id, e))?;
 
         // Convert SeqImageData to ImageData for processing
         let image = ImageData::from_u16(seq_image.width, seq_image.height, 1, &seq_image.data);
@@ -929,11 +1170,16 @@ pub async fn api_camera_start_exposure(
 /// Get the last captured image for a specific device (display-ready format)
 /// Reads from per-device atomic storage to ensure consistency with raw data
 pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult, NightshadeError> {
-    tracing::info!("API: api_get_last_image called for device: {}", device_id);
+    // Log at debug: dashboards/companions POLL this every few seconds for a
+    // preview, so INFO-per-call was the single largest source of log volume, and
+    // "no image yet" is a NORMAL pre-capture state that the typed
+    // `NoImageAvailable` error already reports to the caller — a WARN for it
+    // flooded the log with non-problems (130 in one session).
+    tracing::debug!("API: api_get_last_image called for device: {}", device_id);
     let mut storage = get_unified_image_storage().lock().await;
     match storage.get(&device_id) {
         Some(data) => {
-            tracing::info!(
+            tracing::debug!(
                 "API: Returning stored image {}x{}, display_data size: {} bytes",
                 data.display.width,
                 data.display.height,
@@ -942,7 +1188,7 @@ pub async fn api_get_last_image(device_id: String) -> Result<CapturedImageResult
             Ok(data.display.clone())
         }
         None => {
-            tracing::warn!("API: No image available for device: {}", device_id);
+            tracing::debug!("API: No image available for device: {}", device_id);
             Err(NightshadeError::NoImageAvailable)
         }
     }
@@ -989,6 +1235,7 @@ pub async fn api_camera_cancel_exposure(device_id: String) -> Result<(), Nightsh
         Ok(())
     } else {
         // Route real devices through DeviceManager
+        crate::unified_device_ops::mark_camera_exposure_aborted(&device_id).await;
         let mgr = get_device_manager();
         mgr.camera_abort_exposure(&device_id)
             .await
@@ -3891,6 +4138,56 @@ pub fn api_generate_fits_thumbnail(
     let (image_data, _header) = read_fits(path)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {:?}", e)))?;
 
+    let width = image_data.width;
+    let height = image_data.height;
+    let channels = image_data.channels as usize;
+    if width == 0 || height == 0 {
+        return Err(NightshadeError::ImageError(format!(
+            "Cannot generate thumbnail for empty FITS image {}x{}",
+            width, height
+        )));
+    }
+    if channels == 0 {
+        return Err(NightshadeError::ImageError(
+            "Cannot generate thumbnail for FITS image with zero channels".to_string(),
+        ));
+    }
+    if max_size == 0 {
+        return Err(NightshadeError::InvalidParameter(
+            "Thumbnail max_size must be greater than zero".to_string(),
+        ));
+    }
+
+    let pixel_count = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| {
+            NightshadeError::ImageError(format!(
+                "FITS image dimensions overflow: {}x{}",
+                width, height
+            ))
+        })?;
+    let sample_count = pixel_count.checked_mul(channels).ok_or_else(|| {
+        NightshadeError::ImageError(format!(
+            "FITS sample count overflows for {}x{} image with {} channels",
+            width, height, channels
+        ))
+    })?;
+    let expected_bytes = sample_count
+        .checked_mul(image_data.pixel_type.byte_size())
+        .ok_or_else(|| {
+            NightshadeError::ImageError(format!(
+                "FITS buffer size overflows for {} samples",
+                sample_count
+            ))
+        })?;
+    if image_data.data.len() != expected_bytes {
+        return Err(NightshadeError::ImageError(format!(
+            "Invalid FITS buffer length: expected {} bytes, got {}",
+            expected_bytes,
+            image_data.data.len()
+        )));
+    }
+
     // Convert to u16 data
     let data_u16 = match image_data.pixel_type {
         nightshade_imaging::PixelType::U8 => {
@@ -3906,7 +4203,7 @@ pub fn api_generate_fits_thumbnail(
             image_data
                 .data
                 .chunks_exact(2)
-                .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+                .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
                 .collect::<Vec<u16>>()
         }
         nightshade_imaging::PixelType::U32 => {
@@ -3915,7 +4212,7 @@ pub fn api_generate_fits_thumbnail(
                 .data
                 .chunks_exact(4)
                 .map(|chunk| {
-                    let val = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    let val = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                     (val >> 16) as u16 // Take high 16 bits
                 })
                 .collect::<Vec<u16>>()
@@ -3926,7 +4223,7 @@ pub fn api_generate_fits_thumbnail(
                 .data
                 .chunks_exact(4)
                 .map(|chunk| {
-                    let val = f32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                    let val = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
                     (val.clamp(0.0, 1.0) * 65535.0) as u16
                 })
                 .collect::<Vec<u16>>()
@@ -3937,7 +4234,7 @@ pub fn api_generate_fits_thumbnail(
                 .data
                 .chunks_exact(8)
                 .map(|chunk| {
-                    let val = f64::from_be_bytes([
+                    let val = f64::from_le_bytes([
                         chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6],
                         chunk[7],
                     ]);
@@ -3947,33 +4244,93 @@ pub fn api_generate_fits_thumbnail(
         }
     };
 
-    let width = image_data.width;
-    let height = image_data.height;
-
     // Calculate downscale factor
-    let scale = ((width.max(height) as f32) / max_size as f32).ceil() as u32;
-    let scale = scale.max(1);
+    let max_dimension = width.max(height);
+    let scale = (max_dimension / max_size + u32::from(max_dimension % max_size != 0)).max(1);
 
     // Downscale image
-    let new_width = width / scale;
-    let new_height = height / scale;
-    let mut downscaled = Vec::with_capacity((new_width * new_height) as usize);
+    let new_width = (width / scale).max(1);
+    let new_height = (height / scale).max(1);
+    let thumbnail_pixels = (new_width as usize)
+        .checked_mul(new_height as usize)
+        .ok_or_else(|| {
+            NightshadeError::ImageError(format!(
+                "Thumbnail dimensions overflow: {}x{}",
+                new_width, new_height
+            ))
+        })?;
+    let expected_rgba_bytes = thumbnail_pixels.checked_mul(4).ok_or_else(|| {
+        NightshadeError::ImageError(format!(
+            "Thumbnail RGBA buffer size overflows for {} pixels",
+            thumbnail_pixels
+        ))
+    })?;
+    let mut downscaled = Vec::new();
+    downscaled
+        .try_reserve_exact(thumbnail_pixels)
+        .map_err(|e| {
+            NightshadeError::ImageError(format!(
+                "Failed to allocate {}-pixel thumbnail: {}",
+                thumbnail_pixels, e
+            ))
+        })?;
 
     for y in 0..new_height {
         for x in 0..new_width {
             let src_x = x * scale;
             let src_y = y * scale;
-            let idx = (src_y * width + src_x) as usize;
-            if idx < data_u16.len() {
-                downscaled.push(data_u16[idx]);
+            let pixel_idx = (src_y as usize)
+                .checked_mul(width as usize)
+                .and_then(|row| row.checked_add(src_x as usize))
+                .ok_or_else(|| {
+                    NightshadeError::ImageError("FITS pixel index overflow".to_string())
+                })?;
+            let sample_idx = pixel_idx.checked_mul(channels).ok_or_else(|| {
+                NightshadeError::ImageError("FITS sample index overflow".to_string())
+            })?;
+            let sample_end = sample_idx.checked_add(channels).ok_or_else(|| {
+                NightshadeError::ImageError("FITS sample index overflow".to_string())
+            })?;
+            let samples = data_u16.get(sample_idx..sample_end).ok_or_else(|| {
+                NightshadeError::ImageError(format!(
+                    "FITS pixel {} falls outside its validated sample buffer",
+                    pixel_idx
+                ))
+            })?;
+            if let [r, g, b, ..] = samples {
+                let r = *r as u32;
+                let g = *g as u32;
+                let b = *b as u32;
+                downscaled.push(((77 * r + 150 * g + 29 * b + 128) >> 8) as u16);
             } else {
-                downscaled.push(0);
+                let value = samples.first().copied().ok_or_else(|| {
+                    NightshadeError::ImageError(format!(
+                        "FITS pixel {} has no channel samples",
+                        pixel_idx
+                    ))
+                })?;
+                downscaled.push(value);
             }
         }
     }
 
     // Auto-stretch for display
-    let stretched = crate::imaging_ops::auto_stretch_image(new_width, new_height, downscaled);
+    let stretched_rgba = crate::imaging_ops::auto_stretch_image(new_width, new_height, downscaled);
+    if stretched_rgba.len() != expected_rgba_bytes {
+        return Err(NightshadeError::ImageError(format!(
+            "Invalid stretched thumbnail length: expected {} bytes, got {}",
+            expected_rgba_bytes,
+            stretched_rgba.len()
+        )));
+    }
+    let stretched: Vec<u8> = stretched_rgba.chunks_exact(4).map(|rgba| rgba[0]).collect();
+    if stretched.len() != thumbnail_pixels {
+        return Err(NightshadeError::ImageError(format!(
+            "Invalid grayscale thumbnail length: expected {} bytes, got {}",
+            thumbnail_pixels,
+            stretched.len()
+        )));
+    }
 
     // Encode as JPEG
     use image::{GrayImage, ImageEncoder};
@@ -5111,6 +5468,50 @@ mod rich_header_tests {
     use nightshade_imaging::read_fits;
     use nightshade_sequencer::scheduling::FrameContext;
     use nightshade_sequencer::MosaicPanelInfo;
+    use std::path::{Path, PathBuf};
+
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: a trailing cleanup never runs while a panic unwinds, so a
+    /// FAILING test used to leave its FITS behind — drop still runs.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn temp_scratch_dir(tag: &str) -> TempDir {
+        let p = std::env::temp_dir().join(format!(
+            "ns_rich_{}_{}_{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
+    }
 
     /// End-to-end: build a FrameContext with every meaningful field set,
     /// route it through `save_fits_file_rich`, then read the FITS back from
@@ -5126,14 +5527,8 @@ mod rich_header_tests {
         let height = 8u32;
         let pixels = (0..(width * height) as u16).collect::<Vec<u16>>();
 
-        let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join(format!(
-            "ns_round_trip_{}.fits",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let scratch = temp_scratch_dir("round_trip");
+        let temp_path = scratch.join("frame.fits");
 
         // Build a FrameContext with every field set so we can
         // verify each one survives the round-trip.
@@ -5257,8 +5652,6 @@ mod rich_header_tests {
         assert_eq!(parsed.get_int("PANELCOL"), Some(2));
         assert_eq!(parsed.get_int("NS-PCOL"), Some(2));
         assert_eq!(parsed.get_int("NS-NPAN"), Some(9));
-
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     /// A monochrome capture should NOT emit a BAYERPAT keyword (writing
@@ -5270,14 +5663,8 @@ mod rich_header_tests {
         let height = 4u32;
         let pixels = vec![0u16; (width * height) as usize];
 
-        let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join(format!(
-            "ns_mono_{}.fits",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let scratch = temp_scratch_dir("mono");
+        let temp_path = scratch.join("frame.fits");
 
         let mut ctx = FrameContext::new_light("s", 1, 1, 30.0, 1);
         ctx.target_name = Some("FocusTest".to_string());
@@ -5299,8 +5686,6 @@ mod rich_header_tests {
             None,
             "monochrome captures must NOT emit BAYERPAT"
         );
-
-        let _ = std::fs::remove_file(&temp_path);
     }
 
     /// Absent optional fields must be omitted, not stamped with sentinel
@@ -5313,14 +5698,8 @@ mod rich_header_tests {
         let height = 4u32;
         let pixels = vec![0u16; (width * height) as usize];
 
-        let temp_dir = std::env::temp_dir();
-        let temp_path = temp_dir.join(format!(
-            "ns_omit_{}.fits",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let scratch = temp_scratch_dir("omit");
+        let temp_path = scratch.join("frame.fits");
 
         let ctx = FrameContext::new_light("sess", 1, 1, 10.0, 1);
         // Nothing else set — every optional field stays None.
@@ -5365,8 +5744,6 @@ mod rich_header_tests {
             header_empty.session_id.is_none(),
             "empty session_id should be normalised to None"
         );
-
-        let _ = std::fs::remove_file(&temp_path);
     }
 }
 
@@ -5623,22 +6000,118 @@ pub async fn api_combine_master_frames(
 // ============================================================================
 
 #[cfg(test)]
+mod exposure_failure_classification_tests {
+    use super::classify_exposure_failure;
+    use crate::error::NightshadeError;
+    use crate::unified_device_ops::IMAGE_VALIDATION_FAILED_PREFIX;
+
+    /// Verbatim message observed from a real ZWO ASI1600MM-Cool exposed in
+    /// daylight; it used to surface as HTTP 500 `internal_error`.
+    const SATURATED: &str = "Image is completely saturated (min value 65224 >= 65024) - significantly reduce exposure time or gain";
+
+    #[test]
+    fn validation_rejection_becomes_exposure_failed() {
+        let err = classify_exposure_failure(
+            "native:zwo:0",
+            format!("{IMAGE_VALIDATION_FAILED_PREFIX}{SATURATED}"),
+        );
+
+        match err {
+            NightshadeError::ExposureFailed { camera_id, reason } => {
+                assert_eq!(camera_id, "native:zwo:0");
+                // The actionable reason must survive intact — it is what the
+                // operator reads to know what to change.
+                assert_eq!(reason, SATURATED);
+            }
+            other => panic!("expected ExposureFailed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn driver_faults_stay_operation_failed() {
+        // Anything that is not a validation rejection must keep mapping to
+        // OperationFailed so real faults still answer HTTP 500.
+        for raw in [
+            "SDK error: Failed to call method StartExposure",
+            "Device not connected: native:zwo:0",
+            "Exposure cancelled",
+            // Near-miss: the marker must be a prefix, not a substring.
+            "wrapped: Image validation failed: something",
+        ] {
+            match classify_exposure_failure("native:zwo:0", raw.to_string()) {
+                NightshadeError::OperationFailed(msg) => assert_eq!(msg, raw),
+                other => panic!("expected OperationFailed for {raw:?}, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn empty_validation_reason_still_classifies() {
+        // `validation.errors.join("; ")` can only be empty if the error list was
+        // empty, but the classifier must not depend on the reason being present.
+        match classify_exposure_failure(
+            "ascom:ASCOM.Simulator.Camera",
+            IMAGE_VALIDATION_FAILED_PREFIX.to_string(),
+        ) {
+            NightshadeError::ExposureFailed { camera_id, reason } => {
+                assert_eq!(camera_id, "ascom:ASCOM.Simulator.Camera");
+                assert!(reason.is_empty());
+            }
+            other => panic!("expected ExposureFailed, got {other:?}"),
+        }
+    }
+}
+
+#[cfg(test)]
 mod fits_keyword_update_tests {
     use super::{
         api_update_fits_keywords, save_fits_file_rich, FitsKeywordUpdate, FitsWriteHeaderRich,
     };
     use nightshade_imaging::read_fits;
     use nightshade_sequencer::scheduling::FrameContext;
+    use std::path::{Path, PathBuf};
 
-    fn temp_fits_path(tag: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "ns_kw_{}_{}.fits",
+    /// A scratch directory that deletes itself when the test ends.
+    /// `Drop` rather than the trailing `remove_file` calls these tests used to
+    /// finish with: a trailing cleanup never runs while a panic unwinds, so a
+    /// FAILING test used to leave its FITS behind — drop still runs.
+    struct TempDir(PathBuf);
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    // Deref alone does not satisfy a generic `AsRef<Path>` bound, which several
+    // call sites here rely on.
+    impl AsRef<Path> for TempDir {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            // Best-effort: a test asserting on a half-removed tree should fail
+            // on its own assertion, not on cleanup.
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn temp_fits_dir(tag: &str) -> TempDir {
+        let p = std::env::temp_dir().join(format!(
+            "ns_kw_{}_{}_{}",
             tag,
+            std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_nanos()
-        ))
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        TempDir(p)
     }
 
     async fn write_baseline_fits(path: &std::path::Path) {
@@ -5660,7 +6133,8 @@ mod fits_keyword_update_tests {
 
     #[tokio::test]
     async fn injects_science_keywords_round_trip() {
-        let path = temp_fits_path("inject");
+        let scratch = temp_fits_dir("inject");
+        let path = scratch.join("frame.fits");
         write_baseline_fits(&path).await;
 
         let updates = vec![
@@ -5708,13 +6182,12 @@ mod fits_keyword_update_tests {
             parsed.get_string("IMAGETYP").map(str::to_uppercase),
             Some("LIGHT".to_string())
         );
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]
     async fn overwrites_existing_keyword_value() {
-        let path = temp_fits_path("overwrite");
+        let scratch = temp_fits_dir("overwrite");
+        let path = scratch.join("frame.fits");
         write_baseline_fits(&path).await;
 
         // First write 1.0, then overwrite with 24.5; the second value must win.
@@ -5734,13 +6207,12 @@ mod fits_keyword_update_tests {
         }
         let (_image, parsed) = read_fits(&path).expect("FITS read-back");
         assert_eq!(parsed.get_float("MAGZP"), Some(24.5));
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]
     async fn rejects_keywords_with_multiple_value_types() {
-        let path = temp_fits_path("multi");
+        let scratch = temp_fits_dir("multi");
+        let path = scratch.join("frame.fits");
         write_baseline_fits(&path).await;
 
         let result = api_update_fits_keywords(
@@ -5755,13 +6227,12 @@ mod fits_keyword_update_tests {
         )
         .await;
         assert!(result.is_err(), "must reject ambiguous value");
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]
     async fn rejects_oversize_keyword() {
-        let path = temp_fits_path("oversize");
+        let scratch = temp_fits_dir("oversize");
+        let path = scratch.join("frame.fits");
         write_baseline_fits(&path).await;
 
         let result = api_update_fits_keywords(
@@ -5776,8 +6247,6 @@ mod fits_keyword_update_tests {
         )
         .await;
         assert!(result.is_err(), "must reject >8 char keyword");
-
-        let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]

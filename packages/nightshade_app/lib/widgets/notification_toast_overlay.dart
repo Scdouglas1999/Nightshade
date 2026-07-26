@@ -25,6 +25,7 @@ class NotificationToastOverlay extends ConsumerStatefulWidget {
 class _NotificationToastOverlayState
     extends ConsumerState<NotificationToastOverlay> {
   final Map<String, Timer> _dismissTimers = {};
+  final Map<String, Timer> _exitTimers = {};
   final Set<String> _dismissingIds = {};
 
   static const int _maxVisibleToasts = 3;
@@ -34,11 +35,17 @@ class _NotificationToastOverlayState
     for (final timer in _dismissTimers.values) {
       timer.cancel();
     }
+    for (final timer in _exitTimers.values) {
+      timer.cancel();
+    }
+    _dismissTimers.clear();
+    _exitTimers.clear();
+    _dismissingIds.clear();
     super.dispose();
   }
 
   void _scheduleDismiss(UiNotification notification) {
-    if (_dismissTimers.containsKey(notification.id)) return;
+    if (!mounted || _dismissTimers.containsKey(notification.id)) return;
 
     final duration = notification.duration ?? const Duration(seconds: 4);
     _dismissTimers[notification.id] = Timer(duration, () {
@@ -47,22 +54,22 @@ class _NotificationToastOverlayState
   }
 
   void _dismiss(String id) {
-    if (_dismissingIds.contains(id)) return;
+    if (!mounted || _dismissingIds.contains(id)) return;
+
+    _dismissTimers.remove(id)?.cancel();
 
     setState(() {
       _dismissingIds.add(id);
     });
 
     // Allow exit animation to complete before removing
-    Future.delayed(const Duration(milliseconds: 300), () {
-      _dismissTimers[id]?.cancel();
-      _dismissTimers.remove(id);
+    _exitTimers[id] = Timer(const Duration(milliseconds: 300), () {
+      _exitTimers.remove(id);
+      if (!mounted) return;
       ref.read(uiNotificationProvider.notifier).dismiss(id);
-      if (mounted) {
-        setState(() {
-          _dismissingIds.remove(id);
-        });
-      }
+      setState(() {
+        _dismissingIds.remove(id);
+      });
     });
   }
 
@@ -79,7 +86,7 @@ class _NotificationToastOverlayState
     for (final notification in visibleNotifications) {
       if (!_dismissTimers.containsKey(notification.id)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scheduleDismiss(notification);
+          if (mounted) _scheduleDismiss(notification);
         });
       }
     }

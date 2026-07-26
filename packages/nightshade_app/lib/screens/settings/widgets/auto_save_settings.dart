@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'settings_widgets.dart';
+import '../../../utils/snackbar_helper.dart';
 
 /// Auto-save configuration settings page.
 class AutoSaveSettings extends ConsumerStatefulWidget {
@@ -37,21 +38,21 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
   @override
   void initState() {
     super.initState();
-    final service = ref.read(autoSaveServiceProvider);
-    final config = service.config;
-    _currentStatus = service.status;
+    final isRemoteMode = ref.read(isRemoteModeProvider);
+    final service = isRemoteMode ? null : ref.read(autoSaveServiceProvider);
+    final config = service?.config ?? const AutoSaveConfig();
+    _currentStatus = service?.status ?? const AutoSaveStatus();
 
     _sequenceIntervalController = TextEditingController(
-        text: config.sequenceInterval.inMinutes.toString());
+      text: config.sequenceInterval.inMinutes.toString(),
+    );
     _backupIntervalController =
         TextEditingController(text: config.backupInterval.inHours.toString());
     _maxBackupsController =
         TextEditingController(text: config.maxBackups.toString());
 
-    _statusSubscription = service.statusStream.listen((status) {
-      if (mounted) {
-        setState(() => _currentStatus = status);
-      }
+    _statusSubscription = service?.statusStream.listen((status) {
+      if (mounted) setState(() => _currentStatus = status);
     });
   }
 
@@ -66,29 +67,52 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
   Future<void> _updateConfig({
     Duration? sequenceInterval,
-    Duration? backupInterval,
     bool? sequenceEnabled,
+    Duration? backupInterval,
     bool? backupEnabled,
     int? maxBackups,
   }) async {
     final service = ref.read(autoSaveServiceProvider);
     final newConfig = service.config.copyWith(
       sequenceInterval: sequenceInterval,
-      backupInterval: backupInterval,
       sequenceEnabled: sequenceEnabled,
+      backupInterval: backupInterval,
       backupEnabled: backupEnabled,
       maxBackups: maxBackups,
     );
-    await service.updateConfig(newConfig);
-    if (mounted) setState(() {});
+    try {
+      await service.updateConfig(newConfig);
+      if (mounted) setState(() {});
+    } catch (error) {
+      // updateConfig persists before restarting timers. A timer-restart error
+      // can therefore occur after the new object has become authoritative;
+      // only ask the shared control to roll back when the service rejected the
+      // configuration itself.
+      final wasApplied = identical(service.config, newConfig);
+      if (mounted) {
+        setState(() {});
+        context.showErrorSnackBar(
+          wasApplied
+              ? 'Backup schedule saved, but the auto-save service reported: '
+                  '$error'
+              : 'Could not save backup schedule: $error',
+        );
+      }
+      if (!wasApplied) rethrow;
+    }
   }
 
   Future<void> _saveNow() async {
     setState(() => _isSavingNow = true);
     try {
       final service = ref.read(autoSaveServiceProvider);
-      await service.saveNow();
-      await service.backupNow();
+      final result = await service.backupNow();
+      if (!result.success) {
+        throw StateError(result.errorMessage ?? 'Backup failed');
+      }
+      if (mounted) context.showSuccessSnackBar('Backup created successfully');
+    } catch (error) {
+      if (mounted) context.showErrorSnackBar('Backup failed: $error');
     } finally {
       if (mounted) {
         setState(() => _isSavingNow = false);
@@ -122,26 +146,54 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final isMobile = widget.isMobile;
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
+
+    if (isRemoteMode) {
+      return SettingsPage(
+        title: 'Automatic Backups',
+        description: 'Backups run on the connected imaging host',
+        isMobile: isMobile,
+        hideHeader: isMobile || widget.embedded,
+        scrollable: !widget.embedded,
+        children: [
+          SettingsSection(
+            title: 'Host-owned setting',
+            isMobile: isMobile,
+            children: [
+              SettingRow(
+                icon: LucideIcons.server,
+                title: 'Configure on the host',
+                subtitle:
+                    'Automatic backup scheduling is stored and executed on '
+                    'the computer connected to your equipment.',
+                trailing: const SizedBox.shrink(),
+                isLast: true,
+                isMobile: isMobile,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     final service = ref.watch(autoSaveServiceProvider);
     final config = service.config;
 
     return SettingsPage(
-      title: 'Auto-Save',
-      description: 'Configure automatic sequence saving and backups',
+      title: 'Automatic Backups',
+      description: 'Schedule recurring backups of Nightshade data',
       isMobile: isMobile,
       hideHeader: isMobile || widget.embedded,
       scrollable: !widget.embedded,
       children: [
-        // Sequence auto-save section
         SettingsSection(
           title: 'Sequence Auto-Save',
           isMobile: isMobile,
           children: [
             SettingRow(
-              icon: LucideIcons.save,
+              icon: LucideIcons.fileCheck,
               title: 'Enable sequence auto-save',
-              subtitle:
-                  'Automatically save sequence changes at regular intervals',
+              subtitle: 'Persist local sequence edits in the background',
               trailing: SettingsSwitch(
                 value: config.sequenceEnabled,
                 onChanged: (value) => _updateConfig(sequenceEnabled: value),
@@ -150,8 +202,8 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
             ),
             SettingRow(
               icon: LucideIcons.clock,
-              title: 'Save interval',
-              subtitle: 'How often to auto-save sequences (minutes)',
+              title: 'Sequence save interval',
+              subtitle: 'How often to save pending sequence edits',
               trailing: SettingsNumberInput(
                 controller: _sequenceIntervalController,
                 suffix: 'min',
@@ -229,31 +281,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
           children: [
             SettingRow(
               icon: LucideIcons.checkCircle,
-              title: 'Last sequence save',
-              subtitle: _formatDateTime(_currentStatus.lastSequenceSave),
-              trailing: _currentStatus.isSequenceSaving
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colors.primary,
-                      ),
-                    )
-                  : Text(
-                      _formatNextSave(
-                        _currentStatus.lastSequenceSave,
-                        config.sequenceInterval,
-                      ),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textMuted,
-                      ),
-                    ),
-              isMobile: isMobile,
-            ),
-            SettingRow(
-              icon: LucideIcons.checkCircle,
               title: 'Last backup',
               subtitle: _formatDateTime(_currentStatus.lastBackup),
               trailing: _currentStatus.isBackingUp
@@ -295,40 +322,20 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               child: Row(
                 children: [
                   NightshadeButton(
-                    label: 'Save Now',
+                    label: 'Back Up Now',
                     icon: LucideIcons.save,
                     size: isMobile ? ButtonSize.small : ButtonSize.medium,
                     isLoading: _isSavingNow,
                     onPressed: _isSavingNow ? null : _saveNow,
                   ),
                   const SizedBox(width: 12),
-                  if (ref.read(autoSaveServiceProvider).hasUnsavedChanges)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          LucideIcons.alertCircle,
-                          size: 14,
-                          color: colors.warning,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Unsaved changes pending',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            color: colors.warning,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Text(
-                      'All changes saved',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textMuted,
-                      ),
+                  Text(
+                    'Creates a full backup immediately',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted,
                     ),
+                  ),
                 ],
               ),
             ),

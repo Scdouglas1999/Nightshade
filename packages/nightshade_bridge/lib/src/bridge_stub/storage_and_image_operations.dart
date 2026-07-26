@@ -44,6 +44,17 @@ extension _NativeBridgeStorageAndImageOperations
     await gen_api.apiRotatorHalt(deviceId: deviceId);
   }
 
+  /// Set the rotator's reverse-direction flag
+  Future<void> apiRotatorSetReverse({
+    required String deviceId,
+    required bool reverse,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('apiRotatorSetReverse');
+    }
+    await gen_api.apiRotatorSetReverse(deviceId: deviceId, reverse: reverse);
+  }
+
   /// Sync rotator reported sky angle to the supplied position-angle (degrees)
   /// without moving the hardware. Used by the "Sync to image PA" plate-solve
   /// workflow â€” see api_rotator_sync_to_pa in bridge/src/api.rs.

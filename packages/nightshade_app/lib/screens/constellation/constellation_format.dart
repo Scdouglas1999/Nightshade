@@ -4,19 +4,21 @@
 
 import '../your_sky/sky_atlas_format.dart';
 
-/// Your personal contribution to a shared target, relative to the fused swarm
-/// depth: `2.1h of 12h (18%)`. Returns just your depth when the swarm total is
-/// unknown (zero) so the phrase never divides by zero.
+/// Your locally-imaged depth on a shared target, framed as what you could still
+/// contribute rather than an already-donated share: `2.1h available to
+/// contribute (18% of swarm)`. Drops the swarm comparison when the total is
+/// unknown (zero), and reads `Nothing local yet` when you hold no local depth.
 String formatYourContribution({
   required double yourSeconds,
   required double swarmSeconds,
 }) {
+  if (yourSeconds <= 0 || !yourSeconds.isFinite) return 'Nothing local yet';
   final yours = formatIntegration(yourSeconds);
   if (swarmSeconds <= 0 || !swarmSeconds.isFinite) {
-    return yourSeconds <= 0 ? 'Nothing yet' : yours;
+    return '$yours available to contribute';
   }
   final pct = ((yourSeconds / swarmSeconds) * 100).clamp(0, 100).round();
-  return '$yours of ${formatIntegration(swarmSeconds)} ($pct%)';
+  return '$yours available to contribute ($pct% of swarm)';
 }
 
 /// Your share of a swarm co-add as a 0..1 fraction, clamped. Drives the

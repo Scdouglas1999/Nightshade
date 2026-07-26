@@ -46,6 +46,10 @@ class SequencerHandlers {
             'meridianFlips': liveStats.meridianFlips,
             'ditherCount': liveStats.ditherCount,
             'warningMessages': liveStats.warningMessages,
+            // Errors were missing from the mirror, so a remote operator saw a
+            // run that looked healthy even after (e.g.) its meridian flip had
+            // failed. The vitals must carry the bad news too.
+            'errorMessages': liveStats.errorMessages,
           };
 
     return jsonOk({
@@ -149,6 +153,17 @@ class SequencerHandlers {
         // Passing `false` is always permitted (only enabling simulation is
         // gated off in release builds).
         await backend.sequencerSetSimulationMode(false);
+        // Weather-safety-off gating: this bare path skips the Dart executor's
+        // runtime-config sync (which pushes the effective fail mode), so mirror
+        // it here. With weather safety disabled the always-armed Rust
+        // WeatherUnsafe trigger would otherwise fail-closed on a rig with no
+        // safety-monitor device and abort the run (see _startNativeExecution).
+        final weatherSafetyEnabled = container
+            .read(weatherSettingsProvider)
+            .weatherSafetyEnabled;
+        if (!weatherSafetyEnabled) {
+          await backend.sequencerSetSafetyFailMode('fail_open');
+        }
         await backend.sequencerStart();
       }
     } on SequenceValidationException catch (e) {
@@ -157,6 +172,22 @@ class SequencerHandlers {
         '${e.result.errorCount} validation errors',
       );
       return jsonBadRequest(e.toJsonBody());
+    } catch (e) {
+      // Pressing Start with nothing loaded is an ordinary operator mistake, not
+      // a server fault. Every other sequencer verb (pause/resume/stop/skip)
+      // already answers cleanly when idle; this one surfaced a 500.
+      if (e.toString().contains('No sequence loaded')) {
+        _logInfo(
+          '[API] POST /api/sequencer/start rejected: no sequence loaded',
+        );
+        return jsonConflict({
+          'error': 'no_sequence_loaded',
+          'message':
+              'No sequence is loaded. Load one first (POST /api/sequencer/load, '
+              'or open a sequence in the editor) before starting.',
+        });
+      }
+      rethrow;
     }
     publishHostMutationFromContainer(
       container,
@@ -207,6 +238,46 @@ class SequencerHandlers {
         }
       }
     }
+    // Shared stop/abort no-op contract — see [kWasRunningField]. Observed live
+    // with the sequencer idle:
+    //   POST /api/sequencer/stop -> 200 {"status":"stopped","preserveCheckpoint":true}
+    // which reports a run stopped when none was in flight.
+    //
+    // Fail SAFE, not merely honest: a failed status read still runs the stop,
+    // because a stop that silently declines to act is worse than a redundant
+    // one.
+    //
+    // This is a DENY-list of terminal/idle states, not an allow-list of active
+    // ones, and that direction is deliberate. `ExecutorState` also contains
+    // `Stopping` and `Recovering`, both of which are runs very much in flight
+    // — a sequence sitting in `recovering` (retrying after unsafe weather, a
+    // lost guide star, a failed slew) is exactly what an operator hits Stop
+    // for. An allow-list of {running, paused} answered `wasRunning: false` for
+    // it, which is the one lie this whole change exists to remove: telling the
+    // operator nothing was running when something was. Caught by driving a
+    // real run on the local instance, which reported `state: "recovering"`.
+    // Any state added later therefore counts as running until it is
+    // explicitly listed as terminal here.
+    var wasRunning = true;
+    try {
+      final status = await container
+          .read(sequencerBackendProvider)
+          .sequencerGetStatus();
+      const terminalStates = {
+        'idle',
+        'completed',
+        'failed',
+        'cancelled',
+        'stopped',
+        'error',
+      };
+      wasRunning = !terminalStates.contains(status.state.toLowerCase());
+    } catch (error) {
+      _logInfo(
+        'sequencer stop precondition check skipped: status read failed ($error)',
+      );
+    }
+
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.stop',
     );
@@ -221,6 +292,9 @@ class SequencerHandlers {
       if (commandId != null) 'commandId': commandId,
       'status': 'stopped',
       'preserveCheckpoint': preserveCheckpoint,
+      kWasRunningField: wasRunning,
+      if (!wasRunning)
+        'message': 'No sequence was running; nothing to stop.',
     });
   }
 
@@ -306,7 +380,56 @@ class SequencerHandlers {
     _logInfo('[API] POST /api/sequencer/reset');
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerReset();
-    return jsonOk({'status': 'reset'});
+
+    // Also close a durable session that no run owns any more.
+    //
+    // Reset clears the executor, but the `imaging_sessions` row survived it. A
+    // run that failed early left its row `active`, so EVERY later start was
+    // refused with "Imaging session N is already active" — and reset, the
+    // obvious recovery, did not help. The sequencer was then wedged for the
+    // night with no in-app way out (reproduced end-to-end: a run that aborted on
+    // frame 1 blocked all subsequent starts). Only abort the session when the
+    // executor is genuinely idle, so this can never tear down a live run.
+    int? abortedSessionId;
+    try {
+      final status = await backend.sequencerGetStatus();
+      final running =
+          status.state.toLowerCase() == 'running' ||
+          status.state.toLowerCase() == 'paused';
+      // Prefer the in-memory id, but fall back to the DAO: after an app
+      // restart the orphaned row survives in `imaging_sessions` while the
+      // in-memory `dbSessionId` is null, which is exactly the wedged state a
+      // user hits the morning after a failed run.
+      var sessionId = container.read(sessionStateProvider).dbSessionId;
+      if (sessionId == null) {
+        final active = await container
+            .read(databaseProvider)
+            .sessionsDao
+            .getActiveSessions();
+        sessionId = active.isEmpty ? null : active.first.id;
+      }
+      if (!running && sessionId != null) {
+        await container
+            .read(sessionServiceProvider)
+            .markSessionAborted(sessionId);
+        abortedSessionId = sessionId;
+        _logInfo(
+          '[API] sequencer reset closed stale imaging session $sessionId',
+        );
+      }
+    } catch (e) {
+      // Never fail the reset itself over session bookkeeping — reset is the
+      // recovery path and must always succeed.
+      _logger.warning(
+        'Sequencer reset could not close the stale session: $e',
+        source: 'SequencerHandlers',
+      );
+    }
+
+    return jsonOk({
+      'status': 'reset',
+      if (abortedSessionId != null) 'closedSessionId': abortedSessionId,
+    });
   }
 
   Future<Response> handleSequencerLoad(Request request) async {
@@ -317,6 +440,84 @@ class SequencerHandlers {
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerLoadJson(json);
     return jsonOk({'status': 'loaded'});
+  }
+
+  /// Load a persisted sequence through the canonical Dart editor and start it.
+  ///
+  /// Database DTOs do not share Rust's `SequenceDefinition` schema, so saved
+  /// sequences must be hydrated and serialized on the host. This also keeps
+  /// validation, sessions, runtime settings, and checkpoints on the same
+  /// lifecycle path as a desktop-initiated run.
+  Future<Response> handleSequencerLoadAndStart(Request request) async {
+    _logInfo('[API] POST /api/sequencer/load-and-start');
+    final payload = await readJsonObject(request);
+    final sequenceId = requireInt(payload, 'sequenceId');
+    if (sequenceId < 1) {
+      throw BadRequestError(
+        field: 'sequenceId',
+        expected: 'positive integer',
+        message: 'sequenceId must be a positive integer',
+      );
+    }
+
+    final sequence = await container
+        .read(sequenceRepositoryProvider)
+        .loadSequence(sequenceId);
+    if (sequence == null) {
+      return jsonNotFound({
+        'error': 'sequence_not_found',
+        'message': 'Sequence $sequenceId was not found.',
+      });
+    }
+
+    final editor = container.read(currentSequenceProvider.notifier);
+    try {
+      editor.loadCopyForEditing(sequence);
+    } on UnsavedChangesException catch (e) {
+      return jsonConflict({
+        'error': 'unsaved_sequence_changes',
+        'message': e.message,
+      });
+    } on SequenceLockedException catch (e) {
+      return jsonConflict({
+        'error': 'sequence_editor_locked',
+        'message': e.message,
+      });
+    }
+
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'sequencer.load-and-start',
+    );
+    try {
+      await container.read(sequenceExecutorProvider).start();
+    } on SequenceValidationException catch (e) {
+      return jsonBadRequest(e.toJsonBody());
+    } on ActiveImagingSessionException catch (e) {
+      // A previous run can leave its durable session row `active` (seen after a
+      // run that failed on its first frame), and every later start is then
+      // refused. That refusal used to surface as `500 internal_error`, which
+      // reads as a host crash and tells the caller nothing about the way out.
+      // Match the shape `analytics_handlers` already uses for this exception and
+      // name the recovery.
+      return jsonConflict({
+        'error': 'active_session_exists',
+        'message':
+            '$e. Reset the sequencer (POST /api/sequencer/reset) to '
+            'close the stale session before starting a new run.',
+        'activeSessionId': e.sessionId,
+      });
+    }
+
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.sequencer,
+      action: HostMutationAction.started,
+    );
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'started',
+      'sequenceId': sequenceId,
+    });
   }
 
   Future<Response> handleSequencerSetSimulationMode(Request request) async {
@@ -445,6 +646,23 @@ class SequencerHandlers {
       settleTime: requireDouble(payload, 'settleTime'),
       settleTimeout: requireDouble(payload, 'settleTimeout'),
       raOnly: optionalBool(payload, 'raOnly') ?? false,
+    );
+    return jsonOk({'status': 'ok'});
+  }
+
+  /// POST /api/sequencer/update-meridian-flip-config.
+  ///
+  /// Lets a paired controller push the operator's meridian-flip settings onto
+  /// the master's `meridian_flip` trigger, which otherwise runs on Rust
+  /// defaults for the whole night regardless of the Settings panel.
+  Future<Response> handleSequencerUpdateMeridianFlipConfig(
+    Request request,
+  ) async {
+    _logInfo('[API] POST /api/sequencer/update-meridian-flip-config');
+    final payload = await readJsonObject(request);
+    final backend = container.read(sequencerBackendProvider);
+    await backend.sequencerUpdateMeridianFlipConfig(
+      requireString(payload, 'configJson'),
     );
     return jsonOk({'status': 'ok'});
   }
@@ -641,20 +859,44 @@ class SequencerHandlers {
   Future<Response> handlePerformMeridianFlip(Request request) async {
     _logInfo('[API] POST /api/sequencer/meridian-flip');
     final payload = await readJsonObject(request);
+    final mountId = requireString(payload, 'mountId', maxLength: 512).trim();
+    final targetName = requireString(
+      payload,
+      'targetName',
+      maxLength: 512,
+    ).trim();
+    if (mountId.isEmpty || targetName.isEmpty) {
+      throw BadRequestError(
+        field: mountId.isEmpty ? 'mountId' : 'targetName',
+        expected: 'non-empty string',
+        message: 'Device and target identifiers must not be blank',
+      );
+    }
+    String? optionalDeviceId(String field) {
+      final value = optionalString(payload, field, maxLength: 512)?.trim();
+      return value == null || value.isEmpty ? null : value;
+    }
+
     final backend = container.read(sequencerBackendProvider);
     await backend.performMeridianFlip(
-      mountId: requireString(payload, 'mountId'),
-      cameraId: payload['cameraId'] as String?,
-      focuserId: payload['focuserId'] as String?,
-      coverCalibratorId: payload['coverCalibratorId'] as String?,
-      targetName: requireString(payload, 'targetName'),
-      targetRaHours: requireDouble(payload, 'targetRaHours'),
-      targetDecDegrees: requireDouble(payload, 'targetDecDegrees'),
-      pauseGuiding: payload['pauseGuiding'] as bool? ?? true,
-      autoCenter: payload['autoCenter'] as bool? ?? true,
-      refocusAfter: payload['refocusAfter'] as bool? ?? false,
-      resumeGuiding: payload['resumeGuiding'] as bool? ?? true,
-      settleTimeSecs: optionalDouble(payload, 'settleTimeSecs') ?? 10.0,
+      mountId: mountId,
+      cameraId: optionalDeviceId('cameraId'),
+      focuserId: optionalDeviceId('focuserId'),
+      coverCalibratorId: optionalDeviceId('coverCalibratorId'),
+      targetName: targetName,
+      targetRaHours: requireDouble(payload, 'targetRaHours', min: 0, max: 24),
+      targetDecDegrees: requireDouble(
+        payload,
+        'targetDecDegrees',
+        min: -90,
+        max: 90,
+      ),
+      pauseGuiding: optionalBool(payload, 'pauseGuiding') ?? true,
+      autoCenter: optionalBool(payload, 'autoCenter') ?? true,
+      refocusAfter: optionalBool(payload, 'refocusAfter') ?? false,
+      resumeGuiding: optionalBool(payload, 'resumeGuiding') ?? true,
+      settleTimeSecs:
+          optionalDouble(payload, 'settleTimeSecs', min: 0, max: 3600) ?? 10.0,
     );
     return jsonOk({'status': 'flipped'});
   }
@@ -824,10 +1066,26 @@ class SequencerHandlers {
     final ConditionsScore? score;
     if (rawScore == null) {
       score = null;
-    } else if (rawScore is Map<String, dynamic>) {
-      score = ConditionsScore.fromJson(rawScore);
     } else if (rawScore is Map) {
-      score = ConditionsScore.fromJson(Map<String, dynamic>.from(rawScore));
+      // ConditionsScore requires `score` AND the snake_case
+      // `generated_unix_secs`; both are hard `as num` casts. Its own comment
+      // justifies that by "the Rust producer always emits this field", which is
+      // true of the FFI path and false of this HTTP handler — a caller sending
+      // the obvious {"score": {"score": 75.0}} got a 500. Report it as the
+      // client error it is.
+      try {
+        score = ConditionsScore.fromJson(
+          rawScore is Map<String, dynamic>
+              ? rawScore
+              : Map<String, dynamic>.from(rawScore),
+        );
+      } on Object {
+        throw BadRequestError(
+          field: 'score',
+          expected: 'object with numeric score and generated_unix_secs',
+          message: 'Malformed conditions-score payload',
+        );
+      }
     } else {
       throw BadRequestError(field: 'score', expected: 'object or null');
     }
@@ -894,8 +1152,54 @@ class SequencerHandlers {
       throw BadRequestError(field: 'cameraId', expected: 'non-empty string');
     }
     final exposure = _readNullableDouble(decoded, 'exposureSecs');
-    if (exposure == null || exposure <= 0) {
-      throw BadRequestError(field: 'exposureSecs', expected: 'positive number');
+    if (exposure == null ||
+        !exposure.isFinite ||
+        exposure < 0.001 ||
+        exposure > 86400) {
+      throw BadRequestError(
+        field: 'exposureSecs',
+        expected: 'finite number from 0.001 to 86400',
+      );
+    }
+    final saveBasePath = decoded['saveBasePath'];
+    if (saveBasePath is! String || saveBasePath.trim().isEmpty) {
+      throw BadRequestError(
+        field: 'saveBasePath',
+        expected: 'non-empty host directory path',
+      );
+    }
+    final binX = _readOptionalInteger(decoded, 'binX') ?? 1;
+    final binY = _readOptionalInteger(decoded, 'binY') ?? 1;
+    if (binX < 1 || binX > 16 || binY < 1 || binY > 16) {
+      throw BadRequestError(
+        field: 'binX/binY',
+        expected: 'integers from 1 to 16',
+      );
+    }
+    final frameCount = _readOptionalInteger(decoded, 'frameCount');
+    if (frameCount != null && frameCount < 1) {
+      throw BadRequestError(field: 'frameCount', expected: 'positive integer');
+    }
+    final ditherMaxWait =
+        _readNullableDouble(decoded, 'ditherMaxWaitSecs') ?? 30.0;
+    if (!ditherMaxWait.isFinite || ditherMaxWait < 0.1 || ditherMaxWait > 600) {
+      throw BadRequestError(
+        field: 'ditherMaxWaitSecs',
+        expected: 'finite number from 0.1 to 600',
+      );
+    }
+    final rawInFlightPolicy = decoded['inFlightPolicy'];
+    if (rawInFlightPolicy != null && rawInFlightPolicy is! String) {
+      throw BadRequestError(field: 'inFlightPolicy', expected: 'string');
+    }
+    final inFlightPolicy =
+        (rawInFlightPolicy as String?) ?? 'complete_if_short';
+    if (inFlightPolicy != 'complete_if_short' &&
+        inFlightPolicy != 'abort_immediately') {
+      throw BadRequestError(
+        field: 'inFlightPolicy',
+        expected: 'complete_if_short or abort_immediately',
+      );
     }
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.secondaryRig.start',
@@ -904,19 +1208,17 @@ class SequencerHandlers {
       config: bridge_api.SecondaryRigConfigApi(
         cameraId: cameraId,
         exposureSecs: exposure,
-        gain: (decoded['gain'] as num?)?.toInt(),
-        offset: (decoded['offset'] as num?)?.toInt(),
-        binX: (decoded['binX'] as num?)?.toInt() ?? 1,
-        binY: (decoded['binY'] as num?)?.toInt() ?? 1,
-        frameCount: (decoded['frameCount'] as num?)?.toInt(),
+        gain: _readOptionalInteger(decoded, 'gain'),
+        offset: _readOptionalInteger(decoded, 'offset'),
+        binX: binX,
+        binY: binY,
+        frameCount: frameCount,
         filterName: decoded['filterName'] as String?,
         targetTempC: _readNullableDouble(decoded, 'targetTempC'),
         rigLabel: (decoded['rigLabel'] as String?) ?? 'Secondary',
-        ditherMaxWaitSecs:
-            _readNullableDouble(decoded, 'ditherMaxWaitSecs') ?? 30.0,
-        inFlightPolicy:
-            (decoded['inFlightPolicy'] as String?) ?? 'complete_if_short',
-        saveBasePath: decoded['saveBasePath'] as String?,
+        ditherMaxWaitSecs: ditherMaxWait,
+        inFlightPolicy: inFlightPolicy,
+        saveBasePath: saveBasePath,
         targetName: decoded['targetName'] as String?,
         targetRaHours: _readNullableDouble(decoded, 'targetRaHours'),
         targetDecDegrees: _readNullableDouble(decoded, 'targetDecDegrees'),
@@ -954,6 +1256,16 @@ class SequencerHandlers {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     throw FormatException('Expected number for $key, got ${value.runtimeType}');
+  }
+
+  int? _readOptionalInteger(Map<String, dynamic> payload, String key) {
+    final value = payload[key];
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num && value.isFinite && value == value.roundToDouble()) {
+      return value.toInt();
+    }
+    throw BadRequestError(field: key, expected: 'integer');
   }
 
   bool? _readNullableBool(Map<String, dynamic> payload, String key) {

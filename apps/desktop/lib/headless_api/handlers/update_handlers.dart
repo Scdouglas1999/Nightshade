@@ -25,6 +25,8 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:nightshade_core/nightshade_core.dart'
+    show sanitizeEndpointForDisplay;
 import 'package:nightshade_updater/nightshade_updater.dart';
 import 'package:shelf/shelf.dart';
 
@@ -47,14 +49,18 @@ class UpdateHandlers {
 
   /// `GET /api/system/version` — current build metadata.
   Future<Response> handleGetVersion(Request request) async {
+    final rawUpdateServerUrl = controller.updateServerUrl;
+    final safeUpdateServerUrl = rawUpdateServerUrl == null
+        ? ''
+        : sanitizeEndpointForDisplay(rawUpdateServerUrl);
     return jsonOk({
       'currentVersion': controller.currentVersion,
       'buildNumber': controller.currentBuildNumber,
       'channel': controller.channel,
       'platform': _platformName(),
       'dataDir': _resolvedExecutableDir(),
-      if (controller.updateServerUrl != null)
-        'updateServerUrl': controller.updateServerUrl,
+      if (safeUpdateServerUrl.isNotEmpty)
+        'updateServerUrl': safeUpdateServerUrl,
       if (controller.lastUpdateCheck != null)
         'lastUpdateCheck': controller.lastUpdateCheck!
             .toUtc()
@@ -69,6 +75,8 @@ class UpdateHandlers {
   /// `POST /api/system/update/check` — dispatch an async update check.
   /// Body / query may carry an optional `channel` override.
   Future<Response> handleCheckForUpdate(Request request) async {
+    final conflict = _activeOperationConflict();
+    if (conflict != null) return conflict;
     final channelOverride = await _readOptionalChannel(request);
 
     final job = jobManager.start(
@@ -89,12 +97,20 @@ class UpdateHandlers {
 
   /// `GET /api/system/update/status` — current update phase snapshot.
   Future<Response> handleGetStatus(Request request) async {
-    return jsonOk(controller.status.toJson());
+    final body = controller.status.toJson();
+    // Rollback support depends on whether the updater's restore point still
+    // exists on disk, so it cannot be inferred from the lifecycle enum. Expose
+    // the real capability and let clients disable the action before a 501.
+    body['rollbackAvailable'] = await controller.rollbackSupported();
+    body['canAuthenticateUpdates'] = controller.canAuthenticateUpdates;
+    return jsonOk(body);
   }
 
   /// `POST /api/system/update/download` — start streaming the staged
   /// download.
   Future<Response> handleDownload(Request request) async {
+    final conflict = _activeOperationConflict();
+    if (conflict != null) return conflict;
     // The work callback runs in a microtask scheduled after start() returns,
     // so `job` is assigned by the time the controller call executes; capturing
     // it lets the controller stamp the REAL jobId onto every WS event so
@@ -120,9 +136,13 @@ class UpdateHandlers {
   /// The job's work invokes `UpdateController.applyStagedUpdate`, which
   /// in production calls `exit(0)` on success — the host process is
   /// replaced by the updater binary. Clients should treat
-  /// `JobApplyStarted` + `UpdateApplied` as terminal signals and
-  /// reconnect after the WS drops.
+  /// `UpdateApplyStarted` followed by a WebSocket disconnect as the expected
+  /// handoff and reconnect to verify the running build. `UpdateApplied` is
+  /// emitted only when an embedder's apply implementation returns instead of
+  /// terminating the process.
   Future<Response> handleApply(Request request) async {
+    final conflict = _activeOperationConflict();
+    if (conflict != null) return conflict;
     late final Job job;
     job = jobManager.start(
       operation: 'system.update.apply',
@@ -183,6 +203,8 @@ class UpdateHandlers {
   /// available (no update applied, or the boot verifier already confirmed
   /// the current build healthy and reclaimed the backup).
   Future<Response> handleRollback(Request request) async {
+    final conflict = _activeOperationConflict();
+    if (conflict != null) return conflict;
     if (!await controller.rollbackSupported()) {
       return jsonNotImplemented({
         'error': 'rollback_unavailable',
@@ -221,8 +243,28 @@ class UpdateHandlers {
   /// 204-style 200 with `{discarded: true}` so the client can confirm
   /// the operation took effect even when no staged update existed.
   Future<Response> handleDiscardStaged(Request request) async {
+    final conflict = _activeOperationConflict();
+    if (conflict != null) return conflict;
     await controller.discardStaged();
     return jsonOk({'discarded': true});
+  }
+
+  Response? _activeOperationConflict() {
+    Job? activeJob;
+    for (final job in jobManager.list()) {
+      if (job.operation.startsWith('system.update.') && !job.state.isTerminal) {
+        activeJob = job;
+        break;
+      }
+    }
+    if (!controller.hasActiveOperation && activeJob == null) return null;
+    return jsonConflict({
+      'error': 'update_operation_in_progress',
+      'message': activeJob == null
+          ? 'An update operation is still stopping. Try again shortly.'
+          : 'Update operation ${activeJob.operation} is already ${activeJob.state.wireName}.',
+      if (activeJob != null) 'jobId': activeJob.jobId,
+    });
   }
 
   /// Honour `?channel=` query param OR a JSON body `{ "channel": ... }`.

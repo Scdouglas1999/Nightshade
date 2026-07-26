@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,6 +35,10 @@ class RemoteAccessSettings extends ConsumerStatefulWidget {
 class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
   late TextEditingController _portController;
   late FocusNode _portFocusNode;
+  Future<void> _portWriteTail = Future<void>.value();
+  int _portEditGeneration = 0;
+  int _pendingPortWrites = 0;
+  int? _lastSubmittedPort;
 
   @override
   void initState() {
@@ -62,13 +68,53 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
   }) {
     final port = int.tryParse(_portController.text);
     if (port != null && port >= 1024 && port <= 65535) {
-      if (port != settings.webServerPort) {
-        ref.read(appSettingsProvider.notifier).setWebServerPort(port);
+      if (port == settings.webServerPort || port == _lastSubmittedPort) {
+        _lastSubmittedPort = port;
+        return;
       }
+
+      _lastSubmittedPort = port;
+      final generation = ++_portEditGeneration;
+      final notifier = ref.read(appSettingsProvider.notifier);
+      _pendingPortWrites++;
+      final operation = _portWriteTail.then((_) async {
+        try {
+          await notifier.setWebServerPort(port);
+        } catch (_) {
+          if (!mounted || generation != _portEditGeneration) return;
+          final confirmed =
+              ref.read(appSettingsProvider).valueOrNull?.webServerPort ??
+                  settings.webServerPort;
+          _lastSubmittedPort = confirmed;
+          final restored = confirmed.toString();
+          _portController.value = TextEditingValue(
+            text: restored,
+            selection: TextSelection.collapsed(offset: restored.length),
+          );
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.l10n.text('remoteAccessSavePortFailed')),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } finally {
+          _pendingPortWrites--;
+        }
+      });
+      _portWriteTail = operation.then<void>(
+        (_) {},
+        onError: (Object _, StackTrace __) {},
+      );
+      unawaited(operation);
       return;
     }
 
-    _portController.text = settings.webServerPort.toString();
+    final confirmed =
+        ref.read(appSettingsProvider).valueOrNull?.webServerPort ??
+            settings.webServerPort;
+    _lastSubmittedPort = confirmed;
+    ++_portEditGeneration;
+    _portController.text = confirmed.toString();
     if (showFeedback && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -146,6 +192,11 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
     final webState = ref.watch(webServerStateProvider);
     final pairingState = ref.watch(pairingProvider);
     final appVersion = ref.watch(appVersionProvider);
+    // On a remote client (phone/tablet paired to a host) the local
+    // webServerStateProvider never runs, while `webServerEnabled` mirrors the
+    // HOST's setting — without this the pane shows "Starting remote access"
+    // forever. Being connected at all proves the host's server is up.
+    final isRemote = ref.watch(isRemoteModeProvider);
     final l10n = context.l10n;
 
     return settingsAsync.when(
@@ -157,8 +208,10 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
       ),
       data: (settings) {
         if (!_portFocusNode.hasFocus &&
+            _pendingPortWrites == 0 &&
             _portController.text != settings.webServerPort.toString()) {
           _portController.text = settings.webServerPort.toString();
+          _lastSubmittedPort = settings.webServerPort;
         }
 
         final showDetails =
@@ -181,7 +234,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                   trailing: SettingsSwitch(
                     value: settings.webServerEnabled,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setWebServerEnabled(value);
                     },
@@ -195,6 +248,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                   trailing: SizedBox(
                     width: 100,
                     child: TextField(
+                      key: const ValueKey('remote-access-port'),
                       controller: _portController,
                       focusNode: _portFocusNode,
                       keyboardType: TextInputType.number,
@@ -247,7 +301,14 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               ],
             ),
             const SizedBox(height: 8),
-            if (webState.lastError.isNotEmpty)
+            if (isRemote)
+              _RemoteAccessNoticeCard(
+                icon: LucideIcons.wifi,
+                iconColor: NightshadeColors.of(context).success,
+                title: l10n.text('remoteAccessHostActiveTitle'),
+                body: l10n.text('remoteAccessHostActiveBody'),
+              )
+            else if (webState.lastError.isNotEmpty)
               _RemoteAccessNoticeCard(
                 icon: LucideIcons.alertTriangle,
                 iconColor: NightshadeColors.of(context).error,

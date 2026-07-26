@@ -161,6 +161,7 @@ Stream<List<TransientDetectionRow>> _remoteFirstLightStream(
 ) {
   final controller = StreamController<List<TransientDetectionRow>>();
   Timer? debounce;
+  var emittedOnce = false;
 
   Future<void> refetch() async {
     try {
@@ -168,9 +169,18 @@ Stream<List<TransientDetectionRow>> _remoteFirstLightStream(
       final rows = raw
           .map(transientDetectionFromWireJson)
           .toList(growable: false);
-      if (!controller.isClosed) controller.add(rows);
-    } catch (_) {
-      // Transient (reconnect / host busy): keep the last good snapshot.
+      if (!controller.isClosed) {
+        controller.add(rows);
+        emittedOnce = true;
+      }
+    } catch (e) {
+      // After a prior good snapshot this is transient (reconnect / host busy):
+      // keep the last snapshot. But if the first fetch fails the StreamProvider
+      // would hang in loading forever, so surface the error to drive the view's
+      // error + Retry state.
+      if (!emittedOnce) {
+        if (!controller.isClosed) controller.addError(e);
+      }
     }
   }
 

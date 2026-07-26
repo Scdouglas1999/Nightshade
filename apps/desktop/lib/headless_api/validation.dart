@@ -15,11 +15,116 @@ import 'response_helpers.dart';
 /// (`NightshadeError.operationFailed(field0: <msg>)`); unwrap to just `<msg>`
 /// so the wire response carries the actionable text a remote client should
 /// show, not the Dart class plumbing.
+/// Why this is an EXHAUSTIVE `map` and not `maybeMap` + a regex fallback:
+///
+/// The previous shape special-cased a handful of variants and fell back to
+///     RegExp(r'\(field0:\s*(.*)\)$')
+/// over `e.toString()`. That regex can only unwrap a variant with exactly one
+/// positional `field0`; every zero-arg and named-field variant fell straight
+/// through and the wire body carried the freezed constructor form. Remote and
+/// mobile clients render `message` verbatim, so the operator literally saw
+/// Dart plumbing. Observed live on a running instance with no frame captured:
+///   GET /api/camera/last-image
+///     -> {"error":"device_error","message":"NightshadeError.noImageAvailable()"}
+///   GET /api/imaging/raw-data              -> the same
+///   GET /api/run-watch/frame-thumbnail
+///     -> "Failed to fetch last image: NightshadeError.noImageAvailable()"
+/// 19 of the union's 36 variants leaked this way.
+///
+/// `map` (no `orElse`) is deliberate: when a variant is added to the bridge
+/// union, this function must stop compiling rather than silently start
+/// leaking again. Do not reintroduce a catch-all.
+/// Operator-readable sentence for an arbitrary thrown object, for handlers
+/// that build their own error body instead of letting
+/// [errorTranslationMiddleware] do it.
+///
+/// Why it exists: `run_watch_handlers` composed
+/// `'Failed to fetch last image: $e'`, and `$e` on a bridge error is the
+/// freezed constructor form. Observed live with no frame captured:
+///   GET /api/run-watch/frame-thumbnail -> {"error":"image_unavailable",
+///     "message":"Failed to fetch last image: NightshadeError.noImageAvailable()"}
+/// Any handler interpolating a caught backend error into a user-facing
+/// string must route it through here.
+String describeBackendError(Object error) => error
+        is bridge_error.NightshadeError
+    ? _cleanBackendErrorMessage(error)
+    : error.toString();
+
 String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
-  final raw = e.toString();
-  final match = RegExp(r'\(field0:\s*(.*)\)$', dotAll: true).firstMatch(raw);
-  final inner = match?.group(1)?.trim();
-  return (inner != null && inner.isNotEmpty) ? inner : raw;
+  // `deviceId` is empty on the arms where the driver did not scope the
+  // failure to one device; appending "(device )" there would be noise.
+  String scoped(String sentence, String deviceId) =>
+      deviceId.isEmpty ? sentence : '$sentence (device $deviceId)';
+
+  final message = e.map(
+    // --- Connection / presence -------------------------------------------
+    deviceNotFound: (v) => 'Device not found: ${v.field0}',
+    connectionFailed: (v) =>
+        'Could not connect to ${v.deviceId}: ${v.reason}',
+    alreadyConnected: (v) => 'Device already connected: ${v.field0}',
+    notConnected: (v) => 'Device not connected: ${v.field0}',
+    deviceDisconnected: (v) =>
+        'Device ${v.deviceId} disconnected: ${v.reason}',
+    // --- Hardware / transport --------------------------------------------
+    hardwareError: (v) => 'Hardware error on ${v.deviceId}: ${v.message}',
+    communicationError: (v) =>
+        'Communication error with ${v.deviceId}: ${v.message}',
+    timeout: (v) => v.field0,
+    deviceTimeout: (v) =>
+        '${v.deviceId} timed out after ${v.timeoutSecs}s during ${v.operation}',
+    connectionTimeout: (v) =>
+        'Connecting to ${v.deviceId} timed out after ${v.timeoutSecs}s',
+    // --- Caller input -----------------------------------------------------
+    invalidParameter: (v) => v.field0,
+    invalidInput: (v) => v.field0,
+    invalidDeviceId: (v) => scoped(v.reason, v.deviceId),
+    parameterOutOfRange: (v) =>
+        '${v.paramName} ${v.value} is outside the valid range '
+        '${v.min} to ${v.max}',
+    // --- Operation --------------------------------------------------------
+    operationFailed: (v) => v.field0,
+    notSupported: (v) => scoped(v.operation, v.deviceId),
+    deviceBusy: (v) => '${v.deviceId} is busy: ${v.currentOperation}',
+    // --- Imaging ----------------------------------------------------------
+    imageError: (v) => v.field0,
+    cameraError: (v) => v.field0,
+    noImageAvailable: (_) =>
+        'No image is available yet — capture an exposure first',
+    exposureCancelled: (_) => 'Exposure cancelled',
+    // `reason` is already the complete operator-actionable sentence.
+    exposureFailed: (v) => v.reason,
+    downloadFailed: (v) => 'Image download failed: ${v.cameraId} - ${v.reason}',
+    // --- Host -------------------------------------------------------------
+    ioError: (v) => v.field0,
+    serializationError: (v) => v.field0,
+    plateSolveError: (v) => v.field0,
+    sequenceError: (v) => v.field0,
+    // --- Driver-stack specific -------------------------------------------
+    ascomError: (v) =>
+        'ASCOM driver ${v.progId} reported: ${v.message} (code ${v.errorCode})',
+    alpacaError: (v) =>
+        'Alpaca device ${v.deviceNumber} at ${v.baseUrl} reported: '
+        '${v.message} (code ${v.errorCode})',
+    indiError: (v) =>
+        'INDI device ${v.deviceName} on ${v.server}:${v.port} reported: '
+        '${v.message}',
+    nativeError: (v) =>
+        '${v.vendor} SDK reported: ${v.message} (code ${v.errorCode})',
+    comError: (v) =>
+        'Windows COM call failed: ${v.message} '
+        '(HRESULT 0x${v.hresult.toUnsigned(32).toRadixString(16)})',
+    // --- Process ----------------------------------------------------------
+    internal: (v) => v.field0,
+    cancelled: (_) => 'Operation cancelled',
+    runtimeInitFailed: (v) => v.field0,
+    resourceExhausted: (v) => '${v.resource} exhausted: ${v.message}',
+  );
+
+  // Belt and braces: a variant whose payload string is empty would otherwise
+  // put an empty `message` on the wire. Never fall back to `e.toString()` —
+  // that is the constructor form this function exists to keep off the wire.
+  final trimmed = message.trim();
+  return trimmed.isEmpty ? 'The device reported an unspecified error' : trimmed;
 }
 
 /// Produce a short, single-line message from an arbitrary thrown object for the
@@ -58,6 +163,14 @@ int _httpStatusForBackendError(bridge_error.NightshadeError e) {
     connectionFailed: (_) => 502,
     noImageAvailable: (_) => 404,
     exposureCancelled: (_) => 409,
+    // A frame the camera delivered but image validation rejected (completely
+    // saturated, all-zero, wrong pixel count). The request was well-formed and
+    // the driver worked, so this is not an internal fault: 422 tells the client
+    // the exposure itself is unusable and names the reason, instead of the
+    // `500 internal_error` a real ASI1600MM produced for an overexposed
+    // daylight frame — which also invited retry-on-5xx clients to retry a
+    // request that cannot succeed until the exposure or gain changes.
+    exposureFailed: (_) => 422,
     cancelled: (_) => 409,
     orElse: () => 500,
   );
@@ -172,6 +285,20 @@ Future<Map<String, dynamic>> readJsonObject(Request request) async {
       message: 'Request body is empty',
     );
   }
+  return _decodeJsonObject(raw);
+}
+
+/// Reads an optional JSON-object body. An absent or whitespace-only body maps
+/// to an empty object; a supplied body is held to the same strict contract as
+/// [readJsonObject]. This is for POST endpoints whose entire payload is
+/// optional—it must not turn malformed JSON into a plausible default request.
+Future<Map<String, dynamic>> readJsonObjectOrEmpty(Request request) async {
+  final raw = await request.readAsString();
+  if (raw.trim().isEmpty) return <String, dynamic>{};
+  return _decodeJsonObject(raw);
+}
+
+Map<String, dynamic> _decodeJsonObject(String raw) {
   Object? decoded;
   try {
     decoded = jsonDecode(raw);
@@ -308,6 +435,13 @@ double requireDouble(
   } else {
     throw BadRequestError(field: field, expected: 'number');
   }
+  if (!parsed.isFinite) {
+    throw BadRequestError(
+      field: field,
+      expected: 'number',
+      message: 'Value must be finite',
+    );
+  }
   _checkRange(field, parsed, min, max);
   return parsed;
 }
@@ -385,6 +519,110 @@ List<T> requireList<T>(Map<String, dynamic> payload, String field) {
 List<T>? optionalList<T>(Map<String, dynamic> payload, String field) {
   if (payload[field] == null) return null;
   return requireList<T>(payload, field);
+}
+
+// ===========================================================================
+// Query-string parameter helpers (GET / query endpoints).
+//
+// Why a separate family from the JSON-body helpers above: query values arrive
+// as a `Map<String, String>` where a MISSING key and an EMPTY value both read
+// as "not supplied" for endpoints that document a default. These helpers fail
+// closed — a value that IS supplied but is malformed (unparseable, NaN /
+// Infinity, out of range, or non-whole for an int) raises [BadRequestError]
+// BEFORE any DAO / backend / service call, instead of the old
+// `int.tryParse(x) ?? default` pattern that silently mapped garbage onto the
+// default (or forwarded a NaN / negative downstream). Absence (or empty) still
+// yields the documented default via the `optional*` variants returning null.
+// ===========================================================================
+
+/// Required finite [double] query parameter. Throws [BadRequestError] when the
+/// key is absent/empty, unparseable, non-finite (NaN/Infinity), or outside
+/// the inclusive [min]/[max] bounds.
+double requireQueryDouble(
+  Map<String, String> query,
+  String field, {
+  double? min,
+  double? max,
+}) {
+  final raw = query[field];
+  if (raw == null || raw.isEmpty) {
+    throw BadRequestError(field: field, expected: 'number');
+  }
+  final parsed = double.tryParse(raw);
+  if (parsed == null) {
+    throw BadRequestError(field: field, expected: 'number');
+  }
+  if (!parsed.isFinite) {
+    throw BadRequestError(
+      field: field,
+      expected: 'number',
+      message: '$field must be a finite number',
+    );
+  }
+  _checkRange(field, parsed, min, max);
+  return parsed;
+}
+
+/// Optional finite [double] query parameter. Returns null when the key is
+/// absent or empty (the caller then applies the documented default);
+/// otherwise validates exactly as [requireQueryDouble].
+double? optionalQueryDouble(
+  Map<String, String> query,
+  String field, {
+  double? min,
+  double? max,
+}) {
+  final raw = query[field];
+  if (raw == null || raw.isEmpty) return null;
+  return requireQueryDouble(query, field, min: min, max: max);
+}
+
+/// Required whole [int] query parameter. Throws [BadRequestError] when the key
+/// is absent/empty, not a whole integer (e.g. `5.0`, `3e2`, `abc`), or outside
+/// the inclusive [min]/[max] bounds.
+int requireQueryInt(
+  Map<String, String> query,
+  String field, {
+  int? min,
+  int? max,
+}) {
+  final raw = query[field];
+  if (raw == null || raw.isEmpty) {
+    throw BadRequestError(field: field, expected: 'integer');
+  }
+  final parsed = int.tryParse(raw);
+  if (parsed == null) {
+    throw BadRequestError(field: field, expected: 'integer');
+  }
+  _checkRange(field, parsed.toDouble(), min?.toDouble(), max?.toDouble());
+  return parsed;
+}
+
+/// Optional whole [int] query parameter. Returns null when the key is absent or
+/// empty (the caller then applies the documented default); otherwise validates
+/// exactly as [requireQueryInt].
+int? optionalQueryInt(
+  Map<String, String> query,
+  String field, {
+  int? min,
+  int? max,
+}) {
+  final raw = query[field];
+  if (raw == null || raw.isEmpty) return null;
+  return requireQueryInt(query, field, min: min, max: max);
+}
+
+/// Optional strict-boolean query parameter. Returns null when the key is absent
+/// or empty. Accepts the same tokens as [requireBool] (`true`/`1`/`yes`,
+/// `false`/`0`/`no`, case-insensitive); any other supplied value throws
+/// [BadRequestError] rather than silently collapsing to false.
+bool? optionalQueryBool(Map<String, String> query, String field) {
+  final raw = query[field];
+  if (raw == null || raw.isEmpty) return null;
+  final lower = raw.toLowerCase();
+  if (lower == 'true' || lower == '1' || lower == 'yes') return true;
+  if (lower == 'false' || lower == '0' || lower == 'no') return false;
+  throw BadRequestError(field: field, expected: 'boolean');
 }
 
 void _checkRange(String field, double value, double? min, double? max) {

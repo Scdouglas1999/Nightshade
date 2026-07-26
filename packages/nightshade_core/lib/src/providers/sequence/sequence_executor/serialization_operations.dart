@@ -6,6 +6,7 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     final autoFocusOnFilterChange =
         appSettings?.autoFocusOnFilterChange ?? false;
     final autoFocusEveryMinutes = appSettings?.autoFocusEveryMinutes ?? 0;
+    final autofocusSettings = _ref.read(autofocusSettingsProvider);
 
     final nodeDefinitions = <Map<String, dynamic>>[];
 
@@ -78,15 +79,10 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           injectedAfNodes[syntheticId] = {
             'id': syntheticId,
             'name': 'Autofocus (auto, post filter change)',
-            'node_type': {
-              'type': 'Autofocus',
-              'method': _autofocusMethodToString(AutofocusMethod.vCurve),
-              'step_size': 100,
-              'steps_out': 7,
-              'exposure_duration': 3.0,
-              'filter': null,
-              'binning': 'One',
-            },
+            'node_type': _autofocusRuntimeConfig(
+              autofocusSettings,
+              maxDurationSecs: 600,
+            ),
             'enabled': true,
             'children': const <String>[],
           };
@@ -138,6 +134,70 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     });
   }
 
+  Map<String, dynamic> _autofocusRuntimeConfig(
+    AutofocusSettings settings, {
+    AutofocusNode? nodeOverrides,
+    required double maxDurationSecs,
+  }) {
+    final useGlobalBasics = nodeOverrides == null;
+    final method = useGlobalBasics
+        ? switch (settings.curveFitting.trim().toLowerCase()) {
+            'hyperbolic' => 'Hyperbolic',
+            'parabolic' || 'quadratic' => 'Quadratic',
+            _ => 'VCurve',
+          }
+        : _autofocusMethodToString(nodeOverrides.method);
+    final backlashEnabled = !settings.backlashCompMethod
+        .trim()
+        .toLowerCase()
+        .contains('none');
+
+    return {
+      'type': 'Autofocus',
+      'method': method,
+      'step_size': useGlobalBasics ? settings.stepSize : nodeOverrides.stepSize,
+      'steps_out': useGlobalBasics
+          ? settings.initialOffsetSteps
+          : nodeOverrides.stepsOut,
+      'exposure_duration': useGlobalBasics
+          ? settings.exposureTime
+          : nodeOverrides.exposureDuration,
+      'filter': settings.autofocusFilterName.trim().isEmpty
+          ? null
+          : settings.autofocusFilterName.trim(),
+      'filter_settings': settings.filterSettings.map(
+        (filterName, config) => MapEntry(filterName, {
+          'af_exposure_time': config.afExposureTime,
+          'af_filter_name': config.afFilterName,
+          'binning': _autofocusBinningToString(config.binning),
+          'gain': config.gain,
+          'offset': config.offset,
+        }),
+      ),
+      'binning': _autofocusBinningToString(settings.binning),
+      'number_of_attempts': settings.numberOfAttempts,
+      'exposures_per_point': useGlobalBasics
+          ? settings.exposuresPerPoint
+          : nodeOverrides.exposuresPerPoint,
+      'r_squared_threshold': settings.rSquaredThreshold,
+      'outer_crop_ratio': settings.outerCropRatio,
+      'inner_crop_ratio': settings.innerCropRatio,
+      'use_brightest_n_stars': settings.useBrightestNStars,
+      'focuser_settle_time_ms': settings.focuserSettleTimeMs,
+      'backlash_compensation': backlashEnabled ? settings.backlashIn : 0,
+      'backlash_out_compensation': backlashEnabled ? settings.backlashOut : 0,
+      'disable_guiding_during_af': settings.disableGuidingDuringAf,
+      'max_duration_secs': maxDurationSecs,
+    };
+  }
+
+  String _autofocusBinningToString(int binning) => switch (binning) {
+    2 => 'Two',
+    3 => 'Three',
+    4 => 'Four',
+    _ => 'One',
+  };
+
   /// Look up filter index from profile by name (case-insensitive).
   ///
   /// Returns `null` when:
@@ -187,14 +247,25 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   /// Emit a filter-lookup warning to both the logger and (if a run is
   /// live) the run stats. Centralized so the wording stays consistent
   /// across the three lookup failure modes.
-  void _surfaceFilterLookupWarning(String message) {
+  void _surfaceFilterLookupWarning(String message) =>
+      _surfaceRunWarning(message);
+
+  /// Emit an operator-facing warning onto both the log and the live run
+  /// stats, so it survives into `sequence_runs.stats_json` and the
+  /// post-session report rather than only existing in a log file.
+  ///
+  /// [persist] = `false` for a warning raised during run START-UP, which is
+  /// already covered by the final `finishRun` write. See [_incrementRunStat];
+  /// the default `true` keeps mid-run warnings crash-durable.
+  void _surfaceRunWarning(String message, {bool persist = true}) {
     _logger.warning(message, source: 'SequenceExecutor');
-    final stats = _ref.read(liveSequenceStatsProvider);
-    if (stats != null) {
-      stats.recordWarning(message);
-      _ref.read(liveSequenceStatsProvider.notifier).state = stats;
-      _persistLiveRunStats();
-    }
+    // Route through _incrementRunStat so the warning gets the same copy-to-
+    // notify + stats-seal handling as every other live-stat mutation (it is a
+    // no-op when no run is live or the stats are already sealed for finish).
+    _incrementRunStat(
+      (stats) => stats.recordWarning(message),
+      persist: persist,
+    );
   }
 
   /// Record the duration of a newly-completed frame and update the EMA.
@@ -279,6 +350,10 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'type': 'TakeExposure',
           'duration_secs': n.durationSecs,
           'count': n.count,
+          // FITS IMAGETYP-style frame type. Omitting this stamped every
+          // sequencer capture "Light" — sequenced darks/flats/bias were
+          // mislabeled on disk, star-graded (and rejected), and dithered.
+          'frame_type': _frameTypeToWire(n.frameType),
           'filter': n.filter,
           'filter_index': filterIndex,
           'gain': n.gain,
@@ -311,6 +386,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         return {
           'type': 'CenterTarget',
           'use_target_coords': n.useTargetCoords,
+          // The properties panel exposes custom RA/Dec when
+          // use_target_coords is off; omitting them made the executor fall
+          // back to "center on wherever the mount currently points" —
+          // silently ignoring the user's coordinates.
+          'custom_ra': n.customRa,
+          'custom_dec': n.customDec,
           'accuracy_arcsec': n.accuracyArcsec,
           'max_attempts': n.maxAttempts,
           // Emit the node's real solve-exposure duration instead of a hard
@@ -321,15 +402,19 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'filter': null,
         };
       case AutofocusNode n:
-        return {
-          'type': 'Autofocus',
-          'method': _autofocusMethodToString(n.method),
-          'step_size': n.stepSize,
-          'steps_out': n.stepsOut,
-          'exposure_duration': n.exposureDuration,
-          'filter': null,
-          'binning': 'One',
-        };
+        final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+        if (n.useSettingsDefaults && appSettings == null) {
+          throw StateError(
+            'Cannot serialize autofocus node "${n.name}" with settings '
+            'defaults before AppSettings has loaded.',
+          );
+        }
+        final settings = _ref.read(autofocusSettingsProvider);
+        return _autofocusRuntimeConfig(
+          settings,
+          nodeOverrides: n.useSettingsDefaults ? null : n,
+          maxDurationSecs: n.maxDurationSecs,
+        );
       case DitherNode n:
         return {
           'type': 'Dither',
@@ -389,7 +474,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       case WaitTimeNode n:
         return {
           'type': 'WaitForTime',
-          'wait_until': n.waitUntil?.millisecondsSinceEpoch,
+          // Engine contract is Unix SECONDS (execute_wait_time compares
+          // against Utc::now().timestamp()). Milliseconds here made the
+          // node wait ~55,000 years — i.e. hang the sequence forever.
+          'wait_until': n.waitUntil == null
+              ? null
+              : n.waitUntil!.millisecondsSinceEpoch ~/ 1000,
           'wait_for_twilight': n.waitForTwilight != null
               ? _twilightToString(n.waitForTwilight!)
               : null,
@@ -427,13 +517,31 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'min_altitude': n.minAltitude,
           'max_altitude': n.maxAltitude,
           'priority': n.priority,
-          'start_after': n.startAfter?.millisecondsSinceEpoch,
-          'end_before': n.endBefore?.millisecondsSinceEpoch,
+          // Unix SECONDS — the scheduler's runnable gate and
+          // legacy_to_triggers both compare against Utc::now().timestamp().
+          // Milliseconds made start_after unreachable (target never ran /
+          // waited forever) and end_before a no-op.
+          'start_after': n.startAfter == null
+              ? null
+              : n.startAfter!.millisecondsSinceEpoch ~/ 1000,
+          'end_before': n.endBefore == null
+              ? null
+              : n.endBefore!.millisecondsSinceEpoch ~/ 1000,
           'mosaic_panel': n.mosaicPanel?.toJson(),
           // Adaptive swap brightness tier hint. Lowercase wire
           // string ('faint'/'medium'/'bright'); `null` => scheduler
           // infers (defaults to medium inside the decision engine).
           'brightness_tier_hint': n.brightnessTierHint?.wireValue,
+          // Explicit start/end crossings + integration budget. These were
+          // configurable in the editor but never reached the executor —
+          // Rust's `#[serde(default)]` masked the omission, so startWhen /
+          // endWhen / the budget silently did nothing at runtime. The Dart
+          // toJson() codecs mirror the Rust serde shapes exactly
+          // (pinned by target_trigger_serde_test.dart).
+          'start_when': n.startWhen?.toJson(),
+          'end_when': n.endWhen?.toJson(),
+          'trigger_poll_interval_secs': n.triggerPollIntervalSecs,
+          'integration_budget': n.integrationBudget?.toJson(),
         };
       case InstructionSetNode _:
         // InstructionSet maps to a Loop with count=1 on the backend
@@ -450,7 +558,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
             conditionValue = n.repeatCount;
             break;
           case LoopConditionType.untilTime:
-            conditionValue = n.repeatUntil?.millisecondsSinceEpoch;
+            // Unix SECONDS — loop_node.rs compares condition_value against
+            // Utc::now().timestamp(). Milliseconds made an until-time loop
+            // never terminate (imaging straight through sunrise).
+            conditionValue = n.repeatUntil == null
+                ? null
+                : n.repeatUntil!.millisecondsSinceEpoch ~/ 1000;
             break;
           case LoopConditionType.untilAltitude:
           case LoopConditionType.altitudeAbove:
@@ -492,7 +605,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
             conditionValue = n.thresholdValue;
             break;
           case ConditionalType.timeAfter:
-            conditionValue = n.thresholdTime?.millisecondsSinceEpoch;
+            // Unix SECONDS — ConditionalCheck::TimeAfter compares against
+            // Utc::now().timestamp(). Milliseconds meant the condition was
+            // never true, so the branch's children silently never ran.
+            conditionValue = n.thresholdTime == null
+                ? null
+                : n.thresholdTime!.millisecondsSinceEpoch ~/ 1000;
             break;
         }
         // Audit C2: mirror the Rust `ConditionalConfig.safety_monitor_id`
@@ -547,6 +665,14 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'gain': n.gain,
           'offset': n.offset,
           'binning': n.binning,
+          // Required by PolarAlignConfig. Omitting them
+          // hard-failed the whole sequence load ("missing field
+          // `start_from_current`") for any sequence containing a Polar
+          // Alignment node, and silently discarded the node's
+          // start-from-current / hemisphere settings.
+          'start_from_current': n.startFromCurrent,
+          'is_north': n.isNorth,
+          'auto_complete_threshold': 30.0, // engine default; no per-node UI
         };
       case OpenCoverNode n:
         return {'type': 'OpenCover', 'timeout_secs': n.timeoutSecs};
@@ -680,9 +806,30 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   ///
   /// Enum names are emitted PascalCase to match Rust's
   /// `#[derive(Deserialize)]` default form.
+  /// Build the Rust `MeridianFlipConfig` JSON from the operator's GLOBAL
+  /// meridian-flip settings, with no node involved.
+  ///
+  /// This is what the trigger-driven flip runs on. The standard `meridian_flip`
+  /// trigger is seeded in Rust with `MeridianFlipConfig::default()` and nothing
+  /// used to replace it, so the entire Settings → Meridian Flip panel was inert
+  /// for the flip that actually fires on an unattended night. Proven live: a
+  /// run with `recenterAfterFlip: false` still executed
+  /// `"Step 6/8: Plate solving and centering"` and then failed the flip on it.
+  ///
+  /// Shares [_buildMeridianFlipConfig]'s field list by delegating to it with a
+  /// synthetic all-global node, so the two wire payloads can never drift.
+  Map<String, dynamic> buildGlobalMeridianFlipConfigJson() =>
+      _buildMeridianFlipConfig(MeridianFlipNode(useGlobalDefaults: true));
+
   Map<String, dynamic> _buildMeridianFlipConfig(MeridianFlipNode node) {
     final global = _ref.read(effectiveMeridianFlipSettingsProvider);
     final useGlobal = node.useGlobalDefaults;
+    // The post-flip guide re-lock settles using the user's global guiding
+    // settle settings (the same knobs a Start Guiding node uses), so a tuned
+    // settle is honoured after a flip instead of the executor's old hardcoded
+    // 1.5px/10s/60s. Null (settings not loaded) leaves these keys off the JSON,
+    // and the Rust MeridianFlipConfig serde defaults reproduce the old values.
+    final appSettings = _ref.read(appSettingsProvider).valueOrNull;
 
     final triggerMethod = useGlobal ? global.triggerMethod : node.triggerMethod;
     final minutesPastMeridian = useGlobal
@@ -726,6 +873,14 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       'max_retries': maxRetries,
       'retry_delays_secs': global.retryDelaysSeconds,
       'failure_action': _flipFailureActionToString(failureAction),
+      // Post-flip guider re-lock settle, sourced from the user's guiding settle
+      // settings so it matches a normal Start Guiding. Omitted when settings
+      // aren't loaded yet (Rust serde defaults 1.5px/10s/60s then apply).
+      if (appSettings != null) ...{
+        'guider_settle_pixels': appSettings.settleThreshold,
+        'guider_settle_time': appSettings.settleTime.toDouble(),
+        'guider_settle_timeout': appSettings.settleTimeout.toDouble(),
+      },
     };
   }
 
@@ -752,6 +907,18 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         return 'AbortAndPark';
     }
   }
+
+  /// Wire form of [FrameType] for the Rust `ExposureConfig.frame_type`
+  /// field — PascalCase because it lands verbatim in the FITS `IMAGETYP`
+  /// keyword via `FrameContext.frame_type`.
+  String _frameTypeToWire(FrameType type) => switch (type) {
+    FrameType.light => 'Light',
+    FrameType.dark => 'Dark',
+    FrameType.flat => 'Flat',
+    FrameType.bias => 'Bias',
+    FrameType.darkFlat => 'DarkFlat',
+    FrameType.snapshot => 'Snapshot',
+  };
 
   String _binningToString(BinningMode binning) {
     switch (binning) {

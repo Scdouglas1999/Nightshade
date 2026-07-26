@@ -271,6 +271,9 @@ _SessionStatusView _resolveSessionStatus({
         color: colors.warning,
       );
     case SequenceExecutionState.stopping:
+    // Finalizing — the run has ended and durable cleanup is wrapping up. Surface
+    // it like a stopping transition rather than collapsing to manual capture.
+    case SequenceExecutionState.finalizing:
       return _SessionStatusView(
         label: l10n.text('sequenceStopping'),
         color: colors.warning,
@@ -280,6 +283,19 @@ _SessionStatusView _resolveSessionStatus({
       // running/recovering sequence rather than collapsing to manual capture.
       return _SessionStatusView(
         label: l10n.text('sequenceRunning'),
+        color: colors.warning,
+      );
+    case SequenceExecutionState.stopFailed:
+      // The native stop failed — the hardware may still be imaging. Surface it
+      // as an attention state rather than collapsing to manual capture.
+      return _SessionStatusView(
+        label: l10n.text('sequenceStopping'),
+        color: colors.error,
+      );
+    case SequenceExecutionState.cleanupFailed:
+      // Hardware stopped; the session save failed and needs a retry.
+      return _SessionStatusView(
+        label: l10n.text('sequenceStopping'),
         color: colors.warning,
       );
     case SequenceExecutionState.idle:
@@ -538,8 +554,17 @@ class _NightContextChip extends ConsumerWidget {
     final twilight = ref.watch(twilightTimesProvider);
     final now = ref.watch(observationTimeProvider.select((s) => s.time));
 
+    // lat/lon both 0.0 means no site is on record. The sun rises and sets at
+    // Null Island, so the twilight fields come back fully populated and the chip
+    // would state a stranger's sunset as the user's. Self-hide instead; the
+    // Tonight's-targets card carries the "Set location" call to action.
+    final observer = ref.watch(observerLocationProvider);
+    if (observer.latitude == 0.0 && observer.longitude == 0.0) {
+      return const SizedBox.shrink();
+    }
+
     final fact = resolveNightContext(twilight, now);
-    // With no location set the twilight fields are null and resolveNightContext
+    // Polar day/night leaves the twilight fields null and resolveNightContext
     // returns null — render nothing at all (the chip self-hides).
     if (fact == null) return const SizedBox.shrink();
 
@@ -598,6 +623,8 @@ class CompactDashboardCommandBar extends ConsumerWidget {
   final AnimationController pulseController;
   final bool isEditing;
   final VoidCallback onToggleEdit;
+  final VoidCallback onManageWidgets;
+  final VoidCallback onResetLayout;
 
   const CompactDashboardCommandBar({
     super.key,
@@ -605,6 +632,8 @@ class CompactDashboardCommandBar extends ConsumerWidget {
     required this.pulseController,
     required this.isEditing,
     required this.onToggleEdit,
+    required this.onManageWidgets,
+    required this.onResetLayout,
   });
 
   @override
@@ -633,6 +662,17 @@ class CompactDashboardCommandBar extends ConsumerWidget {
     final l10n = context.l10n;
     final showStats = isCapturing || cameraConnected;
 
+    final seqState = ref.watch(sequenceExecutionStateProvider);
+    final status = _resolveSessionStatus(
+      seqState: seqState,
+      isCapturing: isCapturing,
+      colors: colors,
+      l10n: l10n,
+    );
+    // The dot glows whenever there's something live (an active sequence or a
+    // manual capture) rather than the dim idle pulse.
+    final isLive = status.color != colors.textSecondary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -655,8 +695,8 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isCapturing
-                          ? colors.success.withValues(
+                      color: isLive
+                          ? status.color.withValues(
                               alpha: 0.4 + pulseController.value * 0.4)
                           : colors.textMuted.withValues(alpha: 0.4),
                     ),
@@ -671,13 +711,12 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      isCapturing ? l10n.text('capturing') : l10n.text('idle'),
+                      status.label,
                       style: NightshadeTypography.labelSm.copyWith(
-                        color:
-                            isCapturing ? colors.success : colors.textSecondary,
+                        color: status.color,
                       ),
                     ),
-                    if (isCapturing)
+                    if (isLive)
                       Text(
                         targetName,
                         style: TextStyle(
@@ -695,15 +734,13 @@ class CompactDashboardCommandBar extends ConsumerWidget {
               // Glance-mode toggle.
               GlanceModeToggle(colors: colors, compact: true),
               const SizedBox(width: 8),
-              // Edit button
-              NightshadeButton(
-                label: isEditing ? 'Done' : 'Edit',
-                icon:
-                    isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
-                variant:
-                    isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
-                size: ButtonSize.small,
-                onPressed: onToggleEdit,
+              // Edit + Widgets/Reset controls
+              DashboardHeaderActions(
+                isEditing: isEditing,
+                onToggleEdit: onToggleEdit,
+                onManageWidgets: onManageWidgets,
+                onResetLayout: onResetLayout,
+                compact: true,
               ),
             ],
           ),

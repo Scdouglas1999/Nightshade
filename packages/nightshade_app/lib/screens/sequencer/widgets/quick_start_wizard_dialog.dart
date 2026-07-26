@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../utils/authority_bound_dialog.dart';
 import '../sequencer_screen.dart';
 
 part 'quick_start_wizard_dialog/_wizard_shell.dart';
@@ -187,14 +189,27 @@ class _QuickStartWizardDialogState
   /// profile so the next launch pre-fills with them. Toggled on the Review
   /// step.
   bool _saveAsDefaults = false;
+  bool? _finishingAsTemplate;
+  bool _initializing = true;
+  Object? _initializationError;
+  EquipmentProfileModel? _initializedProfile;
+  bool _hasConfiguredFilters = false;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  int _authorityGeneration = 0;
 
   @override
   void initState() {
     super.initState();
-    _applyUserDefaults();
-    _initFilterConfigs();
-    _seedScalarControllers();
-    _loadExposureContext();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        _authorityGeneration++;
+        _searchDebounce?.cancel();
+        closeAuthorityBoundDialog(context);
+      },
+    );
+    _initializeWizard();
   }
 
   /// Seed the State-level scalar controllers from the current source values.
@@ -239,10 +254,51 @@ class _QuickStartWizardDialogState
   /// constants. Read-only — the wizard is a one-shot dialog, so we don't
   /// need a stream subscription; reading once via `ref.read` keeps the
   /// state simple and consistent across the five steps.
-  void _applyUserDefaults() {
+  Future<void> _initializeWizard() async {
+    final authority = ref.read(backendProvider);
+    final generation = _authorityGeneration;
+    try {
+      final settingsFuture = ref.read(appSettingsProvider.future);
+      final profilesFuture = ref.read(equipmentProfilesProvider.future);
+      final settings = await settingsFuture;
+      final profiles = await profilesFuture;
+      if (!_isCurrentAuthority(authority, generation)) return;
+
+      final activeProfile = profiles.activeProfile;
+      _initializedProfile = activeProfile;
+      _hasConfiguredFilters = activeProfile?.filterNames.isNotEmpty ?? false;
+      _applyUserDefaults(settings, activeProfile);
+      _initFilterConfigs(activeProfile?.filterNames ?? const []);
+      _seedScalarControllers();
+      setState(() {
+        _initializationError = null;
+        _initializing = false;
+      });
+      unawaited(_loadExposureContext());
+    } catch (error) {
+      if (!_isCurrentAuthority(authority, generation)) return;
+      setState(() {
+        _initializationError = error;
+        _initializing = false;
+      });
+    }
+  }
+
+  void _retryInitialization() {
+    ref.invalidate(appSettingsProvider);
+    ref.invalidate(equipmentProfilesProvider);
+    setState(() {
+      _initializationError = null;
+      _initializing = true;
+    });
+    _initializeWizard();
+  }
+
+  void _applyUserDefaults(
+    AppSettingsState appSettings,
+    EquipmentProfileModel? activeProfile,
+  ) {
     final sequencerDefaults = ref.read(sequencerDefaultsProvider);
-    final appSettings = ref.read(appSettingsProvider).valueOrNull;
-    final activeProfile = ref.read(activeEquipmentProfileProvider);
 
     bool populated = false;
 
@@ -270,14 +326,12 @@ class _QuickStartWizardDialogState
       }
     }
 
-    // App-Settings-sourced toggles. Skip if settings haven't loaded yet —
-    // the dialog still opens and the fallback in-class defaults apply.
-    if (appSettings != null) {
-      _enableMeridianFlip = appSettings.enableMeridianFlip;
-      _weatherAbort = appSettings.parkOnUnsafeWeather;
-      _dawnShutdown = appSettings.parkBeforeDawn;
-      populated = true;
-    }
+    // App-settings authority has resolved before the wizard becomes editable,
+    // so these safety choices never flash or persist fabricated fallbacks.
+    _enableMeridianFlip = appSettings.enableMeridianFlip;
+    _weatherAbort = appSettings.parkOnUnsafeWeather;
+    _dawnShutdown = appSettings.parkBeforeDawn;
+    populated = true;
 
     // Cooling temp lives on the active equipment profile, not in app
     // settings. `defaultCoolingTemp` is nullable; the user may simply not
@@ -297,13 +351,15 @@ class _QuickStartWizardDialogState
   }
 
   Future<void> _loadExposureContext() async {
+    final backend = ref.read(backendProvider);
+    final generation = _authorityGeneration;
     final SmartNightExposureContext? context;
     try {
       context = await ref.read(smartNightExposureContextProvider.future);
     } catch (_) {
       return;
     }
-    if (!mounted || context == null) return;
+    if (!_isCurrentAuthority(backend, generation) || context == null) return;
     setState(() {
       _exposureContext = context;
       for (final config in _filterConfigs) {
@@ -318,9 +374,7 @@ class _QuickStartWizardDialogState
     });
   }
 
-  void _initFilterConfigs() {
-    // Get filter names from the active equipment profile
-    final filters = ref.read(profileFiltersProvider);
+  void _initFilterConfigs(List<String> filters) {
     // Per-filter sub-count default — honours the user's Sequencer Settings
     // exposure-count preference (already pulled into `_loopCount` by
     // `_applyUserDefaults`) so the wizard doesn't ship one number for the
@@ -383,6 +437,7 @@ class _QuickStartWizardDialogState
 
   @override
   void dispose() {
+    _backendSubscription?.close();
     _targetNameController.dispose();
     _raController.dispose();
     _decController.dispose();
@@ -397,6 +452,11 @@ class _QuickStartWizardDialogState
     _searchDebounce?.cancel();
     super.dispose();
   }
+
+  bool _isCurrentAuthority(NightshadeBackend backend, int generation) =>
+      mounted &&
+      generation == _authorityGeneration &&
+      identical(ref.read(backendProvider), backend);
 
   // ---------------------------------------------------------------------------
   // Target search
@@ -415,6 +475,8 @@ class _QuickStartWizardDialogState
     setState(() => _isSearching = true);
 
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final authority = ref.read(backendProvider);
+      final generation = _authorityGeneration;
       try {
         // On a remote-client slave the local targets table is never populated
         // (targets only arrive over the wire), so a direct DAO search returns
@@ -429,14 +491,14 @@ class _QuickStartWizardDialogState
           final dao = ref.read(targetsDaoProvider);
           results = await dao.searchTargets(query);
         }
-        if (mounted) {
+        if (_isCurrentAuthority(authority, generation)) {
           setState(() {
             _searchResults = results;
             _isSearching = false;
           });
         }
       } catch (e) {
-        if (mounted) {
+        if (_isCurrentAuthority(authority, generation)) {
           setState(() {
             _searchResults = [];
             _isSearching = false;
@@ -479,19 +541,11 @@ class _QuickStartWizardDialogState
 
     // Try simple decimal
     final decimal = double.tryParse(text);
-    if (decimal != null) return decimal;
-
-    // Try HMS format: "12h 30m 0s" or "12:30:00"
-    final hmsRegex =
-        RegExp(r'(\d+)\s*[hH:]\s*(\d+)\s*[mM:]\s*([\d.]+)\s*[sS]?');
-    final match = hmsRegex.firstMatch(text);
-    if (match != null) {
-      final h = int.parse(match.group(1)!);
-      final m = int.parse(match.group(2)!);
-      final s = double.parse(match.group(3)!);
-      return h + m / 60.0 + s / 3600.0;
+    if (decimal != null) {
+      return decimal.isFinite && decimal >= 0 && decimal < 24 ? decimal : null;
     }
-    return null;
+
+    return CoordinateParser.parseRa(text);
   }
 
   double? _parseDec(String text) {
@@ -501,20 +555,13 @@ class _QuickStartWizardDialogState
 
     // Try simple decimal
     final decimal = double.tryParse(text);
-    if (decimal != null) return decimal;
-
-    // Try DMS format: "+45d 30' 0\"" or "+45:30:00"
-    final dmsRegex = RegExp(
-        r"""([+-]?)(\d+)\s*[dD:]\s*(\d+)\s*['mM:]\s*([\d.]+)\s*[\"sS]?""");
-    final dmsMatch = dmsRegex.firstMatch(text);
-    if (dmsMatch != null) {
-      final sign = dmsMatch.group(1) == '-' ? -1.0 : 1.0;
-      final d = int.parse(dmsMatch.group(2)!);
-      final m = int.parse(dmsMatch.group(3)!);
-      final s = double.parse(dmsMatch.group(4)!);
-      return sign * (d + m / 60.0 + s / 3600.0);
+    if (decimal != null) {
+      return decimal.isFinite && decimal >= -90 && decimal <= 90
+          ? decimal
+          : null;
     }
-    return null;
+
+    return CoordinateParser.parseDec(text);
   }
 
   // ---------------------------------------------------------------------------
@@ -591,13 +638,16 @@ class _QuickStartWizardDialogState
   // Sequence generation
   // ---------------------------------------------------------------------------
 
-  void _createSequence() => _finishWizard(asTemplate: false);
+  Future<void> _createSequence() => _finishWizard(asTemplate: false);
 
   /// Save the wizard's sequence as a reusable template instead of loading it
   /// into the editor. Persists via the sequence repository's template path.
-  void _saveAsTemplate() => _finishWizard(asTemplate: true);
+  Future<void> _saveAsTemplate() => _finishWizard(asTemplate: true);
 
-  void _finishWizard({required bool asTemplate}) {
+  Future<void> _finishWizard({required bool asTemplate}) async {
+    if (_finishingAsTemplate != null) return;
+    final authority = ref.read(backendProvider);
+    final generation = _authorityGeneration;
     // Validate target
     final targetName = _targetNameController.text.trim();
     if (targetName.isEmpty) {
@@ -701,7 +751,7 @@ class _QuickStartWizardDialogState
     // Build exposure nodes for each enabled filter inside the loop
     for (final filterConfig in enabledFilters) {
       final expId = const Uuid().v4();
-      final hasFilterWheel = ref.read(profileFiltersProvider).isNotEmpty;
+      final hasFilterWheel = _hasConfiguredFilters;
 
       nodes[expId] = ExposureNode(
         id: expId,
@@ -901,49 +951,119 @@ class _QuickStartWizardDialogState
       isTemplate: asTemplate,
     );
 
-    // Opt-in: persist the user's wizard choices as their new defaults so the
-    // next launch pre-fills with them.
-    if (_saveAsDefaults) {
-      _persistChoicesAsDefaults(enabledFilters);
-    }
+    setState(() => _finishingAsTemplate = asTemplate);
 
     if (asTemplate) {
       // Persist as a reusable template via the sequence repository instead of
-      // loading it into the editor. Fire-and-forget with snackbar feedback.
+      // loading it into the editor.
       final repository = ref.read(sequenceRepositoryProvider);
-      () async {
-        try {
-          await repository.saveSequence(sequence, isTemplate: true);
-          if (!mounted) return;
-          Navigator.of(context).pop();
-          context.showSuccessSnackBar(
-              'Saved "$targetName Sequence" as a template');
-        } catch (e) {
-          if (mounted) {
-            context.showErrorSnackBar('Could not save template: $e');
-          }
+      try {
+        await repository.saveSequence(sequence, isTemplate: true);
+      } catch (error) {
+        if (!_isCurrentAuthority(authority, generation)) return;
+        if (!mounted) return;
+        setState(() => _finishingAsTemplate = null);
+        context.showErrorSnackBar('Could not save template: $error');
+        return;
+      }
+      if (!_isCurrentAuthority(authority, generation)) return;
+    } else {
+      // Completing a wizard expresses intent to create a sequence, but it is
+      // not consent to destroy a different draft that was already open. Use
+      // the editor's unsaved-work guard, matching library/template loads.
+      final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
+      try {
+        sequenceNotifier.loadSequence(sequence);
+      } on UnsavedChangesException catch (error) {
+        if (!_isCurrentAuthority(authority, generation)) return;
+        final discard = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Discard unsaved changes?'),
+            content: ConstrainedBox(
+              constraints: AdaptiveDialogConstraints.hybrid(
+                dialogContext,
+                designMaxWidth: 440,
+              ),
+              child: Text(
+                '"${error.currentSequenceName}" has unsaved changes. '
+                'Creating "$targetName Sequence" will discard them.',
+              ),
+            ),
+            actions: [
+              NightshadeButton(
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+              ),
+              NightshadeButton(
+                label: 'Discard and create',
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+              ),
+            ],
+          ),
+        );
+        if (!_isCurrentAuthority(authority, generation)) return;
+        if (discard != true) {
+          setState(() => _finishingAsTemplate = null);
+          return;
         }
-      }();
-      return;
+        try {
+          sequenceNotifier.loadSequence(sequence, discardUnsaved: true);
+        } on SequenceLockedException catch (locked) {
+          if (!mounted) return;
+          setState(() => _finishingAsTemplate = null);
+          context.showErrorSnackBar(locked.message);
+          return;
+        }
+      } on SequenceLockedException catch (locked) {
+        if (!_isCurrentAuthority(authority, generation)) return;
+        setState(() => _finishingAsTemplate = null);
+        context.showErrorSnackBar(locked.message);
+        return;
+      }
+      if (!_isCurrentAuthority(authority, generation)) return;
+      ref.read(sequencerTabProvider.notifier).state = 0;
     }
 
-    // Load into editor and switch to Builder tab. The user just completed
-    // the wizard so we treat that as explicit confirmation to replace the
-    // current sequence — skip the unsaved-changes prompt.
-    final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
-    sequenceNotifier.loadSequence(sequence, discardUnsaved: true);
-    ref.read(sequencerTabProvider.notifier).state = 0;
+    // Persist optional defaults only after the primary create/save succeeds.
+    // A failed or cancelled primary action must not silently change settings.
+    Object? defaultsError;
+    if (_saveAsDefaults) {
+      try {
+        await _persistChoicesAsDefaults();
+      } catch (error) {
+        defaultsError = error;
+      }
+    }
+    if (!_isCurrentAuthority(authority, generation)) return;
+    if (!mounted) return;
 
+    if (defaultsError != null) {
+      context.showWarningSnackBar(
+        asTemplate
+            ? 'Template saved, but defaults could not be saved: $defaultsError'
+            : 'Sequence created, but defaults could not be saved: $defaultsError',
+        duration: const Duration(seconds: 6),
+      );
+    } else if (asTemplate) {
+      context.showSuccessSnackBar(
+        'Saved "$targetName Sequence" as a template',
+      );
+    } else {
+      context.showSuccessSnackBar(
+        'Created sequence for "$targetName" with '
+        '${enabledFilters.length} filter(s)',
+      );
+    }
     Navigator.of(context).pop();
-    context.showSuccessSnackBar(
-        'Created sequence for "$targetName" with ${enabledFilters.length} filter(s)');
   }
 
   /// Write the user's wizard choices back into their persisted Sequencer
-  /// Settings / app settings so the next launch pre-fills with them. Mirrors
-  /// Smart Night's fire-and-forget pattern: failures are swallowed because a
-  /// failed preference write is a UX degradation, not a sequence-correctness
-  /// issue, and the sequence has already been built either way.
+  /// Settings / app settings so the next launch pre-fills with them.
   ///
   /// The chosen cooling temperature is written back to the active equipment
   /// profile's `defaultCoolingTemp` (the canonical home for it, owned by the
@@ -951,44 +1071,37 @@ class _QuickStartWizardDialogState
   /// AND the value actually changed, and we use the equipment profiles
   /// notifier's [EquipmentProfilesNotifier.updateProfile] setter so the write
   /// goes through the same DAO/validation path the equipment editor uses.
-  void _persistChoicesAsDefaults(List<_FilterExposureConfig> enabledFilters) {
+  Future<void> _persistChoicesAsDefaults() async {
     final sequencerDefaults = ref.read(sequencerDefaultsProvider.notifier);
     final appSettings = ref.read(appSettingsProvider.notifier);
     final equipmentProfiles = ref.read(equipmentProfilesProvider.notifier);
-    final activeProfile = ref.read(activeEquipmentProfileProvider);
+    final activeProfile = _initializedProfile;
     // Derive a representative exposure count: the loop count is the wizard's
     // single iteration knob and is what the user most directly tuned.
     final exposureCount = _loopCount > 0 ? _loopCount : null;
-    () async {
-      try {
-        await sequencerDefaults.updateAutofocusDefaults(
-          intervalFrames: _autofocusEveryFrames,
-        );
-        await sequencerDefaults.updateDitherDefaults(pixels: _ditherPixels);
-        if (exposureCount != null) {
-          await sequencerDefaults.updateExposureDefaults(count: exposureCount);
-        }
-        await appSettings.setEnableMeridianFlip(_enableMeridianFlip);
-        await appSettings.setParkOnUnsafeWeather(_weatherAbort);
-        await appSettings.setParkBeforeDawn(_dawnShutdown);
-        // Persist the cooling setpoint onto the active equipment profile. Only
-        // when cooling is enabled (otherwise the field is meaningless this
-        // run), the profile has a DB id, and the value diverges from what the
-        // profile already carries — this keeps the write a no-op when nothing
-        // changed and never clobbers a profile-less / remote-only session.
-        if (_coolCamera &&
-            activeProfile != null &&
-            activeProfile.id != null &&
-            _coolingTemp.isFinite &&
-            activeProfile.defaultCoolingTemp != _coolingTemp) {
-          await equipmentProfiles.updateProfile(
-            activeProfile.copyWith(defaultCoolingTemp: _coolingTemp),
-          );
-        }
-      } catch (_) {
-        // Persistence is best-effort; surfacing this would be noise.
-      }
-    }();
+    await sequencerDefaults.updateAutofocusDefaults(
+      intervalFrames: _autofocusEveryFrames,
+    );
+    await sequencerDefaults.updateDitherDefaults(pixels: _ditherPixels);
+    if (exposureCount != null) {
+      await sequencerDefaults.updateExposureDefaults(count: exposureCount);
+    }
+    await appSettings.setEnableMeridianFlip(_enableMeridianFlip);
+    await appSettings.setParkOnUnsafeWeather(_weatherAbort);
+    await appSettings.setParkBeforeDawn(_dawnShutdown);
+    // Persist the cooling setpoint onto the active equipment profile. Only
+    // when cooling is enabled (otherwise the field is meaningless this run),
+    // the profile has a DB id, and the value diverges from what the profile
+    // already carries.
+    if (_coolCamera &&
+        activeProfile != null &&
+        activeProfile.id != null &&
+        _coolingTemp.isFinite &&
+        activeProfile.defaultCoolingTemp != _coolingTemp) {
+      await equipmentProfiles.updateProfile(
+        activeProfile.copyWith(defaultCoolingTemp: _coolingTemp),
+      );
+    }
   }
 
   String _buildDescription(List<_FilterExposureConfig> enabledFilters) {
@@ -1117,5 +1230,39 @@ class _QuickStartWizardDialogState
   }
 
   @override
-  Widget build(BuildContext context) => _buildDialog(context);
+  Widget build(BuildContext context) {
+    if (_initializing) {
+      return const NightshadeDialog(
+        title: 'Quick-Start Sequence Wizard',
+        icon: LucideIcons.wand2,
+        width: 520,
+        child: SizedBox(
+          height: 180,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    final error = _initializationError;
+    if (error != null) {
+      return NightshadeDialog(
+        title: 'Quick-Start Sequence Wizard',
+        icon: LucideIcons.wand2,
+        width: 520,
+        child: EmptyState(
+          icon: LucideIcons.alertTriangle,
+          title: 'Could not load wizard defaults',
+          body: '$error',
+          action: NightshadeButton(
+            label: 'Retry',
+            icon: LucideIcons.refreshCw,
+            variant: ButtonVariant.outline,
+            onPressed: _retryInitialization,
+          ),
+        ),
+      );
+    }
+
+    return _buildDialog(context);
+  }
 }

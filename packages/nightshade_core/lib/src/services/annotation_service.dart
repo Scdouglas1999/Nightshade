@@ -37,6 +37,9 @@ double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
 
 final annotationServiceProvider = Provider<AnnotationService>((ref) {
   final service = AnnotationService(ref, attachListeners: false);
+  ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+    service.handleBackendChanged(previous, next);
+  });
   ref.listen<CapturedImageData?>(currentImageProvider, (previous, next) {
     service.handleCurrentImageChanged(previous, next);
   });
@@ -201,6 +204,7 @@ class AnnotationService {
 
   // Keep track of processed images to avoid duplicates
   String? _lastProcessedImagePath;
+  int _annotationRunGeneration = 0;
 
   // SNR-based progressive annotation state
   double? _lastAnnotationSnr;
@@ -262,6 +266,30 @@ class AnnotationService {
       checkSnrForReAnnotation(next!.snr!);
     }
   }
+
+  void handleBackendChanged(
+    NightshadeBackend? previous,
+    NightshadeBackend next,
+  ) {
+    if (previous == null || identical(previous, next)) return;
+    _annotationRunGeneration++;
+    _lastProcessedImagePath = null;
+    _lastAnnotationSnr = null;
+    _peakAnnotationSnr = null;
+    _lastAnnotationTime = null;
+    _lastPlateSolve = null;
+    _currentSnrMagnitudeLimit = _SnrAnnotationConstants.baseMagnitude;
+    _revealedObjectIds.clear();
+    _ref.read(currentAnnotationProvider.notifier).state = null;
+    _ref.read(reAnnotateSuggestionProvider.notifier).state =
+        const ReAnnotateSuggestion.none();
+    _ref.read(annotationStateProvider.notifier).state =
+        const AnnotationState.idle();
+  }
+
+  bool _isCurrentAnnotationRun(int generation, NightshadeBackend backend) =>
+      generation == _annotationRunGeneration &&
+      identical(_ref.read(backendProvider), backend);
 
   Stream<ImageAnnotation> get annotationStream => _ref
       .read(currentAnnotationProvider.notifier)

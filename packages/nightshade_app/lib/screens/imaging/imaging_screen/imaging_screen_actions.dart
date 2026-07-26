@@ -1,6 +1,27 @@
 part of '../imaging_screen.dart';
 
 extension _ImagingScreenActions on _ImagingScreenState {
+  /// Strips a leading `SomeException(category): ` prefix so capture failures
+  /// read as English for the operator.
+  ///
+  /// A raw `$error` interpolation put the Dart class name in front of the
+  /// operator: pulling the camera mid-loop produced the snackbar
+  /// "Capture error: NightshadeException(connection): Camera not connected"
+  /// (reproduced by disconnecting the camera through the API while a GUI loop
+  /// was running). Matched on `toString()` rather than the exception type
+  /// because `NightshadeException` is intentionally NOT exported from the
+  /// `nightshade_core` barrel — kept narrow on purpose — so this layer cannot
+  /// type-check it without widening that surface. The full object still reaches
+  /// the log untouched.
+  static final RegExp _exceptionPrefix =
+      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?:\s*');
+
+  String _captureErrorText(Object error) {
+    final raw = error.toString().trim();
+    final stripped = raw.replaceFirst(_exceptionPrefix, '').trim();
+    return stripped.isEmpty ? raw : stripped;
+  }
+
   /// Initialize the annotation service so it starts listening for new images
   void _initializeAnnotationService() {
     // Reading the provider creates the AnnotationService instance
@@ -121,22 +142,24 @@ extension _ImagingScreenActions on _ImagingScreenState {
   // =========================================================================
 
   Future<void> _takeSnapshot() async {
-    if (_isSingleCapture || _isLooping) return;
+    if (_isSingleCapture || _isLooping || _isStoppingCapture) return;
 
-    _update(() => _isSingleCapture = true);
+    _update(() {
+      _isSingleCapture = true;
+      _singleCapturePreviewReady = false;
+      _isStoppingCapture = false;
+    });
 
     final settings = ref.read(exposureSettingsProvider);
     final imagingService = ref.read(imagingServiceProvider);
+    _manualCaptureService = imagingService;
     final sessionNotifier = ref.read(sessionStateProvider.notifier);
 
     sessionNotifier.setCapturing(true);
 
-    // Flip the button label back to "Snapshot" as soon as the
-    // imaging service publishes the preview image, even though FITS
-    // save, auto-calibration, and science processing keep running in
-    // the background after that. Without this listener the button
-    // stayed on "Taking…" for the full save+calibration cycle — long
-    // after the user could see and inspect the frame.
+    // Pixels arrive before FITS persistence and optional calibration finish.
+    // Keep the action disabled through that pipeline, but change its label to
+    // "Saving…" so the visible preview is not mistaken for a finished frame.
     //
     // We baseline against the `capturedAt` of whatever was on screen
     // when the snapshot started so an idle, never-changing image (or a
@@ -152,12 +175,7 @@ extension _ImagingScreenActions on _ImagingScreenState {
         if (next.capturedAt == baselineCapturedAt) return;
         previewSeen = true;
         if (!mounted) return;
-        // Pop the button out of "Taking…" the instant the preview
-        // surfaces. The session-level `capturing` flag (used by other
-        // UI like the global capture chip) stays on until the whole
-        // pipeline finishes in the outer try/finally below — we don't
-        // want to mislead other surfaces that the work is done.
-        _update(() => _isSingleCapture = false);
+        _update(() => _singleCapturePreviewReady = true);
       },
       // We don't care about the initial value, only future writes.
       fireImmediately: false,
@@ -180,37 +198,43 @@ extension _ImagingScreenActions on _ImagingScreenState {
       }
     } catch (e) {
       if (!mounted) return;
-      context.showErrorSnackBar('Capture failed: $e');
+      context.showErrorSnackBar('Capture failed: ${_captureErrorText(e)}');
     } finally {
       previewSubscription.close();
       if (mounted) {
-        // Safety net: if the capture failed before the preview was
-        // ever published (e.g. camera throw, abort), flip the button
-        // back here. When the listener already reset the flag this is
-        // a no-op setState that just rebuilds with the same state.
-        if (_isSingleCapture) {
-          _update(() => _isSingleCapture = false);
-        }
-        ref.read(sessionStateProvider.notifier).setCapturing(false);
+        _update(() {
+          _isSingleCapture = false;
+          _singleCapturePreviewReady = false;
+          _isStoppingCapture = false;
+        });
       }
+      if (identical(_manualCaptureService, imagingService)) {
+        _manualCaptureService = null;
+      }
+      if (sessionNotifier.mounted) sessionNotifier.setCapturing(false);
     }
   }
 
   Future<void> _toggleLoop() async {
-    if (_isSingleCapture) return;
+    if (_isSingleCapture || _isStoppingCapture) return;
 
     if (_isLooping) {
       // Stop looping
-      _update(() => _isLooping = false);
+      _update(() => _isStoppingCapture = true);
       ref.read(imagingServiceProvider).cancelExposure();
       return;
     }
 
-    _update(() => _isLooping = true);
-    ref.read(sessionStateProvider.notifier).setCapturing(true);
+    _update(() {
+      _isLooping = true;
+      _isStoppingCapture = false;
+    });
+    final sessionNotifier = ref.read(sessionStateProvider.notifier);
+    sessionNotifier.setCapturing(true);
 
     final settings = ref.read(exposureSettingsProvider);
     final imagingService = ref.read(imagingServiceProvider);
+    _manualCaptureService = imagingService;
 
     try {
       await imagingService.startLoopCapture(
@@ -229,23 +253,27 @@ extension _ImagingScreenActions on _ImagingScreenState {
           },
           onError: (error) {
             if (!mounted) return;
-            context.showErrorSnackBar('Capture error: $error');
+            context.showErrorSnackBar(
+                'Capture stopped: ${_captureErrorText(error)}');
           });
     } finally {
       if (mounted) {
-        _update(() => _isLooping = false);
-        ref.read(sessionStateProvider.notifier).setCapturing(false);
+        _update(() {
+          _isLooping = false;
+          _isStoppingCapture = false;
+        });
       }
+      if (identical(_manualCaptureService, imagingService)) {
+        _manualCaptureService = null;
+      }
+      if (sessionNotifier.mounted) sessionNotifier.setCapturing(false);
     }
   }
 
   void _abortCapture() {
+    if (!_isSingleCapture && !_isLooping) return;
     ref.read(imagingServiceProvider).cancelExposure();
-    _update(() {
-      _isLooping = false;
-      _isSingleCapture = false;
-    });
-    ref.read(sessionStateProvider.notifier).setCapturing(false);
+    _update(() => _isStoppingCapture = true);
   }
 
   /// Feed a newly captured frame to the live stacker if stacking is active.

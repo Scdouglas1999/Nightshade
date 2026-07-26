@@ -170,6 +170,131 @@ void main() {
       expect(logs, hasLength(1), reason: 'restore must be idempotent');
     });
 
+    test('modern sequence nodes survive a full backup and restore', () async {
+      final sourceRepository = SequenceRepository(srcDb.sequencesDao);
+      await sourceRepository.saveSequence(
+        Sequence.create(
+          name: 'Recovery plan',
+          rootNodeId: 'recovery',
+          nodes: {
+            'recovery': RecoveryNode(
+              id: 'recovery',
+              name: 'Watch transparency',
+              comment: 'Switch plans only after a sustained drop',
+              isEnabled: false,
+              recoveryAction: RecoveryActionType.switchTargetOrFilter,
+              maxRetries: 7,
+              triggerType: TriggerType.transparencyDropped,
+              triggerThreshold: 0.42,
+              hfrThresholdPercent: 17.5,
+              hfrConsecutiveFrames: 4,
+              triggerEveryNFrames: 19,
+              focusDriftWindowSize: 21,
+              focusDriftMinIncreasingCount: 8,
+              focusDriftMinTotalIncrease: 0.85,
+              guidingFailedDurationSecs: 47,
+              cloudMinutesBefore: 6,
+              cloudCoverageThresholdPercent: 63,
+              cloudOpeningMinDurationSecs: 420,
+              cloudCoverMaxPercent: 74,
+              cloudCoverDurationSecs: 92,
+              transparencyBelowThreshold: 0.58,
+              transparencyDurationSecs: 135,
+            ),
+          },
+        ),
+      );
+
+      final backupFile = File(p.join(tempDir.path, 'sequence.nsbackup'));
+      final backup = await serviceFor(
+        srcDb,
+      ).createBackup(customPath: backupFile.path);
+      expect(backup.success, isTrue, reason: backup.errorMessage);
+
+      final restore = await serviceFor(
+        dstDb,
+      ).restoreBackup(filePath: backupFile.path);
+      expect(restore.success, isTrue, reason: restore.errorMessage);
+      expect(restore.categoryCounts['sequences'], 1);
+
+      final restoredRepository = SequenceRepository(dstDb.sequencesDao);
+      final restored = (await restoredRepository.loadAllSequences()).single;
+      final recovery = restored.nodes['recovery'] as RecoveryNode;
+      expect(recovery.name, 'Watch transparency');
+      expect(recovery.comment, 'Switch plans only after a sustained drop');
+      expect(recovery.isEnabled, isFalse);
+      expect(recovery.recoveryAction, RecoveryActionType.switchTargetOrFilter);
+      expect(recovery.maxRetries, 7);
+      expect(recovery.triggerType, TriggerType.transparencyDropped);
+      expect(recovery.triggerThreshold, 0.42);
+      expect(recovery.hfrThresholdPercent, 17.5);
+      expect(recovery.hfrConsecutiveFrames, 4);
+      expect(recovery.triggerEveryNFrames, 19);
+      expect(recovery.focusDriftWindowSize, 21);
+      expect(recovery.focusDriftMinIncreasingCount, 8);
+      expect(recovery.focusDriftMinTotalIncrease, 0.85);
+      expect(recovery.guidingFailedDurationSecs, 47);
+      expect(recovery.cloudMinutesBefore, 6);
+      expect(recovery.cloudCoverageThresholdPercent, 63);
+      expect(recovery.cloudOpeningMinDurationSecs, 420);
+      expect(recovery.cloudCoverMaxPercent, 74);
+      expect(recovery.cloudCoverDurationSecs, 92);
+      expect(recovery.transparencyBelowThreshold, 0.58);
+      expect(recovery.transparencyDurationSecs, 135);
+    });
+
+    test(
+      'profile identity, default flag, and complete settings round-trip',
+      () async {
+        await srcDb.equipmentProfilesDao.createProfile(
+          EquipmentProfilesCompanion.insert(
+            id: const Value(47),
+            name: 'Production Rig',
+            cameraId: const Value('native:zwo:0'),
+            safetyMonitorId: const Value('ascom:safety'),
+            coverCalibratorId: const Value('alpaca:cover'),
+            defaultGain: const Value(139),
+            defaultOffset: const Value(21),
+            coolOnConnect: const Value(true),
+            defaultCenteringExposure: const Value(2.5),
+            cameraName: const Value('ASI1600MM Cool'),
+            telescopeName: const Value('10-inch Newtonian'),
+            telescopeFocalLength: const Value(1016),
+            sortOrder: const Value(4),
+            profileColor: const Value(0x123456),
+          ),
+        );
+
+        final backupFile = File(p.join(tempDir.path, 'profile.nsbackup'));
+        final backup = await serviceFor(
+          srcDb,
+        ).createBackup(customPath: backupFile.path);
+        expect(backup.success, isTrue, reason: backup.errorMessage);
+
+        final restore = await serviceFor(
+          dstDb,
+        ).restoreBackup(filePath: backupFile.path, replaceExisting: true);
+        expect(restore.success, isTrue, reason: restore.errorMessage);
+
+        final profile =
+            (await dstDb.equipmentProfilesDao.getAllProfiles()).single;
+        expect(profile.id, 47);
+        expect(profile.isDefault, isTrue);
+        expect(profile.isActive, isTrue);
+        expect(profile.defaultGain, 139);
+        expect(profile.defaultOffset, 21);
+        expect(profile.coolOnConnect, isTrue);
+        expect(profile.defaultCenteringExposure, 2.5);
+        expect(profile.safetyMonitorId, 'ascom:safety');
+        expect(profile.coverCalibratorId, 'alpaca:cover');
+        expect(profile.cameraName, 'ASI1600MM Cool');
+        expect(profile.telescopeName, '10-inch Newtonian');
+        expect(profile.telescopeFocalLength, 1016);
+        expect(profile.sortOrder, 4);
+        expect(profile.profileColor, 0x123456);
+      },
+    );
+
     test('backup format version is bumped', () {
       expect(BackupService.backupVersion, '2.1');
     });

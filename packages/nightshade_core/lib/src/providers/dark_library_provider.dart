@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import '../models/calibration/dark_library_match_tolerances.dart';
 import '../models/calibration/remote_calibration_models.dart';
 import '../services/calibration_service.dart';
 import '../services/dark_library_service.dart';
+import '../utils/resilient_poll_stream.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 
@@ -100,18 +102,20 @@ final darkLibraryGroupsProvider = FutureProvider<List<DarkGroupKey>>((
 Stream<List<DarkLibraryEntry>> _pollRemoteDarkEntries(
   NetworkBackend backend, {
   Duration interval = const Duration(seconds: 10),
-}) async* {
-  var last = await _fetchRemoteDarkEntries(backend);
-  yield last;
-  while (true) {
-    await Future<void>.delayed(interval);
-    final next = await _fetchRemoteDarkEntries(backend);
-    if (!listEquals(last, next)) {
-      last = next;
-      yield next;
-    }
-  }
-}
+}) => resilientDistinctPoll(
+  fetch: () => _fetchRemoteDarkEntries(backend),
+  unchanged: listEquals,
+  interval: interval,
+  onRetainedError: (error, stackTrace) {
+    developer.log(
+      'Remote dark-library poll failed; retaining last value',
+      name: 'DarkLibraryProvider',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  },
+);
 
 Future<List<DarkLibraryEntry>> _fetchRemoteDarkEntries(
   NetworkBackend backend,
@@ -172,11 +176,13 @@ List<DarkGroupKey> _groupsFromEntries(List<DarkLibraryEntry> entries) {
     final key = DarkGroupKey(
       exposureTime: e.exposureTime,
       gain: e.gain,
+      offset: e.offset,
       binX: e.binX,
       binY: e.binY,
       frameType: e.frameType,
     );
-    seen['${e.exposureTime}|${e.gain}|${e.binX}|${e.binY}|${e.frameType}'] =
+    seen['${e.exposureTime}|${e.gain}|${e.offset}|${e.binX}|${e.binY}|'
+            '${e.frameType}'] =
         key;
   }
   return seen.values.toList();
@@ -272,6 +278,107 @@ final darkTempToleranceProvider = Provider<double>((ref) {
   return ref.watch(darkLibraryMatchTolerancesProvider).temperatureC;
 });
 
+class DarkLibrarySettingsSnapshot {
+  final bool autoCalibrate;
+  final double temperatureTolerance;
+
+  const DarkLibrarySettingsSnapshot({
+    required this.autoCalibrate,
+    required this.temperatureTolerance,
+  });
+
+  factory DarkLibrarySettingsSnapshot.fromJson(Map<String, dynamic> json) {
+    final autoCalibrate = json['autoCalibrate'];
+    final temperature = (json['temperatureTolerance'] as num?)?.toDouble();
+    if (autoCalibrate is! bool ||
+        temperature == null ||
+        !temperature.isFinite ||
+        temperature < 0 ||
+        temperature > 20) {
+      throw const FormatException(
+        'Malformed dark-library settings from imaging host',
+      );
+    }
+    return DarkLibrarySettingsSnapshot(
+      autoCalibrate: autoCalibrate,
+      temperatureTolerance: temperature,
+    );
+  }
+}
+
+final darkLibrarySettingsProvider =
+    FutureProvider.autoDispose<DarkLibrarySettingsSnapshot>((ref) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return DarkLibrarySettingsSnapshot.fromJson(
+          await backend.getDarkLibrarySettings(),
+        );
+      }
+      final stored = await ref.watch(allSettingsProvider.future);
+      final temperature = double.tryParse(
+        stored[darkLibraryTempToleranceKey] ?? '',
+      );
+      return DarkLibrarySettingsSnapshot(
+        autoCalibrate: stored['calibration.auto_calibrate'] == 'true',
+        temperatureTolerance:
+            temperature ?? DarkLibraryMatchTolerances.defaults.temperatureC,
+      );
+    });
+
+final darkLibrarySettingsActionsProvider = Provider((ref) {
+  final backend = ref.watch(backendProvider);
+  return DarkLibrarySettingsActions(
+    ref,
+    remote: backend is NetworkBackend ? backend : null,
+    localCalibration: backend is NetworkBackend
+        ? null
+        : ref.read(calibrationSettingsProvider.notifier),
+    localSettings: backend is NetworkBackend
+        ? null
+        : ref.read(settingsDaoProvider),
+  );
+});
+
+class DarkLibrarySettingsActions {
+  final Ref _ref;
+  final NetworkBackend? _remote;
+  final CalibrationSettingsNotifier? _localCalibration;
+  final SettingsDao? _localSettings;
+
+  DarkLibrarySettingsActions(
+    this._ref, {
+    required NetworkBackend? remote,
+    required CalibrationSettingsNotifier? localCalibration,
+    required SettingsDao? localSettings,
+  }) : _remote = remote,
+       _localCalibration = localCalibration,
+       _localSettings = localSettings;
+
+  Future<void> setAutoCalibrate(bool enabled) async {
+    if (_remote != null) {
+      await _remote.updateDarkLibrarySettings(autoCalibrate: enabled);
+    } else {
+      await _localCalibration!.setAutoCalibrate(enabled);
+    }
+    _ref.invalidate(darkLibrarySettingsProvider);
+  }
+
+  Future<void> setTemperatureTolerance(double value) async {
+    if (!value.isFinite || value < 0 || value > 20) {
+      throw ArgumentError.value(value, 'value', 'Must be between 0 and 20°C');
+    }
+    if (_remote != null) {
+      await _remote.updateDarkLibrarySettings(temperatureTolerance: value);
+    } else {
+      await _localSettings!.setSetting(
+        darkLibraryTempToleranceKey,
+        value.toString(),
+      );
+    }
+    _ref.invalidate(darkLibrarySettingsProvider);
+  }
+}
+
 /// Migrate the legacy `dark_library.auto_subtract` setting into
 /// `calibrationSettingsProvider` on first launch after the unification.
 ///
@@ -290,138 +397,290 @@ Future<bool?> readLegacyAutoSubtractFlag(SettingsDao dao) async {
 /// StateNotifier for managing the dark library UI state.
 final darkLibraryNotifierProvider =
     StateNotifierProvider<DarkLibraryNotifier, DarkLibraryUiState>((ref) {
-      return DarkLibraryNotifier(ref);
+      final backend = ref.watch(backendProvider);
+      return DarkLibraryNotifier(
+        ref,
+        remote: backend is NetworkBackend ? backend : null,
+        local: backend is NetworkBackend
+            ? null
+            : ref.read(darkLibraryServiceProvider),
+      );
     });
 
 /// UI state for the dark library management screen.
+enum DarkLibraryMutation {
+  createMaster,
+  cleanOrphans,
+  clearLibrary,
+  deleteEntry,
+  deleteGroup,
+}
+
+const _darkLibraryUnset = Object();
+
 class DarkLibraryUiState {
   final bool isCreatingMaster;
+  final DarkLibraryMutation? activeMutation;
   final String? statusMessage;
   final String? errorMessage;
   final int? selectedGroupIndex;
 
   const DarkLibraryUiState({
     this.isCreatingMaster = false,
+    this.activeMutation,
     this.statusMessage,
     this.errorMessage,
     this.selectedGroupIndex,
   });
 
+  bool get isBusy => activeMutation != null;
+
   DarkLibraryUiState copyWith({
     bool? isCreatingMaster,
-    String? statusMessage,
-    String? errorMessage,
-    int? selectedGroupIndex,
+    Object? activeMutation = _darkLibraryUnset,
+    Object? statusMessage = _darkLibraryUnset,
+    Object? errorMessage = _darkLibraryUnset,
+    Object? selectedGroupIndex = _darkLibraryUnset,
   }) {
     return DarkLibraryUiState(
       isCreatingMaster: isCreatingMaster ?? this.isCreatingMaster,
-      statusMessage: statusMessage,
-      errorMessage: errorMessage,
-      selectedGroupIndex: selectedGroupIndex ?? this.selectedGroupIndex,
+      activeMutation: identical(activeMutation, _darkLibraryUnset)
+          ? this.activeMutation
+          : activeMutation as DarkLibraryMutation?,
+      statusMessage: identical(statusMessage, _darkLibraryUnset)
+          ? this.statusMessage
+          : statusMessage as String?,
+      errorMessage: identical(errorMessage, _darkLibraryUnset)
+          ? this.errorMessage
+          : errorMessage as String?,
+      selectedGroupIndex: identical(selectedGroupIndex, _darkLibraryUnset)
+          ? this.selectedGroupIndex
+          : selectedGroupIndex as int?,
     );
   }
 }
 
 class DarkLibraryNotifier extends StateNotifier<DarkLibraryUiState> {
   final Ref ref;
+  final NetworkBackend? _remote;
+  final DarkLibraryService? _local;
 
-  DarkLibraryNotifier(this.ref) : super(const DarkLibraryUiState());
+  DarkLibraryNotifier(
+    this.ref, {
+    required NetworkBackend? remote,
+    required DarkLibraryService? local,
+  }) : _remote = remote,
+       _local = local,
+       super(const DarkLibraryUiState());
 
-  DarkLibraryService get _service => ref.read(darkLibraryServiceProvider);
+  void _refreshLibrary() {
+    if (!mounted) return;
+    // Entries are the canonical stream. Stats and groups watch it and rebuild
+    // transitively, so invalidating all five providers would launch redundant
+    // host polls after every mutation.
+    ref.invalidate(darkLibraryEntriesProvider);
+  }
+
+  bool _startMutation(DarkLibraryMutation mutation, String status) {
+    if (!mounted || state.isBusy) return false;
+    state = state.copyWith(
+      activeMutation: mutation,
+      isCreatingMaster: mutation == DarkLibraryMutation.createMaster,
+      statusMessage: status,
+      errorMessage: null,
+    );
+    return true;
+  }
+
+  void _finishMutation({String? status, String? error}) {
+    if (!mounted) return;
+    state = state.copyWith(
+      activeMutation: null,
+      isCreatingMaster: false,
+      statusMessage: status,
+      errorMessage: error,
+    );
+  }
 
   /// Create a master dark from all raw frames matching the given parameters.
   Future<void> createMasterDark({
     required double exposureTime,
     required int gain,
+    required int offset,
     required int binX,
     required int binY,
     required String outputPath,
     String frameType = 'dark',
   }) async {
-    state = state.copyWith(
-      isCreatingMaster: true,
-      statusMessage: 'Finding matching frames...',
-      errorMessage: null,
-    );
+    if (!_startMutation(
+      DarkLibraryMutation.createMaster,
+      'Finding matching frames...',
+    )) {
+      return;
+    }
 
     try {
-      final frames = await _service.getMatchingFrames(
-        exposureTime: exposureTime,
-        gain: gain,
-        binX: binX,
-        binY: binY,
-        frameType: frameType,
-      );
-
-      if (frames.length < 2) {
-        state = state.copyWith(
-          isCreatingMaster: false,
-          errorMessage:
-              'Need at least 2 matching frames to create a master dark. '
-              'Found ${frames.length}.',
+      late final int frameCount;
+      if (_remote != null) {
+        final result = await _remote.createDarkLibraryMaster(
+          exposureTime: exposureTime,
+          gain: gain,
+          offset: offset,
+          binX: binX,
+          binY: binY,
+          outputPath: outputPath,
+          frameType: frameType,
         );
-        return;
+        frameCount = (result['frameCount'] as num?)?.toInt() ?? 0;
+      } else {
+        final frames = await _local!.getMatchingFrames(
+          exposureTime: exposureTime,
+          gain: gain,
+          offset: offset,
+          binX: binX,
+          binY: binY,
+          frameType: frameType,
+        );
+        if (!mounted) return;
+
+        if (frames.length < 2) {
+          _finishMutation(
+            error:
+                'Need at least 2 matching frames to create a master dark. '
+                'Found ${frames.length}.',
+          );
+          return;
+        }
+
+        state = state.copyWith(
+          statusMessage: 'Median-combining ${frames.length} frames...',
+        );
+
+        await _local.createMasterDark(frames: frames, outputPath: outputPath);
+        frameCount = frames.length;
       }
 
-      state = state.copyWith(
-        statusMessage: 'Median-combining ${frames.length} frames...',
-      );
-
-      await _service.createMasterDark(frames: frames, outputPath: outputPath);
-
-      state = state.copyWith(
-        isCreatingMaster: false,
-        statusMessage: 'Master dark created from ${frames.length} frames.',
-      );
+      if (!mounted) return;
+      _refreshLibrary();
+      _finishMutation(status: 'Master dark created from $frameCount frames.');
     } catch (e) {
-      state = state.copyWith(
-        isCreatingMaster: false,
-        errorMessage: 'Failed to create master dark: $e',
-      );
+      _finishMutation(error: 'Failed to create master dark: $e');
     }
   }
 
   /// Clean up orphaned entries where files have been deleted from disk.
   Future<void> cleanOrphans() async {
-    state = state.copyWith(
-      statusMessage: 'Scanning for orphaned entries...',
-      errorMessage: null,
-    );
+    if (!_startMutation(
+      DarkLibraryMutation.cleanOrphans,
+      'Scanning for orphaned entries...',
+    )) {
+      return;
+    }
 
     try {
-      final removed = await _service.cleanOrphanedEntries();
-      state = state.copyWith(
-        statusMessage: removed > 0
+      final removed = _remote != null
+          ? await _remote.cleanDarkLibraryOrphans()
+          : await _local!.cleanOrphanedEntries();
+      if (!mounted) return;
+      _refreshLibrary();
+      _finishMutation(
+        status: removed > 0
             ? 'Removed $removed orphaned entries.'
             : 'No orphaned entries found.',
       );
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Failed to clean orphans: $e');
+      _finishMutation(error: 'Failed to clean orphans: $e');
     }
   }
 
   /// Delete a single entry.
   Future<void> deleteEntry(int id, {bool deleteFile = false}) async {
+    if (!_startMutation(
+      DarkLibraryMutation.deleteEntry,
+      'Deleting library entry...',
+    )) {
+      return;
+    }
     try {
-      await _service.deleteEntry(id, deleteFile: deleteFile);
-      state = state.copyWith(statusMessage: 'Entry deleted.');
+      if (_remote != null) {
+        await _remote.deleteDark(id, deleteFile: deleteFile);
+      } else {
+        await _local!.deleteEntry(id, deleteFile: deleteFile);
+      }
+      if (!mounted) return;
+      _refreshLibrary();
+      _finishMutation(status: 'Entry deleted.');
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Failed to delete entry: $e');
+      _finishMutation(error: 'Failed to delete entry: $e');
     }
   }
 
   /// Clear the entire library.
   Future<void> clearLibrary({bool deleteFiles = false}) async {
-    state = state.copyWith(
-      statusMessage: 'Clearing library...',
-      errorMessage: null,
-    );
+    if (!_startMutation(
+      DarkLibraryMutation.clearLibrary,
+      'Clearing library...',
+    )) {
+      return;
+    }
 
     try {
-      await _service.clearLibrary(deleteFiles: deleteFiles);
-      state = state.copyWith(statusMessage: 'Library cleared.');
+      final removed = _remote != null
+          ? await _remote.clearDarkLibrary(deleteFiles: deleteFiles)
+          : await _clearLocalLibrary(deleteFiles: deleteFiles);
+      if (!mounted) return;
+      _refreshLibrary();
+      _finishMutation(status: 'Library cleared ($removed entries removed).');
     } catch (e) {
-      state = state.copyWith(errorMessage: 'Failed to clear library: $e');
+      _finishMutation(error: 'Failed to clear library: $e');
+    }
+  }
+
+  Future<int> _clearLocalLibrary({required bool deleteFiles}) async {
+    final removed = (await _local!.getAllEntries()).length;
+    await _local.clearLibrary(deleteFiles: deleteFiles);
+    return removed;
+  }
+
+  Future<int> deleteGroup(
+    DarkGroupKey group, {
+    bool deleteFiles = false,
+  }) async {
+    if (!_startMutation(
+      DarkLibraryMutation.deleteGroup,
+      'Deleting dark-library group...',
+    )) {
+      throw StateError('Another dark-library operation is already running');
+    }
+    try {
+      final int removed;
+      if (_remote != null) {
+        removed = await _remote.deleteDarkLibraryGroup(
+          exposureTime: group.exposureTime,
+          gain: group.gain,
+          offset: group.offset,
+          binX: group.binX,
+          binY: group.binY,
+          frameType: group.frameType,
+          deleteFiles: deleteFiles,
+        );
+      } else {
+        final entries = await _local!.getEntriesForGroup(group);
+        if (!mounted) return 0;
+        await _local.deleteEntries(
+          entries.map((entry) => entry.id).toList(growable: false),
+          deleteFile: deleteFiles,
+        );
+        removed = entries.length;
+      }
+      if (!mounted) return removed;
+      _refreshLibrary();
+      _finishMutation(status: 'Deleted $removed entries.');
+      return removed;
+    } catch (error) {
+      if (!mounted) rethrow;
+      _finishMutation(error: 'Failed to delete group: $error');
+      rethrow;
     }
   }
 

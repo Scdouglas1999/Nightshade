@@ -9,6 +9,9 @@ import '../glass_card.dart';
 /// Moon briefing card: a painted phase disc plus illumination, phase name, and
 /// moonrise/moonset times. Degrades to "--" rows when rise/set are undefined
 /// (circumpolar moon, or no location).
+///
+/// Phase and illumination are the same everywhere on Earth, so they stay
+/// truthful without a site; only rise/set depend on where the observer is.
 class MoonCard extends ConsumerWidget {
   final NightshadeColors colors;
 
@@ -18,6 +21,11 @@ class MoonCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final moon = ref.watch(moonInfoProvider);
     final waxing = _isWaxing(moon.phaseName);
+    // lat/lon both 0.0 is the "no site on record" sentinel. The moon does rise
+    // and set at Null Island, so the provider returns real times for a place the
+    // user has never been; blank them rather than pass them off as tonight's.
+    final observer = ref.watch(observerLocationProvider);
+    final hasSite = observer.latitude != 0.0 || observer.longitude != 0.0;
 
     return DashboardGlassCard(
       colors: colors,
@@ -79,14 +87,14 @@ class MoonCard extends ConsumerWidget {
             colors: colors,
             icon: LucideIcons.arrowUp,
             label: 'Moonrise',
-            value: _clock(moon.moonrise),
+            value: _clock(hasSite ? moon.moonrise : null),
           ),
           const SizedBox(height: 6),
           _TimeRow(
             colors: colors,
             icon: LucideIcons.arrowDown,
             label: 'Moonset',
-            value: _clock(moon.moonset),
+            value: _clock(hasSite ? moon.moonset : null),
           ),
         ],
       ),

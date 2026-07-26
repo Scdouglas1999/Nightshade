@@ -51,6 +51,15 @@ class NightshadeDialog extends StatelessWidget {
   /// Show the close button in the header. Defaults to true.
   final bool showCloseButton;
 
+  /// Whether the dialog may currently be dismissed by the user.
+  ///
+  /// Set this to false while committing an asynchronous action. It disables
+  /// the header close button and blocks modal-barrier and system-back pops, so
+  /// a successful write cannot be reported to the caller as a cancellation.
+  /// An explicit [NavigatorState.pop] by the dialog's successful action is
+  /// still allowed, matching Flutter's [PopScope] contract.
+  final bool closeEnabled;
+
   /// Accessible label for the close button. Defaults to "Close dialog".
   final String closeButtonSemanticsLabel;
 
@@ -77,6 +86,7 @@ class NightshadeDialog extends StatelessWidget {
     this.actions,
     this.onClose,
     this.showCloseButton = true,
+    this.closeEnabled = true,
     this.closeButtonSemanticsLabel = 'Close dialog',
     this.width = 600,
     this.height,
@@ -107,39 +117,43 @@ class NightshadeDialog extends StatelessWidget {
 
     final body = Padding(padding: bodyPadding, child: child);
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: Container(
-        width: dialogSize.width,
-        height: dialogSize.height,
-        decoration: BoxDecoration(
-          color: colors.surfaceElevated,
-          borderRadius: NightshadeTokens.borderRadiusMd,
-          border: Border.all(color: colors.border),
-          boxShadow: NightshadeTokens.shadowLg,
-        ),
-        child: ClipRRect(
-          borderRadius: NightshadeTokens.borderRadiusMd,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _Header(
-                title: title,
-                icon: icon,
-                colors: colors,
-                showCloseButton: showCloseButton,
-                closeButtonSemanticsLabel: closeButtonSemanticsLabel,
-                onClose: () => _handleClose(context),
-              ),
-              Flexible(
-                child: scrollableBody
-                    ? SingleChildScrollView(child: body)
-                    : body,
-              ),
-              if (actions != null && actions!.isNotEmpty)
-                _Footer(colors: colors, actions: actions!),
-            ],
+    return PopScope(
+      canPop: closeEnabled,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(NightshadeTokens.spaceLg),
+        child: Container(
+          width: dialogSize.width,
+          height: dialogSize.height,
+          decoration: BoxDecoration(
+            color: colors.surfaceElevated,
+            borderRadius: NightshadeTokens.borderRadiusMd,
+            border: Border.all(color: colors.border),
+            boxShadow: NightshadeTokens.shadowLg,
+          ),
+          child: ClipRRect(
+            borderRadius: NightshadeTokens.borderRadiusMd,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _Header(
+                  title: title,
+                  icon: icon,
+                  colors: colors,
+                  showCloseButton: showCloseButton,
+                  closeEnabled: closeEnabled,
+                  closeButtonSemanticsLabel: closeButtonSemanticsLabel,
+                  onClose: () => _handleClose(context),
+                ),
+                Flexible(
+                  child: scrollableBody
+                      ? SingleChildScrollView(child: body)
+                      : body,
+                ),
+                if (actions != null && actions!.isNotEmpty)
+                  _Footer(colors: colors, actions: actions!),
+              ],
+            ),
           ),
         ),
       ),
@@ -152,6 +166,7 @@ class _Header extends StatelessWidget {
   final IconData? icon;
   final NightshadeColors colors;
   final bool showCloseButton;
+  final bool closeEnabled;
   final String closeButtonSemanticsLabel;
   final VoidCallback onClose;
 
@@ -160,6 +175,7 @@ class _Header extends StatelessWidget {
     required this.icon,
     required this.colors,
     required this.showCloseButton,
+    required this.closeEnabled,
     required this.closeButtonSemanticsLabel,
     required this.onClose,
   });
@@ -197,10 +213,11 @@ class _Header extends StatelessWidget {
           if (showCloseButton)
             Semantics(
               button: true,
+              enabled: closeEnabled,
               label: closeButtonSemanticsLabel,
               child: IconButton(
                 tooltip: closeButtonSemanticsLabel,
-                onPressed: onClose,
+                onPressed: closeEnabled ? onClose : null,
                 icon: Icon(LucideIcons.x, color: colors.textMuted),
                 splashRadius: 18,
               ),
@@ -220,6 +237,7 @@ class _Footer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceXl,
         vertical: NightshadeTokens.spaceMd,

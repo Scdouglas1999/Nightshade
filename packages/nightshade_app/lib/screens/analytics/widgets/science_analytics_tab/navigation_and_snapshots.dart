@@ -1,5 +1,45 @@
 part of '../science_analytics_tab.dart';
 
+/// Export the Science tab's shortcut report without ever reading a remote
+/// controller's empty local database. The local path preserves the existing
+/// Markdown exporter; a remote client downloads the host-generated PDF and
+/// stores a copy in its own exports directory.
+Future<File> exportScienceShortcutReport({
+  required NightshadeBackend backend,
+  required int sessionId,
+  required ScienceReportExporter localExporter,
+  Future<Directory> Function()? documentsDirectoryProvider,
+  DateTime? generatedAt,
+}) async {
+  if (backend is! NetworkBackend) {
+    return localExporter.exportToDisk(sessionId);
+  }
+
+  final bytes = await backend.generateObservationReport(sessionId);
+  if (bytes.isEmpty) {
+    throw StateError('The imaging host returned an empty science report.');
+  }
+  final documents =
+      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
+  final exportDirectory = Directory(
+    path.join(documents.path, 'Nightshade', 'exports'),
+  );
+  await exportDirectory.create(recursive: true);
+  final timestamp = (generatedAt ?? DateTime.now())
+      .toIso8601String()
+      .replaceAll(':', '-')
+      .split('.')
+      .first;
+  final file = File(
+    path.join(
+      exportDirectory.path,
+      'science_report_session_${sessionId}_$timestamp.pdf',
+    ),
+  );
+  await file.writeAsBytes(bytes, flush: true);
+  return file;
+}
+
 /// Inline export button that routes to the consolidated [ScienceExportHub]
 /// pre-selected to a specific dataset. Replaces the per-card CSV writer so
 /// there is one canonical export surface (audit §4.14).
@@ -117,24 +157,39 @@ class _ScienceJumpNav extends ConsumerWidget {
       ),
     );
     try {
+      final backend = ref.read(backendProvider);
       final exporter = ref.read(scienceReportExporterProvider);
-      final file = await exporter.exportToDisk(sessionId);
+      final file = await exportScienceShortcutReport(
+        backend: backend,
+        sessionId: sessionId,
+        localExporter: exporter,
+      );
       if (!context.mounted) return;
       messenger.clearSnackBars();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Saved to ${file.path}'),
-          action: SnackBarAction(
-            label: 'Open folder',
-            onPressed: () async {
-              final dir = file.parent.path;
-              await _openInShell(dir);
-            },
+      // On mobile the app-docs file is unreachable and "Open folder"
+      // (xdg-open/explorer) is a desktop-only shell action — share instead.
+      if (Platform.isAndroid || Platform.isIOS) {
+        await revealExportedFile(
+          context,
+          file.path,
+          subject: 'Nightshade science report',
+        );
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Saved to ${file.path}'),
+            action: SnackBarAction(
+              label: 'Open folder',
+              onPressed: () async {
+                final dir = file.parent.path;
+                await _openInShell(dir);
+              },
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 6),
           ),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 6),
-        ),
-      );
+        );
+      }
     } catch (e) {
       if (!context.mounted) return;
       messenger.clearSnackBars();
@@ -313,4 +368,40 @@ List<ScienceTileMetricRow> _latestTileMetricSnapshot(
   return rows
       .where((row) => row.capturedImageId == latestId)
       .toList(growable: false);
+}
+
+// Tiles for the frame chosen in the Timeline Scrubber. Falls back to the latest
+// snapshot when nothing is selected or the selected frame has no tile rows.
+List<ScienceTileMetricRow> _tileMetricSnapshotForImage(
+  List<ScienceTileMetricRow> rows,
+  int? imageId,
+) {
+  if (imageId != null) {
+    final forImage = rows
+        .where((row) => row.capturedImageId == imageId)
+        .toList(growable: false);
+    if (forImage.isNotEmpty) {
+      return forImage;
+    }
+  }
+  return _latestTileMetricSnapshot(rows);
+}
+
+// Frame-quality row for the scrubber selection, or the latest row when nothing
+// is selected / the selection has no matching metrics.
+ScienceFrameQualityMetricsRow? _frameQualityForImage(
+  List<ScienceFrameQualityMetricsRow> rows,
+  int? imageId,
+) {
+  if (rows.isEmpty) {
+    return null;
+  }
+  if (imageId != null) {
+    for (final row in rows) {
+      if (row.capturedImageId == imageId) {
+        return row;
+      }
+    }
+  }
+  return rows.last;
 }

@@ -89,7 +89,7 @@ impl DeviceManager {
                 }
                 "moravian" => {
                     let camera_id = id_str
-                        .parse::<u32>()
+                        .parse::<i32>()
                         .map_err(|_| "Invalid Moravian camera ID")?;
                     Box::new(MoravianCamera::new(camera_id))
                 }
@@ -289,7 +289,7 @@ impl DeviceManager {
             }
             "moravian" => {
                 let camera_id = id_str
-                    .parse::<u32>()
+                    .parse::<i32>()
                     .map_err(|_| "Invalid Moravian camera ID")?;
                 Box::new(MoravianCamera::new(camera_id))
             }

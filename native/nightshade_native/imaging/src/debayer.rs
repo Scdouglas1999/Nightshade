@@ -450,8 +450,23 @@ fn process_border_pixel(
         }
         BayerColor::Green => {
             green_row[x] = pixels[idx];
-            red_row[x] = interpolate_horizontal(pixels, w, h, x, y);
-            blue_row[x] = interpolate_vertical(pixels, w, h, x, y);
+            // A green site has two phases: in a red row its horizontal
+            // neighbours are red and its vertical neighbours blue; in a blue
+            // row this is reversed. Choose the axis from the actual colour of a
+            // horizontal neighbour instead of assuming the red-row phase, which
+            // mis-coloured every green pixel sitting in a blue row.
+            let horiz_neighbor = if x + 1 < w {
+                pattern.color_at(x + 1, y)
+            } else {
+                pattern.color_at(x - 1, y)
+            };
+            if horiz_neighbor == BayerColor::Red {
+                red_row[x] = interpolate_horizontal(pixels, w, h, x, y);
+                blue_row[x] = interpolate_vertical(pixels, w, h, x, y);
+            } else {
+                red_row[x] = interpolate_vertical(pixels, w, h, x, y);
+                blue_row[x] = interpolate_horizontal(pixels, w, h, x, y);
+            }
         }
         BayerColor::Blue => {
             blue_row[x] = pixels[idx];
@@ -770,6 +785,31 @@ mod tests {
         assert_eq!(rgb[idx], 1000);
         assert_eq!(rgb[idx + 1], 500);
         assert_eq!(rgb[idx + 2], 100);
+    }
+
+    #[test]
+    fn vng_border_green_phase_picks_correct_axis() {
+        // Regression (#18): a green border pixel in a *blue* row (RGGB (0,1))
+        // has blue neighbours horizontally and red vertically. The old border
+        // handler assumed the red-row phase for every green pixel, swapping
+        // red/blue on the blue-row greens. A 4x4 image is entirely within the
+        // 2-pixel VNG border, so every pixel exercises `process_border_pixel`.
+        // With uniform per-colour values (R=1000, G=500, B=100) the recovered
+        // channels must equal the true colours regardless of stencil size.
+        let pixels = patterned_raw(BayerPattern::RGGB, 4, 4);
+        let rgb = debayer_to_rgb16(&pixels, 4, 4, BayerPattern::RGGB, DebayerAlgorithm::VNG);
+        // Green site at (x=0, y=1): a blue-row green on the border.
+        let idx = (1 * 4 + 0) * 3;
+        assert_eq!(
+            rgb[idx], 1000,
+            "red must come from the vertical red neighbours"
+        );
+        assert_eq!(rgb[idx + 1], 500, "green is the sampled value");
+        assert_eq!(
+            rgb[idx + 2],
+            100,
+            "blue must come from the horizontal blue neighbours"
+        );
     }
 
     #[test]

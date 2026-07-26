@@ -99,7 +99,7 @@ SPA upgrades the bearer to an `HttpOnly nightshade_session` cookie via
 | Image preview  | `GET /api/camera/last-image/jpeg`, polled via the camera panel | Driven by `ExposureComplete` events; a 30s grace timer kicks a manual fetch if no event arrives |
 | Image gallery  | `GET /api/images?limit=24` + `GET /api/images/<id>/thumbnail` | Modal preview uses the same thumbnail endpoint at higher resolution |
 | Log tail       | `EventSource /api/logs/tail?minSeverity=info&access_token=...` | Bearer goes in the query string because EventSource lacks a header API |
-| Sequencer state | `GET /api/sequencer/status` + WS sequencer events | WS-driven; REST fallback only when WS is silent for 10s |
+| Sequencer state | `GET /api/sequencer/status` + WS sequencer events | WS-driven; REST fallback only when WS is silent for 45s |
 
 ### Update model: WS firehose first, REST as a silence fallback
 

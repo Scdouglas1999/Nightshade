@@ -16,11 +16,11 @@ impl InstructionNode for ParkInstruction {
 
     async fn execute(
         &self,
-        _node_id: &str,
+        node_id: &str,
         _node_type: &NodeType,
         context: &mut ExecutionContext,
     ) -> NodeStatus {
-        let ctx = context.to_instruction_context().await;
+        let ctx = context.to_instruction_context(node_id).await;
         execute_park(&ctx)
             .await
             .log_and_get_status_with_context("Park", &ctx)

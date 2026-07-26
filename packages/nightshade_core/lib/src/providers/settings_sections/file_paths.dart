@@ -16,7 +16,18 @@ part of '../settings_provider.dart';
 /// Setters for global file-path defaults.
 extension FilePathSettingsSection on AppSettingsNotifier {
   Future<void> setImageOutputPath(String value) async {
-    await _saveSetting('image_output_path', value);
+    // Keep the legacy key synchronized while older post-session consumers and
+    // existing databases migrate to image_output_path.
+    if (ref.read(backendProvider) is NetworkBackend) {
+      // The remote wire model owns only the canonical field; the host's full
+      // settings persistence mirrors it into the compatibility key.
+      await _saveSetting('image_output_path', value);
+    } else {
+      await _saveSettings({
+        'image_output_path': value,
+        'default_image_directory': value,
+      });
+    }
     _patchState((s) => s.copyWith(imageOutputPath: value));
   }
 

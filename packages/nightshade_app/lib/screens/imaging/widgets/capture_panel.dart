@@ -1,10 +1,12 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
+import '../../../utils/confirm_dialog.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
@@ -12,6 +14,39 @@ import 'panel_widgets.dart';
 
 // Provider for park mount on end setting
 final parkMountOnEndProvider = StateProvider<bool>((ref) => false);
+
+typedef CaptureSavePathPicker = Future<String?> Function(
+  BuildContext context, {
+  required bool isRemote,
+  required String? initialPath,
+});
+
+typedef CaptureSavePathWriter = Future<void> Function(String path);
+
+Future<String?> _pickCaptureSavePath(
+  BuildContext context, {
+  required bool isRemote,
+  required String? initialPath,
+}) {
+  if (isRemote) {
+    return RemoteDirectoryPickerDialog.show(
+      context,
+      title: 'Select host capture folder',
+      initialPath: initialPath,
+    );
+  }
+  return getDirectoryPath(
+    confirmButtonText: 'Select',
+    initialDirectory: initialPath,
+  );
+}
+
+final captureSavePathPickerProvider =
+    Provider<CaptureSavePathPicker>((ref) => _pickCaptureSavePath);
+
+final captureSavePathWriterProvider = Provider<CaptureSavePathWriter>((ref) {
+  return ref.read(appSettingsProvider.notifier).setImageOutputPath;
+});
 
 class CapturePanel extends ConsumerWidget {
   final NightshadeColors colors;
@@ -109,61 +144,26 @@ class CapturePanel extends ConsumerWidget {
             colors: colors,
             child: Column(
               children: [
-                DropdownRow(
+                InputRow(
                   label: 'Format',
-                  value: namingPattern.format.displayName,
-                  items:
-                      ImageFileFormat.values.map((f) => f.displayName).toList(),
+                  value: '$kCaptureImageFormat · $kCaptureBitDepth',
                   colors: colors,
-                  onChanged: (value) {
-                    if (value != null) {
-                      final format = ImageFileFormat.values.firstWhere(
-                        (f) => f.displayName == value,
-                        orElse: () => ImageFileFormat.fits,
-                      );
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setImageFormat(format.settingsValue);
-                    }
-                  },
                 ),
                 const SizedBox(height: 12),
                 // Remote paths live on the imaging host; browse via the API.
                 InputRow(
                   label: isRemoteMode ? 'Save Path (Host)' : 'Save Path',
-                  value: namingPattern.baseDir,
+                  // An unset capture directory persists as '.' — surface it
+                  // as an actionable prompt instead of a bare dot.
+                  value: namingPattern.baseDir.trim().isEmpty ||
+                          namingPattern.baseDir.trim() == '.'
+                      ? 'Not set — choose a folder'
+                      : namingPattern.baseDir,
                   colors: colors,
-                  trailing: GestureDetector(
-                    onTap: () async {
-                      if (isRemoteMode) {
-                        final result = await RemoteDirectoryPickerDialog.show(
-                          context,
-                          title: 'Select host capture folder',
-                          initialPath: namingPattern.baseDir.isNotEmpty
-                              ? namingPattern.baseDir
-                              : null,
-                        );
-                        if (result != null) {
-                          await ref
-                              .read(appSettingsProvider.notifier)
-                              .setImageOutputPath(result);
-                        }
-                        return;
-                      }
-                      final result = await getDirectoryPath(
-                        confirmButtonText: 'Select',
-                        initialDirectory: namingPattern.baseDir.isNotEmpty
-                            ? namingPattern.baseDir
-                            : null,
-                      );
-                      if (result != null) {
-                        await ref
-                            .read(appSettingsProvider.notifier)
-                            .setImageOutputPath(result);
-                      }
-                    },
-                    child: Icon(NightshadeIcons.folderOpen,
-                        size: 14, color: colors.textSecondary),
+                  trailing: CaptureSavePathButton(
+                    colors: colors,
+                    currentPath: namingPattern.baseDir,
+                    isRemote: isRemoteMode,
                   ),
                 ),
               ],
@@ -186,7 +186,8 @@ class CapturePanel extends ConsumerWidget {
                             color: colors.textSecondary)),
                     Flexible(
                       child: Text(
-                        '${sessionImages.length} frames',
+                        '${sessionImages.length} '
+                        '${sessionImages.length == 1 ? 'frame' : 'frames'}',
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         style: NightshadeTypography.labelSm
@@ -271,7 +272,13 @@ class CapturePanel extends ConsumerWidget {
                         icon: LucideIcons.galleryHorizontal,
                         colors: colors,
                         onTap: () {
-                          // Would open gallery view
+                          final sessionId = sessionState.dbSessionId;
+                          if (sessionId != null) {
+                            context.push('/session-review?session=$sessionId');
+                          } else {
+                            context.showWarningSnackBar(
+                                'No active session to review');
+                          }
                         },
                       ),
                     ),
@@ -282,7 +289,21 @@ class CapturePanel extends ConsumerWidget {
                         icon: NightshadeIcons.delete,
                         isOutline: true,
                         colors: colors,
-                        onTap: () {
+                        // Confirm before wiping: clearing drops the in-memory
+                        // frame strip and integration stats shown here, which
+                        // cannot be reconstructed from the UI. Captured files
+                        // on disk are untouched.
+                        onTap: () async {
+                          final confirmed = await ConfirmDialog.show(
+                            context: context,
+                            title: 'Clear Session View?',
+                            message: 'This clears the session frame list and '
+                                'integration stats shown here. Your captured '
+                                'files stay on disk.',
+                            confirmLabel: 'Clear',
+                            isDestructive: true,
+                          );
+                          if (!confirmed || !context.mounted) return;
                           ref
                               .read(sessionImagesProvider.notifier)
                               .clearSession();
@@ -337,130 +358,147 @@ class CapturePanel extends ConsumerWidget {
   void _showEndSessionDialog(
       BuildContext context, WidgetRef ref, NightshadeColors colors) {
     final sessionState = ref.read(sessionStateProvider);
+    var isEnding = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(NightshadeIcons.stopCircle, color: colors.warning),
-            const SizedBox(width: 12),
-            const Text('End Session'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to end the current imaging session?',
-              style: TextStyle(color: colors.textPrimary),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: !isEnding,
+          child: AlertDialog(
+            title: Row(
+              children: [
+                Icon(NightshadeIcons.stopCircle, color: colors.warning),
+                const SizedBox(width: 12),
+                const Text('End Session'),
+              ],
             ),
-            const SizedBox(height: 16),
-            NightshadeCard(
-              variant: CardVariant.subtle,
-              padding: const EdgeInsets.all(12),
-              borderRadius: NightshadeTokens.radiusInline8,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to end the current imaging session?',
+                  style: TextStyle(color: colors.textPrimary),
+                ),
+                const SizedBox(height: 16),
+                NightshadeCard(
+                  variant: CardVariant.subtle,
+                  padding: const EdgeInsets.all(12),
+                  borderRadius: NightshadeTokens.radiusInline8,
+                  child: Column(
                     children: [
-                      Text('Images Captured:',
-                          style: TextStyle(color: colors.textSecondary)),
-                      Text('${sessionState.completedExposures}',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colors.textPrimary)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Images Captured:',
+                              style: TextStyle(color: colors.textSecondary)),
+                          Text('${sessionState.completedExposures}',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colors.textPrimary)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Total Integration:',
+                              style: TextStyle(color: colors.textSecondary)),
+                          Text(
+                              _formatDuration(
+                                  sessionState.totalIntegrationSecs),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colors.textPrimary)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Duration:',
+                              style: TextStyle(color: colors.textSecondary)),
+                          Text(
+                              sessionState.duration != null
+                                  ? _formatSessionDuration(
+                                      sessionState.duration!)
+                                  : '--:--:--',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colors.textPrimary)),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Total Integration:',
-                          style: TextStyle(color: colors.textSecondary)),
-                      Text(_formatDuration(sessionState.totalIntegrationSecs),
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colors.textPrimary)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Duration:',
-                          style: TextStyle(color: colors.textSecondary)),
-                      Text(
-                          sessionState.duration != null
-                              ? _formatSessionDuration(sessionState.duration!)
-                              : '--:--:--',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colors.textPrimary)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Consumer(
-              builder: (context, ref, child) {
-                final parkOnEnd = ref.watch(parkMountOnEndProvider);
-                final mountState = ref.watch(mountStateProvider);
-                final mountConnected = mountState.connectionState ==
-                    DeviceConnectionState.connected;
+                ),
+                const SizedBox(height: 16),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final parkOnEnd = ref.watch(parkMountOnEndProvider);
+                    final mountState = ref.watch(mountStateProvider);
+                    final mountConnected = mountState.connectionState ==
+                        DeviceConnectionState.connected;
 
-                return CheckboxListTile(
-                  value: parkOnEnd,
-                  onChanged: mountConnected
-                      ? (value) {
-                          ref.read(parkMountOnEndProvider.notifier).state =
-                              value ?? false;
-                        }
-                      : null,
-                  title: Text(
-                    'Park mount after ending session',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      color: mountConnected
-                          ? colors.textPrimary
-                          : colors.textSecondary,
-                    ),
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  enabled: mountConnected,
-                );
-              },
+                    return CheckboxListTile(
+                      value: parkOnEnd,
+                      onChanged: mountConnected
+                          ? (value) {
+                              ref.read(parkMountOnEndProvider.notifier).state =
+                                  value ?? false;
+                            }
+                          : null,
+                      title: Text(
+                        'Park mount after ending session',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize14,
+                          color: mountConnected
+                              ? colors.textPrimary
+                              : colors.textSecondary,
+                        ),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      enabled: mountConnected,
+                    );
+                  },
+                ),
+              ],
             ),
-          ],
+            actions: [
+              NightshadeButton(
+                onPressed:
+                    isEnding ? null : () => Navigator.of(dialogContext).pop(),
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+              ),
+              NightshadeButton(
+                onPressed: isEnding
+                    ? null
+                    : () async {
+                        setDialogState(() => isEnding = true);
+                        final ended = await _endSession(ref, context);
+                        if (!dialogContext.mounted) return;
+                        if (ended) {
+                          Navigator.of(dialogContext).pop();
+                        } else {
+                          setDialogState(() => isEnding = false);
+                        }
+                      },
+                label: 'End Session',
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
+                isLoading: isEnding,
+              ),
+            ],
+          ),
         ),
-        actions: [
-          NightshadeButton(
-            onPressed: () => Navigator.of(context).pop(),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-          NightshadeButton(
-            onPressed: () async {
-              // Capture context before closing dialog
-              final dialogContext = context;
-              Navigator.of(context).pop();
-              await _endSession(ref, dialogContext);
-            },
-            label: 'End Session',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-          ),
-        ],
       ),
     );
   }
 
-  Future<void> _endSession(WidgetRef ref, BuildContext context) async {
+  Future<bool> _endSession(WidgetRef ref, BuildContext context) async {
     final logger = ref.read(loggingServiceProvider);
     try {
       final parkOnEnd = ref.read(parkMountOnEndProvider);
@@ -470,23 +508,128 @@ class CapturePanel extends ConsumerWidget {
 
       // Park mount if requested (service handles connection check)
       if (parkOnEnd) {
-        logger.info('[Imaging] Parking mount after session end...',
-            source: 'CapturePanel');
-        final result = await ref.read(mountCommandServiceProvider).park();
-        if (context.mounted) {
-          context.showCommandActionResult(result);
-        }
-        if (result.isSuccess) {
-          logger.info('[Imaging] Mount parked successfully',
+        try {
+          logger.info('[Imaging] Parking mount after session end...',
               source: 'CapturePanel');
-        } else {
-          logger.warning('[Imaging] Mount park failed: ${result.message}',
-              source: 'CapturePanel');
+          final result = await ref.read(mountCommandServiceProvider).park();
+          if (context.mounted) {
+            context.showCommandActionResult(result);
+          }
+          if (result.isSuccess) {
+            logger.info('[Imaging] Mount parked successfully',
+                source: 'CapturePanel');
+          } else {
+            logger.warning('[Imaging] Mount park failed: ${result.message}',
+                source: 'CapturePanel');
+          }
+        } catch (e) {
+          logger.error('[Imaging] Session ended but mount park failed: $e',
+              source: 'CapturePanel', fields: {'error': e.toString()});
+          if (context.mounted) {
+            context.showErrorSnackBar('Session ended, but parking failed: $e');
+          }
         }
       }
+      return true;
     } catch (e) {
       logger.error('[Imaging] Error ending session: $e',
           source: 'CapturePanel', fields: {'error': e.toString()});
+      if (context.mounted) {
+        context.showErrorSnackBar('Failed to end session: $e');
+      }
+      return false;
     }
+  }
+}
+
+/// Host-authoritative browse action for the capture output folder.
+///
+/// The picker can remain open while the operator reconnects to another host.
+/// Its result therefore belongs to the backend that opened it, not whichever
+/// backend happens to be active when the platform dialog eventually returns.
+class CaptureSavePathButton extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final String currentPath;
+  final bool isRemote;
+
+  const CaptureSavePathButton({
+    super.key,
+    required this.colors,
+    required this.currentPath,
+    required this.isRemote,
+  });
+
+  @override
+  ConsumerState<CaptureSavePathButton> createState() =>
+      _CaptureSavePathButtonState();
+}
+
+class _CaptureSavePathButtonState extends ConsumerState<CaptureSavePathButton> {
+  bool _busy = false;
+  int _operationGeneration = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(backendProvider);
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (_busy && previous != null && !identical(previous, next)) {
+        _operationGeneration++;
+        setState(() => _busy = false);
+      }
+    });
+
+    return IconButton(
+      tooltip: widget.isRemote
+          ? 'Choose host capture folder'
+          : 'Choose capture folder',
+      constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+      padding: EdgeInsets.zero,
+      onPressed: _busy ? null : _choosePath,
+      icon: _busy
+          ? const NightshadeCircularProgress(
+              value: 0,
+              indeterminate: true,
+              size: 14,
+            )
+          : Icon(
+              NightshadeIcons.folderOpen,
+              size: 14,
+              color: widget.colors.textSecondary,
+            ),
+    );
+  }
+
+  Future<void> _choosePath() async {
+    final generation = ++_operationGeneration;
+    final authority = ref.read(backendProvider);
+    final initialPath = widget.currentPath.trim();
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(captureSavePathPickerProvider)(
+        context,
+        isRemote: widget.isRemote,
+        initialPath: initialPath.isEmpty ? null : initialPath,
+      );
+      if (result == null || !_isCurrent(generation, authority)) return;
+
+      await ref.read(captureSavePathWriterProvider)(result);
+    } catch (error) {
+      if (!mounted ||
+          generation != _operationGeneration ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
+      context.showErrorSnackBar('Could not update the capture folder: $error');
+    } finally {
+      if (mounted && generation == _operationGeneration) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  bool _isCurrent(int generation, NightshadeBackend authority) {
+    return mounted &&
+        generation == _operationGeneration &&
+        identical(ref.read(backendProvider), authority);
   }
 }

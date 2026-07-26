@@ -79,7 +79,7 @@ class _ActiveCard extends StatelessWidget {
     required this.theme,
   });
 
-  String _resolveBroadcastUrl(BuildContext context) {
+  String _resolveBroadcastBase(BuildContext context) {
     // Best-effort: the broadcast HTML page is served by the SAME
     // headless API server, so the IP comes from the existing
     // web_server_provider snapshot. The audience url is what the
@@ -92,16 +92,19 @@ class _ActiveCard extends StatelessWidget {
     // the user configured in app settings). Use the same port as
     // dashboard so the URL maps to the running server.
     final port = web.actualPort != 0 ? web.actualPort : state.port;
-    final base = 'http://$ip:$port${state.path}';
-    if (state.isPublic) return base;
-    // Don't leak the auth token to the dashboard's clipboard hint;
-    // the operator-facing URL shows the prompt instead.
-    return '$base?token=…';
+    return 'http://$ip:$port${state.path}';
   }
 
   @override
   Widget build(BuildContext context) {
-    final url = _resolveBroadcastUrl(context);
+    final base = _resolveBroadcastBase(context);
+    // The on-screen URL masks the private token (…) so it never renders
+    // as text, while Copy Link and the audience QR carry the real
+    // tokenised URL so a private stream actually opens.
+    final displayUrl = state.isPublic ? base : '$base?token=…';
+    final shareUrl = state.isPublic
+        ? base
+        : '$base?token=${Uri.encodeQueryComponent(state.authToken ?? '')}';
     final cs = theme.colorScheme;
     final liveColor = state.isPublic ? cs.tertiary : cs.secondary;
 
@@ -152,7 +155,7 @@ class _ActiveCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: SelectableText(
-                    url,
+                    displayUrl,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontFamily: 'monospace',
                     ),
@@ -162,7 +165,7 @@ class _ActiveCard extends StatelessWidget {
                   tooltip: 'Copy URL',
                   icon: const Icon(NightshadeIcons.copy, size: 18),
                   onPressed: () async {
-                    await Clipboard.setData(ClipboardData(text: url));
+                    await Clipboard.setData(ClipboardData(text: shareUrl));
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -189,7 +192,7 @@ class _ActiveCard extends StatelessWidget {
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
-                  child: _BroadcastQr(url: url),
+                  child: _BroadcastQr(url: shareUrl, semanticsUrl: displayUrl),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -305,9 +308,14 @@ class _LiveDotState extends State<_LiveDot>
 }
 
 class _BroadcastQr extends StatelessWidget {
+  /// Scannable payload — carries the real token for a private stream.
   final String url;
 
-  const _BroadcastQr({required this.url});
+  /// Masked URL used for the accessibility label so the token is never
+  /// exposed as readable text.
+  final String semanticsUrl;
+
+  const _BroadcastQr({required this.url, required this.semanticsUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -324,7 +332,7 @@ class _BroadcastQr extends StatelessWidget {
         dataModuleShape: QrDataModuleShape.square,
         color: Color(0xFF000000),
       ),
-      semanticsLabel: 'Broadcast QR: $url',
+      semanticsLabel: 'Broadcast QR: $semanticsUrl',
     );
   }
 }

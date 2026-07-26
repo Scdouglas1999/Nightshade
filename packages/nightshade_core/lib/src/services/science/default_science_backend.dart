@@ -53,15 +53,22 @@ class DefaultScienceBackend implements ScienceBackend {
     SolveOptions options,
   ) async {
     try {
+      final settings = _ref.read(appSettingsProvider).valueOrNull;
+      final forceBlind = settings?.blindSolve ?? false;
       final result = await _backend.plateSolve(
         imagePath: imagePath,
-        ra: options.raHintHours,
-        dec: options.decHintDegrees,
+        // Science models expose RA in hours; the imaging backend boundary is
+        // explicitly degrees in both local FFI and remote transports.
+        ra: forceBlind || options.raHintHours == null
+            ? null
+            : options.raHintHours! * 15.0,
+        dec: forceBlind ? null : options.decHintDegrees,
         fovDegrees: options.searchRadiusDegrees,
+        timeoutSeconds: settings?.plateSolveTimeout,
       );
       if (!result.success) return null;
       return WcsSolution(
-        raHours: result.ra,
+        raHours: result.ra / 15.0,
         decDegrees: result.dec,
         pixelScaleArcsecPerPixel: result.pixelScale,
         rotationDegrees: result.rotation,

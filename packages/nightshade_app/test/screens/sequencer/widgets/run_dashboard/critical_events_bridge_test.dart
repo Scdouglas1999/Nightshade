@@ -127,6 +127,11 @@ void main() {
       // catch the first emission. Buffer with a Completer so the test can
       // assert exactly one notification was enqueued for this event.
       final pushService = container.read(pushNotificationServiceProvider);
+      // The broadcaster starts fail-closed; load the push config (fresh DB →
+      // enabled defaults) and let its listener enable the service before the
+      // bridge fires, matching a running app with its config provisioned.
+      await container.read(pushNotificationConfigProvider.future);
+      await Future<void>.delayed(Duration.zero);
       final firstPush = Completer<PushNotification>();
       final pushSub = pushService.notifications.listen((n) {
         if (!firstPush.isCompleted) firstPush.complete(n);
@@ -215,8 +220,12 @@ void main() {
       );
       await container.read(appSettingsProvider.future);
 
-      // Subscribe and accumulate; we expect zero notifications.
+      // Subscribe and accumulate; we expect zero notifications. Enable the
+      // broadcaster authoritatively so this proves the pushCriticalAlerts gate
+      // suppresses the push, not merely that the fail-closed default did.
       final pushService = container.read(pushNotificationServiceProvider);
+      await container.read(pushNotificationConfigProvider.future);
+      await Future<void>.delayed(Duration.zero);
       final received = <PushNotification>[];
       final pushSub = pushService.notifications.listen(received.add);
       addTearDown(pushSub.cancel);
@@ -243,6 +252,8 @@ void main() {
       await container.read(appSettingsProvider.future);
 
       final pushService = container.read(pushNotificationServiceProvider);
+      await container.read(pushNotificationConfigProvider.future);
+      await Future<void>.delayed(Duration.zero);
       final firstPush = Completer<PushNotification>();
       final pushSub = pushService.notifications.listen((n) {
         if (!firstPush.isCompleted) firstPush.complete(n);

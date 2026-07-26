@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:uuid/uuid.dart';
 
 /// Build a multi-filter Smart Night sequence for a Plan Tonight target.
@@ -561,20 +562,29 @@ Future<bool> _loadMosaicNodesIntoEditor({
     if (parentForChildren == null) {
       return loadReplacing();
     }
-    for (final node in nodes.values) {
-      if (node.id == rootNode.id) {
-        // Re-parent the panel target headers under the current root.
-        for (final childId in rootNode.childIds) {
-          final child = nodes[childId];
-          if (child != null) {
-            notifier.addNode(child, parentId: parentForChildren);
-          }
-        }
-      } else if (node.parentId != rootNode.id) {
-        // Internal panel children — added under their original parent IDs.
-        notifier.addNode(node, parentId: node.parentId);
+
+    // MosaicService builds descendants before their parents and leaves the
+    // top-level TargetHeaderNodes with a null parent (the root owns them via
+    // childIds). Calling addNode in map order therefore attached exposures and
+    // loops directly to the editor root, then duplicated target IDs when the
+    // generated root was encountered. Normalize the root relationship and use
+    // the editor's atomic graph merge, which re-keys the complete subtree while
+    // preserving every parent/child edge.
+    final normalizedNodes = Map<String, SequenceNode>.from(nodes);
+    for (final childId in rootNode.childIds) {
+      final child = normalizedNodes[childId];
+      if (child == null) {
+        throw StateError(
+          'Mosaic root references missing panel node $childId',
+        );
       }
+      normalizedNodes[childId] = child.copyWith(parentId: rootNode.id);
     }
+    notifier.mergeTemplateNodes(
+      templateNodes: normalizedNodes,
+      templateRootId: rootNode.id,
+      targetId: parentForChildren,
+    );
     return true;
   } on NoActiveSequenceException {
     return loadReplacing();
@@ -681,6 +691,39 @@ Future<bool> loadPlanTonightSequenceIntoEditor({
 
   Future<bool> loadReplacing() async {
     try {
+      notifier.loadSequence(result.sequence, discardUnsaved: false);
+      return true;
+    } on UnsavedChangesException catch (e) {
+      if (!context.mounted) return false;
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard unsaved changes?'),
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              ctx,
+              designMaxWidth: 440,
+            ),
+            child: Text('"${e.currentSequenceName}" has unsaved changes. '
+                'Open the loaded sequence anyway?'),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Discard and open',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (discard != true) return false;
       notifier.loadSequence(result.sequence, discardUnsaved: true);
       return true;
     } on SequenceLockedException catch (e) {

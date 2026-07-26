@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart'
+    show immutable, kReleaseMode, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:meta/meta.dart';
 import '../backend/network_backend.dart';
 import '../models/backend/event_types.dart'
     show EventCategory, NightshadeEvent, settingsChangedEventType;
@@ -65,6 +66,39 @@ part 'settings_sections/app_settings_remote_mapping.dart';
 part 'settings_sections/app_settings_stored_snapshot_mapping.dart';
 part 'settings_sections/app_settings_partial_persistence_mapping.dart';
 part 'settings_sections/app_settings_notifier.dart';
+
+@immutable
+class AppSettingsWriteFailure {
+  final String setting;
+  final Object error;
+  final DateTime occurredAt;
+
+  const AppSettingsWriteFailure({
+    required this.setting,
+    required this.error,
+    required this.occurredAt,
+  });
+
+  String get message =>
+      'Could not save $setting. The displayed value may not match the host.';
+}
+
+/// Central error channel for settings controls whose async setter callback is
+/// intentionally fire-and-forget (switches, sliders, and text fields).
+final appSettingsWriteFailureProvider = StateProvider<AppSettingsWriteFailure?>(
+  (ref) => null,
+);
+
+/// Simulation is a development-only capability. Normalize every persisted,
+/// remote, and UI-facing value through one function so a release build cannot
+/// display or transmit an enabled state that its executor and native bridge
+/// will refuse to honor.
+bool effectiveSimulationMode(
+  bool requested, {
+  bool releaseMode = kReleaseMode,
+}) {
+  return !releaseMode && requested;
+}
 
 // ============================================================================
 // Pre-flight strictness
@@ -185,6 +219,9 @@ final appObserverLocationProvider = Provider<LocationSettings?>((ref) {
   );
 
   if (location == null) {
+    return null;
+  }
+  if (location.latitude == 0.0 && location.longitude == 0.0) {
     return null;
   }
 

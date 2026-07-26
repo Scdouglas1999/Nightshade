@@ -16,7 +16,7 @@ Plan targets, frame the sky, automate capture, guide, monitor weather, and revie
 
 [**Download Nightshade**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [What's new in 5.0](docs/release/v5.0.0.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
 
-<img src="assets/screenshots/desktop-dashboard.png?v=20260721" width="920" alt="Nightshade control room dashboard during an active NGC 7000 imaging session">
+<img src="assets/screenshots/desktop-dashboard.png?v=20260721" width="920" alt="Nightshade control room dashboard showing simulator camera frames and live PHD2 guiding telemetry">
 
 </div>
 
@@ -55,32 +55,36 @@ Choose a target once. Nightshade carries its coordinates, framing, rotation, opt
 </table>
 
 <div align="center">
-<img src="assets/screenshots/sequencer.png?v=20260721" width="430" alt="Nightshade visual sequencer running a narrowband capture plan">
-<img src="assets/screenshots/imaging.png?v=20260721" width="430" alt="Nightshade imaging workspace with active capture controls and frame analysis">
+<img src="assets/screenshots/equipment.png?v=20260721" width="920" alt="Nightshade equipment workspace with a nine-device simulated observatory connected">
+</div>
+
+<div align="center">
+<img src="assets/screenshots/sequencer.png?v=20260721" width="430" alt="Nightshade visual sequencer with an eleven-node NGC 7380 LRGB capture plan">
+<img src="assets/screenshots/imaging.png?v=20260721" width="430" alt="Nightshade imaging workspace showing a captured simulator frame and live frame analysis">
 </div>
 
 ## From target to finished session
 
 <table>
 <tr>
-<td width="50%"><img src="assets/screenshots/planetarium.png?v=20260721" alt="Nightshade planetarium with field-of-view overlays"></td>
-<td width="50%"><img src="assets/screenshots/plan-tonight.png?v=20260721" alt="Plan Tonight recommendations for NGC 7000"></td>
+<td width="50%"><img src="assets/screenshots/planetarium.png?v=20260721" alt="Nightshade planetarium with the current sky and tonight's darkness window"></td>
+<td width="50%"><img src="assets/screenshots/plan-tonight.png?v=20260721" alt="Plan Tonight recommendation for NGC 7380 with its altitude forecast"></td>
 </tr>
 <tr>
 <td><strong>Explore.</strong> Navigate a GPU-rendered sky, inspect objects, overlay the active optical train, and switch to red night vision at the pier.</td>
 <td><strong>Decide.</strong> Compare scheduler-ranked targets using the same constraints the automation engine will enforce.</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/framing.png?v=20260721" alt="Nightshade framing assistant with sky survey overlay and rotation controls"></td>
-<td><img src="assets/screenshots/guiding.png?v=20260721" alt="Nightshade guiding workspace with PHD2 telemetry and RMS graph"></td>
+<td><img src="assets/screenshots/framing.png?v=20260721" alt="Nightshade framing assistant showing NGC 7380 in DSS2 survey imagery with a four-panel mosaic"></td>
+<td><img src="assets/screenshots/guiding.png?v=20260721" alt="Nightshade guiding workspace with a live guide-star image and stochastic PHD2 telemetry"></td>
 </tr>
 <tr>
 <td><strong>Compose.</strong> Plate-solve, center, rotate, and design mosaics against registered survey imagery before spending clear-sky time.</td>
 <td><strong>Track.</strong> Operate PHD2 from the same workspace, watch RA/Dec error and RMS, and let capture wait for dither settling.</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/weather.png?v=20260721" alt="Nightshade weather radar and observing conditions"></td>
-<td><img src="assets/screenshots/analytics.png?v=20260721" alt="Nightshade science and session analytics workspace"></td>
+<td><img src="assets/screenshots/weather.png?v=20260721" alt="Nightshade weather workspace displaying current GOES satellite cloud data"></td>
+<td><img src="assets/screenshots/analytics.png?v=20260721" alt="Nightshade session analytics populated by three simulator exposures and live guiding"></td>
 </tr>
 <tr>
 <td><strong>Protect.</strong> Combine weather, safety-monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</td>
@@ -97,7 +101,7 @@ Choose a target once. Nightshade carries its coordinates, framing, rotation, opt
 - **Honest ownership:** the native sequencer owns an active run; desktop, mobile, and browser surfaces observe and control that same session instead of creating competing copies.
 
 <div align="center">
-<img src="assets/screenshots/flat-wizard.png?v=20260721" width="700" alt="Nightshade flat wizard capturing filter-aware flats to a target ADU">
+<img src="assets/screenshots/flat-wizard.png?v=20260721" width="700" alt="Nightshade flat wizard calibrating exposure from measured simulator ADU samples">
 </div>
 
 The Flat Wizard measures ADU, converges on the correct exposure, and tracks filter-by-filter calibration using the active camera gain, offset, binning, and optical train.

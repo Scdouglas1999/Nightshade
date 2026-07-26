@@ -71,7 +71,7 @@ class _InstalledCatalogResultsSection extends ConsumerWidget {
   }
 }
 
-class _CatalogResultRow extends StatelessWidget {
+class _CatalogResultRow extends ConsumerWidget {
   final CatalogSearchResult match;
   final NightshadeColors colors;
 
@@ -81,7 +81,7 @@ class _CatalogResultRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final metaParts = <String>[
       match.type,
       if (match.magnitude != null) 'mag ${match.magnitude!.toStringAsFixed(1)}',
@@ -126,6 +126,11 @@ class _CatalogResultRow extends StatelessWidget {
               icon: LucideIcons.crosshair,
               size: ButtonSize.small,
               onPressed: () {
+                ref.read(framingProvider.notifier).setTargetCoordinates(
+                      match.ra / 15.0,
+                      match.dec,
+                      name: match.name,
+                    );
                 final uri = Uri(
                   path: '/framing',
                   queryParameters: {
@@ -276,6 +281,11 @@ class _SimbadResultRow extends ConsumerWidget {
               icon: LucideIcons.crosshair,
               size: ButtonSize.small,
               onPressed: () {
+                ref.read(framingProvider.notifier).setTargetCoordinates(
+                      match.raHours,
+                      match.decDegrees,
+                      name: match.mainId,
+                    );
                 final uri = Uri(
                   path: '/framing',
                   queryParameters: {

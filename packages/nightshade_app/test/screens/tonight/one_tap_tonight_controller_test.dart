@@ -168,6 +168,29 @@ void main() {
     expect(pickCount, 2);
   });
 
+  test('go() swallows its post-await publish after dispose mid-run', () async {
+    final runGate = Completer<void>();
+    final controller = OneTapTonightController(
+      pick: () async => suggestion(),
+      frame: (_) {},
+      plan: (t) async => result(t),
+      run: (_) => runGate.future,
+    );
+
+    final chain = controller.go();
+    // Drain the chain up to the awaited run.
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.state.phase, OneTapPhase.starting);
+
+    // The screen navigates away while the run is still awaiting; the trailing
+    // `value = running` must be swallowed, not thrown on a disposed notifier.
+    controller.dispose();
+    runGate.complete();
+
+    await expectLater(chain, completes);
+    expect(controller.state.phase, OneTapPhase.starting);
+  });
+
   test('go() is a no-op while a chain is already busy', () async {
     final gate = Completer<TargetSuggestion?>();
     var pickStarts = 0;

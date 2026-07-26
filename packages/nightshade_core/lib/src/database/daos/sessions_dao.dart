@@ -8,6 +8,15 @@ import '../tables/targets.dart';
 
 part 'sessions_dao.g.dart';
 
+class ActiveImagingSessionException implements Exception {
+  final int sessionId;
+
+  const ActiveImagingSessionException(this.sessionId);
+
+  @override
+  String toString() => 'Imaging session $sessionId is already active';
+}
+
 @DriftAccessor(tables: [ImagingSessions, EquipmentProfiles, Sequences, Targets])
 class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SessionsDaoMixin {
@@ -76,17 +85,23 @@ class SessionsDao extends DatabaseAccessor<NightshadeDatabase>
     int? profileId,
     int? targetId,
     int? sequenceId,
-  }) {
-    return into(imagingSessions).insert(
-      ImagingSessionsCompanion.insert(
-        startTime: DateTime.now(),
-        name: Value(name),
-        profileId: Value(profileId),
-        targetId: Value(targetId),
-        sequenceId: Value(sequenceId),
-        status: const Value('active'),
-      ),
-    );
+  }) async {
+    return transaction(() async {
+      final active = await getActiveSessions();
+      if (active.isNotEmpty) {
+        throw ActiveImagingSessionException(active.first.id);
+      }
+      return into(imagingSessions).insert(
+        ImagingSessionsCompanion.insert(
+          startTime: DateTime.now(),
+          name: Value(name),
+          profileId: Value(profileId),
+          targetId: Value(targetId),
+          sequenceId: Value(sequenceId),
+          status: const Value('active'),
+        ),
+      );
+    });
   }
 
   /// End a session

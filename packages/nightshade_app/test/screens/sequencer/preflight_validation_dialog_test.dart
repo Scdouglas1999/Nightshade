@@ -1,4 +1,4 @@
-﻿// Smoke tests for the pre-flight validation dialog
+// Smoke tests for the pre-flight validation dialog
 // extensions. We don't drive the unified validator end-to-end here
 // (that's covered by the rule unit tests in `nightshade_core`); instead
 // we override `sequenceValidatorProvider` with a fake that returns a
@@ -51,6 +51,13 @@ class _FakeAppSettingsNotifier extends AppSettingsNotifier {
 
   @override
   Future<AppSettingsState> build() async => _initial;
+}
+
+class _FailingAppSettingsNotifier extends AppSettingsNotifier {
+  @override
+  Future<AppSettingsState> build() async {
+    throw StateError('settings database offline');
+  }
 }
 
 Widget _wrap(ProviderContainer container, Widget child) {
@@ -217,5 +224,174 @@ void main() {
     );
     expect(find.text('Optical Train'), findsOneWidget);
     expect(find.text('Optical Train Has Shifted'), findsOneWidget);
+  });
+
+  testWidgets('history lookup failure blocks start until operator decides',
+      (tester) async {
+    var started = false;
+    final container = ProviderContainer(overrides: [
+      currentSequenceProvider.overrideWith(
+        (ref) => _SeedingNotifier(ref, _sequence()),
+      ),
+      sequenceValidatorProvider.overrideWith(
+        (ref) => _FakeValidator(_result(const [])),
+      ),
+      appSettingsProvider.overrideWith(
+        () => _FakeAppSettingsNotifier(
+          const AppSettingsState(latitude: 40, longitude: -75),
+        ),
+      ),
+      sessionCarryOverProvider.overrideWith(
+        (ref) => throw StateError('history database offline'),
+      ),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        container,
+        PreFlightValidationDialog(onStartSequence: () => started = true),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.textContaining(RegExp(r'^Start (Sequence|Anyway)$')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Prior-session history unavailable'), findsOneWidget);
+    expect(find.textContaining('history database offline'), findsOneWidget);
+    expect(started, isFalse);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(started, isFalse);
+    expect(find.text('Pre-Flight Validation'), findsOneWidget);
+  });
+
+  testWidgets('disabled auto-prompt does not read carry-over history',
+      (tester) async {
+    var started = false;
+    var historyReads = 0;
+    final container = ProviderContainer(overrides: [
+      currentSequenceProvider.overrideWith(
+        (ref) => _SeedingNotifier(ref, _sequence()),
+      ),
+      sequenceValidatorProvider.overrideWith(
+        (ref) => _FakeValidator(_result(const [])),
+      ),
+      appSettingsProvider.overrideWith(
+        () => _FakeAppSettingsNotifier(
+          const AppSettingsState(
+            latitude: 40,
+            longitude: -75,
+            sessionHandoffAutoPrompt: false,
+          ),
+        ),
+      ),
+      sessionCarryOverProvider.overrideWith((ref) {
+        historyReads++;
+        throw StateError('history should not be read');
+      }),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        container,
+        PreFlightValidationDialog(onStartSequence: () => started = true),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.textContaining(RegExp(r'^Start (Sequence|Anyway)$')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(started, isTrue);
+    expect(historyReads, 0);
+    expect(find.text('Prior-session history unavailable'), findsNothing);
+  });
+
+  testWidgets('settings authority failure becomes validation retry state',
+      (tester) async {
+    var started = false;
+    var historyReads = 0;
+    final container = ProviderContainer(overrides: [
+      currentSequenceProvider.overrideWith(
+        (ref) => _SeedingNotifier(ref, _sequence()),
+      ),
+      sequenceValidatorProvider.overrideWith(
+        (ref) => _FakeValidator(_result(const [])),
+      ),
+      appSettingsProvider.overrideWith(_FailingAppSettingsNotifier.new),
+      sessionCarryOverProvider.overrideWith((ref) {
+        historyReads++;
+        return const <SessionCarryOver>[];
+      }),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        container,
+        PreFlightValidationDialog(onStartSequence: () => started = true),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not validate sequence'), findsOneWidget);
+    expect(find.textContaining('settings database offline'), findsOneWidget);
+    expect(
+      find.widgetWithText(NightshadeButton, 'Retry validation'),
+      findsOneWidget,
+    );
+    final startGesture = find.ancestor(
+      of: find.text('Start Sequence'),
+      matching: find.byType(GestureDetector),
+    );
+    expect(startGesture, findsOneWidget);
+    expect(tester.widget<GestureDetector>(startGesture).onTap, isNull);
+    expect(started, isFalse);
+    expect(historyReads, 0);
+  });
+
+  testWidgets('explicit start without history sets one-shot authorization',
+      (tester) async {
+    var started = false;
+    final container = ProviderContainer(overrides: [
+      currentSequenceProvider.overrideWith(
+        (ref) => _SeedingNotifier(ref, _sequence()),
+      ),
+      sequenceValidatorProvider.overrideWith(
+        (ref) => _FakeValidator(_result(const [])),
+      ),
+      appSettingsProvider.overrideWith(
+        () => _FakeAppSettingsNotifier(
+          const AppSettingsState(latitude: 40, longitude: -75),
+        ),
+      ),
+      sessionCarryOverProvider.overrideWith(
+        (ref) => throw StateError('history database offline'),
+      ),
+    ]);
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      _wrap(
+        container,
+        PreFlightValidationDialog(onStartSequence: () => started = true),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.textContaining(RegExp(r'^Start (Sequence|Anyway)$')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Start without prior progress'));
+    await tester.pumpAndSettle();
+
+    expect(started, isTrue);
+    expect(container.read(sessionHandoffIgnoreUnavailableOnceProvider), isTrue);
   });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -42,6 +43,7 @@ class PreFlightValidationDialog extends ConsumerStatefulWidget {
 class _PreFlightValidationDialogState
     extends ConsumerState<PreFlightValidationDialog> {
   ValidationResult? _result;
+  Object? _validationError;
   PreSessionSimulationResult? _simulation;
   String? _simulationUnavailableReason;
   bool _isValidating = true;
@@ -70,23 +72,50 @@ class _PreFlightValidationDialogState
   Future<void> _runValidation() async {
     final sequence = ref.read(currentSequenceProvider);
     if (sequence == null) {
-      setState(() => _isValidating = false);
+      if (mounted) {
+        setState(() {
+          _result = null;
+          _validationError = null;
+          _isValidating = false;
+        });
+      }
       return;
     }
 
-    final validator = ref.read(sequenceValidatorProvider);
-    final result = await validator.validate(sequence);
-    final (simulation, simulationUnavailableReason) =
-        await _simulateCurrentSequence(sequence);
+    try {
+      final validator = ref.read(sequenceValidatorProvider);
+      final result = await validator.validate(sequence);
+      final (simulation, simulationUnavailableReason) =
+          await _simulateCurrentSequence(sequence);
 
-    if (mounted) {
+      if (mounted) {
+        setState(() {
+          _result = result;
+          _validationError = null;
+          _simulation = simulation;
+          _simulationUnavailableReason = simulationUnavailableReason;
+          _isValidating = false;
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
       setState(() {
-        _result = result;
-        _simulation = simulation;
-        _simulationUnavailableReason = simulationUnavailableReason;
+        _result = null;
+        _validationError = error;
+        _simulation = null;
+        _simulationUnavailableReason = null;
         _isValidating = false;
       });
     }
+  }
+
+  void _retryValidation() {
+    ref.invalidate(appSettingsProvider);
+    setState(() {
+      _validationError = null;
+      _isValidating = true;
+    });
+    _runValidation();
   }
 
   Future<(PreSessionSimulationResult?, String?)> _simulateCurrentSequence(
@@ -135,8 +164,9 @@ class _PreFlightValidationDialogState
         // Sequence has never been persisted — no run history to diff.
         return;
       }
-      final dao = ref.read(sequenceRunsDaoProvider);
-      final runs = await dao.getRunsForSequence(sequenceDbId);
+      final runs = await ref.read(
+        sequenceRunsForSequenceProvider(sequenceDbId).future,
+      );
       // Filter to "completed" runs only; failed / cancelled / running
       // runs are not the operator's reference point for "last known
       // good".
@@ -197,14 +227,36 @@ class _PreFlightValidationDialogState
     // still on screen, showing a "Preparing…" body — rather than popping
     // first and awaiting invisibly. This gives the operator a visible state
     // between pressing Start and the next dialog appearing.
-    final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
-    List<SessionCarryOver> carry = const <SessionCarryOver>[];
-    if (autoPrompt) {
-      setState(() => _preparing = true);
-      carry = await ref
-          .read(sessionCarryOverProvider.future)
-          .catchError((_) => const <SessionCarryOver>[]);
+    setState(() => _preparing = true);
+    late final bool autoPrompt;
+    try {
+      autoPrompt = await ref.read(sessionHandoffAutoPromptProvider.future);
+    } catch (error) {
       if (!mounted) return;
+      setState(() => _preparing = false);
+      final retry = await _confirmRetrySettings(error);
+      if (!retry || !mounted) return;
+      ref.invalidate(appSettingsProvider);
+      ref.invalidate(sessionHandoffAutoPromptProvider);
+      return _handleStartSequence();
+    }
+    if (!mounted) return;
+    List<SessionCarryOver> carry = const <SessionCarryOver>[];
+    var startWithoutHistory = false;
+    if (autoPrompt) {
+      try {
+        carry = await ref.read(sessionCarryOverProvider.future);
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _preparing = false);
+        startWithoutHistory = await _confirmStartWithoutHistory(error);
+        if (!startWithoutHistory || !mounted) return;
+      }
+      if (!mounted) return;
+      if (_preparing) {
+        setState(() => _preparing = false);
+      }
+    } else {
       setState(() => _preparing = false);
     }
 
@@ -235,13 +287,126 @@ class _PreFlightValidationDialogState
 
       // Only start the sequence if the user chose to unpark
       if (result == MountUnparkResult.unparkAndContinue) {
+        _authorizeStartWithoutHistory(startWithoutHistory);
         widget.onStartSequence?.call();
       }
       // If cancelled, do nothing (sequence won't start)
     } else {
       // Mount is not parked or not connected, just start the sequence
+      _authorizeStartWithoutHistory(startWithoutHistory);
       widget.onStartSequence?.call();
     }
+  }
+
+  void _authorizeStartWithoutHistory(bool authorized) {
+    if (!authorized || widget.onStartSequence == null) return;
+    ref.read(sessionHandoffIgnoreUnavailableOnceProvider.notifier).state = true;
+  }
+
+  Future<bool> _confirmStartWithoutHistory(Object error) async {
+    final colors = NightshadeColors.of(context);
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: colors.surfaceElevated,
+            title: Row(
+              children: [
+                Icon(LucideIcons.database, color: colors.warning, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                    child: Text('Prior-session history unavailable')),
+              ],
+            ),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Nightshade could not read the accepted frames from prior '
+                    'sessions. Starting without them can reset a multi-night '
+                    'integration budget to zero and recapture work you already '
+                    'completed. No hardware has started.',
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: 12),
+                  SelectableText(
+                    error.toString(),
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Start without prior progress'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<bool> _confirmRetrySettings(Object error) async {
+    final colors = NightshadeColors.of(context);
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            backgroundColor: colors.surfaceElevated,
+            title: Row(
+              children: [
+                Icon(LucideIcons.settings, color: colors.error, size: 20),
+                const SizedBox(width: 10),
+                const Expanded(child: Text('Sequence settings unavailable')),
+              ],
+            ),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Nightshade could not load the settings that control '
+                    'multi-night carry-over. The sequence has not started.',
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: 12),
+                  SelectableText(
+                    error.toString(),
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                icon: const Icon(LucideIcons.refreshCw, size: 16),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   @override
@@ -253,7 +418,7 @@ class _PreFlightValidationDialogState
       designHeight: 600,
     );
 
-    return Dialog(
+    final dialog = Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -285,6 +450,7 @@ class _PreFlightValidationDialogState
         ),
       ),
     );
+    return PopScope(canPop: !_preparing, child: dialog);
   }
 
   Widget _buildHeader(NightshadeColors colors) {
@@ -327,7 +493,7 @@ class _PreFlightValidationDialogState
           IconButton(
             icon: Icon(LucideIcons.x, color: colors.textMuted, size: 18),
             tooltip: 'Close',
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _preparing ? null : () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -398,6 +564,7 @@ class _PreFlightValidationDialogState
   }
 
   Widget _buildErrorState(NightshadeColors colors) {
+    final error = _validationError;
     return Padding(
       padding: const EdgeInsets.all(40),
       child: Column(
@@ -406,12 +573,33 @@ class _PreFlightValidationDialogState
           Icon(LucideIcons.alertCircle, size: 40, color: colors.error),
           const SizedBox(height: 16),
           Text(
-            'No sequence to validate',
+            error == null
+                ? 'No sequence to validate'
+                : 'Could not validate sequence',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize14,
               color: colors.textPrimary,
             ),
           ),
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            SelectableText(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+            NightshadeButton(
+              label: 'Retry validation',
+              icon: LucideIcons.refreshCw,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: _retryValidation,
+            ),
+          ],
         ],
       ),
     );
@@ -593,11 +781,18 @@ class _PreFlightValidationDialogState
                   colors: colors,
                   label: 'Issues',
                   value: '${simulation.issues.length}',
+                  // Green only when the simulation actually walked something.
+                  // An empty sequence simulates to 0 segments and therefore 0
+                  // issues, which used to paint a reassuring green "0" inside a
+                  // dialog whose header reads "Cannot Start Sequence" — the
+                  // simulation had not cleared the run, it had not evaluated it.
                   tone: simulation.hasBlockingIssues
                       ? colors.error
-                      : simulation.issues.isEmpty
-                          ? colors.success
-                          : colors.warning,
+                      : simulation.issues.isNotEmpty
+                          ? colors.warning
+                          : simulation.segments.isEmpty
+                              ? colors.textMuted
+                              : colors.success,
                 ),
               ],
             ),
@@ -616,18 +811,15 @@ class _PreFlightValidationDialogState
     );
   }
 
-  /// Deep-link to the dark library / calibration tools. The exact route
-  /// name is defined in `apps/desktop/lib/app_routes.dart` (and matched
-  /// on mobile). We deliberately do not build the capture sequence
-  /// here — opening the existing tool keeps the responsibility with the
-  /// dark-library screen.
+  /// Deep-link to the dark-library settings section. We deliberately do not
+  /// build the capture sequence here — opening the existing tool keeps the
+  /// responsibility with the dark-library screen.
   void _openCalibrationCenter() {
+    // Capture the router before closing so the dialog's context isn't defunct
+    // by the time we navigate.
+    final router = GoRouter.maybeOf(context);
     Navigator.of(context).pop();
-    // Use a name-based push so the dialog doesn't have to import the
-    // route table. `pushNamed` silently no-ops if the name isn't
-    // registered, which is the right behaviour on unit-test contexts
-    // that don't install routes.
-    Navigator.of(context).pushNamed('/calibration');
+    router?.go('/settings?section=dark-library');
   }
 
   Widget _buildSummary(
@@ -970,7 +1162,10 @@ class _PreFlightValidationDialogState
             width: 120,
             child: NightshadeButton(
               onPressed: () {
-                setState(() => _isValidating = true);
+                setState(() {
+                  _validationError = null;
+                  _isValidating = true;
+                });
                 _runValidation();
               },
               icon: LucideIcons.refreshCw,

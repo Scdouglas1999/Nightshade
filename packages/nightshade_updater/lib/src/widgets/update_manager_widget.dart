@@ -5,6 +5,8 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart'
+    show SequenceExecutionState, sequenceExecutionStateProvider;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../nightshade_updater.dart';
@@ -28,6 +30,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   bool _showingBanner = false;
   String _bannerVersion = '';
   String? _errorMessage;
+  int _bannerGeneration = 0;
   late final Stream<LanPushEvent> _lanPushStream;
   StreamSubscription<LanPushEvent>? _lanPushSubscription;
   static const _disabledUpdatesLog =
@@ -55,14 +58,15 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
   Future<void> _checkForStagedUpdate() async {
     if (!mounted) return;
-    if (!_isUpdateConfigured()) {
-      developer.log(_disabledUpdatesLog, name: 'UpdateManager');
-      return;
-    }
 
     developer.log('Checking for staged updates...', name: 'UpdateManager');
     final updateNotifier = ref.read(updateProvider.notifier);
     await updateNotifier.checkStagedUpdate();
+
+    final notice = updateNotifier.takePendingNotice();
+    if (notice != null) {
+      _showErrorBanner(notice.message);
+    }
 
     final state = ref.read(updateProvider);
     if (state.status == UpdateStatus.staged) {
@@ -79,7 +83,6 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
   void _onLanPushEvent(LanPushEvent event) {
     if (!mounted) return;
-    if (!_isUpdateConfigured()) return;
 
     switch (event) {
       case LanPushReceivedEvent(:final manifest, :final stagingPath):
@@ -108,8 +111,9 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
     }
   }
 
-  void _showLanPushBannerDirect(String version) {
+  void _showLanPushBannerDirect(String version, {bool autoDismiss = true}) {
     if (!mounted) return;
+    final generation = ++_bannerGeneration;
 
     developer.log(
       'Showing banner for version: $version',
@@ -118,18 +122,21 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
     setState(() {
       _showingBanner = true;
       _bannerVersion = version;
+      _errorMessage = null;
     });
 
-    // Auto-dismiss after 60 seconds
-    Future.delayed(const Duration(seconds: 60), () {
-      if (mounted && _showingBanner) {
-        setState(() => _showingBanner = false);
-      }
-    });
+    if (autoDismiss) {
+      Future.delayed(const Duration(seconds: 60), () {
+        if (mounted && _showingBanner && generation == _bannerGeneration) {
+          setState(() => _showingBanner = false);
+        }
+      });
+    }
   }
 
   void _hideBanner() {
     if (mounted) {
+      _bannerGeneration++;
       setState(() {
         _showingBanner = false;
         _errorMessage = null;
@@ -139,6 +146,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
   void _showErrorBanner(String error) {
     if (!mounted) return;
+    final generation = ++_bannerGeneration;
     setState(() {
       _showingBanner = true;
       _errorMessage = error;
@@ -146,8 +154,8 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
 
     // Auto-dismiss after 10 seconds
     Future.delayed(const Duration(seconds: 10), () {
-      if (mounted && _errorMessage != null) {
-        setState(() => _errorMessage = null);
+      if (mounted && generation == _bannerGeneration) {
+        _hideBanner();
       }
     });
   }
@@ -174,6 +182,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
       newVersion: manifest.version,
       releaseNotes: manifest.releaseNotes,
       downloadSizeMb: (manifest.compressedSize / 1024 / 1024).round(),
+      requiresManualUpgrade: state.requiresManualUpgrade,
       onUpdate: () {
         ref.read(updateProvider.notifier).downloadUpdate();
       },
@@ -181,22 +190,48 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
         ref.read(updateProvider.notifier).skipUpdate();
       },
       onLater: () {
-        // Just dismiss, will check again next launch
+        // Reset so a manual re-check can reopen the dialog this session.
+        _hasShownUpdateDialog = false;
       },
     );
   }
 
   void _showDownloadProgressDialog(UpdateState state) {
+    var dialogClosed = false;
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Consumer(
+      builder: (dialogContext) => Consumer(
         builder: (context, ref, _) {
           final currentState = ref.watch(updateProvider);
           if (currentState.status == UpdateStatus.staged) {
             // Download complete, close this dialog and show ready dialog
-            Navigator.of(context).pop();
-            Future.microtask(() => _showUpdateReadyDialog(currentState));
+            if (!dialogClosed) {
+              dialogClosed = true;
+              Future.microtask(() {
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+                if (mounted) _showUpdateReadyDialog(currentState);
+              });
+            }
+            return const SizedBox.shrink();
+          }
+
+          // Terminal non-download states leave nothing to show; close the
+          // dialog so a failed/cancelled download is not trapped behind it.
+          if (currentState.status == UpdateStatus.error ||
+              currentState.status == UpdateStatus.available ||
+              currentState.status == UpdateStatus.upToDate ||
+              currentState.status == UpdateStatus.idle) {
+            if (!dialogClosed) {
+              dialogClosed = true;
+              Future.microtask(() {
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              });
+            }
             return const SizedBox.shrink();
           }
 
@@ -206,7 +241,10 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
             downloadedMb: (currentState.downloadedBytes / 1024 / 1024).round(),
             totalMb: (currentState.totalBytes / 1024 / 1024).round(),
             status: 'Downloading...',
-            onCancel: null,
+            onCancel: () {
+              ref.read(updateProvider.notifier).cancelDownload();
+              Navigator.of(context).pop();
+            },
           );
         },
       ),
@@ -214,15 +252,26 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
   }
 
   void _showUpdateReadyDialog(UpdateState state) {
+    final sequencerState = ref.read(sequenceExecutionStateProvider);
+    final isSessionActive =
+        sequencerState == SequenceExecutionState.running ||
+        sequencerState == SequenceExecutionState.paused ||
+        sequencerState == SequenceExecutionState.stopping ||
+        sequencerState == SequenceExecutionState.recovering;
+
     UpdateReadyDialog.show(
       context,
       version: state.availableUpdate?.version ?? '',
-      isSessionActive: false,
+      isSessionActive: isSessionActive,
       onRestartNow: () {
         ref.read(updateProvider.notifier).applyUpdate();
       },
       onRestartLater: () {
-        // Dismiss, update will be applied on next restart
+        // Keep a persistent apply banner so the staged update stays reachable.
+        _showLanPushBannerDirect(
+          state.availableUpdate?.version ?? '',
+          autoDismiss: false,
+        );
       },
     );
   }
@@ -323,7 +372,7 @@ class _UpdateManagerWidgetState extends ConsumerState<UpdateManagerWidget> {
                     const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => setState(() => _errorMessage = null),
+                      onPressed: _hideBanner,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                     ),

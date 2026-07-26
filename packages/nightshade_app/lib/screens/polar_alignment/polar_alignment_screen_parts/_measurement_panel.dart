@@ -13,7 +13,12 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
       builder: (context, constraints) {
         // Below ~520px the image + fixed side panel get too tight, so stack
         // the image above the progress panel in a phone column.
-        final stack = constraints.maxWidth < 520;
+        // The center panel is vertically scrollable, so active content often
+        // receives an unbounded height even on a wide viewport. A stretched
+        // Row cannot lay out under that constraint; stack in that case and let
+        // the scroll view own the vertical extent.
+        final stack =
+            constraints.maxWidth < 520 || !constraints.hasBoundedHeight;
 
         final imageArea = Container(
           key: PolarAlignmentTutorialKeys.imageView,
@@ -265,15 +270,17 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
   ) {
     final error = state.currentError;
 
-    // Direction text - use Left/Right/Up/Down as per UX design
-    final azDir =
-        error != null ? (error.azimuthError > 0 ? 'Right' : 'Left') : '--';
-    final altDir =
-        error != null ? (error.altitudeError > 0 ? 'Down' : 'Up') : '--';
+    // Direction text - use Left/Right/Up/Down as per UX design. Both point
+    // the opposite way from the bullseye marker (the correction direction).
+    final azDir = error != null ? error.azimuthAdjustment : '--';
+    final altDir = error != null ? error.altitudeAdjustment : '--';
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stack = constraints.maxWidth < 520;
+        // See the measuring panel above: the surrounding active-state scroll
+        // view supplies unbounded height, which makes a stretched Row invalid.
+        final stack =
+            constraints.maxWidth < 520 || !constraints.hasBoundedHeight;
 
         final imageArea = Container(
           decoration: BoxDecoration(

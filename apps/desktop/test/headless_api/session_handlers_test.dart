@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/session_handlers.dart';
+import 'package:nightshade_desktop/headless_api/job_manager.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
@@ -46,6 +48,20 @@ void main() {
       expect(body['supportedFormats'], ['json', 'csv', 'html']);
     });
 
+    test('recent image limit rejects malformed and unsafe values', () async {
+      for (final limit in const ['many', '0', '-1', '1001']) {
+        final response = await translateHandlerErrors(
+          handlers.handleGetRecentImages(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/images/recent?limit=$limit'),
+            ),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest, reason: limit);
+      }
+    });
+
     test(
       'start polar alignment malformed payload returns JSON internal error',
       () async {
@@ -69,6 +85,195 @@ void main() {
       },
     );
 
+    test(
+      'polar Start awaits native admission even when jobs are wired',
+      () async {
+        final backend = _GatedPolarBackend();
+        final polarContainer = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+            activeEquipmentProfileProvider.overrideWithValue(null),
+          ],
+        );
+        addTearDown(polarContainer.dispose);
+        final jobs = JobManager(emitEvent: (_) {});
+        addTearDown(jobs.dispose);
+        final polarHandlers = SessionHandlers(polarContainer, jobManager: jobs);
+
+        var responseReturned = false;
+        final responseFuture = polarHandlers
+            .handleStartPolarAlignment(
+              Request(
+                'POST',
+                Uri.parse('http://localhost/api/polar-alignment/start'),
+                headers: {'content-type': 'application/json'},
+                body: jsonEncode({
+                  'exposure_time': 2.0,
+                  'step_size': 10.0,
+                  'binning': 1,
+                  'is_north': true,
+                  'manual_rotation': false,
+                  'rotate_east': true,
+                }),
+              ),
+            )
+            .then((response) {
+              responseReturned = true;
+              return response;
+            });
+        await Future<void>.delayed(Duration.zero);
+
+        expect(backend.startCalls, 1);
+        expect(responseReturned, isFalse);
+        expect(jobs.list(), isEmpty);
+
+        backend.startGate.complete();
+        final response = await responseFuture;
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body, {'status': 'started'});
+      },
+    );
+
+    test('polar Start propagates native admission failure', () async {
+      final backend = _GatedPolarBackend();
+      final polarContainer = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
+          activeEquipmentProfileProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(polarContainer.dispose);
+      final polarHandlers = SessionHandlers(polarContainer);
+
+      final responseFuture = polarHandlers.handleStartPolarAlignment(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/polar-alignment/start'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({
+            'exposure_time': 2.0,
+            'step_size': 10.0,
+            'binning': 1,
+            'is_north': true,
+            'manual_rotation': false,
+            'rotate_east': true,
+          }),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      backend.startGate.completeError(StateError('native rejected start'));
+
+      await expectLater(responseFuture, throwsA(isA<StateError>()));
+    });
+
+    test(
+      'headless-owned run persists history after remote disconnect',
+      () async {
+        final backend = _EventedPolarBackend();
+        addTearDown(backend.close);
+        final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(db.close);
+        final hostContainer = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+            databaseProvider.overrideWithValue(db),
+            activeEquipmentProfileProvider.overrideWithValue(null),
+          ],
+        );
+        addTearDown(hostContainer.dispose);
+        final hostHandlers = SessionHandlers(hostContainer);
+
+        await hostHandlers.handleStartPolarAlignment(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/polar-alignment/start'),
+            headers: {'content-type': 'application/json'},
+            body: jsonEncode({
+              'exposure_time': 2.0,
+              'step_size': 10.0,
+              'binning': 1,
+              'is_north': true,
+              'manual_rotation': false,
+              'rotate_east': true,
+              'auto_complete_threshold': 12.0,
+            }),
+          ),
+        );
+        expect(backend.autoCompleteThreshold, 12.0);
+
+        backend.emitStatus('adjusting');
+        await _pumpEvents();
+        backend.emitError(azimuth: 120, altitude: -60, total: 134.16);
+        await _pumpEvents();
+        backend.emitError(azimuth: 8, altitude: -4, total: 8.94);
+        await _pumpEvents();
+        backend.emitStatus('complete', status: 'Threshold reached');
+
+        List<PolarAlignmentHistoryEntry> rows = const [];
+        for (var i = 0; i < 50 && rows.isEmpty; i++) {
+          await Future<void>.delayed(Duration.zero);
+          rows = await db.polarAlignmentHistoryDao.getHistoryForProfile(null);
+        }
+        expect(rows, hasLength(1));
+        expect(rows.single.autoCompleted, isTrue);
+        expect(rows.single.finalTotalError, closeTo(8.94, 1e-9));
+      },
+    );
+
+    test('all-sky API cadence reaches hardware and recorded config', () async {
+      final backend = _EventedPolarBackend();
+      addTearDown(backend.close);
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      final hostContainer = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
+          databaseProvider.overrideWithValue(db),
+          activeEquipmentProfileProvider.overrideWithValue(null),
+        ],
+      );
+      addTearDown(hostContainer.dispose);
+      final hostHandlers = SessionHandlers(hostContainer);
+
+      await hostHandlers.handleStartAllSkyPolarAlignment(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/polar-alignment/all-sky/start'),
+          headers: {'content-type': 'application/json'},
+          body: jsonEncode({
+            'exposure_time': 2.0,
+            'solve_timeout': 20.0,
+            'binning': 1,
+            'is_north': false,
+            'acceptance_threshold_arcsec': 18.0,
+            'iteration_cadence_secs': 1.25,
+          }),
+        ),
+      );
+
+      expect(backend.allSkyCadence, 1.25);
+      expect(backend.allSkyThreshold, 18.0);
+      expect(
+        hostContainer
+            .read(polarAlignmentStateProvider)
+            .config!
+            .iterationCadenceSecs,
+        1.25,
+      );
+      await hostHandlers.handleStopPolarAlignment(
+        Request('POST', Uri.parse('http://localhost/api/polar-alignment/stop')),
+      );
+      expect(backend.stopCalls, 1);
+    });
+
     test('thumbnail invalid image ID returns JSON internal error', () async {
       final response = await translateHandlerErrors(
         handlers.handleGetImageThumbnail(
@@ -87,6 +292,78 @@ void main() {
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
+    });
+  });
+
+  group('SessionHandlers producing-node query validation', () {
+    test(
+      'rejects malformed limits and blank identifiers before DB work',
+      () async {
+        final guarded = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWith(
+              (ref) => throw StateError('database must not be resolved'),
+            ),
+          ],
+        );
+        addTearDown(guarded.dispose);
+        final guardedHandlers = SessionHandlers(guarded);
+        final queries = [
+          'producingNodeId=node&limit=abc',
+          'producingNodeId=node&limit=0',
+          'producingNodeId=node&limit=-1',
+          'producingNodeId=node&limit=5001',
+          'producingNodeId=node&limit=1.5',
+          'producingNodeId=%20%20',
+          'producingNodeId=node&producingRunId=%20%20',
+        ];
+
+        for (final query in queries) {
+          final response = await translateHandlerErrors(
+            guardedHandlers.handleGetAllImages(
+              Request('GET', Uri.parse('http://localhost/api/images?$query')),
+            ),
+          );
+          expect(response.statusCode, HttpStatus.badRequest, reason: query);
+        }
+      },
+    );
+
+    test('trims identifiers and forwards a valid result limit', () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      for (var i = 0; i < 2; i++) {
+        await db.imagesDao.insertSequenceFrame(
+          filePath: '/tmp/frame_$i.fits',
+          fileName: 'frame_$i.fits',
+          fileFormat: 'fits',
+          exposureDuration: 30,
+          capturedAt: DateTime.utc(2026, 7, 13, 1, i),
+          isAccepted: true,
+          producingNodeId: 'node-1',
+          producingRunId: 'run-1',
+        );
+      }
+      final local = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(local.dispose);
+      final localHandlers = SessionHandlers(local);
+
+      final response = await translateHandlerErrors(
+        localHandlers.handleGetAllImages(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/images?producingNodeId=%20node-1%20'
+              '&producingRunId=%20run-1%20&limit=1',
+            ),
+          ),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['images'], hasLength(1));
     });
   });
 
@@ -288,4 +565,129 @@ void main() {
       expect(response.statusCode, HttpStatus.notFound);
     });
   });
+}
+
+class _TestBackendNotifier extends BackendNotifier {
+  _TestBackendNotifier(super.ref, NightshadeBackend initial) : super() {
+    state = initial;
+  }
+}
+
+class _GatedPolarBackend extends DisconnectedBackend {
+  final Completer<void> startGate = Completer<void>();
+  int startCalls = 0;
+  double? autoCompleteThreshold;
+
+  @override
+  Future<void> startPolarAlignment({
+    required double exposureTime,
+    required double stepSize,
+    required int binning,
+    required bool isNorth,
+    required bool manualRotation,
+    required bool rotateEast,
+    int? gain,
+    int? offset,
+    double? solveTimeout,
+    bool? startFromCurrent,
+    double? autoCompleteThreshold,
+  }) async {
+    startCalls++;
+    this.autoCompleteThreshold = autoCompleteThreshold;
+    await startGate.future;
+  }
+}
+
+Future<void> _pumpEvents([int times = 6]) async {
+  for (var i = 0; i < times; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
+class _EventedPolarBackend extends DisconnectedBackend {
+  final StreamController<NightshadeEvent> _events =
+      StreamController<NightshadeEvent>.broadcast();
+
+  double? autoCompleteThreshold;
+  double? allSkyCadence;
+  double? allSkyThreshold;
+  int stopCalls = 0;
+
+  @override
+  Stream<NightshadeEvent> get eventStream => _events.stream;
+
+  @override
+  Future<void> startPolarAlignment({
+    required double exposureTime,
+    required double stepSize,
+    required int binning,
+    required bool isNorth,
+    required bool manualRotation,
+    required bool rotateEast,
+    int? gain,
+    int? offset,
+    double? solveTimeout,
+    bool? startFromCurrent,
+    double? autoCompleteThreshold,
+  }) async {
+    this.autoCompleteThreshold = autoCompleteThreshold;
+  }
+
+  @override
+  Future<void> startAllSkyPolarAlignment({
+    required double exposureTime,
+    required double solveTimeout,
+    required int binning,
+    required bool isNorth,
+    required double acceptanceThresholdArcsec,
+    required double iterationCadenceSecs,
+    int? gain,
+    int? offset,
+  }) async {
+    allSkyCadence = iterationCadenceSecs;
+    allSkyThreshold = acceptanceThresholdArcsec;
+  }
+
+  @override
+  Future<void> stopPolarAlignment() async {
+    stopCalls++;
+  }
+
+  void emitStatus(String phase, {String status = ''}) {
+    _events.add(
+      NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.polarAlignment,
+        eventType: 'PolarAlignmentStatus',
+        data: {'phase': phase, 'status': status, 'point': 0},
+      ),
+    );
+  }
+
+  void emitError({
+    required double azimuth,
+    required double altitude,
+    required double total,
+  }) {
+    _events.add(
+      NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.polarAlignment,
+        eventType: 'PolarAlignment',
+        data: {
+          'azimuth_error': azimuth,
+          'altitude_error': altitude,
+          'total_error': total,
+          'current_ra': 12.0,
+          'current_dec': 80.0,
+          'target_ra': 0.0,
+          'target_dec': 90.0,
+        },
+      ),
+    );
+  }
+
+  Future<void> close() => _events.close();
 }

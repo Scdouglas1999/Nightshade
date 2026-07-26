@@ -56,12 +56,12 @@ impl SequenceExecutor {
     }
 
     /// Stop the sequence. Sets the shared cancellation flag *before* sending
-    /// the channel command so even a slow command loop sees the cancel on
-    /// its next instruction-boundary check, and drops the local
-    /// `command_tx` so subsequent operator calls return the "not running"
-    /// error rather than silently posting to a doomed channel.
+    /// the channel command so the active instruction enters its hardware
+    /// cancellation path immediately, then waits for the supervised executor
+    /// task to finish that cleanup before confirming termination. Only after
+    /// that acknowledgment is the local `command_tx` dropped.
     pub async fn stop(&mut self) -> Result<(), String> {
-        self.is_cancelled.store(true, Ordering::Relaxed);
+        self.is_cancelled.store(true, Ordering::Release);
 
         if let Some(tx) = &self.command_tx {
             let _ = tx.send(ExecutorCommand::Stop).await;
@@ -69,8 +69,15 @@ impl SequenceExecutor {
 
         self.emit_manual_intervention("stop", serde_json::json!({}));
 
+        let completion_result = if let Some(completion_rx) = self.run_completion_rx.take() {
+            completion_rx.await.map_err(|_| {
+                "Executor task ended without confirming hardware cancellation cleanup".to_string()
+            })
+        } else {
+            Ok(())
+        };
         self.command_tx = None;
-        Ok(())
+        completion_result
     }
 
     /// Replay Debug — emit a [`crate::decision::DecisionCategory::ManualIntervention`]

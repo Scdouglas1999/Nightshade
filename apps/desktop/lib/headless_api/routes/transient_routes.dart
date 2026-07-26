@@ -24,6 +24,12 @@ List<HeadlessRoute> buildTransientRoutes(
     h.handleUpdateSettings,
   ),
   HeadlessRoute(HttpMethod.get, '/api/transients/queued', h.handleGetQueued),
+  HeadlessRoute(HttpMethod.get, '/api/transients/states', h.handleGetStates),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/transients/states',
+    h.handleClearStates,
+  ),
   HeadlessRoute(
     HttpMethod.post,
     '/api/transients/<id>/queue',
@@ -33,6 +39,11 @@ List<HeadlessRoute> buildTransientRoutes(
     HttpMethod.post,
     '/api/transients/<id>/dismiss',
     h.handleDismissTransient,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/transients/<id>/state',
+    h.handleUpdateState,
   ),
   HeadlessRoute(
     HttpMethod.post,

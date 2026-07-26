@@ -16,6 +16,7 @@ import '../models/planning/target_suggestion.dart';
 import '../models/target/target_models.dart';
 import '../services/mosaic_project_service.dart';
 import '../services/target_library_service.dart';
+import '../utils/coordinate_parser.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
@@ -61,15 +62,47 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Drives the resize-reload decision in [onCanvasResized]; reset to `null`
   /// whenever the image is cleared so the next load re-establishes it.
   double? _cutoutCanvasWidthPx;
+  Object? _surveyRequestToken;
+  int _targetPushRevision = 0;
+  Future<void> _targetPushTail = Future<void>.value();
 
-  FramingNotifier(this._ref) : super(const FramingState());
+  FramingNotifier(this._ref) : super(const FramingState()) {
+    _ref.listen(backendProvider, (previous, next) {
+      if (!mounted || identical(previous, next)) return;
+      _cancelPendingTargetWork();
+      _cutoutCanvasWidthPx = null;
+      state = state.copyWith(clearTarget: true, clearImage: true);
+    });
+  }
 
   FramingState get _currentState => state;
   set _currentState(FramingState value) => state = value;
-  bool get _isMounted => mounted;
 
-  Future<void> loadSurveyImage({double? canvasWidthLogicalPx}) =>
-      _loadSurveyImage(canvasWidthLogicalPx: canvasWidthLogicalPx);
+  Future<void> loadSurveyImage({double? canvasWidthLogicalPx}) {
+    final token = Object();
+    _surveyRequestToken = token;
+    return _loadSurveyImage(
+      token: token,
+      canvasWidthLogicalPx: canvasWidthLogicalPx,
+    );
+  }
+
+  bool _isCurrentSurveyRequest(
+    Object token,
+    FramingTarget target,
+    SurveySource source,
+  ) {
+    return mounted &&
+        identical(token, _surveyRequestToken) &&
+        identical(target, state.target) &&
+        source == state.surveySource;
+  }
+
+  void _cancelPendingTargetWork() {
+    _surveyRequestToken = Object();
+    _targetPushRevision++;
+    _targetPushTail = Future<void>.value();
+  }
 
   /// The cutout pixel width to request for a canvas of [canvasWidthLogicalPx]
   /// logical pixels.
@@ -142,6 +175,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
     if (fromRemoteSync) {
       // Echo of a host-driven change — do not re-persist or push back.
+      _targetPushRevision++;
+      _targetPushTail = Future<void>.value();
       return;
     }
 
@@ -149,13 +184,11 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
     final backend = _ref.read(backendProvider);
     if (backend is NetworkBackend) {
-      unawaited(
-        _pushTargetToHost(
-          backend,
-          raHours: raHours,
-          decDegrees: decDegrees,
-          name: targetName,
-        ),
+      _queueTargetPush(
+        backend,
+        raHours: raHours,
+        decDegrees: decDegrees,
+        name: targetName,
       );
     }
   }
@@ -180,6 +213,38 @@ class FramingNotifier extends StateNotifier<FramingState> {
     );
     loadSurveyImage();
     _rememberLastFramedTarget(target);
+
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      _queueTargetPush(
+        backend,
+        raHours: target.raHours,
+        decDegrees: target.decDegrees,
+        name: target.name,
+      );
+    }
+  }
+
+  void _queueTargetPush(
+    NetworkBackend backend, {
+    required double raHours,
+    required double decDegrees,
+    required String name,
+  }) {
+    final revision = ++_targetPushRevision;
+    _targetPushTail = _targetPushTail.then((_) async {
+      if (!mounted ||
+          revision != _targetPushRevision ||
+          !identical(backend, _ref.read(backendProvider))) {
+        return;
+      }
+      await _pushTargetToHost(
+        backend,
+        raHours: raHours,
+        decDegrees: decDegrees,
+        name: name,
+      );
+    });
   }
 
   Future<void> _pushTargetToHost(
@@ -198,7 +263,6 @@ class FramingNotifier extends StateNotifier<FramingState> {
         error: e,
         stackTrace: stackTrace,
       );
-      rethrow;
     }
   }
 
@@ -210,13 +274,11 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
     final backend = _ref.read(backendProvider);
     if (backend is NetworkBackend) {
-      unawaited(
-        _pushTargetToHost(
-          backend,
-          raHours: target.raHours,
-          decDegrees: target.decDegrees,
-          name: target.name,
-        ),
+      _queueTargetPush(
+        backend,
+        raHours: target.raHours,
+        decDegrees: target.decDegrees,
+        name: target.name,
       );
     }
   }
@@ -240,6 +302,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
   /// Clear the current target
   void clearTarget() {
+    _cancelPendingTargetWork();
+    _cutoutCanvasWidthPx = null;
     state = state.copyWith(clearTarget: true, clearImage: true);
   }
 
@@ -267,6 +331,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
       normalized += 360;
     }
     state = state.copyWith(rotation: normalized);
+    if (state.mosaicEnabled) {
+      _recalculateMosaicPanels();
+    }
   }
 
   /// Set zoom level
@@ -563,6 +630,14 @@ class FramingNotifier extends StateNotifier<FramingState> {
     final centerRa = state.target!.raHours;
     final centerDec = state.target!.decDegrees;
 
+    // Frame rotation, applied to each panel's tangent-plane offset with the
+    // same convention as mosaicPanelCenters so the listed coords match the
+    // rotated on-sky grid and the project MosaicService.generatePanels creates.
+    final rotation = state.rotation;
+    final rotRad = rotation * math.pi / 180;
+    final cosRot = math.cos(rotRad);
+    final sinRot = math.sin(rotRad);
+
     // Calculate starting corner offset from center
     final startRaOffset = -totalWidthDeg / 2 + fovWidth / 2;
     final startDecOffset = totalHeightDeg / 2 - fovHeight / 2;
@@ -577,18 +652,29 @@ class FramingNotifier extends StateNotifier<FramingState> {
       for (int col = 0; col < config.columns; col++) {
         final actualCol = _getActualCol(col, row, config);
 
-        // Calculate panel center RA/Dec
+        // Panel offset from center in the tangent plane (east/north degrees),
+        // rotated by the frame rotation before the cos(dec) RA compression.
+        final eastOffsetDeg = startRaOffset + actualCol * stepWidthDeg;
+        final northOffsetDeg = startDecOffset - actualRow * stepHeightDeg;
+
+        final double rotatedEastDeg;
+        final double rotatedNorthDeg;
+        if (rotation != 0.0) {
+          rotatedEastDeg = eastOffsetDeg * cosRot - northOffsetDeg * sinRot;
+          rotatedNorthDeg = eastOffsetDeg * sinRot + northOffsetDeg * cosRot;
+        } else {
+          rotatedEastDeg = eastOffsetDeg;
+          rotatedNorthDeg = northOffsetDeg;
+        }
+
         // Note: RA offset needs to account for declination (cos(dec) factor)
         final decRad = centerDec * math.pi / 180;
         final cosDec = math.cos(decRad);
         final raOffsetHours =
-            (startRaOffset + actualCol * stepWidthDeg) /
-            15 /
-            (cosDec.abs() > 0.01 ? cosDec : 0.01);
-        final decOffsetDeg = startDecOffset - actualRow * stepHeightDeg;
+            rotatedEastDeg / 15 / (cosDec.abs() > 0.01 ? cosDec : 0.01);
 
         final panelRa = (centerRa + raOffsetHours) % 24;
-        final panelDec = (centerDec + decOffsetDeg).clamp(-90.0, 90.0);
+        final panelDec = (centerDec + rotatedNorthDeg).clamp(-90.0, 90.0);
 
         panels.add(
           FramingMosaicPanel(
@@ -667,6 +753,11 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// Returns the new project id, or null when there is no framed target or the
   /// rig FOV cannot be resolved (in which case no rows are written).
   Future<int?> createDurableMosaicProject({String? name}) async {
+    if (_ref.read(backendProvider) is NetworkBackend) {
+      throw StateError(
+        'Durable mosaic projects must be created on the imaging host.',
+      );
+    }
     final target = state.target;
     if (target == null) return null;
 
@@ -727,6 +818,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
   /// deliberately NO fallback to scanning the `targets` table, so the framing
   /// restore never resurrects phantom library rows.
   Future<void> loadMostRecentTarget() async {
+    if (_ref.read(backendProvider) is NetworkBackend) return;
     final dao = _ref.read(settingsDaoProvider);
     final raw = await dao.getSetting(_lastFramedTargetKey);
     if (raw == null || raw.isEmpty) return;

@@ -26,6 +26,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -153,6 +154,10 @@ Future<void> _pruneIfStale(PushTokenStore store, String token) async {
   }
 }
 
+/// Clamp a cloud error body to keep the log line readable.
+String _truncateBody(String body, [int max = 200]) =>
+    body.length <= max ? body : '${body.substring(0, max)}…';
+
 // ---------------------------------------------------------------------------
 // FCM (Android) — HTTP v1.
 // ---------------------------------------------------------------------------
@@ -243,6 +248,7 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
   final PushTokenStore store;
   final http.Client _http;
   final bool _ownsClient;
+  final Duration timeout;
 
   String? _accessToken;
   DateTime? _accessTokenExpiry;
@@ -251,6 +257,7 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
     required this.account,
     required this.store,
     http.Client? httpClient,
+    this.timeout = const Duration(seconds: 15),
   }) : _http = httpClient ?? http.Client(),
        _ownsClient = httpClient == null;
 
@@ -282,17 +289,20 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
       return cached;
     }
     final assertion = buildFcmAssertionJwt(account, now: clock);
-    final resp = await _http.post(
-      Uri.parse(account.tokenUri),
-      headers: const {'content-type': 'application/x-www-form-urlencoded'},
-      body: {
-        'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        'assertion': assertion,
-      },
-    );
+    final resp = await _http
+        .post(
+          Uri.parse(account.tokenUri),
+          headers: const {'content-type': 'application/x-www-form-urlencoded'},
+          body: {
+            'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            'assertion': assertion,
+          },
+        )
+        .timeout(timeout);
     if (resp.statusCode != 200) {
       throw StateError(
-        'FCM token exchange failed: ${resp.statusCode} ${resp.body}',
+        'FCM token exchange failed: ${resp.statusCode} '
+        '${_truncateBody(resp.body)}',
       );
     }
     final body = jsonDecode(resp.body) as Map<String, Object?>;
@@ -300,7 +310,15 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
     if (token is! String || token.isEmpty) {
       throw StateError('FCM token exchange: no access_token in response');
     }
-    final expiresIn = (body['expires_in'] as num?)?.toInt() ?? 3600;
+    final expiresRaw = body['expires_in'];
+    final expiresIn = expiresRaw == null
+        ? 3600
+        : expiresRaw is num &&
+              expiresRaw.isFinite &&
+              expiresRaw > 0 &&
+              expiresRaw.truncateToDouble() == expiresRaw.toDouble()
+        ? expiresRaw.toInt()
+        : throw StateError('FCM token exchange: invalid expires_in');
     _accessToken = token;
     _accessTokenExpiry = clock.add(Duration(seconds: expiresIn));
     return token;
@@ -316,27 +334,59 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
     // EventCategory in frame.data['category'] ('safety', …).
     final eventType = frame.data['eventType']?.toString();
 
+    var attempted = 0;
+    var failed = 0;
     for (final device in tokens) {
-      final prefs = await store.preferencesFor(device.deviceId);
-      if (!prefs.allows(eventType)) continue;
+      var attemptCounted = false;
+      var failureCounted = false;
+      try {
+        final prefs = await store.preferencesFor(device.deviceId);
+        if (!prefs.allows(eventType)) continue;
 
-      final body = jsonEncode(buildFcmMessage(frame, device.token));
-      final resp = await _http.post(
-        _sendUri,
-        headers: {
-          'authorization': 'Bearer $accessToken',
-          'content-type': 'application/json',
-        },
-        body: body,
-      );
-      if (resp.statusCode == 404) {
-        // NOT_FOUND / UNREGISTERED => the token is genuinely dead; prune it.
-        // A 400 INVALID_ARGUMENT is NOT pruned: it's a payload bug (bad
-        // message body), not a dead recipient. Pruning on 400 would silently
-        // and permanently remove a live device from the safety-alert fan-out
-        // every time a payload regression shipped.
-        await _pruneIfStale(store, device.token);
+        attempted++;
+        attemptCounted = true;
+        final body = jsonEncode(buildFcmMessage(frame, device.token));
+        final resp = await _http
+            .post(
+              _sendUri,
+              headers: {
+                'authorization': 'Bearer $accessToken',
+                'content-type': 'application/json',
+              },
+              body: body,
+            )
+            .timeout(timeout);
+        if (resp.statusCode >= 200 && resp.statusCode < 300) continue;
+
+        failed++;
+        failureCounted = true;
+        developer.log(
+          'FCM send failed for ${device.deviceId}: ${resp.statusCode} '
+          '${_truncateBody(resp.body)}',
+          name: 'FcmRemotePushDelivery',
+          level: 1000,
+        );
+        if (resp.statusCode == 404) {
+          // NOT_FOUND / UNREGISTERED => the token is genuinely dead; prune it.
+          // 400 remains registered because it usually signals a payload bug.
+          await _pruneIfStale(store, device.token);
+        }
+      } catch (error, stackTrace) {
+        // One bad recipient or network request must not prevent later devices
+        // from receiving a safety alert.
+        if (!attemptCounted) attempted++;
+        if (!failureCounted) failed++;
+        developer.log(
+          'FCM send threw for ${device.deviceId}: $error',
+          name: 'FcmRemotePushDelivery',
+          level: 1000,
+          error: error,
+          stackTrace: stackTrace,
+        );
       }
+    }
+    if (attempted > 0 && failed == attempted) {
+      throw StateError('FCM delivery failed: all $attempted send(s) errored');
     }
   }
 
@@ -456,6 +506,7 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
   final String privateKeyPem;
   final PushTokenStore store;
   final ApnsHttp2Transport _transport;
+  final Duration timeout;
 
   /// Apple rejects provider tokens older than 1h; refresh well before that.
   static const Duration _jwtTtl = Duration(minutes: 40);
@@ -468,6 +519,7 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
     required this.privateKeyPem,
     required this.store,
     ApnsHttp2Transport? transport,
+    this.timeout = const Duration(seconds: 15),
   }) : _transport =
            transport ??
            SecureSocketApnsTransport(
@@ -523,27 +575,58 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
     final eventType = frame.data['eventType']?.toString();
     final body = utf8.encode(jsonEncode(buildApnsPayload(frame)));
 
+    var attempted = 0;
+    var failed = 0;
     for (final device in tokens) {
-      final prefs = await store.preferencesFor(device.deviceId);
-      if (!prefs.allows(eventType)) continue;
+      var attemptCounted = false;
+      var failureCounted = false;
+      try {
+        final prefs = await store.preferencesFor(device.deviceId);
+        if (!prefs.allows(eventType)) continue;
 
-      final status = await _transport.post(
-        deviceToken: device.token,
-        headers: <String, String>{
-          'authorization': 'bearer $jwt',
-          'apns-topic': config.bundleId,
-          'apns-push-type': 'alert',
-          'apns-priority': apnsPriorityFor(frame.severity),
-          'apns-id': frame.id,
-        },
-        body: body,
-      );
-      if (status == 410) {
-        // Gone => the token is genuinely unregistered; prune it. A 400 is
-        // NOT pruned (see class doc): it covers payload/config faults, not a
-        // dead recipient, so dropping the token would lose a live device.
-        await _pruneIfStale(store, device.token);
+        attempted++;
+        attemptCounted = true;
+        final status = await _transport
+            .post(
+              deviceToken: device.token,
+              headers: <String, String>{
+                'authorization': 'bearer $jwt',
+                'apns-topic': config.bundleId,
+                'apns-push-type': 'alert',
+                'apns-priority': apnsPriorityFor(frame.severity),
+                'apns-id': frame.id,
+              },
+              body: body,
+            )
+            .timeout(timeout);
+        if (status >= 200 && status < 300) continue;
+
+        failed++;
+        failureCounted = true;
+        developer.log(
+          'APNs send failed for ${device.deviceId}: status $status',
+          name: 'ApnsRemotePushDelivery',
+          level: 1000,
+        );
+        if (status == 410) {
+          // Gone is genuinely unregistered. A 400 remains registered because
+          // APNs also uses it for payload and environment faults.
+          await _pruneIfStale(store, device.token);
+        }
+      } catch (error, stackTrace) {
+        if (!attemptCounted) attempted++;
+        if (!failureCounted) failed++;
+        developer.log(
+          'APNs send threw for ${device.deviceId}: $error',
+          name: 'ApnsRemotePushDelivery',
+          level: 1000,
+          error: error,
+          stackTrace: stackTrace,
+        );
       }
+    }
+    if (attempted > 0 && failed == attempted) {
+      throw StateError('APNs delivery failed: all $attempted send(s) errored');
     }
   }
 
@@ -570,14 +653,22 @@ class CompositeRemotePushDelivery implements RemotePushDelivery {
 
   @override
   Future<void> deliver(PushNotificationFrame frame) async {
+    final failures = <Object>[];
     final futures = <Future<void>>[];
     for (final d in deliveries) {
-      futures.add(d.deliver(frame));
+      futures.add(
+        d.deliver(frame).catchError((Object error) {
+          failures.add(error);
+        }),
+      );
     }
-    // Wait for all but don't let one failure mask the others. The
-    // headless server's outer try/catch logs each error individually
-    // by catching at this boundary.
-    await Future.wait(futures, eagerError: false);
+    await Future.wait(futures);
+    if (failures.isNotEmpty) {
+      throw StateError(
+        '${failures.length} of ${deliveries.length} remote push '
+        'delivery channel(s) failed: ${failures.join('; ')}',
+      );
+    }
   }
 
   @override

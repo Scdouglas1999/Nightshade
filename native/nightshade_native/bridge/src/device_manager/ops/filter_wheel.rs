@@ -66,7 +66,7 @@ impl DeviceManager {
             DriverType::Native => {
                 let mut native_filter_wheels = self.native_filter_wheels.write().await;
                 if let Some(wheel) = native_filter_wheels.get_mut(device_id) {
-                    return wheel.move_to_position(position).await.map_err(|e| {
+                    wheel.move_to_position(position).await.map_err(|e| {
                         DeviceOpError::hardware(
                             Some(device_id.to_string()),
                             format!(
@@ -74,7 +74,39 @@ impl DeviceManager {
                                 device_id, position, e
                             ),
                         )
-                    });
+                    })?;
+
+                    // Several vendor SDKs acknowledge the command before the
+                    // motor starts. More importantly, a ZWO EFW can return SDK
+                    // success for a command that never changes the encoder
+                    // position. Do not report success until physical readback
+                    // reaches the requested slot.
+                    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(60);
+                    let mut last_position = None;
+                    loop {
+                        match wheel.get_position().await {
+                            Ok(current) if current == position => return Ok(()),
+                            Ok(current) => last_position = Some(current),
+                            Err(error) => {
+                                tracing::warn!(
+                                    "Native filter wheel {} readback failed while moving to {}: {}",
+                                    device_id,
+                                    position,
+                                    error
+                                );
+                            }
+                        }
+                        if tokio::time::Instant::now() >= deadline {
+                            return Err(DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Native filter wheel {} did not reach slot {} within 60s (last position: {:?})",
+                                    device_id, position, last_position
+                                ),
+                            ));
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    }
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -208,6 +240,34 @@ impl DeviceManager {
                 let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
                 Ok(sim.position)
             }
+        }
+    }
+
+    /// Resolve motion state for a background poll that already read Position.
+    ///
+    /// ASCOM defines `Position == -1` as the in-motion signal, so one Position
+    /// read supplies both values. Keeping that read single is important for
+    /// drivers such as the ZWO EFW ASCOM driver, where Position can be an
+    /// expensive or persistently failing COM property in headless sessions.
+    /// Other driver families retain their dedicated motion query.
+    pub async fn filter_wheel_poll_is_moving(
+        &self,
+        device_id: &str,
+        position: i32,
+    ) -> Result<bool, DeviceOpError> {
+        let driver_type = {
+            let devices = self.devices.read().await;
+            let info = devices
+                .get(device_id)
+                .map(|d| d.info.clone())
+                .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
+            info.driver_type
+        };
+
+        if matches!(driver_type, DriverType::Ascom) {
+            Ok(position == -1)
+        } else {
+            self.filter_wheel_is_moving(device_id).await
         }
     }
 
@@ -367,7 +427,22 @@ impl DeviceManager {
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
                         let wheel = IndiFilterWheel::new(client.clone(), &device_name);
-                        let names = wheel.get_names().await.unwrap_or_else(|_| vec![]);
+                        // Report a read failure as a read failure. Collapsing it to
+                        // an empty list made the CALLERS misdiagnose it: they answer
+                        // "Filter 'Ha' not found in the connected wheel" (or "no
+                        // configured name for position N"), sending the operator off
+                        // to reconfigure their filter wheel when the actual problem
+                        // is the INDI connection. The failure was already loud —
+                        // just attributed to the wrong cause.
+                        let names = wheel.get_names().await.map_err(|e| {
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to read INDI filter names for {}: {}",
+                                    device_name, e
+                                ),
+                            )
+                        })?;
                         let count = names.len() as i32;
                         return Ok((count, names));
                     }
@@ -392,14 +467,23 @@ impl DeviceManager {
                         .get_filter_names()
                         .await
                         .map_err(DeviceOpError::driver)?;
-                    tracing::info!(
+                    // debug, not info: filter status is POLLED continuously by
+                    // the dashboard/companions, so an INFO per call is pure spam.
+                    tracing::debug!(
                         "filter_wheel_get_config: Returning {} filter names: {:?}",
                         count,
                         names
                     );
                     return Ok((count, names));
                 }
-                tracing::error!("filter_wheel_get_config: Native filter wheel '{}' not found in native_filter_wheels map!", device_id);
+                // debug, not error: querying a wheel that is not (or no longer)
+                // connected is a normal state the typed `not_connected` error
+                // below already reports to the caller. At ERROR it flooded the
+                // log every poll cycle after a disconnect.
+                tracing::debug!(
+                    "filter_wheel_get_config: Native filter wheel '{}' not in native_filter_wheels map (not connected)",
+                    device_id
+                );
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
                     "Native filter wheel not connected",

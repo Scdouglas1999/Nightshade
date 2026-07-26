@@ -2,14 +2,28 @@ import 'dart:math' as math;
 
 /// Calculates optimal flat frame exposure with improved convergence
 class FlatExposureCalculator {
-  /// Convert histogram percentage to ADU (16-bit)
-  static int histogramPercentToAdu(double percent) {
-    return ((percent / 100.0) * 65535).round();
+  /// Safe full-scale ADU when the connected camera's effective range is
+  /// unknown (a 16-bit sensor). Real cameras can be 8/10/12/14/16-bit or expose
+  /// an explicit max-ADU capability; callers that know the effective range MUST
+  /// pass it as [maxAdu] so a 12/14-bit camera does not chase impossible levels
+  /// (a target percentage is always relative to the DETECTED full scale).
+  static const int fallbackMaxAdu = 65535;
+
+  /// Convert histogram percentage to an absolute ADU against the effective
+  /// full-scale [maxAdu] (default: the safe 16-bit [fallbackMaxAdu]).
+  static int histogramPercentToAdu(
+    double percent, {
+    int maxAdu = fallbackMaxAdu,
+  }) {
+    final scale = maxAdu > 0 ? maxAdu : fallbackMaxAdu;
+    return ((percent / 100.0) * scale).round();
   }
 
-  /// Convert ADU to histogram percentage
-  static double aduToHistogramPercent(int adu) {
-    return (adu / 65535.0) * 100.0;
+  /// Convert an absolute ADU to a histogram percentage of the effective
+  /// full-scale [maxAdu] (default: the safe 16-bit [fallbackMaxAdu]).
+  static double aduToHistogramPercent(int adu, {int maxAdu = fallbackMaxAdu}) {
+    final scale = maxAdu > 0 ? maxAdu : fallbackMaxAdu;
+    return (adu / scale) * 100.0;
   }
 
   // Next-exposure convergence math lives in the single canonical engine

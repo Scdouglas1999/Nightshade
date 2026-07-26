@@ -43,9 +43,22 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
     });
     final raw = response['catalogIds'];
     if (raw is! List) {
-      return const <String>{};
+      throw const FormatException(
+        'GET /api/observing-lists/listed-catalog-ids returned no '
+        '`catalogIds` list',
+      );
     }
-    return raw.whereType<String>().toSet();
+    final catalogIds = <String>{};
+    for (final value in raw) {
+      if (value is! String) {
+        throw const FormatException(
+          'GET /api/observing-lists/listed-catalog-ids returned a '
+          'non-string catalog ID',
+        );
+      }
+      catalogIds.add(value);
+    }
+    return catalogIds;
   }
 
   /// GET /api/observing-lists/containing?catalogId= — which lists contain a
@@ -65,14 +78,7 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
     String key,
     T Function(Map<String, dynamic>) fromJson,
   ) {
-    final raw = response[key];
-    if (raw is! List) {
-      return const [];
-    }
-    return raw
-        .whereType<Map>()
-        .map((m) => fromJson(m.cast<String, dynamic>()))
-        .toList(growable: false);
+    return _rowsFromJson(response[key], fromJson);
   }
 
   // ===========================================================================
@@ -88,7 +94,7 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
       'name': name,
       if (description != null) 'description': description,
     });
-    return (response['id'] as num?)?.toInt() ?? 0;
+    return _requiredObservingListId(response, 'POST /api/observing-lists');
   }
 
   /// POST /api/observing-lists/update — rename / re-describe a list on the host.
@@ -96,11 +102,12 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
     required int id,
     String? name,
     String? description,
+    bool setDescription = false,
   }) async {
     await _post('observing-lists/update', {
       'id': id,
       if (name != null) 'name': name,
-      if (description != null) 'description': description,
+      if (setDescription) 'description': description,
     });
   }
 
@@ -115,7 +122,10 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
     final response = await _post('observing-lists/duplicate', {
       'sourceId': sourceId,
     });
-    return (response['id'] as num?)?.toInt() ?? 0;
+    return _requiredObservingListId(
+      response,
+      'POST /api/observing-lists/duplicate',
+    );
   }
 
   /// POST /api/observing-lists/items — add an item to a list on the host;
@@ -142,7 +152,10 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
       if (sizeArcmin != null) 'sizeArcmin': sizeArcmin,
       if (notes != null) 'notes': notes,
     });
-    return (response['id'] as num?)?.toInt() ?? 0;
+    return _requiredObservingListId(
+      response,
+      'POST /api/observing-lists/items',
+    );
   }
 
   /// DELETE /api/observing-lists/items?id= — remove an item on the host.
@@ -157,5 +170,13 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
       'itemId': itemId,
       'notes': notes,
     });
+  }
+
+  int _requiredObservingListId(Map<String, dynamic> response, String request) {
+    final id = response['id'];
+    if (id is! num) {
+      throw FormatException('$request returned no numeric `id` field');
+    }
+    return id.toInt();
   }
 }

@@ -3,8 +3,13 @@ part of '../stacking_panel.dart';
 class _ErrorBanner extends StatelessWidget {
   final String message;
   final NightshadeColors colors;
+  final VoidCallback? onRetry;
 
-  const _ErrorBanner({required this.message, required this.colors});
+  const _ErrorBanner({
+    required this.message,
+    required this.colors,
+    this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +32,13 @@ class _ErrorBanner extends StatelessWidget {
                   color: colors.error),
             ),
           ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: onRetry,
+              child: const Text('Retry preview'),
+            ),
+          ],
         ],
       ),
     );

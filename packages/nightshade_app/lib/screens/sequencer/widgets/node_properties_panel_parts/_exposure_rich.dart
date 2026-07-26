@@ -194,11 +194,10 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
         ref.watch(smartNightExposureContextProvider).valueOrNull;
     final exposureRecommendation =
         exposureContext?.recommendForFilter(node.filter);
-    // Trust-patch §B: belt-and-suspenders gate (parent
-    // NodePropertiesPanel already wraps the editor body in AbsorbPointer
-    // when running). Wrap the largest properties form in IgnorePointer
-    // too so an extraction refactor can't un-gate the dozens of
-    // inputs below.
+    // Trust-patch §B: belt-and-suspenders gate. The parent _NodeEditor
+    // already wraps the editor body in IgnorePointer when running; wrap the
+    // largest properties form in IgnorePointer too so an extraction refactor
+    // can't un-gate the dozens of inputs below.
     final canEdit = ref.watch(canEditSequenceProvider);
 
     return IgnorePointer(
@@ -547,7 +546,8 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                   onChanged: (value) {
                     final filter = value.isEmpty ? null : value;
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(filter: filter),
+                          node.copyWith(
+                              filter: filter, clearFilter: filter == null),
                         );
                     ref
                         .read(sequencerDefaultsProvider.notifier)
@@ -597,14 +597,14 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                           // The synthetic "not in profile" row is display-only;
                           // re-selecting it must not rewrite the node.
                           if (newValue.index == _kMissingFilterSentinel) return;
-                          final filter =
-                              newValue.index < 0 ? null : newValue.name;
-                          final filterIndex =
-                              newValue.index < 0 ? null : newValue.index;
+                          final isNone = newValue.index < 0;
+                          final filter = isNone ? null : newValue.name;
+                          final filterIndex = isNone ? null : newValue.index;
                           ref.read(currentSequenceProvider.notifier).updateNode(
                                 node.copyWith(
                                   filter: filter,
                                   filterIndex: filterIndex,
+                                  clearFilter: isNone,
                                 ),
                               );
                           ref

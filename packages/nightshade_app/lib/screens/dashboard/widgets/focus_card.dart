@@ -108,21 +108,32 @@ class FocusCard extends ConsumerWidget {
                 const SizedBox(height: 10),
 
                 // Fine focus controls (+1/-1, +10/-10)
-                _FineFocusControls(
-                  colors: colors,
-                  isEnabled: isConnected && !focuserState.isMoving,
-                  onMove: (steps) async {
-                    try {
-                      await ref
-                          .read(deviceServiceProvider)
-                          .moveFocuserRelative(steps);
-                    } catch (e) {
-                      if (context.mounted) {
-                        context.showErrorSnackBar('Failed to move focuser: $e');
+                Builder(builder: (context) {
+                  final autofocusRunning = ref.watch(
+                    sessionStateProvider.select(
+                      (session) => session.isAutofocusing,
+                    ),
+                  );
+                  return _FineFocusControls(
+                    colors: colors,
+                    isEnabled: isConnected &&
+                        !focuserState.isMoving &&
+                        !autofocusRunning,
+                    onMove: (steps) async {
+                      try {
+                        await ref
+                            .read(deviceServiceProvider)
+                            .moveFocuserRelative(steps);
+                      } catch (e) {
+                        if (context.mounted) {
+                          context.showErrorSnackBar(
+                            'Failed to move focuser: $e',
+                          );
+                        }
                       }
-                    }
-                  },
-                ),
+                    },
+                  );
+                }),
               ],
 
               const SizedBox(height: 12),

@@ -70,8 +70,13 @@ class WebDavSyncTarget implements SyncTarget {
     if (headers != null) request.headers.addAll(headers);
     if (bodyBytes != null) request.bodyBytes = bodyBytes;
     try {
-      final streamed = await _client.send(request);
-      return http.Response.fromStream(streamed);
+      // Bound the request so a server that accepts the socket then stops
+      // responding cannot hang the call (and pushNow) indefinitely. The
+      // `on TimeoutException` arm below maps it to a network error. Generous
+      // enough to cover large backup-bundle PUTs on a moderate connection.
+      const requestTimeout = Duration(minutes: 5);
+      final streamed = await _client.send(request).timeout(requestTimeout);
+      return await http.Response.fromStream(streamed).timeout(requestTimeout);
     } on SyncTargetException {
       rethrow;
     } on SocketException catch (e) {

@@ -3,9 +3,14 @@ import 'dart:typed_data';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_core/src/backend/network_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_core/src/database/daos/stacked_results_dao.dart';
 import 'package:nightshade_core/src/models/imaging/stack_and_share_models.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/providers/stack_and_share_provider.dart';
 import 'package:nightshade_core/src/services/live_stacking_service.dart';
@@ -38,6 +43,7 @@ class _FakeStackAndShareService implements StackAndShareService {
 
   StackedRawResult? _lastRaw;
   StackedRgbaResult? _lastRgba;
+  int runCount = 0;
 
   @override
   StackedRawResult? get lastRawResult => _lastRaw;
@@ -46,11 +52,15 @@ class _FakeStackAndShareService implements StackAndShareService {
   StackedRgbaResult? get lastRgbaResult => _lastRgba;
 
   @override
+  void retire() {}
+
+  @override
   Future<StackAndShareResult> run({
     required int sessionId,
     required StackAndShareConfig config,
     void Function(StackAndShareProgress)? onProgress,
   }) async {
+    runCount++;
     // Reference the call args so a misconfigured override surfaces loudly
     // rather than silently ignoring the session/config the notifier passed.
     assert(sessionId >= 0);
@@ -75,6 +85,14 @@ class _FakeStackAndShareService implements StackAndShareService {
     _lastRaw = raw;
     _lastRgba = rgba;
     return result!;
+  }
+}
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
   }
 }
 
@@ -325,6 +343,30 @@ void main() {
       expect(state.resultRgba, isNull);
       expect(state.errorMessage, isNull);
     });
+
+    test(
+      'remote mode refuses the local pipeline before invoking its service',
+      () async {
+        final backend = _MockNetworkBackend();
+        final fake = _FakeStackAndShareService(result: _result());
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            stackAndShareServiceProvider.overrideWithValue(fake),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(stackAndShareProvider.notifier).runForSession(7);
+
+        expect(fake.runCount, 0);
+        final state = container.read(stackAndShareProvider);
+        expect(state.progress.phase, StackAndSharePhase.error);
+        expect(state.errorMessage, contains('imaging host'));
+      },
+    );
   });
 
   group('stackResultViewerProvider / recentStackedResultsProvider', () {
@@ -411,5 +453,84 @@ void main() {
       expect(recent.first.targetName, 'Newer');
       expect(recent.last.targetName, 'Older');
     });
+  });
+
+  group('remote result authority', () {
+    late ProviderContainer container;
+    late _MockNetworkBackend backend;
+    late RemoteStackedResult record;
+
+    setUp(() {
+      backend = _MockNetworkBackend();
+      record = RemoteStackedResult(
+        result: StackAndShareResult(
+          id: 1,
+          sessionId: 7,
+          targetName: 'Remote M81',
+          width: 2,
+          height: 1,
+          framesStacked: 5,
+          framesAttempted: 6,
+          integrationSecs: 300,
+          avgAlignmentResidual: 0.3,
+          isColor: true,
+          channels: 3,
+          createdAt: DateTime.utc(2026, 5, 27, 22),
+        ),
+        previewAvailable: true,
+      );
+      when(
+        () => backend.stackingGetSavedResult(1),
+      ).thenAnswer((_) async => record);
+      when(
+        () => backend.stackingGetSavedResults(),
+      ).thenAnswer((_) async => [record]);
+      final preview = img.Image(width: 2, height: 1);
+      preview.setPixelRgba(0, 0, 1, 2, 3, 255);
+      preview.setPixelRgba(1, 0, 4, 5, 6, 255);
+      when(
+        () => backend.stackingGetSavedResultPreview(1),
+      ).thenAnswer((_) async => Uint8List.fromList(img.encodePng(preview)));
+      container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+    });
+
+    tearDown(() => container.dispose());
+
+    test(
+      'result detail reads host metadata without a controller database',
+      () async {
+        final result = await container.read(
+          stackResultViewerProvider(1).future,
+        );
+        expect(result, record.result);
+        verify(() => backend.stackingGetSavedResult(1)).called(1);
+      },
+    );
+
+    test(
+      'result history reads the host rather than controller-local rows',
+      () async {
+        final results = await container.read(
+          recentStackedResultsProvider.future,
+        );
+        expect(results, [record.result]);
+        verify(() => backend.stackingGetSavedResults()).called(1);
+      },
+    );
+
+    test(
+      'remote preview decodes PNG bytes and validates the host dimensions',
+      () async {
+        final rgba = await container.read(stackResultPreviewProvider(1).future);
+        expect(rgba, <int>[1, 2, 3, 255, 4, 5, 6, 255]);
+        verify(() => backend.stackingGetSavedResultPreview(1)).called(1);
+      },
+    );
   });
 }

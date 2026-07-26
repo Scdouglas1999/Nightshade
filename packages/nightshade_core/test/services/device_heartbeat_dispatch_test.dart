@@ -394,6 +394,95 @@ void main() {
     }
   });
 
+  group('DeviceReconnectCoordinator reconnect outcome', () {
+    test('connected state is accepted as success', () {
+      expect(
+        () => DeviceReconnectCoordinator.validateReconnectOutcome(
+          type: DeviceType.focuser,
+          connectionState: DeviceConnectionState.connected,
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('terminal notifier error is not misreported as success', () {
+      expect(
+        () => DeviceReconnectCoordinator.validateReconnectOutcome(
+          type: DeviceType.focuser,
+          connectionState: DeviceConnectionState.error,
+          lastError: StateError('ASCOM connect failed'),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('Focuser'), contains('ASCOM connect failed')),
+          ),
+        ),
+      );
+    });
+  });
+
+  test('Dart reconnect coalesces cleanup events, exhausts once, and resets on '
+      'authoritative connection', () async {
+    var reconnectCalls = 0;
+    var shouldFail = true;
+    late DeviceReconnectCoordinator coordinator;
+
+    final coordinatorProvider = Provider<DeviceReconnectCoordinator>((ref) {
+      coordinator = DeviceReconnectCoordinator(
+        ref: ref,
+        backend: mockBackend,
+        resumeSequence: () async {},
+        pauseSequence: () async {},
+        surfaceReconnecting: (deviceId, {attempt = 0, maxAttempts = 0}) {},
+        retryDelays: const [
+          Duration(milliseconds: 2),
+          Duration(milliseconds: 2),
+          Duration(milliseconds: 2),
+        ],
+        reconnectAttempt: (type, deviceId) async {
+          reconnectCalls++;
+          // Reproduce the backend cleanup Disconnected event racing the
+          // timer's own failure path.
+          unawaited(coordinator.attemptReconnect(type, deviceId));
+          if (shouldFail) {
+            throw StateError('driver unavailable');
+          }
+        },
+      );
+      return coordinator;
+    });
+
+    coordinator = container.read(coordinatorProvider);
+    const deviceId = 'ascom:ASCOM.ZWO.EAF.Focuser';
+
+    // Duplicate disconnects before the first timer fires must also coalesce.
+    await coordinator.attemptReconnect(DeviceType.focuser, deviceId);
+    await coordinator.attemptReconnect(DeviceType.focuser, deviceId);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(
+      reconnectCalls,
+      DeviceReconnectCoordinator.maxReconnectAttempts,
+      reason: 'one bounded 1/3..3/3 batch must run',
+    );
+
+    // Late cleanup events after exhaustion must not open a fresh batch.
+    await coordinator.attemptReconnect(DeviceType.focuser, deviceId);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(reconnectCalls, DeviceReconnectCoordinator.maxReconnectAttempts);
+
+    // A real/manual connection is the explicit reset condition.
+    shouldFail = false;
+    await coordinator.onAuthoritativeDeviceConnected('focuser', deviceId);
+    await coordinator.attemptReconnect(DeviceType.focuser, deviceId);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(reconnectCalls, DeviceReconnectCoordinator.maxReconnectAttempts + 1);
+
+    coordinator.cancelAll();
+  });
+
   test(
     'Heartbeat dispatch does not interfere with the Disconnected handler',
     () async {

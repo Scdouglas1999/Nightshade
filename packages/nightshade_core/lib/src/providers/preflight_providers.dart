@@ -6,7 +6,7 @@ import '../database/database.dart' show PolarAlignmentHistoryEntry;
 import '../models/sequencer/recovery_status.dart';
 import '../services/optical_train_diagnostics_service.dart';
 import '../services/time_sync_service.dart';
-import 'database_provider.dart';
+import 'polar_alignment_provider.dart' show lastPolarAlignmentProvider;
 import 'sequence_stats_provider.dart' show sessionDiagnosticsDaoProvider;
 
 // =============================================================================
@@ -36,8 +36,7 @@ final timeSyncProbeProvider = Provider<TimeSyncProbe>((ref) {
 /// honouring strictness).
 final lastPolarAlignmentAnywhereProvider =
     FutureProvider.autoDispose<PolarAlignmentHistoryEntry?>((ref) async {
-      final db = ref.watch(databaseProvider);
-      return db.polarAlignmentHistoryDao.getLastAlignment(null);
+      return ref.watch(lastPolarAlignmentProvider(null).future);
     });
 
 /// Pre-session optical-train baseline snapshot. Captured the first time

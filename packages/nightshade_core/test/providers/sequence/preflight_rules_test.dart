@@ -21,6 +21,7 @@ import 'package:nightshade_core/src/providers/equipment/guider_state_provider.da
 import 'package:nightshade_core/src/providers/equipment/mount_state_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/rotator_state_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_health_provider.dart';
+import 'package:nightshade_core/src/providers/polar_alignment_provider.dart';
 import 'package:nightshade_core/src/providers/preflight_providers.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/preflight_rules.dart';
 import 'package:nightshade_core/src/providers/sequence/sequence_validation.dart';
@@ -745,6 +746,65 @@ void main() {
   });
 
   group('PolarAlignmentFreshnessRule', () {
+    test(
+      'last-alignment lookup delegates to the host-aware provider',
+      () async {
+        final completedAt = DateTime.utc(2026, 7, 13);
+        final hostEntry = PolarAlignmentHistoryEntry(
+          id: 42,
+          initialAzimuthError: 30,
+          initialAltitudeError: 20,
+          initialTotalError: 36,
+          finalAzimuthError: 2,
+          finalAltitudeError: 1,
+          finalTotalError: 2.2,
+          startedAt: completedAt.subtract(const Duration(minutes: 5)),
+          completedAt: completedAt,
+          autoCompleted: true,
+          isNorth: true,
+          configJson: '{}',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            databaseProvider.overrideWith(
+              (ref) => throw StateError('controller database was accessed'),
+            ),
+            lastPolarAlignmentProvider.overrideWith(
+              (ref, profileId) async => hostEntry,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final result = await container.read(
+          lastPolarAlignmentAnywhereProvider.future,
+        );
+
+        expect(result, same(hostEntry));
+      },
+    );
+
+    test(
+      'zero-day setting disables both stale and missing-alignment notices',
+      () async {
+        final container = await _buildContainer(
+          settings: _settings(polarAgeDays: 0),
+        );
+        final rule = PolarAlignmentFreshnessRule();
+        await container.read(lastPolarAlignmentAnywhereProvider.future);
+
+        final issues = _withRef(
+          container,
+          (ref) => rule.validate(
+            _sequenceWith([SlewNode(useTargetCoords: true)]),
+            ValidationContext(ref),
+          ),
+        );
+
+        expect(issues, isEmpty);
+      },
+    );
+
     test('warns when last alignment exceeds the configured age', () async {
       final container = await _buildContainer(
         settings: _settings(polarAgeDays: 7),

@@ -56,7 +56,9 @@ export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
 export 'src/models/equipment_profile_remote_mapping.dart';
+export 'src/models/equipment_profile_validation.dart';
 export 'src/models/settings/app_settings.dart';
+export 'src/models/errors/server_error.dart';
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
 export 'src/models/imaging/auto_stretch_settings.dart';
@@ -116,6 +118,7 @@ export 'src/models/weather/weather_models.dart';
 export 'src/models/autofocus_progress.dart';
 export 'src/models/meridian_flip_settings.dart';
 export 'src/models/meridian_flip_event.dart';
+export 'src/models/flat_wizard/flat_capture_config.dart';
 export 'src/models/flat_wizard/flat_wizard_settings.dart';
 export 'src/models/flat_wizard/flat_wizard_state.dart';
 export 'src/models/polar_alignment_config.dart';
@@ -216,6 +219,7 @@ export 'src/providers/clock_provider.dart';
 export 'src/providers/profiles_provider.dart';
 export 'src/providers/profile_activation_writethrough.dart';
 export 'src/providers/equipment_fov_provider.dart';
+export 'src/providers/focus_model_profile_data_provider.dart';
 export 'src/providers/guiding_provider.dart';
 export 'src/providers/backend_provider.dart';
 export 'src/providers/remote_session_sync_provider.dart';
@@ -370,6 +374,7 @@ export 'src/services/import/observing_list_json_importer.dart';
 export 'src/services/import/astrobin_importer.dart';
 export 'src/services/import/ics_calendar_importer.dart';
 export 'src/services/import/generic_csv_importer.dart';
+export 'src/services/import/target_library_importer.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/wcs/gnomonic_projection.dart';
 export 'src/services/wcs/wcs_sip_codec.dart';
@@ -434,6 +439,7 @@ export 'src/services/sync/sync_target.dart';
 export 'src/services/sync/webdav_sync_target.dart';
 export 'src/services/sync/s3_sync_target.dart';
 export 'src/services/sync/sync_service.dart';
+export 'src/services/endpoint_sanitizer.dart';
 // Plugin management (upload/enable/disable/uninstall)
 export 'src/services/plugin_management_service.dart';
 export 'src/services/notification_service.dart';
@@ -474,12 +480,21 @@ export 'src/services/session_report_service.dart';
 // Per-target / per-run notes journal + sequence diff.
 export 'src/models/notes/journal_note.dart';
 export 'src/services/notes_service.dart';
+export 'src/services/optical_train_limits.dart';
 export 'src/services/sequence_diff_service.dart';
 export 'src/providers/notes_provider.dart';
 export 'src/services/campaign_rollup_service.dart';
 export 'src/services/mosaic_service.dart';
 // Mosaic M2 — durable mosaic project orchestration (plan -> integrate -> stitch).
 export 'src/services/mosaic_project_service.dart';
+// Collaborative Sky WS2 — distributed collaborative mosaics (publish/claim/
+// upload/assemble over the hub).
+export 'src/services/mosaic/collaborative_mosaic_service.dart';
+// Collaborative Sky WS2 — unattended owner auto-assembly / participant
+// auto-download poller.
+export 'src/services/mosaic/collaborative_mosaic_poller.dart';
+// Collaborative Sky WS2/WS4 — persisted consent gating a panel-master upload.
+export 'src/services/mosaic/mosaic_upload_consent.dart';
 export 'src/services/framing_image_cache_service.dart';
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
@@ -588,6 +603,11 @@ export 'src/providers/sky_atlas_provider.dart';
 // Pillar C ("Constellation"): community hub client + orchestration + providers.
 export 'src/database/daos/constellation_contributions_dao.dart';
 export 'src/services/constellation/constellation_models.dart';
+// Collaborative Sky (6.0): shared trust primitives + co-imaging session
+// membership (WS3) + provenance/consent/scoped-role model (WS4).
+export 'src/database/daos/coimaging_sessions_dao.dart';
+export 'src/models/collaboration/collaboration_models.dart';
+export 'src/services/coimaging/coimaging_session_service.dart';
 export 'src/services/constellation/constellation_client.dart';
 export 'src/services/constellation/constellation_service.dart';
 export 'src/providers/constellation_provider.dart';
@@ -618,6 +638,11 @@ export 'src/models/calibration/calibration_library_models.dart';
 export 'src/services/calibration/fits_header_reader.dart';
 export 'src/services/calibration_library_service.dart';
 export 'src/database/daos/calibration_tags_dao.dart';
+// Collaborative Sky (6.0) WS1: shared calibration libraries — the hub wire
+// model, the REST client, and the matcher-folding remote-library seam.
+export 'src/models/calibration/shared_calibration_models.dart';
+export 'src/services/calibration/shared_calibration_client.dart';
+export 'src/services/calibration/shared_calibration_library.dart';
 export 'src/services/disk_space_service.dart';
 export 'src/services/disk_space_guard.dart';
 export 'src/services/safe_rig_service.dart';
@@ -626,5 +651,7 @@ export 'src/services/safety_config_service.dart';
 // Utilities
 export 'src/utils/coordinate_parser.dart';
 export 'src/utils/coordinate_format.dart';
+export 'src/utils/resilient_poll_stream.dart';
 export 'src/utils/dither_settle_presets.dart';
 export 'src/utils/plate_solver_utils.dart';
+export 'src/utils/export_target.dart';

@@ -204,6 +204,11 @@ class MosaicProjectService {
   /// created per-panel target. Two panels resolving to the same id is rejected
   /// later by [integratePanels]/[startCapture] (panels must not share subs).
   ///
+  /// [disabledCells] holds grid cells (0-based row/col) the caller disabled
+  /// (e.g. the wizard's tap-to-disable): those panels are NOT persisted, but the
+  /// grid geometry is unchanged so surviving panels keep their canonical
+  /// row-major `panelIndex` (the stored `panel_index` set is simply sparse).
+  ///
   /// The whole insert (project + per-panel targets + panels) runs in ONE
   /// transaction: a failure midway leaves no half-built project.
   ///
@@ -222,6 +227,7 @@ class MosaicProjectService {
     double? fovWidthDeg,
     double? fovHeightDeg,
     int? Function(int panelIndex)? panelTargetId,
+    Set<({int row, int col})> disabledCells = const {},
   }) async {
     if (rows < 1 || cols < 1) {
       throw ArgumentError(
@@ -273,6 +279,12 @@ class MosaicProjectService {
       );
 
       for (final panel in panels) {
+        // Skip cells the user disabled in the wizard (e.g. a corner occluded by
+        // trees). The grid geometry is unchanged, so surviving panels keep their
+        // canonical row-major panelIndex — the persisted panel_index set is
+        // simply sparse, which the capture/integrate paths already tolerate.
+        if (disabledCells.contains((row: panel.row, col: panel.col))) continue;
+
         // Each panel is a DISTINCT capture target. Honor a caller override when
         // it returns a non-null id; otherwise create a fresh per-panel target
         // centered on the panel so its subs are isolated for integration.
@@ -643,6 +655,9 @@ class MosaicProjectService {
         master.masterFitsPath,
         master.previewPngPath,
         master.rejectionMapPath,
+        master.rejectionMapPreviewPath,
+        master.coverageMapPath,
+        master.coverageMapPreviewPath,
         master.sidecarPath,
       ]) {
         if (path != null && path.trim().isNotEmpty) owned.add(path);
@@ -689,6 +704,9 @@ class MosaicProjectService {
       master.masterFitsPath,
       master.previewPngPath,
       master.rejectionMapPath,
+      master.rejectionMapPreviewPath,
+      master.coverageMapPath,
+      master.coverageMapPreviewPath,
       master.sidecarPath,
     ]) {
       if (path == null || path.trim().isEmpty) continue;

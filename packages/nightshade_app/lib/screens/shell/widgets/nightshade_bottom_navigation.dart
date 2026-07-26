@@ -53,7 +53,7 @@ class NightshadeBottomNavigation extends StatelessWidget {
                       ),
                       child: _BottomNavItem(
                         icon: dest.icon,
-                        label: dest.label(l10n),
+                        label: dest.bottomNavLabel(l10n),
                         isSelected: currentPath == dest.route,
                         compact: isLandscape,
                         colors: colors,
@@ -176,9 +176,12 @@ class _BottomNavItem extends StatelessWidget {
           ),
           child: AnimatedContainer(
             duration: BottomNavMetrics.itemSelectionAnimationDuration,
+            // Horizontal 4 (not itemPadding's 10): seven slots on a 430dp
+            // phone leave ~50dp per item, and 20dp of internal padding
+            // ellipsized even the short labels ("Ho…", "Guid…").
             padding: compact
-                ? const EdgeInsets.symmetric(horizontal: 6, vertical: 4)
-                : BottomNavMetrics.itemPadding,
+                ? const EdgeInsets.symmetric(horizontal: 4, vertical: 4)
+                : const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             decoration: isSelected
                 ? NightshadeDecorations.navSelected(
                     colors,
@@ -199,14 +202,25 @@ class _BottomNavItem extends StatelessWidget {
                     height: compact
                         ? BottomNavMetrics.itemIconLabelGap - 3
                         : BottomNavMetrics.itemIconLabelGap),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: NightshadeTypography.captionSm.copyWith(
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? colors.primary : colors.textSecondary,
+                // FittedBox: a label a shade too wide for its slot
+                // ("Sequence", Spanish "Secuencia") scales down a few
+                // percent instead of ellipsizing — an ellipsis in a 7-slot
+                // bar reads as broken, a 5% smaller glyph is invisible.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    // itemLabelFontSize (10px), not captionSm: the metrics
+                    // already define the bar's label size; captionSm's larger
+                    // glyphs were the other half of the ellipsis problem.
+                    style: NightshadeTypography.captionSm.copyWith(
+                      fontSize: BottomNavMetrics.itemLabelFontSize,
+                      fontWeight:
+                          isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected ? colors.primary : colors.textSecondary,
+                    ),
                   ),
                 ),
               ],

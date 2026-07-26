@@ -15,6 +15,7 @@ class _TelegramTransportSectionState
   final _chat = TextEditingController();
   bool _silent = false;
   bool _initialized = false;
+  bool _clearBotToken = false;
 
   @override
   void dispose() {
@@ -28,17 +29,43 @@ class _TelegramTransportSectionState
     final cfgAsync = ref.watch(telegramTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => const NightshadeInlineBanner(
-        message: 'Could not load Telegram routing configuration.',
-        severity: NightshadeAlertSeverity.error,
-      ),
+      error: (e, _) {
+        _initialized = false;
+        return _transportErrorSection(
+          title: 'Telegram',
+          error: e,
+          onRetry: () => ref.invalidate(telegramTransportConfigProvider),
+        );
+      },
       data: (cfg) {
         if (!_initialized) {
-          _bot.text = cfg.botToken;
+          _bot.clear();
           _chat.text = cfg.chatId;
           _silent = cfg.disableNotification;
+          _clearBotToken = false;
           _initialized = true;
         }
+        Future<_PrepResult> saveConfig() async {
+          final token = _clearBotToken
+              ? ''
+              : (_bot.text.trim().isEmpty ? cfg.botToken : _bot.text.trim());
+          final chatId = _chat.text.trim();
+          if (token.isNotEmpty != chatId.isNotEmpty) {
+            return const _PrepResult.fail(
+              'Enter both the bot token and chat ID.',
+            );
+          }
+          final cfg2 = TelegramTransportConfig(
+            botToken: token,
+            chatId: chatId,
+            disableNotification: _silent,
+          );
+          await ref.read(telegramTransportConfigProvider.notifier).save(cfg2);
+          _bot.clear();
+          _clearBotToken = false;
+          return const _PrepResult.ok();
+        }
+
         return SettingsSection(
           title: 'Telegram',
           children: [
@@ -49,6 +76,8 @@ class _TelegramTransportSectionState
               hasStoredValue: cfg.botToken.isNotEmpty,
               isMobile: widget.isMobile,
               hint: '1234:abcd…',
+              onChanged: (_) => _clearBotToken = false,
+              onClear: () => setState(() => _clearBotToken = true),
             ),
             SettingRow(
               icon: LucideIcons.messageCircle,
@@ -71,31 +100,18 @@ class _TelegramTransportSectionState
             SettingRow(
               icon: LucideIcons.save,
               title: 'Save Telegram config',
-              trailing: NightshadeButton(
-                label: 'Save',
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () async {
-                  final cfg2 = TelegramTransportConfig(
-                    botToken: _bot.text.trim(),
-                    chatId: _chat.text.trim(),
-                    disableNotification: _silent,
-                  );
-                  await ref
-                      .read(telegramTransportConfigProvider.notifier)
-                      .save(cfg2);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Telegram config saved')),
-                  );
-                },
+              trailing: _SaveButton(
+                successMessage: 'Telegram config saved',
+                onSave: saveConfig,
               ),
             ),
-            const SettingRow(
+            SettingRow(
               icon: LucideIcons.send,
               title: 'Test Telegram',
-              trailing:
-                  _TestSendButton(kind: NotificationTransportKind.telegram),
+              trailing: _TestSendButton(
+                kind: NotificationTransportKind.telegram,
+                onBeforeSend: saveConfig,
+              ),
               isLast: true,
             ),
           ],

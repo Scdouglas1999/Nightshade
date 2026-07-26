@@ -1,4 +1,4 @@
-/// Declarative route table for the read-only DB surface.
+/// Declarative route table for the host-authoritative DB surface.
 ///
 /// Counterpart to `handlers/db_read_handlers.dart`. Covers tables the
 /// phone couldn't see before: sequence runs, notes journal, guide-RMS
@@ -32,7 +32,33 @@ List<HeadlessRoute> buildDbReadRoutes(DbReadHandlers h) => <HeadlessRoute>[
     h.handleGetSequenceRunById,
   ),
   HeadlessRoute(HttpMethod.get, '/api/notes-journal', h.handleListNotesJournal),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/notes-journal',
+    h.handleCreateObservationLog,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/notes-journal/<id>',
+    h.handleDeleteObservationLog,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/notes-journal',
+    h.handleDeleteAllObservationLogs,
+  ),
   HeadlessRoute(HttpMethod.get, '/api/db/notes', h.handleListJournalNotes),
+  HeadlessRoute(HttpMethod.post, '/api/db/notes', h.handleCreateJournalNote),
+  HeadlessRoute(
+    HttpMethod.put,
+    '/api/db/notes/<id>',
+    h.handleUpdateJournalNote,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/db/notes/<id>',
+    h.handleDeleteJournalNote,
+  ),
   HeadlessRoute(
     HttpMethod.get,
     '/api/guide-rms-history',

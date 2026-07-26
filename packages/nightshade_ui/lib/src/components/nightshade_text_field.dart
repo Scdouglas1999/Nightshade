@@ -11,7 +11,11 @@ class NightshadeTextField extends StatefulWidget {
   final Widget? suffixWidget;
   final String? suffix;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
   final bool obscureText;
+  final bool? autocorrect;
+  final bool? enableSuggestions;
   final TextInputType? keyboardType;
   final int maxLines;
   final String? errorText;
@@ -30,7 +34,11 @@ class NightshadeTextField extends StatefulWidget {
     this.suffixWidget,
     this.suffix,
     this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
     this.obscureText = false,
+    this.autocorrect,
+    this.enableSuggestions,
     this.keyboardType,
     this.maxLines = 1,
     this.errorText,
@@ -142,7 +150,11 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
             controller: _controller,
             focusNode: _focusNode,
             onChanged: widget.onChanged,
+            onFieldSubmitted: widget.onSubmitted,
+            textInputAction: widget.textInputAction,
             obscureText: widget.obscureText,
+            autocorrect: widget.autocorrect ?? !widget.obscureText,
+            enableSuggestions: widget.enableSuggestions ?? !widget.obscureText,
             keyboardType: widget.keyboardType,
             inputFormatters: widget.inputFormatters,
             textAlign: widget.textAlign,

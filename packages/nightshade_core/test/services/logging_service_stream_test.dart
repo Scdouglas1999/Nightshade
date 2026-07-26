@@ -7,10 +7,24 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/services/logging_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('loggingServiceProvider closes its stream with the container', () async {
+    final container = ProviderContainer();
+    final service = container.read(loggingServiceProvider);
+    final done = Completer<void>();
+    service.logEntryStream.listen(null, onDone: done.complete);
+
+    container.dispose();
+
+    await done.future.timeout(const Duration(seconds: 2));
+  });
+
   group('LoggingService.logEntryStream', () {
     late Directory tempDir;
     late LoggingService service;

@@ -98,14 +98,17 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
     final isMobile = Responsive.isMobile(context);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final isNarrow = screenWidth < 600;
+    final current = ref.watch(currentSequenceProvider);
+    final editingTemplate =
+        current?.isTemplate == true && current?.databaseId != null;
 
     if (isMobile || isNarrow) {
-      return _buildMobileHeader();
+      return _buildMobileHeader(editingTemplate: editingTemplate);
     }
-    return _buildDesktopHeader();
+    return _buildDesktopHeader(editingTemplate: editingTemplate);
   }
 
-  Widget _buildMobileHeader() {
+  Widget _buildMobileHeader({required bool editingTemplate}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -137,7 +140,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
             const SizedBox(width: 8),
             // Save current as template button
             NightshadeButton(
-              label: 'Save',
+              label: editingTemplate ? 'Update' : 'Save',
               icon: LucideIcons.save,
               size: ButtonSize.small,
               onPressed: () => _showSaveTemplateDialog(context),
@@ -197,7 +200,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
     );
   }
 
-  Widget _buildDesktopHeader() {
+  Widget _buildDesktopHeader({required bool editingTemplate}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -310,7 +313,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
             _ActionButton(
               colors: widget.colors,
               icon: LucideIcons.save,
-              label: 'Save as Template',
+              label: editingTemplate ? 'Update Template' : 'Save as Template',
               isPrimary: true,
               onPressed: () => _showSaveTemplateDialog(context),
             ),

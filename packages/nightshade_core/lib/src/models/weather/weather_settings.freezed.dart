@@ -230,7 +230,7 @@ return $default(_that.triggerDistanceKm,_that.cloudDensityThreshold,_that.leadTi
 @JsonSerializable()
 
 class _WeatherSettings implements WeatherSettings {
-  const _WeatherSettings({this.triggerDistanceKm = 30.0, this.cloudDensityThreshold = 60.0, this.leadTimeMinutes = 15, this.weatherSafetyEnabled = true, this.maxHumidityPercent = 90.0, this.maxWindSpeedKph = 30.0, this.maxCloudCoverPercent = 80.0, this.autoParkEnabled = true, this.autoResumeEnabled = false, this.preferredProvider = RadarProviderType.auto, this.refreshIntervalSeconds = 300});
+  const _WeatherSettings({this.triggerDistanceKm = 30.0, this.cloudDensityThreshold = 60.0, this.leadTimeMinutes = 15, this.weatherSafetyEnabled = false, this.maxHumidityPercent = 90.0, this.maxWindSpeedKph = 30.0, this.maxCloudCoverPercent = 80.0, this.autoParkEnabled = true, this.autoResumeEnabled = false, this.preferredProvider = RadarProviderType.auto, this.refreshIntervalSeconds = 300});
   factory _WeatherSettings.fromJson(Map<String, dynamic> json) => _$WeatherSettingsFromJson(json);
 
 /// Distance threshold for alerts in kilometers

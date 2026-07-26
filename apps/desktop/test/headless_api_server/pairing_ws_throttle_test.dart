@@ -15,6 +15,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/auth/pairing_service.dart';
 import 'package:nightshade_desktop/headless_api/route_metadata.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
+
+import '../headless_api/handler_test_helpers.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
@@ -29,7 +31,7 @@ void main() {
     setUp(() async {
       final database = PairingDatabase.forTesting(NativeDatabase.memory());
       pairingService = PairingService(database: database);
-      container = ProviderContainer(
+      container = createHeadlessTestContainer(
         overrides: [
           appVersionProvider.overrideWithValue(
             const AppVersionInfo(version: '2.5.0', buildNumber: 5),

@@ -29,12 +29,7 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
       if (state != null) 'state': state,
       if (operation != null) 'operation': operation,
     });
-    final raw = response['jobs'];
-    if (raw is! List) return const [];
-    return raw
-        .whereType<Map<String, dynamic>>()
-        .map(RemoteJob.fromJson)
-        .toList(growable: false);
+    return _rowsFromJson(response['jobs'], RemoteJob.fromJson);
   }
 
   /// Stream WS-broadcast snapshots for a single [jobId]. The stream
@@ -89,8 +84,17 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     });
 
     // Concurrent poll to catch terminations the WS stream might miss
-    // (e.g. when we reconnect after the JobCompleted frame).
-    pollTimer = Timer.periodic(pollInterval, (_) async {
+    // (e.g. when we reconnect after the JobCompleted frame). Use a one-shot
+    // timer that reschedules only after the request settles: Timer.periodic
+    // would overlap slow host requests and amplify a degraded connection.
+    late final Future<void> Function() poll;
+    void schedulePoll() {
+      if (completer.isCompleted) return;
+      pollTimer = Timer(pollInterval, () => unawaited(poll()));
+    }
+
+    poll = () async {
+      if (completer.isCompleted) return;
       try {
         final snap = await getJob(jobId);
         if (_isTerminalRemoteJobState(snap.state)) {
@@ -99,8 +103,11 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
       } catch (_) {
         // Silent retry — the next poll tick will try again. The timeout
         // protects against indefinite hangs.
+      } finally {
+        schedulePoll();
       }
-    });
+    };
+    schedulePoll();
 
     timeoutTimer = Timer(timeout, () {
       if (completer.isCompleted) return;
@@ -114,6 +121,42 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     });
 
     return completer.future;
+  }
+
+  /// Resolve an endpoint that may be either a legacy synchronous response or
+  /// the current `{jobId, status: queued}` envelope. This keeps clients
+  /// compatible with older hosts while ensuring new hosts return the actual
+  /// operation result rather than a queued acknowledgement.
+  Future<Map<String, dynamic>> awaitJobResultOrLegacy(
+    Map<String, dynamic> response, {
+    required String operation,
+    required Duration timeout,
+  }) async {
+    final jobId = response['jobId'] as String?;
+    if (jobId == null || jobId.isEmpty) return response;
+
+    final job = await awaitJobCompletion(jobId, timeout: timeout);
+    if (job.state == 'cancelled') {
+      throw ImagingException(
+        message: '$operation cancelled',
+        userMessage: 'The operation was cancelled.',
+      );
+    }
+    if (job.state != 'succeeded') {
+      final detail = job.error?['message'] ?? job.error?['code'] ?? job.state;
+      throw IoException(
+        message: '$operation job $jobId ended ${job.state}: $detail',
+        userMessage: 'The operation failed on the imaging host.',
+      );
+    }
+    final result = job.result;
+    if (result == null) {
+      throw ValidationException(
+        message: '$operation job $jobId succeeded without a result',
+        userMessage: 'The imaging host returned an empty result.',
+      );
+    }
+    return result;
   }
 
   static bool _isTerminalRemoteJobState(String state) {
@@ -200,7 +243,10 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     final response = await _post('system/update/check', {
       if (channel != null && channel.isNotEmpty) 'channel': channel,
     });
-    return RemoteJob.fromJson(response);
+    return RemoteJob.fromJson(
+      response,
+      fallbackOperation: 'system.update.check',
+    );
   }
 
   /// GET /api/system/update/status — current update phase snapshot.
@@ -213,7 +259,10 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   /// update. Returns a job handle for progress tracking.
   Future<RemoteJob> downloadUpdate() async {
     final response = await _post('system/update/download');
-    return RemoteJob.fromJson(response);
+    return RemoteJob.fromJson(
+      response,
+      fallbackOperation: 'system.update.download',
+    );
   }
 
   /// POST /api/system/update/apply — apply the staged update. The server
@@ -221,7 +270,10 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   /// updater binary), so clients should reconnect after the WS drops.
   Future<RemoteJob> applyUpdate() async {
     final response = await _post('system/update/apply');
-    return RemoteJob.fromJson(response);
+    return RemoteJob.fromJson(
+      response,
+      fallbackOperation: 'system.update.apply',
+    );
   }
 
   /// POST /api/system/update/rollback — roll back the last applied update
@@ -231,7 +283,10 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   /// the rollback, so clients should reconnect after the WS drops.
   Future<RemoteJob> rollbackUpdate() async {
     final response = await _post('system/update/rollback');
-    return RemoteJob.fromJson(response);
+    return RemoteJob.fromJson(
+      response,
+      fallbackOperation: 'system.update.rollback',
+    );
   }
 
   /// POST /api/system/update/abort — abort any in-flight check or
@@ -267,5 +322,14 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
   /// DELETE /api/system/update/staged — discard the staged update.
   Future<void> discardStagedUpdate() async {
     await _delete('system/update/staged');
+  }
+
+  /// GET /api/push/targets — whether a critical alert could actually reach a
+  /// phone right now (registered push tokens + a configured delivery channel).
+  ///
+  /// Counts and a verdict only; the host never returns token values.
+  Future<PushDeliveryTargets> getPushDeliveryTargets() async {
+    final response = await _get('push/targets');
+    return PushDeliveryTargets.fromJson(response);
   }
 }

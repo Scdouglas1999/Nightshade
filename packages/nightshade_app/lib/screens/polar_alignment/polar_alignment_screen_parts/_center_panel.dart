@@ -10,11 +10,12 @@ extension _CenterPanel on _PolarAlignmentScreenState {
     PolarAlignmentConfig config,
   ) {
     final detectionAsync = ref.watch(plateSolverDetectionProvider);
+    final preferenceAsync = ref.watch(plateSolverPreferenceProvider);
     final showSolverBanner = state.phase == PolarAlignPhase.idle &&
-        detectionAsync.maybeWhen(
-          data: (d) => !d.hasAnySolver,
-          orElse: () => false,
-        );
+        detectionAsync.valueOrNull != null &&
+        preferenceAsync.valueOrNull != null &&
+        !detectionAsync.valueOrNull!
+            .supports(preferenceAsync.valueOrNull!.choice);
 
     return Container(
       color: colors.background,

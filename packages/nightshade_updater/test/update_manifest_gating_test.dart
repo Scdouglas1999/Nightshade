@@ -11,12 +11,14 @@ void main() {
     String version = '2.1.0',
     int buildNumber = 42,
     String? minVersion,
+    String platform = 'windows',
+    String arch = 'x64',
   }) => UpdateManifest(
     version: version,
     buildNumber: buildNumber,
     releaseDate: DateTime.utc(2026, 5, 25),
-    platform: 'windows',
-    arch: 'x64',
+    platform: platform,
+    arch: arch,
     minVersion: minVersion,
     files: const {},
     totalSize: 0,
@@ -51,6 +53,82 @@ void main() {
       expect(manifest(minVersion: null).canUpgradeFrom('1.0.0'), isTrue);
       expect(manifest(minVersion: null).canUpgradeFrom('0.0'), isTrue);
     });
+  });
+
+  group('malformed version rejection', () {
+    test('manifest versions are not coerced into zero components', () {
+      expect(
+        () => manifest(version: '2.x.0').isNewerThan('2.0.0'),
+        throwsFormatException,
+      );
+    });
+
+    test('installed versions are validated before comparison', () {
+      expect(
+        () => manifest(version: '2.1.0').isNewerThan('not-a-version'),
+        throwsFormatException,
+      );
+    });
+
+    test('minimum versions are validated before upgrade gating', () {
+      expect(
+        () => manifest(minVersion: '2..0').canUpgradeFrom('2.1.0'),
+        throwsFormatException,
+      );
+    });
+  });
+
+  group('semver ordering with prerelease tags', () {
+    test('4.10.0 is newer than 4.9.0 (numeric, not lexical)', () {
+      expect(manifest(version: '4.10.0').isNewerThan('4.9.0'), isTrue);
+      expect(manifest(version: '4.9.0').isNewerThan('4.10.0'), isFalse);
+    });
+
+    test('a prerelease is older than its release core', () {
+      expect(manifest(version: '2.1.0-beta.1').isNewerThan('2.1.0'), isFalse);
+      expect(manifest(version: '2.1.0').isNewerThan('2.1.0-beta.1'), isTrue);
+    });
+
+    test('a later prerelease outranks an earlier one', () {
+      expect(
+        manifest(version: '2.1.0-beta.2').isNewerThan('2.1.0-beta.1'),
+        isTrue,
+      );
+      expect(
+        manifest(version: '2.1.0-beta.1').isNewerThan('2.1.0-beta.2'),
+        isFalse,
+      );
+    });
+
+    test('release core outranks a prerelease regardless of build tiebreak', () {
+      expect(
+        manifest(
+          version: '2.1.0',
+          buildNumber: 1,
+        ).isNewerBuildThan('2.1.0-beta.9', 99),
+        isTrue,
+      );
+    });
+
+    test(
+      'equal version+build tiebreak still preserved across prerelease fix',
+      () {
+        expect(
+          manifest(
+            version: '2.1.0',
+            buildNumber: 5,
+          ).isNewerBuildThan('2.1.0', 4),
+          isTrue,
+        );
+        expect(
+          manifest(
+            version: '2.1.0',
+            buildNumber: 4,
+          ).isNewerBuildThan('2.1.0', 4),
+          isFalse,
+        );
+      },
+    );
   });
 
   group('isNewerBuildThan same-semver build gating', () {
@@ -108,8 +186,13 @@ void main() {
       UpdateManifest served, {
       required String currentVersion,
       required int currentBuildNumber,
+      String? channelVersion,
+      String manifestUrl = '/api/manifest',
+      String serverUrl = 'https://example.invalid',
+      void Function(Uri)? onRequest,
     }) {
       final client = MockClient((request) async {
+        onRequest?.call(request.url);
         if (request.url.path.endsWith('/api/version')) {
           return http.Response(
             jsonEncode({
@@ -117,15 +200,16 @@ void main() {
               'latestBuildNumber': served.buildNumber,
               'channels': {
                 'stable': {
-                  'version': served.version,
-                  'manifestUrl': '/api/manifest',
+                  'version': channelVersion ?? served.version,
+                  'manifestUrl': manifestUrl,
                 },
               },
             }),
             200,
           );
         }
-        if (request.url.path.endsWith('/api/manifest')) {
+        final expectedManifestPath = Uri.parse(manifestUrl).path;
+        if (request.url.path.endsWith(expectedManifestPath)) {
           return http.Response(jsonEncode(served.toJson()), 200);
         }
         return http.Response('not found', 404);
@@ -135,8 +219,10 @@ void main() {
         currentVersion: currentVersion,
         currentBuildNumber: currentBuildNumber,
         httpClient: client,
+        currentPlatform: 'windows',
+        currentArch: 'x64',
       );
-      service.configure(serverUrl: 'https://example.invalid');
+      service.configure(serverUrl: serverUrl);
       return service;
     }
 
@@ -176,6 +262,110 @@ void main() {
       final result = await service.checkForUpdates();
       expect(result.hasUpdate, isTrue);
       expect(result.availableVersion, '2.1.0');
+    });
+
+    test('rejects a manifest for another operating system', () async {
+      final service = serviceFor(
+        manifest(platform: 'linux'),
+        currentVersion: '2.0.0',
+        currentBuildNumber: 1,
+      );
+
+      await expectLater(
+        service.checkForUpdates(),
+        throwsA(
+          isA<UpdateException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('linux/x64'), contains('windows/x64')),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a manifest for another CPU architecture', () async {
+      final service = serviceFor(
+        manifest(arch: 'arm64'),
+        currentVersion: '2.0.0',
+        currentBuildNumber: 1,
+      );
+
+      await expectLater(
+        service.checkForUpdates(),
+        throwsA(
+          isA<UpdateException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('windows/arm64'), contains('windows/x64')),
+          ),
+        ),
+      );
+    });
+
+    test('rejects a channel index and manifest version mismatch', () async {
+      final service = serviceFor(
+        manifest(version: '2.1.0'),
+        currentVersion: '2.0.0',
+        currentBuildNumber: 1,
+        channelVersion: '2.2.0',
+      );
+
+      await expectLater(
+        service.checkForUpdates(),
+        throwsA(
+          isA<UpdateException>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('2.2.0'), contains('2.1.0')),
+          ),
+        ),
+      );
+    });
+
+    test(
+      'resolves a relative manifest URL from the server directory',
+      () async {
+        final requested = <Uri>[];
+        final service = serviceFor(
+          manifest(),
+          currentVersion: '2.0.0',
+          currentBuildNumber: 1,
+          manifestUrl: 'manifests/stable.json',
+          serverUrl: 'https://example.invalid/releases',
+          onRequest: requested.add,
+        );
+
+        final result = await service.checkForUpdates();
+
+        expect(result.hasUpdate, isTrue);
+        expect(
+          requested,
+          contains(
+            Uri.parse('https://example.invalid/releases/manifests/stable.json'),
+          ),
+        );
+      },
+    );
+
+    test('wraps a non-object version response as an update error', () async {
+      final service = UpdateService(
+        currentVersion: '2.0.0',
+        currentBuildNumber: 1,
+        currentPlatform: 'windows',
+        currentArch: 'x64',
+        httpClient: MockClient((_) async => http.Response('[]', 200)),
+      )..configure(serverUrl: 'https://example.invalid');
+
+      await expectLater(
+        service.checkForUpdates(),
+        throwsA(
+          isA<UpdateException>().having(
+            (error) => error.message,
+            'message',
+            contains('Invalid response format'),
+          ),
+        ),
+      );
     });
   });
 }

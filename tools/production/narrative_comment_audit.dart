@@ -156,7 +156,10 @@ void main(List<String> args) {
     if (!rootDir.existsSync()) {
       continue;
     }
-    for (final entity in rootDir.listSync(recursive: true, followLinks: false)) {
+    for (final entity in rootDir.listSync(
+      recursive: true,
+      followLinks: false,
+    )) {
       if (entity is! File || !entity.path.endsWith('.dart')) {
         continue;
       }
@@ -169,10 +172,9 @@ void main(List<String> args) {
     }
   }
 
-  final kept = findings
-      .where((f) => !_isAllowlisted(f.entry, allowlist))
-      .toList()
-    ..sort((a, b) => a.entry.compareTo(b.entry));
+  final kept =
+      findings.where((f) => !_isAllowlisted(f.entry, allowlist)).toList()
+        ..sort((a, b) => a.entry.compareTo(b.entry));
 
   final byCat = <String, int>{};
   for (final f in kept) {
@@ -235,7 +237,10 @@ void _scanFile(File file, String rel, List<_Finding> out) {
 const _importBlockThreshold = 3;
 
 void _scanImportJustifications(
-    List<String> lines, String rel, List<_Finding> out) {
+  List<String> lines,
+  String rel,
+  List<_Finding> out,
+) {
   for (var i = 0; i < lines.length; i++) {
     final t = lines[i].trim();
     if (!t.startsWith('import ') && !t.startsWith('export ')) {
@@ -265,13 +270,15 @@ void _scanImportJustifications(
       }
     }
     if (prose > _importBlockThreshold) {
-      out.add(_Finding(
-        rel,
-        blockStart + 1,
-        '${lines[blockStart].trimRight()}  [+${prose - 1} more lines '
-            'justifying import on L${i + 1}]',
-        'import-justification',
-      ));
+      out.add(
+        _Finding(
+          rel,
+          blockStart + 1,
+          '${lines[blockStart].trimRight()}  [+${prose - 1} more lines '
+              'justifying import on L${i + 1}]',
+          'import-justification',
+        ),
+      );
     }
   }
 }
@@ -293,7 +300,11 @@ String _nextCode(List<String> lines, int index) {
 // whose *next* line is an actual code statement — that excludes doc comments,
 // region/section headers, and route-list banners that merely happen to start
 // with a verb.
-String? _classify(String body, {required bool isDoc, required String nextLine}) {
+String? _classify(
+  String body, {
+  required bool isDoc,
+  required String nextLine,
+}) {
   if (_selfNarrationPattern.hasMatch(body)) {
     return 'self-narration';
   }
@@ -357,7 +368,8 @@ void _runSelfTest(String dir) {
     // legitimate keepers — MUST stay null
     'PHD2 emits "LostStar"; the bridge canonicalizes it to lostStar.': null,
     'Skip the precondition because a stale discovery cache must not '
-        'reject a known-good reconnect.': null,
+            'reject a known-good reconnect.':
+        null,
     'Clamp to >=1 so the integrator never divides by zero.': null,
     'Get the focal point because the caller scales around it.': null,
     'Throughput, not latency: batch writes to avoid fsync per row.': null,
@@ -377,8 +389,7 @@ void _runSelfTest(String dir) {
   });
 
   // Also exercise the directory walk + allowlist on a real temp tree.
-  final tmp = Directory('$dir/narrative_selftest')
-    ..createSync(recursive: true);
+  final tmp = Directory('$dir/narrative_selftest')..createSync(recursive: true);
   final pkgLib = Directory('${tmp.path}/packages/x/lib')
     ..createSync(recursive: true);
   File('${pkgLib.path}/sample.dart').writeAsStringSync('''
@@ -388,8 +399,11 @@ final c = StreamController();
 final x = 1;
 ''');
   final hits = <_Finding>[];
-  _scanFile(File('${pkgLib.path}/sample.dart'), 'packages/x/lib/sample.dart',
-      hits);
+  _scanFile(
+    File('${pkgLib.path}/sample.dart'),
+    'packages/x/lib/sample.dart',
+    hits,
+  );
   // Both the restate-obvious AND the change-history phrasing match; the second
   // is a legitimate keeper, so confirm the allowlist removes exactly it.
   const allowEntry =
@@ -418,10 +432,14 @@ import 'package:x/src/seam.dart';
 import 'package:x/ok.dart';
 ''');
   final importHits = <_Finding>[];
-  _scanFile(File('${pkgLib.path}/imports.dart'),
-      'packages/x/lib/imports.dart', importHits);
-  final justifications =
-      importHits.where((f) => f.category == 'import-justification').toList();
+  _scanFile(
+    File('${pkgLib.path}/imports.dart'),
+    'packages/x/lib/imports.dart',
+    importHits,
+  );
+  final justifications = importHits
+      .where((f) => f.category == 'import-justification')
+      .toList();
   if (justifications.length != 1 || justifications.first.line != 1) {
     failures++;
     stderr.writeln(
@@ -433,8 +451,10 @@ import 'package:x/ok.dart';
   tmp.deleteSync(recursive: true);
 
   if (failures == 0) {
-    stdout.writeln('narrative_comment_audit self-test: PASS (${cases.length} '
-        'classifier cases + walk/allowlist)');
+    stdout.writeln(
+      'narrative_comment_audit self-test: PASS (${cases.length} '
+      'classifier cases + walk/allowlist)',
+    );
   } else {
     stderr.writeln('narrative_comment_audit self-test: $failures FAILURES');
     exit(1);
@@ -500,14 +520,16 @@ bool _isAllowlisted(String entry, List<_AllowlistEntry> allowlist) {
   }
   final normalized = _normalize(entry);
   final firstColon = normalized.indexOf(':');
-  final secondColon =
-      firstColon >= 0 ? normalized.indexOf(':', firstColon + 1) : -1;
+  final secondColon = firstColon >= 0
+      ? normalized.indexOf(':', firstColon + 1)
+      : -1;
   if (firstColon < 0 || secondColon < 0) {
     return false;
   }
   final entryPath = normalized.substring(0, firstColon);
-  final entryLineNo =
-      int.tryParse(normalized.substring(firstColon + 1, secondColon));
+  final entryLineNo = int.tryParse(
+    normalized.substring(firstColon + 1, secondColon),
+  );
   final entryText = normalized.substring(secondColon + 1);
   if (entryLineNo == null) {
     return false;
@@ -538,8 +560,7 @@ String? _argValue(List<String> args, String key) {
   return null;
 }
 
-bool _isLibPath(String path) =>
-    _libPathPatterns.any((p) => p.hasMatch(path));
+bool _isLibPath(String path) => _libPathPatterns.any((p) => p.hasMatch(path));
 
 bool _shouldSkip(String path) {
   final segments = path.split('/');
@@ -556,8 +577,9 @@ List<String> _readLinesSafe(File file) {
     return const LineSplitter().convert(file.readAsStringSync());
   } catch (_) {
     try {
-      return const LineSplitter()
-          .convert(utf8.decode(file.readAsBytesSync(), allowMalformed: true));
+      return const LineSplitter().convert(
+        utf8.decode(file.readAsBytesSync(), allowMalformed: true),
+      );
     } catch (_) {
       return const <String>[];
     }
@@ -576,8 +598,9 @@ String _normalize(String path) =>
 String _toWorkspaceRelative(String path, String workspaceRoot) {
   final absolute = _normalize(File(path).absolute.path);
   if (absolute.toLowerCase().startsWith(workspaceRoot.toLowerCase())) {
-    final start =
-        workspaceRoot.endsWith('/') ? workspaceRoot.length : workspaceRoot.length + 1;
+    final start = workspaceRoot.endsWith('/')
+        ? workspaceRoot.length
+        : workspaceRoot.length + 1;
     if (absolute.length >= start) {
       return absolute.substring(start);
     }

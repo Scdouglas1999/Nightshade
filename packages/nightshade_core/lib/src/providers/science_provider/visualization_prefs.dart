@@ -7,6 +7,7 @@ class ScienceVisualizationPrefsNotifier
   static const _liveGridColsKey = 'science.overlay.live_grid_cols';
   static const _analysisGridRowsKey = 'science.overlay.analysis_grid_rows';
   static const _analysisGridColsKey = 'science.overlay.analysis_grid_cols';
+  Future<void> _writeTail = Future<void>.value();
 
   @override
   Future<ScienceVisualizationPrefs> build() async {
@@ -24,25 +25,46 @@ class ScienceVisualizationPrefsNotifier
     );
   }
 
-  Future<void> savePrefs(ScienceVisualizationPrefs prefs) async {
-    await _writeScienceSettings(ref, {
-      _overlayOpacityKey: prefs.overlayOpacity.toString(),
-      _liveGridRowsKey: prefs.liveGridRows.toString(),
-      _liveGridColsKey: prefs.liveGridCols.toString(),
-      _analysisGridRowsKey: prefs.analysisGridRows.toString(),
-      _analysisGridColsKey: prefs.analysisGridCols.toString(),
+  Future<void> savePrefs(ScienceVisualizationPrefs prefs) {
+    final result = _writeTail.then((_) async {
+      if (state.valueOrNull == null) {
+        throw StateError(
+          'Science visualization preferences are not loaded; refusing to '
+          'overwrite them with defaults.',
+        );
+      }
+      await _writeScienceSettings(ref, {
+        _overlayOpacityKey: prefs.overlayOpacity.toString(),
+        _liveGridRowsKey: prefs.liveGridRows.toString(),
+        _liveGridColsKey: prefs.liveGridCols.toString(),
+        _analysisGridRowsKey: prefs.analysisGridRows.toString(),
+        _analysisGridColsKey: prefs.analysisGridCols.toString(),
+      });
+      state = AsyncData(prefs);
     });
-    state = AsyncData(prefs);
+    _writeTail = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return result;
   }
 
   double _parseDouble(String? value, double fallback) {
-    final parsed = value == null ? null : double.tryParse(value);
-    return parsed ?? fallback;
+    if (value == null || value.isEmpty) return fallback;
+    final parsed = double.tryParse(value);
+    if (parsed == null || !parsed.isFinite) {
+      throw FormatException('Invalid persisted decimal "$value"');
+    }
+    return parsed;
   }
 
   int _parseInt(String? value, int fallback) {
-    final parsed = value == null ? null : int.tryParse(value);
-    return parsed ?? fallback;
+    if (value == null || value.isEmpty) return fallback;
+    final parsed = int.tryParse(value);
+    if (parsed == null) {
+      throw FormatException('Invalid persisted integer "$value"');
+    }
+    return parsed;
   }
 }
 

@@ -2,13 +2,18 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
+import '../backend/roles/device_backend.dart';
 import 'plate_solve_service.dart';
 import 'imaging_service.dart';
 import 'device_service.dart';
 import 'smart_notification_service.dart';
 import '../providers/backend_provider.dart';
+import '../providers/constellation_provider.dart'
+    show coImagingSessionServiceProvider;
 import '../providers/equipment_provider.dart';
+import '../providers/imaging_provider.dart' show exposureSettingsProvider;
 import '../providers/current_screen_provider.dart';
+import 'logging_service.dart' show loggingServiceProvider;
 import '../models/imaging/imaging_models.dart';
 import '../models/equipment/equipment_models.dart';
 
@@ -44,6 +49,22 @@ class CenteringMountUnresponsiveException implements Exception {
         'consecutively over ${seconds.toStringAsFixed(1)}s '
         '— aborting centering. The mount may be disconnected or '
         'unresponsive. Last error: $cause';
+  }
+}
+
+/// Thrown when the mount keeps reporting that it is slewing for the full
+/// post-slew settle budget.
+class CenteringSlewTimeoutException implements Exception {
+  final Duration elapsed;
+
+  const CenteringSlewTimeoutException({required this.elapsed});
+
+  @override
+  String toString() {
+    final seconds = elapsed.inMilliseconds / 1000.0;
+    return 'Mount was still slewing after ${seconds.toStringAsFixed(1)}s. '
+        'Centering stopped instead of taking another exposure while the mount '
+        'was moving.';
   }
 }
 
@@ -133,8 +154,13 @@ class CenteringConfig {
   /// Binning to use for centering images
   final int binning;
 
-  /// Gain to use for centering images
-  final int gain;
+  /// Gain to use for centering images. When omitted, the current imaging gain
+  /// is preserved.
+  final int? gain;
+
+  /// Offset to use for centering images. When omitted, the current imaging
+  /// offset is preserved.
+  final int? offset;
 
   /// Whether to sync mount after successful plate solve
   final bool syncMount;
@@ -147,7 +173,8 @@ class CenteringConfig {
     this.toleranceArcsec = 30.0,
     this.exposureTime = 3.0,
     this.binning = 2,
-    this.gain = 100,
+    this.gain,
+    this.offset,
     this.syncMount = false,
     this.overallTimeout = const Duration(minutes: 10),
   });
@@ -235,15 +262,16 @@ class CenteringStatus {
 /// Service for automated target centering using plate solving
 class CenteringService {
   final Ref _ref;
+  final DeviceBackend _backend;
 
   /// Interval between mount-status polls during post-slew settle.
   ///
   /// 500ms keeps UI status reasonably fresh without hammering the bridge.
-  static const Duration _pollInterval = Duration(milliseconds: 500);
+  static const Duration _defaultPollInterval = Duration(milliseconds: 500);
 
   /// Upper bound (in ticks) on the post-slew settle wait. 120 × 500ms = 60s
   /// — preserves the existing wall-clock budget for slow-but-working mounts.
-  static const int _maxPollTicks = 120;
+  static const int _defaultMaxPollTicks = 120;
 
   /// Maximum number of consecutive `getMountStatus` failures tolerated
   /// during the settle poll before aborting centering with a typed
@@ -255,15 +283,35 @@ class CenteringService {
   /// mount fails fast at 3s rather than dragging out the full 60s timeout.
   static const int _maxConsecutiveQueryFailures = 6;
 
+  final Duration _pollInterval;
+  final int _maxPollTicks;
+
   // Flag flipped by [stop]; checked at every centering loop yield-point so the
   // user-visible Abort path returns promptly and the post-stop status is
   // explicit ("aborted") rather than ambiguous.
   bool _abortRequested = false;
+  bool _isRunning = false;
+  bool _retired = false;
+  bool _captureInFlight = false;
+  bool _slewInFlight = false;
+  Future<void>? _stopFuture;
+  ImagingService? _ownedImagingService;
+  DeviceService? _ownedDeviceService;
 
-  CenteringService(this._ref);
+  CenteringService(
+    this._ref, {
+    DeviceBackend? backend,
+    Duration slewPollInterval = _defaultPollInterval,
+    int maxSlewPollTicks = _defaultMaxPollTicks,
+  }) : _backend = backend ?? _ref.read(deviceBackendProvider),
+       _pollInterval = slewPollInterval,
+       _maxPollTicks = maxSlewPollTicks;
 
   /// True while a centering run has been asked to stop but hasn't returned yet.
   bool get isAborting => _abortRequested;
+
+  /// True until the active centering owner's Future has fully settled.
+  bool get isRunning => _isRunning;
 
   /// Abort the current centering run.
   ///
@@ -272,22 +320,43 @@ class CenteringService {
   /// mount slew, then sets the abort flag that the centering loop polls. The
   /// loop returns a [CenteringResult.failure] with `errorMessage: 'Aborted'`.
   ///
-  /// Safe to call when no run is active: it just no-ops the providers.
+  /// Safe to call when no run is active. Only hardware currently owned by this
+  /// service is interrupted, so an idle stop cannot cancel an unrelated camera
+  /// exposure or mount slew.
   Future<void> stop() async {
+    if (!_isRunning) return;
     _abortRequested = true;
 
-    // Cancel exposure first: an in-flight capture is the longest-running step
-    // in a centering iteration and the most impactful to release.
-    final imagingService = _ref.read(imagingServiceProvider);
-    imagingService.cancelExposure();
-
-    // Mount may be mid-slew when Abort is hit; halt it so the scope doesn't
-    // keep moving after the dialog closes.
-    final deviceService = _ref.read(deviceServiceProvider);
-    final mountState = _ref.read(mountStateProvider);
-    if (mountState.connectionState == DeviceConnectionState.connected) {
-      await deviceService.abortMountSlew();
+    final existing = _stopFuture;
+    if (existing != null) {
+      await existing;
+      return;
     }
+
+    final operation = _stopOwnedHardware();
+    _stopFuture = operation;
+    await operation;
+  }
+
+  Future<void> _stopOwnedHardware() async {
+    if (_captureInFlight) {
+      _ownedImagingService?.cancelExposure();
+    }
+
+    if (_slewInFlight) {
+      await _ownedDeviceService?.abortMountSlew();
+    }
+  }
+
+  /// Retire this service when its backend changes. Any old-host work keeps
+  /// unwinding against the services captured at admission and cannot abort or
+  /// slew hardware on the replacement host.
+  void retire() {
+    if (_retired) return;
+    _retired = true;
+    if (!_isRunning) return;
+    _abortRequested = true;
+    unawaited(_stopOwnedHardware().catchError((_) {}));
   }
 
   /// Center on target coordinates with iterative plate solve and slew
@@ -300,27 +369,194 @@ class CenteringService {
     CenteringConfig config = const CenteringConfig(),
     void Function(CenteringStatus)? onStatusUpdate,
   }) async {
-    // Reset abort flag so a stale [stop] from a previous run can't poison a
-    // fresh attempt.
+    final validationError = _validateRequest(
+      targetRa: targetRa,
+      targetDec: targetDec,
+      solverConfig: solverConfig,
+      config: config,
+    );
+    if (validationError != null) {
+      return CenteringResult.failure(
+        errorMessage: validationError,
+        iterations: 0,
+        iterationHistory: const [],
+      );
+    }
+
+    if (_isRunning) {
+      return CenteringResult.failure(
+        errorMessage: 'Another centering operation is already running',
+        iterations: 0,
+        iterationHistory: const [],
+      );
+    }
+
+    _isRunning = true;
     _abortRequested = false;
+    final workFuture = _runCentering(
+      targetRa: targetRa,
+      targetDec: targetDec,
+      solverConfig: solverConfig,
+      config: config,
+      onStatusUpdate: onStatusUpdate,
+    );
     try {
-      return await _centerOnTargetInternal(
-        targetRa: targetRa,
-        targetDec: targetDec,
-        solverConfig: solverConfig,
-        config: config,
-        onStatusUpdate: onStatusUpdate,
-      ).timeout(
+      return await workFuture.timeout(
         config.overallTimeout,
-        onTimeout: () => CenteringResult.failure(
-          errorMessage:
-              'Centering timed out after ${config.overallTimeout.inSeconds} seconds',
-          iterations: 0,
-          iterationHistory: const [],
-        ),
+        onTimeout: () async {
+          await stop();
+          CenteringResult? settledResult;
+          try {
+            settledResult = await workFuture;
+          } catch (_) {
+            // The timeout remains the user-facing terminal reason. Waiting for
+            // the owner Future here is about hardware settlement, not replacing
+            // it with a secondary cancellation exception.
+          }
+          return CenteringResult.failure(
+            errorMessage:
+                'Centering timed out after ${config.overallTimeout.inSeconds} seconds',
+            iterations: settledResult?.iterations ?? 0,
+            iterationHistory:
+                settledResult?.iterationHistory ?? const <CenteringIteration>[],
+          );
+        },
       );
     } finally {
-      _abortRequested = false;
+      final stopFuture = _stopFuture;
+      try {
+        if (stopFuture != null) {
+          await stopFuture;
+        }
+      } finally {
+        _isRunning = false;
+        _abortRequested = false;
+        _captureInFlight = false;
+        _slewInFlight = false;
+        _stopFuture = null;
+        _ownedImagingService = null;
+        _ownedDeviceService = null;
+      }
+    }
+  }
+
+  String? _validateRequest({
+    required double targetRa,
+    required double targetDec,
+    required PlateSolverConfig solverConfig,
+    required CenteringConfig config,
+  }) {
+    if (!targetRa.isFinite || targetRa < 0 || targetRa > 24) {
+      return 'Target RA must be between 0 and 24 hours';
+    }
+    if (!targetDec.isFinite || targetDec < -90 || targetDec > 90) {
+      return 'Target declination must be between -90° and +90°';
+    }
+    if (config.maxIterations < 1) {
+      return 'Centering requires at least one iteration';
+    }
+    if (!config.toleranceArcsec.isFinite || config.toleranceArcsec <= 0) {
+      return 'Centering tolerance must be greater than zero';
+    }
+    if (!config.exposureTime.isFinite || config.exposureTime <= 0) {
+      return 'Centering exposure time must be greater than zero';
+    }
+    if (config.binning < 1) {
+      return 'Centering binning must be at least 1';
+    }
+    if (config.gain != null && config.gain! < 0) {
+      return 'Centering gain cannot be negative';
+    }
+    if (config.offset != null && config.offset! < 0) {
+      return 'Centering offset cannot be negative';
+    }
+    if (config.overallTimeout <= Duration.zero) {
+      return 'Centering timeout must be greater than zero';
+    }
+    if (solverConfig.timeoutSeconds < 1) {
+      return 'Plate-solve timeout must be at least one second';
+    }
+    if (solverConfig.searchRadius != null &&
+        (!solverConfig.searchRadius!.isFinite ||
+            solverConfig.searchRadius! <= 0)) {
+      return 'Plate-solve search radius must be greater than zero';
+    }
+    return null;
+  }
+
+  Future<CenteringResult> _runCentering({
+    required double targetRa,
+    required double targetDec,
+    required PlateSolverConfig solverConfig,
+    required CenteringConfig config,
+    void Function(CenteringStatus)? onStatusUpdate,
+  }) async {
+    // WS3 Gap 1 — live co-imaging framing offset: when this target centre
+    // belongs to a co-imaging session this rig is in, slew/centre on
+    // `centre + the rig's hub-assigned offset` so the rigs tile the field and
+    // reject correlated/walking noise instead of all framing identically. The
+    // offset resolves from the durable membership (no hub round-trip); a rig in
+    // no covering session, or any failure, falls through to the raw target so
+    // ordinary centering is never affected. `targetRa` is app-canonical HOURS;
+    // the offset helper works in degrees, so we convert at the boundary.
+    final framed = await _resolveCoImagingFramedTarget(
+      targetRaHours: targetRa,
+      targetDecDeg: targetDec,
+    );
+    final effectiveRa = framed?.raHours ?? targetRa;
+    final effectiveDec = framed?.decDeg ?? targetDec;
+    if (_abortRequested) return _abortedResult(0, const []);
+    return _centerOnTargetInternal(
+      targetRa: effectiveRa,
+      targetDec: effectiveDec,
+      solverConfig: solverConfig,
+      config: config,
+      onStatusUpdate: onStatusUpdate,
+    );
+  }
+
+  /// Resolve the co-imaging framing-offset-adjusted centre for a requested
+  /// target (HOURS RA in / HOURS RA out), or null when this rig is not an active
+  /// member of any co-imaging session covering the point. Defensive: a missing
+  /// hub, an unbuilt provider (e.g. a centering unit test), or any resolver
+  /// error logs a warning and returns null so centering proceeds on the raw
+  /// target — the offset is an enhancement, never a precondition.
+  Future<({double raHours, double decDeg})?> _resolveCoImagingFramedTarget({
+    required double targetRaHours,
+    required double targetDecDeg,
+  }) async {
+    try {
+      final coImaging = _ref.read(coImagingSessionServiceProvider);
+      final framed = await coImaging.framedCenterForPoint(
+        centerRaDeg: targetRaHours * 15.0,
+        centerDecDeg: targetDecDeg,
+      );
+      if (framed == null) return null;
+      final raHours = framed.raDeg / 15.0;
+      if (raHours == targetRaHours && framed.decDeg == targetDecDeg) {
+        // Anchor slot (zero offset): nothing to apply.
+        return null;
+      }
+      _ref
+          .read(loggingServiceProvider)
+          .info(
+            'Co-imaging: framing this rig on its assigned coverage tile '
+            '(${raHours.toStringAsFixed(4)}h, '
+            '${framed.decDeg.toStringAsFixed(4)} deg) instead of the raw centre '
+            '(${targetRaHours.toStringAsFixed(4)}h, '
+            '${targetDecDeg.toStringAsFixed(4)} deg).',
+            source: 'CenteringService',
+          );
+      return (raHours: raHours, decDeg: framed.decDeg);
+    } catch (e) {
+      _ref
+          .read(loggingServiceProvider)
+          .warning(
+            'Co-imaging framing-offset resolve failed; centering on the raw '
+            'target: $e',
+            source: 'CenteringService',
+          );
+      return null;
     }
   }
 
@@ -366,6 +602,65 @@ class CenteringService {
     final imagingService = _ref.read(imagingServiceProvider);
     final plateSolveService = _ref.read(plateSolveServiceProvider);
     final deviceService = _ref.read(deviceServiceProvider);
+    _ownedImagingService = imagingService;
+    _ownedDeviceService = deviceService;
+
+    // Fail before taking a throwaway exposure when the selected solver is not
+    // usable. This also catches the case where another solver is installed but
+    // the explicitly selected one is not configured.
+    await plateSolveService.ensureSolverAvailable();
+    if (_abortRequested) return _abortedResult(0, iterations);
+
+    // A "Slew & Center" action reaches this service as soon as the mount
+    // accepts the initial slew command; that command Future does not mean the
+    // mount has physically settled. Query the live backend and wait before the
+    // first exposure so the frame is not captured while stars are trailing.
+    final mountId = mountState.deviceId;
+    if (mountId != null) {
+      var shouldWaitForInitialSlew = false;
+      try {
+        shouldWaitForInitialSlew = (await _backend.getMountStatus(
+          mountId,
+        )).slewing;
+      } catch (_) {
+        // Let the bounded poll tolerate transient query failures and surface a
+        // typed error if the mount remains unreachable.
+        shouldWaitForInitialSlew = true;
+      }
+
+      if (shouldWaitForInitialSlew) {
+        onStatusUpdate?.call(
+          CenteringStatus(
+            state: CenteringState.slewing,
+            currentIteration: 0,
+            maxIterations: config.maxIterations,
+            message: 'Waiting for the initial slew to settle...',
+            iterationHistory: iterations,
+          ),
+        );
+        _slewInFlight = true;
+        try {
+          await _waitForSlewComplete(mountId);
+        } on CenteringMountUnresponsiveException catch (e) {
+          if (_abortRequested) return _abortedResult(0, iterations);
+          return CenteringResult.failure(
+            errorMessage: e.toString(),
+            iterations: 0,
+            iterationHistory: iterations,
+          );
+        } on CenteringSlewTimeoutException catch (e) {
+          if (_abortRequested) return _abortedResult(0, iterations);
+          return CenteringResult.failure(
+            errorMessage: e.toString(),
+            iterations: 0,
+            iterationHistory: iterations,
+          );
+        } finally {
+          _slewInFlight = false;
+        }
+        if (_abortRequested) return _abortedResult(0, iterations);
+      }
+    }
 
     for (int iteration = 1; iteration <= config.maxIterations; iteration++) {
       if (_abortRequested) return _abortedResult(iteration - 1, iterations);
@@ -383,16 +678,18 @@ class CenteringService {
       );
 
       // Step 1: Take short exposure
+      final currentExposure = _ref.read(exposureSettingsProvider);
       final exposureSettings = ExposureSettings(
         exposureTime: config.exposureTime,
-        gain: config.gain,
-        offset: 50,
+        gain: config.gain ?? currentExposure.gain,
+        offset: config.offset ?? currentExposure.offset,
         binningX: config.binning,
         binningY: config.binning,
         frameType: FrameType.light,
       );
 
       CapturedImageData? capturedImage;
+      _captureInFlight = true;
       try {
         capturedImage = await imagingService.captureImage(
           settings: exposureSettings,
@@ -417,6 +714,8 @@ class CenteringService {
           iterations: iteration,
           iterationHistory: iterations,
         );
+      } finally {
+        _captureInFlight = false;
       }
 
       if (capturedImage == null) {
@@ -477,6 +776,11 @@ class CenteringService {
           iterationHistory: iterations,
         );
       }
+
+      // A plate solver cannot currently be interrupted, so Abort may arrive
+      // while the solve Future is in flight. Never use a late solution to sync
+      // or slew the mount after the user has cancelled.
+      if (_abortRequested) return _abortedResult(iteration, iterations);
 
       if (!solveResult.success) {
         final iter = CenteringIteration(
@@ -604,15 +908,40 @@ class CenteringService {
         ),
       );
 
+      _slewInFlight = true;
       try {
         if (config.syncMount) {
           // Sync mount to solved coordinates, then slew to target
           await deviceService.syncMountToCoordinates(solvedRa, solvedDec);
+          if (_abortRequested) return _abortedResult(iteration, iterations);
           await deviceService.slewMountToCoordinates(targetRa, targetDec);
         } else {
           // Just slew to target coordinates
           await deviceService.slewMountToCoordinates(targetRa, targetDec);
         }
+        if (_abortRequested) return _abortedResult(iteration, iterations);
+
+        // Wait for slew to complete by polling mount status.
+        final correctionMountId = mountState.deviceId;
+        if (correctionMountId != null) {
+          await _waitForSlewComplete(correctionMountId);
+        } else {
+          await Future.delayed(const Duration(seconds: 2));
+        }
+      } on CenteringMountUnresponsiveException catch (e) {
+        if (_abortRequested) return _abortedResult(iteration, iterations);
+        return CenteringResult.failure(
+          errorMessage: e.toString(),
+          iterations: iteration,
+          iterationHistory: iterations,
+        );
+      } on CenteringSlewTimeoutException catch (e) {
+        if (_abortRequested) return _abortedResult(iteration, iterations);
+        return CenteringResult.failure(
+          errorMessage: e.toString(),
+          iterations: iteration,
+          iterationHistory: iterations,
+        );
       } catch (e) {
         // Abort triggers abortMountSlew() which surfaces as a thrown error
         // from the in-flight slew future; report as user abort, not failure.
@@ -622,28 +951,11 @@ class CenteringService {
           iterations: iteration,
           iterationHistory: iterations,
         );
+      } finally {
+        _slewInFlight = false;
       }
 
       if (_abortRequested) return _abortedResult(iteration, iterations);
-
-      // Wait for slew to complete by polling mount status. May throw
-      // [CenteringMountUnresponsiveException] if the mount stops answering;
-      // the catch below converts that into a typed centering failure result.
-      final mountId = mountState.deviceId;
-      if (mountId != null) {
-        try {
-          await _waitForSlewComplete(mountId);
-        } on CenteringMountUnresponsiveException catch (e) {
-          if (_abortRequested) return _abortedResult(iteration, iterations);
-          return CenteringResult.failure(
-            errorMessage: e.toString(),
-            iterations: iteration,
-            iterationHistory: iterations,
-          );
-        }
-      } else {
-        await Future.delayed(const Duration(seconds: 2));
-      }
 
       // Small delay before next iteration
       await Future.delayed(const Duration(milliseconds: 500));
@@ -697,6 +1009,8 @@ class CenteringService {
     double toleranceArcsec = 30.0,
     double exposureTime = 3.0,
     int binning = 2,
+    int? gain,
+    int? offset,
   }) async {
     final iterations = <CenteringIteration>[];
     final cameraState = _ref.read(cameraStateProvider);
@@ -713,10 +1027,11 @@ class CenteringService {
     final plateSolveService = _ref.read(plateSolveServiceProvider);
 
     // Take an image
+    final currentExposure = _ref.read(exposureSettingsProvider);
     final exposureSettings = ExposureSettings(
       exposureTime: exposureTime,
-      gain: 100,
-      offset: 50,
+      gain: gain ?? currentExposure.gain,
+      offset: offset ?? currentExposure.offset,
       binningX: binning,
       binningY: binning,
       frameType: FrameType.light,
@@ -773,7 +1088,7 @@ class CenteringService {
     // it matches `targetRa` (hours) and the `CenteringIteration.solvedRa`
     // contract — same fix as the iterative `_centerOnTargetInternal` path.
     final solvedRaHours = _solvedRaHours(solveResult.ra);
-    final offset = _calculateOffset(
+    final angularOffset = _calculateOffset(
       targetRa,
       targetDec,
       solvedRaHours,
@@ -786,23 +1101,23 @@ class CenteringService {
       solvedDec: solveResult.dec,
       targetRa: targetRa,
       targetDec: targetDec,
-      offsetArcsec: offset,
-      offsetArcmin: offset / 60.0,
+      offsetArcsec: angularOffset,
+      offsetArcmin: angularOffset / 60.0,
       plateSolveSuccess: true,
       timestamp: DateTime.now(),
     );
     iterations.add(iter);
 
-    if (offset <= toleranceArcsec) {
+    if (angularOffset <= toleranceArcsec) {
       return CenteringResult.success(
-        finalOffsetArcsec: offset,
+        finalOffsetArcsec: angularOffset,
         iterations: 1,
         iterationHistory: iterations,
       );
     } else {
       return CenteringResult.failure(
         errorMessage:
-            'Offset ${(offset / 60.0).toStringAsFixed(2)} arcmin exceeds tolerance ${(toleranceArcsec / 60.0).toStringAsFixed(2)} arcmin',
+            'Offset ${(angularOffset / 60.0).toStringAsFixed(2)} arcmin exceeds tolerance ${(toleranceArcsec / 60.0).toStringAsFixed(2)} arcmin',
         iterations: 1,
         iterationHistory: iterations,
       );
@@ -822,14 +1137,13 @@ class CenteringService {
   ///      brokenness escalates by throwing
   ///      [CenteringMountUnresponsiveException].
   Future<void> _waitForSlewComplete(String mountId) async {
-    final backend = _ref.read(deviceBackendProvider);
     await Future.delayed(_pollInterval);
     int pollCount = 0;
     int consecutiveQueryFailures = 0;
     Object? lastQueryError;
     while (pollCount < _maxPollTicks && !_abortRequested) {
       try {
-        final status = await backend.getMountStatus(mountId);
+        final status = await _backend.getMountStatus(mountId);
         // Success — clear the consecutive-failure counter. A single
         // transient error followed by a good poll must NOT escalate.
         consecutiveQueryFailures = 0;
@@ -863,6 +1177,12 @@ class CenteringService {
       }
       await Future.delayed(_pollInterval);
       pollCount++;
+    }
+
+    if (!_abortRequested) {
+      throw CenteringSlewTimeoutException(
+        elapsed: _pollInterval * _maxPollTicks,
+      );
     }
   }
 
@@ -926,8 +1246,22 @@ class CenteringService {
 
 /// Provider for the centering service
 final centeringServiceProvider = Provider<CenteringService>((ref) {
-  return CenteringService(ref);
+  final backend = ref.watch(deviceBackendProvider);
+  final service = CenteringService(
+    ref,
+    backend: backend,
+    slewPollInterval: ref.watch(centeringSlewPollIntervalProvider),
+    maxSlewPollTicks: ref.watch(centeringSlewMaxPollTicksProvider),
+  );
+  ref.onDispose(service.retire);
+  return service;
 });
+
+/// Timing seams used by deterministic centering lifecycle tests.
+final centeringSlewPollIntervalProvider = Provider<Duration>(
+  (ref) => const Duration(milliseconds: 500),
+);
+final centeringSlewMaxPollTicksProvider = Provider<int>((ref) => 120);
 
 /// Provider for centering status
 final centeringStatusProvider = StateProvider<CenteringStatus>((ref) {

@@ -33,68 +33,133 @@ class FocuserControls extends ConsumerStatefulWidget {
 class _FocuserControlsState extends ConsumerState<FocuserControls> {
   bool _isRunningAutofocus = false;
   bool _isMoving = false;
+  ProviderSubscription<DeviceService>? _serviceSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _serviceSubscription = ref.listenManual<DeviceService>(
+      deviceServiceProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        if (mounted) {
+          setState(() {
+            _isRunningAutofocus = false;
+            _isMoving = false;
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _serviceSubscription?.close();
+    super.dispose();
+  }
 
   FocuserState? get _focuserState => ref.watch(focuserStateProvider);
   bool get _isConnected =>
       _focuserState?.connectionState == DeviceConnectionState.connected;
 
   Future<void> _moveRelative(int steps) async {
-    if (_isMoving) return;
+    final service = ref.read(deviceServiceProvider);
+    if (_isMoving || service.isAutofocusRunning) return;
     _isMoving = true;
     setState(() {});
     try {
-      await ref.read(deviceServiceProvider).moveFocuserRelative(steps);
+      await service.moveFocuserRelative(steps);
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Failed to move focuser: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Failed to move focuser: $e');
+      }
     } finally {
-      _isMoving = false;
-      if (mounted) setState(() {});
+      if (_isCurrentService(service)) {
+        _isMoving = false;
+        setState(() {});
+      }
     }
   }
 
   Future<void> _halt() async {
+    final service = ref.read(deviceServiceProvider);
+    final cancellingAutofocus = service.isAutofocusRunning;
     try {
-      await ref.read(deviceServiceProvider).haltFocuser();
+      if (cancellingAutofocus) {
+        await service.cancelAutofocus();
+      } else {
+        await service.haltFocuser();
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Failed to halt focuser: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar(
+          cancellingAutofocus
+              ? 'Failed to cancel autofocus: $e'
+              : 'Failed to halt focuser: $e',
+        );
+      }
     }
   }
 
   Future<void> _runAutofocus() async {
+    if (_isRunningAutofocus ||
+        _isMoving ||
+        ref.read(deviceServiceProvider).isAutofocusRunning) {
+      return;
+    }
+    final service = ref.read(deviceServiceProvider);
     setState(() => _isRunningAutofocus = true);
-    ref.read(sessionStateProvider.notifier).setAutofocusing(true);
     try {
       final settings = ref.read(focusSettingsProvider);
-      final result = await ref.read(deviceServiceProvider).runAutofocus(
-            exposureTime: settings.exposureTime,
-            stepSize: settings.afStepSize,
-            stepsOut: settings.stepsOut,
-            method: settings.method,
-            binning: 1,
-          );
-      if (mounted) {
+      final result = await service.runAutofocus(
+        exposureTime: settings.exposureTime,
+        stepSize: settings.afStepSize,
+        stepsOut: settings.stepsOut,
+        method: settings.method,
+        binning: 1,
+        useSettingsDefaults: false,
+      );
+      if (mounted && _isCurrentService(service)) {
         context.showSuccessSnackBar(
             'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
         widget.onAutofocusComplete?.call();
       }
+    } on AutofocusCancelledException {
+      if (mounted && _isCurrentService(service)) {
+        context.showInfoSnackBar('Autofocus cancelled');
+      }
     } catch (e) {
-      if (mounted) context.showErrorSnackBar('Autofocus failed: $e');
+      if (mounted && _isCurrentService(service)) {
+        context.showErrorSnackBar('Autofocus failed: $e');
+      }
     } finally {
-      if (mounted) {
+      if (_isCurrentService(service)) {
         setState(() => _isRunningAutofocus = false);
-        ref.read(sessionStateProvider.notifier).setAutofocusing(false);
       }
     }
   }
+
+  bool _isCurrentService(DeviceService service) =>
+      mounted && identical(ref.read(deviceServiceProvider), service);
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final focusSettings = ref.watch(focusSettingsProvider);
+    final cameraState = ref.watch(cameraStateProvider);
+    final sessionState = ref.watch(sessionStateProvider);
+    final focuserState = ref.watch(focuserStateProvider);
     final stepSize = focusSettings.stepSize;
     final buttonSize = widget.compact ? 32.0 : 40.0;
 
-    final canMove = _isConnected && !_isMoving;
+    final cameraConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
+    final autofocusRunning = sessionState.isAutofocusing || _isRunningAutofocus;
+    final focuserMoving = focuserState.isMoving || _isMoving;
+    final canMove = _isConnected && !focuserMoving && !autofocusRunning;
+    final canHalt = _isConnected && (focuserMoving || autofocusRunning);
+    final canAutofocus =
+        _isConnected && cameraConnected && !focuserMoving && !autofocusRunning;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -118,7 +183,7 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
               icon: LucideIcons.octagon,
               size: buttonSize,
               color: colors.error,
-              onPressed: _isConnected ? _halt : null,
+              onPressed: canHalt ? _halt : null,
             ),
             const SizedBox(width: 4),
             _MoveButton(
@@ -137,11 +202,10 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
         if (widget.showAutofocus) ...[
           const SizedBox(height: 8),
           NightshadeButton(
-            label: _isRunningAutofocus ? 'Running...' : 'Run Autofocus',
-            icon: _isRunningAutofocus ? LucideIcons.loader2 : LucideIcons.focus,
+            label: autofocusRunning ? 'Running...' : 'Run Autofocus',
+            icon: autofocusRunning ? LucideIcons.loader2 : LucideIcons.focus,
             size: widget.compact ? ButtonSize.small : ButtonSize.medium,
-            onPressed:
-                (_isConnected && !_isRunningAutofocus) ? _runAutofocus : null,
+            onPressed: canAutofocus ? _runAutofocus : null,
           ),
         ],
       ],

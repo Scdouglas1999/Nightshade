@@ -8,7 +8,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_webrtc
   irondash_engine_context
   screen_retriever
-  sqlite3_flutter_libs
   url_launcher_linux
   window_manager
 )

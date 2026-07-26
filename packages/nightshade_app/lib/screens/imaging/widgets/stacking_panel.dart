@@ -24,6 +24,19 @@ part 'stacking_panel/status_widgets.dart';
 part 'stacking_panel/stacked_preview.dart';
 part 'stacking_panel/osc_stacking_section.dart';
 
+typedef StackingReferencePicker = Future<XFile?> Function();
+
+Future<XFile?> _pickStackingReference() {
+  const typeGroup = XTypeGroup(
+    label: 'Image files',
+    extensions: ['fits', 'fit', 'fts', 'xisf', 'tif', 'tiff', 'png'],
+  );
+  return openFile(acceptedTypeGroups: [typeGroup]);
+}
+
+final stackingReferencePickerProvider =
+    Provider<StackingReferencePicker>((ref) => _pickStackingReference);
+
 class StackingPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
@@ -36,6 +49,10 @@ class StackingPanel extends ConsumerStatefulWidget {
 class _StackingPanelState extends ConsumerState<StackingPanel> {
   bool _isStarting = false;
   bool _isStopping = false;
+  bool _isResetting = false;
+  int _startGeneration = 0;
+  int _stopGeneration = 0;
+  int _resetGeneration = 0;
 
   /// Whether the OSC config has already been seeded from the connected camera's
   /// capabilities. Guards the one-time camera-aware defaulting so a user who
@@ -98,57 +115,108 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
   }
 
   Future<void> _startStacking() async {
-    final notifier = ref.read(liveStackingProvider.notifier);
-    final config = ref.read(liveStackingProvider).config;
+    if (_isStarting) return;
+    final generation = ++_startGeneration;
+    final authority = ref.read(backendProvider);
+    final isRemote = ref.read(isRemoteModeProvider);
+    setState(() => _isStarting = true);
 
     // Remote (appliance) mode: there is no local reference file to pick — the
     // host stacks the frames IT captures. Arm the host; the next captured frame
     // becomes the reference and subsequent frames auto-feed.
-    if (ref.read(isRemoteModeProvider)) {
-      setState(() => _isStarting = true);
-      try {
-        await notifier.startRemote(config: config);
-      } finally {
-        if (mounted) setState(() => _isStarting = false);
-      }
-      return;
-    }
-
-    // Local mode: let the user pick a reference image file.
-    const typeGroup = XTypeGroup(
-      label: 'Image files',
-      extensions: ['fits', 'fit', 'fts', 'xisf', 'tif', 'tiff', 'png'],
-    );
-
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
-    if (file == null) return;
-
-    setState(() => _isStarting = true);
-
     try {
-      await notifier.startFromFile(file.path, config: config);
+      if (isRemote) {
+        await ref.read(liveStackingProvider.notifier).startRemote(
+              config: ref.read(liveStackingProvider).config,
+            );
+        return;
+      }
+
+      // Local mode: let the user pick a reference image file. The selection
+      // belongs to the backend that opened the native dialog; reconnecting
+      // while it is open must never send that local path to the new host.
+      final file = await ref.read(stackingReferencePickerProvider)();
+      if (file == null || !_isCurrentStart(generation, authority)) return;
+
+      await ref.read(liveStackingProvider.notifier).startFromFile(
+            file.path,
+            config: ref.read(liveStackingProvider).config,
+          );
+    } catch (error) {
+      if (!mounted || !_isCurrentStart(generation, authority)) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not start live stacking: $error')),
+      );
     } finally {
-      if (mounted) setState(() => _isStarting = false);
+      if (_isCurrentStart(generation, authority)) {
+        setState(() => _isStarting = false);
+      }
     }
   }
 
   Future<void> _stopStacking() async {
+    if (_isStopping) return;
+    final generation = ++_stopGeneration;
+    final authority = ref.read(backendProvider);
     setState(() => _isStopping = true);
     try {
       await ref.read(liveStackingProvider.notifier).stop();
+    } catch (error) {
+      if (!mounted ||
+          !_isCurrentOperation(generation, _stopGeneration, authority)) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not stop live stacking: $error')),
+      );
     } finally {
-      if (mounted) setState(() => _isStopping = false);
+      if (_isCurrentOperation(generation, _stopGeneration, authority)) {
+        setState(() => _isStopping = false);
+      }
     }
   }
 
   Future<void> _resetStack() async {
-    await ref.read(liveStackingProvider.notifier).reset();
+    if (_isResetting) return;
+    final generation = ++_resetGeneration;
+    final authority = ref.read(backendProvider);
+    setState(() => _isResetting = true);
+    try {
+      await ref.read(liveStackingProvider.notifier).reset();
+    } catch (error) {
+      if (!mounted ||
+          !_isCurrentOperation(generation, _resetGeneration, authority)) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not reset live stacking: $error')),
+      );
+    } finally {
+      if (_isCurrentOperation(generation, _resetGeneration, authority)) {
+        setState(() => _isResetting = false);
+      }
+    }
+  }
+
+  bool _isCurrentStart(int generation, NightshadeBackend authority) {
+    return _isCurrentOperation(generation, _startGeneration, authority);
+  }
+
+  bool _isCurrentOperation(
+    int generation,
+    int currentGeneration,
+    NightshadeBackend authority,
+  ) {
+    return mounted &&
+        generation == currentGeneration &&
+        identical(ref.read(backendProvider), authority);
   }
 
   /// True while the Stack-and-Share selection preview is being computed (between
   /// the button press and the launcher dialog opening). Guards against a second
   /// concurrent press while the DB query is in flight.
   bool _isOpeningStackAndShare = false;
+  int _stackAndShareGeneration = 0;
 
   /// Entry point for the **Stack-and-Share Loop** (component C10).
   ///
@@ -163,6 +231,18 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
   /// [ErrorDialog] rather than silently opening an empty launcher.
   Future<void> _openStackAndShare(int sessionId) async {
     if (_isOpeningStackAndShare) return;
+    if (ref.read(isRemoteModeProvider)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Stack & Share must be run on the imaging host in this release.',
+          ),
+        ),
+      );
+      return;
+    }
+    final generation = ++_stackAndShareGeneration;
+    final authority = ref.read(backendProvider);
     setState(() => _isOpeningStackAndShare = true);
 
     StackSelectionSummary? selection;
@@ -178,10 +258,15 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
       // "no lights" case its own actionable message.
       selectionError = e;
     } finally {
-      if (mounted) setState(() => _isOpeningStackAndShare = false);
+      if (_isCurrentStackAndShare(generation, authority, sessionId)) {
+        setState(() => _isOpeningStackAndShare = false);
+      }
     }
 
-    if (!mounted) return;
+    if (!mounted ||
+        !_isCurrentStackAndShare(generation, authority, sessionId)) {
+      return;
+    }
 
     if (selectionError is NoLightsToStackException) {
       await ErrorDialog.show(
@@ -212,8 +297,43 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     );
   }
 
+  bool _isCurrentStackAndShare(
+    int generation,
+    NightshadeBackend authority,
+    int sessionId,
+  ) {
+    return mounted &&
+        generation == _stackAndShareGeneration &&
+        identical(ref.read(backendProvider), authority) &&
+        ref.read(sessionStateProvider).dbSessionId == sessionId;
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if (previous == null || identical(previous, next)) return;
+      final hadPendingOperation =
+          _isStarting || _isStopping || _isResetting || _isOpeningStackAndShare;
+      if (!hadPendingOperation) return;
+      _startGeneration++;
+      _stopGeneration++;
+      _resetGeneration++;
+      _stackAndShareGeneration++;
+      setState(() {
+        _isStarting = false;
+        _isStopping = false;
+        _isResetting = false;
+        _isOpeningStackAndShare = false;
+      });
+    });
+    ref.listen<int?>(
+      sessionStateProvider.select((state) => state.dbSessionId),
+      (previous, next) {
+        if (!_isOpeningStackAndShare || previous == next) return;
+        _stackAndShareGeneration++;
+        setState(() => _isOpeningStackAndShare = false);
+      },
+    );
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final stackState = ref.watch(liveStackingProvider);
     final isRunning = stackState.status == LiveStackingStatus.running;
@@ -245,16 +365,23 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
             sessionId: sessionId,
             liveStackingActive: isRunning,
             isBusy: _isOpeningStackAndShare,
-            onPressed:
-                sessionId == null ? null : () => _openStackAndShare(sessionId),
+            isRemoteMode: isRemoteMode,
+            onPressed: sessionId == null || isRemoteMode
+                ? null
+                : () => _openStackAndShare(sessionId),
           ),
           const SizedBox(height: 20),
 
           // Error banner
-          if (isError && stackState.errorMessage != null)
+          if (stackState.errorMessage != null)
             _ErrorBanner(
               message: stackState.errorMessage!,
               colors: widget.colors,
+              onRetry: isRemoteMode && isRunning
+                  ? () => ref
+                      .read(liveStackingProvider.notifier)
+                      .retryRemotePolling()
+                  : null,
             ),
 
           // Status and controls
@@ -352,10 +479,13 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   SizedBox(
                     width: double.infinity,
                     child: SmallButton(
-                      label: 'Reset Stack',
-                      icon: NightshadeIcons.refresh,
+                      label: _isResetting ? 'Resetting...' : 'Reset Stack',
+                      icon: _isResetting
+                          ? NightshadeIcons.loading
+                          : NightshadeIcons.refresh,
                       isOutline: true,
                       colors: widget.colors,
+                      isEnabled: !_isResetting,
                       onTap: _resetStack,
                     ),
                   ),

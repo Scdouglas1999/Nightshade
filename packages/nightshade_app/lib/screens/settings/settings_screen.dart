@@ -58,12 +58,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     // Start with the group containing the active section expanded.
     _expandedGroups.add(groupTitleForKey(_selectedKey));
+    ShellBackDispatcher.register(_handleSystemBack);
   }
 
   @override
   void dispose() {
+    ShellBackDispatcher.unregister(_handleSystemBack);
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// System back on phone walks the in-screen stack before leaving the
+  /// screen: detail pane → grouped list → clear an active search → let the
+  /// shell take over (Dashboard / app exit).
+  bool _handleSystemBack() {
+    if (_mobileShowingDetail) {
+      setState(() => _mobileShowingDetail = false);
+      return true;
+    }
+    if (_query.isNotEmpty) {
+      setState(() {
+        _searchController.clear();
+        _query = '';
+      });
+      return true;
+    }
+    return false;
   }
 
   SettingsSectionDef _selectedSection(List<SettingsGroupDef> groups) {
@@ -103,17 +123,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AppSettingsWriteFailure?>(appSettingsWriteFailureProvider, (
+      previous,
+      next,
+    ) {
+      if (next == null || identical(previous, next)) return;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(next.message),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => ref.invalidate(appSettingsProvider),
+            ),
+          ),
+        );
+    });
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    // Phone tier (< 600): list -> full-screen detail navigation. Tablets and
-    // desktop (>= 600) keep the sidebar + detail split. (Was Responsive.isMobile
-    // at < 768, which forced small tablets into the cramped phone flow.)
-    final isPhone = Responsive.isPhone(context);
     final l10n = context.l10n;
     final groups = buildSettingsGroups(context);
-
-    final child = isPhone
-        ? _buildMobileLayout(colors, groups)
-        : _buildDesktopLayout(colors, groups);
 
     return ContextualTourPrompt(
       screenId: 'settings',
@@ -124,10 +154,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       alignment: Alignment.bottomRight,
       child: FocusTraversalGroup(
         policy: ReadingOrderTraversalPolicy(),
-        child: child,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Phone tier (< 600 window): list -> full-screen detail navigation.
+            //
+            // The split view is also dropped whenever THIS screen — not the
+            // window — is too narrow to host it. The window can be 800 px wide
+            // while the settings body only gets ~580 px because the shell's
+            // navigation rail already ate 220 px; a 260 px sidebar then leaves
+            // ~320 px of detail, which is not enough for a settings row and
+            // made the accent-colour swatches, path pickers, autofocus filter
+            // table and calibration status cards overflow off-screen.
+            final singlePane = Responsive.isPhone(context) ||
+                (constraints.hasBoundedWidth &&
+                    constraints.maxWidth < _splitPaneMinWidth);
+            return singlePane
+                ? _buildMobileLayout(colors, groups)
+                : _buildDesktopLayout(colors, groups);
+          },
+        ),
       ),
     );
   }
+
+  /// Minimum width this screen needs before the sidebar + detail split is
+  /// worth showing. Below it the detail pane cannot hold a settings row at
+  /// its design width, so the single-pane (list -> detail) flow is used.
+  static const double _splitPaneMinWidth = 720;
 
   // ---------------------------------------------------------------------------
   // Mobile
@@ -302,7 +355,7 @@ class _SearchField extends StatelessWidget {
           fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
       decoration: InputDecoration(
         isDense: true,
-        hintText: 'Search settings…',
+        hintText: context.l10n.text('settingsSearchHint'),
         hintStyle: TextStyle(
             fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
         prefixIcon: Icon(LucideIcons.search, size: 16, color: colors.textMuted),
@@ -366,7 +419,10 @@ class _DesktopGroupedList extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _GroupHeader(
-              title: group.title,
+              // Display title: the group's `title` is the structural id and
+              // stays English, so rendering it would leave the header
+              // untranslated above translated child items.
+              title: group.displayTitle,
               icon: group.icon,
               expanded: expanded,
               colors: colors,
@@ -541,87 +597,100 @@ class _MobileSectionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final searching = query.trim().isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(bottom: BorderSide(color: colors.border)),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize24,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The app shell may consume the keyboard inset before this screen can
+        // observe it. Actual remaining height is therefore the reliable signal
+        // for a route-level search field: keep only the field in the transient
+        // compact viewport and restore the title when the keyboard closes.
+        final keyboardCompact = constraints.maxHeight < 160;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: keyboardCompact
+                      ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+                      : const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!keyboardCompact) ...[
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize24,
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      _SearchField(
+                        controller: searchController,
+                        colors: colors,
+                        onChanged: onQueryChanged,
+                        onClear: () {
+                          searchController.clear();
+                          onQueryChanged('');
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  _SearchField(
-                    controller: searchController,
-                    colors: colors,
-                    onChanged: onQueryChanged,
-                    onClear: () {
-                      searchController.clear();
-                      onQueryChanged('');
-                    },
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
-        Expanded(
-          // Sides + bottom SafeArea so list rows clear a rotated phone's notch
-          // / home indicator in landscape (the header above handles the top).
-          child: SafeArea(
-            top: false,
-            child: searching
-                ? _MobileSearchResults(
-                    results: results,
-                    colors: colors,
-                    onSectionTap: onSectionTap,
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: groups.length,
-                    itemBuilder: (context, index) {
-                      final group = groups[index];
-                      final expanded = expandedGroups.contains(group.title);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _MobileGroupHeader(
-                            title: group.title,
-                            icon: group.icon,
-                            expanded: expanded,
-                            colors: colors,
-                            onTap: () => onToggleGroup(group.title),
-                          ),
-                          if (expanded)
-                            ...group.sections.map(
-                              (section) => _MobileSectionItem(
-                                icon: section.icon,
-                                label: section.label,
-                                onTap: () => onSectionTap(section.key),
+            Expanded(
+              // Sides + bottom SafeArea so list rows clear a rotated phone's notch
+              // / home indicator in landscape (the header above handles the top).
+              child: SafeArea(
+                top: false,
+                child: searching
+                    ? _MobileSearchResults(
+                        results: results,
+                        colors: colors,
+                        onSectionTap: onSectionTap,
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: groups.length,
+                        itemBuilder: (context, index) {
+                          final group = groups[index];
+                          final expanded = expandedGroups.contains(group.title);
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _MobileGroupHeader(
+                                title: group.displayTitle,
+                                icon: group.icon,
+                                expanded: expanded,
                                 colors: colors,
+                                onTap: () => onToggleGroup(group.title),
                               ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-        ),
-      ],
+                              if (expanded)
+                                ...group.sections.map(
+                                  (section) => _MobileSectionItem(
+                                    icon: section.icon,
+                                    label: section.label,
+                                    onTap: () => onSectionTap(section.key),
+                                    colors: colors,
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

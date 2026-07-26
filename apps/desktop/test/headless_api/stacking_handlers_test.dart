@@ -13,28 +13,39 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/stacking_handlers.dart';
 import 'package:shelf/shelf.dart';
 
+import 'handler_test_helpers.dart';
+
 /// Records what the coordinator asks the stacker to do, without touching FFI.
 class _FakeStackingService extends LiveStackingService {
   _FakeStackingService(super.ref);
 
   final List<String> started = [];
+  final List<LiveStackingConfig> startedConfigs = [];
   final List<String> added = [];
   int resets = 0;
   int stops = 0;
   bool _active = false;
+  Object? startError;
 
   @override
   Future<LiveStackingStats> startFromFile({
     required String referenceImagePath,
     LiveStackingConfig config = const LiveStackingConfig(),
   }) async {
+    if (startError case final error?) throw error;
     started.add(referenceImagePath);
+    startedConfigs.add(config);
     _active = true;
     return LiveStackingStats(stackedFrameCount: 1, totalFramesAttempted: 1);
   }
 
+  /// Set to make the next add throw, standing in for the native stacker's
+  /// unstructured failures (alignment rejection, unreadable file).
+  Object? addError;
+
   @override
   Future<LiveStackingResult> addFrameFromFile(String imagePath) async {
+    if (addError case final error?) throw error;
     added.add(imagePath);
     return LiveStackingResult(
       width: 2,
@@ -224,6 +235,194 @@ void main() {
     expect(fake.started, ['/host/ref.fits']);
   });
 
+  test('reference with too few stars returns a structured 422', () async {
+    fake.startError = Exception(
+      'Failed to initialize stacker: '
+      'Reference frame has only 0 stars, need at least 5 for alignment',
+    );
+
+    final response = await translateHandlerErrors(
+      handlers.handleStart(
+        post('/api/stacking/start', {'referencePath': '/host/daylight.fits'}),
+      ),
+    );
+
+    expect(response.statusCode, HttpStatus.unprocessableEntity);
+    final body = jsonDecode(await response.readAsString()) as Map;
+    expect(body['error'], 'stacking_reference_rejected');
+    expect(body['detectedStars'], 0);
+    expect(body['requiredStars'], 5);
+  });
+
+  test('bodyless start is allowed but malformed JSON is rejected', () async {
+    final bodyless = await handlers.handleStart(post('/api/stacking/start'));
+    expect(bodyless.statusCode, HttpStatus.ok);
+
+    final malformed = await translateHandlerErrors(
+      handlers.handleStart(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/stacking/start'),
+          body: '{',
+        ),
+      ),
+    );
+    expect(malformed.statusCode, HttpStatus.badRequest);
+  });
+
+  test(
+    'stacking config rejects wrong types, unsafe ranges, and bad enums',
+    () async {
+      final invalidConfigs = <Map<String, Object?>>[
+        {'sigmaClipEnabled': 'sometimes'},
+        {'sigmaClipThreshold': 0},
+        {'maxMatchStars': 2},
+        {'matchRadiusPx': -1},
+        {'matchFluxTolerance': 1.1},
+        {'maxMatchStars': 5, 'minMatchedPairs': 6},
+        {'sensorMode': 'rgbw'},
+        {'bayerPattern': 'RGBW'},
+        {'demosaicQuality': 'lanczos'},
+      ];
+
+      for (final config in invalidConfigs) {
+        final response = await translateHandlerErrors(
+          handlers.handleUpdateConfig(
+            post('/api/stacking/config', {'config': config}),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest, reason: '$config');
+      }
+    },
+  );
+
+  test(
+    'partial config updates preserve prior values and explicit null clears',
+    () async {
+      await handlers.handleUpdateConfig(
+        post('/api/stacking/config', {
+          'config': {
+            'maxMatchStars': 250,
+            'sensorMode': 'osc',
+            'bayerPattern': 'BGGR',
+          },
+        }),
+      );
+      await handlers.handleUpdateConfig(
+        post('/api/stacking/config', {
+          'config': {'sigmaClipThreshold': 3.5, 'bayerPattern': null},
+        }),
+      );
+      await handlers.handleStart(
+        post('/api/stacking/start', {'referencePath': '/host/ref.fits'}),
+      );
+
+      final config = fake.startedConfigs.single;
+      expect(config.maxMatchStars, 250);
+      expect(config.sigmaClipThreshold, 3.5);
+      expect(config.sensorMode, 'osc');
+      expect(config.bayerPattern, isNull);
+    },
+  );
+
+  test(
+    'add-frame rejects a blank host path before touching the stacker',
+    () async {
+      final response = await translateHandlerErrors(
+        handlers.handleAddFrame(
+          post('/api/stacking/add-frame', {'imagePath': '   '}),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.badRequest);
+      expect(fake.started, isEmpty);
+    },
+  );
+
+  /// A frame that will not align is an ORDINARY live-stacking outcome (cloud,
+  /// wind, a satellite trail), not a host fault. It used to surface as
+  /// `500 internal_error`, which tells a remote client the appliance broke,
+  /// invites a retry storm, and is indistinguishable from the stacker actually
+  /// being broken — so a client could not tell "skip this frame" from "stop and
+  /// tell the operator".
+  test(
+    'add-frame reports an alignment rejection as 422 frame_rejected',
+    () async {
+      await handlers.handleStart(post('/api/stacking/start'));
+      await handlers.onImageSaved('/host/ref.fits');
+
+      fake.addError = Exception(
+        'Alignment residual too high: 24.34px (max 10.00px)',
+      );
+      final response = await translateHandlerErrors(
+        handlers.handleAddFrame(
+          post('/api/stacking/add-frame', {'imagePath': '/host/cloudy.fits'}),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.unprocessableEntity);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['error'], 'frame_rejected');
+      // The specific measurement has to survive: "did not align" without the
+      // number is not actionable.
+      expect(body['reason'], contains('24.34px'));
+    },
+  );
+
+  test('add-frame reports an unreadable path as 404 frame_unreadable', () async {
+    await handlers.handleStart(post('/api/stacking/start'));
+    await handlers.onImageSaved('/host/ref.fits');
+
+    fake.addError = Exception(
+      'Failed to read frame image: IO error: No such file or directory (os error 2)',
+    );
+    final response = await translateHandlerErrors(
+      handlers.handleAddFrame(
+        post('/api/stacking/add-frame', {'imagePath': '/host/missing.fits'}),
+      ),
+    );
+
+    expect(response.statusCode, HttpStatus.notFound);
+    final body = jsonDecode(await response.readAsString()) as Map;
+    expect(body['error'], 'frame_unreadable');
+  });
+
+  /// Anything we have not classified must keep bubbling up as a real fault
+  /// rather than being mislabelled as a routine rejection.
+  test('add-frame leaves an unrecognised failure as a 500', () async {
+    await handlers.handleStart(post('/api/stacking/start'));
+    await handlers.onImageSaved('/host/ref.fits');
+
+    fake.addError = Exception('stacker segfaulted somewhere unexpected');
+    final response = await translateHandlerErrors(
+      handlers.handleAddFrame(
+        post('/api/stacking/add-frame', {'imagePath': '/host/f2.fits'}),
+      ),
+    );
+
+    expect(response.statusCode, HttpStatus.internalServerError);
+  });
+
+  /// The auto-feed path already swallows per-frame failures so one bad frame
+  /// cannot tear down a night's accumulation. Pin that the classification work
+  /// did not change it.
+  test('auto-feed survives a rejected frame without throwing', () async {
+    await handlers.handleStart(post('/api/stacking/start'));
+    await handlers.onImageSaved('/host/ref.fits');
+
+    fake.addError = Exception(
+      'Alignment residual too high: 30.00px (max 10.00px)',
+    );
+    await expectLater(handlers.onImageSaved('/host/cloudy.fits'), completes);
+
+    fake.addError = null;
+    await handlers.onImageSaved('/host/good.fits');
+    expect(
+      fake.added,
+      contains('/host/good.fits'),
+      reason: 'stacking must keep accepting frames after a rejection',
+    );
+  });
+
   test('status + preview reflect the live stack', () async {
     await handlers.handleStart(post('/api/stacking/start'));
     await handlers.onImageSaved('/host/ref.fits');
@@ -255,4 +454,20 @@ void main() {
     expect(bytes.length, 8);
     expect(bytes.sublist(0, 2), [10, 0]); // 10 as LE u16
   });
+
+  test(
+    'waiting-for-first-frame errors expose a machine-readable code',
+    () async {
+      await handlers.handleStart(post('/api/stacking/start'));
+
+      final response = await handlers.handleResult(
+        Request('GET', Uri.parse('http://localhost/api/stacking/result')),
+      );
+      expect(response.statusCode, HttpStatus.notFound);
+      final body =
+          jsonDecode(await response.readAsString()) as Map<String, dynamic>;
+      expect(body['code'], 'no_active_stack');
+      expect(body['message'], 'Live stacking is not running.');
+    },
+  );
 }

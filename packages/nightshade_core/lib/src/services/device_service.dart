@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
+import '../providers/session_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/ui_notification_provider.dart';
 import '../providers/operation_progress_provider.dart';
@@ -17,7 +17,8 @@ import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../backend/nightshade_exception.dart' show ConnectionException;
 import '../models/equipment/equipment_models.dart';
-import '../models/imaging/imaging_models.dart' show AutofocusSettings;
+import '../models/imaging/imaging_models.dart'
+    show AutofocusSettings, FilterAutofocusConfig;
 import '../utils/device_id.dart';
 import 'camera_temperature_poller.dart';
 import 'camera_warmup_controller.dart';
@@ -128,6 +129,15 @@ class DeviceService {
   int _focuserVerifyGeneration = 0;
   int _rotatorVerifyGeneration = 0;
   int _filterWheelVerifyGeneration = 0;
+  Timer? _environmentPollTimer;
+  bool _environmentPollInFlight = false;
+
+  /// Manual focuser moves are exclusive across every UI surface. A widget's
+  /// local busy flag cannot prevent a dashboard button and an equipment dialog
+  /// from driving the same focuser at the same time.
+  bool _isFocuserMoveRunning = false;
+  bool _isFilterWheelCommandRunning = false;
+  bool _isRotatorCommandRunning = false;
 
   /// Tracks the last applied filter focus offset per filter wheel so that
   /// multiple wheels do not clobber each other's delta calculations.
@@ -145,6 +155,7 @@ class DeviceService {
   /// Guard against concurrent autofocus runs. Only one AF can run at a time
   /// since the focuser and camera are shared hardware resources.
   bool _isAutofocusRunning = false;
+  bool _autofocusCancelRequested = false;
 
   bool get isAutofocusRunning => _isAutofocusRunning;
 
@@ -193,35 +204,14 @@ class DeviceService {
   EquipmentProfileModel? get _activeProfile =>
       _ref.read(activeEquipmentProfileProvider);
 
-  String? _activeProfileDeviceId(
-    String? Function(EquipmentProfileModel profile) pick,
-  ) {
-    final profile = _activeProfile;
-    if (profile == null) {
-      return null;
-    }
-    final deviceId = pick(profile);
-    if (deviceId == null || deviceId.isEmpty) {
-      return null;
-    }
-    return deviceId;
-  }
-
-  Future<void> _applyFilterNamesToNotifier({
-    required FilterWheelStateNotifier notifier,
-    required String deviceId,
+  Future<void> _writeFilterNamesToBackend({
     required List<String> syncedNames,
   }) async {
-    if (_backend is NetworkBackend) {
-      notifier.setConnected(filterNames: syncedNames);
-      return;
-    }
-
-    await bridge_api.apiFilterwheelSetFilterNames(
-      deviceId: deviceId,
-      names: syncedNames,
-    );
-    notifier.setConnected(filterNames: syncedNames);
+    // Use the selected backend for both local and remote sessions. The former
+    // NetworkBackend special case only changed this client's labels, leaving
+    // the host driver (and every other client) unchanged while logging a
+    // successful sync.
+    await _setFilterWheelNames(syncedNames);
   }
 
   void _initEventListening() {
@@ -274,6 +264,11 @@ class DeviceService {
     _reconnectCoordinator.prepareForBackendSwap();
     cancelWarmCamera();
     _temperaturePoller.stop();
+    _environmentPollTimer?.cancel();
+    _environmentPollTimer = null;
+    if (_isAutofocusRunning) {
+      await _cancelAutofocus();
+    }
     _focuserVerifyGeneration++;
     _rotatorVerifyGeneration++;
     _filterWheelVerifyGeneration++;
@@ -303,6 +298,8 @@ class DeviceService {
     _disposed = true;
     DeviceServiceLifecycle.unregister(this);
     _eventSubscription?.cancel();
+    _environmentPollTimer?.cancel();
+    _environmentPollTimer = null;
     _temperaturePoller.dispose();
     _warmupController.dispose();
     _reconnectCoordinator.cancelAll();
@@ -353,7 +350,17 @@ class DeviceService {
   Future<void> connectFilterWheel(String deviceId) =>
       _connectFilterWheel(deviceId);
   Future<void> disconnectFilterWheel() => _disconnectFilterWheel();
-  Future<void> connectGuider(String deviceId) => _connectGuider(deviceId);
+
+  /// Connect a guider.
+  ///
+  /// [host]/[port] override the settings-derived PHD2 endpoint for THIS
+  /// connect (the launch path still uses `settings.phd2Path`). When omitted
+  /// the configured `settings.phd2Host`/`settings.phd2Port` are used, so all
+  /// existing callers are unchanged. This lets the guiding controller's
+  /// `connect(host, port)` API be truthful on the local/FFI path instead of
+  /// silently discarding its arguments. Ignored for non-PHD2 guiders.
+  Future<void> connectGuider(String deviceId, {String? host, int? port}) =>
+      _connectGuider(deviceId, host: host, port: port);
   Future<void> disconnectGuider() => _disconnectGuider();
 
   /// Whether [deviceId]'s most recent disconnect was user-initiated (within
@@ -362,6 +369,14 @@ class DeviceService {
   /// deliberate disconnect from a process/link loss.
   bool isUserInitiatedDisconnect(String deviceId) =>
       _reconnectCoordinator.isUserInitiatedDisconnect(deviceId);
+
+  /// Record a user-initiated disconnect for [deviceId] and cancel any pending
+  /// auto-reconnect for it. Exposed so a controller that tears a device down
+  /// through its own path (the PHD2 controller's `disconnect()`) can mark the
+  /// intent SYNCHRONOUSLY — before the Disconnected event races back — so the
+  /// crash-relaunch path treats it as deliberate rather than a link loss.
+  void markUserInitiatedDisconnect(String deviceId) =>
+      _markUserInitiatedDisconnect(deviceId);
 
   Future<void> connectDome(String deviceId) => _connectDome(deviceId);
   Future<void> disconnectDome() => _disconnectDome();
@@ -375,6 +390,8 @@ class DeviceService {
   Future<void> refreshSwitchChannels() => _refreshSwitchChannels();
   Future<void> setSwitchChannel(int channelIndex, bool on) =>
       _setSwitchChannel(channelIndex, on);
+  Future<void> setSwitchChannelValue(int channelIndex, double value) =>
+      _setSwitchChannelValue(channelIndex, value);
   Future<void> connectRotator(String deviceId) => _connectRotator(deviceId);
   Future<void> disconnectRotator() => _disconnectRotator();
   Future<void> connectCoverCalibrator(String deviceId) =>
@@ -415,28 +432,40 @@ class DeviceService {
   Future<void> disconnectAll() => _disconnectAll();
 
   Future<void> slewMountToCoordinates(double ra, double dec) =>
-      _slewMountToCoordinates(ra, dec);
+      _trackInFlight(() => _slewMountToCoordinates(ra, dec));
   Future<void> syncMountToCoordinates(double ra, double dec) =>
-      _syncMountToCoordinates(ra, dec);
-  Future<void> parkMount() => _parkMount();
-  Future<void> unparkMount() => _unparkMount();
-  Future<void> setMountTracking(bool enabled) => _setMountTracking(enabled);
-  Future<void> setMountTrackingRate(int rate) => _setMountTrackingRate(rate);
-  Future<void> abortMountSlew() => _abortMountSlew();
+      _trackInFlight(() => _syncMountToCoordinates(ra, dec));
+  Future<void> parkMount() => _trackInFlight(_parkMount);
+  Future<void> unparkMount() => _trackInFlight(_unparkMount);
+  Future<void> setMountTracking(bool enabled) =>
+      _trackInFlight(() => _setMountTracking(enabled));
+  Future<void> setMountTrackingRate(int rate) =>
+      _trackInFlight(() => _setMountTrackingRate(rate));
+  Future<void> abortMountSlew() => _trackInFlight(_abortMountSlew);
   Future<void> slewMountToAltAz(double altitude, double azimuth) =>
-      _slewMountToAltAz(altitude, azimuth);
-  Future<void> findMountHome() => _findMountHome();
+      _trackInFlight(() => _slewMountToAltAz(altitude, azimuth));
+  Future<void> findMountHome() => _trackInFlight(_findMountHome);
   Future<void> pulseGuidMount({
     required String direction,
     required int durationMs,
-  }) => _pulseGuidMount(direction: direction, durationMs: durationMs);
+  }) => _trackInFlight(
+    () => _pulseGuidMount(direction: direction, durationMs: durationMs),
+  );
 
-  Future<void> moveFocuserTo(int position) => _moveFocuserTo(position);
-  Future<void> moveFocuserRelative(int delta) => _moveFocuserRelative(delta);
-  Future<void> haltFocuser() => _haltFocuser();
-  Future<void> moveRotatorTo(double angle) => _moveRotatorTo(angle);
-  Future<void> moveRotatorRelative(double delta) => _moveRotatorRelative(delta);
-  Future<void> haltRotator() => _haltRotator();
+  Future<void> moveFocuserTo(int position) =>
+      _trackInFlight(() => _moveFocuserTo(position));
+  Future<void> moveFocuserRelative(int delta) =>
+      _trackInFlight(() => _moveFocuserRelative(delta));
+  Future<void> haltFocuser() => _trackInFlight(_haltFocuser);
+  Future<void> moveRotatorTo(double angle) =>
+      _trackInFlight(() => _moveRotatorTo(angle));
+  Future<void> moveRotatorRelative(double delta) =>
+      _trackInFlight(() => _moveRotatorRelative(delta));
+  Future<void> haltRotator() => _trackInFlight(_haltRotator);
+  Future<void> setRotatorReversed(bool reversed) =>
+      _trackInFlight(() => _setRotatorReversed(reversed));
+  Future<void> syncRotatorToPa(double positionAngle) =>
+      _trackInFlight(() => _syncRotatorToPa(positionAngle));
   Future<AutofocusResult> runAutofocus({
     required double exposureTime,
     required int stepSize,
@@ -444,16 +473,21 @@ class DeviceService {
     String method = 'VCurve',
     int binning = 1,
     bool useSettingsDefaults = true,
-  }) => _runAutofocus(
-    exposureTime: exposureTime,
-    stepSize: stepSize,
-    stepsOut: stepsOut,
-    method: method,
-    binning: binning,
-    useSettingsDefaults: useSettingsDefaults,
+  }) => _trackInFlight(
+    () => _runAutofocus(
+      exposureTime: exposureTime,
+      stepSize: stepSize,
+      stepsOut: stepsOut,
+      method: method,
+      binning: binning,
+      useSettingsDefaults: useSettingsDefaults,
+    ),
   );
+  Future<void> cancelAutofocus() => _trackInFlight(_cancelAutofocus);
   Future<void> setFilterWheelPosition(int position) =>
-      _setFilterWheelPosition(position);
+      _trackInFlight(() => _setFilterWheelPosition(position));
+  Future<void> setFilterWheelNames(List<String> names) =>
+      _trackInFlight(() => _setFilterWheelNames(names));
 
   Future<void> startGuiding({
     double settlePixels = 1.0,

@@ -253,26 +253,44 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
       return;
     }
     if (hint.containsKey('autofocusInterval')) {
-      // Route to settings screen so the user can adjust the value
-      // there; we don't auto-mutate global settings from a single
-      // insight click.
-      messenger?.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Open Settings → Autofocus to relax the trigger interval.',
-          ),
-        ),
-      );
+      // No auto-mutation of global settings from a single insight click —
+      // send the user to the Autofocus settings section to adjust the
+      // cadence themselves. Close the report first so the settings screen
+      // isn't left stranded beneath the dialog.
+      final router = GoRouter.maybeOf(context);
+      Navigator.of(context).pop();
+      router?.go('/settings?section=autofocus');
       return;
     }
   }
 
+  /// Label for the action button. Hints we can write straight into the
+  /// editor read "Apply" (altitude); hints that only point at a settings
+  /// screen read "Open Settings" so the button never overpromises.
+  String get _actionLabel {
+    final hint = widget.insight.applyHint;
+    if (hint != null && hint.containsKey('autofocusInterval')) {
+      return 'Open Settings';
+    }
+    return 'Apply';
+  }
+
   Future<void> _onDismiss({required bool sticky}) async {
     setState(() => _dismissed = true);
-    if (sticky) {
+    if (!sticky) return;
+    try {
       await ref
           .read(dismissedSessionInsightsProvider.notifier)
           .dismiss(widget.insight.id);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _dismissed = false);
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text('Could not save dismissed suggestion: $error'),
+          backgroundColor: widget.colors.error,
+        ),
+      );
     }
   }
 
@@ -385,7 +403,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 TextButton(
                   onPressed: _onApply,
                   child: Text(
-                    'Apply',
+                    _actionLabel,
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: c.primary,

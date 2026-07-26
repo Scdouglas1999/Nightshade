@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -27,7 +29,7 @@ const Map<AutoStretchMethod, String> _methodNames = {
 /// Can display in compact mode (for toolbar) or expanded mode (for panel/dialog).
 /// Compact mode shows a toggle, method dropdown, and settings button.
 /// Expanded mode shows all parameters including sliders for fine-tuning.
-class StretchControls extends ConsumerWidget {
+class StretchControls extends ConsumerStatefulWidget {
   /// When true, shows minimal toolbar-friendly controls.
   /// When false, shows full expanded controls with all sliders.
   final bool compact;
@@ -38,29 +40,46 @@ class StretchControls extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StretchControls> createState() => _StretchControlsState();
+}
+
+class _StretchControlsState extends ConsumerState<StretchControls> {
+  Future<bool> _save(AutoStretchSettings settings) async {
+    try {
+      await ref.read(autoStretchSettingsProvider.notifier).update(settings);
+      return true;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not save the auto-stretch settings.'),
+          ),
+        );
+      }
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     final settings = ref.watch(autoStretchSettingsProvider);
     final rawLoading =
         ref.watch(currentImageProvider)?.rawLoadStatus == RawLoadStatus.loading;
 
-    if (compact) {
+    if (widget.compact) {
       return _CompactStretchControls(
         settings: settings,
         colors: colors,
         rawLoading: rawLoading,
-        onSettingsChanged: (newSettings) {
-          ref.read(autoStretchSettingsProvider.notifier).update(newSettings);
-        },
+        onSettingsChanged: _save,
       );
     }
 
     return _ExpandedStretchControls(
       settings: settings,
       colors: colors,
-      onSettingsChanged: (newSettings) {
-        ref.read(autoStretchSettingsProvider.notifier).update(newSettings);
-      },
+      onSettingsChanged: _save,
     );
   }
 }
@@ -70,7 +89,7 @@ class _CompactStretchControls extends StatelessWidget {
   final AutoStretchSettings settings;
   final NightshadeColors colors;
   final bool rawLoading;
-  final ValueChanged<AutoStretchSettings> onSettingsChanged;
+  final FutureOr<bool> Function(AutoStretchSettings) onSettingsChanged;
 
   const _CompactStretchControls({
     required this.settings,
@@ -112,7 +131,11 @@ class _CompactStretchControls extends StatelessWidget {
                   settings.enabled ? colors.textPrimary : colors.textSecondary,
             ),
             onChanged: (value) {
-              onSettingsChanged(settings.copyWith(enabled: value));
+              unawaited(
+                Future<bool>.sync(
+                  () => onSettingsChanged(settings.copyWith(enabled: value)),
+                ),
+              );
             },
           ),
         ),
@@ -129,7 +152,13 @@ class _CompactStretchControls extends StatelessWidget {
               colors: colors,
               onChanged: (method) {
                 if (method != null) {
-                  onSettingsChanged(settings.copyWith(method: method));
+                  unawaited(
+                    Future<bool>.sync(
+                      () => onSettingsChanged(
+                        settings.copyWith(method: method),
+                      ),
+                    ),
+                  );
                 }
               },
             ),
@@ -157,7 +186,7 @@ class _CompactStretchControls extends StatelessWidget {
 class _ExpandedStretchControls extends StatelessWidget {
   final AutoStretchSettings settings;
   final NightshadeColors colors;
-  final ValueChanged<AutoStretchSettings> onSettingsChanged;
+  final FutureOr<bool> Function(AutoStretchSettings) onSettingsChanged;
 
   const _ExpandedStretchControls({
     required this.settings,
@@ -326,7 +355,7 @@ class _ExpandedStretchControls extends StatelessWidget {
 class _StretchSettingsDialog extends StatefulWidget {
   final AutoStretchSettings settings;
   final NightshadeColors colors;
-  final ValueChanged<AutoStretchSettings> onSettingsChanged;
+  final FutureOr<bool> Function(AutoStretchSettings) onSettingsChanged;
 
   const _StretchSettingsDialog({
     required this.settings,
@@ -348,6 +377,7 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
   /// Snapshot of the provider settings at dialog open, so Close can restore
   /// the user's prior state if the dialog briefly drove a live preview.
   late final AutoStretchSettings _initialSettings;
+  bool _applying = false;
 
   /// Tracks whether the local edits diverge from the committed (initial)
   /// settings, so the Apply button reflects whether there's anything to apply.
@@ -360,24 +390,27 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
     _initialSettings = widget.settings;
   }
 
-  void _updateLocalSettings(AutoStretchSettings newSettings) {
+  bool _updateLocalSettings(AutoStretchSettings newSettings) {
     setState(() {
       _localSettings = newSettings;
     });
+    return true;
   }
 
   void _close() {
-    // Discard any local edits by restoring the provider to its pre-dialog
-    // value. If nothing was changed, this is a no-op write of the same value.
-    if (_hasChanges) {
-      widget.onSettingsChanged(_initialSettings);
-    }
     Navigator.of(context).pop();
   }
 
-  void _apply() {
-    widget.onSettingsChanged(_localSettings);
-    Navigator.of(context).pop();
+  Future<void> _apply() async {
+    if (_applying) return;
+    setState(() => _applying = true);
+    final saved = await widget.onSettingsChanged(_localSettings);
+    if (!mounted) return;
+    if (saved) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _applying = false);
+    }
   }
 
   @override
@@ -388,18 +421,20 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
       title: 'Auto-Stretch Settings',
       icon: NightshadeIcons.sliders,
       width: 420,
+      closeEnabled: !_applying,
       onClose: _close,
       scrollableBody: false,
       actions: [
         NightshadeButton(
           label: 'Close',
           variant: ButtonVariant.ghost,
-          onPressed: _close,
+          onPressed: _applying ? null : _close,
         ),
         NightshadeButton(
           label: 'Apply',
           variant: ButtonVariant.primary,
-          onPressed: _hasChanges ? _apply : null,
+          isLoading: _applying,
+          onPressed: _hasChanges && !_applying ? () => _apply() : null,
         ),
       ],
       child: ConstrainedBox(
@@ -600,7 +635,7 @@ class _SettingRow extends StatelessWidget {
       children: [
         Expanded(child: labelWidget),
         const SizedBox(width: 12),
-        child,
+        Expanded(child: child),
       ],
     );
   }

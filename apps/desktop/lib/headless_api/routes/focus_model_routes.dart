@@ -60,4 +60,24 @@ List<HeadlessRoute> buildFocusModelRoutes(
     '/api/focus-model/import',
     h.handleImportFocusData,
   ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/focus-model/predictive',
+    h.handleGetPredictiveSettings,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/focus-model/predictive/config',
+    h.handleUpdatePredictiveConfig,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/focus-model/predictive/clear-samples',
+    h.handleClearPredictiveSamples,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/focus-model/predictive/export',
+    h.handleExportPredictiveModel,
+  ),
 ];

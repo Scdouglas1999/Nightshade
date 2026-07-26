@@ -24,8 +24,10 @@ extension SystemPairPageHandler on SystemHandlers {
   ///   * Fetches `GET /api/info` (same origin) to show the rig name and the
   ///     active pairing mode (lan-open vs code-required).
   ///   * In **lan-open** mode a "Pair this browser" button POSTs
-  ///     `/api/pairing/lan-claim`; on success it shows "Paired ✓" and the
-  ///     minted token so an advanced user can copy it.
+  ///     `/api/pairing/lan-claim`; on success the token is exchanged for an
+  ///     HttpOnly browser session and the page links into the dashboard.
+  ///     If the request arrived through a tunnel/proxy and is not eligible for
+  ///     one-tap trust, the page reveals the code flow instead of dead-ending.
   ///   * In **code-required** mode it POSTs `/api/pairing/start` (which only
   ///     returns the expiry — the code itself is deliberately never sent over
   ///     HTTP, see PairingHandlers) and instructs the operator to read the
@@ -184,13 +186,13 @@ const String _pairPageHtml = r'''
     <!-- code-required flow -->
     <div id="code-required" class="hidden">
       <p>This appliance requires a pairing code. Click below to start pairing,
-        then read the 6-digit code from the appliance's log
+        then read the code from the appliance's log
         (<code>journalctl -fu nightshade-headless</code>) and enter it here.</p>
       <button id="start-btn" type="button">Start pairing</button>
       <div id="code-entry" class="hidden">
-        <input id="code-input" type="text" inputmode="numeric"
-               autocomplete="one-time-code" maxlength="12"
-               placeholder="000000">
+        <input id="code-input" type="text"
+               autocomplete="one-time-code" maxlength="32"
+               placeholder="STAR-LYRA-1234">
         <p class="muted" id="expiry-note"></p>
         <button id="verify-btn" type="button">Complete pairing</button>
       </div>
@@ -223,13 +225,44 @@ const String _pairPageHtml = r'''
     }
 
     function showPaired(token) {
-      var html = 'Paired ✓';
-      if (token) {
-        html += '<code class="token">' + escapeHtml(token) + '</code>'
-             + '<span class="muted">Advanced: copy this token to use the API '
-             + 'directly.</span>';
+      if (!token) {
+        showResult('err', 'Pairing did not return a session token.');
+        return Promise.resolve(false);
       }
-      showResult('ok', html);
+      // A pairing token alone does not authenticate normal browser navigation.
+      // Exchange it immediately for the HttpOnly session cookie used by the
+      // dashboard and WebSocket ticket endpoint.
+      return fetch('/api/auth/cookie', {
+        method: 'POST',
+        headers: {
+          'authorization': 'Bearer ' + token,
+          'content-type': 'application/json'
+        },
+        body: '{}'
+      })
+        .then(function (r) {
+          return r.json().then(function (b) {
+            return { ok: r.ok, body: b };
+          });
+        })
+        .then(function (res) {
+          if (!res.ok || !res.body || !res.body.csrfToken) {
+            var msg = (res.body && (res.body.message || res.body.error))
+              || 'Could not establish the browser session.';
+            showResult('err', escapeHtml(msg));
+            return false;
+          }
+          var html = 'Paired ✓ '
+            + '<a href="/dashboard/">Open dashboard</a>'
+            + '<span class="muted">A secure browser session is active. '
+            + 'The long-lived bearer credential is intentionally hidden.</span>';
+          showResult('ok', html);
+          return true;
+        })
+        .catch(function () {
+          showResult('err', 'Network error while establishing the browser session.');
+          return false;
+        });
     }
 
     // Discover this rig: name + pairing mode.
@@ -272,6 +305,10 @@ const String _pairPageHtml = r'''
             lanBtn.textContent = 'Pair this browser';
             var msg = (res.body && res.body.message) || 'Pairing was refused.';
             showResult('err', escapeHtml(msg));
+            if (res.body && res.body.error === 'not_local_network') {
+              hide(lanOpenEl);
+              show(codeReqEl);
+            }
           }
         })
         .catch(function () {
@@ -303,7 +340,7 @@ const String _pairPageHtml = r'''
               ? ('Code is valid for about ' + Math.round(secs / 60)
                  + ' minute(s). Read it from the appliance log.')
               : 'Read the code from the appliance log.';
-            showResult('warn', 'Pairing started. The 6-digit code was printed '
+            showResult('warn', 'Pairing started. The code was printed '
               + 'to the appliance log — it is deliberately not sent over '
               + 'the network. Enter it below.');
           } else {

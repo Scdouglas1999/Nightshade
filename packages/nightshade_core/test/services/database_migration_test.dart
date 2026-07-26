@@ -643,12 +643,10 @@ CREATE TABLE captured_images (
               'primary singleton row on first settings access.',
         );
 
-        await db.weatherSettingsDao.updateSettings(
-          preferredProvider: 'updated',
-        );
+        await db.weatherSettingsDao.updateSettings(preferredProvider: 'noaa');
         final updated = await db.weatherSettingsDao.getSettings();
         expect(updated?.id, equals(1));
-        expect(updated?.preferredProvider, equals('updated'));
+        expect(updated?.preferredProvider, equals('noaa'));
       } finally {
         await db.close();
         await fixture.dispose();
@@ -707,10 +705,10 @@ CREATE TABLE captured_images (
     },
   );
 
-  test('fresh database is at schema 55 with stacked_results table', () async {
+  test('fresh database is at schema 57 with stacked_results table', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
-      expect(db.schemaVersion, equals(55));
+      expect(db.schemaVersion, equals(57));
 
       // v48 (Night Narrator): the narrator_events table must exist on a
       // fresh install (drift createAll) just like on the upgrade path.
@@ -782,7 +780,7 @@ CREATE TABLE captured_images (
           .customSelect('PRAGMA user_version')
           .getSingle();
       expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-      expect(db.schemaVersion, equals(55));
+      expect(db.schemaVersion, equals(57));
 
       final tableRow = await db
           .customSelect(

@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/authority_bound_dialog.dart';
+
 class ObservingListsSettings extends ConsumerWidget {
   const ObservingListsSettings({super.key});
 
@@ -13,7 +15,7 @@ class ObservingListsSettings extends ConsumerWidget {
     final listsAsync = ref.watch(observingListsProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(Responsive.isMobile(context) ? 12 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -30,7 +32,7 @@ class ObservingListsSettings extends ConsumerWidget {
                 ),
               ),
               FilledButton.icon(
-                onPressed: () => _showCreateDialog(context, ref),
+                onPressed: () => _showCreateDialog(context),
                 icon: const Icon(LucideIcons.plus, size: 16),
                 label: const Text('New List'),
               ),
@@ -106,7 +108,7 @@ class ObservingListsSettings extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => _showCreateDialog(context, ref),
+              onPressed: () => _showCreateDialog(context),
               icon: const Icon(LucideIcons.plus, size: 16),
               label: const Text('Create Your First List'),
             ),
@@ -116,55 +118,10 @@ class ObservingListsSettings extends ConsumerWidget {
     );
   }
 
-  void _showCreateDialog(BuildContext context, WidgetRef ref) {
-    final nameController = TextEditingController();
-    final descController = TextEditingController();
-
-    showDialog(
+  void _showCreateDialog(BuildContext context) {
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Observing List'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'List Name',
-                hintText: 'e.g., Winter Galaxies',
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              if (name.isEmpty) return;
-              final desc = descController.text.trim();
-              await ref.read(observingListNotifierProvider.notifier).createList(
-                    name: name,
-                    description: desc.isEmpty ? null : desc,
-                  );
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
+      builder: (_) => const _ObservingListEditorDialog(),
     );
   }
 }
@@ -181,6 +138,9 @@ class _ObservingListManagementCard extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final itemsAsync = ref.watch(observingListItemsProvider(list.id));
     final itemCount = itemsAsync.valueOrNull?.length ?? 0;
+    final isSaving = ref.watch(
+      observingListNotifierProvider.select((state) => state.isSaving),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -232,29 +192,46 @@ class _ObservingListManagementCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _ActionChip(
                   icon: LucideIcons.pencil,
                   label: 'Rename',
-                  onTap: () => _showRenameDialog(context, ref),
+                  onTap: () => _showRenameDialog(context),
                 ),
-                const SizedBox(width: 8),
                 _ActionChip(
                   icon: LucideIcons.copy,
-                  label: 'Duplicate',
-                  onTap: () async {
-                    await ref
-                        .read(observingListNotifierProvider.notifier)
-                        .duplicateList(list.id);
-                  },
+                  label: isSaving ? 'Duplicating…' : 'Duplicate',
+                  onTap: isSaving
+                      ? null
+                      : () async {
+                          final authority = ref.read(backendProvider);
+                          final id = await ref
+                              .read(observingListNotifierProvider.notifier)
+                              .duplicateList(list.id);
+                          if (!context.mounted ||
+                              !identical(
+                                  ref.read(backendProvider), authority)) {
+                            return;
+                          }
+                          final state = ref.read(observingListNotifierProvider);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(id == null
+                                  ? (state.errorMessage ??
+                                      'Could not duplicate list')
+                                  : 'Duplicated "${list.name}"'),
+                            ),
+                          );
+                        },
                 ),
-                const Spacer(),
                 _ActionChip(
                   icon: LucideIcons.trash2,
                   label: 'Delete',
                   isDestructive: true,
-                  onTap: () => _showDeleteConfirmation(context, ref),
+                  onTap: () => _showDeleteConfirmation(context),
                 ),
               ],
             ),
@@ -264,78 +241,264 @@ class _ObservingListManagementCard extends ConsumerWidget {
     );
   }
 
-  void _showRenameDialog(BuildContext context, WidgetRef ref) {
-    final controller = TextEditingController(text: list.name);
-    final descController = TextEditingController(text: list.description ?? '');
-
-    showDialog(
+  void _showRenameDialog(BuildContext context) {
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename List'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(labelText: 'List Name'),
-              autofocus: true,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
+      builder: (_) => _ObservingListEditorDialog(list: list),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _DeleteObservingListDialog(list: list),
+    );
+  }
+}
+
+class _ObservingListEditorDialog extends ConsumerStatefulWidget {
+  final ObservingList? list;
+
+  const _ObservingListEditorDialog({this.list});
+
+  @override
+  ConsumerState<_ObservingListEditorDialog> createState() =>
+      _ObservingListEditorDialogState();
+}
+
+class _ObservingListEditorDialogState
+    extends ConsumerState<_ObservingListEditorDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  late final NightshadeBackend _authority;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  bool _saving = false;
+  String? _nameError;
+
+  bool get _isEditing => widget.list != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.list?.name ?? '');
+    _descriptionController =
+        TextEditingController(text: widget.list?.description ?? '');
+    _authority = ref.read(backendProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('The connected host changed. List editing cancelled.'),
+          ),
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = 'Enter a list name');
+      return;
+    }
+    if (!identical(ref.read(backendProvider), _authority)) return;
+
+    setState(() {
+      _saving = true;
+      _nameError = null;
+    });
+    final description = _descriptionController.text.trim();
+    final notifier = ref.read(observingListNotifierProvider.notifier);
+    final success = _isEditing
+        ? await notifier.updateList(
+            widget.list!.id,
+            name: name,
+            description: description.isEmpty ? null : description,
+          )
+        : await notifier.createList(
+              name: name,
+              description: description.isEmpty ? null : description,
+            ) !=
+            null;
+
+    if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
+    if (!success) {
+      setState(() => _saving = false);
+      final state = ref.read(observingListNotifierProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.errorMessage ?? 'Could not save the list'),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_isEditing ? 'List updated' : 'List created')),
+    );
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_saving,
+      child: AlertDialog(
+        title:
+            Text(_isEditing ? 'Edit Observing List' : 'Create Observing List'),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 420,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'List Name',
+                  hintText: 'e.g., Winter Galaxies',
+                  errorText: _nameError,
+                ),
+                autofocus: true,
+                textInputAction: TextInputAction.next,
+                onChanged: (_) {
+                  if (_nameError != null) setState(() => _nameError = null);
+                },
               ),
-              maxLines: 2,
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (optional)',
+                ),
+                maxLines: 2,
+                onSubmitted: (_) {
+                  if (!_saving) _save();
+                },
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () async {
-              final name = controller.text.trim();
-              if (name.isEmpty) return;
-              final desc = descController.text.trim();
-              final notifier = ref.read(observingListNotifierProvider.notifier);
-              await notifier.renameList(list.id, name);
-              await notifier.updateDescription(
-                  list.id, desc.isEmpty ? null : desc);
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            child: const Text('Save'),
+            onPressed: _saving ? null : _save,
+            child: Text(_saving ? 'Saving…' : (_isEditing ? 'Save' : 'Create')),
           ),
         ],
       ),
     );
   }
+}
 
-  void _showDeleteConfirmation(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
+class _DeleteObservingListDialog extends ConsumerStatefulWidget {
+  final ObservingList list;
+
+  const _DeleteObservingListDialog({required this.list});
+
+  @override
+  ConsumerState<_DeleteObservingListDialog> createState() =>
+      _DeleteObservingListDialogState();
+}
+
+class _DeleteObservingListDialogState
+    extends ConsumerState<_DeleteObservingListDialog> {
+  late final NightshadeBackend _authority;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  bool _deleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _authority = ref.read(backendProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('The connected host changed. List deletion cancelled.'),
+          ),
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  Future<void> _delete() async {
+    if (!identical(ref.read(backendProvider), _authority)) return;
+    setState(() => _deleting = true);
+    final success = await ref
+        .read(observingListNotifierProvider.notifier)
+        .deleteList(widget.list.id);
+    if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
+    if (!success) {
+      setState(() => _deleting = false);
+      final state = ref.read(observingListNotifierProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(state.errorMessage ?? 'Could not delete the list'),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Deleted "${widget.list.name}"')),
+    );
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_deleting,
+      child: AlertDialog(
         title: const Text('Delete List?'),
-        content: Text(
-          'This will permanently delete "${list.name}" and all its items. '
-          'This action cannot be undone.',
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 420,
+          ),
+          child: Text(
+            'This will permanently delete "${widget.list.name}" and all its '
+            'items. This action cannot be undone.',
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _deleting ? null : () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           NightshadeButton(
-            onPressed: () async {
-              await ref
-                  .read(observingListNotifierProvider.notifier)
-                  .deleteList(list.id);
-              if (context.mounted) Navigator.of(context).pop();
-            },
+            onPressed: _deleting ? null : _delete,
             label: 'Delete',
             variant: ButtonVariant.destructive,
+            isLoading: _deleting,
           ),
         ],
       ),
@@ -347,7 +510,7 @@ class _ActionChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isDestructive;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ActionChip({
     required this.icon,
@@ -363,27 +526,32 @@ class _ActionChip extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: isDestructive
-            ? NightshadeDecorations.emphasisSurface(
-                colors.error,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-              )
-            : NightshadeDecorations.iconChip(
-                colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+      child: Opacity(
+        opacity: onTap == null ? 0.5 : 1,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: isDestructive
+              ? NightshadeDecorations.emphasisSurface(
+                  colors.error,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
+                )
+              : NightshadeDecorations.iconChip(
+                  colors.primary,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusMd),
+                ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: NightshadeTypography.labelQuiet.copyWith(color: color),
               ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: NightshadeTypography.labelQuiet.copyWith(color: color),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

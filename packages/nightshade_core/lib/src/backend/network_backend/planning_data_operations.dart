@@ -36,13 +36,17 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
       'targetId': targetId.toString(),
       'filter': filter,
     });
-    return (response['count'] as num?)?.toInt() ?? 0;
+    return _requiredPlanningInt(
+      response,
+      'count',
+      'GET /api/integration-goals/captured-count',
+    );
   }
 
   /// POST /api/integration-goals — upsert a goal on the host and return its id.
   Future<int> upsertIntegrationGoal(IntegrationGoal goal) async {
     final response = await _post('integration-goals', goal.toJson());
-    return (response['id'] as num?)?.toInt() ?? 0;
+    return _requiredPlanningInt(response, 'id', 'POST /api/integration-goals');
   }
 
   /// DELETE /api/integration-goals?id= — delete a single goal on the host.
@@ -76,7 +80,7 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
   /// POST /api/target-constraints — insert a constraint on the host; returns id.
   Future<int> insertTargetConstraint(TargetConstraint constraint) async {
     final response = await _post('target-constraints', constraint.toJson());
-    return (response['id'] as num?)?.toInt() ?? 0;
+    return _requiredPlanningInt(response, 'id', 'POST /api/target-constraints');
   }
 
   /// POST /api/target-constraints/update — update an existing constraint.
@@ -154,13 +158,18 @@ mixin _NetworkBackendPlanningDataOperations on _NetworkBackendTransport {
     String key,
     T Function(Map<String, dynamic>) fromJson,
   ) {
-    final raw = response[key];
-    if (raw is! List) {
-      return const [];
+    return _rowsFromJson(response[key], fromJson);
+  }
+
+  int _requiredPlanningInt(
+    Map<String, dynamic> response,
+    String key,
+    String request,
+  ) {
+    final value = response[key];
+    if (value is! num) {
+      throw FormatException('$request returned no numeric `$key` field');
     }
-    return raw
-        .whereType<Map>()
-        .map((m) => fromJson(m.cast<String, dynamic>()))
-        .toList(growable: false);
+    return value.toInt();
   }
 }

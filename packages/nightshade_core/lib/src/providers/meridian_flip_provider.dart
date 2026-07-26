@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../models/backend/event_types.dart';
+import '../models/backend/host_mutation_event.dart';
 import '../models/equipment/equipment_models.dart'
     show DeviceConnectionState, MountState;
 import '../models/meridian_flip_settings.dart';
 import '../models/meridian_flip_event.dart';
-import '../models/sequence/sequence_models.dart' show SequenceExecutionState;
+import '../models/sequence/sequence_models.dart'
+    show SequenceExecutionState, SequenceExecutionStateCapabilities;
 import '../services/logging_service.dart';
 import '../services/notification_service.dart';
 import '../services/scheduler/sky_calculations.dart';
@@ -22,9 +25,20 @@ import 'equipment_provider.dart'
         mountStateProvider;
 import 'sequence_provider.dart' show sequenceExecutionStateProvider;
 import 'settings_provider.dart' show appSettingsProvider;
+import 'ui_notification_provider.dart' show uiNotificationProvider;
 
 /// Key used to store global meridian flip settings in app_settings table
 const _kMeridianFlipSettingsKey = 'meridian_flip_settings';
+
+/// Initial-load health for [globalMeridianFlipSettingsProvider].
+///
+/// The settings provider keeps the historical plain
+/// [MeridianFlipSettings] state shape because many runtime consumers read it
+/// synchronously. This companion state prevents the settings UI and sequence
+/// start boundary from mistaking the model defaults for a loaded host
+/// snapshot.
+final globalMeridianFlipSettingsLoadStateProvider =
+    StateProvider<AsyncValue<void>>((ref) => const AsyncLoading());
 
 /// Provider for global meridian flip settings
 final globalMeridianFlipSettingsProvider =
@@ -32,8 +46,14 @@ final globalMeridianFlipSettingsProvider =
       GlobalMeridianFlipSettingsNotifier,
       MeridianFlipSettings
     >((ref) {
-      final db = ref.watch(databaseProvider);
-      return GlobalMeridianFlipSettingsNotifier(db);
+      final backend = ref.watch(backendProvider);
+      return GlobalMeridianFlipSettingsNotifier(
+        ref,
+        database: backend is NetworkBackend
+            ? null
+            : ref.watch(databaseProvider),
+        remote: backend is NetworkBackend ? backend : null,
+      );
     });
 
 /// Notifier for managing global meridian flip settings
@@ -42,59 +62,161 @@ final globalMeridianFlipSettingsProvider =
 /// These serve as the default settings when no profile-specific overrides exist.
 class GlobalMeridianFlipSettingsNotifier
     extends StateNotifier<MeridianFlipSettings> {
-  final NightshadeDatabase _db;
+  final Ref _ref;
+  final NightshadeDatabase? _database;
+  final NetworkBackend? _remote;
+  StreamSubscription? _remoteEventSubscription;
+  late Future<void> _loadFuture;
+  Future<void> _writeTail = Future<void>.value();
+  Object? _loadError;
 
-  GlobalMeridianFlipSettingsNotifier(this._db)
-    : super(const MeridianFlipSettings()) {
-    _loadSettings();
-  }
+  MeridianFlipSettings get settings => state;
 
-  /// Load settings from the database
-  Future<void> _loadSettings() async {
-    try {
-      final setting =
-          await (_db.select(_db.appSettings)
-                ..where((t) => t.key.equals(_kMeridianFlipSettingsKey)))
-              .getSingleOrNull();
-
-      if (setting != null && setting.value.isNotEmpty) {
-        final json = jsonDecode(setting.value) as Map<String, dynamic>;
-        state = MeridianFlipSettings.fromJson(json);
-      }
-    } catch (e) {
-      developer.log(
-        'Failed to load settings: $e',
-        name: 'MeridianFlip',
-        level: 1000,
-      );
-    }
-  }
-
-  /// Update settings and persist to database
-  Future<void> updateSettings(MeridianFlipSettings settings) async {
-    state = settings;
-    await _saveSettings();
-  }
-
-  /// Save current settings to the database
-  Future<void> _saveSettings() async {
-    try {
-      final json = jsonEncode(state.toJson());
-      await _db
-          .into(_db.appSettings)
-          .insertOnConflictUpdate(
-            AppSettingsCompanion.insert(
-              key: _kMeridianFlipSettingsKey,
-              value: json,
-            ),
+  GlobalMeridianFlipSettingsNotifier(
+    this._ref, {
+    required NightshadeDatabase? database,
+    required NetworkBackend? remote,
+  }) : _database = database,
+       _remote = remote,
+       super(const MeridianFlipSettings()) {
+    _ref.read(globalMeridianFlipSettingsLoadStateProvider.notifier).state =
+        const AsyncLoading();
+    if (remote != null) {
+      _remoteEventSubscription = remote.eventStream.listen(
+        (event) {
+          if (event.eventType != hostStateChangedEventType ||
+              event.data['entityType'] != HostMutationEntity.settings ||
+              event.data['namespace'] != 'meridian-flip') {
+            return;
+          }
+          _loadFuture = _writeTail.then(
+            (_) => _loadSettings(showLoading: false),
           );
-    } catch (e) {
-      developer.log(
-        'Failed to save settings: $e',
-        name: 'MeridianFlip',
-        level: 1000,
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          developer.log(
+            'Meridian-flip settings event stream failed: $error',
+            name: 'MeridianFlip',
+            level: 1000,
+            error: error,
+            stackTrace: stackTrace,
+          );
+        },
       );
     }
+    _loadFuture = _loadSettings(showLoading: true);
+  }
+
+  /// Wait until the authoritative settings snapshot has loaded.
+  ///
+  /// Throws when the host/DB read failed so sequence startup cannot silently
+  /// serialize meridian nodes with factory defaults.
+  Future<void> ensureLoaded() async {
+    await _loadFuture;
+    final error = _loadError;
+    if (error != null) {
+      throw StateError('Meridian-flip settings are unavailable: $error');
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_remoteEventSubscription?.cancel());
+    super.dispose();
+  }
+
+  /// Load settings from the imaging host in network mode, or the local DB on
+  /// the host/desktop path.
+  Future<void> _loadSettings({required bool showLoading}) async {
+    if (showLoading) {
+      _ref.read(globalMeridianFlipSettingsLoadStateProvider.notifier).state =
+          const AsyncLoading();
+    }
+    try {
+      final MeridianFlipSettings loaded;
+      if (_remote case final remote?) {
+        loaded = await remote.getMeridianFlipSettings();
+      } else {
+        final db = _database!;
+        final setting =
+            await (db.select(db.appSettings)
+                  ..where((t) => t.key.equals(_kMeridianFlipSettingsKey)))
+                .getSingleOrNull();
+        loaded = setting == null || setting.value.isEmpty
+            ? const MeridianFlipSettings()
+            : MeridianFlipSettings.fromJson(
+                jsonDecode(setting.value) as Map<String, dynamic>,
+              );
+      }
+      if (!mounted) return;
+      state = loaded;
+      _loadError = null;
+      _ref.read(globalMeridianFlipSettingsLoadStateProvider.notifier).state =
+          const AsyncData(null);
+    } catch (e, stackTrace) {
+      if (!mounted) return;
+      _loadError = e;
+      _ref.read(globalMeridianFlipSettingsLoadStateProvider.notifier).state =
+          AsyncError(e, stackTrace);
+      developer.log(
+        'Failed to load meridian-flip settings: $e',
+        name: 'MeridianFlip',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Update settings on the authoritative owner and publish the new in-memory
+  /// snapshot only after persistence succeeds.
+  Future<void> updateSettings(MeridianFlipSettings settings) {
+    final validationErrors = settings.validate();
+    if (validationErrors.isNotEmpty) {
+      return Future<void>.error(ArgumentError(validationErrors.join('; ')));
+    }
+
+    final operation = _writeTail.then((_) async {
+      await ensureLoaded();
+      try {
+        if (_remote case final remote?) {
+          await remote.updateMeridianFlipSettings(settings);
+        } else {
+          final db = _database!;
+          // app_settings is unique by `key`, while Drift's generic
+          // insertOnConflictUpdate targets the integer primary key. Use the
+          // canonical DAO upsert so the second and subsequent edits update the
+          // existing key instead of failing with UNIQUE(app_settings.key).
+          await db.settingsDao.setSetting(
+            _kMeridianFlipSettingsKey,
+            jsonEncode(settings.toJson()),
+          );
+        }
+        if (!mounted) return;
+        state = settings;
+        _loadError = null;
+        _ref.read(globalMeridianFlipSettingsLoadStateProvider.notifier).state =
+            const AsyncData(null);
+      } catch (e, stackTrace) {
+        developer.log(
+          'Failed to save meridian-flip settings: $e',
+          name: 'MeridianFlip',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace,
+        );
+        _ref
+            .read(uiNotificationProvider.notifier)
+            .showError(
+              'Meridian flip settings were not changed because they could not '
+              'be saved on the imaging host.',
+              title: 'Settings not saved',
+            );
+        rethrow;
+      }
+    });
+    _writeTail = operation.then<void>((_) {}, onError: (_, __) {});
+    return operation;
   }
 
   // === Individual Setting Updates ===
@@ -102,12 +224,27 @@ class GlobalMeridianFlipSettingsNotifier
 
   /// Update standalone monitoring enabled
   Future<void> setStandaloneMonitoringEnabled(bool enabled) async {
+    if (enabled && !state.triggerMethod.supportsStandaloneMonitoring) {
+      return Future<void>.error(
+        StateError(
+          state.triggerMethod.standaloneMonitoringLimitation ??
+              'This trigger requires an active sequence',
+        ),
+      );
+    }
     await updateSettings(state.copyWith(standaloneMonitoringEnabled: enabled));
   }
 
   /// Update trigger method
   Future<void> setTriggerMethod(MeridianTriggerMethod method) async {
-    await updateSettings(state.copyWith(triggerMethod: method));
+    await updateSettings(
+      state.copyWith(
+        triggerMethod: method,
+        standaloneMonitoringEnabled: method.supportsStandaloneMonitoring
+            ? state.standaloneMonitoringEnabled
+            : false,
+      ),
+    );
   }
 
   /// Update minutes past meridian threshold
@@ -459,18 +596,24 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
       next,
     ) {
       if (prev?.standaloneMonitoringEnabled !=
-          next.standaloneMonitoringEnabled) {
-        _reconcileTimer(next.standaloneMonitoringEnabled);
+              next.standaloneMonitoringEnabled ||
+          prev?.triggerMethod != next.triggerMethod) {
+        _reconcileTimer(next);
       }
     });
     final initial = _ref.read(globalMeridianFlipSettingsProvider);
-    _reconcileTimer(initial.standaloneMonitoringEnabled);
+    _reconcileTimer(initial);
   }
 
-  void _reconcileTimer(bool enabled) {
+  void _reconcileTimer(MeridianFlipSettings settings) {
     _pollTimer?.cancel();
     _pollTimer = null;
-    if (!enabled) {
+    // The imaging host is the single owner of standalone flip automation.
+    // A remote phone mirrors mount/settings state but must never run a second
+    // timer that can race the GUI/headless host and command the same flip.
+    if (!settings.standaloneMonitoringEnabled ||
+        !settings.triggerMethod.supportsStandaloneMonitoring ||
+        _ref.read(backendProvider) is NetworkBackend) {
       return;
     }
     _pollTimer = Timer.periodic(_pollInterval, (_) => evaluateOnce());
@@ -478,8 +621,14 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
 
   /// Public for tests — runs a single poll cycle and returns the decision.
   MeridianMonitorDecision evaluateOnce() {
+    if (_ref.read(backendProvider) is NetworkBackend) {
+      return MeridianMonitorDecision.inactive;
+    }
     final settings = _ref.read(globalMeridianFlipSettingsProvider);
     if (!settings.standaloneMonitoringEnabled) {
+      return MeridianMonitorDecision.inactive;
+    }
+    if (!settings.triggerMethod.supportsStandaloneMonitoring) {
       return MeridianMonitorDecision.inactive;
     }
 
@@ -530,6 +679,70 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     return MeridianMonitorDecision.triggered;
   }
 
+  /// Runs an operator-requested flip through the same authoritative path as
+  /// standalone automation.
+  ///
+  /// Returns false with [flipLastErrorProvider] populated when current run or
+  /// mount state makes a flip unsafe. The backend remains the final authority,
+  /// but refusing locally avoids presenting a command that the native
+  /// sequencer must immediately reject.
+  Future<bool> executeNow({String targetName = 'Manual flip'}) async {
+    if (_flipInFlight || _ref.read(isFlipInProgressProvider)) {
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'A meridian flip is already in progress';
+      return false;
+    }
+
+    final execution = _ref.read(sequenceExecutionStateProvider);
+    if (!execution.canStart) {
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'The active sequence owns the mount; stop it before flipping manually';
+      return false;
+    }
+
+    try {
+      await _ref
+          .read(globalMeridianFlipSettingsProvider.notifier)
+          .ensureLoaded();
+    } catch (error) {
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'Could not load meridian flip settings: $error';
+      return false;
+    }
+
+    final mount = _ref.read(mountStateProvider);
+    if (mount.connectionState != DeviceConnectionState.connected ||
+        mount.deviceId == null ||
+        mount.deviceId!.isEmpty ||
+        mount.ra == null ||
+        mount.dec == null) {
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'Mount coordinates are unavailable for a manual flip';
+      return false;
+    }
+    if (mount.isParked) {
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'Unpark the mount before flipping manually';
+      return false;
+    }
+    if (!mount.isTracking) {
+      _ref.read(flipLastErrorProvider.notifier).state =
+          'Start mount tracking before flipping manually';
+      return false;
+    }
+
+    _ref.read(flipExecutionStateProvider.notifier).state =
+        FlipExecutionState.executing;
+    _ref.read(flipCurrentStepProvider.notifier).state = null;
+    _ref.read(flipProgressProvider.notifier).state = 0;
+    _ref.read(flipLastErrorProvider.notifier).state = null;
+    return _executeStandaloneFlip(
+      _ref.read(globalMeridianFlipSettingsProvider),
+      mount,
+      targetName: targetName,
+    );
+  }
+
   /// Execute the actual flip via the canonical native flip engine.
   ///
   /// The historical limitation ("the Rust meridian flip executor is only
@@ -538,11 +751,12 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
   /// is running — so this cannot double-command the mount. The alert above
   /// still fires first so the operator hears about the flip even if the
   /// execution then fails.
-  Future<void> _executeStandaloneFlip(
+  Future<bool> _executeStandaloneFlip(
     MeridianFlipSettings settings,
-    MountState mount,
-  ) async {
-    if (_flipInFlight) return;
+    MountState mount, {
+    String targetName = 'Standalone flip',
+  }) async {
+    if (_flipInFlight) return false;
 
     final mountId = mount.deviceId;
     final ra = mount.ra;
@@ -558,7 +772,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
           FlipExecutionState.failed;
       _ref.read(flipLastErrorProvider.notifier).state =
           'Flip not executed: mount coordinates unavailable';
-      return;
+      return false;
     }
 
     final cameraState = _ref.read(cameraStateProvider);
@@ -587,7 +801,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
                 coverState.connectionState == DeviceConnectionState.connected
                 ? coverState.deviceId
                 : null,
-            targetName: 'Standalone flip',
+            targetName: targetName,
             targetRaHours: ra,
             targetDecDegrees: dec,
             pauseGuiding: settings.pauseGuidingBeforeFlip,
@@ -600,7 +814,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
           FlipExecutionState.completed;
       _ref.read(flipProgressProvider.notifier).state = 100;
       logger.info(
-        'Standalone meridian flip completed',
+        '$targetName completed',
         source: 'MeridianFlipStandaloneMonitor',
       );
       if (settings.pushNotificationOnFlip) {
@@ -611,14 +825,16 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
               .catchError((Object e, StackTrace s) => false),
         );
       }
+      return true;
     } catch (e) {
       _ref.read(flipExecutionStateProvider.notifier).state =
           FlipExecutionState.failed;
       _ref.read(flipLastErrorProvider.notifier).state = e.toString();
       logger.error(
-        'Standalone meridian flip failed: $e',
+        '$targetName failed: $e',
         source: 'MeridianFlipStandaloneMonitor',
       );
+      return false;
     } finally {
       _flipInFlight = false;
     }

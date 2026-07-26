@@ -159,10 +159,64 @@ fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
 /// resolving symbols. It is exposed publicly so vendors with unusual loading
 /// semantics (e.g. Touptek's multi-brand storage that needs custom `OnceLock`
 /// keying) can compose path search separately from symbol resolution.
+/// Pre-load libusb into the GLOBAL symbol namespace before any vendor SDK.
+///
+/// Some vendor camera SDKs (notably SVBony's `libSVBCameraSDK.so`) are built
+/// expecting the HOST application to provide libusb: they call `libusb_init`
+/// etc. as UNDEFINED symbols and carry no `NEEDED libusb` entry of their own.
+/// Loaded the default way (RTLD_LOCAL, lazy binding) those symbols stay
+/// unresolved and the first call ABORTS the whole process with
+/// `symbol lookup error: undefined symbol: libusb_init` — i.e. merely having
+/// an SVBony SDK installed crashes Nightshade on startup discovery. Loading
+/// libusb once with `RTLD_GLOBAL` publishes its symbols so any such vendor SDK
+/// can resolve them. Best-effort and idempotent: if libusb is absent, SDKs
+/// that don't need it still load, and ones that do were already unusable.
+///
+/// Called at the top of `discover_all_devices` (before ANY vendor SDK loads —
+/// most vendors use their own `Library::new`, not `open_vendor_library`).
+pub fn ensure_libusb_global() {
+    use std::sync::OnceLock;
+    static LIBUSB: OnceLock<()> = OnceLock::new();
+    LIBUSB.get_or_init(|| {
+        #[cfg(unix)]
+        {
+            use libloading::os::unix::{Library, RTLD_GLOBAL, RTLD_NOW};
+            for name in ["libusb-1.0.so.0", "libusb-1.0.so", "libusb.so"] {
+                // SAFETY: loading a well-known system library. We intentionally
+                // leak the handle (mem::forget) so its symbols stay resident
+                // for the whole process lifetime — vendor SDKs resolve against
+                // them lazily long after this returns.
+                match unsafe { Library::open(Some(name), RTLD_GLOBAL | RTLD_NOW) } {
+                    Ok(lib) => {
+                        std::mem::forget(lib);
+                        tracing::info!(
+                            "Pre-loaded {} with RTLD_GLOBAL for vendor SDKs that \
+                             expect host-provided libusb",
+                            name
+                        );
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::debug!("libusb pre-load of {} failed: {}", name, e);
+                    }
+                }
+            }
+            tracing::debug!(
+                "libusb not found to pre-load; vendor SDKs that need it \
+                 (e.g. SVBony) may be unavailable but will not crash the process"
+            );
+        }
+    });
+}
+
 pub fn open_vendor_library(
     vendor: &'static str,
     candidate_paths: &[PathBuf],
 ) -> Result<(libloading::Library, PathBuf), VendorLoadError> {
+    // Publish libusb symbols globally before touching any vendor SDK so SDKs
+    // that expect host-provided libusb (SVBony) resolve instead of aborting.
+    ensure_libusb_global();
+
     let mut last_error: Option<libloading::Error> = None;
 
     for path in candidate_paths {

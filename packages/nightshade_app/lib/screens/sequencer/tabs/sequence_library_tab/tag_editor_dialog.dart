@@ -24,6 +24,9 @@ class _TagEditorDialog extends ConsumerStatefulWidget {
 
 class _TagEditorDialogState extends ConsumerState<_TagEditorDialog> {
   late final List<String> _tags;
+  late final NightshadeBackend _authority;
+  late final SequenceRepository _repository;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
   final _controller = TextEditingController();
   bool _saving = false;
 
@@ -31,11 +34,24 @@ class _TagEditorDialogState extends ConsumerState<_TagEditorDialog> {
   void initState() {
     super.initState();
     _tags = [...widget.initialTags];
+    _authority = ref.read(backendProvider);
+    _repository = ref.read(sequenceRepositoryProvider);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous == null || identical(previous, next) || !mounted) return;
+        context.showWarningSnackBar(
+          'The connected host changed. Tag editing cancelled.',
+        );
+        closeAuthorityBoundDialog(context);
+      },
+    );
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _backendSubscription?.close();
     super.dispose();
   }
 
@@ -49,18 +65,17 @@ class _TagEditorDialogState extends ConsumerState<_TagEditorDialog> {
   }
 
   Future<void> _save() async {
+    if (!identical(ref.read(backendProvider), _authority)) return;
+    _addTag();
     setState(() => _saving = true);
     try {
-      await ref.read(sequenceRepositoryProvider).setTags(
-            widget.sequenceId,
-            _tags,
-          );
+      await _repository.setTags(widget.sequenceId, _tags);
+      if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
       ref.invalidate(savedSequenceSummariesProvider);
-      if (!mounted) return;
       Navigator.of(context).pop();
       context.showSuccessSnackBar('Updated tags for "${widget.sequenceName}"');
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || !identical(ref.read(backendProvider), _authority)) return;
       setState(() => _saving = false);
       context.showErrorSnackBar('Failed to save tags: $e');
     }
@@ -69,7 +84,7 @@ class _TagEditorDialogState extends ConsumerState<_TagEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
-    return AlertDialog(
+    final dialog = AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -200,5 +215,6 @@ class _TagEditorDialogState extends ConsumerState<_TagEditorDialog> {
         ),
       ],
     );
+    return PopScope(canPop: !_saving, child: dialog);
   }
 }

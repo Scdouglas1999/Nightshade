@@ -7,14 +7,10 @@
 //   * the live guide graph renders (it must stay mounted in every layout),
 //   * the AdaptiveTabBar tabs are reachable (Star View / Controls / Settings).
 //
-// Unlike guiding_screen_test.dart (which deliberately swallows overflow at
-// desktop widths where the brain/calibration panels are cramped), this file
-// does NOT swallow overflow — the whole point is to prove the phone layouts
-// are clean. We stay on the default Star View tab so the calibration /
-// brain-settings panels (which overflow on tiny surfaces and are out of scope
-// here) are not built.
+// Every tab is exercised below without exempting shared UI-package overflows.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/guiding/guiding_screen.dart';
 import 'package:nightshade_app/widgets/tutorial_keys/guiding_keys.dart';
@@ -39,25 +35,35 @@ class _NoopTutorialProgressDao implements TutorialProgressDao {
   }
 }
 
+class _SeededBrainParams extends BrainParamsNotifier {
+  _SeededBrainParams(super.ref) {
+    // ignore: invalid_use_of_protected_member
+    state = const AsyncValue.data(
+      Phd2BrainParams(
+        raParamNames: ['Aggressiveness', 'Minimum move'],
+        decParamNames: ['Aggressiveness', 'Minimum move'],
+        raParams: {'Aggressiveness': 70, 'Minimum move': 0.15},
+        decParams: {'Aggressiveness': 65, 'Minimum move': 0.20},
+      ),
+    );
+  }
+}
+
 Future<void> _drainAsyncFrames(WidgetTester tester) async {
   for (var i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
 }
 
-/// Collects layout/overflow exceptions but only treats as fatal those that
-/// originate in this app's guiding-screen code.
-///
-/// The PHD2 panels live in `package:nightshade_ui` (the shared design system,
-/// which this work consumes but must NOT edit). A couple of them — notably the
-/// guide-graph controls bar's RMS row and the calibration panel — pack more
-/// inline content than a cramped surface fits and report a cosmetic
-/// `RenderFlex` overflow in a ~450-520 px band. That is a pre-existing
-/// nightshade_ui issue, out of scope here, and the existing
-/// guiding_screen_test.dart swallows it too. This filter lets us still assert
-/// that OUR reflow (the guiding_screen / *_sections parts) never overflows.
+Finder _adaptiveTab(String label) {
+  final semantic = find.bySemanticsLabel(label);
+  return semantic.evaluate().isNotEmpty ? semantic : find.text(label);
+}
+
+/// Collects layout/overflow exceptions so the tests can report them cleanly
+/// while still allowing the remaining widget tree to render for assertions.
 class _OverflowGuard {
-  final List<FlutterErrorDetails> appOverflows = [];
+  final List<FlutterErrorDetails> allOverflows = [];
   void Function(FlutterErrorDetails)? _previous;
 
   void install() {
@@ -66,12 +72,7 @@ class _OverflowGuard {
       final text = details.toString();
       final isOverflow = text.contains('overflowed');
       if (isOverflow) {
-        final fromUiPackage = text.contains('packages/nightshade_ui/');
-        final fromAppGuiding = text.contains('screens/guiding/') ||
-            text.contains('guiding_screen');
-        if (fromAppGuiding && !fromUiPackage) {
-          appOverflows.add(details);
-        }
+        allOverflows.add(details);
         // Either way, don't forward overflow to the default presenter (it
         // would also trip tester.takeException()).
         return;
@@ -117,12 +118,10 @@ void main() {
       await _drainAsyncFrames(tester);
 
       expect(
-        guard.appOverflows,
+        guard.allOverflows,
         isEmpty,
-        reason: 'GuidingScreen reflow must not overflow at $name '
-            '(${size.width.toInt()}x${size.height.toInt()}). Overflows from '
-            'package:nightshade_ui PHD2 panels are pre-existing and out of '
-            'scope.',
+        reason: 'GuidingScreen must not overflow at $name '
+            '(${size.width.toInt()}x${size.height.toInt()}).',
       );
       // Any non-overflow exception is still fatal.
       expect(tester.takeException(), isNull,
@@ -148,6 +147,49 @@ void main() {
       // tutorial key, proving the default tab body rendered.
       expect(find.byKey(GuidingTutorialKeys.starView), findsOneWidget,
           reason: 'Default Star View tab body must render at $name.');
+    });
+  }
+
+  for (final (name, size) in const <(String, Size)>[
+    ('phone portrait', Size(390, 844)),
+    ('phone landscape', Size(844, 390)),
+  ]) {
+    testWidgets('guiding Controls and Brain tabs do not overflow on $name', (
+      tester,
+    ) async {
+      final guard = _OverflowGuard()..install();
+      addTearDown(guard.restore);
+
+      await pumpAppScreen(
+        tester,
+        const GuidingScreen(),
+        size: size,
+        settle: false,
+        extraOverrides: [
+          tutorialProvider.overrideWith((ref) => _TutorialsDisabledNotifier()),
+          brainParamsProvider.overrideWith(_SeededBrainParams.new),
+        ],
+      );
+      await _drainAsyncFrames(tester);
+
+      await tester.tap(_adaptiveTab('Controls'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        guard.allOverflows,
+        isEmpty,
+        reason: 'The Controls tab must fit at $name.',
+      );
+
+      await tester.tap(_adaptiveTab('Settings'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Show Brain Settings'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        guard.allOverflows,
+        isEmpty,
+        reason: 'The loaded Brain settings tab must fit at $name.',
+      );
+      expect(tester.takeException(), isNull);
     });
   }
 }

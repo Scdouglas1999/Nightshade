@@ -115,6 +115,11 @@ final autoStretchSettingsProvider =
 class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
   final Ref _ref;
   bool _isLoaded = false;
+  AutoStretchSettings _confirmedSettings = AutoStretchSettings.defaults();
+  AutoStretchSettings _requestedSettings = AutoStretchSettings.defaults();
+  int _requestRevision = 0;
+  Future<void> _writeTail = Future<void>.value();
+  Future<void> _requestedWrite = Future<void>.value();
 
   AutoStretchSettingsNotifier(this._ref)
     : super(AutoStretchSettings.defaults()) {
@@ -125,13 +130,20 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
   Future<void> _loadSettings() async {
     if (_isLoaded) return;
     _isLoaded = true;
+    final revisionAtStart = _requestRevision;
 
     try {
-      final db = _ref.read(databaseProvider);
-      final json = await db.settingsDao.getAutoStretchSettings();
-      if (json != null && json.isNotEmpty) {
+      final dao = _ref.read(settingsDaoProvider);
+      final json = await dao.getAutoStretchSettings();
+      if (json != null &&
+          json.isNotEmpty &&
+          revisionAtStart == _requestRevision &&
+          mounted) {
         final decoded = jsonDecode(json) as Map<String, dynamic>;
-        state = AutoStretchSettings.fromJson(decoded);
+        final loaded = AutoStretchSettings.fromJson(decoded);
+        _confirmedSettings = loaded;
+        _requestedSettings = loaded;
+        state = loaded;
       }
     } catch (e) {
       developer.log(
@@ -146,31 +158,47 @@ class AutoStretchSettingsNotifier extends StateNotifier<AutoStretchSettings> {
   ///
   /// Skips the state update (and downstream rebuild of stretched image
   /// providers) when the new settings are identical to the current ones.
-  void update(AutoStretchSettings newSettings) {
-    if (state == newSettings) return;
+  Future<void> update(AutoStretchSettings newSettings) {
+    if (_requestedSettings == newSettings) return _requestedWrite;
+
+    _requestedSettings = newSettings;
+    final revision = ++_requestRevision;
     state = newSettings;
-    _persistSettings();
+    final operation = _writeTail.then((_) async {
+      try {
+        await _persistSettings(newSettings);
+        _confirmedSettings = newSettings;
+      } catch (_) {
+        if (revision == _requestRevision && mounted) {
+          _requestedSettings = _confirmedSettings;
+          state = _confirmedSettings;
+        }
+        rethrow;
+      }
+    });
+    _writeTail = operation.then<void>((_) {}, onError: (_, __) {});
+    _requestedWrite = operation;
+    return operation;
   }
 
-  /// Persist current settings to database.
-  Future<void> _persistSettings() async {
+  /// Persist a captured settings snapshot to the database.
+  Future<void> _persistSettings(AutoStretchSettings settings) async {
     try {
-      final db = _ref.read(databaseProvider);
-      final json = jsonEncode(state.toJson());
-      await db.settingsDao.setAutoStretchSettings(json);
+      final dao = _ref.read(settingsDaoProvider);
+      final json = jsonEncode(settings.toJson());
+      await dao.setAutoStretchSettings(json);
     } catch (e) {
       developer.log(
         'Failed to save auto-stretch settings: $e',
         name: 'AutoStretch',
         level: 1000,
       );
+      rethrow;
     }
   }
 
   /// Reset to default settings.
-  void reset() {
-    update(AutoStretchSettings.defaults());
-  }
+  Future<void> reset() => update(AutoStretchSettings.defaults());
 }
 
 /// Cooling settings
@@ -200,6 +228,7 @@ final focusSettingsProvider =
 class FocusSettingsNotifier extends StateNotifier<FocusSettings> {
   final Ref _ref;
   bool _initialized = false;
+  bool _userEdited = false;
 
   FocusSettingsNotifier(this._ref) : super(const FocusSettings()) {
     _loadFromAppSettings();
@@ -209,9 +238,14 @@ class FocusSettingsNotifier extends StateNotifier<FocusSettings> {
     if (_initialized) return;
     _initialized = true;
 
-    final settingsAsync = _ref.read(appSettingsProvider);
-    final settings = settingsAsync.valueOrNull;
-    if (settings != null) {
+    try {
+      // App settings normally load asynchronously from Drift or the remote
+      // host. Reading valueOrNull once during construction races that load and
+      // permanently leaves autofocus at generic defaults. Await the real
+      // snapshot, but never let its late arrival overwrite panel edits made in
+      // the meantime.
+      final settings = await _ref.read(appSettingsProvider.future);
+      if (!mounted || _userEdited) return;
       state = FocusSettings(
         stepSize: settings.afStepSize,
         method: settings.afMethod,
@@ -220,11 +254,18 @@ class FocusSettingsNotifier extends StateNotifier<FocusSettings> {
         exposuresPerPoint: settings.afExposuresPerPoint,
         exposureTime: settings.afExposureTime,
       );
+    } catch (e) {
+      developer.log(
+        'Failed to initialize focus settings from app settings: $e',
+        name: 'FocusSettings',
+        level: 1000,
+      );
     }
   }
 
   /// Update focus settings (user edits at runtime).
   void update(FocusSettings newSettings) {
+    _userEdited = true;
     state = newSettings;
   }
 }
@@ -261,7 +302,10 @@ final namingPatternProvider = Provider<NamingPattern>((ref) {
     return const NamingPattern();
   }
 
-  final format = ImageFileFormatSettingsX.fromSettings(settings.format);
+  // Captures are currently persisted through the native FITS writer. This
+  // defensive coercion also protects callers while a legacy/remote settings
+  // snapshot is being migrated by appSettingsProvider.
+  const format = ImageFileFormat.fits;
   final baseDir = settings.outputPath.isEmpty ? '.' : settings.outputPath;
 
   return NamingPattern(
@@ -275,20 +319,6 @@ final namingPatternProvider = Provider<NamingPattern>((ref) {
 final starDetectionResultProvider = StateProvider<StarDetectionResult?>(
   (ref) => null,
 );
-
-/// Debayer settings for color cameras
-final debayerEnabledProvider = StateProvider<bool>((ref) => false);
-
-final bayerPatternProvider = StateProvider<BayerPattern>((ref) {
-  return BayerPattern.rggb;
-});
-
-final debayerAlgorithmProvider = StateProvider<DebayerAlgorithm>((ref) {
-  return DebayerAlgorithm.bilinear;
-});
-
-/// Auto-detect Bayer pattern from FITS headers
-final autoDetectBayerPatternProvider = StateProvider<bool>((ref) => true);
 
 /// Session captured images
 final sessionImagesProvider =
@@ -333,15 +363,38 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
 /// in-memory [CapturedImage] shape the cockpit/strip widgets render. Ordering
 /// matches [sessionImagesProvider]: oldest-first (capture order), so the
 /// consumers' "take the tail, reverse to newest-first" logic is unchanged.
+///
+/// The session id itself is also remote-aware. `dbSessionId` is only ever set
+/// locally by [SessionStateNotifier.startSession] / `recoverSession`, so a
+/// phone or tablet that merely *watches* a host-started run never has one — the
+/// strip rendered "No frames captured this session yet" for the whole night
+/// while the host's `/api/images` already held every frame. When the local id is
+/// absent we fall back to the host's own active session, using the same
+/// `status == 'active'` invariant `SessionsDao.getActiveSessions` relies on.
 final recentSessionFramesProvider = Provider<List<CapturedImage>>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is! NetworkBackend) {
     return ref.watch(sessionImagesProvider);
   }
 
-  final sessionId = ref.watch(
+  var sessionId = ref.watch(
     sessionStateProvider.select((state) => state.dbSessionId),
   );
+  if (sessionId == null) {
+    // `allSessionsProvider` is already sorted newest-first on both the local
+    // and the remote path, so the first active row is the current session. A
+    // genuinely idle host yields null and the strip stays empty — which is then
+    // the truth, not a false negative.
+    final sessions = ref.watch(allSessionsProvider).valueOrNull;
+    if (sessions != null) {
+      for (final session in sessions) {
+        if (session.status == 'active') {
+          sessionId = session.id;
+          break;
+        }
+      }
+    }
+  }
   if (sessionId == null) {
     return const <CapturedImage>[];
   }
@@ -354,10 +407,17 @@ final recentSessionFramesProvider = Provider<List<CapturedImage>>((ref) {
   final sessionRows =
       rows.where((row) => row.sessionId == sessionId).toList(growable: false)
         ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
-  return sessionRows.map(_capturedImageFromDbRow).toList(growable: false);
+  return sessionRows.map(capturedImageFromDbRow).toList(growable: false);
 });
 
-CapturedImage _capturedImageFromDbRow(db.CapturedImage row) {
+/// Map a persisted `captured_images` row onto the in-memory [CapturedImage]
+/// shape the cockpit/strip widgets render.
+///
+/// Package-public because the sequencer's frame-registration path needs the same
+/// mapping to push freshly persisted sequence frames into
+/// [sessionImagesProvider]; duplicating it there would let the two views of a
+/// frame drift apart.
+CapturedImage capturedImageFromDbRow(db.CapturedImage row) {
   return CapturedImage(
     id: row.id.toString(),
     filePath: row.filePath,

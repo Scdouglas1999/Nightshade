@@ -103,25 +103,67 @@ class InMemoryPluginStorage implements PluginStorage {
   }
 }
 
+/// Validates that [pluginId] is safe to use as a filesystem path segment.
+///
+/// Plugin ids are reverse-domain identifiers (e.g. `com.example.thing`) that
+/// are used verbatim as storage filenames (`<id>.json`). This rejects anything
+/// that could escape the plugin storage directory — path separators (`/`,
+/// `\`), `..` traversal segments, an empty id, or characters outside the safe
+/// `[A-Za-z0-9._-]` set — so a hostile or malformed id can never read or write
+/// outside `<appSupport>/nightshade_plugins/storage/`. Throws a
+/// [PluginException] describing the violation; callers must reject the plugin.
+void assertSafePluginId(String pluginId) {
+  final ok =
+      pluginId.isNotEmpty &&
+      pluginId.length <= 200 &&
+      !pluginId.contains('..') &&
+      _safePluginIdPattern.hasMatch(pluginId);
+  if (!ok) {
+    throw PluginException(
+      'Unsafe plugin id "$pluginId": ids must be 1-200 chars matching '
+      '[A-Za-z0-9._-], start with an alphanumeric, and contain no ".." '
+      'path segment.',
+    );
+  }
+}
+
+final RegExp _safePluginIdPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
+
 /// File-backed implementation of [PluginStorage].
 ///
 /// Data is stored per-plugin in the application support directory and written
 /// atomically so plugin settings survive app restarts and partial writes.
+///
+/// All mutating operations are serialized through a single write queue, so two
+/// concurrent writes never race on the temp file (each write also uses a
+/// unique temp name) — without this, overlapping `setString`/`clear`/etc. calls
+/// could lose data or throw when the second rename found the shared temp file
+/// already consumed by the first.
 class FilePluginStorage implements PluginStorage {
   final String _pluginId;
   final Future<Directory> Function() _baseDirectoryProvider;
 
-  Map<String, dynamic>? _storage;
-  Future<void>? _loadFuture;
+  /// One queue per canonical storage path, shared by every storage instance.
+  /// Registration retries create a fresh context/storage object; a per-instance
+  /// queue would still let the old and new contexts delete/rename each other's
+  /// files or overwrite unrelated keys.
+  static final Map<String, Future<void>> _fileTails = {};
+
+  /// Monotonic counter feeding a per-write temp filename.
+  static int _tempCounter = 0;
 
   /// Creates persistent storage for [pluginId].
   ///
-  /// [baseDirectoryProvider] is primarily intended for tests.
+  /// [baseDirectoryProvider] is primarily intended for tests. The [pluginId]
+  /// is validated up front ([assertSafePluginId]) so an unsafe id never
+  /// reaches the filesystem.
   FilePluginStorage(
     this._pluginId, {
     Future<Directory> Function()? baseDirectoryProvider,
   }) : _baseDirectoryProvider =
-           baseDirectoryProvider ?? _defaultPluginStorageDirectory;
+           baseDirectoryProvider ?? _defaultPluginStorageDirectory {
+    assertSafePluginId(_pluginId);
+  }
 
   Future<File> _getStorageFile() async {
     final baseDir = await _baseDirectoryProvider();
@@ -134,27 +176,19 @@ class FilePluginStorage implements PluginStorage {
     return File(path.join(pluginsDir.path, '$_pluginId.json'));
   }
 
-  Future<void> _ensureLoaded() async {
-    _loadFuture ??= _load();
-    await _loadFuture;
-  }
-
-  Future<void> _load() async {
-    final file = await _getStorageFile();
+  Future<Map<String, dynamic>> _readStorage(File file) async {
     if (!await file.exists()) {
-      _storage = <String, dynamic>{};
-      return;
+      return <String, dynamic>{};
     }
 
     try {
       final content = await file.readAsString();
       if (content.trim().isEmpty) {
-        _storage = <String, dynamic>{};
-        return;
+        return <String, dynamic>{};
       }
       final decoded = jsonDecode(content);
       if (decoded is Map<String, dynamic>) {
-        _storage = Map<String, dynamic>.from(decoded);
+        return Map<String, dynamic>.from(decoded);
       } else {
         throw const FormatException('Plugin storage root must be an object');
       }
@@ -166,90 +200,120 @@ class FilePluginStorage implements PluginStorage {
         error: e,
         stackTrace: stackTrace,
       );
-      _storage = <String, dynamic>{};
+      return <String, dynamic>{};
     }
   }
 
-  Future<void> _persist() async {
+  Future<T> _withFileLock<T>(Future<T> Function(File file) action) async {
     final file = await _getStorageFile();
-    final tempFile = File('${file.path}.tmp');
-    final encoded = jsonEncode(_storage ?? const <String, dynamic>{});
-
-    await tempFile.writeAsString(encoded, flush: true);
-    if (await file.exists()) {
-      await file.delete();
+    final key = file.absolute.path;
+    final previous = _fileTails[key] ?? Future<void>.value();
+    final operation = previous.then((_) => action(file));
+    final tail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    _fileTails[key] = tail;
+    try {
+      return await operation;
+    } finally {
+      if (identical(_fileTails[key], tail)) {
+        unawaited(_fileTails.remove(key));
+      }
     }
-    await tempFile.rename(file.path);
+  }
+
+  Future<void> _mutate(void Function(Map<String, dynamic> values) change) {
+    return _withFileLock((file) async {
+      // Always merge against the latest durable snapshot. This is what keeps
+      // two contexts for the same plugin from losing one another's keys.
+      final values = await _readStorage(file);
+      change(values);
+      await _writeSnapshot(file, jsonEncode(values));
+    });
+  }
+
+  Future<T> _read<T>(T Function(Map<String, dynamic> values) select) {
+    return _withFileLock((file) async {
+      final values = await _readStorage(file);
+      return select(values);
+    });
+  }
+
+  Future<void> _writeSnapshot(File file, String encoded) async {
+    // Unique temp name per write so even two FilePluginStorage instances for
+    // the same id (overlapping lifecycles) never share an in-progress temp
+    // file.
+    final tempFile = File('${file.path}.${_tempCounter++}.tmp');
+    try {
+      await tempFile.writeAsString(encoded, flush: true);
+      try {
+        // POSIX rename replaces atomically, preserving the old snapshot until
+        // the complete new one is ready.
+        await tempFile.rename(file.path);
+      } on FileSystemException {
+        // Windows does not replace an existing destination via rename.
+        if (await file.exists()) await file.delete();
+        await tempFile.rename(file.path);
+      }
+    } finally {
+      // Never leave an orphan temp behind if we threw before the rename
+      // consumed it. After a successful rename the temp path no longer exists,
+      // so this is a no-op on the happy path.
+      if (await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {
+          // Best-effort cleanup; the real error (if any) already propagated.
+        }
+      }
+    }
   }
 
   @override
-  Future<String?> getString(String key) async {
-    await _ensureLoaded();
-    final value = _storage![key];
-    return value is String ? value : null;
-  }
+  Future<String?> getString(String key) =>
+      _read((values) => values[key] is String ? values[key] as String : null);
 
   @override
-  Future<void> setString(String key, String value) async {
-    await _ensureLoaded();
-    _storage![key] = value;
-    await _persist();
-  }
+  Future<void> setString(String key, String value) =>
+      _mutate((values) => values[key] = value);
 
   @override
-  Future<int?> getInt(String key) async {
-    await _ensureLoaded();
-    final value = _storage![key];
+  Future<int?> getInt(String key) => _read((values) {
+    final value = values[key];
     if (value is int) return value;
     if (value is String) return int.tryParse(value);
     return null;
-  }
+  });
 
   @override
-  Future<void> setInt(String key, int value) async {
-    await _ensureLoaded();
-    _storage![key] = value;
-    await _persist();
-  }
+  Future<void> setInt(String key, int value) =>
+      _mutate((values) => values[key] = value);
 
   @override
-  Future<bool?> getBool(String key) async {
-    await _ensureLoaded();
-    final value = _storage![key];
+  Future<bool?> getBool(String key) => _read((values) {
+    final value = values[key];
     if (value is bool) return value;
     if (value is String) {
       if (value.toLowerCase() == 'true') return true;
       if (value.toLowerCase() == 'false') return false;
     }
     return null;
-  }
+  });
 
   @override
-  Future<void> setBool(String key, bool value) async {
-    await _ensureLoaded();
-    _storage![key] = value;
-    await _persist();
-  }
+  Future<void> setBool(String key, bool value) =>
+      _mutate((values) => values[key] = value);
 
   @override
-  Future<void> remove(String key) async {
-    await _ensureLoaded();
-    _storage!.remove(key);
-    await _persist();
-  }
+  Future<void> remove(String key) => _mutate((values) => values.remove(key));
 
   @override
-  Future<Map<String, dynamic>> getAll() async {
-    await _ensureLoaded();
-    return Map<String, dynamic>.from(_storage!);
-  }
+  Future<Map<String, dynamic>> getAll() =>
+      _read((values) => Map<String, dynamic>.from(values));
 
   @override
-  Future<void> clear() async {
-    await _ensureLoaded();
-    _storage!.clear();
-    await _persist();
-  }
+  Future<void> clear() => _mutate((values) => values.clear());
 }
 
 Future<Directory> _defaultPluginStorageDirectory() async {

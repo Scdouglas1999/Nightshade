@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../utils/phd2_helper.dart';
+
 /// Reusable PHD2 connection configuration dialog.
 ///
 /// Allows users to enter PHD2 host and port, saves settings,
@@ -26,8 +28,8 @@ class Phd2ConnectionDialog extends ConsumerStatefulWidget {
     if (!context.mounted) return;
     return showDialog(
       context: context,
-      builder: (_) => ProviderScope(
-        parent: ProviderScope.containerOf(context),
+      builder: (_) => UncontrolledProviderScope(
+        container: ProviderScope.containerOf(context),
         child: Phd2ConnectionDialog(
           initialHost: settings.phd2Host,
           initialPort: settings.phd2Port,
@@ -44,6 +46,10 @@ class Phd2ConnectionDialog extends ConsumerStatefulWidget {
 class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
   late final TextEditingController _hostController;
   late final TextEditingController _portController;
+
+  /// Guards against a double-tapped Connect (each tap otherwise saves settings
+  /// and fires a fresh connect).
+  bool _connecting = false;
 
   @override
   void initState() {
@@ -63,12 +69,30 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardAvailableHeight =
+        mediaQuery.size.height - mediaQuery.viewInsets.vertical;
+    final keyboardCompact =
+        mediaQuery.viewInsets.bottom > 0 && keyboardAvailableHeight < 480;
 
-    return AlertDialog(
+    final dialog = AlertDialog(
       backgroundColor: colors.surface,
-      title: Text(
-        'PHD2 Connection',
-        style: TextStyle(color: colors.textPrimary),
+      scrollable: true,
+      insetPadding: keyboardCompact
+          ? const EdgeInsets.symmetric(horizontal: 12, vertical: 4)
+          : null,
+      contentPadding: keyboardCompact
+          ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+          : null,
+      actionsPadding:
+          keyboardCompact ? const EdgeInsets.fromLTRB(8, 0, 8, 4) : null,
+      titlePadding: keyboardCompact ? EdgeInsets.zero : null,
+      title: Offstage(
+        offstage: keyboardCompact,
+        child: Text(
+          'PHD2 Connection',
+          style: TextStyle(color: colors.textPrimary),
+        ),
       ),
       content: ConstrainedBox(
         constraints: Responsive.dialogConstraints(
@@ -82,6 +106,9 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
             TextField(
               controller: _hostController,
               style: TextStyle(color: colors.textPrimary),
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              enableSuggestions: false,
               decoration: InputDecoration(
                 labelText: 'Host',
                 labelStyle: TextStyle(color: colors.textMuted),
@@ -93,7 +120,7 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: keyboardCompact ? 8 : 16),
             TextField(
               controller: _portController,
               style: TextStyle(color: colors.textPrimary),
@@ -114,37 +141,75 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
       ),
       actions: [
         NightshadeButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _connecting ? null : () => Navigator.pop(context),
           label: 'Cancel',
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: _connect,
+          onPressed: _connecting ? null : _connect,
+          isLoading: _connecting,
           label: 'Connect',
+          size: keyboardCompact ? ButtonSize.small : ButtonSize.medium,
         ),
       ],
     );
+    return PopScope(canPop: !_connecting, child: dialog);
   }
 
   Future<void> _connect() async {
-    final host = _hostController.text;
-    final port = int.tryParse(_portController.text) ?? 4400;
+    if (_connecting) return;
+    final host = _hostController.text.trim();
+    final port = int.tryParse(_portController.text.trim());
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = NightshadeColors.of(context).error;
+    if (host.isEmpty || port == null || port < 1 || port > 65535) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Enter a PHD2 host and a port between 1 and 65535.',
+          ),
+          backgroundColor: errorColor,
+        ),
+      );
+      return;
+    }
 
-    // Save settings
-    await ref.read(appSettingsProvider.notifier).setPhd2Host(host);
-    await ref.read(appSettingsProvider.notifier).setPhd2Port(port);
+    setState(() => _connecting = true);
 
-    if (!mounted) return;
-    Navigator.pop(context);
+    // Save settings. A persistence failure must surface (not vanish) and must
+    // NOT proceed to connect against unsaved values.
+    try {
+      await ref.read(appSettingsProvider.notifier).setPhd2Endpoint(host, port);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _connecting = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Could not save PHD2 connection settings: $e'),
+          backgroundColor: errorColor,
+        ),
+      );
+      return;
+    }
 
-    // Connect - await so errors propagate
     try {
       await ref.read(phd2ControllerProvider).connect(host, port);
     } catch (e) {
-      // Error is logged by the controller; the guiderState provider
-      // will reflect the disconnected state for the UI to show.
-      rethrow;
+      if (!mounted) return;
+      setState(() => _connecting = false);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'PHD2 connection failed: ${phd2FailureMessage(e)}',
+          ),
+          backgroundColor: errorColor,
+        ),
+      );
+      return;
     }
+
+    if (!mounted) return;
+    Navigator.pop(context);
   }
 }

@@ -172,12 +172,22 @@ class PushNotificationService {
     );
   }
 
-  /// Emit a test push notification
-  void sendTestNotification() {
-    enqueue(
+  /// Emit a test push notification. Broadcasting onto the stream is the only
+  /// step this service owns; end-to-end delivery to a paired phone cannot be
+  /// confirmed from here.
+  Future<void> sendTestNotification() async {
+    if (!_config.enabled) {
+      throw StateError('Push notifications are disabled.');
+    }
+    if (!_notificationController.hasListener) {
+      throw StateError(
+        'No push transport is listening. Start remote access before testing.',
+      );
+    }
+    _notificationController.add(
       PushNotification(
         title: 'Test Notification',
-        body: 'Push notifications are working! This is a test from Nightshade.',
+        body: 'Nightshade push pipeline test.',
         priority: PushNotificationPriority.normal,
         eventType: 'Test',
         category: EventCategory.system,

@@ -584,6 +584,21 @@ sealed class SequencerEvent with _$SequencerEvent {
   const factory SequencerEvent.resumed() = SequencerEvent_Resumed;
   const factory SequencerEvent.stopped() = SequencerEvent_Stopped;
   const factory SequencerEvent.completed() = SequencerEvent_Completed;
+
+  /// The run ended in FAILURE. Terminal, and the counterpart of
+  /// [`SequencerEvent::Completed`] / [`SequencerEvent::Stopped`].
+  ///
+  /// `ExecutorEvent::SequenceFailed` used to be flattened onto
+  /// `SequencerEvent::Error`, which the Dart executor handles as a
+  /// *non-terminal* mid-run error. The consequence was that Dart's
+  /// `case 'SequenceFailed'` branch — the one that drives
+  /// `_onTerminalEvent` — was unreachable dead code, so a failed run NEVER
+  /// finalized: `sequence_runs.status` stayed `'running'` with a null
+  /// `ended_at`, the imaging session stayed active, and the next start was
+  /// refused with `active_session_exists` until the operator manually reset
+  /// the sequencer.
+  const factory SequencerEvent.failed({required String error}) =
+      SequencerEvent_Failed;
   const factory SequencerEvent.nodeStarted({
     required String nodeId,
     required String nodeType,
@@ -622,6 +637,43 @@ sealed class SequencerEvent with _$SequencerEvent {
   }) = SequencerEvent_ExposureCompleted;
   const factory SequencerEvent.error({required String message}) =
       SequencerEvent_Error;
+
+  /// A meridian flip finished. Mirrors
+  /// `ExecutorEvent::MeridianFlipOutcome`.
+  ///
+  /// The flip is the single most dangerous thing the app does unattended and
+  /// it used to be entirely absent from the wire: the run vitals reported
+  /// `meridianFlips: 0` after a flip that had physically swapped pier sides,
+  /// and a flip whose post-flip plate-solve recenter FAILED left
+  /// `errorMessages: []` on a run reported as `completed`. This variant is
+  /// the typed verdict the Dart run-stats layer consumes — deliberately
+  /// typed rather than string-sniffed off the log, matching the Pack-H
+  /// migration away from regex-parsed `detail` strings.
+  const factory SequencerEvent.meridianFlipOutcome({
+    /// `"success"`, `"failed"`, or `"aborted"`.
+    required String outcome,
+
+    /// Target the flip was performed for.
+    required String targetName,
+
+    /// Pier side reported after the flip (`East` / `West` / `Unknown`).
+    required String newPierSide,
+
+    /// Wall-clock seconds for the whole flip, retries included.
+    required double durationSecs,
+
+    /// Attempts made; `> 1` means the flip was DEGRADED.
+    required int attempts,
+
+    /// One `"<step>: <error>"` per failed attempt, oldest first.
+    required List<String> failedSteps,
+
+    /// Terminal error. `None` on a clean success.
+    String? error,
+
+    /// Failure action executed (`"PauseAndAlert"` / `"AbortAndPark"`).
+    String? actionTaken,
+  }) = SequencerEvent_MeridianFlipOutcome;
 
   /// A trigger watchdog fired during sequence execution
   const factory SequencerEvent.triggerFired({

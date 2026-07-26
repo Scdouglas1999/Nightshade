@@ -574,8 +574,7 @@ class SuggestionFilters extends ConsumerWidget {
 /// Provider that fetches distinct object types from the user's target list.
 final _availableObjectTypesProvider =
     FutureProvider.autoDispose<List<String>>((ref) async {
-  final database = ref.watch(databaseProvider);
-  final targets = await database.targetsDao.getAllTargets();
+  final targets = await ref.watch(allDbTargetsProvider.future);
 
   // Extract unique object types
   final types = <String>{};

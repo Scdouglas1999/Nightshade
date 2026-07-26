@@ -10,6 +10,7 @@ class _QuickCaptureControls extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
+    final cameraConfig = ref.watch(flatCameraConfigProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -28,6 +29,7 @@ class _QuickCaptureControls extends ConsumerWidget {
           _HistogramTargetSlider(
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
+            config: cameraConfig,
           ),
           const SizedBox(height: 24),
 
@@ -67,6 +69,7 @@ class _BatchCaptureControls extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
+    final cameraConfig = ref.watch(flatCameraConfigProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -86,6 +89,7 @@ class _BatchCaptureControls extends ConsumerWidget {
             key: FlatWizardTutorialKeys.targetAdu,
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
+            config: cameraConfig,
           ),
           const SizedBox(height: 12),
           _ToleranceSlider(
@@ -118,6 +122,7 @@ class _SkyFlatsControls extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
+    final cameraConfig = ref.watch(flatCameraConfigProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -141,7 +146,10 @@ class _SkyFlatsControls extends ConsumerWidget {
               NightshadeButton(
                 label: 'Auto-Order',
                 icon: LucideIcons.arrowUpDown,
-                onPressed: notifier.autoOrderForTwilight,
+                // Reordering mid-run would invalidate the run's stable filter
+                // indices, so the control is disabled while capturing.
+                onPressed:
+                    state.isCapturing ? null : notifier.autoOrderForTwilight,
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
               ),
@@ -158,6 +166,7 @@ class _SkyFlatsControls extends ConsumerWidget {
             key: FlatWizardTutorialKeys.targetAdu,
             value: state.globalSettings.histogramTarget,
             onChanged: notifier.setHistogramTarget,
+            config: cameraConfig,
           ),
           const SizedBox(height: 12),
           _ToleranceSlider(

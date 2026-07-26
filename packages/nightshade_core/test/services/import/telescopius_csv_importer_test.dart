@@ -35,6 +35,10 @@ void main() {
         TelescopiusCsvImporter.parseRaToHours('05h35m17.3s'),
         closeTo(5.5881, 1e-3),
       );
+      expect(
+        TelescopiusCsvImporter.parseRaToHours('05h35mZZ'),
+        closeTo(5.5833, 1e-3),
+      );
     });
 
     test('parses negative dec DMS', () {
@@ -62,16 +66,22 @@ void main() {
       );
     });
 
-    test('normalizes RA into [0, 24)', () {
-      expect(
-        TelescopiusCsvImporter.parseRaToHours('-1.0'),
-        closeTo(23.0, 1e-6),
-      );
+    test('rejects out-of-range RA instead of redirecting the target', () {
+      expect(TelescopiusCsvImporter.parseRaToHours('-1.0'), isNull);
+      expect(TelescopiusCsvImporter.parseRaToHours('24.1'), isNull);
     });
 
-    test('clamps Dec to [-90, 90]', () {
-      expect(TelescopiusCsvImporter.parseDecToDegrees('95.0'), 90.0);
-      expect(TelescopiusCsvImporter.parseDecToDegrees('-95.0'), -90.0);
+    test('rejects invalid Dec instead of clamping it to a pole', () {
+      expect(TelescopiusCsvImporter.parseDecToDegrees('95.0'), isNull);
+      expect(TelescopiusCsvImporter.parseDecToDegrees('-95.0'), isNull);
+      expect(TelescopiusCsvImporter.parseDecToDegrees('+90:00:01'), isNull);
+    });
+
+    test('rejects overflowing sexagesimal components', () {
+      expect(TelescopiusCsvImporter.parseRaToHours('12h99m00s'), isNull);
+      expect(TelescopiusCsvImporter.parseRaToHours('12h00m60s'), isNull);
+      expect(TelescopiusCsvImporter.parseDecToDegrees('+12°99\'00"'), isNull);
+      expect(TelescopiusCsvImporter.parseDecToDegrees('+12°00\'60"'), isNull);
     });
 
     test('returns null for unparseable', () {

@@ -48,10 +48,12 @@ use platesolve_paths::{
 };
 
 use std::fs;
+use std::io::Read;
 use std::num::ParseFloatError;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use thiserror::Error;
+use wait_timeout::ChildExt;
 
 #[cfg(test)]
 use crate::{detect_stars, read_fits, FitsHeader, ImageData, PixelType, StarDetectionConfig};
@@ -134,6 +136,24 @@ pub struct PlateSolveResult {
 }
 
 /// Plate solver configuration
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PlateSolverChoice {
+    #[default]
+    Auto,
+    Astap,
+    Astrometry,
+}
+
+impl PlateSolverChoice {
+    fn from_stored(value: Option<&str>) -> Self {
+        match value {
+            Some("astap") => Self::Astap,
+            Some("astrometry") => Self::Astrometry,
+            _ => Self::Auto,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PlateSolverConfig {
     /// Path to ASTAP executable
@@ -151,6 +171,8 @@ pub struct PlateSolverConfig {
     pub downsample: u32,
     /// Maximum time for solving in seconds
     pub timeout_secs: u32,
+    /// User-selected solver. Auto tries ASTAP, then astrometry.net.
+    pub solver_choice: PlateSolverChoice,
 }
 
 impl Default for PlateSolverConfig {
@@ -160,12 +182,13 @@ impl Default for PlateSolverConfig {
         // imaging auto-solve — honours whatever the user configured in Settings
         // → Plate Solving without any caller needing to pass the config
         // explicitly.
-        let (configured_astap, configured_astrometry, configured_catalog) = {
+        let (configured_astap, configured_astrometry, configured_catalog, solver_choice) = {
             let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
             (
                 pref.astap_path.clone(),
                 pref.astrometry_path.clone(),
                 pref.catalog_path.clone(),
+                pref.solver_choice,
             )
         };
 
@@ -179,6 +202,7 @@ impl Default for PlateSolverConfig {
             search_radius: 10.0,
             downsample: 2,
             timeout_secs: 60,
+            solver_choice,
         }
     }
 }
@@ -197,12 +221,14 @@ struct SolverPref {
     astap_path: Option<PathBuf>,
     astrometry_path: Option<PathBuf>,
     catalog_path: Option<PathBuf>,
+    solver_choice: PlateSolverChoice,
 }
 
 static ACTIVE_SOLVER_PREF: std::sync::RwLock<SolverPref> = std::sync::RwLock::new(SolverPref {
     astap_path: None,
     astrometry_path: None,
     catalog_path: None,
+    solver_choice: PlateSolverChoice::Auto,
 });
 
 /// Update the process-global solver preference from the persisted user
@@ -218,6 +244,7 @@ pub fn set_solver_preference(
     astap_path: Option<&str>,
     astrometry_path: Option<&str>,
     catalog_path: Option<&str>,
+    solver_choice: Option<&str>,
 ) {
     let to_path =
         |s: Option<&str>| -> Option<PathBuf> { s.filter(|p| !p.is_empty()).map(PathBuf::from) };
@@ -225,6 +252,7 @@ pub fn set_solver_preference(
     pref.astap_path = to_path(astap_path);
     pref.astrometry_path = to_path(astrometry_path);
     pref.catalog_path = to_path(catalog_path);
+    pref.solver_choice = PlateSolverChoice::from_stored(solver_choice);
 }
 
 /// Find ASTAP installation by probing every well-known install path *plus*
@@ -602,7 +630,7 @@ impl AstapSolver {
         // blocks forever; a stuck ASTAP process (e.g. hung on a network
         // catalog lookup) would stall the sequencer indefinitely.
         let timeout = std::time::Duration::from_secs(u64::from(self.config.timeout_secs));
-        let child = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+        let mut child = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
             Ok(c) => c,
             Err(e) => {
                 return PlateSolveResult {
@@ -614,51 +642,78 @@ impl AstapSolver {
             }
         };
 
-        // Run wait on a background thread so we can honour timeout without
-        // blocking the calling thread. `wait_with_output` is the right call
-        // here because the child was spawned with piped stdout/stderr — it
-        // reads both streams until EOF (i.e. process exit) and returns the
-        // combined result.
         let child_id = child.id();
         let timeout_secs = self.config.timeout_secs;
-        let (tx, rx) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
-        std::thread::spawn(move || {
-            let _ = tx.send(child.wait_with_output());
+        // Drain both pipes concurrently so a chatty solver cannot block on a
+        // full OS pipe while this thread retains the Child handle needed to
+        // terminate and reap a timed-out solver.
+        let mut stdout = child.stdout.take();
+        let stdout_reader = std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(pipe) = stdout.as_mut() {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+            bytes
+        });
+        let mut stderr = child.stderr.take();
+        let stderr_reader = std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(pipe) = stderr.as_mut() {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+            bytes
         });
 
-        let output = match rx.recv_timeout(timeout) {
-            Ok(result) => match result {
-                Ok(o) => o,
-                Err(e) => {
-                    return PlateSolveResult {
-                        success: false,
-                        error: Some(format!("ASTAP I/O error: {}", e)),
-                        solve_time_secs: start.elapsed().as_secs_f64(),
-                        ..Default::default()
-                    }
-                }
-            },
-            Err(_) => {
-                // The child thread still holds the process handle. The
-                // process will be reaped by the OS when the thread
-                // eventually finishes or the process exits on its own.
-                // There is no clean way to kill it here without unsafe
-                // platform calls, but a timeout on a solver that's
-                // genuinely hung is an operator alert, not a silent
-                // fallback.
+        let status = match child.wait_timeout(timeout) {
+            Ok(Some(status)) => status,
+            Ok(None) => {
                 tracing::error!(
-                    "ASTAP (pid {}) timed out after {} seconds",
+                    "ASTAP (pid {}) timed out after {} seconds; terminating it",
                     child_id,
                     timeout_secs
                 );
+                let kill_error = child.kill().err();
+                let reap_error = child.wait().err();
+                // Do not join the pipe readers on timeout: a solver-spawned
+                // descendant may still hold a copied pipe open. The detached
+                // readers will exit at EOF without delaying the terminal
+                // timeout result after the owned solver process is reaped.
+                drop(stdout_reader);
+                drop(stderr_reader);
+                let cleanup_detail = match (kill_error, reap_error) {
+                    (None, None) => String::new(),
+                    (kill, reap) => format!(
+                        " (cleanup: kill={}, reap={})",
+                        kill.map_or_else(|| "ok".to_string(), |e| e.to_string()),
+                        reap.map_or_else(|| "ok".to_string(), |e| e.to_string())
+                    ),
+                };
                 return PlateSolveResult {
                     success: false,
-                    error: Some(format!("ASTAP timed out after {} seconds", timeout_secs)),
+                    error: Some(format!(
+                        "ASTAP timed out after {} seconds{}",
+                        timeout_secs, cleanup_detail
+                    )),
+                    solve_time_secs: start.elapsed().as_secs_f64(),
+                    ..Default::default()
+                };
+            }
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                drop(stdout_reader);
+                drop(stderr_reader);
+                return PlateSolveResult {
+                    success: false,
+                    error: Some(format!("ASTAP wait failed: {}", e)),
                     solve_time_secs: start.elapsed().as_secs_f64(),
                     ..Default::default()
                 };
             }
         };
+
+        let stdout_bytes = stdout_reader.join().unwrap_or_default();
+        let stderr_bytes = stderr_reader.join().unwrap_or_default();
 
         let solve_time = start.elapsed().as_secs_f64();
 
@@ -667,11 +722,11 @@ impl AstapSolver {
         // indicates a launch / argument error (e.g. bad flag, missing file),
         // which is worth surfacing separately. A zero exit with PLTSOLVD=F
         // in the .ini is the normal "not enough stars" failure path.
-        let stdout_text = String::from_utf8_lossy(&output.stdout).to_string();
-        let stderr_text = String::from_utf8_lossy(&output.stderr).to_string();
-        let exit_code = output.status.code().unwrap_or(-1);
+        let stdout_text = String::from_utf8_lossy(&stdout_bytes).to_string();
+        let stderr_text = String::from_utf8_lossy(&stderr_bytes).to_string();
+        let exit_code = status.code().unwrap_or(-1);
 
-        if !output.status.success() {
+        if !status.success() {
             // Non-zero exit = argument/launch error, not a solve failure.
             // Surface ASTAP's output verbatim so the user can diagnose.
             let detail = if !stderr_text.trim().is_empty() {
@@ -867,6 +922,12 @@ fn parse_wcs_file_inner(
     let mut cd1_2: Option<f64> = None;
     let mut cd2_1: Option<f64> = None;
     let mut cd2_2: Option<f64> = None;
+    // Image dimensions in pixels. ASTAP writes NAXIS1/NAXIS2 to its .wcs;
+    // astrometry.net writes IMAGEW/IMAGEH. Needed to recover the field size so
+    // the reference pixel (CRPIX) lands on the image centre — without it the WCS
+    // is anchored to the corner, offsetting every pixel<->sky map by half a field.
+    let mut naxis1: Option<f64> = None;
+    let mut naxis2: Option<f64> = None;
     let mut a_order: Option<u32> = None;
     let mut b_order: Option<u32> = None;
     let mut ap_order: Option<u32> = None;
@@ -943,6 +1004,8 @@ fn parse_wcs_file_inner(
             "CD1_2" => parse(&mut cd1_2)?,
             "CD2_1" => parse(&mut cd2_1)?,
             "CD2_2" => parse(&mut cd2_2)?,
+            "NAXIS1" | "IMAGEW" => parse(&mut naxis1)?,
+            "NAXIS2" | "IMAGEH" => parse(&mut naxis2)?,
             "A_ORDER" => parse_order(&mut a_order)?,
             "B_ORDER" => parse_order(&mut b_order)?,
             "AP_ORDER" => parse_order(&mut ap_order)?,
@@ -971,7 +1034,21 @@ fn parse_wcs_file_inner(
     let pixel_scale = ((cd1_1 * cd1_1 + cd2_1 * cd2_1).sqrt() * 3600.0
         + (cd1_2 * cd1_2 + cd2_2 * cd2_2).sqrt() * 3600.0)
         / 2.0;
-    let rotation = cd2_1.atan2(cd1_1).to_degrees();
+    // Field rotation, inverse of the CD-from-rotation convention used when the
+    // CD matrix must be reconstructed (SipWcs/WcsInfo::from_plate_solve):
+    //   cd1_1 = -scale·cos(rot), cd2_1 = scale·sin(rot)
+    // so rot = atan2(cd2_1, -cd1_1). Using atan2(cd2_1, cd1_1) here (the old
+    // form) reported a north-up frame as 180°, disagreeing with the generator
+    // and corrupting any fallback CD rebuilt from the scalar rotation.
+    let rotation = cd2_1.atan2(-cd1_1).to_degrees();
+
+    // Field extent in degrees, derived from the image dimensions and pixel
+    // scale. Downstream WCS construction divides field_* back by the pixel
+    // scale to place CRPIX at the image centre, so a zero here would anchor the
+    // reference pixel to the corner. Leave zero only if the solver emitted no
+    // dimension keywords at all (older output) — behaviour then matches before.
+    let field_width = naxis1.map_or(0.0, |n| n * pixel_scale / 3600.0);
+    let field_height = naxis2.map_or(0.0, |n| n * pixel_scale / 3600.0);
 
     let a_order = a_order.unwrap_or(0);
     let b_order = b_order.unwrap_or(0);
@@ -987,8 +1064,8 @@ fn parse_wcs_file_inner(
         dec,
         pixel_scale,
         rotation,
-        field_width: 0.0,
-        field_height: 0.0,
+        field_width,
+        field_height,
         success: true,
         error: None,
         solve_time_secs: solve_time,
@@ -1805,8 +1882,17 @@ fn solve_internal(
 
 /// Blind plate solve (no hint)
 pub fn blind_solve(image_path: &Path) -> PlateSolveResult {
+    blind_solve_with_timeout(image_path, PlateSolverConfig::default().timeout_secs)
+}
+
+/// Blind plate solve with a caller-selected subprocess timeout.
+pub fn blind_solve_with_timeout(image_path: &Path, timeout_secs: u32) -> PlateSolveResult {
     let start = std::time::Instant::now();
-    solve_with_default_external(image_path, None, None, None, start)
+    let config = PlateSolverConfig {
+        timeout_secs,
+        ..PlateSolverConfig::default()
+    };
+    solve_with_external_config(image_path, None, None, None, config, start)
 }
 
 /// Plate solve with hint coordinates
@@ -1816,9 +1902,27 @@ pub fn solve_near(
     hint_dec: f64,
     search_radius: f64,
 ) -> PlateSolveResult {
+    solve_near_with_timeout(
+        image_path,
+        hint_ra,
+        hint_dec,
+        search_radius,
+        PlateSolverConfig::default().timeout_secs,
+    )
+}
+
+/// Plate solve near coordinates with a caller-selected subprocess timeout.
+pub fn solve_near_with_timeout(
+    image_path: &Path,
+    hint_ra: f64,
+    hint_dec: f64,
+    search_radius: f64,
+    timeout_secs: u32,
+) -> PlateSolveResult {
     let start = std::time::Instant::now();
     let config = PlateSolverConfig {
         search_radius,
+        timeout_secs,
         ..PlateSolverConfig::default()
     };
 
@@ -1832,23 +1936,6 @@ pub fn solve_near(
     )
 }
 
-fn solve_with_default_external(
-    image_path: &Path,
-    hint_ra: Option<f64>,
-    hint_dec: Option<f64>,
-    hint_scale: Option<f64>,
-    start: std::time::Instant,
-) -> PlateSolveResult {
-    solve_with_external_config(
-        image_path,
-        hint_ra,
-        hint_dec,
-        hint_scale,
-        PlateSolverConfig::default(),
-        start,
-    )
-}
-
 fn solve_with_external_config(
     image_path: &Path,
     hint_ra: Option<f64>,
@@ -1857,22 +1944,167 @@ fn solve_with_external_config(
     config: PlateSolverConfig,
     start: std::time::Instant,
 ) -> PlateSolveResult {
-    if config.astap_path.is_some() {
-        return AstapSolver::new(config).solve(image_path, hint_ra, hint_dec, hint_scale);
-    }
+    match config.solver_choice {
+        PlateSolverChoice::Astap => {
+            if config.astap_path.is_none() {
+                return PlateSolveResult {
+                    success: false,
+                    error: Some("ASTAP is selected but is not available".to_string()),
+                    solve_time_secs: start.elapsed().as_secs_f64(),
+                    ..Default::default()
+                };
+            }
+            AstapSolver::new(config).solve(image_path, hint_ra, hint_dec, hint_scale)
+        }
+        PlateSolverChoice::Astrometry => {
+            let Some(astrometry_path) = config.astrometry_path.as_deref() else {
+                return PlateSolveResult {
+                    success: false,
+                    error: Some(
+                        "Astrometry.net is selected but solve-field is not available".to_string(),
+                    ),
+                    solve_time_secs: start.elapsed().as_secs_f64(),
+                    ..Default::default()
+                };
+            };
+            solve_with_astrometry(
+                astrometry_path,
+                image_path,
+                hint_ra,
+                hint_dec,
+                config.search_radius,
+                config.timeout_secs,
+                start,
+            )
+        }
+        PlateSolverChoice::Auto => {
+            if config.astap_path.is_some() {
+                let astap_result = AstapSolver::new(config.clone())
+                    .solve(image_path, hint_ra, hint_dec, hint_scale);
+                if astap_result.success || config.astrometry_path.is_none() {
+                    return astap_result;
+                }
 
-    if let Some(astrometry_path) = config.astrometry_path.as_deref() {
-        return solve_with_astrometry(
-            astrometry_path,
-            image_path,
-            hint_ra,
-            hint_dec,
-            config.search_radius,
-            start,
-        );
-    }
+                tracing::warn!(
+                    "ASTAP failed ({}); falling back to astrometry.net",
+                    astap_result.error.as_deref().unwrap_or("unknown error")
+                );
+                let mut astrometry_result = solve_with_astrometry(
+                    config
+                        .astrometry_path
+                        .as_deref()
+                        .expect("astrometry path checked above"),
+                    image_path,
+                    hint_ra,
+                    hint_dec,
+                    config.search_radius,
+                    config.timeout_secs,
+                    start,
+                );
+                if !astrometry_result.success {
+                    astrometry_result.error = Some(format!(
+                        "ASTAP failed: {}. Astrometry.net failed: {}",
+                        astap_result.error.as_deref().unwrap_or("unknown error"),
+                        astrometry_result
+                            .error
+                            .as_deref()
+                            .unwrap_or("unknown error")
+                    ));
+                }
+                return astrometry_result;
+            }
 
-    external_solver_unavailable(start)
+            if let Some(astrometry_path) = config.astrometry_path.as_deref() {
+                return solve_with_astrometry(
+                    astrometry_path,
+                    image_path,
+                    hint_ra,
+                    hint_dec,
+                    config.search_radius,
+                    config.timeout_secs,
+                    start,
+                );
+            }
+
+            external_solver_unavailable(start)
+        }
+    }
+}
+
+struct SolverCommandOutput {
+    status: std::process::ExitStatus,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+fn run_solver_command(
+    cmd: &mut Command,
+    timeout_secs: u32,
+    label: &str,
+) -> Result<SolverCommandOutput, String> {
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Failed to launch {label}: {error}"))?;
+    let child_id = child.id();
+    let mut stdout = child.stdout.take();
+    let stdout_reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(pipe) = stdout.as_mut() {
+            let _ = pipe.read_to_end(&mut bytes);
+        }
+        bytes
+    });
+    let mut stderr = child.stderr.take();
+    let stderr_reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(pipe) = stderr.as_mut() {
+            let _ = pipe.read_to_end(&mut bytes);
+        }
+        bytes
+    });
+
+    let timeout = std::time::Duration::from_secs(u64::from(timeout_secs));
+    let status = match child.wait_timeout(timeout) {
+        Ok(Some(status)) => status,
+        Ok(None) => {
+            tracing::error!(
+                "{} (pid {}) timed out after {} seconds; terminating it",
+                label,
+                child_id,
+                timeout_secs
+            );
+            let kill_error = child.kill().err();
+            let reap_error = child.wait().err();
+            drop(stdout_reader);
+            drop(stderr_reader);
+            let cleanup = match (kill_error, reap_error) {
+                (None, None) => String::new(),
+                (kill, reap) => format!(
+                    " (cleanup: kill={}, reap={})",
+                    kill.map_or_else(|| "ok".to_string(), |e| e.to_string()),
+                    reap.map_or_else(|| "ok".to_string(), |e| e.to_string())
+                ),
+            };
+            return Err(format!(
+                "{label} timed out after {timeout_secs} seconds{cleanup}"
+            ));
+        }
+        Err(error) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            drop(stdout_reader);
+            drop(stderr_reader);
+            return Err(format!("Failed waiting for {label}: {error}"));
+        }
+    };
+
+    Ok(SolverCommandOutput {
+        status,
+        stdout: stdout_reader.join().unwrap_or_default(),
+        stderr: stderr_reader.join().unwrap_or_default(),
+    })
 }
 
 fn solve_with_astrometry(
@@ -1881,6 +2113,7 @@ fn solve_with_astrometry(
     hint_ra: Option<f64>,
     hint_dec: Option<f64>,
     search_radius: f64,
+    timeout_secs: u32,
     start: std::time::Instant,
 ) -> PlateSolveResult {
     let output_dir = image_path.parent().unwrap_or_else(|| Path::new("."));
@@ -1918,15 +2151,12 @@ fn solve_with_astrometry(
 
     tracing::info!("Running astrometry.net solve-field: {:?}", cmd);
 
-    let output = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).output() {
+    let output = match run_solver_command(&mut cmd, timeout_secs, "astrometry.net solve-field") {
         Ok(output) => output,
         Err(error) => {
             return PlateSolveResult {
                 success: false,
-                error: Some(format!(
-                    "Failed to run astrometry.net solve-field: {}",
-                    error
-                )),
+                error: Some(error),
                 solve_time_secs: start.elapsed().as_secs_f64(),
                 ..Default::default()
             }
@@ -1936,9 +2166,17 @@ fn solve_with_astrometry(
     let solve_time = start.elapsed().as_secs_f64();
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let detail = if !stderr.trim().is_empty() {
+            stderr.trim()
+        } else if !stdout.trim().is_empty() {
+            stdout.trim()
+        } else {
+            "no solver output"
+        };
         return PlateSolveResult {
             success: false,
-            error: Some(format!("astrometry.net solve-field failed: {}", stderr)),
+            error: Some(format!("astrometry.net solve-field failed: {}", detail)),
             solve_time_secs: solve_time,
             ..Default::default()
         };
@@ -2147,6 +2385,51 @@ mod tests {
         assert!(result.pixel_scale > 0.0);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    /// Regression (#3, #13): NAXIS drives the field size so the reconstructed
+    /// WCS anchors CRPIX on the image centre (not the corner at 0.5), and a
+    /// north-up CD matrix parses back as rotation 0°, not 180°.
+    #[test]
+    fn parse_wcs_populates_field_size_and_centres_crpix() {
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "150.0"));
+        content.push_str(&wcs_card("CRVAL2", "20.0"));
+        // 1 arcsec/px, north-up east-left (standard sky orientation).
+        content.push_str(&wcs_card("CD1_1", "-0.0002777778"));
+        content.push_str(&wcs_card("CD1_2", "0.0"));
+        content.push_str(&wcs_card("CD2_1", "0.0"));
+        content.push_str(&wcs_card("CD2_2", "0.0002777778"));
+        content.push_str(&wcs_card("NAXIS1", "1000"));
+        content.push_str(&wcs_card("NAXIS2", "800"));
+        let path = write_temp("wcs-naxis", &content);
+
+        let r = parse_wcs_file_inner(&path, 0.0).expect("WCS must parse");
+        let _ = std::fs::remove_file(&path);
+
+        assert!(
+            (r.pixel_scale - 1.0).abs() < 1e-3,
+            "scale {}",
+            r.pixel_scale
+        );
+        // field size in degrees = NAXIS * (arcsec/px) / 3600.
+        assert!(
+            (r.field_width - 1000.0 / 3600.0).abs() < 1e-4,
+            "field_width {}",
+            r.field_width
+        );
+        assert!(
+            (r.field_height - 800.0 / 3600.0).abs() < 1e-4,
+            "field_height {}",
+            r.field_height
+        );
+        // North-up parses back to 0°, not the old 180°.
+        assert!(r.rotation.abs() < 1e-6, "rotation {}", r.rotation);
+
+        // Reconstructed reference pixel is the 1-based image centre, not (0.5,0.5).
+        let wcs = crate::wcs_sip::SipWcs::from_plate_solve(&r).expect("invertible WCS");
+        assert!((wcs.crpix1 - 500.5).abs() < 1e-6, "crpix1 {}", wcs.crpix1);
+        assert!((wcs.crpix2 - 400.5).abs() < 1e-6, "crpix2 {}", wcs.crpix2);
     }
 
     /// Parse round-trip (NOT an on-sky accuracy claim): a WCS carrying the full
@@ -2573,6 +2856,7 @@ mod tests {
             Some(fake_astap.to_str().unwrap()),
             None,
             Some(fake_catalog.to_str().unwrap()),
+            Some("astap"),
         );
 
         let config = PlateSolverConfig::default();
@@ -2586,9 +2870,10 @@ mod tests {
             Some(fake_catalog.as_path()),
             "PlateSolverConfig::default() must include the configured catalog path"
         );
+        assert_eq!(config.solver_choice, super::PlateSolverChoice::Astap);
 
         // Reset global to avoid polluting other tests.
-        set_solver_preference(None, None, None);
+        set_solver_preference(None, None, None, None);
         let _ = std::fs::remove_file(&fake_astap);
         let _ = std::fs::remove_dir_all(&fake_catalog);
     }
@@ -2601,11 +2886,17 @@ mod tests {
         use super::{set_solver_preference, PlateSolverConfig};
 
         // Set something, then clear it.
-        set_solver_preference(Some("/tmp/fake-astap-clear-test"), None, None);
+        set_solver_preference(
+            Some("/tmp/fake-astap-clear-test"),
+            None,
+            None,
+            Some("astap"),
+        );
         // Clear by passing empty / None
-        set_solver_preference(None, None, None);
+        set_solver_preference(None, None, None, None);
 
         let config = PlateSolverConfig::default();
+        assert_eq!(config.solver_choice, super::PlateSolverChoice::Auto);
         // The path `/tmp/fake-astap-clear-test` does not exist, so after
         // clearing, the config should NOT have that path (the candidate list
         // won't find it either since it's a made-up path).
@@ -2638,6 +2929,7 @@ mod tests {
             search_radius: 5.0,
             downsample: 2,
             timeout_secs: 60,
+            solver_choice: super::PlateSolverChoice::Auto,
         };
         assert_eq!(config.catalog_path.as_deref(), Some(cat_dir.as_path()));
     }
@@ -2691,5 +2983,201 @@ mod tests {
         assert!(result.pixel_scale > 0.0, "pixel scale must be positive");
         assert!((result.solve_time_secs - 1.23).abs() < 1e-9);
         let _ = std::fs::remove_file(path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_astrometry_choice_does_not_run_available_astap() {
+        use super::{solve_with_external_config, PlateSolverChoice, PlateSolverConfig};
+        use std::os::unix::fs::PermissionsExt;
+
+        let nonce = format!("{}-choice", std::process::id());
+        let dir = std::env::temp_dir().join(format!("nightshade-solver-{nonce}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create solver-choice fixture dir");
+        let astap = dir.join("astap.sh");
+        let astrometry = dir.join("solve-field.sh");
+        let astap_marker = dir.join("astap-ran");
+        let astrometry_marker = dir.join("astrometry-ran");
+        let image = dir.join("frame.fits");
+        std::fs::write(&image, b"fixture").expect("write fake image");
+        std::fs::write(
+            &astap,
+            format!(
+                "#!/bin/sh\nprintf ran > '{}'\nexit 1\n",
+                astap_marker.display()
+            ),
+        )
+        .expect("write fake ASTAP");
+        std::fs::write(
+            &astrometry,
+            format!(
+                "#!/bin/sh\nprintf ran > '{}'\nexit 1\n",
+                astrometry_marker.display()
+            ),
+        )
+        .expect("write fake astrometry");
+        for executable in [&astap, &astrometry] {
+            let mut permissions = std::fs::metadata(executable)
+                .expect("solver metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(executable, permissions).expect("make solver executable");
+        }
+
+        let result = solve_with_external_config(
+            &image,
+            Some(150.0),
+            Some(42.0),
+            None,
+            PlateSolverConfig {
+                astap_path: Some(astap.clone()),
+                astrometry_path: Some(astrometry.clone()),
+                catalog_path: None,
+                search_radius: 5.0,
+                downsample: 0,
+                timeout_secs: 5,
+                solver_choice: PlateSolverChoice::Astrometry,
+            },
+            std::time::Instant::now(),
+        );
+
+        assert!(!result.success);
+        assert!(
+            astrometry_marker.exists(),
+            "selected astrometry did not run"
+        );
+        assert!(
+            !astap_marker.exists(),
+            "ASTAP ran despite explicit astrometry selection"
+        );
+
+        std::fs::remove_file(&astrometry_marker).expect("reset astrometry marker");
+        let auto_result = solve_with_external_config(
+            &image,
+            Some(150.0),
+            Some(42.0),
+            None,
+            PlateSolverConfig {
+                astap_path: Some(astap),
+                astrometry_path: Some(astrometry.clone()),
+                catalog_path: None,
+                search_radius: 5.0,
+                downsample: 0,
+                timeout_secs: 5,
+                solver_choice: PlateSolverChoice::Auto,
+            },
+            std::time::Instant::now(),
+        );
+        assert!(!auto_result.success);
+        assert!(astap_marker.exists(), "Auto did not try ASTAP first");
+        assert!(
+            astrometry_marker.exists(),
+            "Auto did not fall back to astrometry after ASTAP failed"
+        );
+        let combined = auto_result.error.unwrap_or_default();
+        assert!(combined.contains("ASTAP failed"));
+        assert!(combined.contains("Astrometry.net failed"));
+
+        let late_marker = dir.join("astrometry-late-output");
+        std::fs::write(
+            &astrometry,
+            format!(
+                "#!/bin/sh\nsleep 2\nprintf late > '{}'\n",
+                late_marker.display()
+            ),
+        )
+        .expect("write hanging astrometry fixture");
+        let timeout_result = solve_with_external_config(
+            &image,
+            Some(150.0),
+            Some(42.0),
+            None,
+            PlateSolverConfig {
+                astap_path: None,
+                astrometry_path: Some(astrometry),
+                catalog_path: None,
+                search_radius: 5.0,
+                downsample: 0,
+                timeout_secs: 1,
+                solver_choice: PlateSolverChoice::Astrometry,
+            },
+            std::time::Instant::now(),
+        );
+        assert!(!timeout_result.success);
+        assert!(timeout_result
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("timed out"));
+        std::thread::sleep(std::time::Duration::from_millis(1_500));
+        assert!(
+            !late_marker.exists(),
+            "timed-out astrometry.net continued running"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn timed_out_astap_is_terminated_before_it_can_write_late_output() {
+        use super::{AstapSolver, PlateSolverConfig};
+        use std::os::unix::fs::PermissionsExt;
+
+        let nonce = format!(
+            "{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock after epoch")
+                .as_nanos()
+        );
+        let dir = std::env::temp_dir().join(format!("nightshade-solver-timeout-{nonce}"));
+        std::fs::create_dir_all(&dir).expect("create timeout fixture dir");
+        let script = dir.join("fake-astap.sh");
+        let image = dir.join("frame.fits");
+        let marker = dir.join("late-output");
+        std::fs::write(&image, b"fixture").expect("write fake image");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nsleep 2\nprintf stale > '{}'\n",
+                marker.display()
+            ),
+        )
+        .expect("write fake ASTAP");
+        let mut permissions = std::fs::metadata(&script)
+            .expect("fake ASTAP metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&script, permissions).expect("make fake ASTAP executable");
+
+        let solver = AstapSolver::new(PlateSolverConfig {
+            astap_path: Some(script),
+            astrometry_path: None,
+            catalog_path: None,
+            search_radius: 5.0,
+            downsample: 0,
+            timeout_secs: 1,
+            solver_choice: super::PlateSolverChoice::Astap,
+        });
+        let result = solver.solve(&image, None, None, None);
+        assert!(!result.success);
+        assert!(
+            result
+                .error
+                .as_deref()
+                .unwrap_or_default()
+                .contains("timed out"),
+            "unexpected timeout result: {:?}",
+            result.error
+        );
+        std::thread::sleep(std::time::Duration::from_millis(1_500));
+        assert!(
+            !marker.exists(),
+            "timed-out ASTAP continued running and wrote a late result"
+        );
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

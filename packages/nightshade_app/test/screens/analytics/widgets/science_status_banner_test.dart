@@ -98,4 +98,42 @@ void main() {
     expect(find.textContaining('failed'), findsWidgets);
     expect(find.textContaining('no WCS'), findsOneWidget);
   });
+
+  testWidgets('provider failure remains visible and retryable when idle hides',
+      (tester) async {
+    var attempts = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          scienceProcessingStatusProvider.overrideWith((ref) {
+            attempts++;
+            return Stream<ScienceProcessingStatusSnapshot>.error(
+              StateError('status stream unavailable'),
+            );
+          }),
+        ],
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [NightshadeColors.dark],
+          ),
+          home: const Scaffold(
+            body: ScienceStatusBanner(hideWhenIdle: true),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Science status unavailable'), findsOneWidget);
+    expect(
+      find.textContaining('Bad state: status stream unavailable'),
+      findsOneWidget,
+    );
+    expect(attempts, 1);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
+  });
 }

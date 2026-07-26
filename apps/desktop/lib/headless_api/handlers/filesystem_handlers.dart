@@ -26,6 +26,18 @@ class FileSystemHandlers {
   void _logError(String message) =>
       _logger.error(message, source: 'FileSystemHandlers');
 
+  /// Returns the canonical host path when [requestedPath] is contained by one
+  /// of Nightshade's configured filesystem roots, otherwise returns null.
+  ///
+  /// Non-browsing endpoints that accept a host path use this at the operation
+  /// boundary so callers cannot bypass `/api/files/validate`. Canonicalizing
+  /// also resolves existing symlink components before the path is used.
+  Future<String?> canonicalizeAllowedPath(String requestedPath) async {
+    final roots = await _resolveBrowseRoots();
+    final canonicalPath = await _canonicalize(requestedPath);
+    return _isPathUnderAnyRoot(canonicalPath, roots) ? canonicalPath : null;
+  }
+
   Future<Response> handleBrowseDirectories(Request request) async {
     final requestedPath = request.url.queryParameters['path'];
     _logInfo('[API] GET /api/files/browse?path=${requestedPath ?? ""}');

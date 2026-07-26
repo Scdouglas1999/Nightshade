@@ -160,7 +160,7 @@ abstract class AppSettings with _$AppSettings {
 
     /// Autofocus: run an autofocus pass on every filter change.
     /// DB key `auto_focus_on_filter_change`.
-    @Default(true) bool autoFocusOnFilterChange,
+    @Default(false) bool autoFocusOnFilterChange,
 
     /// Autofocus: disable the guider while an autofocus sweep runs (avoids the
     /// guide star wandering out of frame during the focuser sweep).
@@ -210,7 +210,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool enableMeridianFlip,
     // Focuser temperature compensation + backlash (calibration).
     /// Enable focuser temperature compensation. DB key `temp_compensation`.
-    @Default(true) bool tempCompensation,
+    @Default(false) bool tempCompensation,
 
     /// Temp-comp coefficient (steps per °C). DB key `temp_coefficient`.
     @Default(-12.0) double tempCoefficient,
@@ -218,11 +218,22 @@ abstract class AppSettings with _$AppSettings {
     /// Focuser backlash compensation (steps). DB key `backlash_compensation`.
     @Default(0) int backlashCompensation,
     // Guider settle (calibration).
-    /// Guider settle pixel threshold. DB key `settle_threshold`.
-    @Default(0.5) double settleThreshold,
+    /// Guider settle pixel threshold. DB key `settle_threshold`. Default mirrors
+    /// the NINA/PHD2 community convention (~1.5 px); 0.5 px at typical guide
+    /// scales makes every dither settle slowly or time out.
+    @Default(1.5) double settleThreshold,
 
-    /// Guider settle timeout in seconds. DB key `settle_timeout`.
-    @Default(30) int settleTimeout,
+    /// Guider settle timeout in seconds. DB key `settle_timeout`. Roomier than
+    /// the historical 30 s so a legitimate settle is not aborted early.
+    @Default(60) int settleTimeout,
+
+    /// Guider settle stabilisation time in seconds — how long the guide error
+    /// must stay within [settleThreshold] before a settle is declared done.
+    /// DB key `settle_time`.
+    @Default(10) int settleTime,
+
+    /// Dither on the RA axis only, leaving Dec fixed. DB key `dither_ra_only`.
+    @Default(false) bool ditherRaOnly,
     // Plate-solving extra.
     /// Selected plate solver ('ASTAP', 'Astrometry.net', 'PlateSolve2').
     /// DB key `plate_solver`.

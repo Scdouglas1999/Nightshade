@@ -36,14 +36,33 @@ extension AnnotationPipeline on AnnotationService {
   /// Process a new image through the full annotation pipeline:
   /// plate solve -> catalog search -> object merge -> state update.
   Future<void> processNewImage(CapturedImageData image) async {
+    final generation = ++_annotationRunGeneration;
+    final backend = _ref.read(backendProvider);
+    bool isCurrent() => _isCurrentAnnotationRun(generation, backend);
+
     if (image.filePath == null) {
       _logger.debug('Skipping annotation - no file path', source: 'Annotation');
       return;
     }
 
     // Check if auto-annotate is enabled
-    final settings = _ref.read(annotationSettingsProvider).valueOrNull;
-    if (settings != null && !settings.autoAnnotate) {
+    final AnnotationSettings settings;
+    try {
+      settings = await _ref.read(annotationSettingsProvider.future);
+    } catch (error, stackTrace) {
+      if (!isCurrent()) return;
+      _logger.error(
+        'Cannot start annotation because settings are unavailable: '
+        '$error\nStack trace: $stackTrace',
+        source: 'Annotation',
+      );
+      _ref.read(annotationStateProvider.notifier).state = AnnotationState.error(
+        'Annotation settings are unavailable: $error',
+      );
+      return;
+    }
+    if (!isCurrent()) return;
+    if (!settings.autoAnnotate) {
       _logger.debug('Auto-annotate disabled, skipping', source: 'Annotation');
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.idle();
@@ -51,7 +70,7 @@ extension AnnotationPipeline on AnnotationService {
     }
 
     // Check if annotations are enabled at all
-    if (settings != null && !settings.enabled) {
+    if (!settings.enabled) {
       _logger.debug('Annotations disabled, skipping', source: 'Annotation');
       _ref.read(annotationStateProvider.notifier).state =
           const AnnotationState.idle();
@@ -83,9 +102,12 @@ extension AnnotationPipeline on AnnotationService {
       // PRE-FLIGHT CHECK 2: Verify at least one catalog is installed
       // =====================================================================
       final dsoStatus = await _catalogManager.getDsoCatalogStatus();
+      if (!isCurrent()) return;
       final starStatus = await _catalogManager.getStarCatalogStatus();
+      if (!isCurrent()) return;
       final annotationStatus = await _catalogManager
           .getAnnotationCatalogStatus();
+      if (!isCurrent()) return;
 
       final hasDsoCatalog = dsoStatus.isInstalled;
       final hasStarCatalog = starStatus.isInstalled;
@@ -109,7 +131,6 @@ extension AnnotationPipeline on AnnotationService {
       // =====================================================================
       // PRE-FLIGHT CHECK 3: Verify backend is available
       // =====================================================================
-      final backend = _ref.read(backendProvider);
       if (backend is DisconnectedBackend) {
         _logger.error(
           'Backend disconnected, cannot plate solve',
@@ -152,11 +173,19 @@ extension AnnotationPipeline on AnnotationService {
         );
       }
 
+      final timeoutSeconds = _ref
+          .read(appSettingsProvider)
+          .valueOrNull
+          ?.plateSolveTimeout;
+      final forceBlind =
+          _ref.read(appSettingsProvider).valueOrNull?.blindSolve ?? false;
       final result = await backend.plateSolve(
         imagePath: image.filePath!,
-        ra: hintRa,
-        dec: hintDec,
+        ra: forceBlind ? null : hintRa,
+        dec: forceBlind ? null : hintDec,
+        timeoutSeconds: timeoutSeconds,
       );
+      if (!isCurrent()) return;
 
       if (!result.success) {
         final detailedReason = _describePlateSolveFailure(result.error);
@@ -228,10 +257,10 @@ extension AnnotationPipeline on AnnotationService {
           const AnnotationState.searching();
 
       // Get annotation settings for filtering
-      final includeStars =
-          settings?.visibleTypes.contains(AnnotationObjectFilter.stars) ??
-          false;
-      final userMagnitudeCutoff = settings?.magnitudeCutoff ?? 15.0;
+      final includeStars = settings.visibleTypes.contains(
+        AnnotationObjectFilter.stars,
+      );
+      final userMagnitudeCutoff = settings.magnitudeCutoff;
 
       // Use the minimum of SNR-based limit and user setting for initial search
       final effectiveMagnitudeLimit = math.min(
@@ -253,6 +282,7 @@ extension AnnotationPipeline on AnnotationService {
         minMagnitude: effectiveMagnitudeLimit,
         snrBasedMagnitudeCutoff: effectiveMagnitudeLimit,
       );
+      if (!isCurrent()) return;
 
       // Track revealed object IDs for progressive updates
       for (final obj in annotation.objects) {
@@ -271,6 +301,7 @@ extension AnnotationPipeline on AnnotationService {
         source: 'Annotation',
       );
     } catch (e, stackTrace) {
+      if (!isCurrent()) return;
       _logger.error(
         'Error processing image: $e\nStack trace: $stackTrace',
         source: 'Annotation',

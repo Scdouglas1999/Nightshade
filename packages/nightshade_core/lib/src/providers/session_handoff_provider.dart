@@ -22,46 +22,50 @@ final sessionHandoffServiceProvider = Provider<SessionHandoffService>((ref) {
 /// Carry-over detection for the current in-editor sequence.
 ///
 /// Auto-invalidates when the sequence model changes (i.e. a target is
-/// added/removed). Returns an empty list when no recent prior sessions
-/// match the target list, when the sequence is empty, or when the
-/// underlying DAOs are not wired (offline backend).
-///
-/// The pre-flight dialog consults this provider to decide whether to
-/// render the carry-over banner. The provider intentionally returns an
-/// empty list rather than throwing for any failure path — pre-flight
-/// must never be blocked by a transient database read.
+/// added/removed). Returns an empty list when no recent prior sessions match
+/// the target list or the sequence is empty. Data-source failures propagate:
+/// treating "history could not be read" as "there is no history" can start a
+/// multi-night budget at zero and recapture hours the user already banked.
+/// Pre-flight offers an explicit start-without-history choice; direct executor
+/// starts fail before hardware launch.
 final sessionCarryOverProvider =
     FutureProvider.autoDispose<List<SessionCarryOver>>((ref) async {
       final sequence = ref.watch(currentSequenceProvider);
       if (sequence == null) return const <SessionCarryOver>[];
       final service = ref.watch(sessionHandoffServiceProvider);
-      try {
-        final libraryTargets = await ref.watch(allDbTargetsProvider.future);
-        final capturedImages = await ref.watch(allDbImagesProvider.future);
-        final sessions = await ref.watch(allSessionsProvider.future);
-        return await service.detectCarryOver(
-          sequence: sequence,
-          libraryTargets: libraryTargets,
-          capturedImages: capturedImages,
-          sessions: sessions,
-        );
-      } catch (_) {
-        // Failing closed here would be wrong: the user could be blocked
-        // from running their sequence because of a stale DAO. Carry-over
-        // is a "hint" surface — degrade gracefully when the DB call fails.
-        return const <SessionCarryOver>[];
-      }
+      final libraryTargets = await ref.watch(allDbTargetsProvider.future);
+      final capturedImages = await ref.watch(allDbImagesProvider.future);
+      final sessions = await ref.watch(allSessionsProvider.future);
+      return service.detectCarryOver(
+        sequence: sequence,
+        libraryTargets: libraryTargets,
+        capturedImages: capturedImages,
+        sessions: sessions,
+      );
     });
 
 /// Controls whether the carry-over pre-flight dialog auto-opens.
 ///
-/// Mirrors the [AppSettingsState.sessionHandoffAutoPrompt] toggle so the
-/// pre-flight widget can synchronously read the current value without
-/// pulling the entire `appSettingsProvider`.
-final sessionHandoffAutoPromptProvider = Provider<bool>((ref) {
-  final settings = ref.watch(appSettingsProvider).valueOrNull;
-  return settings?.sessionHandoffAutoPrompt ?? true;
+/// Resolves the authoritative [AppSettingsState.sessionHandoffAutoPrompt]
+/// toggle for pre-flight.
+///
+/// Loading or settings-store failure must remain loading/error. Defaulting to
+/// `true` here used to open a carry-over prompt even when the operator had
+/// explicitly disabled it, simply because they pressed Start during startup.
+final sessionHandoffAutoPromptProvider = FutureProvider<bool>((ref) async {
+  final settings = await ref.watch(appSettingsProvider.future);
+  return settings.sessionHandoffAutoPrompt;
 });
+
+/// One-shot operator authorization to launch even when prior-session history
+/// is unavailable.
+///
+/// Only the pre-flight confirmation dialog sets this. The executor consumes
+/// and clears it while seeding integration carry-over, so an unrelated later
+/// start cannot inherit a stale "ignore history" choice.
+final sessionHandoffIgnoreUnavailableOnceProvider = StateProvider<bool>(
+  (ref) => false,
+);
 
 /// Operator's last decision for a given target id. Pre-flight
 /// uses this to avoid re-prompting on the same sequence after the

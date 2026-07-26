@@ -24,6 +24,7 @@ import 'package:shelf/shelf.dart';
 import '../request_context.dart';
 import '../response_helpers.dart';
 import '../utils/device_type_parser.dart';
+import '../validation.dart';
 
 /// Handlers for read-only device-discovery endpoints. Stateless beyond the
 /// [NightshadeBackend] it reads off the [ProviderContainer].
@@ -196,13 +197,17 @@ class DeviceDiscoveryHandlers {
   Future<Response> handleDiscoverIndiAtAddress(Request request) async {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/devices/discover-indi');
+    final query = request.url.queryParameters;
+    final host = (query['host'] ?? '').trim();
+    if (host.isEmpty) {
+      throw BadRequestError(
+        field: 'host',
+        expected: 'string',
+        message: 'host query parameter is required',
+      );
+    }
+    final port = requireQueryInt(query, 'port', min: 1, max: 65535);
     try {
-      final host = request.url.queryParameters['host'];
-      final port = int.tryParse(request.url.queryParameters['port'] ?? '');
-      if (host == null || host.isEmpty || port == null) {
-        return jsonBadRequest({'error': 'host and port are required'});
-      }
-
       final backend = container.read(deviceBackendProvider);
       final devices = await backend.discoverIndiAtAddress(host, port);
       return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
@@ -219,13 +224,17 @@ class DeviceDiscoveryHandlers {
   Future<Response> handleDiscoverAlpacaAtAddress(Request request) async {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/devices/discover-alpaca');
+    final query = request.url.queryParameters;
+    final host = (query['host'] ?? '').trim();
+    if (host.isEmpty) {
+      throw BadRequestError(
+        field: 'host',
+        expected: 'string',
+        message: 'host query parameter is required',
+      );
+    }
+    final port = requireQueryInt(query, 'port', min: 1, max: 65535);
     try {
-      final host = request.url.queryParameters['host'];
-      final port = int.tryParse(request.url.queryParameters['port'] ?? '');
-      if (host == null || host.isEmpty || port == null) {
-        return jsonBadRequest({'error': 'host and port are required'});
-      }
-
       final backend = container.read(deviceBackendProvider);
       final devices = await backend.discoverAlpacaAtAddress(host, port);
       return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});

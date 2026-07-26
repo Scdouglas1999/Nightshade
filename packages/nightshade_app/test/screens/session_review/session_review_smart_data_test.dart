@@ -193,8 +193,9 @@ void main() {
     final c = controller();
     await waitUntilLoaded();
     expect(state().improvementCurve, isNull);
-    final rejected = await c.cullToRecommended();
-    expect(rejected, 0);
+    final result = await c.cullToRecommended();
+    expect(result.outcome, CullOutcome.staleCurve);
+    expect(result.rejected, 0);
     expect(state().acceptedCount, 4);
   });
 
@@ -265,8 +266,9 @@ void main() {
     expect(state().improvementCurve, isNotNull);
     expect(state().improvementCurvePopulation, hasLength(4));
 
-    final rejected = await c.cullToRecommended();
-    expect(rejected, 2);
+    final result = await c.cullToRecommended();
+    expect(result.outcome, CullOutcome.culled);
+    expect(result.rejected, 2);
 
     // s0/s1 stay accepted; s2/s3 (outside keptIndices) are now rejected.
     final accepted = state().acceptedLights.map((s) => s.filePath).toSet();
@@ -296,8 +298,9 @@ void main() {
     final c = controller();
     await waitUntilLoaded();
 
-    final rejected = await c.cullToRecommended();
-    expect(rejected, 0);
+    final result = await c.cullToRecommended();
+    expect(result.outcome, CullOutcome.staleCurve);
+    expect(result.rejected, 0);
     expect(state().acceptedCount, 4);
   });
 
@@ -340,8 +343,9 @@ void main() {
     expect(state().improvementCurve, isNotNull);
     expect(state().improvementCurvePopulation, isEmpty);
 
-    final rejected = await c.cullToRecommended();
-    expect(rejected, 0);
+    final result = await c.cullToRecommended();
+    expect(result.outcome, CullOutcome.staleCurve);
+    expect(result.rejected, 0);
     expect(state().acceptedCount, 4);
   });
 

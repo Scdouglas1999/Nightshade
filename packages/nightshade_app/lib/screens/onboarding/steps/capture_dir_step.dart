@@ -7,6 +7,68 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/remote_directory_picker_dialog.dart';
+
+typedef OnboardingCaptureDirectoryPicker = Future<String?> Function(
+  BuildContext context, {
+  required bool isRemote,
+  required String? initialPath,
+});
+
+typedef OnboardingCaptureDirectoryValidator = Future<String?> Function(
+  String path,
+);
+
+typedef OnboardingCaptureDirectoryWriter = Future<void> Function(String path);
+
+Future<String?> _pickCaptureDirectory(
+  BuildContext context, {
+  required bool isRemote,
+  required String? initialPath,
+}) {
+  if (isRemote) {
+    return RemoteDirectoryPickerDialog.show(
+      context,
+      title: 'Choose capture folder on host',
+      initialPath: initialPath,
+    );
+  }
+  return file_selector.getDirectoryPath(
+    confirmButtonText: 'Use this folder',
+  );
+}
+
+Future<String?> _validateCaptureDirectory(String path) async {
+  if (path.trim().isEmpty) return 'Pick a folder to continue.';
+  final dir = Directory(path);
+  if (!await dir.exists()) return 'That folder does not exist.';
+  final probe = File(
+    '${dir.path}${Platform.pathSeparator}.nightshade_write_probe',
+  );
+  try {
+    await probe.writeAsString('probe');
+    await probe.delete();
+    return null;
+  } on FileSystemException catch (error) {
+    return 'Not writable: ${error.message}';
+  } catch (error) {
+    return 'Validation failed: $error';
+  }
+}
+
+final onboardingCaptureDirectoryPickerProvider =
+    Provider<OnboardingCaptureDirectoryPicker>((ref) => _pickCaptureDirectory);
+
+final onboardingCaptureDirectoryValidatorProvider =
+    Provider<OnboardingCaptureDirectoryValidator>(
+  (ref) => _validateCaptureDirectory,
+);
+
+final onboardingCaptureDirectoryWriterProvider =
+    Provider<OnboardingCaptureDirectoryWriter>((ref) {
+  return ref.read(onboardingDraftProvider.notifier).setCaptureDirectory;
+});
+
 /// Capture-directory step.
 ///
 /// Lets the user pick a folder where Nightshade will save captures.
@@ -27,64 +89,74 @@ class OnboardingCaptureDirStep extends ConsumerStatefulWidget {
 class _OnboardingCaptureDirStepState
     extends ConsumerState<OnboardingCaptureDirStep> {
   String? _validationError;
+  bool _selecting = false;
   bool _validating = false;
+  int _operationGeneration = 0;
 
   Future<void> _pickDirectory() async {
-    final selected = await file_selector.getDirectoryPath(
-      confirmButtonText: 'Use this folder',
-    );
-    if (selected == null) return;
-    await _setAndValidate(selected);
-  }
-
-  Future<void> _setAndValidate(String path) async {
+    final isRemote = ref.read(isRemoteModeProvider);
+    final authority = ref.read(backendProvider);
+    final generation = ++_operationGeneration;
     setState(() {
-      _validating = true;
+      _selecting = true;
       _validationError = null;
     });
-    final error = await _validateDirectory(path);
-    if (!mounted) return;
-    setState(() {
-      _validating = false;
-      _validationError = error;
-    });
-    if (error == null) {
-      await ref
-          .read(onboardingDraftProvider.notifier)
-          .setCaptureDirectory(path);
-    }
-  }
-
-  /// Validate that [path] is writable. Returns null on success or a
-  /// human-readable error message describing what went wrong. We
-  /// deliberately do not silently create the directory if it's missing —
-  /// the user picked it, so we expect it to exist. We do, however, write
-  /// and immediately delete a probe file so we know the directory is
-  /// actually writable, not just listable.
-  Future<String?> _validateDirectory(String path) async {
-    if (path.trim().isEmpty) {
-      return 'Pick a folder to continue.';
-    }
-    final dir = Directory(path);
-    if (!await dir.exists()) {
-      return 'That folder does not exist.';
-    }
-    final probe = File(
-      '${dir.path}${Platform.pathSeparator}.nightshade_write_probe',
-    );
     try {
-      await probe.writeAsString('probe');
-      await probe.delete();
-      return null;
-    } on FileSystemException catch (e) {
-      return 'Not writable: ${e.message}';
-    } catch (e) {
-      return 'Validation failed: $e';
+      final selected = await ref.read(onboardingCaptureDirectoryPickerProvider)(
+        context,
+        isRemote: isRemote,
+        initialPath: ref.read(onboardingDraftProvider).captureDirectory,
+      );
+      if (selected == null || !_isCurrent(generation, authority)) return;
+
+      setState(() {
+        _selecting = false;
+        _validating = true;
+      });
+      final error = isRemote
+          ? null
+          : await ref.read(onboardingCaptureDirectoryValidatorProvider)(
+              selected,
+            );
+      if (!_isCurrent(generation, authority)) return;
+      setState(() {
+        _validating = false;
+        _validationError = error;
+      });
+      if (error == null) {
+        await ref.read(onboardingCaptureDirectoryWriterProvider)(selected);
+      }
+    } catch (error) {
+      if (!mounted || !_isCurrent(generation, authority)) return;
+      setState(() {
+        _selecting = false;
+        _validating = false;
+        _validationError = 'Could not set the capture folder: $error';
+      });
+    } finally {
+      if (mounted && generation == _operationGeneration) {
+        setState(() {
+          _selecting = false;
+          _validating = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      if ((_selecting || _validating) &&
+          previous != null &&
+          !identical(previous, next)) {
+        _operationGeneration++;
+        setState(() {
+          _selecting = false;
+          _validating = false;
+          _validationError = null;
+        });
+      }
+    });
     final draft = ref.watch(onboardingDraftProvider);
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
@@ -135,25 +207,35 @@ class _OnboardingCaptureDirStepState
                     label: 'Browse',
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
-                    onPressed: _validating ? null : _pickDirectory,
+                    onPressed:
+                        _selecting || _validating ? null : _pickDirectory,
                   ),
                 ],
               ),
-              if (_validating) ...[
+              if (_selecting || _validating) ...[
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                    if (_selecting)
+                      Icon(
+                        NightshadeIcons.folderOpen,
+                        size: 14,
                         color: colors.primary,
+                      )
+                    else
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colors.primary,
+                        ),
                       ),
-                    ),
                     const SizedBox(width: 8),
                     Text(
-                      'Checking write permissions…',
+                      _selecting
+                          ? 'Waiting for folder selection…'
+                          : 'Checking write permissions…',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.textSecondary,
                       ),
@@ -199,5 +281,11 @@ class _OnboardingCaptureDirStepState
         ),
       ],
     );
+  }
+
+  bool _isCurrent(int generation, NightshadeBackend authority) {
+    return mounted &&
+        generation == _operationGeneration &&
+        identical(ref.read(backendProvider), authority);
   }
 }

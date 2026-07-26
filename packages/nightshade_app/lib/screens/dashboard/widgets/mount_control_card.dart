@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import '../../../services/mount_command_service.dart';
+import '../../../utils/snackbar_helper.dart';
 import 'glass_card.dart';
 
 class MountControlCard extends ConsumerWidget {
@@ -42,20 +43,20 @@ class MountControlCard extends ConsumerWidget {
     final mountState = ref.watch(mountStateProvider);
     final isConnected =
         mountState.connectionState == DeviceConnectionState.connected;
-    // Offer only the tracking rates the mount actually supports (fall back to
-    // all rates when capabilities are unknown). The current rate is always kept
-    // selectable so the dropdown value stays valid.
-    final supportedRates = ref
-            .watch(mountCapabilitiesProvider(mountState.deviceId ?? ''))
-            .valueOrNull
-            ?.supportedTrackingRates ??
-        const <TrackingRate>[];
-    final trackingRateOptions =
-        (supportedRates.isNotEmpty ? supportedRates : TrackingRate.values)
-            .toList();
+    // Unknown capabilities must not manufacture supported rates. Retain only
+    // the current value so the dropdown remains valid while failing closed.
+    final mountCapabilitiesAsync =
+        ref.watch(mountCapabilitiesProvider(mountState.deviceId ?? ''));
+    final mountCapabilities = mountCapabilitiesAsync.valueOrNull;
+    final supportedRates =
+        mountCapabilities?.supportedTrackingRates ?? const <TrackingRate>[];
+    final trackingRateOptions = supportedRates.toList();
     if (!trackingRateOptions.contains(mountState.trackingRate)) {
       trackingRateOptions.insert(0, mountState.trackingRate);
     }
+    final canSetTrackingRate = isConnected &&
+        mountCapabilities?.canSetTrackingRate == true &&
+        supportedRates.isNotEmpty;
 
     final raText = mountState.ra != null
         ? CoordinateFormat.ra(mountState.ra!,
@@ -172,8 +173,11 @@ class MountControlCard extends ConsumerWidget {
                 _MountDirectionalPad(
                   colors: colors,
                   isEnabled: isConnected && !mountState.isParked,
-                  onDirection: (direction) {
-                    ref.read(mountCommandServiceProvider).pulseGuide(direction);
+                  onDirection: (direction) async {
+                    final r = await ref
+                        .read(mountCommandServiceProvider)
+                        .pulseGuide(direction);
+                    if (context.mounted) context.showCommandActionResult(r);
                   },
                 ),
 
@@ -215,12 +219,14 @@ class MountControlCard extends ConsumerWidget {
                                       child: Text(_trackingRateLabel(rate)),
                                     ))
                                 .toList(),
-                            onChanged: mountState.canSetTrackingRate
-                                ? (rate) {
-                                    if (rate != null) {
-                                      ref
-                                          .read(deviceServiceProvider)
-                                          .setMountTrackingRate(rate.index);
+                            onChanged: canSetTrackingRate
+                                ? (rate) async {
+                                    if (rate == null) return;
+                                    final r = await ref
+                                        .read(mountCommandServiceProvider)
+                                        .setTrackingRate(rate);
+                                    if (context.mounted) {
+                                      context.showCommandActionResult(r);
                                     }
                                   }
                                 : null,
@@ -246,8 +252,14 @@ class MountControlCard extends ConsumerWidget {
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
                       onPressed: isConnected
-                          ? () =>
-                              ref.read(mountCommandServiceProvider).togglePark()
+                          ? () async {
+                              final r = await ref
+                                  .read(mountCommandServiceProvider)
+                                  .togglePark();
+                              if (context.mounted) {
+                                context.showCommandActionResult(r);
+                              }
+                            }
                           : null,
                     ),
                   ),
@@ -263,9 +275,14 @@ class MountControlCard extends ConsumerWidget {
                           : ButtonVariant.outline,
                       size: ButtonSize.small,
                       onPressed: isConnected
-                          ? () => ref
-                              .read(mountCommandServiceProvider)
-                              .toggleTracking()
+                          ? () async {
+                              final r = await ref
+                                  .read(mountCommandServiceProvider)
+                                  .toggleTracking();
+                              if (context.mounted) {
+                                context.showCommandActionResult(r);
+                              }
+                            }
                           : null,
                     ),
                   ),
@@ -281,8 +298,14 @@ class MountControlCard extends ConsumerWidget {
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
                     onPressed: isConnected
-                        ? () =>
-                            ref.read(mountCommandServiceProvider).abortSlew()
+                        ? () async {
+                            final r = await ref
+                                .read(mountCommandServiceProvider)
+                                .abortSlew();
+                            if (context.mounted) {
+                              context.showCommandActionResult(r);
+                            }
+                          }
                         : null,
                   ),
                 ),

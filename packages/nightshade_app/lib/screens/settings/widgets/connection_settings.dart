@@ -9,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
+import '../../equipment/dialogs/indi_server_dialog.dart';
 import 'settings_widgets.dart';
 
 class ConnectionSettings extends ConsumerWidget {
@@ -20,22 +21,41 @@ class ConnectionSettings extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final backend = ref.watch(backendProvider);
-    final isConnected = backend is NetworkBackend;
+    final isNetwork = backend is NetworkBackend;
     final isDisconnected = backend is DisconnectedBackend;
+    // Live connection state — the authoritative signal for whether a network
+    // backend is actually connected, mid-handshake, or errored. Relying on
+    // `backend is NetworkBackend` alone would render a still-connecting (or a
+    // rolled-back/errored) session as "Connected".
+    final connState =
+        ref.watch(networkBackendConnectionStateProvider).valueOrNull;
+    final isConnected =
+        isNetwork && connState == BackendConnectionState.connected;
+    final isConnectError =
+        isNetwork && connState == BackendConnectionState.error;
     final settings = ref.watch(appSettingsProvider).valueOrNull;
     final settingsNotifier = ref.read(appSettingsProvider.notifier);
     final platformCapabilities =
         PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
 
-    // Extract server info from NetworkBackend if connected
+    // Derive the status label/colour from the live connection state, not just
+    // the backend's runtime type.
     String serverAddress = 'Not connected';
     String connectionStatus = 'Disconnected';
     Color statusColor = colors.textMuted;
 
-    if (isConnected) {
+    if (isNetwork) {
       serverAddress = '${backend.serverHost}:${backend.serverPort}';
-      connectionStatus = 'Connected';
-      statusColor = colors.success;
+      if (isConnected) {
+        connectionStatus = 'Connected';
+        statusColor = colors.success;
+      } else if (isConnectError) {
+        connectionStatus = 'Connection error';
+        statusColor = colors.error;
+      } else {
+        connectionStatus = 'Connecting...';
+        statusColor = colors.warning;
+      }
     } else if (!isDisconnected) {
       // FfiBackend (local mode)
       serverAddress = 'Local';
@@ -79,7 +99,7 @@ class ConnectionSettings extends ConsumerWidget {
               ),
               isMobile: isMobile,
             ),
-            if (isConnected)
+            if (isNetwork)
               SettingRow(
                 icon: LucideIcons.globe,
                 title: 'Server Address',
@@ -97,19 +117,19 @@ class ConnectionSettings extends ConsumerWidget {
                 isMobile: isMobile,
               ),
             SettingRow(
-              icon: isConnected ? LucideIcons.logOut : LucideIcons.logIn,
-              title: isConnected ? 'Disconnect' : 'Connect to Server',
-              subtitle: isConnected
+              icon: isNetwork ? LucideIcons.logOut : LucideIcons.logIn,
+              title: isNetwork ? 'Disconnect' : 'Connect to Server',
+              subtitle: isNetwork
                   ? 'Return to connection screen to connect to a different server'
                   : 'Open connection screen to connect to a server',
               trailing: NightshadeButton(
-                label: isConnected ? 'Disconnect' : 'Connect',
-                variant: isConnected
+                label: isNetwork ? 'Disconnect' : 'Connect',
+                variant: isNetwork
                     ? ButtonVariant.destructive
                     : ButtonVariant.primary,
                 size: isMobile ? ButtonSize.small : ButtonSize.small,
                 onPressed: () =>
-                    _handleConnectionAction(context, ref, isConnected),
+                    _handleConnectionAction(context, ref, isNetwork),
               ),
               isLast: true,
               isMobile: isMobile,
@@ -121,11 +141,31 @@ class ConnectionSettings extends ConsumerWidget {
             title: 'Discovery',
             isMobile: isMobile,
             children: [
+              // INDI is a Linux/macOS device-protocol server; on Windows the
+              // host/port knob is not applicable, so only offer it off-Windows.
+              if (!Platform.isWindows)
+                SettingRow(
+                  icon: LucideIcons.server,
+                  title: 'INDI Server Address',
+                  subtitle:
+                      '${settings.indiServerHost}:${settings.indiServerPort}'
+                      ' • host and port used for INDI discovery',
+                  trailing: NightshadeButton(
+                    label: 'Configure',
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () => showDialog<Map<String, dynamic>>(
+                      context: context,
+                      builder: (_) => const IndiServerDialog(),
+                    ),
+                  ),
+                  isMobile: isMobile,
+                ),
               SettingRow(
                 icon: LucideIcons.radio,
-                title: 'INDI auto-connect',
+                title: 'Query INDI on startup',
                 subtitle:
-                    'Automatically connect to the configured INDI server when available',
+                    'Include the configured INDI server in automatic startup discovery',
                 trailing: SettingsSwitch(
                   value: settings.indiAutoConnect,
                   onChanged: settingsNotifier.setIndiAutoConnect,
@@ -134,9 +174,9 @@ class ConnectionSettings extends ConsumerWidget {
               ),
               SettingRow(
                 icon: LucideIcons.search,
-                title: 'Alpaca auto-discovery',
+                title: 'Query Alpaca on startup',
                 subtitle:
-                    'Scan the local network for Alpaca devices and servers',
+                    'Include the configured Alpaca server in automatic startup discovery',
                 trailing: SettingsSwitch(
                   value: settings.alpacaAutoDiscover,
                   onChanged: settingsNotifier.setAlpacaAutoDiscover,
@@ -156,21 +196,8 @@ class ConnectionSettings extends ConsumerWidget {
                 title: 'Refresh Host Settings',
                 subtitle:
                     'Reload this screen from the connected Nightshade host',
-                trailing: IconButton(
-                  icon: Icon(LucideIcons.downloadCloud,
-                      color: colors.primary, size: isMobile ? 20 : 18),
-                  onPressed: () async {
-                    try {
-                      ref.invalidate(appSettingsProvider);
-                      if (context.mounted) {
-                        context.showSuccessSnackBar('Host settings refreshed');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        context.showErrorSnackBar('Refresh failed: $e');
-                      }
-                    }
-                  },
+                trailing: _HostSettingsRefreshButton(
+                  isMobile: isMobile,
                 ),
                 isLast: true,
                 isMobile: isMobile,
@@ -199,113 +226,349 @@ class ConnectionSettings extends ConsumerWidget {
   }
 
   void _handleConnectionAction(
-      BuildContext context, WidgetRef ref, bool isConnected) {
-    if (isConnected) {
-      // Show confirmation dialog before disconnecting
-      showDialog(
+      BuildContext context, WidgetRef ref, bool hasNetworkBackend) {
+    if (hasNetworkBackend) {
+      // Offer to tear down the installed network backend (whether it is live,
+      // still connecting, or errored) before returning to the connect screen.
+      var disconnecting = false;
+      String? disconnectError;
+      showDialog<void>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Disconnect from Server?'),
-          content: const Text(
-            'You will return to the connection screen where you can connect to a different server.',
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Disconnect from Server?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'You will return to the connection screen where you can '
+                  'connect to a different server.',
+                ),
+                if (disconnectError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    disconnectError!,
+                    style: TextStyle(
+                      color: Theme.of(ctx).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              NightshadeButton(
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: disconnecting ? null : () => Navigator.pop(ctx),
+              ),
+              NightshadeButton(
+                label: disconnecting ? 'Disconnecting...' : 'Disconnect',
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
+                onPressed: disconnecting
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          disconnecting = true;
+                          disconnectError = null;
+                        });
+                        try {
+                          await ref.read(backendProvider.notifier).disconnect();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+                          setDialogState(() {
+                            disconnecting = false;
+                            disconnectError = 'Disconnect blocked: $e';
+                          });
+                        }
+                      },
+              ),
+            ],
           ),
-          actions: [
-            NightshadeButton(
-              label: 'Cancel',
-              variant: ButtonVariant.ghost,
-              size: ButtonSize.small,
-              onPressed: () => Navigator.pop(ctx),
-            ),
-            NightshadeButton(
-              label: 'Disconnect',
-              variant: ButtonVariant.destructive,
-              size: ButtonSize.small,
-              onPressed: () {
-                Navigator.pop(ctx);
-                // Disconnect from server
-                ref.read(backendProvider.notifier).disconnect();
-              },
-            ),
-          ],
         ),
       );
     } else {
       // Show connection dialog
-      _showConnectDialog(context, ref);
+      _showConnectDialog(context);
     }
   }
 
-  void _showConnectDialog(BuildContext context, WidgetRef ref) {
-    final settings = ref.read(appSettingsProvider).valueOrNull;
-    final host = settings?.alpacaServerHost.isNotEmpty == true
-        ? settings!.alpacaServerHost
-        : settings?.indiServerHost ?? 'localhost';
-    final port = settings?.alpacaServerPort ?? 8080;
-    final hostController = TextEditingController(text: host);
-    final portController = TextEditingController(text: port.toString());
-    final tokenController = TextEditingController();
-
-    showDialog(
+  void _showConnectDialog(BuildContext context) {
+    showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Connect to Server'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: hostController,
-              decoration: const InputDecoration(
-                labelText: 'Host',
-                hintText: 'e.g., localhost or 192.168.1.100',
+      builder: (_) => const _ConnectToServerDialog(),
+    );
+  }
+}
+
+class _HostSettingsRefreshButton extends ConsumerStatefulWidget {
+  const _HostSettingsRefreshButton({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  ConsumerState<_HostSettingsRefreshButton> createState() =>
+      _HostSettingsRefreshButtonState();
+}
+
+class _HostSettingsRefreshButtonState
+    extends ConsumerState<_HostSettingsRefreshButton> {
+  bool _refreshing = false;
+  int _generation = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next)) return;
+        _generation++;
+        if (mounted && _refreshing) {
+          setState(() => _refreshing = false);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _generation++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    final authority = ref.read(backendProvider);
+    final generation = ++_generation;
+    setState(() => _refreshing = true);
+    try {
+      ref.invalidate(appSettingsProvider);
+      await ref.read(appSettingsProvider.future);
+      if (_isCurrent(generation, authority) && mounted) {
+        context.showSuccessSnackBar('Host settings refreshed');
+      }
+    } catch (e) {
+      if (_isCurrent(generation, authority) && mounted) {
+        context.showErrorSnackBar('Refresh failed: $e');
+      }
+    } finally {
+      if (_isCurrent(generation, authority)) {
+        setState(() => _refreshing = false);
+      }
+    }
+  }
+
+  bool _isCurrent(int generation, NightshadeBackend authority) =>
+      mounted &&
+      _refreshing &&
+      generation == _generation &&
+      identical(ref.read(backendProvider), authority);
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return IconButton(
+      tooltip: 'Refresh host settings',
+      onPressed: _refreshing ? null : _refresh,
+      icon: _refreshing
+          ? SizedBox(
+              width: widget.isMobile ? 20 : 18,
+              height: widget.isMobile ? 20 : 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
               ),
+            )
+          : Icon(
+              LucideIcons.downloadCloud,
+              color: colors.primary,
+              size: widget.isMobile ? 20 : 18,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: portController,
-              decoration: const InputDecoration(
-                labelText: 'Port',
-                hintText: '8080',
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+    );
+  }
+}
+
+/// Manual "Connect to Nightshade Server" dialog.
+///
+/// A Nightshade server is a distinct authority from the Alpaca / INDI
+/// device-protocol servers, so this dialog seeds neutral defaults rather than
+/// borrowing an unrelated protocol's host/port (which conflated protocols and
+/// pre-filled the wrong endpoint). It validates input, awaits the backend
+/// connect behind a busy guard, and — because [BackendNotifier.connect] now
+/// throws when the handshake does not reach a live connection — stays open and
+/// shows the failure so a refused connection remains retryable.
+class _ConnectToServerDialog extends ConsumerStatefulWidget {
+  const _ConnectToServerDialog();
+
+  @override
+  ConsumerState<_ConnectToServerDialog> createState() =>
+      _ConnectToServerDialogState();
+}
+
+class _ConnectToServerDialogState
+    extends ConsumerState<_ConnectToServerDialog> {
+  // Neutral defaults — deliberately NOT derived from Alpaca/INDI settings.
+  // 8080 is the Nightshade headless server's default port.
+  final _hostController = TextEditingController(text: 'localhost');
+  final _portController = TextEditingController(text: '8080');
+  final _tokenController = TextEditingController();
+
+  bool _isConnecting = false;
+  String? _hostError;
+  String? _portError;
+  String? _statusMessage;
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _portController.dispose();
+    _tokenController.dispose();
+    super.dispose();
+  }
+
+  ({String host, int port, String? token})? _validatedInputs() {
+    final host = _hostController.text.trim();
+    final portRaw = _portController.text.trim();
+    final token = _tokenController.text.trim();
+
+    String? hostError;
+    String? portError;
+    if (host.isEmpty) {
+      hostError = 'Enter a host name or IP address.';
+    }
+    final port = int.tryParse(portRaw);
+    if (port == null) {
+      portError = 'Port must be a whole number.';
+    } else if (port < 1 || port > 65535) {
+      portError = 'Port must be between 1 and 65535.';
+    }
+
+    setState(() {
+      _hostError = hostError;
+      _portError = portError;
+    });
+
+    if (hostError != null || portError != null || port == null) return null;
+    return (host: host, port: port, token: token.isEmpty ? null : token);
+  }
+
+  Future<void> _connect() async {
+    if (_isConnecting) return;
+    final inputs = _validatedInputs();
+    if (inputs == null) return;
+
+    setState(() {
+      _isConnecting = true;
+      _statusMessage = null;
+    });
+
+    try {
+      await ref.read(backendProvider.notifier).connect(
+            inputs.host,
+            inputs.port,
+            authToken: inputs.token,
+          );
+      if (!mounted) return;
+      Navigator.pop(context);
+    } on BackendTransitionSupersededException {
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      // Stay open so the operator can correct the address and retry.
+      setState(() {
+        _isConnecting = false;
+        _statusMessage = 'Connection failed: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return AlertDialog(
+      title: const Text('Connect to Server'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            key: const ValueKey('connect-host-field'),
+            controller: _hostController,
+            enabled: !_isConnecting,
+            onChanged: (_) {
+              if (_hostError != null) setState(() => _hostError = null);
+            },
+            decoration: InputDecoration(
+              labelText: 'Host',
+              hintText: 'e.g., localhost or 192.168.1.100',
+              errorText: _hostError,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: tokenController,
-              decoration: const InputDecoration(
-                labelText: 'Access Token',
-                hintText: 'Optional unless the server requires pairing/auth',
-              ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const ValueKey('connect-port-field'),
+            controller: _portController,
+            enabled: !_isConnecting,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (_) {
+              if (_portError != null) setState(() => _portError = null);
+            },
+            decoration: InputDecoration(
+              labelText: 'Port',
+              hintText: '8080',
+              errorText: _portError,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _tokenController,
+            enabled: !_isConnecting,
+            decoration: const InputDecoration(
+              labelText: 'Access Token',
+              hintText: 'Optional unless the server requires pairing/auth',
+            ),
+          ),
+          if (_statusMessage != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(NightshadeIcons.error, size: 16, color: colors.error),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _statusMessage!,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        actions: [
-          NightshadeButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.pop(ctx),
-          ),
-          NightshadeButton(
-            label: 'Connect',
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-            onPressed: () {
-              final host = hostController.text.trim();
-              final port = int.tryParse(portController.text.trim()) ?? 8080;
-              final token = tokenController.text.trim();
-              if (host.isNotEmpty) {
-                Navigator.pop(ctx);
-                ref.read(backendProvider.notifier).connect(
-                      host,
-                      port,
-                      authToken: token.isEmpty ? null : token,
-                    );
-              }
-            },
-          ),
         ],
       ),
+      actions: [
+        NightshadeButton(
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+          onPressed: _isConnecting ? null : () => Navigator.pop(context),
+        ),
+        NightshadeButton(
+          label: _isConnecting ? 'Connecting...' : 'Connect',
+          variant: ButtonVariant.primary,
+          size: ButtonSize.small,
+          isLoading: _isConnecting,
+          onPressed: _isConnecting ? null : _connect,
+        ),
+      ],
     );
   }
 }

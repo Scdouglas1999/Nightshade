@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -9,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../localization/nightshade_localizations.dart';
+import '../../utils/startup_surface_coordinator.dart';
 import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
@@ -34,6 +38,90 @@ import 'widgets/nightshade_bottom_navigation.dart';
 import 'app_shell_stub.dart' if (dart.library.io) 'app_shell_desktop.dart'
     as window_impl;
 
+enum AppStartupCheckpointOutcome {
+  noRecovery,
+  resumed,
+  discarded,
+  failed,
+}
+
+enum AppCheckpointRecoveryChoice {
+  resume,
+  discard,
+}
+
+const String kCatalogSetupSkippedSettingKey = 'catalog_setup_skipped';
+
+@visibleForTesting
+bool catalogSetupWasSkipped(String? persistedValue) =>
+    persistedValue?.trim().toLowerCase() == 'true';
+
+@visibleForTesting
+Future<AppStartupCheckpointOutcome> runAppCheckpointRecovery({
+  required Future<AppCheckpointRecoveryChoice?> Function(Object? lastError)
+      choose,
+  required Future<void> Function() resume,
+  required Future<void> Function() discard,
+}) async {
+  Object? lastError;
+  while (true) {
+    final choice = await choose(lastError);
+    if (choice == null) return AppStartupCheckpointOutcome.failed;
+
+    try {
+      switch (choice) {
+        case AppCheckpointRecoveryChoice.resume:
+          await resume();
+          return AppStartupCheckpointOutcome.resumed;
+        case AppCheckpointRecoveryChoice.discard:
+          await discard();
+          return AppStartupCheckpointOutcome.discarded;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+}
+
+@visibleForTesting
+Future<void> runAppStartupChecks({
+  required Future<AppStartupCheckpointOutcome> Function() checkCheckpoint,
+  required Future<void> Function() checkCatalogs,
+}) async {
+  final checkpointOutcome = await checkCheckpoint();
+  if (checkpointOutcome == AppStartupCheckpointOutcome.noRecovery ||
+      checkpointOutcome == AppStartupCheckpointOutcome.discarded) {
+    await checkCatalogs();
+  }
+}
+
+@visibleForTesting
+bool appCloseHasActiveOperations({
+  required bool sequenceOwnsHardware,
+  required bool sessionBusy,
+  required bool cameraBusy,
+  required bool mountBusy,
+  required bool flatWizardBusy,
+  required bool autofocusBusy,
+}) {
+  return sequenceOwnsHardware ||
+      sessionBusy ||
+      cameraBusy ||
+      mountBusy ||
+      flatWizardBusy ||
+      autofocusBusy;
+}
+
+/// An unavailable close preference is not an opt-out. When hardware is active,
+/// only a successfully loaded, explicit `false` may bypass confirmation.
+@visibleForTesting
+bool appCloseShouldConfirm({
+  required bool hasActiveOperations,
+  required bool? confirmBeforeClosing,
+}) {
+  return hasActiveOperations && confirmBeforeClosing != false;
+}
+
 class AppShell extends ConsumerStatefulWidget {
   final Widget child;
 
@@ -46,7 +134,7 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   bool _fallbackSideNavExpanded = true;
   bool _hasCheckedCatalogs = false;
-  bool _hasCheckedCheckpoint = false;
+  Future<AppStartupCheckpointOutcome>? _checkpointCheck;
   String? _lastImmersiveLocation;
 
   @override
@@ -59,29 +147,53 @@ class _AppShellState extends ConsumerState<AppShell> {
         onCloseRequested: _onCloseRequested,
       );
     }
-    // Check catalogs and checkpoint after first frame
+    // Decide checkpoint recovery before showing any other startup modal.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkCatalogsIfNeeded();
-      _checkCheckpointIfNeeded();
+      unawaited(_runStartupChecks());
     });
+  }
+
+  Future<void> _runStartupChecks() {
+    return runAppStartupChecks(
+      checkCheckpoint: _checkCheckpointIfNeeded,
+      checkCatalogs: _checkCatalogsIfNeeded,
+    );
   }
 
   /// Handle window close request - show confirmation if needed
   Future<bool> _onCloseRequested() async {
-    final settings = ref.read(appSettingsProvider).valueOrNull;
-
-    // If confirm before closing is disabled, allow close
-    if (settings?.confirmBeforeClosing != true) {
-      return true;
-    }
-
-    // Check if capture is in progress
     final sessionState = ref.read(sessionStateProvider);
-    final isCapturing = sessionState.isCapturing;
+    final sequenceState = ref.read(sequenceExecutionStateProvider);
+    final cameraState = ref.read(cameraStateProvider);
+    final mountState = ref.read(mountStateProvider);
+    final flatWizardState = ref.read(flatWizardProvider);
+    final autofocusState = ref.read(autofocusOverlayProvider);
+    final hasActiveOperations = appCloseHasActiveOperations(
+      sequenceOwnsHardware: sequenceState.ownsHardware,
+      sessionBusy: sessionState.isCapturing ||
+          sessionState.isAutofocusing ||
+          sessionState.isDithering ||
+          sessionState.isGuiding,
+      cameraBusy: cameraState.isExposing ||
+          cameraState.isCooling ||
+          cameraState.isWarming ||
+          (cameraState.coolerPower ?? 0) > 2,
+      mountBusy: mountState.isSlewing || mountState.isTracking,
+      flatWizardBusy: flatWizardState.isCapturing,
+      autofocusBusy: autofocusState.isRunning,
+    );
 
-    // If not capturing, allow close
-    if (!isCapturing) {
-      return true;
+    final settingsAsync = ref.read(appSettingsProvider);
+    final loadedPreference = settingsAsync.hasValue &&
+            !settingsAsync.isLoading &&
+            !settingsAsync.hasError
+        ? settingsAsync.valueOrNull!.confirmBeforeClosing
+        : null;
+    if (!appCloseShouldConfirm(
+      hasActiveOperations: hasActiveOperations,
+      confirmBeforeClosing: loadedPreference,
+    )) {
+      return _flushEditsBeforeClose();
     }
 
     // Show confirmation dialog
@@ -119,7 +231,44 @@ class _AppShellState extends ConsumerState<AppShell> {
       },
     );
 
-    return shouldClose ?? false;
+    if (shouldClose != true) return false;
+    return _flushEditsBeforeClose();
+  }
+
+  Future<bool> _flushEditsBeforeClose() async {
+    try {
+      await ref.read(backendProvider.notifier).prepareForShutdown();
+      return true;
+    } catch (error) {
+      if (!mounted) return false;
+      final colors = NightshadeColors.of(context);
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: colors.surface,
+          title: Text(
+            'Latest sequence changes were not saved',
+            style: TextStyle(color: colors.textPrimary),
+          ),
+          content: Text(
+            'Nightshade is staying open so your edits are not lost. '
+            'Check the database or remote-host connection, then try closing '
+            'again.\n\n$error',
+            style: TextStyle(color: colors.textSecondary),
+          ),
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(context).pop(),
+              label: 'Keep Nightshade open',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
   }
 
   @override
@@ -136,13 +285,36 @@ class _AppShellState extends ConsumerState<AppShell> {
     _hasCheckedCatalogs = true;
 
     try {
+      // Onboarding is the single first-run spine. The persistent catalog
+      // banner remains available after setup, so do not overlay its route with
+      // a separate catalog modal.
+      if (await ref.read(shouldRunEquipmentOnboardingProvider.future)) return;
+
+      final settingsDao = ref.read(settingsDaoProvider);
+      if (catalogSetupWasSkipped(
+        await settingsDao.getSetting(kCatalogSetupSkippedSettingKey),
+      )) {
+        return;
+      }
+
       final starStatus = await CatalogManager.instance.getStarCatalogStatus();
       final dsoStatus = await CatalogManager.instance.getDsoCatalogStatus();
 
       // If neither catalog is installed, show setup dialog
       if (!starStatus.isInstalled && !dsoStatus.isInstalled) {
         if (mounted) {
-          await CatalogSetupDialog.show(context);
+          final result = await ref
+              .read(startupSurfaceCoordinatorProvider)
+              .run<bool?>(() async {
+            if (!mounted) return null;
+            return CatalogSetupDialog.show(context);
+          });
+          if (result == false) {
+            await settingsDao.setSetting(
+              kCatalogSetupSkippedSettingKey,
+              'true',
+            );
+          }
         }
       }
     } catch (e) {
@@ -153,10 +325,11 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
   }
 
-  Future<void> _checkCheckpointIfNeeded() async {
-    if (_hasCheckedCheckpoint) return;
-    _hasCheckedCheckpoint = true;
+  Future<AppStartupCheckpointOutcome> _checkCheckpointIfNeeded() {
+    return _checkpointCheck ??= _performCheckpointCheck();
+  }
 
+  Future<AppStartupCheckpointOutcome> _performCheckpointCheck() async {
     try {
       final backend = ref.read(sequencerBackendProvider);
 
@@ -179,103 +352,132 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
 
       final hasCheckpoint = await backend.hasCheckpoint();
-      if (!hasCheckpoint) return;
+      if (!hasCheckpoint) return AppStartupCheckpointOutcome.noRecovery;
 
       final info = await backend.getCheckpointInfo();
-      if (info == null || !info.canResume) return;
-
-      if (!mounted) return;
-
-      final colors = NightshadeColors.of(context);
-
-      final result = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          final ageMinutes = info.ageSeconds ~/ 60;
-          final ageStr = ageMinutes < 60
-              ? '${ageMinutes}m ago'
-              : '${ageMinutes ~/ 60}h ${ageMinutes % 60}m ago';
-          final integrationMins = (info.completedIntegrationSecs / 60).round();
-
-          return AlertDialog(
-            backgroundColor: colors.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-              side: BorderSide(color: colors.border),
-            ),
-            title: Row(
-              children: [
-                Icon(NightshadeIcons.warning, size: 22, color: colors.warning),
-                const SizedBox(width: 12),
-                Text(
-                  'Recover Sequence?',
-                  style: TextStyle(color: colors.textPrimary),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'A previous sequence was interrupted and can be resumed.',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize13,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                NightshadeCard(
-                  variant: CardVariant.standard,
-                  borderRadius: NightshadeTokens.radiusInline8,
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _checkpointInfoRow(colors, 'Sequence', info.sequenceName),
-                      const SizedBox(height: 6),
-                      _checkpointInfoRow(colors, 'Saved', ageStr),
-                      const SizedBox(height: 6),
-                      _checkpointInfoRow(colors, 'Completed',
-                          '${info.completedExposures} frames (${integrationMins}m integration)'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              NightshadeButton(
-                onPressed: () => Navigator.of(dialogContext).pop(false),
-                label: 'Discard',
-                variant: ButtonVariant.destructive,
-              ),
-              NightshadeButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                label: 'Resume',
-              ),
-            ],
-          );
-        },
-      );
-
-      if (!mounted) return;
-
-      if (result == true) {
-        // Route through the SequenceExecutor provider — it re-seeds the
-        // runtime config from current settings and issues the
-        // sequencerStart() that actually begins execution. Calling the
-        // backend's resumeFromCheckpoint() directly only prepares the
-        // native tree and leaves the executor idle.
-        await ref.read(sequenceExecutorProvider).resumeFromCheckpoint();
-      } else {
-        await backend.discardCheckpoint();
+      if (info == null || !info.canResume) {
+        return AppStartupCheckpointOutcome.noRecovery;
       }
+
+      if (!mounted) return AppStartupCheckpointOutcome.failed;
+
+      return ref.read(startupSurfaceCoordinatorProvider).run(
+            () => runAppCheckpointRecovery(
+              choose: (lastError) async {
+                if (!mounted) return null;
+                final colors = NightshadeColors.of(context);
+                return showDialog<AppCheckpointRecoveryChoice>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) {
+                    final ageMinutes = info.ageSeconds ~/ 60;
+                    final ageStr = ageMinutes < 60
+                        ? '${ageMinutes}m ago'
+                        : '${ageMinutes ~/ 60}h ${ageMinutes % 60}m ago';
+                    final integrationMins =
+                        (info.completedIntegrationSecs / 60).round();
+
+                    return AlertDialog(
+                      backgroundColor: colors.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: NightshadeTokens.borderRadiusInline8,
+                        side: BorderSide(color: colors.border),
+                      ),
+                      title: Row(
+                        children: [
+                          Icon(
+                            NightshadeIcons.warning,
+                            size: 22,
+                            color: colors.warning,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Recover Sequence?',
+                            style: TextStyle(color: colors.textPrimary),
+                          ),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'A previous sequence was interrupted and can be resumed.',
+                            style: TextStyle(
+                              color: colors.textSecondary,
+                              fontSize: NightshadeTypography.fontSize13,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          NightshadeCard(
+                            variant: CardVariant.standard,
+                            borderRadius: NightshadeTokens.radiusInline8,
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _checkpointInfoRow(
+                                  colors,
+                                  'Sequence',
+                                  info.sequenceName,
+                                ),
+                                const SizedBox(height: 6),
+                                _checkpointInfoRow(colors, 'Saved', ageStr),
+                                const SizedBox(height: 6),
+                                _checkpointInfoRow(
+                                  colors,
+                                  'Completed',
+                                  '${info.completedExposures} frames '
+                                      '(${integrationMins}m integration)',
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (lastError != null) ...[
+                            const SizedBox(height: 16),
+                            NightshadeAlert(
+                              severity: NightshadeAlertSeverity.error,
+                              title: 'Recovery did not complete',
+                              message: '$lastError\n\n'
+                                  'The checkpoint is still available. Retry resume '
+                                  'or discard it to start fresh.',
+                            ),
+                          ],
+                        ],
+                      ),
+                      actions: [
+                        NightshadeButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(
+                            AppCheckpointRecoveryChoice.discard,
+                          ),
+                          label: 'Discard',
+                          variant: ButtonVariant.destructive,
+                        ),
+                        NightshadeButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(
+                            AppCheckpointRecoveryChoice.resume,
+                          ),
+                          label: lastError == null ? 'Resume' : 'Retry Resume',
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+              // Route through the SequenceExecutor provider — it re-seeds the
+              // runtime config and starts the restored native tree. The raw backend
+              // resume only prepares that tree and would leave execution idle.
+              resume: () =>
+                  ref.read(sequenceExecutorProvider).resumeFromCheckpoint(),
+              discard: backend.discardCheckpoint,
+            ),
+          );
     } catch (e) {
       ref.read(loggingServiceProvider).error(
           '[AppShell] Error checking checkpoint: $e',
           source: 'AppShell',
           fields: {'error': e.toString()});
+      return AppStartupCheckpointOutcome.failed;
     }
   }
 
@@ -381,6 +583,12 @@ class _AppShellState extends ConsumerState<AppShell> {
     // Otherwise target/goals/constraint edits made elsewhere can stop waking
     // the scheduler once the operator navigates away from that tab.
     ref.watch(schedulerAutoReevalProvider);
+    // Collaborative Sky WS3 Gap 3: keep the longitude-baton scheduler mounted for
+    // the shell's lifetime so a co-imaging session hands the night east on the
+    // rise/set even while the operator is on another tab. Lazy otherwise, so this
+    // read is what makes it tick in the GUI (the headless host eager-reads it in
+    // main_headless). No-op until a session is joined and a site is configured.
+    ref.watch(coImagingBatonSchedulerProvider);
     final isSideNavExpanded = settings != null
         ? !settings.sidebarCollapsed
         : _fallbackSideNavExpanded;
@@ -389,6 +597,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       builder: (context, constraints) {
         final useBottomNav =
             ShellChrome.useBottomNavigation(constraints.maxWidth);
+        // The shell Scaffold owns IME resizing. If its fixed gear strip,
+        // status bar, mini-player and bottom navigation remain mounted while a
+        // landscape keyboard is open, they can consume the entire shrunken
+        // body before the focused route gets any height. Keyboard interaction
+        // is already a modal navigation context, so temporarily reclaim that
+        // chrome and restore it unchanged when the IME closes.
+        final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
         // Phone "immersive" chrome: the bottom nav + status bar auto-hide when
         // idle so content gets the (very short, on a foldable cover) height,
@@ -429,7 +644,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // Mobile gear strip. Settings left the bottom bar in the
                   // six-tab consolidation, so this thin app-bar action keeps it
                   // one tap away on phones.
-                  if (useBottomNav)
+                  if (useBottomNav && !keyboardVisible)
                     SafeArea(
                       bottom: false,
                       child: _MobileSettingsBar(
@@ -490,10 +705,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                               TutorialKeys.navEquipment,
                               TutorialKeys.navImaging,
                               TutorialKeys.navSequencer,
-                              TutorialKeys.navAnalytics,
+                              TutorialKeys.navGuiding,
                               null,
                               TutorialKeys.navPlanner,
-                              TutorialKeys.navSettings,
+                              TutorialKeys.navAnalytics,
                             ],
                             currentIndex: currentIndex,
                             onTabSelected: (index) =>
@@ -572,13 +787,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // and whenever no sequence is active. Sits just above the
                   // bottom chrome so it reads as part of the persistent
                   // run-control surface.
-                  RunningSequenceMiniBar(currentLocation: currentLocation),
+                  if (!keyboardVisible)
+                    RunningSequenceMiniBar(currentLocation: currentLocation),
 
                   // Bottom chrome. On phone the status bar + bottom nav live in
                   // one auto-hiding block (immersive) so they reclaim the short
                   // cover-screen height when idle; on desktop the status bar is
                   // pinned and navigation is the side rail (no bottom nav).
-                  if (useBottomNav)
+                  if (useBottomNav && !keyboardVisible)
                     ImmersiveBottomChrome(
                       visible: chromeVisible,
                       onToggle: immersive.toggle,
@@ -599,7 +815,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                         ],
                       ),
                     )
-                  else
+                  else if (!useBottomNav)
                     const StatusBar(compact: false),
                 ],
               ),
@@ -615,11 +831,34 @@ class _AppShellState extends ConsumerState<AppShell> {
         // 440) and desktop are unscaled.
         final mq = MediaQuery.of(context);
         final uiScale = (mq.size.shortestSide / 440.0).clamp(0.82, 1.0);
-        return MediaQuery(
-          data: mq.copyWith(
-            textScaler: TextScaler.linear(mq.textScaler.scale(1.0) * uiScale),
+        // System-back policy (phone): primary tabs are go()-navigated, so the
+        // router usually has nothing to pop and a bare back gesture would
+        // finish the Activity from ANY screen. Order: a screen-registered
+        // interceptor (e.g. Settings' detail pane) → pop a pushed route
+        // (Flat Wizard, mosaic detail…) → return to Dashboard (Material
+        // back-to-home convention) → only from Dashboard leave the app.
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            if (ShellBackDispatcher.dispatch()) return;
+            final router = GoRouter.of(context);
+            if (router.canPop()) {
+              router.pop();
+              return;
+            }
+            if (!_getCurrentLocation(context).startsWith('/dashboard')) {
+              context.go('/dashboard');
+              return;
+            }
+            SystemNavigator.pop();
+          },
+          child: MediaQuery(
+            data: mq.copyWith(
+              textScaler: TextScaler.linear(mq.textScaler.scale(1.0) * uiScale),
+            ),
+            child: shell,
           ),
-          child: shell,
         );
       },
     );

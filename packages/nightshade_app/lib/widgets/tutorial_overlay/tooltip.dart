@@ -7,6 +7,10 @@ class _TooltipWidget extends StatelessWidget {
   final int totalSteps;
   final bool isFirst;
   final bool isLast;
+  final bool isBusy;
+  final bool isAdvancing;
+  final bool isGoingBack;
+  final bool isSkipping;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
   final VoidCallback onSkip;
@@ -18,6 +22,10 @@ class _TooltipWidget extends StatelessWidget {
     required this.totalSteps,
     required this.isFirst,
     required this.isLast,
+    required this.isBusy,
+    required this.isAdvancing,
+    required this.isGoingBack,
+    required this.isSkipping,
     required this.onNext,
     required this.onPrevious,
     required this.onSkip,
@@ -400,10 +408,11 @@ class _TooltipWidget extends StatelessWidget {
                       label: 'Skip tour',
                       hint: 'Press Escape to skip',
                       child: NightshadeButton(
-                        onPressed: onSkip,
+                        onPressed: isBusy ? null : onSkip,
                         label: 'Skip tour',
                         variant: ButtonVariant.ghost,
                         size: ButtonSize.small,
+                        isLoading: isSkipping,
                       ),
                     ),
 
@@ -416,11 +425,12 @@ class _TooltipWidget extends StatelessWidget {
                         label: 'Previous step',
                         hint: 'Press Backspace or Left Arrow',
                         child: NightshadeButton(
-                          onPressed: onPrevious,
+                          onPressed: isBusy ? null : onPrevious,
                           label: 'Back',
                           icon: LucideIcons.chevronLeft,
                           variant: ButtonVariant.ghost,
                           size: ButtonSize.small,
+                          isLoading: isGoingBack,
                         ),
                       ),
 
@@ -432,10 +442,11 @@ class _TooltipWidget extends StatelessWidget {
                       label: isLast ? 'Finish tutorial' : 'Next step',
                       hint: 'Press Enter, Space, or Right Arrow',
                       child: NightshadeButton(
-                        onPressed: onNext,
+                        onPressed: isBusy ? null : onNext,
                         label: isLast ? 'Done' : 'Next',
                         icon: isLast ? null : LucideIcons.chevronRight,
                         size: ButtonSize.small,
+                        isLoading: isAdvancing,
                       ),
                     ),
                   ],

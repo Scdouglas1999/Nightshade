@@ -1,8 +1,20 @@
 import 'dart:typed_data';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'backend/device_capabilities.dart';
+
 part 'polar_alignment_config.freezed.dart';
 part 'polar_alignment_config.g.dart';
+
+/// Coerce a wire value that may arrive as an `int`, `double`, or numeric
+/// `String` into a `double`. JSON transport (the `NetworkBackend` path)
+/// collapses whole numbers to `int`, so a blind `as double` cast throws and
+/// tears down the event subscription. Returns [fallback] for null/unparseable.
+double _wireDouble(Object? value, {double fallback = 0.0}) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? fallback;
+  return fallback;
+}
 
 /// Phase of the polar alignment process
 enum PolarAlignPhase {
@@ -125,6 +137,11 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
     /// Timeout in seconds for plate solve attempts
     @Default(30.0) double solveTimeout,
 
+    /// Delay between all-sky drift re-solves. Kept in the shared config so
+    /// headless/API-started runs are recorded and replayed with the cadence
+    /// they actually used rather than silently reverting to 3 seconds.
+    @Default(3.0) double iterationCadenceSecs,
+
     /// Total error threshold in arcseconds to consider alignment complete
     /// When error drops below this value, auto-complete can be triggered
     @Default(30.0) double autoCompleteThreshold,
@@ -142,8 +159,84 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
   factory PolarAlignmentConfig.fromJson(Map<String, dynamic> json) =>
       _$PolarAlignmentConfigFromJson(json);
 
-  /// Validate settings and return any validation errors
+  /// Validate settings and return any validation errors.
+  ///
+  /// This uses conservative hardcoded gain/offset/binning bounds and is the
+  /// fallback when the connected camera's capabilities are unknown. Prefer
+  /// [validateForCamera] when a [CameraCapabilities] is available so the
+  /// limits reflect the real hardware (or the host's, over the network).
   List<String> validate() {
+    final errors = _validateCommon();
+
+    if (binning < 1 || binning > 4) {
+      errors.add('Binning must be between 1 and 4');
+    }
+
+    if (gain != null && (gain! < 0 || gain! > 1000)) {
+      errors.add('Gain must be between 0 and 1000');
+    }
+
+    if (offset != null && (offset! < 0 || offset! > 255)) {
+      errors.add('Offset must be between 0 and 255');
+    }
+
+    return errors;
+  }
+
+  /// Validate against the *actual* camera capabilities.
+  ///
+  /// Resolves the gain/offset/binning limits from the connected camera rather
+  /// than hardcoded guesses. A `null` [caps] (capabilities not yet known)
+  /// falls back to [validate]. Null [gain]/[offset] always pass — they mean
+  /// "use the camera's current/default value" and are never coerced to 0.
+  List<String> validateForCamera(CameraCapabilities? caps) {
+    if (caps == null) return validate();
+
+    final errors = _validateCommon();
+
+    // Binning: bounded by the camera's advertised maximum when it can bin.
+    final maxBin = (caps.canBin && caps.maxBinX >= 1 && caps.maxBinY >= 1)
+        ? (caps.maxBinX < caps.maxBinY ? caps.maxBinX : caps.maxBinY)
+        : 1;
+    if (binning < 1 || binning > maxBin) {
+      errors.add('Binning must be between 1 and $maxBin for this camera');
+    }
+
+    // Gain: only validated when explicitly set. null = camera default.
+    if (gain != null) {
+      if (!caps.canSetGain) {
+        errors.add('This camera does not support setting gain');
+      } else if (caps.gainMin != null && caps.gainMax != null) {
+        if (gain! < caps.gainMin! || gain! > caps.gainMax!) {
+          errors.add(
+            'Gain must be between ${caps.gainMin} and ${caps.gainMax} '
+            'for this camera',
+          );
+        }
+      }
+    }
+
+    // Offset: only validated when explicitly set. null = camera default.
+    if (offset != null) {
+      if (!caps.canSetOffset) {
+        errors.add('This camera does not support setting offset');
+      } else if (caps.offsetMin != null && caps.offsetMax != null) {
+        if (offset! < caps.offsetMin! || offset! > caps.offsetMax!) {
+          errors.add(
+            'Offset must be between ${caps.offsetMin} and ${caps.offsetMax} '
+            'for this camera',
+          );
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  /// Range checks that are independent of the camera (exposure, rotation
+  /// step, solve timeout, acceptance threshold). Shared by [validate] and
+  /// [validateForCamera].
+  List<String> _validateCommon() {
     final errors = <String>[];
 
     if (exposureTime < 0.1) {
@@ -160,10 +253,6 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
       errors.add('Step size should not exceed 45 degrees');
     }
 
-    if (binning < 1 || binning > 4) {
-      errors.add('Binning must be between 1 and 4');
-    }
-
     if (solveTimeout < 5) {
       errors.add('Solve timeout must be at least 5 seconds');
     }
@@ -171,19 +260,18 @@ abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
       errors.add('Solve timeout should not exceed 120 seconds');
     }
 
+    if (iterationCadenceSecs < 0.5) {
+      errors.add('All-sky iteration cadence must be at least 0.5 seconds');
+    }
+    if (iterationCadenceSecs > 60) {
+      errors.add('All-sky iteration cadence should not exceed 60 seconds');
+    }
+
     if (autoCompleteThreshold < 1) {
       errors.add('Auto-complete threshold must be at least 1 arcsecond');
     }
     if (autoCompleteThreshold > 300) {
       errors.add('Auto-complete threshold should not exceed 300 arcseconds');
-    }
-
-    if (gain != null && (gain! < 0 || gain! > 1000)) {
-      errors.add('Gain must be between 0 and 1000');
-    }
-
-    if (offset != null && (offset! < 0 || offset! > 255)) {
-      errors.add('Offset must be between 0 and 255');
     }
 
     return errors;
@@ -241,16 +329,21 @@ abstract class PolarAlignmentError with _$PolarAlignmentError {
   factory PolarAlignmentError.fromJson(Map<String, dynamic> json) =>
       _$PolarAlignmentErrorFromJson(json);
 
-  /// Create from backend event data
+  /// Create from backend event data.
+  ///
+  /// Numeric fields are parsed defensively: over the JSON wire (the
+  /// `NetworkBackend` path) whole numbers arrive as `int`, not `double`, and a
+  /// raw `.toDouble()` on a non-num (or a missing key) would throw and kill the
+  /// event subscription. [_wireDouble] accepts `int`/`double`/`String`.
   factory PolarAlignmentError.fromEventData(Map<String, dynamic> data) {
     return PolarAlignmentError(
-      azimuthError: (data['azimuth_error'] ?? 0).toDouble(),
-      altitudeError: (data['altitude_error'] ?? 0).toDouble(),
-      totalError: (data['total_error'] ?? 0).toDouble(),
-      currentRa: (data['current_ra'] ?? 0).toDouble(),
-      currentDec: (data['current_dec'] ?? 0).toDouble(),
-      targetRa: (data['target_ra'] ?? 0).toDouble(),
-      targetDec: (data['target_dec'] ?? 0).toDouble(),
+      azimuthError: _wireDouble(data['azimuth_error']),
+      altitudeError: _wireDouble(data['altitude_error']),
+      totalError: _wireDouble(data['total_error']),
+      currentRa: _wireDouble(data['current_ra']),
+      currentDec: _wireDouble(data['current_dec']),
+      targetRa: _wireDouble(data['target_ra']),
+      targetDec: _wireDouble(data['target_dec']),
       timestamp: DateTime.now(),
     );
   }
@@ -270,6 +363,18 @@ abstract class PolarAlignmentError with _$PolarAlignmentError {
     if (altitudeError.abs() < 1) return 'centered';
     return altitudeError > 0 ? 'up' : 'down';
   }
+
+  /// On-screen direction to turn the azimuth bolt to reduce the current
+  /// error. Positive [azimuthError] means the mechanical pole sits east of
+  /// the true pole, which is corrected by rotating the azimuth bolt
+  /// westward — the opposite side from where the bullseye marker sits,
+  /// hence 'Left'.
+  String get azimuthAdjustment => azimuthError > 0 ? 'Left' : 'Right';
+
+  /// On-screen direction to move the altitude bolt to reduce the current
+  /// error. Positive [altitudeError] means the mechanical pole sits above
+  /// the true pole, corrected by lowering the bolt, hence 'Down'.
+  String get altitudeAdjustment => altitudeError > 0 ? 'Down' : 'Up';
 
   /// Format error as human-readable string
   String formatError() {

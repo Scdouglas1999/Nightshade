@@ -62,102 +62,224 @@ class PairingState {
 class PairingNotifier extends StateNotifier<PairingState> {
   Timer? _expirationTimer;
   Timer? _countdownTimer;
-  late TokenManager _tokenManager;
-  late PairingDatabase _database;
+  final TokenManager _tokenManager;
+  final PairingDatabase _database;
+  final bool _ownsDatabase;
+  late Future<void> _operationTail;
+  int _queuedOperations = 0;
 
-  PairingNotifier() : super(PairingState()) {
-    _initialize();
+  PairingNotifier()
+      : this._(
+          PairingDatabase(),
+          ownsDatabase: true,
+        );
+
+  /// Test/integration constructor for callers that already own a database.
+  PairingNotifier.withDatabase(PairingDatabase database)
+      : this._(database, ownsDatabase: false);
+
+  PairingNotifier._(
+    this._database, {
+    required bool ownsDatabase,
+  })  : _tokenManager = TokenManager(_database),
+        _ownsDatabase = ownsDatabase,
+        super(PairingState(isLoading: true)) {
+    final initialization = _initialize();
+    _operationTail = initialization.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
   }
 
   Future<void> _initialize() async {
-    _database = PairingDatabase();
-    _tokenManager = TokenManager(_database);
-    await loadPairedDevices();
+    try {
+      final devices = await _tokenManager.getActivePairedDevices();
+      if (!mounted) return;
+      state = state.copyWith(
+        pairedDevices: devices,
+        isLoading: _queuedOperations > 0,
+        error: null,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isLoading: _queuedOperations > 0,
+        error: 'pairingErrorLoad',
+      );
+    }
+  }
+
+  Future<bool> _enqueue(Future<bool> Function() operation) {
+    if (_queuedOperations > 0) return Future<bool>.value(false);
+    _queuedOperations += 1;
+    if (mounted) state = state.copyWith(isLoading: true, error: null);
+    final result = _operationTail.then((_) => operation());
+    final tracked = result.whenComplete(() {
+      _queuedOperations -= 1;
+      if (mounted && _queuedOperations == 0) {
+        state = state.copyWith(isLoading: false);
+      }
+    });
+    _operationTail = tracked.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    return tracked;
   }
 
   /// Start a new pairing session
-  Future<void> startPairing() async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<bool> startPairing() {
+    return _enqueue(() async {
+      if (!mounted) return false;
+      try {
+        final code = await _tokenManager.startPairing();
+        if (!mounted) return false;
+        final expiresAt = DateTime.now().add(const Duration(minutes: 5));
 
-    try {
-      final code = await _tokenManager.startPairing();
-      final expiresAt = DateTime.now().add(const Duration(minutes: 5));
+        state = state.copyWith(
+          pairingCode: code,
+          expiresAt: expiresAt,
+          error: null,
+        );
 
-      state = state.copyWith(
-        pairingCode: code,
-        expiresAt: expiresAt,
-        isLoading: false,
-      );
-
-      // Set expiration timer
-      _expirationTimer?.cancel();
-      _expirationTimer = Timer(const Duration(minutes: 5), () {
-        state = state.copyWith(pairingCode: null, expiresAt: null);
-      });
-
-      // Start countdown timer for UI updates
-      _countdownTimer?.cancel();
-      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        state = state.copyWith(); // Trigger rebuild for countdown
-        if (state.timeRemaining?.inSeconds == 0) {
-          _countdownTimer?.cancel();
+        _startCountdownTimers();
+        return true;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorStart',
+          );
         }
-      });
-    } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'pairingErrorStart',
-      );
-    }
+        return false;
+      }
+    });
   }
 
-  /// Cancel the current pairing session
-  void cancelPairing() {
+  void _startCountdownTimers() {
+    // Set expiration timer
     _expirationTimer?.cancel();
+    _expirationTimer = Timer(const Duration(minutes: 5), () {
+      if (!mounted) return;
+      state = state.copyWith(pairingCode: null, expiresAt: null);
+    });
+
+    // Start countdown timer for UI updates
     _countdownTimer?.cancel();
-    state = state.copyWith(pairingCode: null, expiresAt: null);
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        _countdownTimer?.cancel();
+        return;
+      }
+      state = state.copyWith(); // Trigger rebuild for countdown
+      if (state.timeRemaining?.inSeconds == 0) {
+        _countdownTimer?.cancel();
+      }
+    });
   }
 
-  /// Load paired devices from database
-  Future<void> loadPairedDevices() async {
-    try {
-      final devices = await _tokenManager.getActivePairedDevices();
-      state = state.copyWith(pairedDevices: devices, error: null);
-    } catch (_) {
-      state = state.copyWith(error: 'pairingErrorLoad');
-    }
+  /// Cancel the current pairing session.
+  ///
+  /// The code remains visible if durable invalidation fails, so the operator
+  /// is never told a still-live credential was cancelled.
+  Future<bool> cancelPairing() {
+    return _enqueue(() async {
+      if (!mounted) return false;
+      final code = state.pairingCode;
+      if (code == null) {
+        return true;
+      }
+
+      try {
+        await _tokenManager.cancelPairing(code);
+        if (!mounted) return false;
+        _expirationTimer?.cancel();
+        _countdownTimer?.cancel();
+        state = state.copyWith(
+          pairingCode: null,
+          expiresAt: null,
+          error: null,
+        );
+        return true;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorCancel',
+          );
+        }
+        return false;
+      }
+    });
   }
 
-  /// Revoke a paired device
-  Future<void> revokeDevice(String deviceId) async {
-    state = state.copyWith(isLoading: true);
-
-    try {
-      await _tokenManager.revokeDevice(deviceId);
-      await loadPairedDevices();
-      state = state.copyWith(isLoading: false);
-    } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'pairingErrorRevoke',
-      );
-    }
+  /// Load paired devices from database.
+  Future<bool> loadPairedDevices() {
+    return _enqueue(() async {
+      if (!mounted) return false;
+      try {
+        final devices = await _tokenManager.getActivePairedDevices();
+        if (!mounted) return false;
+        state = state.copyWith(
+          pairedDevices: devices,
+          error: null,
+        );
+        return true;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorLoad',
+          );
+        }
+        return false;
+      }
+    });
   }
 
-  /// Delete a paired device
-  Future<void> deleteDevice(String deviceId) async {
-    state = state.copyWith(isLoading: true);
+  /// Revoke a paired device.
+  Future<bool> revokeDevice(String deviceId) {
+    return _enqueue(() async {
+      if (!mounted) return false;
+      try {
+        await _tokenManager.revokeDevice(deviceId);
+        final devices = await _tokenManager.getActivePairedDevices();
+        if (!mounted) return false;
+        state = state.copyWith(
+          pairedDevices: devices,
+          error: null,
+        );
+        return true;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorRevoke',
+          );
+        }
+        return false;
+      }
+    });
+  }
 
-    try {
-      await _tokenManager.deleteDevice(deviceId);
-      await loadPairedDevices();
-      state = state.copyWith(isLoading: false);
-    } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        error: 'pairingErrorDelete',
-      );
-    }
+  /// Delete a paired device.
+  Future<bool> deleteDevice(String deviceId) {
+    return _enqueue(() async {
+      if (!mounted) return false;
+      try {
+        await _tokenManager.deleteDevice(deviceId);
+        final devices = await _tokenManager.getActivePairedDevices();
+        if (!mounted) return false;
+        state = state.copyWith(
+          pairedDevices: devices,
+          error: null,
+        );
+        return true;
+      } catch (_) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'pairingErrorDelete',
+          );
+        }
+        return false;
+      }
+    });
   }
 
   void clearError() {
@@ -168,6 +290,10 @@ class PairingNotifier extends StateNotifier<PairingState> {
   void dispose() {
     _expirationTimer?.cancel();
     _countdownTimer?.cancel();
+    if (_ownsDatabase) {
+      final pending = _operationTail;
+      unawaited(pending.whenComplete(_database.close));
+    }
     super.dispose();
   }
 }
@@ -233,6 +359,7 @@ class PairingScreen extends ConsumerWidget {
                 label: l10n.text('pairingStartButton'),
                 icon: NightshadeIcons.link,
                 variant: ButtonVariant.primary,
+                isLoading: state.isLoading,
                 onPressed: state.isLoading
                     ? null
                     : () => ref.read(pairingProvider.notifier).startPairing(),
@@ -324,7 +451,10 @@ class PairingScreen extends ConsumerWidget {
         NightshadeButton(
           label: l10n.text('pairingCancel'),
           variant: ButtonVariant.outline,
-          onPressed: () => ref.read(pairingProvider.notifier).cancelPairing(),
+          isLoading: state.isLoading,
+          onPressed: state.isLoading
+              ? null
+              : () => ref.read(pairingProvider.notifier).cancelPairing(),
         ),
       ],
     );
@@ -347,8 +477,11 @@ class PairingScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 IconButton(
-                  onPressed: () =>
-                      ref.read(pairingProvider.notifier).loadPairedDevices(),
+                  onPressed: state.isLoading
+                      ? null
+                      : () => ref
+                          .read(pairingProvider.notifier)
+                          .loadPairedDevices(),
                   icon: const Icon(NightshadeIcons.refresh),
                   tooltip: l10n.text('pairingRefresh'),
                 ),
@@ -390,7 +523,12 @@ class PairingScreen extends ConsumerWidget {
                 separatorBuilder: (context, index) => const Divider(),
                 itemBuilder: (context, index) {
                   final device = state.pairedDevices[index];
-                  return _buildDeviceListItem(context, ref, device);
+                  return _buildDeviceListItem(
+                    context,
+                    ref,
+                    device,
+                    enabled: !state.isLoading,
+                  );
                 },
               ),
           ],
@@ -400,7 +538,11 @@ class PairingScreen extends ConsumerWidget {
   }
 
   Widget _buildDeviceListItem(
-      BuildContext context, WidgetRef ref, PairedDevice device) {
+    BuildContext context,
+    WidgetRef ref,
+    PairedDevice device, {
+    required bool enabled,
+  }) {
     final colors = NightshadeColors.of(context);
     final statusText = _deviceStatus(device);
     final statusColor = _deviceStatusColor(colors, device);
@@ -491,6 +633,7 @@ class PairingScreen extends ConsumerWidget {
             ),
           ),
           PopupMenuButton<String>(
+            enabled: enabled,
             onSelected: (value) {
               if (value == 'revoke') {
                 _showRevokeDialog(context, ref, device);
@@ -611,67 +754,93 @@ class PairingScreen extends ConsumerWidget {
 
   void _showRevokeDialog(
       BuildContext context, WidgetRef ref, PairedDevice device) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.text('pairingRevokeTitle')),
-        content: Text(
-          context.l10n.text(
-            'pairingRevokeBody',
-            params: {'name': device.deviceName},
-          ),
-        ),
-        actions: [
-          NightshadeButton(
-            label: context.l10n.text('cancel'),
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          NightshadeButton(
-            label: context.l10n.text('pairingRevokeAccess'),
-            variant: ButtonVariant.primary,
-            size: ButtonSize.small,
-            onPressed: () {
-              ref.read(pairingProvider.notifier).revokeDevice(device.deviceId);
-              Navigator.of(context).pop();
-            },
-          ),
-        ],
-      ),
+    _showDeviceActionDialog(
+      context,
+      titleKey: 'pairingRevokeTitle',
+      bodyKey: 'pairingRevokeBody',
+      confirmKey: 'pairingRevokeAccess',
+      errorKey: 'pairingErrorRevoke',
+      device: device,
+      variant: ButtonVariant.primary,
+      action: () =>
+          ref.read(pairingProvider.notifier).revokeDevice(device.deviceId),
     );
   }
 
   void _showDeleteDialog(
       BuildContext context, WidgetRef ref, PairedDevice device) {
-    showDialog(
+    _showDeviceActionDialog(
+      context,
+      titleKey: 'pairingDeleteTitle',
+      bodyKey: 'pairingDeleteBody',
+      confirmKey: 'pairingDeleteDevice',
+      errorKey: 'pairingErrorDelete',
+      device: device,
+      variant: ButtonVariant.destructive,
+      action: () =>
+          ref.read(pairingProvider.notifier).deleteDevice(device.deviceId),
+    );
+  }
+
+  void _showDeviceActionDialog(
+    BuildContext context, {
+    required String titleKey,
+    required String bodyKey,
+    required String confirmKey,
+    required String errorKey,
+    required PairedDevice device,
+    required ButtonVariant variant,
+    required Future<bool> Function() action,
+  }) {
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.text('pairingDeleteTitle')),
-        content: Text(
-          context.l10n.text(
-            'pairingDeleteBody',
-            params: {'name': device.deviceName},
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        var busy = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => PopScope(
+            canPop: !busy,
+            child: AlertDialog(
+              title: Text(context.l10n.text(titleKey)),
+              content: Text(
+                context.l10n.text(
+                  bodyKey,
+                  params: {'name': device.deviceName},
+                ),
+              ),
+              actions: [
+                NightshadeButton(
+                  label: context.l10n.text('cancel'),
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  onPressed: busy ? null : () => Navigator.of(context).pop(),
+                ),
+                NightshadeButton(
+                  label: context.l10n.text(confirmKey),
+                  variant: variant,
+                  size: ButtonSize.small,
+                  isLoading: busy,
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          setDialogState(() => busy = true);
+                          final succeeded = await action();
+                          if (!dialogContext.mounted) return;
+                          if (succeeded) {
+                            Navigator.of(dialogContext).pop();
+                            return;
+                          }
+                          setDialogState(() => busy = false);
+                          dialogContext.showErrorSnackBar(
+                            dialogContext.l10n.text(errorKey),
+                          );
+                        },
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          NightshadeButton(
-            label: context.l10n.text('cancel'),
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          NightshadeButton(
-            label: context.l10n.text('pairingDeleteDevice'),
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-            onPressed: () {
-              ref.read(pairingProvider.notifier).deleteDevice(device.deviceId);
-              Navigator.of(context).pop();
-            },
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

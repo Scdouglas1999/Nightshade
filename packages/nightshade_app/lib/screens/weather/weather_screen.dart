@@ -120,7 +120,9 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final weatherStatus = ref.watch(weatherStatusProvider);
-    final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+    final settingsAsync = ref.watch(appSettingsProvider);
+    final appSettings = settingsAsync.valueOrNull;
+    final weatherSettingsAsync = ref.watch(weatherSettingsDataProvider);
     final motionAsync = ref.watch(analyzeCloudMotionProvider);
     final alertAsync = ref.watch(evaluateWeatherConditionsProvider);
     final cloudCoverAsync = ref.watch(cloudCoverPercentageProvider);
@@ -132,8 +134,8 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     final hasLocation = !(latitude == 0.0 && longitude == 0.0);
 
     // Get weather settings for alert radius
-    final weatherSettings = ref.watch(weatherSettingsProvider);
-    final alertRadiusKm = weatherSettings.triggerDistanceKm;
+    final weatherSettings = weatherSettingsAsync.valueOrNull;
+    final alertRadiusKm = weatherSettings?.triggerDistanceKm ?? 0;
 
     // Get radar frames
     final radarFrames = weatherStatus.radarFrames;
@@ -191,30 +193,60 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                       onRefresh: _refreshWeatherData,
                       onSettingsTap: () =>
                           context.go('/settings?section=weather-safety'),
-                      isLoading: weatherStatus.isLoading,
+                      isLoading: settingsAsync.isLoading ||
+                          weatherSettingsAsync.isLoading ||
+                          weatherStatus.isLoading,
                     ),
+
+                    // Offline / fetch-failure cue so an empty radar is never
+                    // read as "Clear".
+                    if (!settingsAsync.isLoading &&
+                        !weatherSettingsAsync.isLoading &&
+                        !settingsAsync.hasError &&
+                        !weatherSettingsAsync.hasError &&
+                        hasLocation &&
+                        weatherStatus.errorMessage != null)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: NightshadeInlineBanner(
+                          message:
+                              'Weather data unavailable — conditions may be out '
+                              'of date. Check your connection.',
+                          severity: NightshadeAlertSeverity.error,
+                        ),
+                      ),
 
                     // Main content
                     Expanded(
-                      child: hasLocation
-                          ? _buildMainContent(
-                              context,
-                              colors,
-                              isWide,
-                              isMedium,
-                              isPhoneLandscape,
-                              latitude,
-                              longitude,
-                              alertRadiusKm,
-                              radarFrames,
-                              motionDirection,
-                              motion,
-                              alert,
-                              weatherStatus,
-                              cloudCoverAsync.valueOrNull,
-                              radarSource,
-                            )
-                          : _NoLocationContent(colors: colors),
+                      child: settingsAsync.isLoading ||
+                              weatherSettingsAsync.isLoading
+                          ? const Center(child: CircularProgressIndicator())
+                          : settingsAsync.hasError ||
+                                  weatherSettingsAsync.hasError
+                              ? _SettingsUnavailableContent(
+                                  colors: colors,
+                                  onRetry: () =>
+                                      ref.invalidate(appSettingsProvider),
+                                )
+                              : hasLocation
+                                  ? _buildMainContent(
+                                      context,
+                                      colors,
+                                      isWide,
+                                      isMedium,
+                                      isPhoneLandscape,
+                                      latitude,
+                                      longitude,
+                                      alertRadiusKm,
+                                      radarFrames,
+                                      motionDirection,
+                                      motion,
+                                      alert,
+                                      weatherStatus,
+                                      cloudCoverAsync.valueOrNull,
+                                      radarSource,
+                                    )
+                                  : _NoLocationContent(colors: colors),
                     ),
                   ],
                 ),

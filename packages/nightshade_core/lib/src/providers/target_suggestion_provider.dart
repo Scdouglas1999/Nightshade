@@ -229,7 +229,7 @@ Future<List<db.Target>> _loadCatalogTargets(LoggingService logging) async {
     );
     _catalogTargetsCachePath = null;
     _catalogTargetsCache = null;
-    return [];
+    rethrow;
   } finally {
     _catalogTargetsLoadFuture = null;
   }

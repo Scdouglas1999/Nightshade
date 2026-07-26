@@ -3,10 +3,14 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_desktop/headless_api/handlers/equipment_handlers.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
+
+class _MockBackend extends Mock implements NightshadeBackend {}
 
 void main() {
   group('EquipmentHandlers', () {
@@ -125,5 +129,28 @@ void main() {
         expect(body['error'], isA<String>());
       },
     );
+
+    test('health route decodes URL-encoded device IDs', () async {
+      final backend = _MockBackend();
+      when(
+        () => backend.getDeviceHealth('native:zwo:0'),
+      ).thenAnswer((_) async => (123, true));
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [deviceBackendProvider.overrideWithValue(backend)],
+      );
+      handlers = EquipmentHandlers(container);
+
+      final response = await handlers.handleGetDeviceHealth(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/device/health/native%3Azwo%3A0'),
+        ),
+        'native%3Azwo%3A0',
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      verify(() => backend.getDeviceHealth('native:zwo:0')).called(1);
+    });
   });
 }

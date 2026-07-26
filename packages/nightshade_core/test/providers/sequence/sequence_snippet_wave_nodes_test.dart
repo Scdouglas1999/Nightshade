@@ -13,6 +13,126 @@ ProviderContainer _newContainer() {
 
 void main() {
   test(
+    'custom snippet round-trip preserves canonical node fields and types',
+    () {
+      final waitUntil = DateTime.utc(2026, 7, 14, 2, 30);
+      final nodes = <SequenceNode>[
+        WarmCameraNode(
+          id: 'warm',
+          parentId: 'root',
+          ratePerMin: 0.75,
+          targetTemp: 12.5,
+          comment: 'Avoid dew shock',
+        ),
+        DitherNode(
+          id: 'dither',
+          parentId: 'root',
+          pixels: 7.5,
+          settlePixels: 0.8,
+          settleTime: 12,
+          settleTimeout: 95,
+          raOnly: true,
+          pattern: DitherPattern.grid,
+          gridSize: 5,
+        ),
+        RotatorNode(
+          id: 'rotator',
+          parentId: 'root',
+          targetAngle: 137.2,
+          relative: true,
+        ),
+        WaitTimeNode(
+          id: 'wait',
+          parentId: 'root',
+          waitUntil: waitUntil,
+          waitForTwilight: TwilightType.astronomical,
+        ),
+        ScriptNode(
+          id: 'script',
+          parentId: 'root',
+          scriptPath: '/opt/nightshade/preflight.sh',
+          arguments: const ['--safe', 'M31'],
+          timeoutSecs: 47,
+        ),
+        PolarAlignmentNode(
+          id: 'polar',
+          parentId: 'root',
+          exposureDuration: 4.5,
+          binning: 1,
+          startAltitude: 51,
+          rotationStep: 17,
+          gain: 120,
+          offset: 18,
+          startFromCurrent: false,
+          isNorth: false,
+          manualSlew: true,
+        ),
+      ];
+      final root = InstructionSetNode(
+        id: 'root',
+        childIds: nodes.map((node) => node.id).toList(growable: false),
+      );
+      final source = Sequence.create(
+        name: 'Codec source',
+        rootNodeId: root.id,
+        nodes: {root.id: root, for (final node in nodes) node.id: node},
+      );
+
+      final snippet = createSnippetFromSelection(
+        name: 'Hardware shutdown',
+        description: 'Round-trip coverage',
+        category: SnippetCategory.custom,
+        iconName: 'settings',
+        nodeIds: nodes.map((node) => node.id).toList(growable: false),
+        sequence: source,
+      );
+
+      final container = _newContainer();
+      final editor = container.read(currentSequenceProvider.notifier)
+        ..createSequence();
+      editor.insertSnippet(snippet);
+      final inserted = container.read(currentSequenceProvider)!;
+
+      final warm = inserted.nodes.values.whereType<WarmCameraNode>().single;
+      expect(warm.ratePerMin, 0.75);
+      expect(warm.targetTemp, 12.5);
+      expect(warm.comment, 'Avoid dew shock');
+
+      final dither = inserted.nodes.values.whereType<DitherNode>().single;
+      expect(dither.settleTimeout, 95);
+      expect(dither.raOnly, isTrue);
+      expect(dither.pattern, DitherPattern.grid);
+      expect(dither.gridSize, 5);
+
+      final rotator = inserted.nodes.values.whereType<RotatorNode>().single;
+      expect(rotator.targetAngle, 137.2);
+      expect(rotator.relative, isTrue);
+
+      final wait = inserted.nodes.values.whereType<WaitTimeNode>().single;
+      expect(wait.waitUntil, waitUntil);
+      expect(wait.waitForTwilight, TwilightType.astronomical);
+
+      final script = inserted.nodes.values.whereType<ScriptNode>().single;
+      expect(script.scriptPath, '/opt/nightshade/preflight.sh');
+      expect(script.arguments, ['--safe', 'M31']);
+      expect(script.timeoutSecs, 47);
+
+      final polar = inserted.nodes.values
+          .whereType<PolarAlignmentNode>()
+          .single;
+      expect(polar.exposureDuration, 4.5);
+      expect(polar.binning, 1);
+      expect(polar.startAltitude, 51);
+      expect(polar.rotationStep, 17);
+      expect(polar.gain, 120);
+      expect(polar.offset, 18);
+      expect(polar.startFromCurrent, isFalse);
+      expect(polar.isNorth, isFalse);
+      expect(polar.manualSlew, isTrue);
+    },
+  );
+
+  test(
     'custom snippets serialize TargetScheduler and SmartExposure fields',
     () {
       final smart = SmartExposureNode(

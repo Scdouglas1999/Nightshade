@@ -22,7 +22,10 @@ final campaignRollupServiceProvider = Provider<CampaignRollupService>((ref) {
 /// providers change.
 final campaignRollupProvider = FutureProvider.autoDispose
     .family<CampaignRollup, int>((ref, targetId) async {
-      return ref.watch(campaignRollupServiceProvider).buildForTarget(targetId);
+      final targets = await ref.watch(allDbTargetsProvider.future);
+      return ref
+          .watch(campaignRollupServiceProvider)
+          .buildForTarget(targetId, targetCatalog: targets);
     });
 
 /// Bulk campaign rollups for the entire target catalog.
@@ -36,7 +39,10 @@ final campaignRollupProvider = FutureProvider.autoDispose
 /// can render "no captures yet" tiles.
 final campaignRollupAllTargetsProvider =
     FutureProvider.autoDispose<Map<int, CampaignRollup>>((ref) async {
-      return ref.watch(campaignRollupServiceProvider).buildForAllTargets();
+      final targets = await ref.watch(allDbTargetsProvider.future);
+      return ref
+          .watch(campaignRollupServiceProvider)
+          .buildForAllTargets(targetCatalog: targets);
     });
 
 /// Resolve a campaign rollup by **target name** (case-insensitive).

@@ -1,8 +1,7 @@
+use crate::ascom_wrapper::sta_worker::{register_device, PumpOutcome};
 use crate::timeout_ops::Timeouts;
-use nightshade_ascom::{init_com, uninit_com, AscomCoverCalibrator};
+use nightshade_ascom::AscomCoverCalibrator;
 use std::fmt::Debug;
-use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
@@ -30,7 +29,6 @@ pub struct AscomCoverCalibratorWrapper {
     id: String,
     name: String,
     sender: mpsc::Sender<AscomCoverCalibratorCommand>,
-    _thread_handle: Arc<thread::JoinHandle<()>>,
     max_brightness: i32,
 }
 
@@ -49,34 +47,50 @@ impl AscomCoverCalibratorWrapper {
         let (tx, mut rx) = mpsc::channel(32);
         let prog_id_clone = prog_id.clone();
 
-        let (init_tx, init_rx) = std::sync::mpsc::channel();
+        // The friendly `Name` and `MaxBrightness` are read at construction
+        // (before connect) and ferried back to `new()` over this channel.
+        // `register_device` owns the success/error signalling; this side channel
+        // only carries the construction-time property payload the legacy init
+        // channel returned.
+        let (info_tx, info_rx) = std::sync::mpsc::channel();
 
-        let handle = thread::spawn(move || {
-            // Initialize COM as STA on this thread
-            if let Err(e) = init_com() {
-                let _ = init_tx.send(Err(format!("Failed to init COM: {}", e)));
-                return;
-            }
-
+        // Build the COM object and its command pump on the shared STA apartment.
+        // A construction failure is propagated out of `register_device` so the
+        // caller drops the wrapper, exactly as the legacy init-channel did.
+        register_device(move || {
             let mut cover_cal = match AscomCoverCalibrator::new(&prog_id_clone) {
                 Ok(cc) => cc,
                 Err(e) => {
-                    let _ = init_tx.send(Err(format!(
-                        "Failed to create ASCOM cover calibrator: {}",
-                        e
-                    )));
-                    uninit_com();
-                    return;
+                    return Err(format!("Failed to create ASCOM cover calibrator: {}", e));
                 }
             };
 
             // Get static properties
             let name = cover_cal.name().unwrap_or_else(|_| prog_id_clone.clone());
             let max_brightness = cover_cal.max_brightness().unwrap_or(100);
+            let _ = info_tx.send((name, max_brightness));
 
-            let _ = init_tx.send(Ok((name, max_brightness)));
-
-            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
+            Ok(Box::new(move || {
+                use tokio::sync::mpsc::error::TryRecvError;
+                let cmd = match rx.try_recv() {
+                    Ok(cmd) => cmd,
+                    Err(TryRecvError::Empty) => return PumpOutcome::Idle,
+                    Err(TryRecvError::Disconnected) => {
+                        // Why: COM teardown ordering — issue the final disconnect
+                        // on the STA worker thread that owns the apartment. The
+                        // typed `AscomCoverCalibrator` (and its IDispatch) is then
+                        // released when this closure is dropped, still on this
+                        // thread. The apartment persists for the process
+                        // lifetime, so COM is NOT uninitialized here.
+                        if let Err(e) = cover_cal.disconnect() {
+                            tracing::warn!(
+                                "ASCOM cover calibrator STA-worker shutdown disconnect failed: {}",
+                                e
+                            );
+                        }
+                        return PumpOutcome::Finished;
+                    }
+                };
                 match cmd {
                     AscomCoverCalibratorCommand::Connect(reply) => {
                         let _ = reply.send(cover_cal.connect());
@@ -124,33 +138,22 @@ impl AscomCoverCalibratorWrapper {
                         let _ = reply.send(cover_cal.supported_actions());
                     }
                 }
-            }
+                PumpOutcome::DidWork
+            })
+                as crate::ascom_wrapper::sta_worker::DevicePump)
+        })?;
 
-            // Why: COM teardown ordering — release the typed
-            // `AscomCoverCalibrator` (which holds an IDispatch) BEFORE
-            // `uninit_com()`. The Drop on `AscomDeviceConnection` is
-            // intentionally a no-op so this is the only correct location to
-            // issue the final disconnect.
-            if let Err(e) = cover_cal.disconnect() {
-                tracing::warn!(
-                    "ASCOM cover calibrator STA-worker shutdown disconnect failed: {}",
-                    e
-                );
-            }
-            drop(cover_cal);
-            uninit_com();
-        });
-
-        // Wait for initialization
-        let (name, max_brightness) = init_rx
+        // The construction-time `(name, max_brightness)` was sent on `info_tx`
+        // before the factory returned, so this receive completes immediately once
+        // `register_device` reports the device ready.
+        let (name, max_brightness) = info_rx
             .recv()
-            .map_err(|e| format!("Failed to receive init result: {}", e))??;
+            .map_err(|e| format!("Failed to receive device properties: {}", e))?;
 
         Ok(Self {
             id: prog_id.clone(),
             name,
             sender: tx,
-            _thread_handle: Arc::new(handle),
             max_brightness,
         })
     }

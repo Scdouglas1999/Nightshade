@@ -41,6 +41,14 @@ class _ResizablePanelState extends State<ResizablePanel> {
   }
 
   @override
+  void didUpdateWidget(ResizablePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isResizing && oldWidget.initialWidth != widget.initialWidth) {
+      _width = widget.initialWidth.clamp(widget.minWidth, widget.maxWidth);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
     final idleHandleColor =

@@ -46,12 +46,15 @@ abstract class ImagingBackend {
   // Plate Solving
   // =========================================================================
 
-  /// Solve an image file
+  /// Solve an image file. [ra] is a solver hint in degrees; [dec] and
+  /// [fovDegrees] are also degrees. [timeoutSeconds] bounds the external
+  /// solver process on the host.
   Future<PlateSolveResult> plateSolve({
     required String imagePath,
     double? ra,
     double? dec,
     double? fovDegrees,
+    int? timeoutSeconds,
   });
 
   // =========================================================================

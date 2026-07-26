@@ -431,6 +431,7 @@ class MosaicService {
     final panels = generatePanels(config);
     final nodes = <String, SequenceNode>{};
     const uuid = Uuid();
+    final rootId = uuid.v4();
 
     // Reorder panels if using serpentine ordering
     final orderedPanels = options.serpentineOrdering
@@ -554,10 +555,18 @@ class MosaicService {
         priority: i,
         minAltitude: options.minAltitude,
         maxAltitude: options.maxAltitude,
+        mosaicPanel: MosaicPanelInfo(
+          mosaicName: mosaicName,
+          panelIndex: panel.panelIndex,
+          totalPanels: panels.length,
+          row: panel.row,
+          column: panel.col,
+        ),
         // Stamp the panel's own capture target so frames written under this
         // header attribute to the per-panel `targets` row, not a shared one.
         catalogTargetId: panelTargetId?.call(panel.panelIndex),
         childIds: childIds,
+        parentId: rootId,
         orderIndex: i,
       );
 
@@ -565,7 +574,6 @@ class MosaicService {
     }
 
     // Create root instruction set containing all target groups
-    final rootId = uuid.v4();
     nodes[rootId] = InstructionSetNode(
       id: rootId,
       name: mosaicName,

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'server_compatibility.dart';
+import 'network_uri.dart';
 
 /// Result of `POST /api/pairing/start`.
 class RemotePairingStartResult {
@@ -122,7 +123,12 @@ class RemotePairingClient {
          'scheme must be "http" or "https"',
        );
 
-  Uri _uri(String path) => Uri.parse('$scheme://$host:$port$path');
+  Uri _uri(String path) => buildNightshadeServerUri(
+    scheme: scheme,
+    host: host,
+    port: port,
+    pathAndQuery: path,
+  );
 
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',

@@ -26,6 +26,10 @@ import '../../../harness/pump_app_screen.dart';
 
 class _MockService extends Mock implements MosaicProjectService {}
 
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _MockDisconnectedBackend extends Mock implements DisconnectedBackend {}
+
 /// `Symbol("centerRa")` -> `"centerRa"`.
 String _symbolName(Symbol symbol) {
   final s = symbol.toString();
@@ -64,6 +68,7 @@ Future<void> _pumpWizard(
   WidgetTester tester, {
   required MosaicProjectService service,
   required void Function(String id) onMosaicRoute,
+  NightshadeBackend? backend,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(1600, 1000);
@@ -72,8 +77,8 @@ Future<void> _pumpWizard(
     tester.view.resetDevicePixelRatio();
   });
 
-  final backend = mockBackend();
-  when(() => backend.hasCheckpoint()).thenAnswer((_) async => false);
+  final activeBackend = backend ?? mockBackend();
+  when(() => activeBackend.hasCheckpoint()).thenAnswer((_) async => false);
 
   final router = GoRouter(
     initialLocation: '/wizard',
@@ -110,8 +115,9 @@ Future<void> _pumpWizard(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        backendProvider
-            .overrideWith((ref) => TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => TestBackendNotifier(ref, activeBackend),
+        ),
         smartNightExposureContextProvider.overrideWith((ref) async => null),
         mosaicProjectServiceProvider.overrideWithValue(service),
       ],
@@ -211,6 +217,58 @@ void main() {
     );
     expect(calls, isEmpty,
         reason: 'merely opening the wizard creates no project');
+  });
+
+  testWidgets('remote wizard never creates a client-local mosaic project',
+      (tester) async {
+    final service = _MockService();
+    final calls = _recordCreateCalls(service, returns: 1);
+    String? routedId;
+    await _pumpWizard(
+      tester,
+      service: service,
+      backend: _MockNetworkBackend(),
+      onMosaicRoute: (id) => routedId = id,
+    );
+
+    expect(find.text('Create on imaging host'), findsOneWidget);
+    expect(find.text('Create mosaic project'), findsNothing);
+    expect(
+      tester
+          .widget<NightshadeButton>(
+            find.byKey(const ValueKey('mosaic_create_project_btn')),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    expect(calls, isEmpty);
+    expect(routedId, isNull);
+    expect(find.byType(MosaicWizardDialog), findsOneWidget);
+  });
+
+  testWidgets('disconnected wizard cannot create a throwaway local project', (
+    tester,
+  ) async {
+    final service = _MockService();
+    final calls = _recordCreateCalls(service, returns: 1);
+    await _pumpWizard(
+      tester,
+      service: service,
+      backend: _MockDisconnectedBackend(),
+      onMosaicRoute: (_) {},
+    );
+
+    expect(find.text('Connect to create project'), findsOneWidget);
+    expect(
+      tester
+          .widget<NightshadeButton>(
+            find.byKey(const ValueKey('mosaic_create_project_btn')),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(calls, isEmpty);
   });
 
   testWidgets(

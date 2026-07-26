@@ -296,7 +296,22 @@ String friendlyNameFromDeviceId(String deviceId) {
     return progId;
   }
   if (deviceId.startsWith('alpaca:')) {
-    return 'Alpaca Filter Wheel';
+    final parts = deviceId.split(':');
+    final type = parts.length >= 2 ? parts[parts.length - 2].toLowerCase() : '';
+    final label = switch (type) {
+      'camera' => 'Camera',
+      'telescope' || 'mount' => 'Mount',
+      'focuser' => 'Focuser',
+      'filterwheel' => 'Filter Wheel',
+      'rotator' => 'Rotator',
+      'dome' => 'Dome',
+      'observingconditions' => 'Weather Station',
+      'safetymonitor' => 'Safety Monitor',
+      'switch' => 'Switch',
+      'covercalibrator' => 'Cover Calibrator',
+      _ => 'Device',
+    };
+    return 'Alpaca $label';
   }
   return deviceId;
 }

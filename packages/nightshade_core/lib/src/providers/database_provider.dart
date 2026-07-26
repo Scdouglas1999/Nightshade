@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import '../database/daos/science_dao.dart';
 import '../database/daos/guide_rms_history_dao.dart';
 import '../database/daos/narrator_events_dao.dart';
 import '../services/imaging_records_repository.dart';
+import '../utils/resilient_poll_stream.dart';
 import 'backend_provider.dart';
 
 export 'project_tracking_provider.dart';
@@ -259,18 +261,20 @@ Stream<T> _pollRemote<T>(
   Future<T> Function() fetch,
   bool Function(T a, T b) unchanged, {
   Duration interval = const Duration(seconds: 10),
-}) async* {
-  var last = await fetch();
-  yield last;
-  while (true) {
-    await Future.delayed(interval);
-    final next = await fetch();
-    if (!unchanged(last, next)) {
-      last = next;
-      yield next;
-    }
-  }
-}
+}) => resilientDistinctPoll(
+  fetch: fetch,
+  unchanged: unchanged,
+  interval: interval,
+  onRetainedError: (error, stackTrace) {
+    developer.log(
+      'Remote poll failed; retaining last value',
+      name: 'DatabaseProvider',
+      level: 900,
+      error: error,
+      stackTrace: stackTrace,
+    );
+  },
+);
 
 Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) =>
     _pollRemote(() => _fetchRemoteTargets(backend), listEquals);
@@ -304,6 +308,32 @@ Stream<List<db.SequenceRun>> pollRemoteSequenceRuns(
   int? sequenceId,
 }) => _pollRemoteRuns(backend, sequenceId: sequenceId);
 
+/// Fetches the complete host run history, following the paginated API until
+/// every row reported by the host has been received. Keeping this helper
+/// shared prevents reports and live history surfaces from quietly diverging
+/// once an installation has accumulated more than one response page.
+Future<List<RemoteSequenceRun>> fetchAllRemoteSequenceRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) async {
+  const pageSize = 1000;
+  final runs = <RemoteSequenceRun>[];
+  var offset = 0;
+
+  while (true) {
+    final page = await backend.fetchSequenceRuns(
+      sequenceId: sequenceId,
+      limit: pageSize,
+      offset: offset,
+    );
+    runs.addAll(page.items);
+    offset += page.items.length;
+    if (page.items.isEmpty || offset >= page.total) break;
+  }
+
+  return runs;
+}
+
 Stream<List<db.SequenceRun>> _pollRemoteRuns(
   NetworkBackend backend, {
   int? sequenceId,
@@ -316,8 +346,11 @@ Future<List<db.SequenceRun>> _fetchRemoteRuns(
   NetworkBackend backend, {
   int? sequenceId,
 }) async {
-  final page = await backend.fetchSequenceRuns(sequenceId: sequenceId);
-  final mapped = page.items.map(_runRowFromRemote).toList();
+  final runs = await fetchAllRemoteSequenceRuns(
+    backend,
+    sequenceId: sequenceId,
+  );
+  final mapped = runs.map(_runRowFromRemote).toList();
   // Host endpoint already orders by startedAt desc; keep that invariant so the
   // ".first" the consumers read is the newest run.
   mapped.sort((a, b) => b.startedAt.compareTo(a.startedAt));
@@ -378,7 +411,9 @@ Future<List<db.ImagingSession>> _fetchRemoteSessions(
 ) async {
   final sessions = await backend.getAllSessions();
   final mapped = sessions.map(_sessionFromJson).toList();
-  mapped.sort((a, b) => a.startTime.compareTo(b.startTime));
+  // Match SessionsDao.watchAllSessions: newest session first. Several
+  // consumers intentionally use `.first` as the most recent session.
+  mapped.sort((a, b) => b.startTime.compareTo(a.startTime));
   return mapped;
 }
 
@@ -387,7 +422,8 @@ Future<List<db.CapturedImage>> _fetchRemoteImages(
 ) async {
   final images = await backend.getAllImageRows();
   final mapped = images.map(_imageFromJson).toList();
-  mapped.sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+  // Match ImagesDao.watchAllImages: newest capture first.
+  mapped.sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
   return mapped;
 }
 

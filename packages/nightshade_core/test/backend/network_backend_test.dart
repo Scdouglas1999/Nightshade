@@ -18,10 +18,13 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:nightshade_core/src/backend/disconnected_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_exception.dart';
 import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/models/backend/device_types.dart';
 import 'package:nightshade_core/src/models/backend/image_result.dart';
 import 'package:nightshade_core/src/models/errors/nightshade_error.dart';
+import 'package:nightshade_core/src/models/equipment_profile.dart';
 import 'package:nightshade_core/src/models/plate_solver.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 
@@ -203,6 +206,45 @@ void main() {
     });
 
     test(
+      'profile save preserves the authoritative id returned by the host',
+      () async {
+        fake.setResponse(
+          '/api/profiles',
+          method: 'POST',
+          body: '{"status":"saved","id":"42"}',
+        );
+        backend = _buildBackend(fake);
+
+        await backend.saveProfile(
+          const EquipmentProfile(id: '', name: 'Remote Rig'),
+        );
+
+        expect(backend.lastSavedProfileId, '42');
+        expect(fake.requestsFor('/api/profiles'), hasLength(1));
+      },
+    );
+
+    test(
+      'profile save rejects a success response without a valid id',
+      () async {
+        fake.setResponse(
+          '/api/profiles',
+          method: 'POST',
+          body: '{"status":"saved"}',
+        );
+        backend = _buildBackend(fake);
+
+        await expectLater(
+          backend.saveProfile(
+            const EquipmentProfile(id: '', name: 'Remote Rig'),
+          ),
+          throwsA(isA<FormatException>()),
+        );
+        expect(backend.lastSavedProfileId, isNull);
+      },
+    );
+
+    test(
       'request headers include the pairing token when authToken is set',
       () async {
         fake.setResponse('/api/devices', method: 'GET', body: '{"devices":[]}');
@@ -228,6 +270,49 @@ void main() {
         expect(keys, contains('x-request-id'));
       },
     );
+
+    test('secondary rig operations target the host sequencer routes', () async {
+      fake.setResponse(
+        '/api/sequencer/secondary-rig',
+        method: 'GET',
+        body: jsonEncode({
+          'armed': true,
+          'running': true,
+          'cameraId': 'remote-camera-2',
+        }),
+      );
+      fake.setResponse(
+        '/api/sequencer/secondary-rig/start',
+        method: 'POST',
+        body: '{"status":"started"}',
+      );
+      fake.setResponse(
+        '/api/sequencer/secondary-rig/stop',
+        method: 'POST',
+        body: '{"status":"stopped"}',
+      );
+      backend = _buildBackend(fake);
+
+      final status = await backend.secondaryRigGetStatus();
+      await backend.secondaryRigStart({
+        'cameraId': 'remote-camera-2',
+        'exposureSecs': 60.0,
+        'saveBasePath': '/data/nightshade',
+      });
+      await backend.secondaryRigStop();
+
+      expect(status['cameraId'], 'remote-camera-2');
+      final start = fake
+          .requestsFor('/api/sequencer/secondary-rig/start')
+          .single;
+      expect(start.method, 'POST');
+      final payload = jsonDecode(start.body!) as Map<String, dynamic>;
+      expect(payload['saveBasePath'], '/data/nightshade');
+      expect(
+        fake.requestsFor('/api/sequencer/secondary-rig/stop'),
+        hasLength(1),
+      );
+    });
 
     test(
       'omits the Authorization header when no authToken is configured',
@@ -307,6 +392,47 @@ void main() {
 
       final image = await backend.cameraGetLastImage('cam-1');
       expect(image, isNull);
+    });
+
+    test('getLastRawImageData decodes little-endian u16 pixels', () async {
+      fake.setBinaryResponse(
+        '/api/imaging/raw-data',
+        bodyBytes: const [
+          0x00,
+          0x00,
+          0x01,
+          0x00,
+          0xff,
+          0x00,
+          0x00,
+          0x01,
+          0x34,
+          0x12,
+          0xff,
+          0xff,
+        ],
+      );
+      backend = _buildBackend(fake);
+
+      final pixels = await backend.getLastRawImageData('cam-1');
+
+      expect(pixels, [0, 1, 255, 256, 0x1234, 0xffff]);
+      final issued = fake.requestsFor('/api/imaging/raw-data');
+      expect(issued, hasLength(1));
+      expect(issued.single.url.queryParameters['deviceId'], 'cam-1');
+    });
+
+    test('getLastRawImageData rejects an odd-length payload', () async {
+      fake.setBinaryResponse(
+        '/api/imaging/raw-data',
+        bodyBytes: const [0x00, 0x01, 0x02],
+      );
+      backend = _buildBackend(fake);
+
+      await expectLater(
+        backend.getLastRawImageData('cam-1'),
+        throwsA(isA<IoException>()),
+      );
     });
 
     test('detectPlateSolvers GETs the HOST /api/plate-solver/detect and '
@@ -410,6 +536,141 @@ void main() {
       },
     );
 
+    test('plate solve awaits a queued host job before decoding', () async {
+      fake.setResponse(
+        '/api/plate-solve',
+        method: 'POST',
+        body: '{"jobId":"solve-1","status":"queued"}',
+      );
+      fake.setResponse(
+        '/api/jobs/solve-1',
+        method: 'GET',
+        body: jsonEncode({
+          'jobId': 'solve-1',
+          'operation': 'plate-solve',
+          'state': 'succeeded',
+          'result': {
+            'success': true,
+            'ra': 12.3,
+            'dec': -4.5,
+            'pixelScale': 1.2,
+            'rotation': 3.4,
+            'fieldWidth': 2.0,
+            'fieldHeight': 1.5,
+            'solveTimeSecs': 0.8,
+          },
+        }),
+      );
+      backend = _buildBackend(fake);
+
+      final result = await backend.plateSolve(
+        imagePath: '/host/frame.fits',
+        timeoutSeconds: 47,
+      );
+
+      expect(result.success, isTrue);
+      expect(result.ra, 12.3);
+      final solveRequest = fake.requestsFor('/api/plate-solve').single;
+      final solveBody = jsonDecode(solveRequest.body!) as Map<String, dynamic>;
+      expect(solveBody['timeoutSeconds'], 47);
+      expect(fake.requestsFor('/api/jobs/solve-1'), hasLength(1));
+    });
+
+    test('autofocus awaits a queued host job before decoding', () async {
+      fake.setResponse(
+        '/api/focuser/autofocus/start',
+        method: 'POST',
+        body: '{"jobId":"af-1","status":"queued"}',
+      );
+      fake.setResponse(
+        '/api/jobs/af-1',
+        method: 'GET',
+        body: jsonEncode({
+          'jobId': 'af-1',
+          'operation': 'focuser.autofocus',
+          'state': 'succeeded',
+          'result': {
+            'bestPosition': 12345,
+            'bestHfr': 1.8,
+            'focusData': <Object>[],
+            'method': 'VCurve',
+            'timestamp': 1,
+            'curveFitQuality': 0.95,
+            'backlashApplied': true,
+          },
+        }),
+      );
+      backend = _buildBackend(fake);
+
+      final result = await backend.autofocusStart(
+        deviceId: 'focuser-1',
+        cameraId: 'camera-1',
+        exposureTime: 2,
+        stepSize: 50,
+        stepsOut: 4,
+        gain: 123,
+        offset: 17,
+        curveFitting: 'Parabolic',
+        numberOfAttempts: 3,
+        exposuresPerPoint: 2,
+        rSquaredThreshold: 0.91,
+        outerCropRatio: 0.8,
+        innerCropRatio: 0.1,
+        useBrightestNStars: 20,
+        focuserSettleTimeMs: 750,
+        backlashCompMethod: 'Inward',
+        backlashIn: 120,
+        backlashOut: 30,
+      );
+
+      expect(result.bestPosition, 12345);
+      expect(result.bestHfr, 1.8);
+      final request = fake.requestsFor('/api/focuser/autofocus/start').single;
+      final payload = jsonDecode(request.body!) as Map<String, dynamic>;
+      expect(payload['curveFitting'], 'Parabolic');
+      expect(payload['gain'], 123);
+      expect(payload['offset'], 17);
+      expect(payload['numberOfAttempts'], 3);
+      expect(payload['exposuresPerPoint'], 2);
+      expect(payload['rSquaredThreshold'], 0.91);
+      expect(payload['outerCropRatio'], 0.8);
+      expect(payload['innerCropRatio'], 0.1);
+      expect(payload['useBrightestNStars'], 20);
+      expect(payload['focuserSettleTimeMs'], 750);
+      expect(payload['backlashCompMethod'], 'Inward');
+      expect(payload['backlashIn'], 120);
+      expect(payload['backlashOut'], 30);
+    });
+
+    test('center on target returns the queued job result envelope', () async {
+      fake.setResponse(
+        '/api/framing/center-on-target',
+        method: 'POST',
+        body: '{"jobId":"center-1","status":"queued"}',
+      );
+      fake.setResponse(
+        '/api/jobs/center-1',
+        method: 'GET',
+        body: jsonEncode({
+          'jobId': 'center-1',
+          'operation': 'framing.center-on-target',
+          'state': 'succeeded',
+          'result': {
+            'success': true,
+            'iterations': 2,
+            'finalOffsetArcsec': 4.2,
+            'iterationHistory': <Object>[],
+          },
+        }),
+      );
+      backend = _buildBackend(fake);
+
+      final result = await backend.centerOnTarget(ra: 10, dec: 20);
+
+      expect(result['success'], isTrue);
+      expect(result['iterations'], 2);
+    });
+
     test('webSocketPort defaults to serverPort when explicitly set', () {
       backend = NetworkBackend(
         serverHost: '127.0.0.1',
@@ -425,27 +686,71 @@ void main() {
 
   group('BackendNotifier remote connect', () {
     test(
-      'creates NetworkBackend with matching HTTP and WebSocket ports',
+      'rolls back to a disconnected backend when the handshake fails',
       () async {
         final container = ProviderContainer();
         addTearDown(container.dispose);
 
-        try {
-          await container
+        // Nothing is listening on this port, so the `/api/info` handshake is
+        // refused. connect() must NOT leave the half-built NetworkBackend
+        // installed — a refused connection is not a connection, and
+        // isRemoteModeProvider / ConnectionSettings must not read it as one.
+        await expectLater(
+          container
               .read(backendProvider.notifier)
-              .connect('127.0.0.1', 8765, authToken: 'test-token');
-        } catch (_) {
-          // No server listening in unit tests; construction is what we verify.
-        }
+              .connect('127.0.0.1', 8765, authToken: 'test-token'),
+          throwsA(
+            isA<NightshadeError>().having(
+              (e) => e.isRecoverable,
+              'isRecoverable',
+              isTrue,
+            ),
+          ),
+          reason:
+              'A refused connection must surface as a (retryable) failure, '
+              'not a silent success.',
+        );
 
         final backend = container.read(backendProvider);
-        expect(backend, isA<NetworkBackend>());
-        final remote = backend as NetworkBackend;
-        expect(remote.serverPort, 8765);
-        expect(remote.webSocketPort, 8765);
-        expect(remote.serverHost, '127.0.0.1');
+        expect(
+          backend,
+          isA<DisconnectedBackend>(),
+          reason:
+              'A failed handshake must roll back to DisconnectedBackend, '
+              'not leave a stale NetworkBackend that reads as connected.',
+        );
+        expect(
+          container.read(isRemoteModeProvider),
+          isFalse,
+          reason:
+              'isRemoteModeProvider must report false after a failed '
+              'connect — otherwise file paths resolve against a server that '
+              'was never reached.',
+        );
       },
     );
+
+    test('a failed connect stays retryable', () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(backendProvider.notifier);
+
+      await expectLater(
+        notifier.connect('127.0.0.1', 8765, authToken: 'test-token'),
+        throwsA(isA<NightshadeError>()),
+      );
+      expect(container.read(backendProvider), isA<DisconnectedBackend>());
+
+      // A second attempt behaves identically — the first failure did not wedge
+      // the notifier in a half-connected state, and the rolled-back backend
+      // did not leak a background reconnect loop that would poison the retry.
+      await expectLater(
+        notifier.connect('127.0.0.1', 8765, authToken: 'test-token'),
+        throwsA(isA<NightshadeError>()),
+      );
+      expect(container.read(backendProvider), isA<DisconnectedBackend>());
+      expect(container.read(isRemoteModeProvider), isFalse);
+    });
   });
 }
 

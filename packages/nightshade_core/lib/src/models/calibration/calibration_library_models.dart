@@ -8,6 +8,7 @@
 /// the post-session integration pipeline and the matching-preview UI.
 library;
 
+import '../collaboration/collaboration_models.dart';
 import 'dark_library_match_tolerances.dart';
 
 /// The master-calibration artifact kinds the library manages.
@@ -117,6 +118,24 @@ class CalibrationMasterRecord {
   final List<String> tags;
   final String? notes;
 
+  /// WS1 shared-library provenance (null for purely local masters):
+  ///  * [remoteId] — the hub master id; non-null marks a REMOTE candidate that
+  ///    has not (yet) been downloaded into the local library ([isRemote]).
+  ///  * [sourceHubKey] — the hub the candidate came from (`scheme://host:port`).
+  ///  * [provenance] — who/what produced it (frame count, dark current, sensor
+  ///    dims, authoritative producer) — the trust surface the matcher exposes.
+  ///  * [license] — the consented reuse license the producer published under.
+  ///  * [sharedBy] — the authoritative display-name credit string (when known).
+  ///  * [publishedRemoteId] — set on a LOCAL master the user has PUBLISHED to a
+  ///    hub: the hub master id to retract (un-share) by. Distinct from
+  ///    [remoteId], which marks an inbound REMOTE candidate.
+  final String? remoteId;
+  final String? sourceHubKey;
+  final Provenance? provenance;
+  final ContributionLicense? license;
+  final String? sharedBy;
+  final String? publishedRemoteId;
+
   const CalibrationMasterRecord({
     required this.type,
     required this.id,
@@ -138,7 +157,22 @@ class CalibrationMasterRecord {
     required this.createdAt,
     this.tags = const [],
     this.notes,
+    this.remoteId,
+    this.sourceHubKey,
+    this.provenance,
+    this.license,
+    this.sharedBy,
+    this.publishedRemoteId,
   });
+
+  /// True when this record is a REMOTE shared-library candidate (a hub master id
+  /// is set) rather than a master already present in the local library.
+  bool get isRemote => remoteId != null;
+
+  /// True when this LOCAL master has been published to a hub and can be
+  /// retracted (un-shared) — i.e. it carries a [publishedRemoteId].
+  bool get isPublished =>
+      publishedRemoteId != null && publishedRemoteId!.isNotEmpty;
 
   int ageDays(DateTime now) {
     final age = now.difference(createdAt).inDays;
@@ -189,6 +223,12 @@ class CalibrationMasterRecord {
       createdAt: createdAt,
       tags: tags ?? this.tags,
       notes: notes ?? this.notes,
+      remoteId: remoteId,
+      sourceHubKey: sourceHubKey,
+      provenance: provenance,
+      license: license,
+      sharedBy: sharedBy,
+      publishedRemoteId: publishedRemoteId,
     );
   }
 
@@ -222,6 +262,18 @@ class CalibrationMasterRecord {
           DateTime.now(),
       tags: [for (final t in (json['tags'] as List? ?? const [])) t.toString()],
       notes: json['notes'] as String?,
+      remoteId: json['remoteId'] as String?,
+      sourceHubKey: json['sourceHubKey'] as String?,
+      provenance: json['provenance'] is Map
+          ? Provenance.fromJson(
+              (json['provenance'] as Map).cast<String, dynamic>(),
+            )
+          : null,
+      license: json['license'] is String
+          ? ContributionLicense.fromWire(json['license'] as String)
+          : null,
+      sharedBy: json['sharedBy'] as String?,
+      publishedRemoteId: json['publishedRemoteId'] as String?,
     );
   }
 
@@ -250,6 +302,12 @@ class CalibrationMasterRecord {
       'freshness': freshness(at).name,
       'tags': tags,
       if (notes != null) 'notes': notes,
+      if (remoteId != null) 'remoteId': remoteId,
+      if (sourceHubKey != null) 'sourceHubKey': sourceHubKey,
+      if (provenance != null) 'provenance': provenance!.toJson(),
+      if (license != null) 'license': license!.wireName,
+      if (sharedBy != null) 'sharedBy': sharedBy,
+      if (publishedRemoteId != null) 'publishedRemoteId': publishedRemoteId,
     };
   }
 }
@@ -298,6 +356,13 @@ class LightFrameContext {
   final int binY;
   final String? opticalTrainId;
 
+  /// Sensor dimensions of the light frames in pixels, when known. WS1's quality
+  /// gate refuses a REMOTE master whose recorded sensor dimensions do not match
+  /// these (a master from a different sensor geometry can never calibrate this
+  /// frame, no matter how well the tuple matches).
+  final int? sensorWidth;
+  final int? sensorHeight;
+
   const LightFrameContext({
     this.cameraId,
     required this.gain,
@@ -308,6 +373,8 @@ class LightFrameContext {
     this.binX = 1,
     this.binY = 1,
     this.opticalTrainId,
+    this.sensorWidth,
+    this.sensorHeight,
   });
 
   factory LightFrameContext.fromJson(Map<String, dynamic> json) =>
@@ -321,6 +388,8 @@ class LightFrameContext {
         binX: (json['binX'] as num?)?.toInt() ?? 1,
         binY: (json['binY'] as num?)?.toInt() ?? 1,
         opticalTrainId: json['opticalTrainId'] as String?,
+        sensorWidth: (json['sensorWidth'] as num?)?.toInt(),
+        sensorHeight: (json['sensorHeight'] as num?)?.toInt(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -333,6 +402,8 @@ class LightFrameContext {
     'binX': binX,
     'binY': binY,
     if (opticalTrainId != null) 'opticalTrainId': opticalTrainId,
+    if (sensorWidth != null) 'sensorWidth': sensorWidth,
+    if (sensorHeight != null) 'sensorHeight': sensorHeight,
   };
 }
 

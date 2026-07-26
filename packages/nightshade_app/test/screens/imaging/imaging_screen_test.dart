@@ -47,16 +47,11 @@
 // frames for Riverpod's AsyncValue overrides and the screen's 200ms
 // _fadeController to flow through without waiting on infinite loops.
 //
-// Why we swallow "overflowed" FlutterErrors: the production PanelTabs
-// strip and BigActionButton column overflow their available space by
-// a handful of pixels at representative phone / desktop sizes. These
-// are tracked cosmetic issues out of scope for this work; we drop only
-// errors whose summary contains "overflowed" and forward everything
-// else so a real layout regression still trips takeException().
-
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
 import 'package:nightshade_app/screens/imaging/widgets/imaging_bottom_banner.dart';
@@ -68,6 +63,67 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../harness/harness.dart';
+
+class _ControllableImagingService extends ImagingService {
+  _ControllableImagingService(this.ref) : super(ref);
+
+  final Ref ref;
+  final previewPublished = Completer<void>();
+  final capturePersistence = Completer<void>();
+  final loopStarted = Completer<void>();
+  final loopStopped = Completer<void>();
+  int cancelCount = 0;
+
+  CapturedImageData get frame => CapturedImageData(
+        width: 4,
+        height: 4,
+        displayData: Uint8List(4 * 4 * 4),
+        histogram: List<int>.filled(256, 0),
+        stats: const ImageStats(mean: 100, stdDev: 5),
+        capturedAt: DateTime.utc(2026, 7, 13, 22),
+        settings: const ExposureSettings(
+          exposureTime: 1,
+          gain: 100,
+          offset: 10,
+        ),
+        filePath: '/tmp/manual_capture.fits',
+      );
+
+  @override
+  Future<CapturedImageData?> captureImage({
+    required ExposureSettings settings,
+    String? targetName,
+    int? frameNumber,
+    String? producingNodeId,
+    String? producingRunId,
+  }) async {
+    final captured = frame;
+    ref.read(currentImageProvider.notifier).state = captured;
+    if (!previewPublished.isCompleted) previewPublished.complete();
+    await capturePersistence.future;
+    return captured;
+  }
+
+  @override
+  Future<void> startLoopCapture({
+    required ExposureSettings settings,
+    String? targetName,
+    int? maxFrames,
+    int maxConsecutiveErrors = 10,
+    void Function(CapturedImageData)? onImageCaptured,
+    void Function(String)? onError,
+  }) async {
+    if (!loopStarted.isCompleted) loopStarted.complete();
+    await loopStopped.future;
+  }
+
+  @override
+  void cancelExposure() {
+    cancelCount++;
+    if (!loopStopped.isCompleted) loopStopped.complete();
+    if (!capturePersistence.isCompleted) capturePersistence.complete();
+  }
+}
 
 /// Drive several frames so async-provider overrides flow into the
 /// widget tree and the screen's 200ms _fadeController completes. We
@@ -81,32 +137,43 @@ Future<void> _drainAsyncFrames(WidgetTester tester) async {
   }
 }
 
-/// Install a FlutterError.onError handler that drops "RenderFlex
-/// overflowed" exceptions during the current test and re-forwards
-/// everything else to the default presenter. See file-level comment
-/// for the full reasoning.
-void _swallowKnownOverflows() {
-  final defaultOnError = FlutterError.onError;
-  FlutterError.onError = (details) {
-    final summary = details.exceptionAsString();
-    if (summary.contains('overflowed')) {
-      return; // Drop known PanelTabs / focus-panel overflows.
-    }
-    defaultOnError?.call(details);
-  };
-  addTearDown(() {
-    FlutterError.onError = defaultOnError;
-  });
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets(
+      'exposure remains editable when the outer shell consumed keyboard space',
+      (tester) async {
+    addTearDown(() {
+      tester.view.resetViewInsets();
+    });
+
+    await pumpAppScreen(
+      tester,
+      const ImagingScreen(),
+      size: const Size(932, 430),
+      settle: false,
+    );
+    await _drainAsyncFrames(tester);
+
+    final exposure = find.widgetWithText(TextField, '120.0');
+    expect(tester.takeException(), isNull);
+    expect(exposure.hitTestable(), findsOneWidget);
+
+    await tester.tap(exposure);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 330);
+    await tester.pump();
+    await tester.enterText(exposure, '30');
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.testTextInput.isVisible, isTrue);
+    expect(find.widgetWithText(TextField, '30'), findsOneWidget);
+  });
 
   testWidgets(
       'phone_layout_renders: width < 600 keeps the preview + a persistent '
       'capture bar, with controls collapsed into AdaptivePanelLayout',
       (tester) async {
-    _swallowKnownOverflows();
     // Phone tier per the mobile-responsive standard: width < 600. 390x844
     // is a modern phone in portrait. The screen now drives all tiers
     // through AdaptivePanelLayout (no bespoke mobile column), so we assert
@@ -138,7 +205,6 @@ void main() {
   testWidgets(
       'desktop_layout_renders: width >= 768 picks the resizable split via '
       'AdaptivePanelLayout', (tester) async {
-    _swallowKnownOverflows();
     // 1600x900 is a representative laptop/desktop size. The desktop split
     // is now provided by AdaptivePanelLayout (resizable divider) rather
     // than the removed ResizablePanel; both the preview and the tab strip
@@ -168,7 +234,6 @@ void main() {
   testWidgets(
       'renders_without_throwing: default MockBackend pump is exception-free',
       (tester) async {
-    _swallowKnownOverflows();
     // Smoke test — the screen wires many providers (cameraState,
     // exposureSettings, annotation*, imagingViewer, etc.). If any of
     // those defaults throw during the initial build chain, this test
@@ -193,7 +258,6 @@ void main() {
   testWidgets(
       'error_state_shows_disconnected_preview: camera in error state renders the '
       '"No Camera Connected" empty preview message', (tester) async {
-    _swallowKnownOverflows();
     // The LivePreviewArea branches on
     // `cameraState.connectionState == DeviceConnectionState.connected`;
     // any non-connected value (disconnected OR error) must yield the
@@ -229,7 +293,6 @@ void main() {
       'exposure_button_disabled_when_camera_disconnected: snapshot BigActionButton '
       'flips isEnabled with cameraStateProvider.connectionState',
       (tester) async {
-    _swallowKnownOverflows();
     // Phase 1: default harness leaves the camera disconnected, so the
     // snapshot button must be disabled.
     final disconnectedHandle = await pumpAppScreen(
@@ -260,7 +323,6 @@ void main() {
       'exposure_button_enabled_when_camera_connected: snapshot BigActionButton '
       'becomes enabled once cameraStateProvider reports connected',
       (tester) async {
-    _swallowKnownOverflows();
     // Companion to the previous test: a connected override flips
     // isConnected to true, which lets _isCapturing fall through to enable
     // both Snapshot and Loop. Asserting both halves rules out a stuck
@@ -299,10 +361,98 @@ void main() {
             'Snapshot is enabled the gating logic has drifted.');
   });
 
+  testWidgets('snapshot stays disabled while the visible frame is still saving',
+      (tester) async {
+    late _ControllableImagingService service;
+    await pumpAppScreen(
+      tester,
+      const ImagingScreen(),
+      size: const Size(1600, 900),
+      settle: false,
+      extraOverrides: [
+        cameraStateProvider.overrideWith((ref) {
+          final notifier = CameraStateNotifier(ref);
+          notifier
+            ..setConnecting('test-cam-1', 'Test Camera')
+            ..setConnected();
+          return notifier;
+        }),
+        imagingServiceProvider.overrideWith((ref) {
+          service = _ControllableImagingService(ref);
+          return service;
+        }),
+      ],
+    );
+    await _drainAsyncFrames(tester);
+
+    await tester.tap(find.byKey(ImagingTutorialKeys.snapshotBtn));
+    await service.previewPublished.future;
+    await tester.pump();
+
+    expect(find.text('Saving…'), findsOneWidget);
+    expect(
+      tester
+          .widget<SmallButton>(find.byKey(ImagingTutorialKeys.snapshotBtn))
+          .isEnabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<SmallButton>(find.byKey(ImagingTutorialKeys.loopBtn))
+          .isEnabled,
+      isFalse,
+    );
+
+    service.capturePersistence.complete();
+    await _drainAsyncFrames(tester);
+    expect(find.text('Snapshot'), findsOneWidget);
+    expect(
+      tester
+          .widget<SmallButton>(find.byKey(ImagingTutorialKeys.snapshotBtn))
+          .isEnabled,
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('leaving the Imaging screen stops an active manual loop',
+      (tester) async {
+    late _ControllableImagingService service;
+    final handle = await pumpAppScreen(
+      tester,
+      const ImagingScreen(),
+      size: const Size(1600, 900),
+      settle: false,
+      extraOverrides: [
+        cameraStateProvider.overrideWith((ref) {
+          final notifier = CameraStateNotifier(ref);
+          notifier
+            ..setConnecting('test-cam-1', 'Test Camera')
+            ..setConnected();
+          return notifier;
+        }),
+        imagingServiceProvider.overrideWith((ref) {
+          service = _ControllableImagingService(ref);
+          return service;
+        }),
+      ],
+    );
+    await _drainAsyncFrames(tester);
+
+    await tester.tap(find.byKey(ImagingTutorialKeys.loopBtn));
+    await service.loopStarted.future;
+    expect(handle.container.read(sessionStateProvider).isCapturing, isTrue);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(service.cancelCount, 1);
+    expect(handle.container.read(sessionStateProvider).isCapturing, isFalse);
+  });
+
   testWidgets(
       'filter_change_updates_selected_filter: filterWheelStateProvider drives the '
       'highlighted button inside the imaging control panel', (tester) async {
-    _swallowKnownOverflows();
     // The control panel embeds FilterWheelSelector in
     // FilterSelectorStyle.buttons mode. With three filter names and
     // currentPosition=1, the middle ("Green") button must be selected
@@ -373,7 +523,6 @@ void main() {
       'camera_temperature_displays_when_connected: the bottom banner stats '
       'readout formats cameraStateProvider.temperature as "X.X°C"',
       (tester) async {
-    _swallowKnownOverflows();
     // The banner's stats readout renders '---' when disconnected, 'N/A' when
     // connected without a temperature reading, and 'X.X°C' when both
     // are present. We exercise the happy path: connected + 17.3°C →
@@ -414,7 +563,6 @@ void main() {
       'switching_tabs_preserves_selectedImagingPanelProvider: tapping the '
       'Camera tab flips selectedImagingPanelProvider to index 1',
       (tester) async {
-    _swallowKnownOverflows();
     // The IndexedStack is driven by selectedImagingPanelProvider, and
     // _selectPanel() updates the state-notifier. Tapping the Camera tab
     // (index 1) must move the provider from 0 → 1; that's what makes the
@@ -457,7 +605,6 @@ void main() {
       'calibrated_badge_visible_for_calibrated_frame: live preview shows '
       'the success badge when current image filePath ends in _cal.fits',
       (tester) async {
-    _swallowKnownOverflows();
     final calibratedFrame = CapturedImageData(
       width: 8,
       height: 8,
@@ -495,7 +642,6 @@ void main() {
       'calibrated_badge_hidden_for_raw_frame: live preview does not show the '
       'Calibrated badge when the current image is an uncalibrated .fits',
       (tester) async {
-    _swallowKnownOverflows();
     final rawFrame = CapturedImageData(
       width: 8,
       height: 8,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -34,6 +36,10 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   int _previousCount = 0;
+  Timer? _pulseStopTimer;
+
+  @visibleForTesting
+  AnimationController get debugPulseControllerForTesting => _pulseController;
 
   @override
   void initState() {
@@ -59,6 +65,7 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
 
   @override
   void dispose() {
+    _pulseStopTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -72,8 +79,9 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
       );
 
       // Stop after 3 pulses (3.6 seconds)
-      Future.delayed(const Duration(milliseconds: 3600), () {
-        if (mounted) {
+      _pulseStopTimer?.cancel();
+      _pulseStopTimer = Timer(const Duration(milliseconds: 3600), () {
+        if (mounted && _pulseController.isAnimating) {
           _pulseController.stop();
           _pulseController.reset();
         }

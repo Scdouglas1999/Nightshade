@@ -19,8 +19,13 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.9.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+    id("com.android.application") version "8.11.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    // Declared here but applied CONDITIONALLY by app/build.gradle.kts — only
+    // when app/google-services.json exists. The plugin hard-fails the build
+    // without that file, and a LAN-only build with no Firebase project is a
+    // supported configuration.
+    id("com.google.gms.google-services") version "4.4.2" apply false
 }
 
 include(":app")

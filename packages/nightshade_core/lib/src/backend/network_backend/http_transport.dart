@@ -77,6 +77,51 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     return send(headers);
   }
 
+  /// Open a streaming GET with the same authentication and compatibility
+  /// contract as the package:http JSON helpers.
+  ///
+  /// Binary endpoints use dart:io's [HttpClient] so their response can be
+  /// streamed directly to disk. Keeping the header/refresh logic here avoids
+  /// those endpoints quietly becoming unauthenticated when host auth is on.
+  Future<HttpClientResponse> _openRawGetWithAuthRefresh(
+    String endpoint, {
+    Map<String, String>? extraHeaders,
+  }) async {
+    Future<HttpClientResponse> send() async {
+      final request = await _httpClient.getUrl(_apiUri(endpoint));
+      final headers = _buildRequestHeaders(
+        endpoint,
+        extraHeaders: extraHeaders,
+      );
+      headers.forEach(request.headers.set);
+      return request.close();
+    }
+
+    final response = await send();
+    if (response.statusCode != HttpStatus.unauthorized ||
+        refreshAuthToken == null) {
+      return response;
+    }
+
+    final previousToken = authToken;
+    final String? refreshedToken;
+    try {
+      refreshedToken = await refreshAuthToken!();
+    } catch (_) {
+      await response.drain<void>();
+      rethrow;
+    }
+    if (refreshedToken == null ||
+        refreshedToken.isEmpty ||
+        refreshedToken == previousToken) {
+      return response;
+    }
+
+    await response.drain<void>();
+    authToken = refreshedToken;
+    return send();
+  }
+
   /// Determine if an HTTP exception is a transient failure that can be retried
   bool _isTransientFailure(dynamic error) {
     // Check for structured NightshadeError
@@ -235,13 +280,15 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     // tuning.
     final effectiveTimeout = timeout ?? requestTimeout;
     int attempt = 0;
-    Exception? lastException;
+    Object? lastError;
+    StackTrace? lastStackTrace;
 
     while (attempt < maxAttempts) {
       try {
         return await request().timeout(effectiveTimeout);
-      } catch (e) {
-        lastException = e as Exception;
+      } catch (e, stackTrace) {
+        lastError = e;
+        lastStackTrace = stackTrace;
         attempt++;
 
         // Check if this is the last attempt
@@ -278,8 +325,9 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
       }
     }
 
-    // Should never reach here, but throw last exception just in case
-    throw lastException!;
+    // The loop always returns or rethrows. Preserve any non-Exception Error as
+    // well if that invariant changes, rather than masking it with a type cast.
+    Error.throwWithStackTrace(lastError!, lastStackTrace!);
   }
 
   Future<Map<String, dynamic>> _get(
@@ -315,32 +363,37 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     Map<String, dynamic>? body,
     Map<String, String>? extraHeaders,
     int maxAttempts = 3,
+    Duration? timeout,
   ]) async {
-    return _retryableRequest(maxAttempts: maxAttempts, () async {
-      final uri = _apiUri(endpoint);
+    return _retryableRequest(
+      maxAttempts: maxAttempts,
+      timeout: timeout,
+      () async {
+        final uri = _apiUri(endpoint);
 
-      final response = await _sendWithAuthRefresh(
-        endpoint: endpoint,
-        jsonContent: true,
-        extraHeaders: extraHeaders,
-        send: (headers) => _http.post(
-          uri,
-          headers: headers,
-          body: body == null ? null : jsonEncode(body),
-        ),
-      );
-
-      if (response.statusCode != 200) {
-        throw _parseErrorResponse(
-          response.statusCode,
-          response.body,
-          'POST',
-          endpoint,
+        final response = await _sendWithAuthRefresh(
+          endpoint: endpoint,
+          jsonContent: true,
+          extraHeaders: extraHeaders,
+          send: (headers) => _http.post(
+            uri,
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
+          ),
         );
-      }
 
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    });
+        if (response.statusCode != 200) {
+          throw _parseErrorResponse(
+            response.statusCode,
+            response.body,
+            'POST',
+            endpoint,
+          );
+        }
+
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      },
+    );
   }
 
   /// Mint a single-use WebSocket ticket via `POST /api/ws/ticket`.
@@ -463,6 +516,48 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     });
   }
 
+  /// Stream a binary GET straight to [localPath], reporting progress in
+  /// `[0, 1]` when the server declares a Content-Length.
+  ///
+  /// Simpler cousin of the resumable image download in
+  /// `imaging_profile_operations.dart`: log files and calibration masters
+  /// are modest enough that an interrupted transfer just restarts, so the
+  /// sidecar/Range/ETag machinery is deliberately not replicated here.
+  Future<void> _downloadToFile(
+    String endpoint,
+    String localPath, {
+    void Function(double)? onProgress,
+  }) async {
+    final file = File(localPath);
+    await file.parent.create(recursive: true);
+    final response = await _openRawGetWithAuthRefresh(endpoint);
+    if (response.statusCode != HttpStatus.ok) {
+      final body = await response.transform(utf8.decoder).join();
+      throw _parseErrorResponse(response.statusCode, body, 'GET', endpoint);
+    }
+    final totalLength = response.contentLength;
+    final sink = file.openWrite();
+    var received = 0;
+    try {
+      await for (final chunk in response) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (totalLength > 0) {
+          onProgress?.call((received / totalLength).clamp(0.0, 1.0).toDouble());
+        }
+      }
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
+    if (totalLength > 0 && received != totalLength) {
+      throw FormatException(
+        '$endpoint transfer truncated ($received of $totalLength bytes)',
+      );
+    }
+    onProgress?.call(1);
+  }
+
   Future<Map<String, dynamic>> _postRaw(
     String endpoint,
     Map<String, dynamic> queryParams,
@@ -523,10 +618,19 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     Object? source,
     T Function(Map<String, dynamic>) decoder,
   ) {
-    final rows = source as List? ?? const [];
-    return rows
-        .whereType<Map>()
-        .map((row) => decoder(row.cast<String, dynamic>()))
-        .toList(growable: false);
+    if (source is! List) {
+      throw const FormatException(
+        'Remote response row collection is missing or is not a list',
+      );
+    }
+    final decoded = <T>[];
+    for (var index = 0; index < source.length; index++) {
+      final row = source[index];
+      if (row is! Map) {
+        throw FormatException('Remote response row $index is not an object');
+      }
+      decoded.add(decoder(row.cast<String, dynamic>()));
+    }
+    return decoded;
   }
 }

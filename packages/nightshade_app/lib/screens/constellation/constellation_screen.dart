@@ -220,21 +220,47 @@ class _ConnectedBody extends ConsumerWidget {
                 : HubStatusCard(
                     info: info,
                     displayName: displayName,
-                    onSignOut: () => _signOut(context, ref),
+                    onSignOut: onRefresh,
                   ),
             loading: () => const SkeletonBox(
               width: double.infinity,
               height: 96,
               borderRadius: NightshadeTokens.radiusLg,
             ),
-            error: (error, _) => NightshadeAlert(
-              severity: NightshadeAlertSeverity.warning,
-              title: 'Hub unavailable',
-              message: describeConstellationError(error),
+            error: (error, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                NightshadeAlert(
+                  severity: NightshadeAlertSeverity.warning,
+                  title: 'Hub unavailable',
+                  message: describeConstellationError(error),
+                ),
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                Wrap(
+                  spacing: NightshadeTokens.spaceMd,
+                  runSpacing: NightshadeTokens.spaceSm,
+                  children: [
+                    ConstellationSignOutButton(
+                      onSignedOut: onRefresh,
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                    ),
+                    NightshadeButton(
+                      label: 'Connect to a hub',
+                      icon: LucideIcons.radioTower,
+                      size: ButtonSize.small,
+                      onPressed: () => _reconnect(context, ref),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
-          _FollowTheNightSection(suggestionsAsync: suggestionsAsync),
+          _FollowTheNightSection(
+            suggestionsAsync: suggestionsAsync,
+            onRetry: () => ref.invalidate(followTheNightProvider(-1)),
+          ),
           const SizedBox(height: NightshadeTokens.spaceLg),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,13 +296,9 @@ class _ConnectedBody extends ConsumerWidget {
     );
   }
 
-  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    final settings = ref.read(settingsDaoProvider);
-    await settings.setSetting(constellationHubUrlSettingKey, '');
-    await settings.setSetting(constellationHubTokenSettingKey, '');
-    await settings.setSetting(constellationAccountIdSettingKey, '');
-    ref.invalidate(constellationConfiguredProvider);
-    ref.invalidate(constellationHubInfoProvider);
+  Future<void> _reconnect(BuildContext context, WidgetRef ref) async {
+    final signedIn = await showConstellationSignInSheet(context);
+    if (signedIn == true) onRefresh();
   }
 
   Future<void> _shareTarget(BuildContext context, WidgetRef ref) async {
@@ -296,8 +318,12 @@ class _ConnectedBody extends ConsumerWidget {
 
 class _FollowTheNightSection extends StatelessWidget {
   final AsyncValue<List<FollowTheNightSuggestion>> suggestionsAsync;
+  final VoidCallback onRetry;
 
-  const _FollowTheNightSection({required this.suggestionsAsync});
+  const _FollowTheNightSection({
+    required this.suggestionsAsync,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -323,7 +349,32 @@ class _FollowTheNightSection extends StatelessWidget {
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (error, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader(
+            title: 'Follow the night',
+            subtitle: 'Where it is darkest for you and the swarm needs depth',
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          NightshadeAlert(
+            severity: NightshadeAlertSeverity.warning,
+            title: 'Could not check tonight\'s handoffs',
+            message: describeConstellationError(error),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Retry handoffs',
+              icon: NightshadeIcons.refresh,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onRetry,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

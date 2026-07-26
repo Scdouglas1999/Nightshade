@@ -464,7 +464,7 @@ impl SecondaryRigState {
 /// observable state. Stop with [`SecondaryRig::stop`] (cooperative cancel).
 pub struct SecondaryRig {
     state: Arc<SecondaryRigState>,
-    handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<Result<(), String>>,
 }
 
 /// Metadata the primary passes to the secondary so frames inherit the right
@@ -498,12 +498,16 @@ impl SecondaryRig {
         let loop_state = state.clone();
         let handle = tokio::spawn(async move {
             loop_state.running.store(true, Ordering::Release);
-            run_secondary_loop(loop_state.clone(), device_ops, barrier, meta).await;
+            let result = run_secondary_loop(loop_state.clone(), device_ops, barrier, meta).await;
+            if let Err(error) = &result {
+                *loop_state.last_error.lock() = Some(error.clone());
+            }
             loop_state.running.store(false, Ordering::Release);
             loop_state.exposing.store(false, Ordering::Release);
             loop_state
                 .waiting_for_dither
                 .store(false, Ordering::Release);
+            result
         });
         Self { state, handle }
     }
@@ -518,7 +522,7 @@ impl SecondaryRig {
 
     /// Request a cooperative stop. Returns the JoinHandle so the caller can
     /// await full teardown if desired.
-    pub fn stop(self) -> tokio::task::JoinHandle<()> {
+    pub fn stop(self) -> tokio::task::JoinHandle<Result<(), String>> {
         self.state.cancel.store(true, Ordering::Release);
         self.handle
     }
@@ -531,7 +535,7 @@ pub async fn run_secondary_loop(
     device_ops: SharedDeviceOps,
     barrier: Arc<DitherBarrier>,
     meta: SecondaryFrameMeta,
-) {
+) -> Result<(), String> {
     let config = state.config.clone();
 
     // One-time cooler set, best-effort. A cooler failure is non-fatal for the
@@ -550,22 +554,25 @@ pub async fn run_secondary_loop(
         }
     }
 
-    let save_dir = meta
-        .save_base
-        .as_ref()
-        .map(|base| base.join(&config.rig_label));
-    if let Some(dir) = &save_dir {
-        if let Err(e) = tokio::fs::create_dir_all(dir).await {
-            tracing::error!(
-                "Secondary rig '{}': cannot create save dir {}: {}",
-                config.rig_label,
-                dir.display(),
-                e
-            );
-        }
-    }
+    let save_base = meta.save_base.as_ref().ok_or_else(|| {
+        "secondary rig has no save directory; refusing to write into the process directory"
+            .to_string()
+    })?;
+    let safe_rig_dir = sanitize_component(&config.rig_label);
+    let save_dir = save_base.join(if safe_rig_dir.is_empty() {
+        "Secondary"
+    } else {
+        &safe_rig_dir
+    });
+    tokio::fs::create_dir_all(&save_dir).await.map_err(|e| {
+        format!(
+            "cannot create secondary-rig save directory {}: {e}",
+            save_dir.display()
+        )
+    })?;
 
     let mut frame_index: u32 = 0;
+    let mut consecutive_failures: u8 = 0;
     loop {
         if state.cancel.load(Ordering::Relaxed) {
             break;
@@ -593,8 +600,9 @@ pub async fn run_secondary_loop(
             &config,
             &device_ops,
             &barrier,
+            &state.cancel,
             &meta,
-            save_dir.as_deref(),
+            &save_dir,
             frame_index,
         )
         .await;
@@ -605,12 +613,17 @@ pub async fn run_secondary_loop(
         match result {
             Ok(SecondaryFrameOutcome::Saved) => {
                 state.frames_captured.fetch_add(1, Ordering::Relaxed);
+                consecutive_failures = 0;
             }
             Ok(SecondaryFrameOutcome::Aborted) => {
                 state.frames_aborted.fetch_add(1, Ordering::Relaxed);
                 // The aborted frame still counts against an explicit frame
                 // budget? No — re-take it so `frame_count` means "good subs".
                 frame_index = frame_index.saturating_sub(1);
+            }
+            Ok(SecondaryFrameOutcome::Cancelled) => {
+                state.frames_aborted.fetch_add(1, Ordering::Relaxed);
+                break;
             }
             Err(e) => {
                 tracing::error!(
@@ -619,9 +632,19 @@ pub async fn run_secondary_loop(
                     frame_index,
                     e
                 );
-                *state.last_error.lock() = Some(e);
-                // Back off briefly then retry rather than killing the loop on a
-                // transient device hiccup. A cancel breaks us out promptly.
+                *state.last_error.lock() = Some(e.clone());
+                frame_index = frame_index.saturating_sub(1);
+                consecutive_failures = consecutive_failures.saturating_add(1);
+                if state.cancel.load(Ordering::Relaxed) {
+                    return Err(e);
+                }
+                if consecutive_failures >= 3 {
+                    return Err(format!(
+                        "secondary capture failed {consecutive_failures} consecutive times: {e}"
+                    ));
+                }
+                // Back off briefly before retrying the same frame. A cancel
+                // breaks the wait promptly.
                 let _ = tokio::time::timeout(
                     Duration::from_secs(2),
                     barrier_or_cancel_wait(&state.cancel),
@@ -637,6 +660,7 @@ pub async fn run_secondary_loop(
         state.frames_captured.load(Ordering::Relaxed),
         state.frames_aborted.load(Ordering::Relaxed)
     );
+    Ok(())
 }
 
 async fn barrier_or_cancel_wait(cancel: &AtomicBool) {
@@ -648,6 +672,7 @@ async fn barrier_or_cancel_wait(cancel: &AtomicBool) {
 enum SecondaryFrameOutcome {
     Saved,
     Aborted,
+    Cancelled,
 }
 
 /// Capture + save one secondary frame. Honors the dither-abort policy: if a
@@ -657,10 +682,14 @@ async fn capture_secondary_frame(
     config: &SecondaryRigConfig,
     device_ops: &SharedDeviceOps,
     barrier: &DitherBarrier,
+    cancel: &AtomicBool,
     meta: &SecondaryFrameMeta,
-    save_dir: Option<&std::path::Path>,
+    save_dir: &std::path::Path,
     frame_index: u32,
 ) -> Result<SecondaryFrameOutcome, String> {
+    if cancel.load(Ordering::Acquire) {
+        return Ok(SecondaryFrameOutcome::Cancelled);
+    }
     // If a dither got announced between the gate check and here (race), and the
     // policy says abort, bail before even starting.
     if barrier.should_abort_in_flight() {
@@ -684,7 +713,14 @@ async fn capture_secondary_frame(
             res = &mut exposure => {
                 break res.map_err(|e| format!("exposure failed: {e}"))?;
             }
-            _ = tokio::time::sleep(Duration::from_millis(200)) => {
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {
+                if cancel.load(Ordering::Acquire) {
+                    device_ops
+                        .camera_abort_exposure(&config.camera_id)
+                        .await
+                        .map_err(|e| format!("failed to abort exposure while stopping: {e}"))?;
+                    return Ok(SecondaryFrameOutcome::Cancelled);
+                }
                 if barrier.should_abort_in_flight() {
                     // Cut the sub short so the primary can dither. Best-effort
                     // abort; we still return Aborted regardless.
@@ -735,10 +771,7 @@ async fn capture_secondary_frame(
 
     let file_name =
         secondary_file_name(meta.target_name.as_deref(), &config.rig_label, frame_index);
-    let full_path = match save_dir {
-        Some(dir) => dir.join(&file_name),
-        None => std::path::PathBuf::from(&file_name),
-    };
+    let full_path = save_dir.join(&file_name);
     let path_str = full_path.to_string_lossy().to_string();
 
     device_ops

@@ -24,7 +24,6 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   // the page.
   final _broadcastPortController = TextEditingController();
   final _broadcastWatermarkController = TextEditingController();
-  bool _broadcastInitialized = false;
 
   // Sequencer settings controllers
   final _autoFocusController = TextEditingController();
@@ -34,6 +33,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   final _autoFocusIntervalFramesController = TextEditingController();
   final _ditherController = TextEditingController();
 
+  // Smart Night default controllers. Hoisted (rather than allocated inline in
+  // build) so a per-keystroke provider rebuild doesn't recreate them and reset
+  // the caret while the user is typing.
+  final _smartNightAfCadenceController = TextEditingController();
+  final _smartNightIntegrationBudgetController = TextEditingController();
+  final _smartNightSchedulerThresholdController = TextEditingController();
+  final _smartNightPolarStaleController = TextEditingController();
+
   // Meridian flip settings controllers
   final _minutesPastMeridianController = TextEditingController();
   final _minutesBeforeLimitController = TextEditingController();
@@ -42,14 +49,15 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   final _settleTimeController = TextEditingController();
   final _maxRetriesController = TextEditingController();
 
-  bool _initialized = false;
-  bool _meridianInitialized = false;
-
   @override
   void dispose() {
     _autoFocusController.dispose();
     _autoFocusIntervalFramesController.dispose();
     _ditherController.dispose();
+    _smartNightAfCadenceController.dispose();
+    _smartNightIntegrationBudgetController.dispose();
+    _smartNightSchedulerThresholdController.dispose();
+    _smartNightPolarStaleController.dispose();
     _minutesPastMeridianController.dispose();
     _minutesBeforeLimitController.dispose();
     _hourAngleThresholdController.dispose();
@@ -61,15 +69,10 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
     super.dispose();
   }
 
-  void _initBroadcastControllers(SequencerDefaults defaults) {
-    if (_broadcastInitialized) return;
-    _broadcastPortController.text = defaults.livestackingDefaultPort.toString();
-    _broadcastWatermarkController.text =
-        defaults.livestackingDefaultWatermark ?? '';
-    _broadcastInitialized = true;
-  }
-
-  Widget _buildBroadcastSection(SequencerDefaults defaults) {
+  Widget _buildBroadcastSection(
+    SequencerDefaults defaults,
+    Object authority,
+  ) {
     final notifier = ref.read(sequencerDefaultsProvider.notifier);
     return SettingsSection(
       title: 'Live Stacking & Broadcast',
@@ -83,7 +86,9 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: defaults.livestackingDisableEverywhere,
             onChanged: (value) {
-              notifier.updateLiveStackingDefaults(disableEverywhere: value);
+              return notifier.updateLiveStackingDefaults(
+                disableEverywhere: value,
+              );
             },
           ),
         ),
@@ -94,12 +99,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
               'Must not clash with the headless API server.',
           trailing: SettingsNumberInput(
             controller: _broadcastPortController,
+            authoritativeValue: defaults.livestackingDefaultPort.toDouble(),
+            authorityKey: authority,
             suffix: '',
             min: 1,
             max: 65535,
             decimals: 0,
             onChanged: (value) {
-              notifier.updateLiveStackingDefaults(
+              return notifier.updateLiveStackingDefaults(
                 defaultPort: value.toInt(),
               );
             },
@@ -117,12 +124,13 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             designWidth: 200,
             isMobile: widget.isMobile,
             onChanged: (value) {
-              if (value == null) return;
               final method = LiveStackingMethod.values.firstWhere(
                 (m) => m.label == value,
                 orElse: () => LiveStackingMethod.average,
               );
-              notifier.updateLiveStackingDefaults(defaultStackMethod: method);
+              return notifier.updateLiveStackingDefaults(
+                defaultStackMethod: method,
+              );
             },
           ),
         ),
@@ -135,6 +143,8 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: settingsTrailingTextInput(
             context: context,
             controller: _broadcastWatermarkController,
+            authoritativeValue: defaults.livestackingDefaultWatermark ?? '',
+            authorityKey: authority,
             hint: 'e.g. M42 — \${integration.hms}',
             designWidth: 240,
             isMobile: widget.isMobile,
@@ -143,7 +153,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
               // notifier's _sentinel pattern preserves the distinction
               // so reload sees an empty default rather than the
               // hard-coded fallback.
-              notifier.updateLiveStackingDefaults(
+              return notifier.updateLiveStackingDefaults(
                 defaultWatermark: value.isEmpty ? null : value,
               );
             },
@@ -157,7 +167,9 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: defaults.livestackingPublicByDefault,
             onChanged: (value) {
-              notifier.updateLiveStackingDefaults(publicByDefault: value);
+              return notifier.updateLiveStackingDefaults(
+                publicByDefault: value,
+              );
             },
           ),
         ),
@@ -174,12 +186,11 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             designWidth: 220,
             isMobile: widget.isMobile,
             onChanged: (value) {
-              if (value == null) return;
               final picked = LiveStackingThumbnailSize.values.firstWhere(
                 (s) => s.label == value,
                 orElse: () => LiveStackingThumbnailSize.medium,
               );
-              notifier.updateLiveStackingDefaults(
+              return notifier.updateLiveStackingDefaults(
                 defaultThumbnailSize: picked,
               );
             },
@@ -188,35 +199,6 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         ),
       ],
     );
-  }
-
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _autoFocusController.text = settings.autoFocusEveryMinutes.toString();
-      _ditherController.text = settings.ditherEveryFrames.toString();
-      // Seed from sequencer defaults provider so the user
-      // sees the same value the executor uses on next start().
-      final seqDefaults = ref.read(sequencerDefaultsProvider);
-      _autoFocusIntervalFramesController.text =
-          seqDefaults.autofocusIntervalFrames.toString();
-      _initialized = true;
-    }
-  }
-
-  void _initMeridianControllers(MeridianFlipSettings settings) {
-    if (!_meridianInitialized) {
-      _minutesPastMeridianController.text =
-          settings.minutesPastMeridian.toString();
-      _minutesBeforeLimitController.text =
-          settings.minutesBeforeLimit.toString();
-      _hourAngleThresholdController.text =
-          settings.hourAngleThreshold.toString();
-      _trackingLimitWaitController.text =
-          settings.trackingLimitWaitMinutes.toString();
-      _settleTimeController.text = settings.settleTimeSeconds.toString();
-      _maxRetriesController.text = settings.maxRetries.toString();
-      _meridianInitialized = true;
-    }
   }
 
   String _getFailModeDescription(SafetyFailMode mode) {
@@ -246,8 +228,13 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
     };
   }
 
-  Widget _buildMeridianFlipSection(MeridianFlipSettings flipSettings) {
+  Widget _buildMeridianFlipSection(
+    MeridianFlipSettings flipSettings,
+    Object authority,
+  ) {
     final notifier = ref.read(globalMeridianFlipSettingsProvider.notifier);
+    final standaloneSupported =
+        flipSettings.triggerMethod.supportsStandaloneMonitoring;
 
     return SettingsSection(
       title: 'Meridian Flip',
@@ -256,11 +243,16 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         SettingRow(
           icon: LucideIcons.eye,
           title: 'Standalone monitoring',
-          subtitle: 'Monitor meridian even when no sequence is running',
+          subtitle: standaloneSupported
+              ? 'Monitor meridian even when no sequence is running'
+              : '${flipSettings.triggerMethod.standaloneMonitoringLimitation} '
+                  'Standalone monitoring is unavailable for this trigger.',
           trailing: SettingsSwitch(
-            value: flipSettings.standaloneMonitoringEnabled,
+            value:
+                flipSettings.standaloneMonitoringEnabled && standaloneSupported,
+            enabled: standaloneSupported,
             onChanged: (value) {
-              notifier.setStandaloneMonitoringEnabled(value);
+              return notifier.setStandaloneMonitoringEnabled(value);
             },
           ),
         ),
@@ -277,11 +269,9 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             designWidth: 200,
             isMobile: widget.isMobile,
             onChanged: (value) {
-              if (value != null) {
-                final method = MeridianTriggerMethod.values
-                    .firstWhere((e) => e.displayName == value);
-                notifier.setTriggerMethod(method);
-              }
+              final method = MeridianTriggerMethod.values
+                  .firstWhere((e) => e.displayName == value);
+              return notifier.setTriggerMethod(method);
             },
           ),
         ),
@@ -295,12 +285,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             subtitle: 'Flip after target crosses meridian by this amount',
             trailing: SettingsNumberInput(
               controller: _minutesPastMeridianController,
+              authoritativeValue: flipSettings.minutesPastMeridian,
+              authorityKey: authority,
               suffix: 'min',
               min: 0,
               max: 120,
               decimals: 1,
               onChanged: (value) {
-                notifier.setMinutesPastMeridian(value);
+                return notifier.setMinutesPastMeridian(value);
               },
             ),
           ),
@@ -313,12 +305,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             subtitle: 'Flip before mount reaches tracking limit',
             trailing: SettingsNumberInput(
               controller: _minutesBeforeLimitController,
+              authoritativeValue: flipSettings.minutesBeforeLimit,
+              authorityKey: authority,
               suffix: 'min',
               min: 0,
               max: 120,
               decimals: 1,
               onChanged: (value) {
-                notifier.setMinutesBeforeLimit(value);
+                return notifier.setMinutesBeforeLimit(value);
               },
             ),
           ),
@@ -331,12 +325,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             subtitle: 'Flip when hour angle exceeds this value',
             trailing: SettingsNumberInput(
               controller: _hourAngleThresholdController,
+              authoritativeValue: flipSettings.hourAngleThreshold,
+              authorityKey: authority,
               suffix: 'h',
               min: 0,
               max: 6,
               decimals: 2,
               onChanged: (value) {
-                notifier.setHourAngleThreshold(value);
+                return notifier.setHourAngleThreshold(value);
               },
             ),
           ),
@@ -350,12 +346,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 'Delay after tracking limit detected (0 = flip immediately)',
             trailing: SettingsNumberInput(
               controller: _trackingLimitWaitController,
+              authoritativeValue: flipSettings.trackingLimitWaitMinutes,
+              authorityKey: authority,
               suffix: 'min',
               min: 0,
               max: 60,
               decimals: 1,
               onChanged: (value) {
-                notifier.setTrackingLimitWaitMinutes(value);
+                return notifier.setTrackingLimitWaitMinutes(value);
               },
             ),
           ),
@@ -367,7 +365,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: flipSettings.pauseGuidingBeforeFlip,
             onChanged: (value) {
-              notifier.setPauseGuidingBeforeFlip(value);
+              return notifier.setPauseGuidingBeforeFlip(value);
             },
           ),
         ),
@@ -379,7 +377,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: flipSettings.recenterAfterFlip,
             onChanged: (value) {
-              notifier.setRecenterAfterFlip(value);
+              return notifier.setRecenterAfterFlip(value);
             },
           ),
         ),
@@ -391,7 +389,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: flipSettings.refocusAfterFlip,
             onChanged: (value) {
-              notifier.setRefocusAfterFlip(value);
+              return notifier.setRefocusAfterFlip(value);
             },
           ),
         ),
@@ -403,7 +401,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: flipSettings.resumeGuidingAfterFlip,
             onChanged: (value) {
-              notifier.setResumeGuidingAfterFlip(value);
+              return notifier.setResumeGuidingAfterFlip(value);
             },
           ),
         ),
@@ -414,12 +412,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           subtitle: 'Wait time after flip before resuming',
           trailing: SettingsNumberInput(
             controller: _settleTimeController,
+            authoritativeValue: flipSettings.settleTimeSeconds,
+            authorityKey: authority,
             suffix: 'sec',
             min: 0,
             max: 300,
             decimals: 0,
             onChanged: (value) {
-              notifier.setSettleTimeSeconds(value);
+              return notifier.setSettleTimeSeconds(value);
             },
           ),
         ),
@@ -430,12 +430,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           subtitle: 'Number of retry attempts if flip fails',
           trailing: SettingsNumberInput(
             controller: _maxRetriesController,
+            authoritativeValue: flipSettings.maxRetries.toDouble(),
+            authorityKey: authority,
             suffix: '',
             min: 0,
             max: 10,
             decimals: 0,
             onChanged: (value) {
-              notifier.setMaxRetries(value.toInt());
+              return notifier.setMaxRetries(value.toInt());
             },
           ),
         ),
@@ -451,11 +453,9 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             designWidth: 160,
             isMobile: widget.isMobile,
             onChanged: (value) {
-              if (value != null) {
-                final action = FlipFailureAction.values
-                    .firstWhere((e) => e.displayName == value);
-                notifier.setFailureAction(action);
-              }
+              final action = FlipFailureAction.values
+                  .firstWhere((e) => e.displayName == value);
+              return notifier.setFailureAction(action);
             },
           ),
         ),
@@ -467,7 +467,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: flipSettings.soundAlertOnFlip,
             onChanged: (value) {
-              notifier.setSoundAlertOnFlip(value);
+              return notifier.setSoundAlertOnFlip(value);
             },
           ),
         ),
@@ -479,7 +479,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           trailing: SettingsSwitch(
             value: flipSettings.pushNotificationOnFlip,
             onChanged: (value) {
-              notifier.setPushNotificationOnFlip(value);
+              return notifier.setPushNotificationOnFlip(value);
             },
           ),
           isLast: true,
@@ -492,7 +492,21 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
     final flipSettings = ref.watch(globalMeridianFlipSettingsProvider);
-    _initMeridianControllers(flipSettings);
+    final flipLoadState = ref.watch(
+      globalMeridianFlipSettingsLoadStateProvider,
+    );
+    if (flipLoadState.isLoading) {
+      return SettingsLoadingState(isMobile: widget.isMobile);
+    }
+    if (flipLoadState.hasError) {
+      return SettingsErrorState(
+        isMobile: widget.isMobile,
+        error: flipLoadState.error!,
+        onRetry: () {
+          ref.invalidate(globalMeridianFlipSettingsProvider);
+        },
+      );
+    }
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
@@ -504,11 +518,8 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
-        // Seed the broadcast-section controllers on the
-        // first build that has both Settings + SequencerDefaults loaded.
+        final authority = ref.watch(backendProvider);
         final seqDefaults = ref.watch(sequencerDefaultsProvider);
-        _initBroadcastControllers(seqDefaults);
 
         return SettingsPage(
           title: 'Sequencer',
@@ -525,7 +536,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.parkOnUnsafeWeather,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setParkOnUnsafeWeather(value);
                     },
@@ -538,7 +549,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.parkBeforeDawn,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setParkBeforeDawn(value);
                     },
@@ -559,18 +570,16 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                     designWidth: 180,
                     isMobile: widget.isMobile,
                     onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .setSafetyFailMode(_stringToFailMode(value));
-                      }
+                      return ref
+                          .read(appSettingsProvider.notifier)
+                          .setSafetyFailMode(_stringToFailMode(value));
                     },
                   ),
                   isLast: true,
                 ),
               ],
             ),
-            _buildMeridianFlipSection(flipSettings),
+            _buildMeridianFlipSection(flipSettings, authority),
             SettingsSection(
               title: 'Auto Focus',
               children: [
@@ -581,7 +590,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.autoFocusOnFilterChange,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setAutoFocusOnFilterChange(value);
                     },
@@ -593,12 +602,15 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle: 'Run auto focus periodically',
                   trailing: SettingsNumberInput(
                     controller: _autoFocusController,
+                    authoritativeValue:
+                        settings.autoFocusEveryMinutes.toDouble(),
+                    authorityKey: authority,
                     suffix: 'min',
                     min: 0,
                     max: 240,
                     decimals: 0,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setAutoFocusEveryMinutes(value.toInt());
                     },
@@ -617,12 +629,17 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                       'Run autofocus every N completed exposures (frames-based)',
                   trailing: SettingsNumberInput(
                     controller: _autoFocusIntervalFramesController,
+                    authoritativeValue:
+                        seqDefaults.autofocusIntervalFrames.toDouble(),
+                    authorityKey: authority,
                     suffix: 'frames',
                     min: 1,
                     max: 9999,
                     decimals: 0,
                     onChanged: (value) async {
                       final frames = value.toInt();
+                      final sequencerBackend =
+                          ref.read(sequencerBackendProvider);
                       // Persist via SequencerDefaults so the value survives
                       // restart and is consulted by the executor on start().
                       await ref
@@ -632,8 +649,11 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                       // honours the new cadence without a reload. The bridge
                       // function rejects 0, which we already clamp at 1.
                       try {
-                        final backend = ref.read(sequencerBackendProvider);
-                        await backend.sequencerUpdateAutofocusInterval(frames);
+                        if (!identical(ref.read(backendProvider), authority)) {
+                          return;
+                        }
+                        await sequencerBackend
+                            .sequencerUpdateAutofocusInterval(frames);
                       } catch (e) {
                         // Surfacing the error via a snackbar would be noisy;
                         // the executor will pick up the persisted value on
@@ -657,7 +677,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.ditherEnabled,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setDitherEnabled(value);
                     },
@@ -669,12 +689,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle: 'Number of frames between dithers',
                   trailing: SettingsNumberInput(
                     controller: _ditherController,
+                    authoritativeValue: settings.ditherEveryFrames.toDouble(),
+                    authorityKey: authority,
                     suffix: 'frames',
                     min: 1,
                     max: 20,
                     decimals: 0,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setDitherEveryFrames(value.toInt());
                     },
@@ -690,7 +712,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             // because it logically follows the per-frame capture
             // pipeline knobs above and precedes the post-run journaling
             // surface below.
-            _buildBroadcastSection(seqDefaults),
+            _buildBroadcastSection(seqDefaults, authority),
             // Notes prompt opt-out lives here under
             // Sequencer because the prompt fires at sequence-run end.
             // Placed before Development so the user always sees the
@@ -706,7 +728,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.promptForNotesAfterRun,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setPromptForNotesAfterRun(value);
                     },
@@ -731,7 +753,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.smartNightAutoPromptEnabled,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightAutoPromptEnabled(value);
                     },
@@ -743,15 +765,16 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle: 'How many exposures between autofocus runs '
                       'when the wizard picks frame-based cadence.',
                   trailing: SettingsNumberInput(
-                    controller: TextEditingController(
-                        text: settings.smartNightDefaultAfCadenceFrames
-                            .toString()),
+                    controller: _smartNightAfCadenceController,
+                    authoritativeValue:
+                        settings.smartNightDefaultAfCadenceFrames.toDouble(),
+                    authorityKey: authority,
                     suffix: 'frames',
                     min: 1,
                     max: 9999,
                     decimals: 0,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightDefaultAfCadenceFrames(value.toInt());
                     },
@@ -763,16 +786,17 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle:
                       'Default per-target imaging budget the wizard uses.',
                   trailing: SettingsNumberInput(
-                    controller: TextEditingController(
-                        text: settings
-                            .smartNightDefaultIntegrationBudgetMinsPerTarget
-                            .toString()),
+                    controller: _smartNightIntegrationBudgetController,
+                    authoritativeValue: settings
+                        .smartNightDefaultIntegrationBudgetMinsPerTarget
+                        .toDouble(),
+                    authorityKey: authority,
                     suffix: 'min',
                     min: 1,
                     max: 24 * 60,
                     decimals: 0,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightDefaultIntegrationBudgetMinsPerTarget(
                               value.toInt());
@@ -787,7 +811,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.smartNightIncludeFlatsAtEnd,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightIncludeFlatsAtEnd(value);
                     },
@@ -801,7 +825,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   trailing: SettingsSwitch(
                     value: settings.smartNightUseSchedulerForMultiTarget,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightUseSchedulerForMultiTarget(value);
                     },
@@ -813,15 +837,16 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle: 'Use the scheduler when target count reaches this '
                       'number; otherwise chain them linearly.',
                   trailing: SettingsNumberInput(
-                    controller: TextEditingController(
-                        text: settings.smartNightSchedulerTargetThreshold
-                            .toString()),
+                    controller: _smartNightSchedulerThresholdController,
+                    authoritativeValue:
+                        settings.smartNightSchedulerTargetThreshold.toDouble(),
+                    authorityKey: authority,
                     suffix: '',
                     min: 2,
                     max: 20,
                     decimals: 0,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightSchedulerTargetThreshold(value.toInt());
                     },
@@ -833,15 +858,17 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   subtitle: 'If the last polar alignment is older than '
                       'this, the wizard prepends a fresh alignment node.',
                   trailing: SettingsNumberInput(
-                    controller: TextEditingController(
-                        text: settings.smartNightPolarAlignmentStaleAfterDays
-                            .toString()),
+                    controller: _smartNightPolarStaleController,
+                    authoritativeValue: settings
+                        .smartNightPolarAlignmentStaleAfterDays
+                        .toDouble(),
+                    authorityKey: authority,
                     suffix: 'days',
                     min: 1,
                     max: 365,
                     decimals: 0,
                     onChanged: (value) {
-                      ref
+                      return ref
                           .read(appSettingsProvider.notifier)
                           .setSmartNightPolarAlignmentStaleAfterDays(
                               value.toInt());
@@ -862,7 +889,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                     trailing: SettingsSwitch(
                       value: settings.useSimulationMode,
                       onChanged: (value) {
-                        ref
+                        return ref
                             .read(appSettingsProvider.notifier)
                             .setUseSimulationMode(value);
                       },

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -78,43 +77,66 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       return;
     }
 
+    // Check the user's actual solver selection before either alignment mode
+    // starts capturing or moving equipment. It is not enough for a different
+    // solver to be installed when the selected one is unusable.
+    try {
+      await ref.read(plateSolveServiceProvider).ensureSolverAvailable();
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar(
+        'Plate solver not ready. Check Plate Solving settings: $e',
+      );
+      return;
+    }
+
     final mode = ref.read(polarAlignmentUiStateProvider).mode;
+    final config = ref.read(polarAlignmentConfigProvider);
     if (mode == PolarAlignmentMode.allSky) {
-      // All-sky routine: route through the polar alignment service which
-      // calls the bridge `apiStartAllSkyPolarAlignment` entry point. The
-      // backend raises a structured "Plate solver required — install
-      // ASTAP" error when no solver is configured; surface it directly.
-      final service = ref.read(polarAlignmentServiceProvider);
-      final config = ref.read(polarAlignmentConfigProvider);
+      // All-sky routine: route through the single guarded state machine, which
+      // transitions into the adjusting phase and calls the bridge
+      // `apiStartAllSkyPolarAlignment` entry point. The backend raises a
+      // structured "Plate solver required — install ASTAP" error when no solver
+      // is configured; surface it directly.
       try {
-        // Eagerly transition the state into the adjusting phase so the
-        // reticle widget begins rendering before the first solve lands.
-        unawaited(
-          ref
-              .read(polarAlignmentStateProvider.notifier)
-              .startAllSkyAlignment(config),
-        );
-        await service.allSky(config: config);
+        await ref
+            .read(polarAlignmentStateProvider.notifier)
+            .startAllSkyAlignment(config);
       } catch (e) {
         if (!mounted) return;
         context.showErrorSnackBar('All-sky polar alignment failed: $e');
-        ref.read(polarAlignmentStateProvider.notifier).reset();
       }
       return;
     }
 
-    final controller = ref.read(polarAlignmentControllerProvider);
-    await controller.start();
+    // TPPA: startAlignment now fails the awaited command on invalid config or
+    // when a run is already active — surface it instead of letting it throw
+    // uncaught. The error phase already reflects the reason on-screen.
+    try {
+      await ref.read(polarAlignmentControllerProvider).start();
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Could not start polar alignment: $e');
+    }
   }
 
   Future<void> _stopAlignment() async {
-    final controller = ref.read(polarAlignmentControllerProvider);
-    await controller.stop();
+    try {
+      await ref.read(polarAlignmentControllerProvider).stop();
+    } catch (e) {
+      if (!mounted) return;
+      // Stop failed/timed out: the run stays blocked and visibly in error.
+      context.showErrorSnackBar('Could not stop polar alignment: $e');
+    }
   }
 
   Future<void> _completeAlignment() async {
-    final controller = ref.read(polarAlignmentControllerProvider);
-    await controller.complete();
+    try {
+      await ref.read(polarAlignmentControllerProvider).complete();
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Could not complete polar alignment: $e');
+    }
   }
 
   void _resetAlignment() {
@@ -132,6 +154,14 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
         _pulseController.repeat(reverse: true);
       } else if (!next.isRunning && wasRunning) {
         _pulseController.stop();
+      }
+    });
+
+    // Surface config persistence failures truthfully — settings that failed to
+    // save must not look persisted.
+    ref.listen<String?>(polarAlignmentConfigSaveErrorProvider, (prev, next) {
+      if (next != null && next != prev && mounted) {
+        context.showErrorSnackBar(next);
       }
     });
 

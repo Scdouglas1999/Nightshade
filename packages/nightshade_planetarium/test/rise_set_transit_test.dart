@@ -119,6 +119,29 @@ void main() {
     });
   });
 
+  test('set paired with a late-window rise is the following set', () {
+    // Regression from the live scheduler endpoint: this target was above the
+    // horizon at local noon, so the first sampled event was today's set and
+    // the second was tomorrow's rise. Pairing those yielded -11.6 hours.
+    final visibility = AstronomyCalculations.calculateObjectVisibility(
+      raDeg: 12.5 * 15.0,
+      decDeg: 35.0,
+      date: DateTime(2026, 7, 23),
+      latitudeDeg: 39.9719,
+      longitudeDeg: -75.3576,
+    );
+
+    expect(visibility.riseTime, isNotNull);
+    expect(visibility.setTime, isNotNull);
+    expect(visibility.setTime!.isAfter(visibility.riseTime!), isTrue);
+    expect(visibility.durationAboveHorizon, isNotNull);
+    expect(visibility.durationAboveHorizon!.isNegative, isFalse);
+    expect(
+      visibility.durationAboveHorizon,
+      lessThan(const Duration(hours: 24)),
+    );
+  });
+
   group('Circumpolar / never-rises classification', () {
     test('high-dec star is circumpolar from a high latitude', () {
       final v = AstronomyCalculations.calculateObjectVisibility(

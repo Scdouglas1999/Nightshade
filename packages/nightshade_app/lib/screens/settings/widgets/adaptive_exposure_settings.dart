@@ -12,6 +12,8 @@
 // `backend.sequencerUpdateDefaultAdaptiveExposure` (or the clear
 // equivalent when the master toggle is off).
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -35,32 +37,51 @@ class AdaptiveExposureSettings extends ConsumerStatefulWidget {
 
 class _AdaptiveExposureSettingsState
     extends ConsumerState<AdaptiveExposureSettings> {
-  final _targetSnrController = TextEditingController();
   final _refMagController = TextEditingController();
   final _minSecsController = TextEditingController();
   final _maxSecsController = TextEditingController();
-  bool _initialized = false;
+  String? _globalBoundsError;
+  int _globalBoundsSaveGeneration = 0;
 
   @override
   void dispose() {
-    _targetSnrController.dispose();
     _refMagController.dispose();
     _minSecsController.dispose();
     _maxSecsController.dispose();
     super.dispose();
   }
 
-  void _initControllers(AppSettingsState settings) {
-    if (_initialized) return;
-    _targetSnrController.text =
-        settings.adaptiveExposureTargetSnr.toStringAsFixed(0);
-    _refMagController.text =
-        settings.adaptiveExposureReferenceMag.toStringAsFixed(2);
-    _minSecsController.text =
-        settings.adaptiveExposureMinSecs.toStringAsFixed(1);
-    _maxSecsController.text =
-        settings.adaptiveExposureMaxSecs.toStringAsFixed(1);
-    _initialized = true;
+  Future<void> _commitGlobalBounds(AppSettingsNotifier notifier) async {
+    final minSecs = double.tryParse(_minSecsController.text.trim());
+    final maxSecs = double.tryParse(_maxSecsController.text.trim());
+    String? validationError;
+    if (minSecs == null || !minSecs.isFinite || minSecs <= 0) {
+      validationError = 'Minimum exposure must be a positive number.';
+    } else if (maxSecs == null || !maxSecs.isFinite || maxSecs <= 0) {
+      validationError = 'Maximum exposure must be a positive number.';
+    } else if (minSecs > maxSecs) {
+      validationError = 'Minimum exposure cannot exceed maximum exposure.';
+    }
+    if (validationError != null) {
+      if (mounted) setState(() => _globalBoundsError = validationError);
+      throw StateError(validationError);
+    }
+
+    final generation = ++_globalBoundsSaveGeneration;
+    if (mounted) setState(() => _globalBoundsError = null);
+    try {
+      await notifier.setAdaptiveExposureBounds(
+        minSecs: minSecs!,
+        maxSecs: maxSecs!,
+      );
+    } catch (error) {
+      if (mounted && generation == _globalBoundsSaveGeneration) {
+        setState(() {
+          _globalBoundsError = 'Could not save exposure bounds: $error';
+        });
+      }
+      rethrow;
+    }
   }
 
   @override
@@ -76,7 +97,7 @@ class _AdaptiveExposureSettingsState
             style: TextStyle(color: colors.error)),
       ),
       data: (settings) {
-        _initControllers(settings);
+        final authority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,72 +151,61 @@ class _AdaptiveExposureSettingsState
             // Conditional knobs
             if (settings.adaptiveExposureEnabled) ...[
               const SizedBox(height: NightshadeTokens.spaceLg),
-              Row(
-                children: [
-                  Expanded(
-                    child: _LabeledTextField(
-                      label: 'Target SNR',
-                      controller: _targetSnrController,
-                      keyboardType: TextInputType.number,
-                      onSubmitted: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null) {
-                          notifier.setAdaptiveExposureTargetSnr(parsed);
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  Expanded(
-                    child: _LabeledTextField(
-                      label: 'Reference (mag/arcsec²)',
-                      controller: _refMagController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      onSubmitted: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null) {
-                          notifier.setAdaptiveExposureReferenceMag(parsed);
-                        }
-                      },
-                    ),
-                  ),
-                ],
+              // Target SNR control hidden until the native executor honors
+              // target_snr; compute_adaptive_exposure ignores it today.
+              _LabeledNumberField(
+                fieldKey: const ValueKey('adaptive-reference-mag'),
+                label: 'Reference (mag/arcsec²)',
+                controller: _refMagController,
+                authoritativeValue: settings.adaptiveExposureReferenceMag,
+                authorityKey: authority,
+                min: 14,
+                max: 24,
+                decimals: 2,
+                onChanged: notifier.setAdaptiveExposureReferenceMag,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               Row(
                 children: [
                   Expanded(
-                    child: _LabeledTextField(
+                    child: _LabeledNumberField(
+                      fieldKey: const ValueKey('adaptive-global-min-secs'),
                       label: 'Global minimum exposure (s)',
                       controller: _minSecsController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      onSubmitted: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null) {
-                          notifier.setAdaptiveExposureMinSecs(parsed);
-                        }
-                      },
+                      authoritativeValue: settings.adaptiveExposureMinSecs,
+                      authorityKey: authority,
+                      min: 0.1,
+                      max: 86400,
+                      decimals: 1,
+                      onChanged: (_) => _commitGlobalBounds(notifier),
                     ),
                   ),
                   const SizedBox(width: NightshadeTokens.spaceMd),
                   Expanded(
-                    child: _LabeledTextField(
+                    child: _LabeledNumberField(
+                      fieldKey: const ValueKey('adaptive-global-max-secs'),
                       label: 'Global maximum exposure (s)',
                       controller: _maxSecsController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      onSubmitted: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null) {
-                          notifier.setAdaptiveExposureMaxSecs(parsed);
-                        }
-                      },
+                      authoritativeValue: settings.adaptiveExposureMaxSecs,
+                      authorityKey: authority,
+                      min: 0.1,
+                      max: 86400,
+                      decimals: 1,
+                      onChanged: (_) => _commitGlobalBounds(notifier),
                     ),
                   ),
                 ],
               ),
+              if (_globalBoundsError != null) ...[
+                const SizedBox(height: NightshadeTokens.spaceXs),
+                Text(
+                  _globalBoundsError!,
+                  style: TextStyle(
+                    color: colors.error,
+                    fontSize: NightshadeTypography.fontSize11,
+                  ),
+                ),
+              ],
               const SizedBox(height: NightshadeTokens.spaceLg),
               _PerFilterEditor(
                 settings: settings,
@@ -237,17 +247,27 @@ class _AdaptiveExposureSettingsState
   }
 }
 
-class _LabeledTextField extends StatelessWidget {
-  const _LabeledTextField({
+class _LabeledNumberField extends StatelessWidget {
+  const _LabeledNumberField({
+    required this.fieldKey,
     required this.label,
     required this.controller,
-    required this.keyboardType,
-    required this.onSubmitted,
+    required this.authoritativeValue,
+    required this.authorityKey,
+    required this.min,
+    required this.max,
+    required this.decimals,
+    required this.onChanged,
   });
+  final Key fieldKey;
   final String label;
   final TextEditingController controller;
-  final TextInputType keyboardType;
-  final ValueChanged<String> onSubmitted;
+  final double authoritativeValue;
+  final Object authorityKey;
+  final double min;
+  final double max;
+  final int decimals;
+  final FutureOr<void> Function(double) onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -261,23 +281,17 @@ class _LabeledTextField extends StatelessWidget {
               .copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
-        TextField(
+        SettingsNumberInput(
+          key: fieldKey,
           controller: controller,
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              color: colors.textPrimary),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            border: OutlineInputBorder(
-              borderSide: BorderSide(color: colors.border),
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline4),
-            ),
-          ),
-          keyboardType: keyboardType,
-          onSubmitted: onSubmitted,
+          authoritativeValue: authoritativeValue,
+          authorityKey: authorityKey,
+          suffix: '',
+          min: min,
+          max: max,
+          decimals: decimals,
+          onChanged: onChanged,
+          flexible: true,
         ),
       ],
     );
@@ -297,6 +311,43 @@ class _PerFilterEditor extends ConsumerStatefulWidget {
 }
 
 class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
+  String? _boundsError;
+  int _saveGeneration = 0;
+
+  void _showBoundsError(String message) {
+    if (mounted) setState(() => _boundsError = message);
+  }
+
+  Future<void> _commitBounds(
+    Map<String, double> minMap,
+    Map<String, double> maxMap,
+  ) async {
+    final generation = ++_saveGeneration;
+    if (mounted) setState(() => _boundsError = null);
+    try {
+      await widget.notifier.setAdaptiveExposurePerFilterBounds(
+        minSecs: minMap,
+        maxSecs: maxMap,
+      );
+    } catch (error) {
+      if (mounted && generation == _saveGeneration) {
+        setState(() {
+          _boundsError = error is ArgumentError
+              ? error.message.toString()
+              : 'Could not save per-filter exposure bounds: $error';
+        });
+      }
+    }
+  }
+
+  Future<void> _commitEnabled(Map<String, bool> enabledMap) async {
+    try {
+      await widget.notifier.setAdaptiveExposurePerFilterEnabled(enabledMap);
+    } catch (error) {
+      _showBoundsError('Could not save per-filter enablement: $error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -352,6 +403,16 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
         const SizedBox(height: NightshadeTokens.spaceSm),
         ...filterNames
             .map((filter) => _filterRow(filter, enabledMap, minMap, maxMap)),
+        if (_boundsError != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            _boundsError!,
+            style: TextStyle(
+              color: colors.error,
+              fontSize: NightshadeTypography.fontSize11,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -382,14 +443,24 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
           NightshadeCheckbox(
             value: enabled,
             onChanged: (v) {
+              // An empty map means "all filters enabled". Materialize that
+              // implicit state before changing one checkbox; otherwise the
+              // first unchecked filter makes every absent filter disabled.
+              if (enabledMap.isEmpty) {
+                for (final profileFilter
+                    in ref.read(activeEquipmentProfileProvider)?.filterNames ??
+                        const <String>[]) {
+                  enabledMap[profileFilter] = true;
+                }
+              }
               enabledMap[filter] = v ?? false;
-              widget.notifier.setAdaptiveExposurePerFilterEnabled(enabledMap);
-              setState(() {});
+              unawaited(_commitEnabled(enabledMap));
             },
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _OverrideField(
+              key: ValueKey('adaptiveExposure.$filter.min'),
               label: 'min s',
               initial: minMap[filter],
               onChanged: (v) {
@@ -398,14 +469,15 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
                 } else {
                   minMap[filter] = v;
                 }
-                widget.notifier.setAdaptiveExposurePerFilterMinSecs(minMap);
-                setState(() {});
+                unawaited(_commitBounds(minMap, maxMap));
               },
+              onInvalid: _showBoundsError,
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: _OverrideField(
+              key: ValueKey('adaptiveExposure.$filter.max'),
               label: 'max s',
               initial: maxMap[filter],
               onChanged: (v) {
@@ -414,9 +486,9 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
                 } else {
                   maxMap[filter] = v;
                 }
-                widget.notifier.setAdaptiveExposurePerFilterMaxSecs(maxMap);
-                setState(() {});
+                unawaited(_commitBounds(minMap, maxMap));
               },
+              onInvalid: _showBoundsError,
             ),
           ),
         ],
@@ -427,13 +499,16 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
 
 class _OverrideField extends StatefulWidget {
   const _OverrideField({
+    super.key,
     required this.label,
     required this.initial,
     required this.onChanged,
+    required this.onInvalid,
   });
   final String label;
   final double? initial;
   final ValueChanged<double?> onChanged;
+  final ValueChanged<String> onInvalid;
 
   @override
   State<_OverrideField> createState() => _OverrideFieldState();
@@ -441,6 +516,8 @@ class _OverrideField extends StatefulWidget {
 
 class _OverrideFieldState extends State<_OverrideField> {
   late TextEditingController _controller;
+  final _focusNode = FocusNode();
+  late String _lastSubmitted;
 
   @override
   void initState() {
@@ -448,6 +525,32 @@ class _OverrideFieldState extends State<_OverrideField> {
     _controller = TextEditingController(
       text: widget.initial == null ? '' : widget.initial!.toStringAsFixed(1),
     );
+    _lastSubmitted = _controller.text;
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    // Persist on blur, not only on Enter, so an override edit survives leaving
+    // the field without submitting.
+    if (!_focusNode.hasFocus) {
+      _submit(_controller.text);
+    }
+  }
+
+  void _submit(String v) {
+    final text = v.trim();
+    if (text == _lastSubmitted) return;
+    _lastSubmitted = text;
+    if (text.isEmpty) {
+      widget.onChanged(null);
+      return;
+    }
+    final parsed = double.tryParse(text);
+    if (parsed == null || !parsed.isFinite || parsed <= 0) {
+      widget.onInvalid('${widget.label} must be a positive number.');
+      return;
+    }
+    widget.onChanged(parsed);
   }
 
   @override
@@ -456,11 +559,14 @@ class _OverrideFieldState extends State<_OverrideField> {
     if (widget.initial != old.initial) {
       _controller.text =
           widget.initial == null ? '' : widget.initial!.toStringAsFixed(1);
+      _lastSubmitted = _controller.text;
     }
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -469,6 +575,7 @@ class _OverrideFieldState extends State<_OverrideField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
+      focusNode: _focusNode,
       style: TextStyle(
           fontSize: NightshadeTypography.fontSize12,
           color: NightshadeColors.of(context).textPrimary),
@@ -481,14 +588,7 @@ class _OverrideFieldState extends State<_OverrideField> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       ),
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      onSubmitted: (v) {
-        if (v.trim().isEmpty) {
-          widget.onChanged(null);
-          return;
-        }
-        final parsed = double.tryParse(v);
-        if (parsed != null) widget.onChanged(parsed);
-      },
+      onSubmitted: _submit,
     );
   }
 }

@@ -63,7 +63,7 @@ class SmartExposureProperties extends ConsumerWidget {
             node: node,
             filterNames: filterNames,
             exposureContext: exposureContext,
-            loopMode: node.loopUntilStopped,
+            loopMode: node.loopUntilStopped && node.rotateFilters,
             onPlansChanged: (newPlans) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(plans: newPlans),
@@ -113,8 +113,16 @@ class SmartExposureProperties extends ConsumerWidget {
               colors: colors,
               value: node.rotateFilters,
               onChanged: (v) {
+                // Turning rotation off must also drop loop-until-stopped:
+                // loop mode is only reachable through the "Switch Filter
+                // Every Frame" toggle (shown only while rotate is on), so a
+                // stranded loopUntilStopped=true would lock every Count to
+                // "— looping" with no control left to clear it.
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(rotateFilters: v),
+                      node.copyWith(
+                        rotateFilters: v,
+                        loopUntilStopped: v ? node.loopUntilStopped : false,
+                      ),
                     );
               },
             ),
@@ -350,12 +358,10 @@ class _PlanList extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: node.plans.length,
-      onReorder: (oldIndex, newIndex) {
-        var adjusted = newIndex;
-        if (oldIndex < adjusted) adjusted -= 1;
+      onReorderItem: (oldIndex, newIndex) {
         final newPlans = List<FilterPlan>.from(node.plans);
         final moved = newPlans.removeAt(oldIndex);
-        newPlans.insert(adjusted, moved);
+        newPlans.insert(newIndex, moved);
         onPlansChanged(newPlans);
       },
       itemBuilder: (context, index) {

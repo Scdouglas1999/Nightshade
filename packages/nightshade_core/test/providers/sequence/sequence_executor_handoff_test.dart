@@ -336,5 +336,79 @@ void main() {
         () => backend.sequencerUpdatePendingIntegrationCarryOver(any()),
       );
     });
+
+    test(
+      'history failure blocks a direct start without authorization',
+      () async {
+        final errorContainer = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+            sessionCarryOverProvider.overrideWith(
+              (ref) => throw StateError('history unavailable'),
+            ),
+          ],
+        );
+        addTearDown(errorContainer.dispose);
+        final header = TargetHeaderNode(
+          targetName: 'M31',
+          raHours: 0.7,
+          decDegrees: 41.3,
+        );
+        final sequence = Sequence.create(
+          name: 'tonight',
+          nodes: {header.id: header},
+          rootNodeId: header.id,
+        );
+
+        expect(
+          () => errorContainer
+              .read(sequenceExecutorProvider)
+              .seedIntegrationCarryOverFromHandoffForTest(backend, sequence),
+          throwsA(isA<StateError>()),
+        );
+      },
+    );
+
+    test('explicit one-shot authorization skips one history failure', () async {
+      final errorContainer = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
+          sessionCarryOverProvider.overrideWith(
+            (ref) => throw StateError('history unavailable'),
+          ),
+        ],
+      );
+      addTearDown(errorContainer.dispose);
+      errorContainer
+              .read(sessionHandoffIgnoreUnavailableOnceProvider.notifier)
+              .state =
+          true;
+      final header = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.3,
+      );
+      final sequence = Sequence.create(
+        name: 'tonight',
+        nodes: {header.id: header},
+        rootNodeId: header.id,
+      );
+
+      await errorContainer
+          .read(sequenceExecutorProvider)
+          .seedIntegrationCarryOverFromHandoffForTest(backend, sequence);
+
+      expect(
+        errorContainer.read(sessionHandoffIgnoreUnavailableOnceProvider),
+        isFalse,
+      );
+      verifyNever(
+        () => backend.sequencerUpdatePendingIntegrationCarryOver(any()),
+      );
+    });
   });
 }

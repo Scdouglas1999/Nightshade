@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/sequence/sequence_models.dart';
+import '../settings_provider.dart';
 // Sky-brightness adaptive exposure validation rules.
 import 'rules/adaptive_exposure_rules.dart';
 // Per-frame defect-map validation rules.
@@ -10,6 +11,7 @@ import 'rules/equipment_rules.dart';
 import 'rules/exposure_rules.dart';
 import 'rules/filter_rules.dart';
 import 'rules/logic_node_rules.dart';
+import 'rules/plugin_node_rules.dart';
 // Pre-flight checks (darks + equipment health + optical train).
 import 'rules/preflight_rules.dart';
 import 'rules/settings_rules.dart';
@@ -24,6 +26,7 @@ import 'rules/target_rules.dart';
 // TargetScheduler node validation rules.
 import 'rules/target_scheduler_rules.dart';
 import 'rules/timing_rules.dart';
+import 'rules/weather_safety_rules.dart';
 
 // =============================================================================
 // UNIFIED SEQUENCE VALIDATION
@@ -312,6 +315,7 @@ final List<SequenceValidator> defaultSequenceValidators =
       ParallelNodeRequiredSuccessesRule(),
       ConditionalNodeEmptyBranchRule(),
       LoopUnreachableTerminationRule(),
+      PluginNodeConfigurationRule(),
       // SmartExposure validation.
       SmartExposureEmptyPlansRule(),
       SmartExposureNegativeCountRule(),
@@ -336,9 +340,12 @@ final List<SequenceValidator> defaultSequenceValidators =
 /// The full set of ref-aware validators (read providers but no I/O).
 final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
     List<RefAwareSequenceValidator>.unmodifiable(<RefAwareSequenceValidator>[
+      PluginNodeAvailabilityRule(),
       EquipmentConnectionRule(),
       RotatorRotationConflictRule(),
       FilterInWheelRule(),
+      // Fail-closed weather gate with no sensor aborts the run seconds in.
+      WeatherSafetyNoSourceRule(),
       ImageOutputPathRule(),
       DefaultSequenceNameRule(),
       LongEstimatedDurationRule(),
@@ -427,6 +434,13 @@ class SequenceValidatorService {
 
   /// Runs the full validator stack including async rules (disk space).
   Future<ValidationResult> validate(Sequence sequence) async {
+    // Settings-dependent rules intentionally use the already-loaded snapshot
+    // so synchronous live validation stays cheap. A full pre-flight must first
+    // make that snapshot authoritative; otherwise a fresh-start validation can
+    // silently skip strictness, dark-library, clock, cooler, and alignment
+    // checks while settings are still loading.
+    await _ref.read(appSettingsProvider.future);
+
     final issues = <ValidationIssue>[];
     final ctx = ValidationContext(_ref);
     for (final rule in _syncRules) {

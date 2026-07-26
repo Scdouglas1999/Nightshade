@@ -16,6 +16,11 @@ class UpdateAvailableDialog extends StatelessWidget {
   final VoidCallback onSkip;
   final VoidCallback onLater;
 
+  /// When true the build is below the minimum version for automatic updates:
+  /// the download/apply path is hidden and the dialog presents manual
+  /// reinstall guidance instead of "Update Now".
+  final bool requiresManualUpgrade;
+
   const UpdateAvailableDialog({
     super.key,
     required this.currentVersion,
@@ -25,6 +30,7 @@ class UpdateAvailableDialog extends StatelessWidget {
     required this.onUpdate,
     required this.onSkip,
     required this.onLater,
+    this.requiresManualUpgrade = false,
   });
 
   static Future<void> show(
@@ -36,6 +42,7 @@ class UpdateAvailableDialog extends StatelessWidget {
     required VoidCallback onUpdate,
     required VoidCallback onSkip,
     required VoidCallback onLater,
+    bool requiresManualUpgrade = false,
   }) {
     return showDialog(
       context: context,
@@ -45,6 +52,7 @@ class UpdateAvailableDialog extends StatelessWidget {
         newVersion: newVersion,
         releaseNotes: releaseNotes,
         downloadSizeMb: downloadSizeMb,
+        requiresManualUpgrade: requiresManualUpgrade,
         onUpdate: () {
           Navigator.pop(context);
           onUpdate();
@@ -66,8 +74,12 @@ class UpdateAvailableDialog extends StatelessWidget {
     final colors = context.nightshadeColors;
 
     return NightshadeDialog(
-      title: 'Update Available',
-      icon: LucideIcons.download,
+      title: requiresManualUpgrade
+          ? 'Manual Update Required'
+          : 'Update Available',
+      icon: requiresManualUpgrade
+          ? LucideIcons.alertTriangle
+          : LucideIcons.download,
       width: 520,
       showCloseButton: false,
       actions: [
@@ -83,13 +95,14 @@ class UpdateAvailableDialog extends StatelessWidget {
           variant: ButtonVariant.outline,
           size: ButtonSize.medium,
         ),
-        NightshadeButton(
-          label: 'Update Now',
-          icon: LucideIcons.download,
-          onPressed: onUpdate,
-          variant: ButtonVariant.primary,
-          size: ButtonSize.medium,
-        ),
+        if (!requiresManualUpgrade)
+          NightshadeButton(
+            label: 'Update Now',
+            icon: LucideIcons.download,
+            onPressed: onUpdate,
+            variant: ButtonVariant.primary,
+            size: ButtonSize.medium,
+          ),
       ],
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -158,51 +171,85 @@ class UpdateAvailableDialog extends StatelessWidget {
 
           const SizedBox(height: NightshadeTokens.spaceLg),
 
-          // Download size
-          Row(
-            children: [
-              Icon(
-                LucideIcons.hardDrive,
-                color: colors.textMuted,
-                size: NightshadeTokens.iconSm,
-              ),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              Text(
-                'Download size: ~$downloadSizeMb MB',
-                style: NightshadeTypography.bodySm.copyWith(
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-
-          // Release notes
-          if (releaseNotes != null) ...[
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            Text(
-              'What\'s New:',
-              style: NightshadeTypography.bodyMedium.copyWith(
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
+          if (requiresManualUpgrade)
             Container(
-              constraints: const BoxConstraints(maxHeight: 150),
               padding: NightshadeTokens.paddingMd,
               decoration: BoxDecoration(
-                color: colors.background,
+                color: colors.warning.withValues(alpha: 0.1),
                 borderRadius: NightshadeTokens.borderRadiusMd,
-                border: Border.all(color: colors.border),
+                border: Border.all(
+                  color: colors.warning.withValues(alpha: 0.3),
+                ),
               ),
-              child: SingleChildScrollView(
-                child: Text(
-                  releaseNotes!,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    LucideIcons.alertTriangle,
+                    color: colors.warning,
+                    size: NightshadeTokens.iconSm,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    child: Text(
+                      'This build is older than the minimum version supported '
+                      'by automatic updates. Download the latest full release '
+                      'and reinstall Nightshade manually to continue.',
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            // Download size
+            Row(
+              children: [
+                Icon(
+                  LucideIcons.hardDrive,
+                  color: colors.textMuted,
+                  size: NightshadeTokens.iconSm,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Text(
+                  'Download size: ~$downloadSizeMb MB',
                   style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
                   ),
                 ),
-              ),
+              ],
             ),
+
+            // Release notes
+            if (releaseNotes != null) ...[
+              const SizedBox(height: NightshadeTokens.spaceLg),
+              Text(
+                'What\'s New:',
+                style: NightshadeTypography.bodyMedium.copyWith(
+                  color: colors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 150),
+                padding: NightshadeTokens.paddingMd,
+                decoration: BoxDecoration(
+                  color: colors.background,
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  border: Border.all(color: colors.border),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(
+                    releaseNotes!,
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),

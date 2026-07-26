@@ -55,11 +55,13 @@ class _FakePlateSolveService extends PlateSolveService {
   _FakePlateSolveService(
     super.ref, {
     required this.detection,
+    this.preference = const PlateSolverPreference(),
     this.solveResult,
     this.solveError,
   });
 
   final PlateSolverDetection detection;
+  final PlateSolverPreference preference;
   final PlateSolveResult? solveResult;
   final Object? solveError;
 
@@ -67,6 +69,9 @@ class _FakePlateSolveService extends PlateSolveService {
 
   @override
   Future<PlateSolverDetection> detect() async => detection;
+
+  @override
+  Future<PlateSolverPreference> getConfig() async => preference;
 
   @override
   Future<PlateSolveResult> solveWithFallback({
@@ -355,8 +360,40 @@ void main() {
       expect(fakeSolver.solveCalled, isFalse);
     });
 
-    test('astrometry.net-only setup (no ASTAP) still solves via fallback '
-        '(gated on hasAnySolver, not astapReady)', () async {
+    test(
+      'explicit unusable solver selection is not masked by another install',
+      () async {
+        late final _FakePlateSolveService fakeSolver;
+        final container = _container(
+          cameraConnected: true,
+          imaging: (ref) => _FakeImagingService(ref, result: _makeCaptured()),
+          plateSolve: (ref) {
+            fakeSolver = _FakePlateSolveService(
+              ref,
+              detection: const PlateSolverDetection(
+                astapPath: '/opt/astap/astap',
+                astrometryPath: '/usr/bin/solve-field',
+              ),
+              preference: const PlateSolverPreference(
+                choice: PlateSolverChoice.astap,
+              ),
+            );
+            return fakeSolver;
+          },
+        );
+
+        await container
+            .read(firstLightControllerProvider.notifier)
+            .run(exposureSeconds: 6);
+
+        final state = container.read(firstLightControllerProvider);
+        expect(state.phase, FirstLightPhase.success);
+        expect(state.note, FirstLightOrchestrator.solverNotConfiguredNote);
+        expect(fakeSolver.solveCalled, isFalse);
+      },
+    );
+
+    test('astrometry.net-only setup in Auto mode still solves', () async {
       late final _FakePlateSolveService fakeSolver;
       final container = _container(
         cameraConnected: true,

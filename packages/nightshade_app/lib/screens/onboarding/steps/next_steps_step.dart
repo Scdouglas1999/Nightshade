@@ -34,6 +34,17 @@ class OnboardingNextStepsStep extends ConsumerWidget {
         : 'My First Rig';
     final imageScale = draft.imageScaleArcsecPerPixel;
 
+    // The observing site is a global setting, not part of the draft. lat/lon
+    // both 0.0 is the "null island" default — treat that as "not set" so the
+    // user gets nudged to fill it in.
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final siteSet = settings != null &&
+        (settings.latitude != 0.0 || settings.longitude != 0.0);
+    final siteValue = siteSet
+        ? '${settings.latitude.toStringAsFixed(4)}°, '
+            '${settings.longitude.toStringAsFixed(4)}°'
+        : null;
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,6 +118,11 @@ class OnboardingNextStepsStep extends ConsumerWidget {
                       : null,
                   mono: true,
                 ),
+                _SummaryLine(
+                  icon: LucideIcons.mapPin,
+                  label: 'Site',
+                  value: siteValue,
+                ),
               ],
             ),
           ),
@@ -145,6 +161,20 @@ class OnboardingNextStepsStep extends ConsumerWidget {
                 'Confirm your gear connects and everything is configured before you head out.',
             onTap: () => onNavigate('/equipment'),
           ),
+          // Only shown when the user skipped the site step. `/settings?section=
+          // location` is the same deep link the weather screen uses to jump to
+          // the location editor.
+          if (!siteSet) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _NextStepCard(
+              icon: LucideIcons.mapPin,
+              tint: colors.warning,
+              title: 'Set your observing site',
+              subtitle:
+                  'Your location powers Tonight, the planner, meridian flips, and the weather radar.',
+              onTap: () => onNavigate('/settings?section=location'),
+            ),
+          ],
         ],
       ),
     );

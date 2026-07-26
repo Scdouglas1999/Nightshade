@@ -2,7 +2,7 @@ part of '../photometric_calibration_wizard.dart';
 
 extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
   Widget _buildStep3ComputeCoefficients(NightshadeColors colors) {
-    if (_computedCoefficients == null && !_isComputing) {
+    if (_computedCoefficients == null && !_isComputing && !_fitAttempted) {
       // Automatically trigger computation
       WidgetsBinding.instance.addPostFrameCallback((_) => _computeFit());
     }
@@ -13,10 +13,26 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
 
     final coeff = _computedCoefficients;
     if (coeff == null) {
-      return Text(
-        _statusMessage.isEmpty ? 'Fit computation failed.' : _statusMessage,
-        style: TextStyle(
-            color: colors.error, fontSize: NightshadeTypography.fontSize13),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _statusMessage.isEmpty ? 'Fit computation failed.' : _statusMessage,
+            style: TextStyle(
+                color: colors.error, fontSize: NightshadeTypography.fontSize13),
+          ),
+          const SizedBox(height: 12),
+          NightshadeButton(
+            label: 'Retry Fit',
+            icon: LucideIcons.refreshCw,
+            size: ButtonSize.small,
+            onPressed: () {
+              _fitAttempted = false;
+              _computeFit();
+            },
+          ),
+        ],
       );
     }
 
@@ -233,27 +249,35 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
   }
 
   Future<void> _computeFit() async {
-    if (_starMatches.length < 4) return;
+    if (_starMatches.length < 4 || _isComputing || _isSaving) return;
 
-    _update(() => _isComputing = true);
+    final generation = ++_operationGeneration;
+    final authority = ref.read(backendProvider);
+    final starMatches = List<CatalogStarMatch>.unmodifiable(_starMatches);
+    final filterName = _filterName.trim();
+
+    _update(() {
+      _isComputing = true;
+      _fitAttempted = true;
+    });
 
     try {
       final profileId = ref.read(activeEquipmentProfileIdProvider);
-      final backend = ref.read(backendProvider);
-      final coefficients = backend is NetworkBackend
-          ? await backend.computePhotometricTransform(
-              starMatches: _starMatches,
-              filterName: _filterName,
+      final coefficients = authority is NetworkBackend
+          ? await authority.computePhotometricTransform(
+              starMatches: starMatches,
+              filterName: filterName,
               equipmentProfileId: profileId,
             )
           : ref
               .read(photometricTransformServiceProvider)
               .computeTransformCoefficients(
-                starMatches: _starMatches,
-                filterName: _filterName,
+                starMatches: starMatches,
+                filterName: filterName,
                 equipmentProfileId: profileId,
               );
 
+      if (!_isCurrentOperation(generation, authority)) return;
       _update(() {
         _computedCoefficients = coefficients;
         _isComputing = false;
@@ -264,6 +288,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
         }
       });
     } catch (error) {
+      if (!_isCurrentOperation(generation, authority)) return;
       _update(() {
         _isComputing = false;
         _statusMessage = 'Computation failed: $error';

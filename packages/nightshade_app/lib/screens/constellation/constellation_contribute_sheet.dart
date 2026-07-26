@@ -45,6 +45,16 @@ class _ConstellationContributeSheetState
   ConstellationPrivacy _privacy = ConstellationPrivacy.sums;
   bool _consented = false;
 
+  /// The license the user shares this contribution under (WS4 consent contract).
+  /// The hub requires an explicit shareable license + records consent before any
+  /// bytes are stored; the client pre-validates this against the hub's
+  /// advertised `supportedLicenses`. Defaults to the attribution-required CC-BY.
+  ContributionLicense _license = ContributionLicense.ccBy;
+
+  /// Whether the contributor wants public credit. When false the hub records the
+  /// contribution as an "Anonymous contributor" in the artifact's attribution.
+  bool _creditMe = true;
+
   /// Second, stronger consent required ONLY for SUBS: raw subframes reveal far
   /// more than additive sums and cannot be cleanly un-shared.
   bool _rawSubsConsented = false;
@@ -80,16 +90,35 @@ class _ConstellationContributeSheetState
     // Whether THIS hub accepts raw subframes. When it doesn't (the default, and
     // for any older hub), the SUBS option is rendered disabled with an
     // explanation rather than letting the user consent and only then error.
-    final acceptsRawSubs =
-        ref.watch(constellationHubInfoProvider).valueOrNull?.acceptsRawSubs ??
-            false;
+    final hubInfo = ref.watch(constellationHubInfoProvider);
+    final hub = hubInfo.valueOrNull;
+    final acceptsRawSubs = hub?.acceptsRawSubs ?? false;
+    final advertisedLicenses = hub?.supportedLicenses ?? const <String>[];
+    // An empty list is a legitimate legacy-hub response, but `hub == null`
+    // also represents loading/error. Only the former may use the compatibility
+    // fallback; capability discovery must finish before sharing is enabled.
+    final licenses = hub == null
+        ? const <ContributionLicense>[]
+        : _shareableLicenses
+            .where(
+              (license) =>
+                  advertisedLicenses.isEmpty ||
+                  advertisedLicenses.contains(license.wireName),
+            )
+            .toList(growable: false);
+    final hasCompatibleLicense = licenses.isNotEmpty;
+    final effectiveLicense = licenses.contains(_license)
+        ? _license
+        : (hasCompatibleLicense ? licenses.first : ContributionLicense.ccBy);
     // A persisted SUBS preference on a hub that no longer accepts raw subframes
     // must not leave the disabled option silently selected — coerce to sums.
     final subsSelected =
         _privacy == ConstellationPrivacy.subs && acceptsRawSubs;
     // SUBS needs BOTH the base consent and the stronger raw-subs consent.
-    final canContribute =
-        _consented && (!subsSelected || _rawSubsConsented) && !_busy;
+    final canContribute = _consented &&
+        (!subsSelected || _rawSubsConsented) &&
+        hasCompatibleLicense &&
+        !_busy;
 
     return NightshadeDialog(
       title: 'Contribute to the swarm',
@@ -106,7 +135,7 @@ class _ConstellationContributeSheetState
           label: 'Contribute',
           icon: LucideIcons.upload,
           isLoading: _busy,
-          onPressed: canContribute ? _contribute : null,
+          onPressed: canContribute ? () => _contribute(effectiveLicense) : null,
         ),
       ],
       child: Column(
@@ -138,7 +167,10 @@ class _ConstellationContributeSheetState
                       : null,
                   onSelect: (_busy || disabled)
                       ? null
-                      : () => setState(() => _privacy = option),
+                      : () => setState(() {
+                            _privacy = option;
+                            _loadedChoice = true;
+                          }),
                 );
               },
             ),
@@ -165,10 +197,86 @@ class _ConstellationContributeSheetState
                   'delete, not a clean subtraction.',
             ),
           const SizedBox(height: NightshadeTokens.spaceMd),
+          // WS4 consent contract: choose the license this contribution is shared
+          // under. The hub advertises the licenses it accepts; offer only those
+          // (falling back to the full shareable set for an older hub). The hub
+          // re-validates and records the consent before storing any bytes.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'License',
+                style: NightshadeTypography.label.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceXs),
+              if (hubInfo.isLoading)
+                const NightshadeAlert(
+                  severity: NightshadeAlertSeverity.info,
+                  compact: true,
+                  message: 'Checking the hub\'s supported sharing licenses…',
+                )
+              else if (hubInfo.hasError)
+                const NightshadeAlert(
+                  severity: NightshadeAlertSeverity.error,
+                  compact: true,
+                  message: 'Could not verify this hub\'s sharing licenses. '
+                      'Check the connection and try again.',
+                )
+              else if (hasCompatibleLicense)
+                NightshadeDropdown(
+                  isExpanded: true,
+                  value: effectiveLicense.wireName,
+                  items: licenses
+                      .map((license) => license.wireName)
+                      .toList(growable: false),
+                  itemLabels:
+                      licenses.map(_licenseLabel).toList(growable: false),
+                  onChanged: _busy
+                      ? null
+                      : (wire) => setState(() {
+                            _license = ContributionLicense.fromWire(
+                              wire,
+                              fallback: effectiveLicense,
+                            );
+                            // Any interaction takes ownership of the sheet so a
+                            // late-resolving persisted privacy preference can no
+                            // longer overwrite the represented sharing choice.
+                            _loadedChoice = true;
+                          }),
+                )
+              else
+                const NightshadeAlert(
+                  severity: NightshadeAlertSeverity.error,
+                  compact: true,
+                  message: 'This hub does not advertise a compatible sharing '
+                      'license. Ask its administrator to enable CC BY, CC0, '
+                      'CC BY-SA, or CC BY-NC.',
+                ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          _ConsentRow(
+            value: _creditMe,
+            label: 'Credit me as a contributor. Uncheck to be listed as an '
+                '"Anonymous contributor" in the finished artifact.',
+            onChanged: _busy
+                ? null
+                : (v) => setState(() {
+                      _creditMe = v ?? false;
+                      _loadedChoice = true;
+                    }),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
           _ConsentRow(
             value: _consented,
-            onChanged:
-                _busy ? null : (v) => setState(() => _consented = v ?? false),
+            onChanged: _busy
+                ? null
+                : (v) => setState(() {
+                      _consented = v ?? false;
+                      _loadedChoice = true;
+                    }),
           ),
           // Second, stronger consent gate shown only for the SUBS choice.
           if (subsSelected) ...[
@@ -180,7 +288,10 @@ class _ConstellationContributeSheetState
                   'cannot be cleanly un-shared.',
               onChanged: _busy
                   ? null
-                  : (v) => setState(() => _rawSubsConsented = v ?? false),
+                  : (v) => setState(() {
+                        _rawSubsConsented = v ?? false;
+                        _loadedChoice = true;
+                      }),
             ),
           ],
           if (_error != null) ...[
@@ -195,7 +306,7 @@ class _ConstellationContributeSheetState
     );
   }
 
-  Future<void> _contribute() async {
+  Future<void> _contribute(ContributionLicense license) async {
     // Only ship SUBS if the hub actually accepts it AND the stronger consent was
     // given; otherwise fall back to sums (belt-and-suspenders for the gating in
     // build, so a stale `_privacy` can never leak raw pixels).
@@ -217,9 +328,14 @@ class _ConstellationContributeSheetState
         constellationPrivacySettingKey,
         effective.name,
       );
-      final outcome = await ref
-          .read(constellationServiceProvider)
-          .contributeTarget(widget.target.targetId, privacy: effective.wire);
+      final outcome =
+          await ref.read(constellationServiceProvider).contributeTarget(
+                widget.target.targetId,
+                radiusDeg: widget.target.radiusDeg,
+                privacy: effective.wire,
+                license: license,
+                attributionConsent: _creditMe,
+              );
       if (!mounted) return;
       ref.invalidate(constellationPrivacyProvider);
       Navigator.of(context).pop(outcome);
@@ -230,6 +346,32 @@ class _ConstellationContributeSheetState
         _error = describeConstellationError(error);
       });
     }
+  }
+}
+
+/// The shareable licenses offered in the contribute sheet, in order of
+/// permissiveness. `private` is never offered — a contribution into the shared
+/// co-add is inherently a share, so the hub rejects a non-shareable license.
+const List<ContributionLicense> _shareableLicenses = <ContributionLicense>[
+  ContributionLicense.ccBy,
+  ContributionLicense.ccBySa,
+  ContributionLicense.ccByNc,
+  ContributionLicense.cc0,
+];
+
+/// Human-readable label for a license choice in the dropdown.
+String _licenseLabel(ContributionLicense license) {
+  switch (license) {
+    case ContributionLicense.cc0:
+      return 'CC0 — public domain (no attribution required)';
+    case ContributionLicense.ccBy:
+      return 'CC BY — credit required, any use';
+    case ContributionLicense.ccBySa:
+      return 'CC BY-SA — credit + share-alike';
+    case ContributionLicense.ccByNc:
+      return 'CC BY-NC — credit, non-commercial only';
+    case ContributionLicense.private:
+      return 'Private — not shared';
   }
 }
 

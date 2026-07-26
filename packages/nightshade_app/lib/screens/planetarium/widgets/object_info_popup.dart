@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/slew_dropdown_button.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 import '../planetarium_screen.dart';
@@ -615,8 +616,8 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                   icon: NightshadeIcons.book,
                   label: 'Log Observation',
                   colors: widget.colors,
-                  onTap: () {
-                    showDialog<bool>(
+                  onTap: () async {
+                    final saved = await showDialog<bool>(
                       context: context,
                       builder: (context) => ObservationLogDialog(
                         object: widget.object,
@@ -624,6 +625,10 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                         altAz: widget.selectedObjectState.currentAltAz,
                       ),
                     );
+                    if (saved == true && mounted) {
+                      context
+                          .showSuccessSnackBar('Logged ${widget.object.name}');
+                    }
                   },
                 ),
               ),

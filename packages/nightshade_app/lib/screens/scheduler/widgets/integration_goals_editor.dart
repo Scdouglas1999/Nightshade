@@ -32,61 +32,188 @@ class IntegrationGoalsEditor extends ConsumerStatefulWidget {
 class _IntegrationGoalsEditorState
     extends ConsumerState<IntegrationGoalsEditor> {
   bool _busy = false;
+  int _operationGeneration = 0;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
-  Future<void> _addGoal({
+  @override
+  void initState() {
+    super.initState();
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (previous != null && !identical(previous, next)) {
+          _retireOperation();
+        }
+      },
+    );
+  }
+
+  @override
+  void didUpdateWidget(IntegrationGoalsEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targetId != widget.targetId) _retireOperation();
+  }
+
+  @override
+  void dispose() {
+    _operationGeneration++;
+    _backendSubscription?.close();
+    super.dispose();
+  }
+
+  void _retireOperation() {
+    _operationGeneration++;
+    if (mounted && _busy) setState(() => _busy = false);
+  }
+
+  Future<bool> _addGoal({
     required String filter,
     required double exposureSeconds,
     required int frameCount,
     required int priority,
+    required NightshadeBackend authority,
+    required IntegrationGoalService service,
   }) async {
+    if (_busy) return false;
+    if (!_isCurrentAuthority(authority)) {
+      _showAuthorityChanged();
+      return false;
+    }
+    final targetId = widget.targetId;
+    final operationGeneration = ++_operationGeneration;
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = NightshadeColors.of(context).error;
     setState(() => _busy = true);
     try {
-      final svc = ref.read(integrationGoalServiceProvider);
-      await svc.upsert(IntegrationGoal(
-        targetId: widget.targetId,
+      await service.upsert(IntegrationGoal(
+        targetId: targetId,
         filter: filter,
         exposureSeconds: exposureSeconds,
         frameCount: frameCount,
         priority: priority,
         createdAt: DateTime.now().toUtc(),
       ));
-      ref.invalidate(integrationGoalProgressProvider(widget.targetId));
+      if (!_isCurrentOperation(
+        authority,
+        targetId,
+        operationGeneration,
+      )) {
+        return false;
+      }
+      ref.invalidate(integrationGoalProgressProvider(targetId));
       ref.invalidate(allIntegrationGoalsProvider);
+      return true;
+    } catch (e) {
+      if (_isCurrentOperation(authority, targetId, operationGeneration)) {
+        _showGoalErrorOn(messenger, errorColor, 'Failed to add goal: $e');
+      }
+      return false;
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isCurrentOperation(authority, targetId, operationGeneration)) {
+        setState(() => _busy = false);
+      }
     }
   }
 
   Future<void> _updateGoal(IntegrationGoal goal,
-      {required int frameCount, required int priority}) async {
+      {required int frameCount,
+      required int priority,
+      required NightshadeBackend authority,
+      required IntegrationGoalService service}) async {
+    if (_busy) return;
     if (goal.id == null) {
       throw StateError('Cannot update an unsaved integration goal');
     }
+    if (!_isCurrentAuthority(authority)) {
+      _showAuthorityChanged();
+      return;
+    }
+    final targetId = widget.targetId;
+    final operationGeneration = ++_operationGeneration;
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = NightshadeColors.of(context).error;
     setState(() => _busy = true);
     try {
-      final svc = ref.read(integrationGoalServiceProvider);
-      await svc.upsert(goal.copyWith(
+      await service.upsert(goal.copyWith(
         frameCount: frameCount,
         priority: priority,
       ));
-      ref.invalidate(integrationGoalProgressProvider(widget.targetId));
+      if (!_isCurrentOperation(
+        authority,
+        targetId,
+        operationGeneration,
+      )) {
+        return;
+      }
+      ref.invalidate(integrationGoalProgressProvider(targetId));
       ref.invalidate(allIntegrationGoalsProvider);
+    } catch (e) {
+      if (_isCurrentOperation(authority, targetId, operationGeneration)) {
+        _showGoalErrorOn(messenger, errorColor, 'Failed to update goal: $e');
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isCurrentOperation(authority, targetId, operationGeneration)) {
+        setState(() => _busy = false);
+      }
     }
   }
 
-  Future<void> _deleteGoal(IntegrationGoal goal) async {
+  Future<void> _deleteGoal(
+    IntegrationGoal goal,
+    NightshadeBackend authority,
+    IntegrationGoalService service,
+  ) async {
+    if (_busy) return;
     if (goal.id == null) return;
+    if (!_isCurrentAuthority(authority)) {
+      _showAuthorityChanged();
+      return;
+    }
+    final targetId = widget.targetId;
+    final operationGeneration = ++_operationGeneration;
+    final messenger = ScaffoldMessenger.of(context);
+    final errorColor = NightshadeColors.of(context).error;
     setState(() => _busy = true);
     try {
-      final svc = ref.read(integrationGoalServiceProvider);
-      await svc.delete(goal.id!);
-      ref.invalidate(integrationGoalProgressProvider(widget.targetId));
+      await service.delete(goal.id!);
+      if (!_isCurrentOperation(
+        authority,
+        targetId,
+        operationGeneration,
+      )) {
+        return;
+      }
+      ref.invalidate(integrationGoalProgressProvider(targetId));
       ref.invalidate(allIntegrationGoalsProvider);
+    } catch (e) {
+      if (_isCurrentOperation(authority, targetId, operationGeneration)) {
+        _showGoalErrorOn(messenger, errorColor, 'Failed to delete goal: $e');
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_isCurrentOperation(authority, targetId, operationGeneration)) {
+        setState(() => _busy = false);
+      }
     }
+  }
+
+  bool _isCurrentAuthority(NightshadeBackend authority) =>
+      mounted && identical(ref.read(backendProvider), authority);
+
+  bool _isCurrentOperation(
+    NightshadeBackend authority,
+    int targetId,
+    int operationGeneration,
+  ) =>
+      operationGeneration == _operationGeneration &&
+      widget.targetId == targetId &&
+      _isCurrentAuthority(authority);
+
+  void _showAuthorityChanged() {
+    if (!mounted) return;
+    _showGoalError(
+      context,
+      'The imaging host changed. Reopen the integration-goal editor.',
+    );
   }
 
   @override
@@ -96,6 +223,8 @@ class _IntegrationGoalsEditorState
         ref.watch(integrationGoalProgressProvider(widget.targetId));
     final exposureContext =
         ref.watch(smartNightExposureContextProvider).valueOrNull;
+    final authority = ref.watch(backendProvider);
+    final service = ref.watch(integrationGoalServiceProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,8 +295,11 @@ class _IntegrationGoalsEditorState
                 _GoalRow(
                   progress: p,
                   onUpdate: (count, priority) => _updateGoal(p.goal,
-                      frameCount: count, priority: priority),
-                  onDelete: () => _deleteGoal(p.goal),
+                      frameCount: count,
+                      priority: priority,
+                      authority: authority,
+                      service: service),
+                  onDelete: () => _deleteGoal(p.goal, authority, service),
                   busy: _busy,
                 ),
               const SizedBox(height: NightshadeTokens.spaceMd),
@@ -175,7 +307,20 @@ class _IntegrationGoalsEditorState
                 availableFilters: widget.availableFilters,
                 existingFilters: progress.map((p) => p.goal.filter).toSet(),
                 exposureContext: exposureContext,
-                onAdd: _addGoal,
+                onAdd: ({
+                  required filter,
+                  required exposureSeconds,
+                  required frameCount,
+                  required priority,
+                }) =>
+                    _addGoal(
+                  filter: filter,
+                  exposureSeconds: exposureSeconds,
+                  frameCount: frameCount,
+                  priority: priority,
+                  authority: authority,
+                  service: service,
+                ),
                 busy: _busy,
               ),
             ],
@@ -298,8 +443,10 @@ class _GoalRowState extends State<_GoalRow> {
                 onSubmitted: (v) {
                   final parsed = int.tryParse(v.trim());
                   if (parsed == null || parsed < 1) {
-                    throw FormatException(
-                        'Frame count must be a positive integer; got "$v"');
+                    _countCtl.text = p.goal.frameCount.toString();
+                    _showGoalError(
+                        context, 'Frame count must be a positive integer.');
+                    return;
                   }
                   widget.onUpdate(parsed, p.goal.priority);
                 },
@@ -326,8 +473,9 @@ class _GoalRowState extends State<_GoalRow> {
                 onSubmitted: (v) {
                   final parsed = int.tryParse(v.trim());
                   if (parsed == null) {
-                    throw FormatException(
-                        'Priority must be an integer; got "$v"');
+                    _priorityCtl.text = p.goal.priority.toString();
+                    _showGoalError(context, 'Priority must be an integer.');
+                    return;
                   }
                   widget.onUpdate(p.goal.frameCount, parsed);
                 },
@@ -377,7 +525,7 @@ class _AddGoalRow extends StatefulWidget {
   final List<String> availableFilters;
   final Set<String> existingFilters;
   final SmartNightExposureContext? exposureContext;
-  final Future<void> Function({
+  final Future<bool> Function({
     required String filter,
     required double exposureSeconds,
     required int frameCount,
@@ -514,33 +662,61 @@ class _AddGoalRowState extends State<_AddGoalRow> {
             label: 'Add',
             icon: LucideIcons.plus,
             size: ButtonSize.small,
-            onPressed: widget.busy || !_canAdd
-                ? null
-                : () {
-                    final exposure = double.parse(_exposureCtl.text.trim());
-                    final frames = int.parse(_frameCtl.text.trim());
-                    final priority = int.parse(_priorityCtl.text.trim());
-                    if (exposure <= 0) {
-                      throw FormatException(
-                          'Exposure seconds must be positive; got $exposure');
-                    }
-                    if (frames < 1) {
-                      throw FormatException(
-                          'Frame count must be at least 1; got $frames');
-                    }
-                    widget.onAdd(
-                      filter: _selectedFilter!,
-                      exposureSeconds: exposure,
-                      frameCount: frames,
-                      priority: priority,
-                    );
-                    _selectFilter(null);
-                  },
+            onPressed: widget.busy || !_canAdd ? null : _submit,
           ),
         ],
       ),
     );
   }
+
+  Future<void> _submit() async {
+    final exposure = double.tryParse(_exposureCtl.text.trim());
+    final frames = int.tryParse(_frameCtl.text.trim());
+    final priority = int.tryParse(_priorityCtl.text.trim());
+    if (exposure == null || exposure <= 0) {
+      _showGoalError(context, 'Exposure seconds must be a positive number.');
+      return;
+    }
+    if (frames == null || frames < 1) {
+      _showGoalError(context, 'Frame count must be at least 1.');
+      return;
+    }
+    if (priority == null) {
+      _showGoalError(context, 'Priority must be an integer.');
+      return;
+    }
+    final selectedFilter = _selectedFilter;
+    if (selectedFilter == null) return;
+    final added = await widget.onAdd(
+      filter: selectedFilter,
+      exposureSeconds: exposure,
+      frameCount: frames,
+      priority: priority,
+    );
+    if (mounted && added) _selectFilter(null);
+  }
+}
+
+void _showGoalError(BuildContext context, String message) {
+  _showGoalErrorOn(
+    ScaffoldMessenger.of(context),
+    NightshadeColors.of(context).error,
+    message,
+  );
+}
+
+void _showGoalErrorOn(
+  ScaffoldMessengerState messenger,
+  Color errorColor,
+  String message,
+) {
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: errorColor,
+      duration: const Duration(seconds: 4),
+    ),
+  );
 }
 
 String _formatExposureSeconds(double seconds) {

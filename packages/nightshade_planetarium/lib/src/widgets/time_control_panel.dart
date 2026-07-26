@@ -67,7 +67,18 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
         border: Border.all(color: txtColor.withValues(alpha: 0.1)),
       ),
       child: widget.compact
-          ? _buildCompactLayout(timeState, twilight, txtColor, accent)
+          ? LayoutBuilder(
+              builder: (context, constraints) => _buildCompactLayout(
+                timeState,
+                twilight,
+                txtColor,
+                accent,
+                // At 360/369 px device widths the panel has roughly 336/345
+                // px after its own padding. The labelled NOW action pushes
+                // the otherwise compact row past that limit.
+                narrow: constraints.maxWidth < 360,
+              ),
+            )
           : _buildFullLayout(timeState, twilight, txtColor, accent),
     );
   }
@@ -76,13 +87,14 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     ObservationTimeState timeState,
     TwilightTimes twilight,
     Color txtColor,
-    Color accent,
-  ) {
+    Color accent, {
+    required bool narrow,
+  }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         // Time display
-        _buildTimeDisplay(timeState, txtColor),
+        _buildTimeDisplay(timeState, txtColor, showSeconds: !narrow),
         const SizedBox(width: 8),
         // Play/Pause
         _buildPlayPauseButton(timeState, accent),
@@ -90,7 +102,7 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
         _buildSpeedButton(isForward: false, color: txtColor),
         _buildSpeedButton(isForward: true, color: txtColor),
         // Now button
-        _buildNowButton(accent),
+        narrow ? _buildCompactNowButton(accent) : _buildNowButton(accent),
       ],
     );
   }
@@ -168,8 +180,12 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     );
   }
 
-  Widget _buildTimeDisplay(ObservationTimeState timeState, Color txtColor) {
-    final timeFormat = DateFormat('HH:mm:ss');
+  Widget _buildTimeDisplay(
+    ObservationTimeState timeState,
+    Color txtColor, {
+    bool showSeconds = true,
+  }) {
+    final timeFormat = DateFormat(showSeconds ? 'HH:mm:ss' : 'HH:mm');
     final displayTime = timeFormat.format(timeState.time);
 
     return Text(
@@ -302,6 +318,17 @@ class _TimeControlPanelState extends ConsumerState<TimeControlPanel> {
     );
 
     return expanded ? Expanded(child: button) : button;
+  }
+
+  Widget _buildCompactNowButton(Color accent) {
+    return IconButton(
+      icon: Icon(LucideIcons.clock, size: 18, color: accent),
+      tooltip: 'Jump to now',
+      onPressed: _jumpToNow,
+      padding: const EdgeInsets.all(8),
+      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+      visualDensity: VisualDensity.compact,
+    );
   }
 
   Widget _buildTonightButton(TwilightTimes twilight, Color accent) {

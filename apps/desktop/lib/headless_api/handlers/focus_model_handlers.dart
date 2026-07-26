@@ -29,6 +29,13 @@ class FocusModelHandlers {
   final ProviderContainer container;
   bool _initialized = false;
 
+  /// Upper sanity bound for the `maxDriftSteps` refocus budget (focuser steps).
+  /// The predictive-AF settings UI exposes the analogous drift threshold over
+  /// 20..2000 steps. Keep this remote decision input within that established
+  /// upper authority while retaining the endpoint's historical support for
+  /// small positive budgets below the UI slider minimum.
+  static const double _maxDriftStepsBound = 2000;
+
   FocusModelHandlers(this.container);
 
   LoggingService get _logger => container.read(loggingServiceProvider);
@@ -72,6 +79,120 @@ class FocusModelHandlers {
 
   PredictiveAfService get _predictiveAf =>
       container.read(predictiveAfServiceProvider);
+
+  Future<Response> handleGetPredictiveSettings(Request request) async {
+    _logInfo('[API] GET /api/focus-model/predictive');
+    await _predictiveAf.hydrated;
+    final profileId = _getActiveProfileIntId();
+    final models = _hasActiveProfile()
+        ? await _predictiveAf.listModels(equipmentProfileId: profileId)
+        : const <FilterFocusModel>[];
+    return jsonOk({
+      'config': _predictiveAf.config.toJson(),
+      'activeProfileId': profileId,
+      'models': models.map((model) => model.toWireJson()).toList(),
+    });
+  }
+
+  Future<Response> handleUpdatePredictiveConfig(Request request) async {
+    _logInfo('[API] POST /api/focus-model/predictive/config');
+    final payload = await readJsonObject(request);
+    final high = requireDouble(
+      payload,
+      'highConfidenceThreshold',
+      min: 0.5,
+      max: 1,
+    );
+    final low = requireDouble(
+      payload,
+      'lowConfidenceThreshold',
+      min: 0,
+      max: 0.9,
+    );
+    if (low > high) {
+      throw BadRequestError(
+        field: 'lowConfidenceThreshold',
+        expected: 'number_lte_high_threshold',
+        message: 'Low-confidence threshold must not exceed the high threshold',
+      );
+    }
+    final config = PredictiveAfConfig(
+      enabled: requireBool(payload, 'enabled'),
+      minSamplesForTrust: requireInt(
+        payload,
+        'minSamplesForTrust',
+        min: 3,
+        max: 50,
+      ),
+      highConfidenceThreshold: high,
+      lowConfidenceThreshold: low,
+      minCorrectionFactor: requireDouble(
+        payload,
+        'minCorrectionFactor',
+        min: 0,
+        max: 1,
+      ),
+      driftThresholdSteps: requireInt(
+        payload,
+        'driftThresholdSteps',
+        min: 20,
+        max: 2000,
+      ),
+      driftRunsBeforeWarn: requireInt(
+        payload,
+        'driftRunsBeforeWarn',
+        min: 1,
+        max: 20,
+      ),
+    );
+    await _predictiveAf.updateConfig(config);
+    return jsonOk({'status': 'updated', 'config': config.toJson()});
+  }
+
+  Future<Response> handleClearPredictiveSamples(Request request) async {
+    _logInfo('[API] POST /api/focus-model/predictive/clear-samples');
+    if (!_hasActiveProfile()) {
+      return jsonBadRequest({
+        'error': 'No active equipment profile. Load a profile first.',
+      });
+    }
+    final payload = await readJsonObject(request);
+    final filter = requireString(payload, 'filter', maxLength: 128).trim();
+    if (filter.isEmpty) {
+      throw BadRequestError(
+        field: 'filter',
+        expected: 'non_empty_string',
+        message: 'Filter must not be empty',
+      );
+    }
+    await _predictiveAf.clearSamples(
+      equipmentProfileId: _getActiveProfileIntId(),
+      filterName: filter,
+    );
+    return jsonOk({'status': 'cleared', 'filter': filter});
+  }
+
+  Future<Response> handleExportPredictiveModel(Request request) async {
+    _logInfo('[API] GET /api/focus-model/predictive/export');
+    if (!_hasActiveProfile()) {
+      return jsonBadRequest({
+        'error': 'No active equipment profile. Load a profile first.',
+      });
+    }
+    final filter = request.url.queryParameters['filter']?.trim() ?? '';
+    if (filter.isEmpty) {
+      throw BadRequestError(
+        field: 'filter',
+        expected: 'query_string',
+        message: 'Filter is required',
+      );
+    }
+    final json = await _predictiveAf.exportModel(
+      equipmentProfileId: _getActiveProfileIntId(),
+      filterName: filter,
+    );
+    return jsonOk({'filter': filter, 'json': json});
+  }
 
   // ===========================================================================
   // Get Focus Data
@@ -135,9 +256,23 @@ class FocusModelHandlers {
 
     final payload = await readJsonObject(request);
 
-    final temperatureCelsius = requireDouble(payload, 'temperature');
-    final focusPosition = requireInt(payload, 'position');
-    final hfrValue = requireDouble(payload, 'hfr');
+    // These three points ARE the temperature-compensation regression a live run
+    // consults to decide focuser moves, so an unphysical sample poisons every
+    // later prediction. Unbounded, this endpoint accepted and stored
+    // {temperature: 5000, position: -99999, hfr: -3} and read it straight back.
+    // (handleShouldRefocus in this same file already validates its inputs
+    // meticulously; the endpoint that WRITES the model validated nothing.)
+    // Bounds: ambient limits well outside any observatory, a focuser position
+    // cannot be negative (device_handlers/focuser_handlers.dart uses min: 0),
+    // and HFR is a radius in pixels.
+    final temperatureCelsius = requireDouble(
+      payload,
+      'temperature',
+      min: -100,
+      max: 100,
+    );
+    final focusPosition = requireInt(payload, 'position', min: 0);
+    final hfrValue = requireDouble(payload, 'hfr', min: 0, max: 1000);
     final filterName = optionalString(payload, 'filter');
 
     await service.addDataPoint(
@@ -426,44 +561,48 @@ class FocusModelHandlers {
       await service.setReferenceFilter(profileId, referenceFilter);
     }
 
-    // Process filter offsets
-    // Note: The FocusModelService calculates offsets automatically from data points.
-    // For manual offset setting, we need to add synthetic data points.
+    // Persist the supplied offsets directly (mirroring
+    // FilterOffsetNotifier._saveOffsetsToService) rather than fabricating
+    // synthetic 20°C data points, which would pollute the temperature model
+    // and re-derive the offset the caller set.
     final offsets = optionalObject(payload, 'offsets');
     if (offsets != null) {
-      // Get current profile data to determine a reasonable base position
-      final profileData = service.getProfileData(profileId);
-      final basePosition =
-          profileData?.temperatureModel?.intercept.round() ?? 10000;
-      const baseTemp = 20.0; // Standard reference temperature
-
-      // Add synthetic data points for each filter offset
+      final existing = service.getProfileData(profileId);
+      final effectiveReference =
+          referenceFilter ?? existing?.referenceFilter ?? 'L';
+      final merged = <String, FilterOffset>{...?existing?.filterOffsets};
       for (final entry in offsets.entries) {
         final filterName = entry.key;
-        // Why: validate per-entry value as integer through the same helper
-        // used elsewhere; non-int values now produce 400 instead of a 500
-        // from int.parse(toString()) on garbage.
         final offsetSteps = requireInt(offsets, filterName);
-
-        // Add a synthetic data point for this filter
-        await service.addDataPoint(
-          profileId: profileId,
-          temperatureCelsius: baseTemp,
-          focusPosition: basePosition + offsetSteps,
-          hfr: 2.0, // Use a good HFR value
+        merged[filterName] = FilterOffset(
           filterName: filterName,
+          referenceFilter: effectiveReference,
+          offsetSteps: offsetSteps,
+          measurementCount: 1,
+          confidence: 1.0,
         );
       }
+      await service.updateFilterOffsets(
+        profileId,
+        merged,
+        referenceFilter: referenceFilter,
+      );
     }
 
     // Get updated profile data
     final updatedData = service.getProfileData(profileId);
+    final Map<String, FilterOffset> storedOffsets =
+        updatedData?.filterOffsets ?? const {};
 
     return jsonOk({
       "status": "ok",
       "profileId": profileId,
       "referenceFilter": updatedData?.referenceFilter,
-      "offsetCount": updatedData?.filterOffsets.length ?? 0,
+      "offsetCount": storedOffsets.length,
+      "offsets": {
+        for (final entry in storedOffsets.entries)
+          entry.key: entry.value.offsetSteps,
+      },
     });
   }
 
@@ -489,6 +628,44 @@ class FocusModelHandlers {
   /// and `shouldRefocus: false`. The response JSON shape is unchanged.
   Future<Response> handleShouldRefocus(Request request) async {
     _logInfo('[API] GET /api/focus-model/should-refocus');
+    // Parse parameters. currentTemp / lastFocusTemp are required and MUST be
+    // finite — a NaN or Infinity would poison tempDelta → expectedDrift and the
+    // refocus gate below. Validate before consulting profile/model state.
+    final query = request.url.queryParameters;
+    final currentTemp = requireQueryDouble(query, 'currentTemp');
+    final lastFocusTemp = requireQueryDouble(query, 'lastFocusTemp');
+
+    // maxDriftSteps is the drift budget (focuser steps) the decision compares
+    // expectedDrift against. Absent → 50. A supplied value MUST be finite,
+    // strictly positive, and sanely bounded: a 0 / negative budget makes
+    // `expectedDrift >= budget` trivially true (always-refocus), and garbage
+    // must not silently become 50.
+    final maxDriftParam = query['maxDriftSteps'];
+    final double maxDriftSteps;
+    if (maxDriftParam == null || maxDriftParam.isEmpty) {
+      maxDriftSteps = 50.0;
+    } else {
+      final parsed = double.tryParse(maxDriftParam);
+      if (parsed == null ||
+          !parsed.isFinite ||
+          parsed <= 0 ||
+          parsed > _maxDriftStepsBound) {
+        throw BadRequestError(
+          field: 'maxDriftSteps',
+          expected: 'number',
+          message:
+              'maxDriftSteps must be a finite value in '
+              '(0, ${_maxDriftStepsBound.toStringAsFixed(0)}]',
+        );
+      }
+      maxDriftSteps = parsed;
+    }
+
+    final rawFilter = query['filter'];
+    final filter = rawFilter == null || rawFilter.trim().isEmpty
+        ? null
+        : rawFilter.trim();
+
     if (!_hasActiveProfile()) {
       return jsonBadRequest({
         "error": "No active equipment profile. Load a profile first.",
@@ -496,47 +673,6 @@ class FocusModelHandlers {
     }
     final profileId = _getActiveProfileId();
     final profileIntId = _getActiveProfileIntId();
-
-    // Parse parameters
-    final currentTempParam = request.url.queryParameters['currentTemp'];
-    final lastFocusTempParam = request.url.queryParameters['lastFocusTemp'];
-    final maxDriftParam = request.url.queryParameters['maxDriftSteps'];
-
-    if (currentTempParam == null) {
-      throw BadRequestError(
-        field: 'currentTemp',
-        expected: 'number',
-        message: 'Missing required query parameter',
-      );
-    }
-    if (lastFocusTempParam == null) {
-      throw BadRequestError(
-        field: 'lastFocusTemp',
-        expected: 'number',
-        message: 'Missing required query parameter',
-      );
-    }
-
-    final currentTemp = double.tryParse(currentTempParam);
-    final lastFocusTemp = double.tryParse(lastFocusTempParam);
-    final maxDriftSteps = double.tryParse(maxDriftParam ?? '50') ?? 50.0;
-
-    if (currentTemp == null) {
-      throw BadRequestError(
-        field: 'currentTemp',
-        expected: 'number',
-        message: 'Invalid temperature value',
-      );
-    }
-    if (lastFocusTemp == null) {
-      throw BadRequestError(
-        field: 'lastFocusTemp',
-        expected: 'number',
-        message: 'Invalid temperature value',
-      );
-    }
-
-    final filter = request.url.queryParameters['filter'];
 
     final tempDelta = (currentTemp - lastFocusTemp).abs();
     final decision = await _shouldRefocusDecision(

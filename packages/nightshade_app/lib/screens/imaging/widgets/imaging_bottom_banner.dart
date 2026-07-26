@@ -33,6 +33,8 @@ class ImagingBottomBanner extends ConsumerWidget {
   final NightshadeColors colors;
   final bool isLooping;
   final bool isSingleCapture;
+  final bool isSavingCapture;
+  final bool isStoppingCapture;
   final VoidCallback onSnapshot;
   final VoidCallback onToggleLoop;
 
@@ -46,6 +48,8 @@ class ImagingBottomBanner extends ConsumerWidget {
     required this.colors,
     required this.isLooping,
     required this.isSingleCapture,
+    required this.isSavingCapture,
+    required this.isStoppingCapture,
     required this.onSnapshot,
     required this.onToggleLoop,
     this.showStats = true,
@@ -75,6 +79,8 @@ class ImagingBottomBanner extends ConsumerWidget {
       isCapturing: isCapturing,
       isSingleCapture: isSingleCapture,
       isLooping: isLooping,
+      isSavingCapture: isSavingCapture,
+      isStoppingCapture: isStoppingCapture,
       onSnapshot: onSnapshot,
       onToggleLoop: onToggleLoop,
     );
@@ -186,6 +192,8 @@ class _CaptureGroup extends StatelessWidget {
   final bool isCapturing;
   final bool isSingleCapture;
   final bool isLooping;
+  final bool isSavingCapture;
+  final bool isStoppingCapture;
   final VoidCallback onSnapshot;
   final VoidCallback onToggleLoop;
 
@@ -196,6 +204,8 @@ class _CaptureGroup extends StatelessWidget {
     required this.isCapturing,
     required this.isSingleCapture,
     required this.isLooping,
+    required this.isSavingCapture,
+    required this.isStoppingCapture,
     required this.onSnapshot,
     required this.onToggleLoop,
   });
@@ -207,7 +217,13 @@ class _CaptureGroup extends StatelessWidget {
       children: [
         SmallButton(
           key: ImagingTutorialKeys.snapshotBtn,
-          label: isSingleCapture ? 'Taking…' : 'Snapshot$hostSuffix',
+          label: isSingleCapture
+              ? (isStoppingCapture
+                  ? 'Stopping…'
+                  : isSavingCapture
+                      ? 'Saving…'
+                      : 'Taking…')
+              : 'Snapshot$hostSuffix',
           icon: isSingleCapture
               ? NightshadeIcons.loading
               : NightshadeIcons.camera,
@@ -218,11 +234,19 @@ class _CaptureGroup extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceSm),
         SmallButton(
           key: ImagingTutorialKeys.loopBtn,
-          label: isLooping ? 'Stop' : 'Loop',
-          icon: isLooping ? NightshadeIcons.stop : LucideIcons.video,
+          label: isStoppingCapture
+              ? 'Stopping…'
+              : isLooping
+                  ? 'Stop'
+                  : 'Loop',
+          icon: isStoppingCapture
+              ? NightshadeIcons.loading
+              : isLooping
+                  ? NightshadeIcons.stop
+                  : LucideIcons.video,
           colors: colors,
           isOutline: !isLooping,
-          isEnabled: isConnected && !isSingleCapture,
+          isEnabled: isConnected && !isSingleCapture && !isStoppingCapture,
           onTap: onToggleLoop,
         ),
       ],

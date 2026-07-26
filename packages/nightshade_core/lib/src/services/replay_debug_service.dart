@@ -152,6 +152,21 @@ class ReplayDebugService {
     return removed;
   }
 
+  /// Delete every persisted decision across all runs. Returns the number
+  /// of rows removed. Used by the "Clear all replay history" affordance and
+  /// the host `POST /api/sequencer/replay-debug/clear` endpoint. Unlike the
+  /// far-future [pruneOlderThan] trick this cannot miss rows whose timestamp
+  /// sits in the future because of clock skew.
+  Future<int> deleteAll() async {
+    await _ensureSchema();
+    final removed = await _db.customUpdate(
+      'DELETE FROM sequence_decisions',
+      updateKind: drift.UpdateKind.delete,
+    );
+    if (removed > 0) _notify();
+    return removed;
+  }
+
   /// Replay Debug — retention policy: prune rows older than
   /// the configured cut-off. Returns the number of pruned rows.
   /// `cutoff` is interpreted as "remove rows with timestamp_unix_ms

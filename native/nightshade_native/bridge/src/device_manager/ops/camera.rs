@@ -53,11 +53,46 @@
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
-use nightshade_native::camera::{ExposureParams, ImageData};
+use nightshade_native::camera::{ExposureParams, ImageData, SubFrame};
 #[cfg(windows)]
 use nightshade_native::traits::NativeCamera;
 use std::sync::Arc;
 use tracing::warn;
+
+/// Sentinel meaning "this camera setting could not be read".
+///
+/// `ImageMetadata.gain`/`offset` are plain `i32` (unlike `temperature`, which is
+/// already `Option`) and are constructed by every vendor driver, so widening
+/// them to `Option` would be a large refactor of code that is not at fault.
+/// Real gain/offset values are never negative, so a negative marker is
+/// unambiguous, and [`camera_setting_or_unknown`] converts it back to `None` at
+/// the one boundary that feeds FITS metadata.
+pub(crate) const UNKNOWN_CAMERA_SETTING: i32 = -1;
+
+/// `None` when a camera setting was recorded as unreadable, else `Some(value)`.
+///
+/// Keeps a failed device read from outranking the operator's configured value in
+/// `image_data.gain.or(config.gain)`.
+pub(crate) fn camera_setting_or_unknown(value: i32) -> Option<i32> {
+    if value <= UNKNOWN_CAMERA_SETTING {
+        None
+    } else {
+        Some(value)
+    }
+}
+
+/// Parse the integer value out of a fixed-format 80-byte FITS header card.
+///
+/// FITS mandates `KEYWORD = value / comment` with the value right-justified in
+/// bytes 10..30, so splitting on `=` and taking everything before any `/` is
+/// sufficient — no full FITS parser needed for NAXIS1/NAXIS2. Returns `None`
+/// for a malformed card so the caller can fall back rather than trust a guess.
+fn parse_fits_card_u32(card: &[u8]) -> Option<u32> {
+    let text = std::str::from_utf8(card).ok()?;
+    let after_eq = text.split_once('=')?.1;
+    let value = after_eq.split('/').next()?.trim();
+    value.parse::<u32>().ok()
+}
 
 impl DeviceManager {
     // =========================================================================
@@ -78,6 +113,27 @@ impl DeviceManager {
         offset: Option<i32>,
         bin_x: i32,
         bin_y: i32,
+        frame_type: nightshade_native::camera::FrameType,
+    ) -> Result<(), DeviceOpError> {
+        self.camera_start_exposure_configured(
+            device_id, duration, gain, offset, bin_x, bin_y, None, frame_type,
+        )
+        .await
+    }
+
+    /// Start an exposure while preserving the complete per-frame acquisition
+    /// contract, including a binned-pixel ROI when one was requested.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn camera_start_exposure_configured(
+        &self,
+        device_id: &str,
+        duration: f64,
+        gain: Option<i32>,
+        offset: Option<i32>,
+        bin_x: i32,
+        bin_y: i32,
+        subframe: Option<SubFrame>,
+        frame_type: nightshade_native::camera::FrameType,
     ) -> Result<(), DeviceOpError> {
         tracing::info!(
             "DeviceManager: camera_start_exposure for {} duration={}",
@@ -103,8 +159,9 @@ impl DeviceManager {
                             bin_y,
                             gain,
                             offset,
-                            subframe: None,
+                            subframe,
                             readout_mode: None,
+                            frame_type,
                         };
                         tracing::info!(
                             "DeviceManager: Calling AscomCameraWrapper.start_exposure()"
@@ -130,23 +187,29 @@ impl DeviceManager {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
                     tracing::info!("DeviceManager: Calling AlpacaCamera.start_exposure()");
-                    // Set gain and offset before exposure - propagate errors.
-                    // Only when the node specified them (None = leave unchanged).
+                    // Gain and Offset are OPTIONAL in ASCOM ICameraV3 — a camera
+                    // that doesn't implement them throws PropertyNotImplemented
+                    // (error 1024). Warn and continue rather than failing the
+                    // whole exposure (mirrors the INDI path below), so gain-less
+                    // cameras (many CCDs, and CMOS in certain modes) can still
+                    // capture instead of erroring out on every frame.
                     if let Some(g) = gain {
-                        camera.set_gain(g).await.map_err(|e| {
-                            DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!("Failed to set Alpaca camera gain: {}", e),
-                            )
-                        })?;
+                        if let Err(e) = camera.set_gain(g).await {
+                            tracing::warn!(
+                                "Failed to set Alpaca camera gain (device may not \
+                                 support it); continuing without it: {}",
+                                e
+                            );
+                        }
                     }
                     if let Some(o) = offset {
-                        camera.set_offset(o).await.map_err(|e| {
-                            DeviceOpError::hardware(
-                                Some(device_id.to_string()),
-                                format!("Failed to set Alpaca camera offset: {}", e),
-                            )
-                        })?;
+                        if let Err(e) = camera.set_offset(o).await {
+                            tracing::warn!(
+                                "Failed to set Alpaca camera offset (device may not \
+                                 support it); continuing without it: {}",
+                                e
+                            );
+                        }
                     }
                     // Set binning - propagate errors
                     camera.set_bin_x(bin_x).await.map_err(|e| {
@@ -161,11 +224,110 @@ impl DeviceManager {
                             format!("Failed to set Alpaca camera bin_y: {}", e),
                         )
                     })?;
+                    // Alpaca/ASCOM defines NumX/NumY in binned pixels. Changing
+                    // BinX/BinY does not require drivers to resize an existing
+                    // full-frame ROI, and several leave the old unbinned
+                    // dimensions in place. Reset the full-frame ROI after
+                    // binning so a 2x2 exposure on an 800x600 sensor requests
+                    // 400x300 instead of the invalid 800x600.
+                    let sensor_width = camera.camera_x_size().await.map_err(|e| {
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!("Failed to read Alpaca camera width: {}", e),
+                        )
+                    })?;
+                    let sensor_height = camera.camera_y_size().await.map_err(|e| {
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!("Failed to read Alpaca camera height: {}", e),
+                        )
+                    })?;
+                    let full_width = sensor_width
+                        .checked_div(bin_x)
+                        .filter(|v| *v > 0)
+                        .ok_or_else(|| {
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Invalid Alpaca full-frame width {} at bin {}",
+                                    sensor_width, bin_x
+                                ),
+                            )
+                        })?;
+                    let full_height = sensor_height
+                        .checked_div(bin_y)
+                        .filter(|v| *v > 0)
+                        .ok_or_else(|| {
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Invalid Alpaca full-frame height {} at bin {}",
+                                    sensor_height, bin_y
+                                ),
+                            )
+                        })?;
+                    let (start_x, start_y, num_x, num_y) = match subframe {
+                        Some(ref roi) => {
+                            let start_x = i32::try_from(roi.start_x).map_err(|_| {
+                                DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    "Alpaca ROI start_x exceeds the driver integer range",
+                                )
+                            })?;
+                            let start_y = i32::try_from(roi.start_y).map_err(|_| {
+                                DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    "Alpaca ROI start_y exceeds the driver integer range",
+                                )
+                            })?;
+                            let width = i32::try_from(roi.width).map_err(|_| {
+                                DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    "Alpaca ROI width exceeds the driver integer range",
+                                )
+                            })?;
+                            let height = i32::try_from(roi.height).map_err(|_| {
+                                DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    "Alpaca ROI height exceeds the driver integer range",
+                                )
+                            })?;
+                            if start_x.checked_add(width).is_none_or(|v| v > full_width)
+                                || start_y.checked_add(height).is_none_or(|v| v > full_height)
+                            {
+                                return Err(DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    format!(
+                                        "Alpaca ROI {}x{}+{}+{} exceeds binned sensor {}x{}",
+                                        width, height, start_x, start_y, full_width, full_height
+                                    ),
+                                ));
+                            }
+                            (start_x, start_y, width, height)
+                        }
+                        None => (0, 0, full_width, full_height),
+                    };
+                    camera
+                        .set_start_x(start_x)
+                        .await
+                        .map_err(DeviceOpError::from)?;
+                    camera
+                        .set_start_y(start_y)
+                        .await
+                        .map_err(DeviceOpError::from)?;
+                    camera
+                        .set_num_x(num_x)
+                        .await
+                        .map_err(DeviceOpError::from)?;
+                    camera
+                        .set_num_y(num_y)
+                        .await
+                        .map_err(DeviceOpError::from)?;
                     // Start the exposure
                     return camera
                         .start_exposure(duration, true)
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -229,6 +391,60 @@ impl DeviceManager {
                                     format!("Failed to set INDI camera vertical binning: {}", e),
                                 )
                             })?;
+                        let (frame_x, frame_y, frame_width, frame_height) =
+                            if let Some(ref roi) = subframe {
+                                (
+                                    f64::from(roi.start_x),
+                                    f64::from(roi.start_y),
+                                    f64::from(roi.width),
+                                    f64::from(roi.height),
+                                )
+                            } else {
+                                let sensor_width = locked_client
+                                    .get_number(&device_name, "CCD_INFO", "CCD_MAX_X")
+                                    .await
+                                    .filter(|value| value.is_finite() && *value > 0.0)
+                                    .ok_or_else(|| {
+                                        DeviceOpError::hardware(
+                                        Some(device_id.to_string()),
+                                        "INDI camera did not report CCD_MAX_X for full-frame reset",
+                                    )
+                                    })?;
+                                let sensor_height = locked_client
+                                    .get_number(&device_name, "CCD_INFO", "CCD_MAX_Y")
+                                    .await
+                                    .filter(|value| value.is_finite() && *value > 0.0)
+                                    .ok_or_else(|| {
+                                        DeviceOpError::hardware(
+                                        Some(device_id.to_string()),
+                                        "INDI camera did not report CCD_MAX_Y for full-frame reset",
+                                    )
+                                    })?;
+                                (
+                                    0.0,
+                                    0.0,
+                                    sensor_width / f64::from(bin_x),
+                                    sensor_height / f64::from(bin_y),
+                                )
+                            };
+                        locked_client
+                            .set_numbers(
+                                &device_name,
+                                "CCD_FRAME",
+                                &[
+                                    ("X", frame_x),
+                                    ("Y", frame_y),
+                                    ("WIDTH", frame_width),
+                                    ("HEIGHT", frame_height),
+                                ],
+                            )
+                            .await
+                            .map_err(|e| {
+                                DeviceOpError::hardware(
+                                    Some(device_id.to_string()),
+                                    format!("Failed to set INDI camera frame geometry: {}", e),
+                                )
+                            })?;
                         // Start exposure
                         return locked_client
                             .set_number(
@@ -238,7 +454,7 @@ impl DeviceManager {
                                 duration,
                             )
                             .await
-                            .map_err(DeviceOpError::driver);
+                            .map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -256,8 +472,9 @@ impl DeviceManager {
                         bin_y,
                         gain,
                         offset,
-                        subframe: None,
+                        subframe,
                         readout_mode: None,
+                        frame_type,
                     };
                     return camera.start_exposure(params).await.map_err(|e| {
                         DeviceOpError::hardware(
@@ -276,6 +493,31 @@ impl DeviceManager {
             }
             Some(DriverType::Simulator) => {
                 crate::device_manager::ops::sim_gate::require_camera_connected().await?;
+                // Commit the requested settings to the singleton so the download
+                // reports what this exposure was actually taken with. Skipping
+                // this made the simulator answer with its defaults (gain 100 /
+                // offset 10 / 1.0s) regardless of the request, so a simulated
+                // run wrote FITS headers that contradicted the sequence — the
+                // kind of disagreement that makes simulator testing worse than
+                // no testing. `None` gain/offset still means "leave unchanged",
+                // matching the real driver branches above.
+                {
+                    // Starts the exposure CLOCK as well as recording the
+                    // duration: the simulator integrates for the time it was
+                    // asked for, so callers are paced the way real hardware
+                    // paces them.
+                    crate::api::devices::simulation::begin_sim_exposure(duration).await;
+                    let sim = crate::api::devices::simulation::get_sim_camera();
+                    let mut guard = sim.write().await;
+                    if let Some(g) = gain {
+                        guard.status.gain = g;
+                    }
+                    if let Some(o) = offset {
+                        guard.status.offset = o;
+                    }
+                    guard.status.bin_x = bin_x;
+                    guard.status.bin_y = bin_y;
+                }
                 tracing::info!("camera_start_exposure: Simulator exposure started");
                 Ok(())
             }
@@ -307,7 +549,7 @@ impl DeviceManager {
                         return camera
                             .is_exposure_complete()
                             .await
-                            .map_err(DeviceOpError::driver);
+                            .map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -318,7 +560,7 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.image_ready().await.map_err(DeviceOpError::driver);
+                    return camera.image_ready().await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -362,16 +604,14 @@ impl DeviceManager {
                 ))
             }
             Some(DriverType::Simulator) => {
-                // The singleton does not literally track exposure progress
-                // (SimulatedCamera::status has no `exposure_complete` field).
-                // SimulatedCamera::default sets `state: CameraState::Idle` and
-                // the start_exposure simulator path does not flip it, so the
-                // historically correct answer for "is the (instant) simulator
-                // exposure done?" is `true` whenever the singleton is
-                // connected. Refuse the call if not connected so callers can
-                // distinguish "nothing to expose" from "no camera attached".
+                // Complete once the requested integration time has actually
+                // elapsed. This used to be an unconditional `Ok(true)`, which
+                // left the simulator with no way to pace a capture loop — see
+                // `SIM_EXPOSURE_START` for what that cost. Refuse the call if
+                // not connected so callers can distinguish "nothing to expose"
+                // from "no camera attached".
                 crate::device_manager::ops::sim_gate::require_camera_connected().await?;
-                Ok(true)
+                Ok(crate::api::devices::simulation::sim_exposure_is_complete().await)
             }
             Some(DriverType::Native) => {
                 let native_cameras = self.native_cameras.read().await;
@@ -379,7 +619,7 @@ impl DeviceManager {
                     return camera
                         .is_exposure_complete()
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -440,24 +680,29 @@ impl DeviceManager {
                         })?;
 
                     // Get camera metadata
+                    // Same as the INDI path below: record a failed read as UNKNOWN
+                    // rather than 0, so it cannot outrank the configured gain and
+                    // mislabel the frame's FITS header.
                     let gain = match camera.gain().await {
                         Ok(g) => g,
                         Err(e) => {
                             warn!(
-                                "Failed to read camera gain for {}: {}. Using default 0.",
+                                "Failed to read camera gain for {}: {}. Recording it as \
+                                 unknown so the configured gain is used instead.",
                                 device_id, e
                             );
-                            0
+                            UNKNOWN_CAMERA_SETTING
                         }
                     };
                     let offset = match camera.offset().await {
                         Ok(o) => o,
                         Err(e) => {
                             warn!(
-                                "Failed to read camera offset for {}: {}. Using default 0.",
+                                "Failed to read camera offset for {}: {}. Recording it as \
+                                 unknown so the configured offset is used instead.",
                                 device_id, e
                             );
-                            0
+                            UNKNOWN_CAMERA_SETTING
                         }
                     };
                     let bin_x = match camera.bin_x().await {
@@ -501,34 +746,44 @@ impl DeviceManager {
                         }
                     };
                     let bayer_pattern = if sensor_type == 1 {
-                        // Get bayer offsets for color cameras
-                        let offset_x = match camera.bayer_offset_x().await {
-                            Ok(x) => x,
-                            Err(e) => {
+                        // Both offsets must be READ, not assumed. Defaulting a failed
+                        // read to 0 mapped to RGGB — indistinguishable from a genuine
+                        // RGGB sensor — so a BGGR/GRBG one-shot-colour camera whose
+                        // bayeroffsetx/y read failed got red and blue TRANSPOSED in
+                        // every debayered frame and the wrong BAYERPAT written into
+                        // the FITS header, which cannot be undone after the fact.
+                        // `None` here means "pattern unknown", which leaves the frame
+                        // undebayered rather than debayered wrongly.
+                        let offsets =
+                            match (camera.bayer_offset_x().await, camera.bayer_offset_y().await) {
+                                (Ok(x), Ok(y)) => Some((x, y)),
+                                (x, y) => {
+                                    warn!(
+                                        "Failed to read bayer offsets for {} (x: {:?}, y: {:?}). \
+                                     Leaving the Bayer pattern UNKNOWN so the frame is not \
+                                     debayered with a guessed pattern.",
+                                        device_id,
+                                        x.err(),
+                                        y.err()
+                                    );
+                                    None
+                                }
+                            };
+                        // Map offsets to bayer pattern. An offset pair outside the
+                        // 2x2 grid is also "unknown" rather than silently RGGB.
+                        offsets.and_then(|(offset_x, offset_y)| match (offset_x, offset_y) {
+                            (0, 0) => Some(nightshade_native::camera::BayerPattern::Rggb),
+                            (1, 0) => Some(nightshade_native::camera::BayerPattern::Grbg),
+                            (0, 1) => Some(nightshade_native::camera::BayerPattern::Gbrg),
+                            (1, 1) => Some(nightshade_native::camera::BayerPattern::Bggr),
+                            _ => {
                                 warn!(
-                                    "Failed to read bayer_offset_x for {}: {}. Using default 0.",
-                                    device_id, e
+                                    "Camera {} reported out-of-range bayer offsets \
+                                         ({}, {}); Bayer pattern left unknown.",
+                                    device_id, offset_x, offset_y
                                 );
-                                0
+                                None
                             }
-                        };
-                        let offset_y = match camera.bayer_offset_y().await {
-                            Ok(y) => y,
-                            Err(e) => {
-                                warn!(
-                                    "Failed to read bayer_offset_y for {}: {}. Using default 0.",
-                                    device_id, e
-                                );
-                                0
-                            }
-                        };
-                        // Map offsets to bayer pattern
-                        Some(match (offset_x, offset_y) {
-                            (0, 0) => nightshade_native::camera::BayerPattern::Rggb,
-                            (1, 0) => nightshade_native::camera::BayerPattern::Grbg,
-                            (0, 1) => nightshade_native::camera::BayerPattern::Gbrg,
-                            (1, 1) => nightshade_native::camera::BayerPattern::Bggr,
-                            _ => nightshade_native::camera::BayerPattern::Rggb,
                         })
                     } else {
                         None
@@ -574,6 +829,15 @@ impl DeviceManager {
                         let camera =
                             nightshade_indi::IndiCamera::new(Arc::clone(client), &device_name);
 
+                        // Subscribe to BLOB events BEFORE enable_blob + the
+                        // metadata round-trips below: the exposure may already
+                        // be completing, and a BLOB emitted during those reads
+                        // would otherwise be missed by a later subscription.
+                        let mut rx = {
+                            let locked_client = client.read().await;
+                            locked_client.subscribe()
+                        };
+
                         // Enable BLOB transfer if not already enabled
                         let _ = camera.enable_blob().await;
 
@@ -612,31 +876,137 @@ impl DeviceManager {
                             }
                         };
                         let temp = camera.get_temperature().await.ok();
+                        // A FAILED read must not masquerade as "gain 0": that 0 was
+                        // wrapped in Some() downstream, which short-circuited
+                        // `image_data.gain.or(config.gain)` and let it BEAT the
+                        // operator's configured gain — stamping GAIN=0 into every
+                        // frame's FITS header for the run and permanently breaking
+                        // dark/flat library matching, which keys on gain.
+                        // UNKNOWN_CAMERA_SETTING is mapped back to None at the
+                        // ImageMetadata boundary so the configured value wins.
                         let gain = match camera.get_gain().await {
                             Ok(g) => g,
                             Err(e) => {
                                 warn!(
-                                    "Failed to read INDI gain for {}: {}. Using default 0.",
+                                    "Failed to read INDI gain for {}: {}. Recording it as \
+                                     unknown so the configured gain is used instead.",
                                     device_id, e
                                 );
-                                0
+                                UNKNOWN_CAMERA_SETTING
                             }
                         };
                         let offset = match camera.get_offset().await {
                             Ok(o) => o,
                             Err(e) => {
                                 warn!(
-                                    "Failed to read INDI offset for {}: {}. Using default 0.",
+                                    "Failed to read INDI offset for {}: {}. Recording it as \
+                                     unknown so the configured offset is used instead.",
                                     device_id, e
                                 );
-                                0
+                                UNKNOWN_CAMERA_SETTING
                             }
                         };
 
-                        // Subscribe to events and wait for BLOB
-                        let mut rx = {
-                            let locked_client = client.read().await;
-                            locked_client.subscribe()
+                        // Build an ImageData from a raw INDI image BLOB (FITS or
+                        // raw u16). Shared by the event path and the cached-BLOB
+                        // fallback below so both decode identically.
+                        let build_image = |data: Vec<u8>| -> ImageData {
+                            // The FITS header carries the frame's TRUE geometry in
+                            // the mandatory NAXIS1/NAXIS2 keywords; prefer them
+                            // over the CCD_INFO-derived guess. CCD_MAX_X/Y is the
+                            // full UNBINNED sensor, so at bin 2 the two disagree —
+                            // verified against a live INDI CCD simulator: CCD_INFO
+                            // said 1280x1024 while the BLOB said NAXIS1=640,
+                            // NAXIS2=512. Using CCD_INFO there built an ImageData
+                            // claiming 1280x1024 around a 640x512 frame, which
+                            // failed validation outright (binned INDI capture was
+                            // broken); and when CCD_INFO is unreadable the 1920x1080
+                            // fallback below silently CROPPED and re-strided the
+                            // frame instead, because the truncate() made the
+                            // downstream size check pass tautologically.
+                            let mut fits_dims: Option<(u32, u32)> = None;
+                            let image_data = if data.starts_with(b"SIMPLE") {
+                                let mut off = 0;
+                                let mut naxis1: Option<u32> = None;
+                                let mut naxis2: Option<u32> = None;
+                                for chunk in data.chunks(80) {
+                                    off += 80;
+                                    if chunk.starts_with(b"NAXIS1") {
+                                        naxis1 = parse_fits_card_u32(chunk);
+                                    } else if chunk.starts_with(b"NAXIS2") {
+                                        naxis2 = parse_fits_card_u32(chunk);
+                                    }
+                                    if chunk.starts_with(b"END") {
+                                        off = ((off + 2879) / 2880) * 2880;
+                                        break;
+                                    }
+                                }
+                                if let (Some(w), Some(h)) = (naxis1, naxis2) {
+                                    if w > 0 && h > 0 {
+                                        fits_dims = Some((w, h));
+                                    }
+                                }
+                                let binary_data = &data[off.min(data.len())..];
+                                let mut pixels: Vec<u16> =
+                                    Vec::with_capacity(binary_data.len() / 2);
+                                for chunk in binary_data.chunks_exact(2) {
+                                    pixels.push(u16::from_be_bytes([chunk[0], chunk[1]]));
+                                }
+                                pixels
+                            } else {
+                                let mut pixels: Vec<u16> = Vec::with_capacity(data.len() / 2);
+                                for chunk in data.chunks_exact(2) {
+                                    pixels.push(u16::from_le_bytes([chunk[0], chunk[1]]));
+                                }
+                                pixels
+                            };
+                            let (eff_width, eff_height) = match fits_dims {
+                                Some((w, h)) => {
+                                    if (w, h) != (width, height) {
+                                        tracing::info!(
+                                            "INDI {}: using FITS NAXIS {}x{} instead of \
+                                             CCD_INFO-derived {}x{} (binning/subframe)",
+                                            device_id,
+                                            w,
+                                            h,
+                                            width,
+                                            height
+                                        );
+                                    }
+                                    (w, h)
+                                }
+                                None => (width, height),
+                            };
+                            // Trim FITS block padding beyond width*height. Only ever
+                            // discards the tail padding now that the dimensions are
+                            // the frame's own; a SHORT buffer is left short so
+                            // validation can still catch it rather than being
+                            // silently reshaped.
+                            let expected_pixels = (eff_width as usize) * (eff_height as usize);
+                            let mut image_data = image_data;
+                            if image_data.len() > expected_pixels {
+                                image_data.truncate(expected_pixels);
+                            }
+                            ImageData {
+                                width: eff_width,
+                                height: eff_height,
+                                data: image_data,
+                                bits_per_pixel: 16,
+                                bayer_pattern: None,
+                                metadata: nightshade_native::camera::ImageMetadata {
+                                    exposure_time: 0.0,
+                                    gain,
+                                    offset,
+                                    bin_x,
+                                    bin_y,
+                                    temperature: temp,
+                                    timestamp: chrono::Utc::now(),
+                                    subframe: None,
+                                    readout_mode: None,
+                                    vendor_data: nightshade_native::camera::VendorFeatures::default(
+                                    ),
+                                },
+                            }
                         };
 
                         // Wait for BLOB data with timeout (30 seconds)
@@ -654,106 +1024,19 @@ impl DeviceManager {
                             match tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
                                 .await
                             {
-                                Ok(Ok(event)) => {
-                                    match event {
-                                        nightshade_indi::IndiEvent::BlobReceived {
-                                            device,
-                                            element,
-                                            data,
-                                            ..
-                                        } if device == device_name
-                                            && (element == "CCD1" || element == "CCD2") =>
-                                        {
-                                            {
-                                                // Parse FITS data
-                                                // Attempt to extract raw image data.
-                                                // FITS files have a header followed by binary data
-                                                // This is a simplified implementation - full FITS parsing would be more robust
-
-                                                // Try to parse as FITS and extract u16 data
-                                                let image_data = if data.starts_with(b"SIMPLE") {
-                                                    // FITS file - extract binary data after header
-                                                    // FITS headers are 2880-byte blocks
-                                                    let mut offset = 0;
-                                                    for chunk in data.chunks(80) {
-                                                        offset += 80;
-                                                        if chunk.starts_with(b"END") {
-                                                            // Header ends, align to 2880-byte boundary
-                                                            offset =
-                                                                ((offset + 2879) / 2880) * 2880;
-                                                            break;
-                                                        }
-                                                    }
-
-                                                    // Extract binary data as u16
-                                                    let binary_data = &data[offset..];
-                                                    let mut pixels: Vec<u16> =
-                                                        Vec::with_capacity(binary_data.len() / 2);
-                                                    for chunk in binary_data.chunks_exact(2) {
-                                                        let value = u16::from_be_bytes([
-                                                            chunk[0], chunk[1],
-                                                        ]);
-                                                        pixels.push(value);
-                                                    }
-                                                    pixels
-                                                } else {
-                                                    // Not a FITS file, try to parse as raw u16 data
-                                                    let mut pixels: Vec<u16> =
-                                                        Vec::with_capacity(data.len() / 2);
-                                                    for chunk in data.chunks_exact(2) {
-                                                        let value = u16::from_le_bytes([
-                                                            chunk[0], chunk[1],
-                                                        ]);
-                                                        pixels.push(value);
-                                                    }
-                                                    pixels
-                                                };
-
-                                                // INDI image BLOBs are padded to
-                                                // a 2880-byte (FITS) block
-                                                // boundary, so the decoded buffer
-                                                // can carry trailing padding
-                                                // pixels beyond width*height
-                                                // (e.g. a 1280x1024 frame arrives
-                                                // as 911*2880 = 2623680 bytes =
-                                                // 1311840 u16, 1120 px of padding).
-                                                // Trim to the exact frame so
-                                                // downstream size validation
-                                                // (width*height*2) accepts it
-                                                // instead of rejecting the whole
-                                                // exposure as "truncated or
-                                                // corrupted".
-                                                let expected_pixels =
-                                                    (width as usize) * (height as usize);
-                                                let mut image_data = image_data;
-                                                if image_data.len() > expected_pixels {
-                                                    image_data.truncate(expected_pixels);
-                                                }
-
-                                                return Ok(ImageData {
-                                                    width,
-                                                    height,
-                                                    data: image_data,
-                                                    bits_per_pixel: 16,
-                                                    bayer_pattern: None,
-                                                    metadata: nightshade_native::camera::ImageMetadata {
-                                                        exposure_time: 0.0, // Not available in BLOB event
-                                                        gain,
-                                                        offset,
-                                                        bin_x,
-                                                        bin_y,
-                                                        temperature: temp,
-                                                        timestamp: chrono::Utc::now(),
-                                                        subframe: None,
-                                                        readout_mode: None,
-                                                        vendor_data: nightshade_native::camera::VendorFeatures::default(),
-                                                    },
-                                                });
-                                            }
-                                        }
-                                        _ => {}
+                                Ok(Ok(event)) => match event {
+                                    nightshade_indi::IndiEvent::BlobReceived {
+                                        device,
+                                        element,
+                                        data,
+                                        ..
+                                    } if device == device_name
+                                        && (element == "CCD1" || element == "CCD2") =>
+                                    {
+                                        return Ok(build_image(data));
                                     }
-                                }
+                                    _ => {}
+                                },
                                 Ok(Err(_)) => {
                                     return Err(DeviceOpError::hardware(
                                         Some(device_id.to_string()),
@@ -761,7 +1044,21 @@ impl DeviceManager {
                                     ));
                                 }
                                 Err(_) => {
-                                    // Timeout on recv, check total timeout and continue
+                                    // recv timed out; the reader may have stored
+                                    // the BLOB before we subscribed. Poll the
+                                    // cache before looping so a race can't hang.
+                                    let cached = {
+                                        let lc = client.read().await;
+                                        match lc.take_blob(&device_name, "CCD1", "CCD1").await {
+                                            Some(d) => Some(d),
+                                            None => {
+                                                lc.take_blob(&device_name, "CCD2", "CCD2").await
+                                            }
+                                        }
+                                    };
+                                    if let Some(data) = cached {
+                                        return Ok(build_image(data));
+                                    }
                                     continue;
                                 }
                             }
@@ -783,36 +1080,37 @@ impl DeviceManager {
                 // the singleton does not declare an "exposure region" and
                 // tests rely on a deterministic image size.
                 let sim = crate::device_manager::ops::sim_gate::read_camera_status().await?;
-                // Synthesize a deterministic, non-uniform frame (faint gradient
-                // background + a handful of bright "stars") rather than an
-                // all-zero buffer. An all-zero frame is correctly rejected by
-                // [IMAGE_VALIDATION] as a dead/black frame, which made the
-                // simulator camera unusable for an end-to-end sequencer run
-                // (every captured frame failed and the sequence aborted). Real
-                // hardware reads real pixels here and is unaffected; this only
-                // changes the simulator's synthetic download.
-                const SIM_W: usize = 1920;
-                const SIM_H: usize = 1080;
-                let mut sim_data = vec![0u16; SIM_W * SIM_H];
-                for y in 0..SIM_H {
-                    let row = y * SIM_W;
-                    for x in 0..SIM_W {
-                        // Faint gradient (~200..600 ADU) — deterministic and
-                        // never uniform, so it passes the all-identical check.
-                        sim_data[row + x] = 200 + (((x + y) % 400) as u16);
+                let sim_exposure_secs =
+                    crate::device_manager::ops::sim_gate::read_camera_last_exposure_secs().await?;
+                // The frame has been read out, so the exposure is no longer in
+                // flight. Without this a caller that downloads and then polls
+                // completion again would be told to keep waiting.
+                crate::api::devices::simulation::clear_sim_exposure().await;
+                // Synthetic download: gradient background plus a star field whose
+                // PSF width tracks focuser defocus. Extracted into
+                // `crate::sim_frame` so it can be unit-tested against the real
+                // star detector — an unverified synthetic frame is worse than
+                // none, because every focus/HFR result measured against it is
+                // then unfalsifiable.
+                let focus_position = {
+                    let focuser = crate::api::devices::simulation::get_sim_focuser()
+                        .read()
+                        .await;
+                    if focuser.status.connected {
+                        Some(focuser.status.position)
+                    } else {
+                        None
                     }
-                }
-                for &(sx, sy) in &[(480, 270), (960, 540), (1440, 810), (300, 850)] {
-                    for dy in 0..6usize {
-                        for dx in 0..6usize {
-                            let px = sx + dx;
-                            let py = sy + dy;
-                            if px < SIM_W && py < SIM_H {
-                                sim_data[py * SIM_W + px] = 50_000;
-                            }
-                        }
-                    }
-                }
+                };
+                // Star position tracks the simulated mount, so guide pulses and
+                // tracking drift are visible to whatever is measuring the frame.
+                let (offset_x, offset_y) =
+                    crate::api::devices::simulation::sim_guide_offset_px().await;
+                let sim_data = crate::sim_frame::synthesize_sim_frame_with_offset(
+                    focus_position,
+                    offset_x,
+                    offset_y,
+                );
                 Ok(ImageData {
                     width: 1920,
                     height: 1080,
@@ -820,7 +1118,7 @@ impl DeviceManager {
                     bits_per_pixel: 16,
                     bayer_pattern: None,
                     metadata: nightshade_native::camera::ImageMetadata {
-                        exposure_time: 1.0,
+                        exposure_time: sim_exposure_secs,
                         gain: sim.gain,
                         offset: sim.offset,
                         bin_x: sim.bin_x,
@@ -836,7 +1134,7 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera.download_image().await.map_err(DeviceOpError::driver);
+                    return camera.download_image().await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -867,7 +1165,7 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
-                        return camera.abort_exposure().await.map_err(DeviceOpError::driver);
+                        return camera.abort_exposure().await.map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -878,7 +1176,7 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.abort_exposure().await.map_err(DeviceOpError::driver);
+                    return camera.abort_exposure().await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -900,7 +1198,7 @@ impl DeviceManager {
                         return locked_client
                             .set_switch(&device_name, "CCD_ABORT_EXPOSURE", "ABORT", true)
                             .await
-                            .map_err(DeviceOpError::driver);
+                            .map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -911,12 +1209,16 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 crate::device_manager::ops::sim_gate::require_camera_connected()
                     .await
-                    .map_err(DeviceOpError::driver)
+                    .map_err(DeviceOpError::from)?;
+                // Drop the in-flight exposure clock, so a later poll reports
+                // idle rather than waiting out an exposure that was abandoned.
+                crate::api::devices::simulation::clear_sim_exposure().await;
+                Ok(())
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera.abort_exposure().await.map_err(DeviceOpError::driver);
+                    return camera.abort_exposure().await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -951,7 +1253,7 @@ impl DeviceManager {
                         let native_status = camera_guard
                             .get_status()
                             .await
-                            .map_err(DeviceOpError::driver)?;
+                            .map_err(DeviceOpError::from)?;
                         let ascom_caps = camera_guard.get_capabilities().await.ok();
 
                         return Ok(crate::device::CameraStatus {
@@ -994,16 +1296,41 @@ impl DeviceManager {
                                 .as_ref()
                                 .and_then(|c| c.pixel_size_y)
                                 .unwrap_or(0.0),
+                            // The driver's own MaxADU, not `2^bit_depth - 1`:
+                            // `bit_depth` here is a bucket (8/16/32) inferred FROM
+                            // MaxADU, so reconstructing the range from it reported
+                            // 65535 for every driver whose MaxADU exceeded 255.
                             max_adu: ascom_caps
                                 .as_ref()
-                                .map(|c| (1u32 << c.bit_depth) - 1)
+                                .map(|c| if c.max_adu == 0 { 65535 } else { c.max_adu })
                                 .unwrap_or(65535),
                             can_cool: ascom_caps
                                 .as_ref()
                                 .map(|c| c.can_set_ccd_temperature)
                                 .unwrap_or(false),
-                            can_set_gain: true,
-                            can_set_offset: true,
+                            // Read from the driver like every other field here,
+                            // rather than asserting true. These were hardcoded
+                            // while `ascom_caps` — already in hand and used for
+                            // `can_cool` directly above — carried the real
+                            // answer, so `/api/equipment/camera/status` flatly
+                            // contradicted `/api/equipment/camera/capabilities`
+                            // for the same device. Observed against the ASCOM
+                            // Camera Simulator: capabilities correctly said
+                            // `canSetGain: false` (its Gain property throws
+                            // 0x80020009 / PropertyNotImplemented) while status
+                            // claimed `canSetGain: true`, so a client trusting
+                            // status offered a gain control that always failed.
+                            // `unwrap_or(false)` matches `can_cool`: if the
+                            // capability probe itself failed we must not promise
+                            // a control we cannot deliver.
+                            can_set_gain: ascom_caps
+                                .as_ref()
+                                .map(|c| c.can_set_gain)
+                                .unwrap_or(false),
+                            can_set_offset: ascom_caps
+                                .as_ref()
+                                .map(|c| c.can_set_offset)
+                                .unwrap_or(false),
                         });
                     }
                 }
@@ -1093,12 +1420,12 @@ impl DeviceManager {
             Some(DriverType::Simulator) => {
                 crate::device_manager::ops::sim_gate::read_camera_status()
                     .await
-                    .map_err(DeviceOpError::driver)
+                    .map_err(DeviceOpError::from)
             }
             Some(DriverType::Native) => {
                 let native_cameras = self.native_cameras.read().await;
                 if let Some(camera) = native_cameras.get(device_id) {
-                    let native_status = camera.get_status().await.map_err(DeviceOpError::driver)?;
+                    let native_status = camera.get_status().await.map_err(DeviceOpError::from)?;
                     let capabilities = camera.capabilities();
                     let sensor_info = camera.get_sensor_info();
 
@@ -1136,7 +1463,21 @@ impl DeviceManager {
                         sensor_height: sensor_info.height,
                         pixel_size_x: sensor_info.pixel_size_x,
                         pixel_size_y: sensor_info.pixel_size_y,
-                        max_adu: (1 << sensor_info.bit_depth) - 1,
+                        // The DRIVER owns this value. Re-deriving it from
+                        // `bit_depth` here overwrote whatever the vendor SDK
+                        // reported with the ADC range, which is a different
+                        // quantity: an ASI1600MM (12-bit, Raw16 left-justified)
+                        // was published as `maxAdu: 4095` while its frames
+                        // measurably contained values up to 65504. See the
+                        // `nightshade_native::camera::SensorInfo` contract.
+                        // 0 = the driver never populated it; 65535 is the
+                        // container ceiling and the documented fallback (see the
+                        // `unwrap_or` policy in this module's header).
+                        max_adu: if sensor_info.max_adu == 0 {
+                            65535
+                        } else {
+                            sensor_info.max_adu
+                        },
                         can_cool: capabilities.can_cool,
                         can_set_gain: capabilities.can_set_gain,
                         can_set_offset: capabilities.can_set_offset,
@@ -1380,7 +1721,7 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.set_gain(gain).await.map_err(DeviceOpError::driver);
+                    return camera.set_gain(gain).await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1485,7 +1826,7 @@ impl DeviceManager {
                         return camera
                             .set_offset(offset)
                             .await
-                            .map_err(DeviceOpError::driver);
+                            .map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -1499,7 +1840,7 @@ impl DeviceManager {
                     return camera
                         .set_offset(offset)
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1512,7 +1853,7 @@ impl DeviceManager {
                     return camera
                         .set_offset(offset)
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1604,7 +1945,7 @@ impl DeviceManager {
                         return camera
                             .set_binning(bin_x, bin_y)
                             .await
-                            .map_err(DeviceOpError::driver);
+                            .map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -1660,7 +2001,7 @@ impl DeviceManager {
                     return camera
                         .set_binning(bin_x, bin_y)
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1728,7 +2069,7 @@ impl DeviceManager {
                         return camera
                             .set_readout_mode(&mode)
                             .await
-                            .map_err(DeviceOpError::driver);
+                            .map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -1742,7 +2083,7 @@ impl DeviceManager {
                     return camera
                         .set_readout_mode(mode_index)
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1820,7 +2161,7 @@ impl DeviceManager {
                     return camera
                         .set_readout_mode(&mode)
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1973,7 +2314,7 @@ impl DeviceManager {
                     return camera
                         .set_cooler(enabled, target_temp.unwrap_or(-10.0))
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -2016,7 +2357,7 @@ impl DeviceManager {
                     return camera
                         .capture_preview()
                         .await
-                        .map_err(DeviceOpError::driver);
+                        .map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -2088,5 +2429,69 @@ impl DeviceManager {
                 format!("Camera {} not found", device_id),
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod fits_card_tests {
+    use super::parse_fits_card_u32;
+
+    /// These two cards are the verbatim 80-byte headers from a BLOB captured off
+    /// a live `indi_simulator_ccd` at 2x2 binning, where CCD_INFO advertised the
+    /// unbinned 1280x1024 while the frame was really 640x512. Reading NAXIS is
+    /// what keeps those two facts from being confused.
+    #[test]
+    fn parses_naxis_cards_from_a_real_indi_blob() {
+        let naxis1 =
+            b"NAXIS1  =                  640 / length of data axis 1                          ";
+        let naxis2 =
+            b"NAXIS2  =                  512 / length of data axis 2                          ";
+        assert_eq!(parse_fits_card_u32(naxis1), Some(640));
+        assert_eq!(parse_fits_card_u32(naxis2), Some(512));
+    }
+
+    #[test]
+    fn rejects_cards_it_cannot_trust() {
+        // No '=', a non-numeric value, and a float value all fall back to None
+        // so the caller keeps its own dimensions instead of using a bad parse.
+        assert_eq!(parse_fits_card_u32(b"COMMENT no equals sign here"), None);
+        assert_eq!(
+            parse_fits_card_u32(b"NAXIS1  =                    T / bad"),
+            None
+        );
+        assert_eq!(
+            parse_fits_card_u32(b"NAXIS1  =                 6.40 / float"),
+            None
+        );
+        assert_eq!(
+            parse_fits_card_u32(b"NAXIS1  =                   -1 / negative"),
+            None
+        );
+    }
+
+    #[test]
+    fn parses_a_card_with_no_comment() {
+        assert_eq!(
+            parse_fits_card_u32(b"NAXIS1  =                 4144"),
+            Some(4144)
+        );
+    }
+
+    /// A gain of 0 is a LEGITIMATE setting (unity gain on many cameras), so the
+    /// unknown marker must be distinguishable from it — that conflation is what
+    /// let a failed read outrank the operator's configured gain.
+    #[test]
+    fn unknown_camera_setting_is_distinct_from_a_real_zero() {
+        use super::{camera_setting_or_unknown, UNKNOWN_CAMERA_SETTING};
+
+        assert_eq!(camera_setting_or_unknown(UNKNOWN_CAMERA_SETTING), None);
+        assert_eq!(camera_setting_or_unknown(0), Some(0));
+        assert_eq!(camera_setting_or_unknown(139), Some(139));
+        // `.or(config)` only falls through on None, which is the whole point.
+        assert_eq!(
+            camera_setting_or_unknown(UNKNOWN_CAMERA_SETTING).or(Some(120)),
+            Some(120)
+        );
+        assert_eq!(camera_setting_or_unknown(0).or(Some(120)), Some(0));
     }
 }

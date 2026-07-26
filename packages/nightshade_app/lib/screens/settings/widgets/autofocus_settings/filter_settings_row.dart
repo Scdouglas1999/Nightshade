@@ -6,7 +6,9 @@ class _FilterSettingsRow extends StatefulWidget {
   final FilterAutofocusConfig config;
   final List<String> allFilterNames;
   final bool isLast;
-  final ValueChanged<FilterAutofocusConfig> onConfigChanged;
+  final Future<void> Function(
+    FilterAutofocusConfig Function(FilterAutofocusConfig current) update,
+  ) onConfigChanged;
 
   const _FilterSettingsRow({
     required this.position,
@@ -48,12 +50,35 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
   void didUpdateWidget(_FilterSettingsRow oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.config != widget.config) {
-      _focusOffsetController.text = widget.config.focusOffset.toString();
-      _afExpTimeController.text =
-          widget.config.afExposureTime?.toString() ?? '';
-      _gainController.text = widget.config.gain?.toString() ?? '';
-      _offsetController.text = widget.config.offset?.toString() ?? '';
+      _syncIfUnedited(
+        _focusOffsetController,
+        oldWidget.config.focusOffset.toString(),
+        widget.config.focusOffset.toString(),
+      );
+      _syncIfUnedited(
+        _afExpTimeController,
+        oldWidget.config.afExposureTime?.toString() ?? '',
+        widget.config.afExposureTime?.toString() ?? '',
+      );
+      _syncIfUnedited(
+        _gainController,
+        oldWidget.config.gain?.toString() ?? '',
+        widget.config.gain?.toString() ?? '',
+      );
+      _syncIfUnedited(
+        _offsetController,
+        oldWidget.config.offset?.toString() ?? '',
+        widget.config.offset?.toString() ?? '',
+      );
     }
+  }
+
+  void _syncIfUnedited(
+    TextEditingController controller,
+    String oldText,
+    String newText,
+  ) {
+    if (controller.text == oldText) controller.text = newText;
   }
 
   @override
@@ -111,14 +136,15 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
           Expanded(
             flex: 2,
             child: _buildCompactNumberInput(
+              fieldKey: ValueKey('af-filter-${widget.filterName}-focus-offset'),
               controller: _focusOffsetController,
-              onChanged: (value) {
+              allowNegative: true,
+              onCommit: (value) {
                 final parsed = int.tryParse(value);
-                if (parsed != null) {
-                  widget.onConfigChanged(
-                    widget.config.copyWith(focusOffset: parsed),
-                  );
-                }
+                if (parsed == null) return Future<void>.value();
+                return widget.onConfigChanged(
+                  (current) => current.copyWith(focusOffset: parsed),
+                );
               },
             ),
           ),
@@ -126,21 +152,24 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
           Expanded(
             flex: 2,
             child: _buildCompactNumberInput(
+              fieldKey: ValueKey('af-filter-${widget.filterName}-exposure'),
               controller: _afExpTimeController,
               hint: 'default',
-              onChanged: (value) {
+              allowDecimal: true,
+              allowClear: true,
+              min: 0.1,
+              max: 300,
+              onCommit: (value) {
                 if (value.isEmpty) {
-                  widget.onConfigChanged(
-                    widget.config.copyWith(clearAfExposureTime: true),
+                  return widget.onConfigChanged(
+                    (current) => current.copyWith(clearAfExposureTime: true),
                   );
-                } else {
-                  final parsed = double.tryParse(value);
-                  if (parsed != null) {
-                    widget.onConfigChanged(
-                      widget.config.copyWith(afExposureTime: parsed),
-                    );
-                  }
                 }
+                final parsed = double.tryParse(value);
+                if (parsed == null) return Future<void>.value();
+                return widget.onConfigChanged(
+                  (current) => current.copyWith(afExposureTime: parsed),
+                );
               },
             ),
           ),
@@ -153,17 +182,14 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
                 value: afFilterName,
                 items: ['Default', ...widget.allFilterNames],
                 onChanged: (value) {
-                  if (value != null) {
-                    if (value == 'Default') {
-                      widget.onConfigChanged(
-                        widget.config.copyWith(clearAfFilterName: true),
-                      );
-                    } else {
-                      widget.onConfigChanged(
-                        widget.config.copyWith(afFilterName: value),
-                      );
-                    }
+                  if (value == 'Default') {
+                    return widget.onConfigChanged(
+                      (current) => current.copyWith(clearAfFilterName: true),
+                    );
                   }
+                  return widget.onConfigChanged(
+                    (current) => current.copyWith(afFilterName: value),
+                  );
                 },
               ),
             ),
@@ -175,12 +201,10 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
               value: binningStr,
               items: const ['1x1', '2x2', '3x3', '4x4'],
               onChanged: (value) {
-                if (value != null) {
-                  final binVal = int.tryParse(value.split('x').first) ?? 1;
-                  widget.onConfigChanged(
-                    widget.config.copyWith(binning: binVal),
-                  );
-                }
+                final binVal = int.tryParse(value.split('x').first) ?? 1;
+                return widget.onConfigChanged(
+                  (current) => current.copyWith(binning: binVal),
+                );
               },
             ),
           ),
@@ -188,21 +212,22 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
           Expanded(
             flex: 1,
             child: _buildCompactNumberInput(
+              fieldKey: ValueKey('af-filter-${widget.filterName}-gain'),
               controller: _gainController,
               hint: 'def',
-              onChanged: (value) {
+              allowClear: true,
+              min: 0,
+              onCommit: (value) {
                 if (value.isEmpty) {
-                  widget.onConfigChanged(
-                    widget.config.copyWith(clearGain: true),
+                  return widget.onConfigChanged(
+                    (current) => current.copyWith(clearGain: true),
                   );
-                } else {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null) {
-                    widget.onConfigChanged(
-                      widget.config.copyWith(gain: parsed),
-                    );
-                  }
                 }
+                final parsed = int.tryParse(value);
+                if (parsed == null) return Future<void>.value();
+                return widget.onConfigChanged(
+                  (current) => current.copyWith(gain: parsed),
+                );
               },
             ),
           ),
@@ -210,21 +235,22 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
           Expanded(
             flex: 1,
             child: _buildCompactNumberInput(
+              fieldKey: ValueKey('af-filter-${widget.filterName}-offset'),
               controller: _offsetController,
               hint: 'def',
-              onChanged: (value) {
+              allowClear: true,
+              min: 0,
+              onCommit: (value) {
                 if (value.isEmpty) {
-                  widget.onConfigChanged(
-                    widget.config.copyWith(clearOffset: true),
+                  return widget.onConfigChanged(
+                    (current) => current.copyWith(clearOffset: true),
                   );
-                } else {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null) {
-                    widget.onConfigChanged(
-                      widget.config.copyWith(offset: parsed),
-                    );
-                  }
                 }
+                final parsed = int.tryParse(value);
+                if (parsed == null) return Future<void>.value();
+                return widget.onConfigChanged(
+                  (current) => current.copyWith(offset: parsed),
+                );
               },
             ),
           ),
@@ -234,45 +260,222 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
   }
 
   Widget _buildCompactNumberInput({
+    required Key fieldKey,
     required TextEditingController controller,
     String? hint,
-    required ValueChanged<String> onChanged,
+    bool allowDecimal = false,
+    bool allowNegative = false,
+    bool allowClear = false,
+    num? min,
+    num? max,
+    required Future<void> Function(String) onCommit,
   }) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: Container(
+      child: _FilterSettingsNumberInput(
+        fieldKey: fieldKey,
+        controller: controller,
+        hint: hint,
+        allowDecimal: allowDecimal,
+        allowNegative: allowNegative,
+        allowClear: allowClear,
+        min: min,
+        max: max,
         height: 28,
-        decoration: BoxDecoration(
-          color: NightshadeColors.of(context).surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-          border: Border.all(color: NightshadeColors.of(context).border),
-        ),
-        child: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-          ],
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            color: NightshadeColors.of(context).textPrimary,
-          ),
-          textAlign: TextAlign.right,
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-            isDense: true,
-            hintText: hint,
-            hintStyle: TextStyle(
-              fontSize: NightshadeTypography.fontSize10,
-              color: NightshadeColors.of(context).textMuted,
-            ),
-          ),
-          onChanged: onChanged,
-        ),
+        onCommit: onCommit,
       ),
     );
+  }
+}
+
+class _FilterSettingsNumberInput extends StatefulWidget {
+  final Key fieldKey;
+  final TextEditingController controller;
+  final String? hint;
+  final bool allowDecimal;
+  final bool allowNegative;
+  final bool allowClear;
+  final num? min;
+  final num? max;
+  final double height;
+  final Future<void> Function(String) onCommit;
+
+  const _FilterSettingsNumberInput({
+    required this.fieldKey,
+    required this.controller,
+    required this.hint,
+    required this.allowDecimal,
+    required this.allowNegative,
+    required this.allowClear,
+    required this.min,
+    required this.max,
+    required this.height,
+    required this.onCommit,
+  });
+
+  @override
+  State<_FilterSettingsNumberInput> createState() =>
+      _FilterSettingsNumberInputState();
+}
+
+class _FilterSettingsNumberInputState
+    extends State<_FilterSettingsNumberInput> {
+  final _focusNode = FocusNode();
+  late String _committedText;
+  bool _saving = false;
+  bool _submittedSinceLastEdit = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _committedText = widget.controller.text;
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(_FilterSettingsNumberInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && !_saving) {
+      _committedText = widget.controller.text;
+    }
+  }
+
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) return;
+    if (_submittedSinceLastEdit) {
+      _submittedSinceLastEdit = false;
+      return;
+    }
+    _commit();
+  }
+
+  void _setText(String text) {
+    widget.controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  Future<void> _commit() async {
+    if (_saving) return;
+    final raw = widget.controller.text.trim();
+    late String canonical;
+    if (raw.isEmpty) {
+      if (!widget.allowClear) {
+        _setText(_committedText);
+        setState(() => _error = 'Required');
+        return;
+      }
+      canonical = '';
+    } else {
+      final parsed =
+          widget.allowDecimal ? double.tryParse(raw) : int.tryParse(raw);
+      if (parsed == null || (parsed is double && !parsed.isFinite)) {
+        _setText(_committedText);
+        setState(() => _error = 'Invalid number');
+        return;
+      }
+      var normalized = parsed;
+      if (widget.min != null && normalized < widget.min!) {
+        normalized = widget.min!;
+      }
+      if (widget.max != null && normalized > widget.max!) {
+        normalized = widget.max!;
+      }
+      canonical = widget.allowDecimal
+          ? normalized.toDouble().toString()
+          : normalized.toInt().toString();
+    }
+
+    _setText(canonical);
+    if (canonical == _committedText) {
+      if (_error != null) setState(() => _error = null);
+      return;
+    }
+
+    final previous = _committedText;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onCommit(canonical);
+      if (!mounted) return;
+      _committedText = canonical;
+    } catch (_) {
+      if (!mounted) return;
+      _setText(previous);
+      setState(() => _error = 'Save failed');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final input = Container(
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+        border:
+            Border.all(color: _error == null ? colors.border : colors.error),
+      ),
+      child: TextField(
+        key: widget.fieldKey,
+        controller: widget.controller,
+        focusNode: _focusNode,
+        enabled: !_saving,
+        keyboardType: TextInputType.numberWithOptions(
+          decimal: widget.allowDecimal,
+          signed: widget.allowNegative,
+        ),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(
+            RegExp(
+              widget.allowDecimal
+                  ? (widget.allowNegative ? r'[0-9.\-]' : r'[0-9.]')
+                  : (widget.allowNegative ? r'[0-9\-]' : r'[0-9]'),
+            ),
+          ),
+        ],
+        style: TextStyle(
+          fontSize: NightshadeTypography.fontSize11,
+          color: colors.textPrimary,
+        ),
+        textAlign: TextAlign.right,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          isDense: true,
+          hintText: widget.hint,
+          hintStyle: TextStyle(
+            fontSize: NightshadeTypography.fontSize10,
+            color: colors.textMuted,
+          ),
+        ),
+        onChanged: (_) {
+          _submittedSinceLastEdit = false;
+          if (_error != null) setState(() => _error = null);
+        },
+        onSubmitted: (_) {
+          _submittedSinceLastEdit = true;
+          _commit();
+        },
+      ),
+    );
+    final error = _error;
+    return error == null ? input : Tooltip(message: error, child: input);
   }
 }
 

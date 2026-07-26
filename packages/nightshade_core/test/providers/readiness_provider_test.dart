@@ -113,6 +113,7 @@ ProviderContainer _container({
   DeviceConnectionState mount = _connected,
   AppSettingsState settings = _readySettings,
   PlateSolverDetection detection = _readyDetection,
+  PlateSolverPreference solverPreference = const PlateSolverPreference(),
   bool plateSolverDetectionLoading = false,
   DarkLibraryStats darkStats = _coveredStats,
   DeviceConnectionState focuser = _connected,
@@ -144,6 +145,9 @@ ProviderContainer _container({
                   .future // never completes
             : Future.value(detection),
       ),
+      plateSolverPreferenceProvider.overrideWith(
+        (ref) => Future.value(solverPreference),
+      ),
       darkLibraryStatsProvider.overrideWith((ref) => Future.value(darkStats)),
     ],
   );
@@ -152,7 +156,8 @@ ProviderContainer _container({
 }
 
 /// Pumps async providers ([appSettingsProvider], [darkLibraryStatsProvider],
-/// [plateSolverDetectionProvider]) to their resolved value before reading the
+/// [plateSolverDetectionProvider], [plateSolverPreferenceProvider]) to their
+/// resolved value before reading the
 /// (synchronous) readiness report.
 ///
 /// When [awaitPlateSolver] is false the plate-solver future is intentionally
@@ -164,6 +169,7 @@ Future<ReadinessReport> _resolveReport(
 }) async {
   await container.read(appSettingsProvider.future);
   await container.read(darkLibraryStatsProvider.future);
+  await container.read(plateSolverPreferenceProvider.future);
   if (awaitPlateSolver) {
     await container.read(plateSolverDetectionProvider.future);
   }
@@ -263,6 +269,9 @@ void main() {
             (ref) =>
                 Future<PlateSolverDetection>.error(StateError('detect failed')),
           ),
+          plateSolverPreferenceProvider.overrideWith(
+            (ref) => Future.value(const PlateSolverPreference()),
+          ),
           darkLibraryStatsProvider.overrideWith(
             (ref) => Future.value(_coveredStats),
           ),
@@ -272,6 +281,7 @@ void main() {
 
       await container.read(appSettingsProvider.future);
       await container.read(darkLibraryStatsProvider.future);
+      await container.read(plateSolverPreferenceProvider.future);
       // Drive the errored plate-solver future to completion without throwing
       // out of the test body.
       await expectLater(
@@ -379,20 +389,44 @@ void main() {
       expect(report.overall, ReadinessLevel.caution);
     });
 
-    test('astrometry.net-only solver (no ASTAP) -> plateSolver ready '
-        '(gated on hasAnySolver, not astapReady)', () async {
-      final container = _container(detection: _astrometryOnlyDetection);
-      final report = await _resolveReport(container);
+    test(
+      'astrometry.net-only solver in Auto mode -> plateSolver ready',
+      () async {
+        final container = _container(detection: _astrometryOnlyDetection);
+        final report = await _resolveReport(container);
 
-      // A working astrometry.net rig must not be flagged as "no solver".
-      expect(
-        report.itemFor(ReadinessItemId.plateSolver)!.level,
-        ReadinessLevel.ready,
-      );
-      // Every other signal is happy in the default container, so the report
-      // is fully ready.
-      expect(report.overall, ReadinessLevel.ready);
-    });
+        // A working astrometry.net rig must not be flagged as "no solver".
+        expect(
+          report.itemFor(ReadinessItemId.plateSolver)!.level,
+          ReadinessLevel.ready,
+        );
+        // Every other signal is happy in the default container, so the report
+        // is fully ready.
+        expect(report.overall, ReadinessLevel.ready);
+      },
+    );
+
+    test(
+      'selected ASTAP without a catalog is not masked by astrometry install',
+      () async {
+        final container = _container(
+          detection: const PlateSolverDetection(
+            astapPath: '/opt/astap/astap',
+            astrometryPath: '/usr/bin/solve-field',
+          ),
+          solverPreference: const PlateSolverPreference(
+            choice: PlateSolverChoice.astap,
+          ),
+        );
+        final report = await _resolveReport(container);
+
+        expect(
+          report.itemFor(ReadinessItemId.plateSolver)!.level,
+          ReadinessLevel.caution,
+        );
+        expect(report.overall, ReadinessLevel.caution);
+      },
+    );
 
     test('readinessOverallProvider mirrors report.overall', () async {
       final container = _container(camera: _disconnected);

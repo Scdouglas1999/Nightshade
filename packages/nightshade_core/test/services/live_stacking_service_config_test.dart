@@ -60,6 +60,18 @@ void main() {
       expect(tweaked.demosaicQuality, 'superpixel');
     });
 
+    test('copyWith can explicitly clear a Bayer-pattern override', () {
+      const colour = LiveStackingConfig(
+        sensorMode: 'auto',
+        bayerPattern: 'BGGR',
+      );
+
+      final automatic = colour.copyWith(clearBayerPattern: true);
+
+      expect(automatic.sensorMode, 'auto');
+      expect(automatic.bayerPattern, isNull);
+    });
+
     test('value equality and hashCode account for colour fields', () {
       const a = LiveStackingConfig(
         sensorMode: 'osc',

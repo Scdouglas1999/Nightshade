@@ -329,7 +329,9 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
             // Start position
             _SettingRow(
               label: 'Start From',
-              tooltip: 'Use current telescope position or slew near pole first',
+              tooltip: 'Current: measure from where the scope points now. '
+                  'Pole: slew to the pole region first (requires your site '
+                  'location to be set).',
               colors: colors,
               child: PolarAlignmentSegmentedButton<bool>(
                 segments: const [

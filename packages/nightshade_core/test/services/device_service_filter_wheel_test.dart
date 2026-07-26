@@ -37,6 +37,14 @@ void main() {
       () => mockBackend.polarAlignmentEvents,
     ).thenAnswer((_) => const Stream.empty());
     when(() => mockBackend.getConnectedDevices()).thenAnswer((_) async => []);
+    when(
+      () => mockBackend.startDeviceHeartbeat(
+        deviceType: any(named: 'deviceType'),
+        deviceId: any(named: 'deviceId'),
+        intervalMs: any(named: 'intervalMs'),
+      ),
+    ).thenAnswer((_) async {});
+    when(() => mockBackend.stopDeviceHeartbeat(any())).thenAnswer((_) async {});
     container = ProviderContainer(
       overrides: [
         backendProvider.overrideWith(
@@ -92,7 +100,80 @@ void main() {
     expect(state.currentPosition, status.position);
     expect(state.filterNames, status.filterNames);
     expect(state.isMoving, status.moving);
+    verify(
+      () => mockBackend.startDeviceHeartbeat(
+        deviceType: DeviceType.filterWheel,
+        deviceId: deviceId,
+        intervalMs: 10000,
+      ),
+    ).called(1);
   });
+
+  test(
+    'connectFilterWheel rejects an unresolved encoder position and cleans up',
+    () async {
+      const deviceId = TestFixtures.filterWheelId;
+      final filterNames = List<String>.from(TestFixtures.sampleFilterNames);
+      final unresolved = FilterWheelStatus(
+        connected: true,
+        position: -1,
+        moving: false,
+        filterCount: filterNames.length,
+        filterNames: filterNames,
+      );
+
+      when(
+        () => mockBackend.discoverDevices(DeviceType.filterWheel),
+      ).thenAnswer(
+        (_) async => const [
+          DeviceInfo(
+            id: deviceId,
+            name: 'Test Filter Wheel',
+            deviceType: DeviceType.filterWheel,
+            driverType: DriverType.ascom,
+            description: 'Test filter wheel',
+            driverVersion: '1.0',
+          ),
+        ],
+      );
+      when(
+        () => mockBackend.connectDevice(DeviceType.filterWheel, deviceId),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockBackend.getFilterWheelStatus(deviceId),
+      ).thenAnswer((_) async => unresolved);
+      when(
+        () => mockBackend.disconnectDevice(DeviceType.filterWheel, deviceId),
+      ).thenAnswer((_) async {});
+
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.connectFilterWheel(deviceId),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('did not report a valid position'),
+          ),
+        ),
+      );
+
+      expect(
+        container.read(filterWheelStateProvider).connectionState,
+        DeviceConnectionState.disconnected,
+      );
+      verify(
+        () => mockBackend.disconnectDevice(DeviceType.filterWheel, deviceId),
+      ).called(1);
+      verifyNever(
+        () => mockBackend.startDeviceHeartbeat(
+          deviceType: DeviceType.filterWheel,
+          deviceId: deviceId,
+          intervalMs: any(named: 'intervalMs'),
+        ),
+      );
+    },
+  );
 
   test(
     'setFilterWheelPosition throws when device reports different position',

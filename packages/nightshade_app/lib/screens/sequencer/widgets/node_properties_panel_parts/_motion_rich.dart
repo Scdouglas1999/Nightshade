@@ -146,7 +146,9 @@ class _CenterProperties extends ConsumerWidget {
             hint: 'Current filter',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(filter: value.isEmpty ? null : value),
+                    value.isEmpty
+                        ? node.copyWith(clearFilter: true)
+                        : node.copyWith(filter: value),
                   );
             },
           ),

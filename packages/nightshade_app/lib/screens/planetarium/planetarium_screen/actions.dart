@@ -82,59 +82,68 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
   }
 
   Future<void> _exportFinderChart(BuildContext _) async {
-    final viewState = ref.read(skyViewStateProvider);
-    final renderConfig = ref.read(skyRenderConfigProvider);
-    final location = ref.read(observerLocationProvider);
-    final time = ref.read(observationTimeProvider);
-    final stars = ref.read(fovFilteredStarsProvider).valueOrNull ?? [];
-    final dsos = ref.read(fovFilteredDsosProvider).valueOrNull ?? [];
-    final constellations = ref.read(constellationDataProvider);
-    final selectedState = ref.read(selectedObjectProvider);
-    final sunPos = ref.read(sunPositionProvider);
-    final moonPos = ref.read(moonPositionProvider);
-    final moonInfo = ref.read(moonInfoProvider);
-    final planets = ref.read(planetPositionsProvider);
-    final milkyWayPoints = ref.read(milkyWayPointsProvider);
-
-    // Determine object info from popup or selection
-    String? objectName;
-    String? objectType;
-    double? objectMagnitude;
-    String? objectSize;
-    final obj = _popupObject ?? selectedState.object;
-    if (obj != null) {
-      if (obj is DeepSkyObject) {
-        final (displayName, _) = getDsoDisplayInfo(obj);
-        objectName = displayName;
-        objectType = obj.type.displayName;
-        objectMagnitude = obj.magnitude;
-        objectSize = obj.sizeString;
-      } else {
-        objectName = obj.name;
-        objectMagnitude = obj.magnitude;
-        if (obj is Star) {
-          objectType =
-              obj.spectralType != null ? 'Star (${obj.spectralType})' : 'Star';
-        }
-      }
-    }
-
-    final suggestedName = FinderChartService.suggestedFilename(
-      objectName: objectName,
-    );
-
-    final saveLocation = await getSaveLocation(
-      suggestedName: suggestedName,
-      acceptedTypeGroups: [
-        const XTypeGroup(label: 'PDF files', extensions: ['pdf']),
-      ],
-    );
-
-    if (saveLocation == null) return;
+    if (_finderChartExportInFlight) return;
+    _update(() => _finderChartExportInFlight = true);
 
     try {
+      final catalog = await ref.read(finderChartCatalogSnapshotProvider.future);
+      if (!mounted) return;
+      final viewState = ref.read(skyViewStateProvider);
+      final renderConfig = ref.read(skyRenderConfigProvider);
+      final location = ref.read(observerLocationProvider);
+      final time = ref.read(observationTimeProvider);
+      final stars = catalog.stars;
+      final dsos = catalog.dsos;
+      final constellations = ref.read(constellationDataProvider);
+      final selectedState = ref.read(selectedObjectProvider);
+      final sunPos = ref.read(sunPositionProvider);
+      final moonPos = ref.read(moonPositionProvider);
+      final moonInfo = ref.read(moonInfoProvider);
+      final planets = ref.read(planetPositionsProvider);
+      final milkyWayPoints = ref.read(milkyWayPointsProvider);
+
+      // Determine object info from popup or selection
+      String? objectName;
+      String? objectType;
+      double? objectMagnitude;
+      String? objectSize;
+      final obj = _popupObject ?? selectedState.object;
+      if (obj != null) {
+        if (obj is DeepSkyObject) {
+          final (displayName, _) = getDsoDisplayInfo(obj);
+          objectName = displayName;
+          objectType = obj.type.displayName;
+          objectMagnitude = obj.magnitude;
+          objectSize = obj.sizeString;
+        } else {
+          objectName = obj.name;
+          objectMagnitude = obj.magnitude;
+          if (obj is Star) {
+            objectType = obj.spectralType != null
+                ? 'Star (${obj.spectralType})'
+                : 'Star';
+          }
+        }
+      }
+
+      final suggestedName = FinderChartService.suggestedFilename(
+        objectName: objectName,
+      );
+
+      // Android/iOS have no save dialog — `getSavePath` throws
+      // UnimplementedError there — so the chart goes to a sandbox path and
+      // reaches the user through the share sheet below.
+      final target = await chooseExportTarget(
+        suggestedName: suggestedName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PDF files', extensions: ['pdf']),
+        ],
+      );
+
+      if (target == null) return;
+
       await FinderChartService.generateChart(
-        outputPath: saveLocation.path,
+        outputPath: target.path,
         viewState: viewState,
         renderConfig: renderConfig,
         stars: stars,
@@ -160,11 +169,11 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Finder chart saved to ${saveLocation.path}'),
-            behavior: SnackBarBehavior.floating,
-          ),
+        await revealExportedFile(
+          context,
+          target.path,
+          subject: 'Finder chart',
+          desktopMessage: 'Finder chart saved to ${target.path}',
         );
       }
     } catch (e) {
@@ -176,6 +185,10 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
             backgroundColor: NightshadeColors.of(context).error,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        _update(() => _finderChartExportInFlight = false);
       }
     }
   }
@@ -241,7 +254,13 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     final obj = _popupObject!;
     final coords = _popupCoordinates ?? obj.coordinates;
 
-    await ref.read(mountCommandServiceProvider).slewTo(coords.ra, coords.dec);
+    final result = await ref
+        .read(mountCommandServiceProvider)
+        .slewTo(coords.ra, coords.dec);
+
+    if (mounted) {
+      context.showCommandActionResult(result);
+    }
 
     _dismissPopup();
   }
@@ -254,6 +273,9 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         await mountService.slewTo(coords.ra, coords.dec, showFeedback: false);
 
     if (!result.isSuccess) {
+      if (mounted) {
+        context.showCommandActionResult(result);
+      }
       return;
     }
 
@@ -281,6 +303,9 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         await mountService.slewTo(coords.ra, coords.dec, showFeedback: false);
 
     if (!slewResult.isSuccess) {
+      if (mounted) {
+        context.showCommandActionResult(slewResult);
+      }
       return;
     }
 
@@ -308,7 +333,25 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
       return;
     }
 
-    if (mounted) {
+    // Rotate to the planned camera angle if a rotator is connected.
+    final rotatorState = ref.read(rotatorStateProvider);
+    if (rotatorState.connectionState == DeviceConnectionState.connected &&
+        rotatorState.deviceId != null) {
+      final targetRotation = ref.read(equipmentFOVProvider).rotation;
+      try {
+        await ref
+            .read(deviceBackendProvider)
+            .rotatorMoveTo(rotatorState.deviceId!, targetRotation);
+        if (mounted) {
+          context.showSuccessSnackBar(
+              'Rotating to ${targetRotation.toStringAsFixed(1)}°');
+        }
+      } catch (e) {
+        if (mounted) {
+          context.showErrorSnackBar('Rotation failed: $e');
+        }
+      }
+    } else if (mounted) {
       context.showInfoSnackBar('Centered on $objectName');
     }
   }
@@ -380,13 +423,26 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
       return;
     }
 
-    await ref.read(mountCommandServiceProvider).abortSlew();
+    final result = await ref.read(mountCommandServiceProvider).abortSlew();
+    if (mounted) {
+      context.showCommandActionResult(result);
+    }
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     final key = event.logicalKey;
+
+    if (key == LogicalKeyboardKey.keyK &&
+        (HardwareKeyboard.instance.isMetaPressed ||
+            HardwareKeyboard.instance.isControlPressed)) {
+      _openPlanPanelOnSearch(
+        isPhone: Responsive.isPhone(context),
+        colors: NightshadeColors.of(context),
+      );
+      return KeyEventResult.handled;
+    }
 
     if (key == LogicalKeyboardKey.arrowUp) {
       _panView(0, -1);

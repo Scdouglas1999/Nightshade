@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../utils/exported_file_reveal.dart';
 import '../../../utils/snackbar_helper.dart';
 
 /// Settings panel for viewing and managing observation logs.
@@ -24,6 +24,8 @@ class _ObservationLogSettingsState
     extends ConsumerState<ObservationLogSettings> {
   String _searchQuery = '';
   int? _filterRating;
+  bool _isExporting = false;
+  final Set<int> _deletingLogIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +54,8 @@ class _ObservationLogSettingsState
               const Spacer(),
               // Export button
               NightshadeButton(
-                onPressed: () => _exportCsv(context),
-                label: 'Export CSV',
+                onPressed: _isExporting ? null : () => _exportCsv(context),
+                label: _isExporting ? 'Exporting...' : 'Export CSV',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.download,
@@ -240,6 +242,7 @@ class _ObservationLogSettingsState
   }
 
   Widget _buildLogEntry(ObservationLogEntry log, NightshadeColors colors) {
+    final isDeleting = _deletingLogIds.contains(log.id);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -373,11 +376,16 @@ class _ObservationLogSettingsState
           // Delete button
           const SizedBox(width: 8),
           IconButton(
-            icon: Icon(LucideIcons.trash2, size: 16, color: colors.error),
+            icon: isDeleting
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(LucideIcons.trash2, size: 16, color: colors.error),
             iconSize: 16,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: () => _confirmDelete(log),
+            onPressed: isDeleting ? null : () => _confirmDelete(log),
           ),
         ],
       ),
@@ -407,24 +415,52 @@ class _ObservationLogSettingsState
       ),
     );
 
-    if (confirmed == true) {
-      unawaited(
-        ref.read(observationLogNotifierProvider.notifier).deleteLog(log.id),
-      );
+    if (confirmed != true || _deletingLogIds.contains(log.id)) return;
+
+    final backendAtStart = ref.read(backendProvider);
+    setState(() => _deletingLogIds.add(log.id));
+    try {
+      final deleted = await ref
+          .read(observationLogNotifierProvider.notifier)
+          .deleteLog(log.id);
+      if (!mounted || deleted) return;
+
+      final message = !identical(ref.read(backendProvider), backendAtStart)
+          ? 'Delete cancelled because the imaging host changed.'
+          : ref.read(observationLogNotifierProvider).errorMessage ??
+              'Could not delete the observation.';
+      context.showErrorSnackBar(message);
+    } finally {
+      if (mounted) {
+        setState(() => _deletingLogIds.remove(log.id));
+      }
     }
   }
 
   Future<void> _exportCsv(BuildContext context) async {
-    final csv =
-        await ref.read(observationLogNotifierProvider.notifier).exportCsv();
-    if (csv == null || csv.isEmpty) {
-      if (context.mounted) {
-        context.showInfoSnackBar('No observations to export.');
-      }
-      return;
-    }
+    if (_isExporting) return;
 
+    final backendAtStart = ref.read(backendProvider);
+    setState(() => _isExporting = true);
     try {
+      final csv =
+          await ref.read(observationLogNotifierProvider.notifier).exportCsv();
+      if (csv == null || csv.isEmpty) {
+        if (!context.mounted) return;
+
+        final error = ref.read(observationLogNotifierProvider).errorMessage;
+        if (!identical(ref.read(backendProvider), backendAtStart)) {
+          context.showErrorSnackBar(
+            'Export cancelled because the imaging host changed.',
+          );
+        } else if (error != null) {
+          context.showErrorSnackBar(error);
+        } else {
+          context.showInfoSnackBar('No observations to export.');
+        }
+        return;
+      }
+
       final docsDir = await getApplicationDocumentsDirectory();
       final exportDir =
           Directory(p.join(docsDir.path, 'Nightshade', 'exports'));
@@ -439,11 +475,20 @@ class _ObservationLogSettingsState
       await file.writeAsString(csv);
 
       if (context.mounted) {
-        context.showSuccessSnackBar('Exported to ${file.path}');
+        // Share on mobile (app-docs is otherwise unreachable); path on desktop.
+        await revealExportedFile(
+          context,
+          file.path,
+          subject: 'Nightshade observation log',
+        );
       }
     } catch (e) {
       if (context.mounted) {
         context.showErrorSnackBar('Export failed: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
       }
     }
   }

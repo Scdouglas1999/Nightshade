@@ -23,14 +23,22 @@ class DeepStarStatus {
   /// When the tileset was last (fully) installed.
   final DateTime? installedAt;
 
+  /// Whether catalog files exist without a readable installed manifest.
+  ///
+  /// Downloads write the manifest last, so an interrupted but resumable
+  /// download legitimately has local files while [manifest] is null.
+  final bool hasLocalFiles;
+
   const DeepStarStatus({
     this.manifest,
     this.tilesPresent = 0,
     this.bytesPresent = 0,
     this.installedAt,
+    this.hasLocalFiles = false,
   });
 
   bool get isInstalled => manifest != null;
+  bool get hasCatalogData => manifest != null || hasLocalFiles;
   bool get isComplete =>
       manifest != null && tilesPresent >= manifest!.tiles.length;
 }
@@ -150,12 +158,16 @@ class DeepStarCatalogManager {
 
   Future<DeepStarStatus> status() async {
     final manifestFile = File(_manifestPath);
-    if (!await manifestFile.exists()) return const DeepStarStatus();
+    if (!await manifestFile.exists()) {
+      return DeepStarStatus(hasLocalFiles: await _hasLocalCatalogFiles());
+    }
     DeepStarManifest manifest;
     try {
       manifest = DeepStarManifest.decodeJson(await manifestFile.readAsString());
     } catch (_) {
-      return const DeepStarStatus();
+      // Keep corrupt installs visible in Settings so the user can delete or
+      // replace them instead of silently stranding files on disk.
+      return const DeepStarStatus(hasLocalFiles: true);
     }
 
     var present = 0;
@@ -354,9 +366,15 @@ class DeepStarCatalogManager {
   Future<void> delete() async {
     final dir = Directory(directory);
     if (!await dir.exists()) return;
+    final failures = <(String, Object)>[];
+    FileSystemEntity? manifestEntity;
     await for (final entity in dir.list()) {
       final name = path.basename(entity.path);
       if (name == 'config.json') continue;
+      if (name == 'manifest.json') {
+        manifestEntity = entity;
+        continue;
+      }
       try {
         await entity.delete(recursive: true);
       } catch (e) {
@@ -367,10 +385,42 @@ class DeepStarCatalogManager {
           'DeepStarCatalog: failed to delete ${entity.path}: $e',
           name: 'nightshade.planetarium',
         );
+        failures.add((entity.path, e));
       }
+    }
+    // The manifest is the user's handle for retrying cleanup. Delete it only
+    // after all tile and metadata files are gone; if any are locked, status()
+    // continues to report a partial install and Settings keeps Delete visible.
+    if (failures.isEmpty && manifestEntity != null) {
+      try {
+        await manifestEntity.delete(recursive: true);
+      } catch (e) {
+        developer.log(
+          'DeepStarCatalog: failed to delete ${manifestEntity.path}: $e',
+          name: 'nightshade.planetarium',
+        );
+        failures.add((manifestEntity.path, e));
+      }
+    }
+    if (failures.isNotEmpty) {
+      final first = failures.first;
+      throw FileSystemException(
+        'Could not delete ${failures.length} deep-star catalog '
+        'item${failures.length == 1 ? '' : 's'}: ${first.$2}',
+        first.$1,
+      );
     }
   }
 
   static String _normalizeBase(String url) =>
       url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+
+  Future<bool> _hasLocalCatalogFiles() async {
+    final dir = Directory(directory);
+    if (!await dir.exists()) return false;
+    await for (final entity in dir.list()) {
+      if (path.basename(entity.path) != 'config.json') return true;
+    }
+    return false;
+  }
 }

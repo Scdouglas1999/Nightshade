@@ -4,6 +4,12 @@ part of '../settings_provider.dart';
 class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   models.AppSettings? _remoteSettingsSnapshot;
 
+  /// True only once a remote `GET /api/settings` (or a `__snapshot__` push)
+  /// has populated real host settings. Guards remote writes: after a failed
+  /// fetch `build()` remains in [AsyncError], and writes are refused until a
+  /// good fetch lands so local defaults can never overwrite the host.
+  bool _remoteFetchSucceeded = false;
+
   // Push-event subscription, live only when the
   // active backend is a NetworkBackend. The host emits one
   // `settings.changed` event per field that differs in a POST
@@ -19,11 +25,36 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   /// burst, but cheap to keep.
   final List<String> _ownCommandIds = <String>[];
 
-  Future<void> _writeRemoteSettings(AppSettingsState settings) async {
-    final backend = ref.read(backendProvider);
-    if (backend is! NetworkBackend) {
+  /// Settings controls frequently emit several writes without awaiting each
+  /// other (sliders, text fields, paired host/port inputs). Keep those writes
+  /// in invocation order. This is especially important remotely, where every
+  /// request carries a full settings snapshot and concurrent requests built
+  /// from the same stale state would otherwise revert each other's fields.
+  Future<void> _settingsWriteTail = Future<void>.value();
+  // Per-filter autofocus updates are read-modify-write operations against one
+  // JSON setting. Serialize the whole mutation (not just the final DAO write)
+  // so quick edits to different fields or filters cannot overwrite each other
+  // from the same stale snapshot.
+  Future<void> _filterAutofocusWriteTail = Future<void>.value();
+  int _backendGeneration = 0;
+  bool _disposeHookRegistered = false;
+
+  Future<void> _writeRemoteSettings(
+    AppSettingsState settings, {
+    required NetworkBackend backend,
+    required int generation,
+  }) async {
+    if (generation != _backendGeneration ||
+        !identical(ref.read(backendProvider), backend)) {
       throw StateError(
-        'Remote settings write requested without network backend',
+        'The settings host changed before this write could start. Try again.',
+      );
+    }
+
+    if (!_remoteFetchSucceeded) {
+      throw StateError(
+        'Refusing remote settings write before a successful host fetch; '
+        'a write now would overwrite host settings with local defaults',
       );
     }
 
@@ -35,7 +66,18 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     // matches so we don't fight ourselves.
     final commandId = _generateLocalCommandId();
     _registerOwnCommandId(commandId);
-    await backend.updateSettingsWithCommandId(remote, commandId: commandId);
+    try {
+      await backend.updateSettingsWithCommandId(remote, commandId: commandId);
+    } catch (_) {
+      _ownCommandIds.remove(commandId);
+      rethrow;
+    }
+    if (generation != _backendGeneration ||
+        !identical(ref.read(backendProvider), backend)) {
+      throw StateError(
+        'The settings host changed while saving. Verify the value on the new host.',
+      );
+    }
     _remoteSettingsSnapshot = remote;
   }
 
@@ -91,6 +133,7 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
         try {
           final remote = models.AppSettings.fromJson(snapshot);
           _remoteSettingsSnapshot = remote;
+          _remoteFetchSucceeded = true;
           state = AsyncData(_fromRemoteSettings(remote));
         } catch (e, st) {
           developer.log(
@@ -133,15 +176,32 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
 
   @override
   Future<AppSettingsState> build() async {
+    final generation = ++_backendGeneration;
+    _remoteFetchSucceeded = false;
+    _remoteSettingsSnapshot = null;
+    _ownCommandIds.clear();
+    _settingsWriteTail = Future<void>.value();
     final backend = ref.watch(backendProvider);
 
     // Tear down any previous subscription before
     // re-binding for the freshly-read backend. `build()` is called every
     // time the backend changes (FFI → Network → Disconnected etc.) and
-    // each variant needs its own subscription policy. The cancel() future
-    // is fire-and-forget; we only care that the listener stops dispatching.
-    unawaited(_settingsEventSub?.cancel());
+    // each variant needs its own subscription policy. Await cancellation and
+    // generation-gate callbacks so a late event from the previous host can
+    // never mutate the newly selected host's settings.
+    await _settingsEventSub?.cancel();
     _settingsEventSub = null;
+    if (generation != _backendGeneration) {
+      throw StateError('Settings backend changed while reloading.');
+    }
+
+    if (!_disposeHookRegistered) {
+      _disposeHookRegistered = true;
+      ref.onDispose(() {
+        unawaited(_settingsEventSub?.cancel());
+        _settingsEventSub = null;
+      });
+    }
 
     if (backend is NetworkBackend) {
       // Subscribe BEFORE the GET so an event that lands between the
@@ -149,11 +209,16 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
       // when the future resolves.
       _settingsEventSub = backend.eventStream.listen(
         (event) {
+          if (generation != _backendGeneration ||
+              !identical(ref.read(backendProvider), backend)) {
+            return;
+          }
           if (event.category != EventCategory.system) return;
           if (event.eventType != settingsChangedEventType) return;
           _applySettingsChangedEvent(event);
         },
         onError: (Object error) {
+          if (generation != _backendGeneration) return;
           developer.log(
             'settings.changed stream error: $error',
             name: 'AppSettingsNotifier',
@@ -162,24 +227,29 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
           );
         },
       );
-      ref.onDispose(() {
-        _settingsEventSub?.cancel();
-        _settingsEventSub = null;
-      });
-
       try {
         final remoteSettings = await backend.getSettings();
+        if (generation != _backendGeneration ||
+            !identical(ref.read(backendProvider), backend)) {
+          throw StateError('Settings host changed while fetching.');
+        }
         _remoteSettingsSnapshot = remoteSettings;
-        return _fromRemoteSettings(remoteSettings);
-      } catch (e, stackTrace) {
-        // Why: mobile clients pair with control scope; settings reads must
-        // not tear down the session if the host rejects or omits a field.
-        developer.log(
-          'Remote settings fetch failed; using defaults until host responds: $e\n$stackTrace',
-          name: 'AppSettingsNotifier',
-          level: 900,
+        _remoteFetchSucceeded = true;
+        // Overlay this device's own display prefs on top of the host's —
+        // theme/accent/font/UI-scale are per-device and were saved locally,
+        // so a reconnect must not snap the phone back to the desktop's look.
+        return _overlayDeviceLocalDisplayPrefs(
+          _fromRemoteSettings(remoteSettings),
         );
-        return const AppSettingsState();
+      } catch (e, stackTrace) {
+        developer.log(
+          'Remote settings fetch failed: $e\n$stackTrace',
+          name: 'AppSettingsNotifier',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace,
+        );
+        Error.throwWithStackTrace(e, stackTrace);
       }
     }
 
@@ -190,41 +260,185 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     return _settingsFromStoredMap(allSettings);
   }
 
-  Future<void> _saveSetting(String key, String value) async {
+  /// Display preferences that belong to the DEVICE rendering the UI, not to
+  /// the imaging host: theme (incl. red-night), accent colour, font size, UI
+  /// scale. On a remote client these persist to the LOCAL store and never
+  /// round-trip to the host. Before this, a paired phone pushed them over
+  /// `POST /api/settings` — which is admin-scoped (so a control token got
+  /// "Access denied: Token scope is not permitted", and the theme reverted)
+  /// and, worse, would have reskinned the DESKTOP to match the phone.
+  static const Set<String> _deviceLocalDisplayKeys = {
+    'theme',
+    'accent_color',
+    'font_size',
+    'ui_scale',
+  };
+
+  Future<void> _saveSetting(String key, String value) {
     final backend = ref.read(backendProvider);
-    if (backend is NetworkBackend) {
-      final current = state.valueOrNull;
-      if (current == null) {
-        throw StateError('Settings are not loaded yet');
+    final generation = _backendGeneration;
+    // Device-local display prefs always persist to the local store, even
+    // under a NetworkBackend — they are this device's rendering choice.
+    final isDeviceLocalDisplay = _deviceLocalDisplayKeys.contains(key);
+    final dao = (backend is NetworkBackend && !isDeviceLocalDisplay)
+        ? null
+        : ref.read(settingsDaoProvider);
+    return _serializeSettingsWrite(key, generation, () async {
+      if (generation != _backendGeneration ||
+          !identical(ref.read(backendProvider), backend)) {
+        throw StateError('The settings host changed before saving $key.');
       }
-      final updated = _applySettingsMap(current, {key: value});
-      await _writeRemoteSettings(updated);
-      return;
-    }
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSetting(key, value);
+      _requireLoadedSettings('saving $key');
+      if (backend is NetworkBackend && !isDeviceLocalDisplay) {
+        final current = _requireLoadedSettings('saving $key');
+        final updated = _applySettingsMap(current, {key: value});
+        await _writeRemoteSettings(
+          updated,
+          backend: backend,
+          generation: generation,
+        );
+        // Patch before releasing the write queue so the next request builds
+        // its full remote snapshot from this successful value. Patch only the
+        // submitted field to preserve unrelated pushes from other clients.
+        _patchState((latest) => _applySettingsMap(latest, {key: value}));
+        return;
+      }
+      await dao!.setSetting(key, value);
+      if (generation != _backendGeneration ||
+          !identical(ref.read(backendProvider), backend) ||
+          !identical(ref.read(settingsDaoProvider), dao)) {
+        throw StateError(
+          'The settings store changed while saving $key. Verify the value in '
+          'the active store.',
+        );
+      }
+      // Local state is patched by the calling section setter after this write
+      // resolves; the DAO persists every DB key directly, so there is no need
+      // to project the change back into state here. Deliberately NOT routed
+      // through `_applySettingsMap`, whose `_assertKeysRemotable` guard is a
+      // remote-write concern and would wrongly reject host-only keys
+      // (`start_minimized`, `database_path`, `horizon_profile_json`, ...).
+    });
   }
 
-  Future<void> _saveSettings(Map<String, String> settings) async {
-    final backend = ref.read(backendProvider);
-    if (backend is NetworkBackend) {
-      final current = state.valueOrNull;
-      if (current == null) {
-        throw StateError('Settings are not loaded yet');
+  /// Apply this device's locally-stored display prefs (theme / accent / font
+  /// size / UI scale) on top of a state built from the remote host, so the
+  /// operator's per-device look survives a reconnect. Best-effort: a read
+  /// failure or an unset key leaves the host value in place.
+  Future<AppSettingsState> _overlayDeviceLocalDisplayPrefs(
+    AppSettingsState fromHost,
+  ) async {
+    try {
+      final dao = ref.read(settingsDaoProvider);
+      var merged = fromHost;
+      for (final key in _deviceLocalDisplayKeys) {
+        final local = await dao.getSetting(key);
+        if (local == null) continue;
+        final next = _applyJsonSettingChange(merged, key, local);
+        if (next != null) merged = next;
       }
-      final updated = _applySettingsMap(current, settings);
-      await _writeRemoteSettings(updated);
-      return;
+      return merged;
+    } catch (_) {
+      return fromHost;
     }
-    final dao = ref.read(settingsDaoProvider);
-    await dao.setSettings(settings);
+  }
+
+  Future<void> _saveSettings(Map<String, String> settings) {
+    final backend = ref.read(backendProvider);
+    final generation = _backendGeneration;
+    final dao = backend is NetworkBackend
+        ? null
+        : ref.read(settingsDaoProvider);
+    return _serializeSettingsWrite(
+      settings.keys.join(', '),
+      generation,
+      () async {
+        if (generation != _backendGeneration ||
+            !identical(ref.read(backendProvider), backend)) {
+          throw StateError('The settings host changed before saving.');
+        }
+        _requireLoadedSettings('saving ${settings.keys.join(', ')}');
+        if (backend is NetworkBackend) {
+          final current = _requireLoadedSettings(
+            'saving ${settings.keys.join(', ')}',
+          );
+          final updated = _applySettingsMap(current, settings);
+          await _writeRemoteSettings(
+            updated,
+            backend: backend,
+            generation: generation,
+          );
+          _patchState((latest) => _applySettingsMap(latest, settings));
+          return;
+        }
+        await dao!.setSettings(settings);
+        if (generation != _backendGeneration ||
+            !identical(ref.read(backendProvider), backend) ||
+            !identical(ref.read(settingsDaoProvider), dao)) {
+          throw StateError(
+            'The settings store changed while saving. Verify the values in '
+            'the active store.',
+          );
+        }
+        // Local state is patched by the calling section setter after this
+        // write resolves (see `_saveSetting`). Not routed through
+        // `_applySettingsMap` here so the remote-only `_assertKeysRemotable`
+        // guard can't reject host-only batched keys (e.g. the
+        // `default_image_directory` compatibility key co-written by
+        // `setImageOutputPath`).
+      },
+    );
+  }
+
+  Future<void> _serializeSettingsWrite(
+    String setting,
+    int generation,
+    Future<void> Function() write,
+  ) {
+    final tail = _settingsWriteTail;
+    final operation = tail.then((_) {
+      if (generation != _backendGeneration) {
+        throw StateError('The settings host changed before saving $setting.');
+      }
+      return write();
+    });
+    _settingsWriteTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace __) {},
+    );
+    unawaited(
+      operation.then<void>(
+        (_) {
+          final failure = ref.read(appSettingsWriteFailureProvider);
+          if (failure?.setting == setting) {
+            ref.read(appSettingsWriteFailureProvider.notifier).state = null;
+          }
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          developer.log(
+            'Settings write failed for $setting: $error',
+            name: 'AppSettingsNotifier',
+            level: 1000,
+            error: error,
+            stackTrace: stackTrace,
+          );
+          ref
+              .read(appSettingsWriteFailureProvider.notifier)
+              .state = AppSettingsWriteFailure(
+            setting: setting,
+            error: error,
+            occurredAt: DateTime.now(),
+          );
+        },
+      ),
+    );
+    return operation;
   }
 
   /// Helper to update a single field in the current AppSettingsState.
   ///
-  /// If the state hasn't loaded yet (no value), the update is silently skipped
-  /// because there's nothing to patch. The database write has already succeeded,
-  /// so the next full load will pick up the new value.
+  /// If the state was invalidated after a successful database write, the update
+  /// is skipped because the replacement load will read that persisted value.
   void _patchState(
     AppSettingsState Function(AppSettingsState current) updater,
   ) {
@@ -243,6 +457,17 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   /// (e.g. read-modify-write of a JSON map) go through this accessor instead,
   /// keeping all `state` access inside the notifier class body.
   AppSettingsState? get _currentValueOrNull => state.valueOrNull;
+
+  AppSettingsState _requireLoadedSettings(String action) {
+    final current = state.valueOrNull;
+    if (current == null) {
+      throw StateError(
+        'Application settings are unavailable; refusing $action because it '
+        'could overwrite stored settings with defaults.',
+      );
+    }
+    return current;
+  }
 
   /// Test-only: round-trip a state through the stored-map serialiser and back.
   ///
@@ -277,19 +502,54 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   /// the [SettingsDao]. (On a network client, settings flow through the section
   /// setters / `_writeRemoteSettings` instead.)
   Future<void> applyRemoteSettings(models.AppSettings remote) async {
-    var next = _currentValueOrNull ?? const AppSettingsState();
-    remote.toJson().forEach((key, value) {
-      final updated = _applyJsonSettingChange(next, key, value);
-      if (updated != null) next = updated;
-    });
-    await _saveSettings(_storedMapFromState(next));
-    state = AsyncData(next);
+    final backend = ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      throw StateError(
+        'applyRemoteSettings is host-only; refusing to relay a full snapshot '
+        'through a remote client.',
+      );
+    }
+    final generation = _backendGeneration;
+    final dao = ref.read(settingsDaoProvider);
+    await _serializeSettingsWrite(
+      'remote settings snapshot',
+      generation,
+      () async {
+        if (generation != _backendGeneration ||
+            !identical(ref.read(backendProvider), backend) ||
+            !identical(ref.read(settingsDaoProvider), dao)) {
+          throw StateError(
+            'The settings store changed before applying the remote snapshot.',
+          );
+        }
+
+        var next = _requireLoadedSettings(
+          'applying a remote settings snapshot',
+        );
+        remote.toJson().forEach((key, value) {
+          final updated = _applyJsonSettingChange(next, key, value);
+          if (updated != null) next = updated;
+        });
+
+        await dao.setSettings(_storedMapFromState(next));
+        if (generation != _backendGeneration ||
+            !identical(ref.read(backendProvider), backend) ||
+            !identical(ref.read(settingsDaoProvider), dao)) {
+          throw StateError(
+            'The settings store changed while applying the remote snapshot. '
+            'Verify the values in the active store.',
+          );
+        }
+        state = AsyncData(next);
+      },
+    );
   }
 
   /// The current settings projected to the remote wire model — companion to
   /// [applyRemoteSettings] for the headless `GET /api/settings` handler.
-  models.AppSettings exportRemoteSettings() =>
-      _toRemoteSettings(_currentValueOrNull ?? const AppSettingsState());
+  models.AppSettings exportRemoteSettings() => _toRemoteSettings(
+    _requireLoadedSettings('exporting a remote settings snapshot'),
+  );
 
   // Section setters are defined in `settings_sections/*.dart` (split via
   // Dart `part` files). The class body below keeps only the lifecycle

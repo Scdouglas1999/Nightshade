@@ -78,6 +78,7 @@ void main() {
           tileId: 42,
           order: 9,
           deltaPath: delta.path,
+          license: 'cc-by',
           framesDelta: 30,
           integrationSecondsDelta: 9000.0,
           instrument: 'asi2600-fp',
@@ -93,6 +94,9 @@ void main() {
         expect(seen!.headers['integrationSecondsDelta'], '9000.0');
         expect(seen!.headers['instrument'], 'asi2600-fp');
         expect(seen!.headers['solver'], 'astap');
+        // WS4: the share carries its consented license + attribution choice.
+        expect(seen!.headers['license'], 'cc-by');
+        expect(seen!.headers['attributionConsent'], 'true');
         expect(seen!.bodyBytes, [9, 8, 7, 6]);
         expect(receipt.contributionId, 'c-1');
         expect(receipt.accepted, isTrue);
@@ -221,6 +225,70 @@ void main() {
     });
   });
 
+  group('attribution', () {
+    test('fetchAttribution GETs /v1/attribution with the artifact query + '
+        'decodes the ordered, consent-aware credit list', () async {
+      http.Request? seen;
+      final mock = MockClient((request) async {
+        seen = request;
+        return http.Response(
+          jsonEncode({
+            'artifactType': 'mosaic',
+            'artifactRef': 'mos-1',
+            'contributors': [
+              {
+                'accountId': 'acc-a',
+                'displayName': 'Ada',
+                'anonymous': false,
+                'frames': 120,
+                'integrationSeconds': 3600.0,
+                'license': 'cc-by-4.0',
+              },
+              {
+                'displayName': 'Anonymous contributor',
+                'anonymous': true,
+                'frames': 40,
+                'integrationSeconds': 1200.0,
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      final attribution = await clientWith(
+        mock,
+      ).fetchAttribution(artifactType: 'mosaic', artifactRef: 'mos-1');
+
+      expect(seen!.method, 'GET');
+      expect(seen!.url.path, '/v1/attribution');
+      expect(seen!.url.queryParameters['artifactType'], 'mosaic');
+      expect(seen!.url.queryParameters['artifactRef'], 'mos-1');
+      expect(seen!.headers['Authorization'], 'Bearer tok-123');
+      expect(attribution.contributors, hasLength(2));
+      expect(attribution.displayNames, ['Ada', 'Anonymous contributor']);
+      final ada = attribution.contributors.first;
+      expect(ada.accountId, 'acc-a');
+      expect(ada.frames, 120);
+      expect(ada.integrationSeconds, 3600.0);
+      expect(ada.license, 'cc-by-4.0');
+      final anon = attribution.contributors[1];
+      expect(anon.anonymous, isTrue);
+      expect(anon.accountId, isNull);
+    });
+
+    test('fetchAttribution maps 404 to an empty credit list', () async {
+      final mock = MockClient((_) async => http.Response('not found', 404));
+      final attribution = await clientWith(
+        mock,
+      ).fetchAttribution(artifactType: 'coimaging', artifactRef: 'sess-9');
+      expect(attribution.artifactType, 'coimaging');
+      expect(attribution.artifactRef, 'sess-9');
+      expect(attribution.isEmpty, isTrue);
+      expect(attribution.contributors, isEmpty);
+    });
+  });
+
   group('error mapping', () {
     test('409 maps to geometryMismatch', () async {
       final dir = await Directory.systemTemp.createTemp('nst_409');
@@ -230,7 +298,12 @@ void main() {
       );
 
       await expectLater(
-        clientWith(mock).pushTile(tileId: 1, order: 9, deltaPath: delta.path),
+        clientWith(mock).pushTile(
+          tileId: 1,
+          order: 9,
+          deltaPath: delta.path,
+          license: 'cc-by',
+        ),
         throwsA(
           isA<ConstellationException>().having(
             (e) => e.kind,
@@ -256,12 +329,35 @@ void main() {
       );
     });
 
+    test('a hub 400/422 maps to protocol, not unknown', () async {
+      // `unknown` is what the headless handlers turn into a 500, so a request
+      // the HUB rejected was being reported as an appliance fault — telling the
+      // caller to retry something that can never succeed. 400 and 422 are both
+      // "your request is wrong": bad params / an un-shareable license (400) and
+      // a content-integrity rejection (422).
+      for (final status in <int>[400, 422]) {
+        final mock = MockClient((_) async => http.Response('bad', status));
+        await expectLater(
+          clientWith(mock).info(),
+          throwsA(
+            isA<ConstellationException>()
+                .having((e) => e.kind, 'kind', ConstellationErrorKind.protocol)
+                .having((e) => e.statusCode, 'statusCode', status),
+          ),
+          reason: 'HTTP $status',
+        );
+      }
+    });
+
     test('pushTile throws notFound when the delta file is missing', () async {
       final mock = MockClient((_) async => http.Response('', 200));
       await expectLater(
-        clientWith(
-          mock,
-        ).pushTile(tileId: 1, order: 9, deltaPath: '/does/not/exist.nst'),
+        clientWith(mock).pushTile(
+          tileId: 1,
+          order: 9,
+          deltaPath: '/does/not/exist.nst',
+          license: 'cc-by',
+        ),
         throwsA(
           isA<ConstellationException>().having(
             (e) => e.kind,
@@ -298,6 +394,7 @@ void main() {
         tileId: 314,
         order: 9,
         fitsPath: fits.path,
+        license: 'cc-by',
         capturedImageId: 42,
         exposureSeconds: 120,
         instrument: 'asi2600',
@@ -310,6 +407,9 @@ void main() {
       expect(seen!.url.queryParameters['order'], '9');
       expect(seen!.url.queryParameters['capturedImageId'], '42');
       expect(seen!.url.queryParameters['instrument'], 'asi2600');
+      // WS4: the raw-subframe share carries its license + raw-sub opt-in.
+      expect(seen!.url.queryParameters['license'], 'cc-by');
+      expect(seen!.url.queryParameters['shareRawSubframes'], 'true');
       expect(seen!.headers['Authorization'], 'Bearer tok-123');
       expect(seenLen, fits.lengthSync());
       await dir.delete(recursive: true);
@@ -318,9 +418,12 @@ void main() {
     test('pushSubframe throws notFound when the FITS is missing', () async {
       final mock = MockClient((_) async => http.Response('', 200));
       await expectLater(
-        clientWith(
-          mock,
-        ).pushSubframe(tileId: 1, order: 9, fitsPath: '/no/such.fits'),
+        clientWith(mock).pushSubframe(
+          tileId: 1,
+          order: 9,
+          fitsPath: '/no/such.fits',
+          license: 'cc-by',
+        ),
         throwsA(
           isA<ConstellationException>().having(
             (e) => e.kind,
@@ -341,9 +444,12 @@ void main() {
               http.Response('this hub does not accept raw subframes', 405),
         );
         await expectLater(
-          clientWith(
-            mock,
-          ).pushSubframe(tileId: 1, order: 9, fitsPath: fits.path),
+          clientWith(mock).pushSubframe(
+            tileId: 1,
+            order: 9,
+            fitsPath: fits.path,
+            license: 'cc-by',
+          ),
           throwsA(
             isA<ConstellationException>().having(
               (e) => e.kind,
@@ -365,6 +471,19 @@ void main() {
       await clientWith(mock).deleteSubframe('sub-9');
       expect(seen!.method, 'DELETE');
       expect(seen!.url.path, endsWith('/v1/subframes/sub-9'));
+    });
+
+    test('releasePanel rejects a malformed success payload', () async {
+      final mock = MockClient((_) async => http.Response('{}', 200));
+
+      await expectLater(
+        clientWith(mock).releasePanel('mos-1', 2),
+        throwsA(
+          isA<ConstellationException>()
+              .having((e) => e.kind, 'kind', ConstellationErrorKind.protocol)
+              .having((e) => e.message, 'message', contains('released')),
+        ),
+      );
     });
   });
 }

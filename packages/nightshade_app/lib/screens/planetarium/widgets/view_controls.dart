@@ -5,9 +5,12 @@ import 'package:file_selector/file_selector.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_core/nightshade_core.dart' show chooseExportTarget;
 import '../../../services/finder_chart_service.dart';
+import '../../../utils/exported_file_reveal.dart';
 import '../../../utils/coordinate_format_utils.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
+import '../providers/finder_chart_catalog_provider.dart';
 
 // NOTE (design tokens): every `Colors.white*` / `Colors.black*` and the
 // `0xFF00E676` accent in this file are canvas-absolute HUD colors drawn over the
@@ -293,62 +296,68 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
 
   Future<void> _exportChart({required bool printMode}) async {
     if (_isExporting) return;
-
-    final viewState = ref.read(skyViewStateProvider);
-    final renderConfig = ref.read(skyRenderConfigProvider);
-    final location = ref.read(observerLocationProvider);
-    final time = ref.read(observationTimeProvider);
-    final stars = ref.read(fovFilteredStarsProvider).valueOrNull ?? [];
-    final dsos = ref.read(fovFilteredDsosProvider).valueOrNull ?? [];
-    final constellations = ref.read(constellationDataProvider);
-    final selectedState = ref.read(selectedObjectProvider);
-    final sunPos = ref.read(sunPositionProvider);
-    final moonPos = ref.read(moonPositionProvider);
-    final moonInfo = ref.read(moonInfoProvider);
-    final planets = ref.read(planetPositionsProvider);
-    final milkyWayPoints = ref.read(milkyWayPointsProvider);
-
-    // Determine object name from selection
-    String? objectName;
-    String? objectType;
-    double? objectMagnitude;
-    String? objectSize;
-    if (selectedState.object != null) {
-      final obj = selectedState.object!;
-      if (obj is DeepSkyObject) {
-        final (displayName, _) = _getDsoDisplayInfo(obj);
-        objectName = displayName;
-        objectType = obj.type.displayName;
-        objectMagnitude = obj.magnitude;
-        objectSize = obj.sizeString;
-      } else {
-        objectName = obj.name;
-        objectMagnitude = obj.magnitude;
-        if (obj is Star) {
-          objectType =
-              obj.spectralType != null ? 'Star (${obj.spectralType})' : 'Star';
-        }
-      }
-    }
-
-    final suggestedName = FinderChartService.suggestedFilename(
-      objectName: objectName,
-    );
-
-    final location2 = await getSaveLocation(
-      suggestedName: suggestedName,
-      acceptedTypeGroups: [
-        const XTypeGroup(label: 'PDF files', extensions: ['pdf']),
-      ],
-    );
-
-    if (location2 == null) return;
-
     setState(() => _isExporting = true);
 
     try {
+      final catalog = await ref.read(finderChartCatalogSnapshotProvider.future);
+      if (!mounted) return;
+
+      final viewState = ref.read(skyViewStateProvider);
+      final renderConfig = ref.read(skyRenderConfigProvider);
+      final location = ref.read(observerLocationProvider);
+      final time = ref.read(observationTimeProvider);
+      final stars = catalog.stars;
+      final dsos = catalog.dsos;
+      final constellations = ref.read(constellationDataProvider);
+      final selectedState = ref.read(selectedObjectProvider);
+      final sunPos = ref.read(sunPositionProvider);
+      final moonPos = ref.read(moonPositionProvider);
+      final moonInfo = ref.read(moonInfoProvider);
+      final planets = ref.read(planetPositionsProvider);
+      final milkyWayPoints = ref.read(milkyWayPointsProvider);
+
+      // Determine object name from selection
+      String? objectName;
+      String? objectType;
+      double? objectMagnitude;
+      String? objectSize;
+      if (selectedState.object != null) {
+        final obj = selectedState.object!;
+        if (obj is DeepSkyObject) {
+          final (displayName, _) = _getDsoDisplayInfo(obj);
+          objectName = displayName;
+          objectType = obj.type.displayName;
+          objectMagnitude = obj.magnitude;
+          objectSize = obj.sizeString;
+        } else {
+          objectName = obj.name;
+          objectMagnitude = obj.magnitude;
+          if (obj is Star) {
+            objectType = obj.spectralType != null
+                ? 'Star (${obj.spectralType})'
+                : 'Star';
+          }
+        }
+      }
+
+      final suggestedName = FinderChartService.suggestedFilename(
+        objectName: objectName,
+      );
+
+      // Android/iOS have no save dialog — `getSavePath` throws
+      // UnimplementedError there — so the chart goes to a sandbox path and
+      // reaches the user through the share sheet below.
+      final target = await chooseExportTarget(
+        suggestedName: suggestedName,
+        acceptedTypeGroups: [
+          const XTypeGroup(label: 'PDF files', extensions: ['pdf']),
+        ],
+      );
+
+      if (target == null) return;
+
       await FinderChartService.generateChart(
-        outputPath: location2.path,
+        outputPath: target.path,
         viewState: viewState,
         renderConfig: renderConfig,
         stars: stars,
@@ -374,11 +383,11 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Finder chart saved to ${location2.path}'),
-            behavior: SnackBarBehavior.floating,
-          ),
+        await revealExportedFile(
+          context,
+          target.path,
+          subject: 'Finder chart',
+          desktopMessage: 'Finder chart saved to ${target.path}',
         );
       }
     } catch (e) {

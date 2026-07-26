@@ -206,8 +206,9 @@ class _StarterCard extends ConsumerWidget {
                     message:
                         canEdit ? '' : 'Cannot edit while sequence is running',
                     child: NightshadeButton(
-                      onPressed:
-                          canEdit ? () => _useStarter(context, ref) : null,
+                      onPressed: canEdit
+                          ? () async => _useStarter(context, ref)
+                          : null,
                       label: 'Use this starter',
                       icon: LucideIcons.copy,
                       variant: ButtonVariant.primary,
@@ -223,12 +224,57 @@ class _StarterCard extends ConsumerWidget {
     );
   }
 
-  void _useStarter(BuildContext context, WidgetRef ref) {
+  Future<void> _useStarter(BuildContext context, WidgetRef ref) async {
+    final authority = ref.read(backendProvider);
     final service = ref.read(sampleSequenceServiceProvider);
     final notifier = ref.read(currentSequenceProvider.notifier);
 
     final cloned = service.cloneForUse(sample);
-    notifier.loadSequence(cloned);
+    try {
+      notifier.loadSequence(cloned);
+    } on UnsavedChangesException catch (e) {
+      if (!context.mounted) return;
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard unsaved changes?'),
+          content: ConstrainedBox(
+            constraints:
+                AdaptiveDialogConstraints.hybrid(ctx, designMaxWidth: 440),
+            child: Text('"${e.currentSequenceName}" has unsaved changes. '
+                'Loading "${sample.displayName}" will discard them.'),
+          ),
+          actions: [
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(false),
+            ),
+            NightshadeButton(
+              label: 'Discard and load',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+          ],
+        ),
+      );
+      if (discard != true ||
+          !context.mounted ||
+          !identical(ref.read(backendProvider), authority)) {
+        return;
+      }
+      try {
+        notifier.loadSequence(cloned, discardUnsaved: true);
+      } on SequenceLockedException catch (e) {
+        if (context.mounted) context.showErrorSnackBar(e.message);
+        return;
+      }
+    } on SequenceLockedException catch (e) {
+      if (context.mounted) context.showErrorSnackBar(e.message);
+      return;
+    }
 
     // Switch to Builder tab so the user sees the loaded sequence.
     ref.read(sequencerTabProvider.notifier).state = 0;

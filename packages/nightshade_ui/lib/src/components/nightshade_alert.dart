@@ -397,7 +397,31 @@ class NightshadeToastHelper {
     Duration duration = const Duration(seconds: 4),
     bool dismissible = true,
   }) {
-    final overlay = Overlay.of(context);
+    showInOverlay(
+      overlay: Overlay.of(context),
+      message: message,
+      severity: severity,
+      icon: icon,
+      action: action,
+      duration: duration,
+      dismissible: dismissible,
+    );
+  }
+
+  /// Shows a toast in an already-resolved overlay.
+  ///
+  /// This is useful for app-level launchers that intentionally wrap the root
+  /// Navigator and therefore cannot discover its descendant overlay from their
+  /// own [BuildContext].
+  static void showInOverlay({
+    required OverlayState overlay,
+    required String message,
+    NightshadeAlertSeverity severity = NightshadeAlertSeverity.info,
+    IconData? icon,
+    Widget? action,
+    Duration duration = const Duration(seconds: 4),
+    bool dismissible = true,
+  }) {
     late OverlayEntry entry;
 
     entry = OverlayEntry(

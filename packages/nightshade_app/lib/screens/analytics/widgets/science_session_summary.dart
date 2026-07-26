@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../analytics_screen.dart'
+    show dbSessionImagesProvider, standaloneImagesProvider;
 import 'campaign_rollup_dialog.dart';
 
 /// Compact science summary shown on the Session tab and Imaging HUD.
@@ -26,50 +28,59 @@ class ScienceSessionSummary extends ConsumerWidget {
     final activeSessionId = ref.watch(sessionStateProvider).dbSessionId;
 
     // Pick session vs. sessionless providers so the strip works for quick
-    // captures too. We intentionally read `valueOrNull` and treat absent
-    // data as a neutral "—" rather than throwing — this widget is purely
-    // informational and must never block the Session screen on a science
-    // stream error.
+    // captures too. Metrics may render from whichever sources are available,
+    // but loading/failure remains visible so an unavailable stream never
+    // masquerades as a scientifically meaningful "—".
     final FramePhotometricCalibrationRow? latestCal;
     final TransparencySampleRow? latestTransparency;
     final ScienceFrameQualityMetricsRow? latestFrameQuality;
     final List<FramePhotometricCalibrationRow> calibrations;
     final List<DbCapturedImage> images;
+    final sources = <AsyncValue<Object?>>[];
 
     if (activeSessionId != null) {
-      calibrations = ref
-              .watch(sessionFrameCalibrationsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      final transparencyRows = ref
-              .watch(sessionTransparencySamplesProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
-      final frameMetrics = ref
-              .watch(sessionFrameQualityMetricsProvider(activeSessionId))
-              .valueOrNull ??
-          const [];
+      final calibrationsAsync =
+          ref.watch(sessionFrameCalibrationsProvider(activeSessionId));
+      final transparencyAsync =
+          ref.watch(sessionTransparencySamplesProvider(activeSessionId));
+      final frameMetricsAsync =
+          ref.watch(sessionFrameQualityMetricsProvider(activeSessionId));
+      final imagesAsync = ref.watch(dbSessionImagesProvider(activeSessionId));
+      sources.addAll([
+        calibrationsAsync,
+        transparencyAsync,
+        frameMetricsAsync,
+        imagesAsync,
+      ]);
+      calibrations = calibrationsAsync.valueOrNull ?? const [];
+      final transparencyRows = transparencyAsync.valueOrNull ?? const [];
+      final frameMetrics = frameMetricsAsync.valueOrNull ?? const [];
       latestCal = calibrations.isEmpty ? null : calibrations.last;
       latestTransparency =
           transparencyRows.isEmpty ? null : transparencyRows.last;
       latestFrameQuality = frameMetrics.isEmpty ? null : frameMetrics.last;
-      images =
-          ref.watch(_imagesForSessionProvider(activeSessionId)).valueOrNull ??
-              const [];
+      images = imagesAsync.valueOrNull ?? const [];
     } else {
-      calibrations =
-          ref.watch(sessionlessCalibrationsProvider).valueOrNull ?? const [];
-      final transparencyRows =
-          ref.watch(sessionlessTransparencySamplesProvider).valueOrNull ??
-              const [];
-      final frameMetrics =
-          ref.watch(sessionlessFrameQualityMetricsProvider).valueOrNull ??
-              const [];
+      final calibrationsAsync = ref.watch(sessionlessCalibrationsProvider);
+      final transparencyAsync =
+          ref.watch(sessionlessTransparencySamplesProvider);
+      final frameMetricsAsync =
+          ref.watch(sessionlessFrameQualityMetricsProvider);
+      final imagesAsync = ref.watch(standaloneImagesProvider);
+      sources.addAll([
+        calibrationsAsync,
+        transparencyAsync,
+        frameMetricsAsync,
+        imagesAsync,
+      ]);
+      calibrations = calibrationsAsync.valueOrNull ?? const [];
+      final transparencyRows = transparencyAsync.valueOrNull ?? const [];
+      final frameMetrics = frameMetricsAsync.valueOrNull ?? const [];
       latestCal = calibrations.isEmpty ? null : calibrations.last;
       latestTransparency =
           transparencyRows.isEmpty ? null : transparencyRows.last;
       latestFrameQuality = frameMetrics.isEmpty ? null : frameMetrics.last;
-      images = const [];
+      images = imagesAsync.valueOrNull ?? const [];
     }
 
     final solveStats = _solveStats(images);
@@ -77,11 +88,18 @@ class ScienceSessionSummary extends ConsumerWidget {
     // Resolve the target the active session is bound to so we can offer a
     // "see all sessions for this target" link. Quick-capture sessions
     // typically have no target — we keep the card unchanged in that case.
-    final activeTargetId = activeSessionId == null
+    final targetAsync = activeSessionId == null
         ? null
-        : ref
-            .watch(scienceSessionTargetIdProvider(activeSessionId))
-            .valueOrNull;
+        : ref.watch(scienceSessionTargetIdProvider(activeSessionId));
+    if (targetAsync != null) sources.add(targetAsync);
+    final activeTargetId = targetAsync?.valueOrNull;
+    final errors = sources
+        .where((source) => source.hasError && source.error != null)
+        .map((source) => source.error!)
+        .toList(growable: false);
+    final isLoading = sources.any(
+      (source) => source.isLoading || (!source.hasValue && !source.hasError),
+    );
 
     return NightshadeCard(
       child: InkWell(
@@ -141,6 +159,22 @@ class ScienceSessionSummary extends ConsumerWidget {
                     ),
                 ],
               ),
+              if (errors.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _SummaryLoadNotice(
+                  colors: colors,
+                  error: errors.first,
+                  additionalErrorCount: errors.length - 1,
+                  onRetry: () => _retrySources(ref, activeSessionId),
+                ),
+              ] else if (isLoading) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  minHeight: 2,
+                  color: colors.primary,
+                  backgroundColor: colors.border,
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -242,6 +276,67 @@ class ScienceSessionSummary extends ConsumerWidget {
       solved: solved,
     );
   }
+
+  void _retrySources(WidgetRef ref, int? sessionId) {
+    if (sessionId == null) {
+      ref.invalidate(sessionlessCalibrationsProvider);
+      ref.invalidate(sessionlessTransparencySamplesProvider);
+      ref.invalidate(sessionlessFrameQualityMetricsProvider);
+      ref.invalidate(standaloneImagesProvider);
+      return;
+    }
+    ref.invalidate(sessionFrameCalibrationsProvider(sessionId));
+    ref.invalidate(sessionTransparencySamplesProvider(sessionId));
+    ref.invalidate(sessionFrameQualityMetricsProvider(sessionId));
+    ref.invalidate(dbSessionImagesProvider(sessionId));
+    ref.invalidate(scienceSessionTargetIdProvider(sessionId));
+  }
+}
+
+class _SummaryLoadNotice extends StatelessWidget {
+  const _SummaryLoadNotice({
+    required this.colors,
+    required this.error,
+    required this.additionalErrorCount,
+    required this.onRetry,
+  });
+
+  final NightshadeColors colors;
+  final Object error;
+  final int additionalErrorCount;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        border: Border.all(color: colors.error.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.alertTriangle, size: 14, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Science summary incomplete: $error'
+              '${additionalErrorCount > 0 ? ' (+$additionalErrorCount more)' : ''}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize11,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
+    );
+  }
 }
 
 class _SolveStats {
@@ -269,20 +364,17 @@ class _SolveStats {
   }
 }
 
-/// Solve-rate / image-count provider scoped to this widget so the analytics
-/// screen and the imaging HUD can both read from the same stream without
-/// importing private state from the analytics screen file. Drift's stream
-/// re-uses the same query, so consumers don't pay twice.
-final _imagesForSessionProvider =
-    StreamProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
-  return ref.watch(imagesDaoProvider).watchImagesForSession(sessionId);
-});
-
 /// Returns the `targetId` for a session, or `null` if the session has no
 /// associated target (quick captures, ad-hoc imaging, etc.). Cached so a
 /// rebuild from any other state change doesn't refetch the session row.
 final scienceSessionTargetIdProvider =
     FutureProvider.family<int?, int>((ref, sessionId) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final session = await backend.getSessionById(sessionId);
+    final targetId = session?['targetId'] ?? session?['target_id'];
+    return (targetId as num?)?.toInt();
+  }
   final dao = ref.watch(sessionsDaoProvider);
   final session = await dao.getSessionById(sessionId);
   return session?.targetId;

@@ -397,6 +397,14 @@ class LoggingService {
         }
       }
 
+      // The on-disk files hold only the Rust/native tracing output. Append
+      // the in-memory Dart entries (what the in-app Log Viewer shows) so the
+      // export carries the UI/provider log history too.
+      output.writeln('\n=== In-memory Dart log entries ===\n');
+      for (final entry in getRecentLogs()) {
+        output.writeln(entry.toString());
+      }
+
       // Write to output file
       final file = File(outputPath);
       await file.writeAsString(output.toString());
@@ -678,6 +686,7 @@ class ClearLogsResult {
 final loggingServiceProvider = Provider<LoggingService>((ref) {
   final service = LoggingService();
   unawaited(service.ensureInitialized());
+  ref.onDispose(() => unawaited(service.dispose()));
   return service;
 });
 

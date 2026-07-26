@@ -544,16 +544,23 @@ fn deposit_bayer_frame(
     }
 }
 
-/// Map an input pixel **centre** `(ix + 0.5, iy + 0.5)` through the source→
-/// reference transform and then onto the `scale`× output grid.
+/// Map an input pixel centre through the source→reference transform and then
+/// onto the `scale`× output grid.
 ///
-/// The `+ 0.5` puts the sample at the geometric centre of the input pixel (pixel
-/// `(ix, iy)` occupies `[ix, ix+1) × [iy, iy+1)`), so a unit input pixel centred
-/// at integer+0.5 maps to a drop centred on the corresponding output location.
+/// The registration transform is fitted in a *pixel-centre-at-integer-index*
+/// frame — star centroids are computed as `Σ(index·flux)/Σflux`, so a star
+/// confined to pixel `(i, j)` has centroid `(i, j)`. The input sample is
+/// therefore the pixel centre at `(ix, iy)`, NOT `(ix + 0.5, iy + 0.5)`.
+///
+/// Adding the `+0.5` *before* the transform only happens to be correct for
+/// identity/translation (the offset commutes); under a rotation it is sent onto
+/// the wrong axis and shifts the deposited drop by a whole output cell. Instead
+/// we apply the transform to the true centre and add the `+0.5` output-grid
+/// shift *after*, where output cell `c` occupies `[c, c+1)` (centre at `c+0.5`).
 #[inline]
 fn map_center(transform: &TransformModel, ix: usize, iy: usize, scale: f64) -> (f64, f64) {
-    let (rx, ry) = transform.apply(ix as f64 + 0.5, iy as f64 + 0.5);
-    (rx * scale, ry * scale)
+    let (rx, ry) = transform.apply(ix as f64, iy as f64);
+    ((rx + 0.5) * scale, (ry + 0.5) * scale)
 }
 
 /// Half-width (in output cells) of the square drop: an input pixel is a unit
@@ -818,6 +825,55 @@ mod tests {
                 "coverage[{i}] = {cw}, expected ~1.0"
             );
         }
+    }
+
+    #[test]
+    fn rotation_90_deg_deposits_into_correct_cell() {
+        // Regression (#10): under a 90° rotation, source pixel (0,0) maps to
+        // reference (N-1, 0) and its flux must be deposited into output cell
+        // (N-1, 0). The old code added +0.5 before the transform, which the
+        // rotation sent onto the wrong axis, depositing into cell (N-2, 0).
+        let n = 4usize;
+        let w = n as u32;
+        let mut pixels = vec![0.0f64; n * n];
+        pixels[0] = 100.0; // source pixel (0, 0)
+
+        // Source (x,y) -> (-y + (N-1), x): a 90° rotation about the grid.
+        let mut t = TransformModel::identity();
+        t.matrix = [
+            [0.0, -1.0, (n - 1) as f64],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ];
+
+        let frame = DrizzleFrame {
+            pixels: &pixels,
+            width: w,
+            height: w,
+            channels: 1,
+            transform: &t,
+            weight: 1.0,
+        };
+        let cfg = DrizzleConfig {
+            scale: 1.0,
+            pixfrac: 1.0,
+            kernel: DrizzleKernel::Square,
+        };
+        let out = drizzle_integrate(&[frame], w, w, &cfg).unwrap();
+        let m = out.master.as_f32().unwrap();
+
+        let target = n - 1; // row 0, col N-1  -> flat index N-1
+        let wrong = n - 2; // the cell the old off-by-one deposited into
+        assert!(
+            (m[target] as f64 - 100.0).abs() < 1e-3,
+            "flux must land in cell {target}, got {}",
+            m[target]
+        );
+        assert!(
+            (m[wrong] as f64).abs() < 1e-3,
+            "cell {wrong} must be empty (old bug deposited flux here), got {}",
+            m[wrong]
+        );
     }
 
     #[test]

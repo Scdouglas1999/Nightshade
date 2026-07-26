@@ -15,7 +15,6 @@
 /// disabled" path the operator opted into.
 library;
 
-import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:nightshade_core/nightshade_core.dart';
@@ -24,6 +23,7 @@ import 'package:shelf/shelf.dart';
 
 import '../request_context.dart';
 import '../response_helpers.dart';
+import '../validation.dart';
 
 /// HTTP handlers for the `/api/collaboration/*` and `/api/session-handoff`
 /// endpoints. Constructed once per server with the shared
@@ -38,6 +38,51 @@ class CollaborationHandlers {
   void _logWarning(String message, {Map<String, Object?>? fields}) =>
       logger.warning(message, source: 'CollaborationHandlers', fields: fields);
 
+  Future<Response> _guard(Future<Response> Function() operation) async {
+    try {
+      return await operation();
+    } on BadRequestError {
+      rethrow;
+    } catch (e, st) {
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
+    }
+  }
+
+  String _requiredTrimmed(
+    Map<String, dynamic> payload,
+    String field, {
+    required int maxLength,
+  }) {
+    final value = requireString(payload, field, maxLength: maxLength).trim();
+    if (value.isEmpty) {
+      throw BadRequestError(
+        field: field,
+        expected: 'non-empty string',
+        message: '$field must not be blank',
+      );
+    }
+    return value;
+  }
+
+  String? _optionalTrimmed(
+    Map<String, dynamic> payload,
+    String field, {
+    required int maxLength,
+  }) {
+    final value = optionalString(payload, field, maxLength: maxLength)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
   /// `GET /api/collaboration/state` — snapshot the current presence list,
   /// preview, chat backlog, and active annotations. Read-only.
   Future<Response> handleCollaborationState(Request request) async {
@@ -49,14 +94,14 @@ class CollaborationHandlers {
   /// a mismatch is logged at WARNING as a potential
   /// impersonation attempt and the authenticated id is substituted.
   Future<Response> handleCollaborationJoin(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final clientViewerId = payload['viewerId'] as String?;
-      final name = payload['name'] as String?;
-      if (name == null || name.isEmpty) {
-        return jsonBadRequest({'error': 'Missing name'});
-      }
+    return _guard(() async {
+      final payload = await readJsonObject(request);
+      final clientViewerId = _optionalTrimmed(
+        payload,
+        'viewerId',
+        maxLength: 512,
+      );
+      final name = _requiredTrimmed(payload, 'name', maxLength: 100);
       // the authenticated identity wins over any client-supplied
       // viewerId, mirroring the WebSocket-path semantics. When auth is
       // disabled (no tokens configured), fall back to the payload value
@@ -81,31 +126,20 @@ class CollaborationHandlers {
       }
       manager.upsertViewer(effectiveViewerId, name);
       return jsonOk(manager.state.toJson());
-    } catch (e, st) {
-      // Fail-closed: surface a stable 500 with a sanitized message; the real
-      // cause/stack is logged server-side, never serialized to the caller.
-      developer.log(
-        '[API] collaboration handler failed',
-        name: 'collaboration_handlers',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return jsonInternalServerError(const {
-        'error': 'collaboration_request_failed',
-        'message': 'The collaboration request could not be completed.',
-      });
-    }
+    });
   }
 
   /// `POST /api/collaboration/viewers/leave` — release a viewer slot. A
   /// client can only release its own slot; the authenticated identity
   /// overrides any payload value to prevent removing other operators.
   Future<Response> handleCollaborationLeave(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final clientViewerId = payload['viewerId'] as String?;
+    return _guard(() async {
+      final payload = await readJsonObject(request);
+      final clientViewerId = _optionalTrimmed(
+        payload,
+        'viewerId',
+        maxLength: 512,
+      );
       // a client cannot remove an arbitrary viewer slot — it can
       // only release its own. The authenticated identity overrides the
       // payload value. When auth is disabled (test fixtures), we fall
@@ -117,78 +151,48 @@ class CollaborationHandlers {
       }
       manager.removeViewer(viewerId);
       return jsonOk(manager.state.toJson());
-    } catch (e, st) {
-      // Fail-closed: surface a stable 500 with a sanitized message; the real
-      // cause/stack is logged server-side, never serialized to the caller.
-      developer.log(
-        '[API] collaboration handler failed',
-        name: 'collaboration_handlers',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return jsonInternalServerError(const {
-        'error': 'collaboration_request_failed',
-        'message': 'The collaboration request could not be completed.',
-      });
-    }
+    });
   }
 
   /// `POST /api/collaboration/preview` — update the shared preview
   /// thumbnail/snapshot. Pass `{"preview": null}` to clear.
   Future<Response> handleCollaborationPreview(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final preview = payload['preview'];
-      if (preview != null && preview is! Map<String, dynamic>) {
-        return jsonBadRequest({'error': 'preview must be an object'});
-      }
-      manager.updatePreview(preview as Map<String, dynamic>?);
+    return _guard(() async {
+      final payload = await readJsonObject(request);
+      final preview = optionalObject(payload, 'preview');
+      manager.updatePreview(preview);
       return jsonOk(manager.state.toJson());
-    } catch (e, st) {
-      // Fail-closed: surface a stable 500 with a sanitized message; the real
-      // cause/stack is logged server-side, never serialized to the caller.
-      developer.log(
-        '[API] collaboration handler failed',
-        name: 'collaboration_handlers',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return jsonInternalServerError(const {
-        'error': 'collaboration_request_failed',
-        'message': 'The collaboration request could not be completed.',
-      });
-    }
+    });
   }
 
   /// `POST /api/collaboration/chat` — append a chat line. The viewerId
   /// of the chat row is forced to the authenticated identity so
   /// a client cannot put words in another operator's mouth.
   Future<Response> handleCollaborationChat(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final clientViewerId = payload['viewerId'] as String?;
-      final viewerName = payload['viewerName'] as String?;
-      final message = payload['message'] as String?;
-      if (clientViewerId == null || viewerName == null || message == null) {
-        return jsonBadRequest({
-          'error': 'viewerId, viewerName, and message are required',
-        });
-      }
+    return _guard(() async {
+      final payload = await readJsonObject(request);
+      final clientViewerId = _optionalTrimmed(
+        payload,
+        'viewerId',
+        maxLength: 512,
+      );
+      final viewerName = _requiredTrimmed(
+        payload,
+        'viewerName',
+        maxLength: 100,
+      );
+      final message = _requiredTrimmed(payload, 'message', maxLength: 4000);
       // a client cannot put words in another operator's mouth — the
       // authenticated identity wins over any client-supplied viewerId,
       // mirroring the join/leave handlers. When auth is disabled (no tokens
       // configured), fall back to the payload value.
       final authIdentity = authIdentityFrom(request);
       final viewerId = authIdentity ?? clientViewerId;
-      if (viewerId.isEmpty) {
+      if (viewerId == null || viewerId.isEmpty) {
         return jsonBadRequest({'error': 'Missing viewerId'});
       }
       if (authIdentity != null &&
-          clientViewerId.isNotEmpty &&
+          clientViewerId != null &&
           clientViewerId != authIdentity) {
         _logWarning(
           '[COLLAB] HTTP chat impersonation attempt '
@@ -202,41 +206,45 @@ class CollaborationHandlers {
         message: message,
       );
       return jsonOk(manager.state.toJson());
-    } catch (e, st) {
-      // Fail-closed: surface a stable 500 with a sanitized message; the real
-      // cause/stack is logged server-side, never serialized to the caller.
-      developer.log(
-        '[API] collaboration handler failed',
-        name: 'collaboration_handlers',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return jsonInternalServerError(const {
-        'error': 'collaboration_request_failed',
-        'message': 'The collaboration request could not be completed.',
-      });
-    }
+    });
   }
 
   /// `POST /api/collaboration/annotations` — append an annotation
-  /// (highlight, label, ROI box) to the shared overlay. The
+  /// (highlight, label, ROI box) to the shared overlay. The annotation is
+  /// attributed to the authenticated identity, mirroring join/leave/chat, so
+  /// a client cannot post annotations as another operator. The
   /// `payload` field is an opaque map echoed verbatim to subscribers.
   Future<Response> handleCollaborationAnnotation(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final annotationId = payload['annotationId'] as String?;
-      final viewerId = payload['viewerId'] as String?;
-      final kind = payload['kind'] as String?;
-      final annotationPayload = payload['payload'];
-      if (annotationId == null ||
-          viewerId == null ||
-          kind == null ||
-          annotationPayload is! Map<String, dynamic>) {
-        return jsonBadRequest({
-          'error': 'annotationId, viewerId, kind, and payload are required',
-        });
+    return _guard(() async {
+      final payload = await readJsonObject(request);
+      final annotationId = _requiredTrimmed(
+        payload,
+        'annotationId',
+        maxLength: 256,
+      );
+      final clientViewerId = _optionalTrimmed(
+        payload,
+        'viewerId',
+        maxLength: 512,
+      );
+      final kind = _requiredTrimmed(payload, 'kind', maxLength: 64);
+      final annotationPayload = requireObject(payload, 'payload');
+      // the authenticated identity wins over any client-supplied viewerId,
+      // mirroring the join/leave/chat handlers. When auth is disabled (no
+      // tokens configured), fall back to the payload value.
+      final authIdentity = authIdentityFrom(request);
+      final viewerId = authIdentity ?? clientViewerId;
+      if (viewerId == null || viewerId.isEmpty) {
+        return jsonBadRequest({'error': 'Missing viewerId'});
+      }
+      if (authIdentity != null &&
+          clientViewerId != null &&
+          clientViewerId != authIdentity) {
+        _logWarning(
+          '[COLLAB] HTTP annotation impersonation attempt '
+          '(claimed=$clientViewerId actual=${redactBearer(authIdentity)}); '
+          'substituting authenticated identity.',
+        );
       }
       manager.addAnnotation(
         annotationId: annotationId,
@@ -245,21 +253,7 @@ class CollaborationHandlers {
         payload: annotationPayload,
       );
       return jsonOk(manager.state.toJson());
-    } catch (e, st) {
-      // Fail-closed: surface a stable 500 with a sanitized message; the real
-      // cause/stack is logged server-side, never serialized to the caller.
-      developer.log(
-        '[API] collaboration handler failed',
-        name: 'collaboration_handlers',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return jsonInternalServerError(const {
-        'error': 'collaboration_request_failed',
-        'message': 'The collaboration request could not be completed.',
-      });
-    }
+    });
   }
 
   /// `GET /api/session-handoff` — snapshot the currently-active handoff
@@ -272,30 +266,12 @@ class CollaborationHandlers {
   /// shape is `{"handoff": {...}}`; an object value replaces the
   /// existing handoff, null clears it.
   Future<Response> handleSetSessionHandoff(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final handoff = payload['handoff'];
-      if (handoff != null && handoff is! Map<String, dynamic>) {
-        return jsonBadRequest({'error': 'handoff must be an object'});
-      }
-      manager.setSessionHandoff(handoff as Map<String, dynamic>?);
+    return _guard(() async {
+      final payload = await readJsonObject(request);
+      final handoff = optionalObject(payload, 'handoff');
+      manager.setSessionHandoff(handoff);
       return jsonOk({'sessionHandoff': manager.state.sessionHandoff});
-    } catch (e, st) {
-      // Fail-closed: surface a stable 500 with a sanitized message; the real
-      // cause/stack is logged server-side, never serialized to the caller.
-      developer.log(
-        '[API] collaboration handler failed',
-        name: 'collaboration_handlers',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return jsonInternalServerError(const {
-        'error': 'collaboration_request_failed',
-        'message': 'The collaboration request could not be completed.',
-      });
-    }
+    });
   }
 
   /// `DELETE /api/session-handoff` — clear any active handoff payload.

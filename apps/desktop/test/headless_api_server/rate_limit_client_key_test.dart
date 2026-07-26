@@ -10,12 +10,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/native.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/auth/pairing_service.dart';
 import 'package:nightshade_desktop/headless_api/handlers.dart';
 import 'package:nightshade_desktop/headless_api_server.dart';
+
+import '../headless_api/handler_test_helpers.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
     show PairingDatabase;
 import 'package:shelf/shelf.dart';
@@ -107,7 +108,7 @@ void main() {
       () async {
         final database = PairingDatabase.forTesting(NativeDatabase.memory());
         final pairingService = PairingService(database: database);
-        final container = ProviderContainer(
+        final container = createHeadlessTestContainer(
           overrides: [
             appVersionProvider.overrideWithValue(
               const AppVersionInfo(version: '2.5.0', buildNumber: 5),
@@ -162,7 +163,7 @@ void main() {
     test(
       'repeated bad bearer tokens with rotating XFF trip the token limiter',
       () async {
-        final container = ProviderContainer(
+        final container = createHeadlessTestContainer(
           overrides: [
             appVersionProvider.overrideWithValue(
               const AppVersionInfo(version: '2.5.0', buildNumber: 5),

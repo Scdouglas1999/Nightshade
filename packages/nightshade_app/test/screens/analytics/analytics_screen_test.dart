@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'package:nightshade_app/screens/analytics/analytics_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -32,6 +33,14 @@ class _NoopTutorialProgressDao implements TutorialProgressDao {
     throw UnimplementedError(
       'NoopTutorialProgressDao.${invocation.memberName} called in test',
     );
+  }
+}
+
+class _MockNetworkBackend extends Mock implements NetworkBackend {}
+
+class _FixedBackendNotifier extends BackendNotifier {
+  _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
+    state = backend;
   }
 }
 
@@ -180,6 +189,70 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(_selectedAdaptiveTabIndex(tester), AnalyticsTab.session.index);
+  });
+
+  testWidgets('remote session detail directs review to the imaging host',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final backend = _MockNetworkBackend();
+    final session = ImagingSession(
+      id: 7,
+      name: 'Remote M42',
+      startTime: DateTime(2026, 7, 13),
+      totalExposures: 12,
+      successfulExposures: 12,
+      failedExposures: 0,
+      totalIntegrationSecs: 1440,
+      autofocusCount: 1,
+      status: 'completed',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+          allSessionsProvider.overrideWith(
+            (ref) => Stream<List<ImagingSession>>.value([session]),
+          ),
+          dbSessionImagesProvider(7).overrideWith(
+            (ref) => Stream<List<DbCapturedImage>>.value(const []),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: AnalyticsScreen(initialTab: AnalyticsTab.history),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.text('Remote M42'));
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Review on imaging host'), findsOneWidget);
+    expect(find.byTooltip('Review & Integrate'), findsNothing);
+
+    final reviewButton = find.byKey(const ValueKey('session_detail_review'));
+    await tester.ensureVisible(reviewButton);
+    await tester.pump();
+    await tester.tap(reviewButton);
+    await tester.pump();
+
+    expect(
+      find.text('Session Review is available on the imaging host.'),
+      findsOneWidget,
+    );
   });
 
   // ===========================================================================

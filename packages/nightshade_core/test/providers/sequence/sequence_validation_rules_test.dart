@@ -49,6 +49,21 @@ void main() {
       expect(issues.single.category, ValidationCategory.structure);
     });
 
+    test('fires on the empty root created for a new sequence', () {
+      final root = InstructionSetNode(name: 'Root');
+      final s = Sequence.create(
+        name: 'New sequence',
+        nodes: {root.id: root},
+        rootNodeId: root.id,
+      );
+
+      final issues = rule.validate(s);
+
+      expect(issues, hasLength(1));
+      expect(issues.single.severity, ValidationSeverity.error);
+      expect(issues.single.title, 'Empty Sequence');
+    });
+
     test('clean on non-empty sequence', () {
       final s = _sequenceWith([ExposureNode()]);
       expect(rule.validate(s), isEmpty);
@@ -109,6 +124,17 @@ void main() {
       final issues = rule.validate(s);
       expect(issues.single.title, 'Empty Container');
       expect(issues.single.affectedNodeId, isNotNull);
+    });
+
+    test('leaves an empty root to the blocking EmptySequenceRule', () {
+      final root = InstructionSetNode(name: 'Root');
+      final s = Sequence.create(
+        name: 'New sequence',
+        nodes: {root.id: root},
+        rootNodeId: root.id,
+      );
+
+      expect(rule.validate(s), isEmpty);
     });
 
     test(

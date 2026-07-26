@@ -45,6 +45,9 @@ class SequenceSummary {
   /// Library favorite flag.
   final bool isFavorite;
 
+  /// When the sequence row was first created (`sequences.createdAt`).
+  final DateTime createdAt;
+
   /// When the sequence row was last modified (`sequences.updatedAt`).
   final DateTime modifiedAt;
 
@@ -60,6 +63,7 @@ class SequenceSummary {
     required this.runCount,
     required this.tags,
     required this.isFavorite,
+    required this.createdAt,
     required this.modifiedAt,
   });
 

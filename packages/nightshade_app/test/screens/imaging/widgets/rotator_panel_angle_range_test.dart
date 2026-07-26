@@ -25,6 +25,8 @@
 // dispatched target angle — a direct, non-flaky check of exactly the
 // range-validation behavior C10 owns.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,12 +61,20 @@ class _RecordingDeviceService extends DeviceService {
   _RecordingDeviceService(super.ref, super.backend);
 
   final List<double> moveToTargets = [];
+  Completer<void>? moveGate;
+  Object? moveError;
 
   @override
   Future<void> moveRotatorTo(double angle) async {
     moveToTargets.add(angle);
+    final gate = moveGate;
+    if (gate != null) await gate.future;
+    final error = moveError;
+    if (error != null) throw error;
   }
 }
+
+final _serviceHostProvider = StateProvider<int>((ref) => 0);
 
 List<Override> _overrides(RotatorCapabilities? caps) => [
       rotatorStateProvider.overrideWith(_ConnectedRotatorNotifier.new),
@@ -206,5 +216,58 @@ void main() {
     expect(find.textContaining('Angle must be between'), findsNothing,
         reason: '350 is valid under the 0..360 fallback.');
     expect(service.moveToTargets, [350]);
+  });
+
+  testWidgets('host switch unlocks commands and discards the old move failure',
+      (tester) async {
+    late _RecordingDeviceService serviceA;
+    late _RecordingDeviceService serviceB;
+    final handle = await pumpAppScreen(
+      tester,
+      const RotatorPanel(colors: NightshadeColors.dark),
+      extraOverrides: [
+        rotatorStateProvider.overrideWith(_ConnectedRotatorNotifier.new),
+        equipmentRotatorCapabilitiesProvider(_kDeviceId).overrideWith(
+          (ref) async => _caps(minAngle: 0, maxAngle: 270),
+        ),
+        _serviceHostProvider.overrideWith((ref) => 0),
+        deviceServiceProvider.overrideWith((ref) {
+          final backend = ref.watch(backendProvider);
+          final host = ref.watch(_serviceHostProvider);
+          final service = _RecordingDeviceService(ref, backend);
+          ref.onDispose(service.dispose);
+          if (host == 0) {
+            serviceA = service;
+          } else {
+            serviceB = service;
+          }
+          return service;
+        }),
+      ],
+      settle: false,
+    );
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+    serviceA.moveGate = Completer<void>();
+    serviceA.moveError = StateError('old rotator disconnected');
+
+    await tester.enterText(_goToAngleField, '120');
+    await tester.tap(find.text('Go To'));
+    await tester.pump();
+    expect(find.text('Moving...'), findsOneWidget);
+
+    handle.container.read(_serviceHostProvider.notifier).state = 1;
+    await tester.pump();
+    expect(find.text('Go To'), findsOneWidget);
+
+    serviceA.moveGate!.complete();
+    await tester.pump();
+    expect(find.textContaining('old rotator disconnected'), findsNothing);
+
+    await tester.enterText(_goToAngleField, '125');
+    await tester.tap(find.text('Go To'));
+    await tester.pump();
+    expect(serviceB.moveToTargets, [125]);
   });
 }

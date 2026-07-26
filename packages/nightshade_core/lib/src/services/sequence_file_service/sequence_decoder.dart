@@ -14,7 +14,7 @@ extension _SequenceFileDecoder on SequenceFileService {
     final childIds =
         (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-    final isEnabled = json['isEnabled'] as bool? ?? false;
+    final isEnabled = json['isEnabled'] as bool? ?? true;
 
     switch (nodeType) {
       case 'targetheader':
@@ -42,6 +42,23 @@ extension _SequenceFileDecoder on SequenceFileService {
                   json['mosaicPanel'] as Map<String, dynamic>,
                 )
               : null,
+          integrationBudget: json['integrationBudget'] is Map
+              ? IntegrationBudget.fromJson(
+                  (json['integrationBudget'] as Map).cast<String, dynamic>(),
+                )
+              : null,
+          startWhen: json['startWhen'] is Map
+              ? TargetTrigger.fromJson(
+                  (json['startWhen'] as Map).cast<String, dynamic>(),
+                )
+              : null,
+          endWhen: json['endWhen'] is Map
+              ? TargetTrigger.fromJson(
+                  (json['endWhen'] as Map).cast<String, dynamic>(),
+                )
+              : null,
+          triggerPollIntervalSecs:
+              (json['triggerPollIntervalSecs'] as num?)?.toInt() ?? 30,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -105,6 +122,8 @@ extension _SequenceFileDecoder on SequenceFileService {
               (json['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
           hfrConsecutiveFrames:
               (json['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
+          triggerEveryNFrames:
+              (json['triggerEveryNFrames'] as num?)?.toInt() ?? 25,
           // FocusDrift trigger window. Default values
           // match the model constructor so legacy files without these
           // keys deserialize cleanly.
@@ -114,6 +133,24 @@ extension _SequenceFileDecoder on SequenceFileService {
               (json['focusDriftMinIncreasingCount'] as num?)?.toInt() ?? 5,
           focusDriftMinTotalIncrease:
               (json['focusDriftMinTotalIncrease'] as num?)?.toDouble() ?? 0.5,
+          guidingFailedDurationSecs:
+              (json['guidingFailedDurationSecs'] as num?)?.toDouble() ?? 30.0,
+          cloudMinutesBefore:
+              (json['cloudMinutesBefore'] as num?)?.toDouble() ?? 10.0,
+          cloudCoverageThresholdPercent:
+              (json['cloudCoverageThresholdPercent'] as num?)?.toDouble() ??
+              70.0,
+          cloudOpeningMinDurationSecs:
+              (json['cloudOpeningMinDurationSecs'] as num?)?.toDouble() ??
+              300.0,
+          cloudCoverMaxPercent:
+              (json['cloudCoverMaxPercent'] as num?)?.toDouble() ?? 80.0,
+          cloudCoverDurationSecs:
+              (json['cloudCoverDurationSecs'] as num?)?.toDouble() ?? 60.0,
+          transparencyBelowThreshold:
+              (json['transparencyBelowThreshold'] as num?)?.toDouble() ?? 0.7,
+          transparencyDurationSecs:
+              (json['transparencyDurationSecs'] as num?)?.toDouble() ?? 60.0,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -165,6 +202,8 @@ extension _SequenceFileDecoder on SequenceFileService {
 
       case 'takeexposure':
       case 'exposure':
+        final adaptiveRaw =
+            (json['adaptiveExposure'] ?? json['adaptive_exposure']) as Map?;
         return ExposureNode(
           id: id,
           name: name ?? 'Take Exposures',
@@ -181,6 +220,11 @@ extension _SequenceFileDecoder on SequenceFileService {
               .whereType<Map>()
               .map((trigger) => trigger.cast<String, dynamic>())
               .toList(growable: false),
+          adaptiveExposure: adaptiveRaw == null
+              ? null
+              : AdaptiveExposureConfig.fromJson(
+                  adaptiveRaw.cast<String, dynamic>(),
+                ),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -449,8 +493,8 @@ extension _SequenceFileDecoder on SequenceFileService {
           rotationStep: (json['rotationStep'] as num?)?.toDouble() ?? 20.0,
           gain: (json['gain'] as num?)?.toInt(),
           offset: (json['offset'] as num?)?.toInt(),
-          startFromCurrent: json['startFromCurrent'] as bool? ?? false,
-          isNorth: json['isNorth'] as bool? ?? false,
+          startFromCurrent: json['startFromCurrent'] as bool? ?? true,
+          isNorth: json['isNorth'] as bool? ?? true,
           manualSlew: json['manualSlew'] as bool? ?? false,
           parentId: parentId,
           childIds: childIds,

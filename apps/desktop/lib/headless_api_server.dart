@@ -85,8 +85,29 @@ class HeadlessApiServer {
   /// the server will generate a random token and print it to console.
   final bool requireAuth;
 
-  /// Additional scoped tokens. The legacy [authToken] remains an admin token.
+  /// Explicit opt-in to the legacy fully-open behaviour: when true AND no
+  /// tokens are configured AND no session has paired yet, EVERY endpoint is
+  /// served without a bearer token. This is the deliberate trusted-LAN/dev
+  /// escape hatch (`--allow-unauthenticated` / `NIGHTSHADE_ALLOW_UNAUTHENTICATED`)
+  /// and triggers a prominent startup warning.
+  ///
+  /// Default (false) is FAIL CLOSED: an unconfigured server still serves the
+  /// pairing/discovery/dashboard bootstrap surface (so a fresh appliance can be
+  /// onboarded), but every privileged endpoint returns 401 until a token is
+  /// configured or a device pairs. See [_authMiddleware].
+  final bool allowUnauthenticated;
+
+  /// Additional coarse scoped tokens. The legacy [authToken] remains an admin
+  /// token. Each entry is bridged to a [HeadlessAuthGrant] via
+  /// [HeadlessAuthGrant.fromCoarse] so coarse and fine-grained tokens share one
+  /// resolution path.
   final Map<String, HeadlessTokenScope> scopedAuthTokens;
+
+  /// Fine-grained tokens carrying a per-resource [HeadlessAuthGrant] (e.g.
+  /// "control camera but not mount"). Merged into the same constant-time token
+  /// table as the coarse tokens; an entry here overrides a coarse entry with
+  /// the same value.
+  final Map<String, HeadlessAuthGrant> fineGrainedAuthTokens;
   final Duration webSocketHeartbeatInterval;
   final Duration webSocketHeartbeatTimeout;
 
@@ -187,7 +208,7 @@ class HeadlessApiServer {
 
   /// The effective auth token (either provided or generated)
   late final String? _effectiveAuthToken;
-  late final Map<String, HeadlessTokenScope> _effectiveAuthTokensByValue;
+  late final Map<String, HeadlessAuthGrant> _effectiveAuthTokensByValue;
   late final TokenResolver _tokenResolver;
   late final CorsAllowList _corsAllowList;
   late final WsTicketManager _wsTicketManager;
@@ -209,12 +230,13 @@ class HeadlessApiServer {
   // routes are now rate-limited (see `_rateLimitedPairingPaths`) but the cap is
   // the hard backstop. The ceiling is far above any realistic paired-device
   // count, so legitimate devices are never evicted in practice.
-  final BoundedTokenScopeMap _pairedSessionTokens = BoundedTokenScopeMap();
+  final BoundedTokenGrantMap _pairedSessionTokens = BoundedTokenGrantMap();
 
   /// periodic sweep that walks `PairedDevices` and drops expired
   /// rows + evicts revoked entries from [_pairedSessionTokens]. Interval is
   /// configurable mainly for tests; production runs at 60s.
   Timer? _tokenSweepTimer;
+  Future<void>? _tokenSweepFuture;
   Duration get tokenSweepInterval => const Duration(seconds: 60);
 
   /// SHA-256 host fingerprint surfaced in `/api/info` and desktop QR codes.
@@ -252,6 +274,12 @@ class HeadlessApiServer {
   /// manager's retention window (default 24h). 5-minute cadence to keep
   /// the worst-case age bounded without busy-looping.
   Timer? _jobSweepTimer;
+
+  /// Collaborative Sky WS2 — unattended driver that auto-completes a
+  /// collaborative mosaic (owner: assemble + publish; participant: pull the
+  /// finished mosaic) so a multi-rig collaborative night finishes with nobody
+  /// watching. Started in [_startServer], stopped in [_stopServer].
+  CollaborativeMosaicPoller? _collabMosaicPoller;
 
   /// tracks which client currently owns the rig. Destructive
   /// endpoints (sequencer start, mount slew, dome open, ...) require
@@ -291,6 +319,7 @@ class HeadlessApiServer {
   late final SystemHandlers _systemHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
+  late final ReplayDebugHandlers _replayDebugHandlers;
   late final EquipmentHandlers _equipmentHandlers;
   late final ProfileHandlers _profileHandlers;
   late final ImagingHandlers _imagingHandlers;
@@ -301,6 +330,8 @@ class HeadlessApiServer {
   late final SequenceManagementHandlers _sequenceManagementHandlers;
   late final FlatWizardHandlers _flatWizardHandlers;
   late final MosaicHandlers _mosaicHandlers;
+  // Collaborative Sky WS3 — unattended-rig live co-imaging participation.
+  late final CoImagingHandlers _coImagingHandlers;
   late final AnalyticsHandlers _analyticsHandlers;
   late final WeatherHandlers _weatherHandlers;
   late final SuggestionHandlers _suggestionHandlers;
@@ -400,8 +431,8 @@ class HeadlessApiServer {
   // reads off the container.
   late final DbReadHandlers _dbReadHandlers;
 
-  // plugin management. Owns the plugin archive directory under
-  // $appData/Nightshade/plugins and the SHA-256 verification path.
+  // Live bundled-plugin management plus cleanup of inert archives persisted
+  // by older builds.
   late final PluginHandlers _pluginHandlers;
 
   // OTA update endpoints. Null when no UpdateController was
@@ -432,7 +463,9 @@ class HeadlessApiServer {
     this.dispatchPluginNodes = true,
     this.authToken,
     this.requireAuth = false,
+    this.allowUnauthenticated = false,
     this.scopedAuthTokens = const {},
+    this.fineGrainedAuthTokens = const {},
     this.webSocketHeartbeatInterval = const Duration(seconds: 30),
     this.webSocketHeartbeatTimeout = const Duration(seconds: 90),
     this.corsAllowedOrigins = const [],
@@ -458,16 +491,16 @@ class HeadlessApiServer {
     // caller may inject a deterministic correlator for tests; the
     // default uses Random.secure + DateTime.now.
     _commandCorrelator = commandCorrelator ?? CommandCorrelator();
-    final tokensByValue = <String, HeadlessTokenScope>{};
+    final tokensByValue = <String, HeadlessAuthGrant>{};
 
     // Determine effective auth token
     if (authToken != null) {
       _effectiveAuthToken = authToken;
-      tokensByValue[authToken!] = HeadlessTokenScope.admin;
+      tokensByValue[authToken!] = HeadlessAuthGrant.admin();
     } else if (requireAuth) {
       // Generate a random token
       _effectiveAuthToken = _generateRandomToken();
-      tokensByValue[_effectiveAuthToken!] = HeadlessTokenScope.admin;
+      tokensByValue[_effectiveAuthToken!] = HeadlessAuthGrant.admin();
       // Why: the auto-generated token must be visible to the operator once
       // so they can configure a client, but persisting it in the log file
       // is a security defect — anyone with read access to logs would have
@@ -485,6 +518,14 @@ class HeadlessApiServer {
     }
 
     for (final entry in scopedAuthTokens.entries) {
+      final token = entry.key.trim();
+      if (token.isNotEmpty) {
+        tokensByValue[token] = HeadlessAuthGrant.fromCoarse(entry.value);
+      }
+    }
+    // Fine-grained tokens last so an explicit per-resource grant wins over a
+    // coarse entry sharing the same value.
+    for (final entry in fineGrainedAuthTokens.entries) {
       final token = entry.key.trim();
       if (token.isNotEmpty) {
         tokensByValue[token] = entry.value;
@@ -549,7 +590,7 @@ class HeadlessApiServer {
   /// /api/self-test without re-reading server state.
   List<String> _availableAuthScopes() {
     final scopes = _effectiveAuthTokensByValue.values
-        .map(headlessTokenScopeName)
+        .map((grant) => headlessTokenScopeName(grant.coarseScope))
         .toSet()
         .toList();
     scopes.sort();
@@ -691,15 +732,14 @@ class HeadlessApiServer {
   PushTokenStore get pushTokenStore =>
       DatabasePushTokenStore(_ensurePairingService().database);
 
-  /// Phase D — wire the no-cloud [MockRemotePushDelivery] as the active remote
+  /// Explicit development helper that wires [MockRemotePushDelivery].
   /// delivery. Every critical push that reaches the cellular tap is then
   /// enumerated against the registered tokens (filtered by per-device prefs)
   /// and recorded into the mock's `delivered` list / logged as "would-send".
   ///
-  /// This is the default Phase-D path: the operator gets a fully exercised
-  /// fan-out (recipient lookup + preference gate) with zero Firebase/Apple
-  /// accounts. Swap in the real FCM/APNs deliveries (sharing this same
-  /// [pushTokenStore]) once credentials exist.
+  /// Production bootstrap never calls this implicitly: a mock records a
+  /// would-send but cannot page an operator, so it must only be enabled by an
+  /// explicit `mock:true` push configuration or a test/dev caller.
   MockRemotePushDelivery wireMockRemotePushDelivery({
     void Function(String message)? log,
   }) {
@@ -713,17 +753,14 @@ class HeadlessApiServer {
   ///
   ///  * a real FCM and/or APNs delivery when the operator has dropped a valid
   ///    `push_config.json` pointing at the service-account JSON / `.p8` key
-  ///    (the "real when configured" path), otherwise
-  ///  * the no-cloud [MockRemotePushDelivery] (the "mock by default" path) so
-  ///    the recipient lookup + per-device preference gate are exercised end to
-  ///    end with zero Firebase/Apple accounts.
+  ///    (the "real when configured" path),
+  ///  * an explicit [MockRemotePushDelivery] only when `mock:true`, or
+  ///  * no cellular delivery when no channel is configured.
   ///
   /// All deliveries share [pushTokenStore], so each enumerates the same
   /// `device_push_tokens` rows filtered by `device_push_prefs`. Returns the
-  /// wired delivery (or `null` only if config explicitly disables every
-  /// channel AND the mock — i.e. `mock:false` with no cloud channel, leaving
-  /// LAN + WS push untouched). Never throws: a malformed config degrades to
-  /// the mock so the server always starts.
+  /// wired delivery, or `null` when no real channel (and no explicit mock) is
+  /// configured. Never claims a mock would-send as real delivery.
   Future<RemotePushDelivery?> wireRemotePushDelivery({
     required String appSupportDir,
     void Function(String message)? log,
@@ -735,15 +772,9 @@ class HeadlessApiServer {
     } catch (_) {
       config = PushConfig.disabled;
     }
-    // `buildRemotePushDelivery` returns the real FCM/APNs senders when a cloud
-    // channel is configured, the mock when `config.mock` is set, else null.
-    // With no cloud channel and no explicit `mock:false` opt-out we still want
-    // the mock as the Phase-D default, so fall back to it here.
-    final delivery =
-        buildRemotePushDelivery(config, store) ??
-        (config.hasCloudChannel
-            ? null
-            : MockRemotePushDelivery(store: store, log: log));
+    final delivery = config.mock && !config.hasCloudChannel
+        ? MockRemotePushDelivery(store: store, log: log)
+        : buildRemotePushDelivery(config, store);
     if (delivery != null) {
       _setRemotePushDelivery(delivery);
     }
@@ -855,19 +886,18 @@ class _RequestBodyLimitResult {
 /// paired-device count, so it is a backstop rather than a routine eviction
 /// path — the per-endpoint rate limit on the pairing routes is the first line
 /// of defence.
-class BoundedTokenScopeMap extends MapBase<String, HeadlessTokenScope> {
-  BoundedTokenScopeMap({this.maxEntries = 1024})
+class BoundedTokenGrantMap extends MapBase<String, HeadlessAuthGrant> {
+  BoundedTokenGrantMap({this.maxEntries = 1024})
     : assert(maxEntries > 0, 'maxEntries must be positive');
 
   final int maxEntries;
-  final Map<String, HeadlessTokenScope> _entries =
-      <String, HeadlessTokenScope>{};
+  final Map<String, HeadlessAuthGrant> _entries = <String, HeadlessAuthGrant>{};
 
   @override
-  HeadlessTokenScope? operator [](Object? key) => _entries[key];
+  HeadlessAuthGrant? operator [](Object? key) => _entries[key];
 
   @override
-  void operator []=(String key, HeadlessTokenScope value) {
+  void operator []=(String key, HeadlessAuthGrant value) {
     // remove-then-insert so the most-recently-written key moves to the tail of
     // the insertion order and is therefore evicted last.
     _entries.remove(key);
@@ -878,7 +908,7 @@ class BoundedTokenScopeMap extends MapBase<String, HeadlessTokenScope> {
   }
 
   @override
-  HeadlessTokenScope? remove(Object? key) => _entries.remove(key);
+  HeadlessAuthGrant? remove(Object? key) => _entries.remove(key);
 
   @override
   void clear() => _entries.clear();

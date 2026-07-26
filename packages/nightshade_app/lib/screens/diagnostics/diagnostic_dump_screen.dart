@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../utils/exported_file_reveal.dart';
 import '../../utils/snackbar_helper.dart';
 
 /// Bug-report attachment screen.
@@ -125,7 +126,11 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
           .first;
       final suggested = 'nightshade_diagnostic_$stamp.zip';
 
-      final location = await file_selector.getSaveLocation(
+      // Not a raw save dialog: `file_selector` has no `getSavePath` on
+      // Android/iOS, so asking for one there threw UnimplementedError and this
+      // whole screen was dead on a phone. On touch platforms the dump lands in
+      // the app sandbox and reaches the user through the share sheet below.
+      final target = await chooseExportTarget(
         suggestedName: suggested,
         acceptedTypeGroups: const [
           file_selector.XTypeGroup(
@@ -135,11 +140,9 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
         ],
       );
 
-      // Fall back to the documents directory when the picker is unavailable
-      // or the user cancels. The dump is intentionally cheap; producing it
-      // even when the user backed out of the dialog is acceptable only if
-      // we *do not* silently invent a path — instead we cancel.
-      if (location == null) {
+      // Only the desktop dialog can be dismissed. Producing a dump the user
+      // backed out of would mean silently inventing a path, so we cancel.
+      if (target == null) {
         if (mounted) {
           context.showInfoSnackBar('Diagnostic dump cancelled.');
         }
@@ -147,7 +150,7 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
       }
 
       final service = ref.read(diagnosticDumpServiceProvider);
-      final file = await service.createDump(outputPath: location.path);
+      final file = await service.createDump(outputPath: target.path);
       final size = await file.length();
 
       if (!mounted) return;
@@ -155,9 +158,13 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
         _lastOutputPath = file.path;
         _lastOutputBytes = size;
       });
-      context.showSuccessSnackBar(
-        'Diagnostic dump written: ${file.path} (${_formatBytes(size)})',
-        duration: const Duration(seconds: 6),
+      await revealExportedFile(
+        context,
+        file.path,
+        subject: 'Nightshade diagnostic dump',
+        desktopMessage:
+            'Diagnostic dump written: ${file.path} (${_formatBytes(size)})',
+        desktopDuration: const Duration(seconds: 6),
       );
     } catch (e) {
       if (!mounted) return;
@@ -183,7 +190,10 @@ class _ContentsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      ('Recent log files', 'logs/exported_logs.txt — concatenated and rotated'),
+      (
+        'Recent log files',
+        'logs/exported_logs.txt — rotated native logs + in-app entries'
+      ),
       ('Active equipment profile', 'profile.json — devices, optics, defaults'),
       ('Current sequence', 'sequence.json — name, tree shape, node metadata'),
       ('System info', 'system_info.json — OS, Dart version, app version'),

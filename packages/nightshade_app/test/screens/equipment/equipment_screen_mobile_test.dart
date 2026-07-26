@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/equipment/equipment_screen.dart';
+import 'package:nightshade_app/screens/equipment/widgets/discovery_panel.dart';
+import 'package:nightshade_app/screens/equipment/widgets/equipment_health_panel.dart';
 import 'package:nightshade_app/screens/equipment/widgets/profile_sidebar.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -108,6 +110,103 @@ void main() {
         }
       });
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Regression: the phone supporting panels must SCROLL WITH the device cards.
+  //
+  // They used to be pinned Column siblings above the card list. Collapsed, that
+  // chrome pinned ~330dp above the cards on a 411x914dp phone and clipped the
+  // first device card through its own readouts. EXPANDED, the readiness
+  // checklist overflowed the column by 108px and evicted every device card AND
+  // the discovery scanner off-screen, with no scroll to bring them back. The
+  // existing "no overflow" cases above all run with the checklist COLLAPSED
+  // (its default), which is exactly why they never caught it.
+  // ---------------------------------------------------------------------------
+  for (final (label, portrait) in _phoneSizes) {
+    testWidgets('equipment supporting panels scroll with the cards at $label',
+        (tester) async {
+      final handle = await pumpAppScreen(
+        tester,
+        const EquipmentScreen(),
+        size: portrait,
+        settle: false,
+      );
+
+      final dao = handle.container.read(equipmentProfilesDaoProvider);
+      await dao.createProfile(
+        EquipmentProfilesCompanion.insert(name: 'Scroll Chrome Profile'),
+      );
+      await _drainFrames(tester);
+      expect(tester.takeException(), isNull);
+
+      // The health panel — the first of the supporting panels — must sit inside
+      // a Scrollable. Pinned as a Column sibling it had no Scrollable ancestor.
+      expect(
+        find.ancestor(
+          of: find.byType(EquipmentHealthPanel),
+          matching: find.byType(Scrollable),
+        ),
+        findsWidgets,
+        reason: 'supporting panels are pinned again instead of scrolling',
+      );
+
+      // Expanding the readiness checklist must not overflow the column. The
+      // bar's label tracks the readiness verdict, so accept either wording.
+      for (final label in const ['Ready to image', 'Not ready']) {
+        final bar = find.text(label).hitTestable();
+        if (bar.evaluate().isEmpty) continue;
+        await tester.tap(bar.first);
+        await _drainFrames(tester);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'expanding the readiness checklist overflowed the layout',
+        );
+        break;
+      }
+    });
+  }
+
+  // Regression: on a SHORT viewport the Discovery scanner must stop pinning
+  // itself. Pinned, it left the card list ~66dp on a 360x640dp phone and was
+  // itself squeezed under its own content, overflowing by 8px. Below the
+  // threshold it scrolls with the cards instead, which can never overflow.
+  for (final (label, size) in const <(String, Size)>[
+    ('short 360x560', Size(360, 560)),
+    ('very short 360x480', Size(360, 480)),
+    ('compact 360x640', Size(360, 640)),
+  ]) {
+    testWidgets('equipment does not overflow on a short viewport at $label',
+        (tester) async {
+      final handle = await pumpAppScreen(
+        tester,
+        const EquipmentScreen(),
+        size: size,
+        settle: false,
+      );
+
+      final dao = handle.container.read(equipmentProfilesDaoProvider);
+      await dao.createProfile(
+        EquipmentProfilesCompanion.insert(name: 'Short Viewport Profile'),
+      );
+      await _drainFrames(tester);
+      expect(tester.takeException(), isNull);
+
+      // The scanner stays reachable however it was laid out.
+      expect(find.byType(DiscoveryPanel), findsOneWidget);
+
+      // And expanding the readiness checklist on top of that still must not
+      // overflow — this is the worst case the screen has to survive.
+      for (final barLabel in const ['Ready to image', 'Not ready']) {
+        final bar = find.text(barLabel).hitTestable();
+        if (bar.evaluate().isEmpty) continue;
+        await tester.tap(bar.first);
+        await _drainFrames(tester);
+        expect(tester.takeException(), isNull);
+        break;
+      }
+    });
   }
 
   testWidgets('equipment rotates portrait→landscape without clipping',

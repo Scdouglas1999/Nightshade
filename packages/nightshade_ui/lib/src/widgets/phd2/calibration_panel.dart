@@ -348,7 +348,7 @@ class CalibrationPanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'PHD2 needs to calibrate your mount before guiding. Click "Calibrate" to begin.',
+            'PHD2 will calibrate your mount automatically when you start guiding.',
             style: TextStyle(color: colors.textSecondary, fontSize: 12),
             textAlign: TextAlign.center,
           ),
@@ -382,7 +382,9 @@ class CalibrationPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!data.hasCalibration && state != CalibrationState.calibrating)
+        if (!data.hasCalibration &&
+            state != CalibrationState.calibrating &&
+            onStartCalibration != null)
           _buildActionButton(
             context: context,
             icon: LucideIcons.settings,

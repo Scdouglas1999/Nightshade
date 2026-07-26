@@ -66,6 +66,7 @@ export 'screens/sequencer/widgets/sequence_enhancements.dart';
 
 // Services
 export 'services/location_sync_service.dart';
+export 'screens/session_review/auto_integration_service.dart';
 // Plugin-node dispatcher wiring. Exported so the app
 // entry point can install the Riverpod override that backs the
 // `pluginNodeDispatcherProvider` (defined in nightshade_core) with the
@@ -81,3 +82,6 @@ export 'services/plugin_node_palette_wiring.dart';
 // persisted enable/disable choices (a plugin disabled on the Integrations
 // page stays disabled across launches instead of silently coming back on).
 export 'services/plugin_enablement_wiring.dart';
+// Hardware-owning entry points use this before accepting sequence work so
+// plugin nodes do not depend on somebody first opening Integrations settings.
+export 'services/plugin_runtime_bootstrap.dart';

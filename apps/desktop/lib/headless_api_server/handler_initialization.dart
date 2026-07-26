@@ -3,7 +3,9 @@ part of '../headless_api_server.dart';
 extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
   void _initializeHandlers() {
     // job manager. Constructed BEFORE the device/imaging/
-    // framing/session handlers so they can be wired to it. broadcastEvent
+    // framing/session handlers so they can be wired to it. SessionHandlers
+    // uses it for thumbnail backfill; polar Start remains a synchronous
+    // admission command so native rejection reaches the caller. broadcastEvent
     // is a method on this class so we can pass the bound reference even
     // though the server hasn't bound a socket yet — the event stream
     // becomes active in start().
@@ -19,7 +21,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     );
 
     // Initialize handler instances. Long-running ops (autofocus, plate-
-    // solve, center-on-target, polar-alignment) receive the JobManager
+    // solve, center-on-target) receive the JobManager
     // so their handlers return `{jobId, status: queued}` immediately and
     // run the work in the background. Other handlers don't need it.
     _deviceHandlers = DeviceHandlers(container, jobManager: _jobManager);
@@ -45,10 +47,14 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       // that map past the server boundary. The closure mutates it
       // through a typed, intent-named entry point so the call site is
       // unambiguous.
-      recordPairedSession: (token, scope) {
-        _pairedSessionTokens[token] = scope;
+      recordPairedSession: (token, grant) {
+        _pairedSessionTokens[token] = grant;
       },
       rateLimitClientKey: _rateLimitClientKey,
+      // A completed pairing is proof the operator is legitimate, so it must
+      // also lift the bearer-token failure lockout — the middleware's own
+      // clear-on-success is unreachable once that limiter has tripped.
+      clearAuthFailures: _tokenResolver.clearFailures,
       pairingPrintCodes: pairingPrintCodes,
       pairingMode: () => pairingMode,
       logger: container.read(loggingServiceProvider),
@@ -59,6 +65,9 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _pushHandlers = PushHandlers(
       ensurePairingService: _ensurePairingService,
       logger: container.read(loggingServiceProvider),
+      // Closure, not a captured bool: delivery is wired (or cleared) after the
+      // handlers are built, so `/api/push/targets` must read the live value.
+      cloudDeliveryConfigured: () => _remotePushDelivery != null,
     );
     _systemHandlers = SystemHandlers(
       container: container,
@@ -85,6 +94,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     );
     _guidingHandlers = GuidingHandlers(container);
     _sequencerHandlers = SequencerHandlers(container);
+    _replayDebugHandlers = ReplayDebugHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
     // [settings sync] inject `broadcastEvent` so handleUpdateSettings
     // can fan settings.changed events out to every connected WS client.
@@ -97,6 +107,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _sequenceManagementHandlers = SequenceManagementHandlers(container);
     _flatWizardHandlers = FlatWizardHandlers(container);
     _mosaicHandlers = MosaicHandlers(container);
+    _coImagingHandlers = CoImagingHandlers(container);
     _analyticsHandlers = AnalyticsHandlers(container);
     _weatherHandlers = WeatherHandlers(container);
     _suggestionHandlers = SuggestionHandlers(container);
@@ -195,15 +206,15 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _catalogHandlers = CatalogHandlers(
       jobManager: _jobManager,
       logger: container.read(loggingServiceProvider),
+      diskSpaceService: container.read(diskSpaceServiceProvider),
     );
 
     // db read endpoints. Reads from existing DAOs; no service
     // dependency, so construction is trivial.
     _dbReadHandlers = DbReadHandlers(container);
 
-    // plugin management endpoints. The service is fetched from
-    // the container so test fixtures can override
-    // `pluginManagementServiceProvider` to point at a temp directory.
+    // Plugin management endpoints. Runtime state comes from PluginHost; the
+    // legacy archive service is still container-backed for migration cleanup.
     _pluginHandlers = PluginHandlers(container);
 
     // REST surface for the JobManager that was constructed

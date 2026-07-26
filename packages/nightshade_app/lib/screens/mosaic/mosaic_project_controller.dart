@@ -40,6 +40,27 @@ class MosaicProjectState {
   /// True while [MosaicProjectController.stitchProject] is running.
   final bool isStitching;
 
+  /// True while [MosaicProjectController.publishToHub] is running (WS2).
+  final bool isPublishing;
+
+  /// True while a claim action is running (WS2).
+  final bool isClaiming;
+
+  /// True while a panel-master upload is running (WS2).
+  final bool isUploading;
+
+  /// True while [MosaicProjectController.assembleFromHub] is running (WS2).
+  final bool isAssembling;
+
+  /// True while [MosaicProjectController.joinAsParticipant] is running (WS2).
+  final bool isJoining;
+
+  /// True while [MosaicProjectController.refreshStatus] is running (WS2).
+  final bool isRefreshing;
+
+  /// True while [MosaicProjectController.downloadOutput] is running (WS2).
+  final bool isDownloading;
+
   /// A human-readable error from the last load or action, or null. Surfaced as
   /// a dismissible banner; it never tears down the already-loaded chrome.
   final String? error;
@@ -53,12 +74,52 @@ class MosaicProjectState {
     this.isStartingCapture = false,
     this.isIntegrating = false,
     this.isStitching = false,
+    this.isPublishing = false,
+    this.isClaiming = false,
+    this.isUploading = false,
+    this.isAssembling = false,
+    this.isJoining = false,
+    this.isRefreshing = false,
+    this.isDownloading = false,
     this.error,
   });
 
-  /// True while any long-running action (start-capture, integrate, or stitch)
-  /// is in flight.
-  bool get isBusy => isStartingCapture || isIntegrating || isStitching;
+  /// True while any long-running action (start-capture, integrate, stitch, or a
+  /// collaborative publish/claim/upload/assemble) is in flight.
+  bool get isBusy =>
+      isStartingCapture ||
+      isIntegrating ||
+      isStitching ||
+      isPublishing ||
+      isClaiming ||
+      isUploading ||
+      isAssembling ||
+      isJoining ||
+      isRefreshing ||
+      isDownloading;
+
+  /// The hub mosaic id once this project has been published (WS2), or null.
+  String? get hubMosaicId => project?.hubMosaicId;
+
+  /// True once this project has been published to the hub as a collaborative
+  /// mosaic (WS2).
+  bool get isPublished => project?.isPublished ?? false;
+
+  /// The hub-side collaborative lifecycle (published|assembling|complete), or
+  /// null when not a collaborative mosaic (WS2).
+  String? get collabStatus => project?.collabStatus;
+
+  /// Panels not yet claimed for distributed capture (WS2) — the claim-all set.
+  List<MosaicProjectPanel> get unclaimedPanels =>
+      panels.where((p) => !p.isClaimed).toList(growable: false);
+
+  /// Integrated panels not yet uploaded to the hub (WS2) — the upload-all set.
+  List<MosaicProjectPanel> get integratedNotUploaded => panels
+      .where((p) => p.integratedMasterId != null && !p.isUploaded)
+      .toList(growable: false);
+
+  /// Count of panels whose master has been uploaded to the hub (WS2).
+  int get panelsUploaded => panels.where((p) => p.isUploaded).length;
 
   /// Number of panels that carry an integrated per-panel master — the
   /// population the stitcher consumes. Stitch is gated until this is >= 2 (one
@@ -87,6 +148,13 @@ class MosaicProjectState {
     bool? isStartingCapture,
     bool? isIntegrating,
     bool? isStitching,
+    bool? isPublishing,
+    bool? isClaiming,
+    bool? isUploading,
+    bool? isAssembling,
+    bool? isJoining,
+    bool? isRefreshing,
+    bool? isDownloading,
     String? error,
     bool clearError = false,
   }) {
@@ -100,6 +168,13 @@ class MosaicProjectState {
       isStartingCapture: isStartingCapture ?? this.isStartingCapture,
       isIntegrating: isIntegrating ?? this.isIntegrating,
       isStitching: isStitching ?? this.isStitching,
+      isPublishing: isPublishing ?? this.isPublishing,
+      isClaiming: isClaiming ?? this.isClaiming,
+      isUploading: isUploading ?? this.isUploading,
+      isAssembling: isAssembling ?? this.isAssembling,
+      isJoining: isJoining ?? this.isJoining,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
+      isDownloading: isDownloading ?? this.isDownloading,
       error: clearError ? null : (error ?? this.error),
     );
   }
@@ -127,6 +202,8 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     required MosaicProjectService service,
     required String Function(MosaicProjectPanel panel) panelOutputPathBuilder,
     required String Function(MosaicProject project) stitchOutputDirectory,
+    CollaborativeMosaicService? collaborativeService,
+    bool hubConfigured = true,
     MosaicCaptureLauncher? captureLauncher,
     IntegrationSettings integrationSettings = IntegrationSettings.defaults,
   })  : _projectId = projectId,
@@ -134,6 +211,8 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         _panelsDao = panelsDao,
         _mastersDao = mastersDao,
         _service = service,
+        _collaborative = collaborativeService,
+        _hubConfigured = hubConfigured,
         _panelOutputPathBuilder = panelOutputPathBuilder,
         _stitchOutputDirectory = stitchOutputDirectory,
         _captureLauncher = captureLauncher,
@@ -149,6 +228,18 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   final MosaicPanelsDao _panelsDao;
   final IntegratedMastersDao _mastersDao;
   final MosaicProjectService _service;
+
+  /// WS2 collaborative-mosaic orchestration. Null when no hub-aware service was
+  /// wired (the local-only review path); the collaborative actions then report a
+  /// clear error rather than crashing.
+  final CollaborativeMosaicService? _collaborative;
+
+  /// Whether a Constellation hub is actually configured/signed-in (resolved from
+  /// [constellationConfiguredProvider]). A hub-aware service is always wired, so
+  /// this — not merely `_collaborative != null` — is what gates the collaborative
+  /// affordances: with no hub the publish/claim/force-release actions would fail
+  /// at the tap with an auth error, so they are hidden/disabled up front instead.
+  final bool _hubConfigured;
   final String Function(MosaicProjectPanel panel) _panelOutputPathBuilder;
   final String Function(MosaicProject project) _stitchOutputDirectory;
 
@@ -205,6 +296,13 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         isStartingCapture: state.isStartingCapture,
         isIntegrating: state.isIntegrating,
         isStitching: state.isStitching,
+        isPublishing: state.isPublishing,
+        isClaiming: state.isClaiming,
+        isUploading: state.isUploading,
+        isAssembling: state.isAssembling,
+        isJoining: state.isJoining,
+        isRefreshing: state.isRefreshing,
+        isDownloading: state.isDownloading,
       );
     } catch (e) {
       if (!mounted) return;
@@ -260,13 +358,30 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     if (project == null || state.isBusy) return;
     state = state.copyWith(isIntegrating: true, clearError: true);
     try {
-      await _service.integratePanels(
+      final outcomes = await _service.integratePanels(
         _projectId,
         settings: _integrationSettings,
         outputFitsPathBuilder: _panelOutputPathBuilder,
       );
       await load();
-      if (mounted) state = state.copyWith(isIntegrating: false);
+      if (!mounted) return;
+      final failed = outcomes
+          .where((o) => o.status == MosaicPanelStatus.failed)
+          .toList(growable: false);
+      if (failed.isEmpty) {
+        state = state.copyWith(isIntegrating: false);
+      } else {
+        final detail = failed
+            .map((o) => o.note == null
+                ? 'panel ${o.panelIndex + 1}'
+                : 'panel ${o.panelIndex + 1}: ${o.note}')
+            .join('; ');
+        state = state.copyWith(
+          isIntegrating: false,
+          error: 'Integrated ${outcomes.length - failed.length} of '
+              '${outcomes.length} panels; ${failed.length} failed — $detail',
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
@@ -304,6 +419,287 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isStitching: false, error: 'Stitch failed: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Collaborative mosaics (WS2) — publish / claim / upload / assemble over the
+  // hub. Each mirrors the integrate/stitch shape: set the right busy flag, call
+  // the collaborative service, reload, and surface errors WITHOUT rethrowing.
+  // ---------------------------------------------------------------------------
+
+  /// Whether the collaborative actions are available: a hub-aware service was
+  /// wired AND a Constellation hub is actually configured/signed-in. The screen
+  /// hides/disables the collaborative affordances when false, so the buttons are
+  /// never enabled-then-failing-at-the-tap on a rig with no hub.
+  bool get canCollaborate => _collaborative != null && _hubConfigured;
+
+  /// Publish this project to the hub as a collaborative mosaic, then reload so
+  /// the header reflects the published state.
+  Future<void> publishToHub() async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isPublishing: true, clearError: true);
+    try {
+      await collaborative.publishProject(_projectId);
+      await load();
+      if (mounted) state = state.copyWith(isPublishing: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isPublishing: false, error: 'Publish failed: $e');
+    }
+  }
+
+  /// Claim one panel of the published mosaic via the hub baton, then reload.
+  Future<void> claimPanel(int panelIndex) async {
+    await _runClaim(
+        () => _collaborative!.claimPanels(_projectId, [panelIndex]));
+  }
+
+  /// Claim every not-yet-claimed panel of the published mosaic, then reload.
+  Future<void> claimAllPending() async {
+    final indices =
+        state.unclaimedPanels.map((p) => p.panelIndex).toList(growable: false);
+    if (indices.isEmpty) return;
+    await _runClaim(() => _collaborative!.claimPanels(_projectId, indices));
+  }
+
+  Future<void> _runClaim(Future<void> Function() action) async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isClaiming: true, clearError: true);
+    try {
+      await action();
+      await load();
+      if (mounted) state = state.copyWith(isClaiming: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isClaiming: false, error: 'Claim failed: $e');
+    }
+  }
+
+  /// Owner/admin recovery: force-release one panel of the published mosaic —
+  /// evicting a squatting claim or a poisoned upload that the per-account
+  /// release cannot recover — then reload. The hub enforces owner/admin
+  /// ownership; a non-owner sees the surfaced auth error. Reuses the claim busy
+  /// flag since it is a claim-baton management action.
+  Future<void> forceReleasePanel(int panelIndex) async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isClaiming: true, clearError: true);
+    try {
+      await collaborative.forceReleasePanel(_projectId, panelIndex);
+      await load();
+      if (mounted) state = state.copyWith(isClaiming: false);
+    } catch (e) {
+      if (!mounted) return;
+      state =
+          state.copyWith(isClaiming: false, error: 'Force-release failed: $e');
+    }
+  }
+
+  /// Upload one integrated panel's master to the hub under the user's chosen
+  /// sharing [license] + [attributionConsent] (WS4 consent contract — the
+  /// caller presents the contribute sheet first), then reload.
+  Future<void> uploadPanelMaster(
+    int panelIndex, {
+    required ContributionLicense license,
+    required bool attributionConsent,
+  }) async {
+    await _runUpload(
+      () => _collaborative!.uploadPanelMaster(
+        _projectId,
+        panelIndex,
+        license: license,
+        attributionConsent: attributionConsent,
+      ),
+    );
+  }
+
+  /// Upload every integrated-but-not-yet-uploaded panel master under the user's
+  /// chosen sharing [license] + [attributionConsent], then reload.
+  Future<void> uploadAllIntegrated({
+    required ContributionLicense license,
+    required bool attributionConsent,
+  }) async {
+    final indices = state.integratedNotUploaded
+        .map((p) => p.panelIndex)
+        .toList(growable: false);
+    if (indices.isEmpty) return;
+    await _runUpload(() async {
+      for (final index in indices) {
+        await _collaborative!.uploadPanelMaster(
+          _projectId,
+          index,
+          license: license,
+          attributionConsent: attributionConsent,
+        );
+      }
+    });
+  }
+
+  Future<void> _runUpload(Future<void> Function() action) async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isUploading: true, clearError: true);
+    try {
+      await action();
+      await load();
+      if (mounted) state = state.copyWith(isUploading: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isUploading: false, error: 'Upload failed: $e');
+    }
+  }
+
+  /// Owner-only central assembly: pull every panel master, stitch, and push the
+  /// finished mosaic back to the hub, then reload.
+  Future<void> assembleFromHub() async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isAssembling: true, clearError: true);
+    try {
+      await collaborative.assembleMosaic(_projectId);
+      await load();
+      if (mounted) state = state.copyWith(isAssembling: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isAssembling: false, error: 'Assemble failed: $e');
+    }
+  }
+
+  /// Discover open/claimable collaborative mosaics on the configured hub — the
+  /// participant-side counterpart to [publishToHub], so a rig can pick a mosaic
+  /// to JOIN before claiming panels. Returns the listing (empty + a surfaced
+  /// error when no hub is wired); never throws into the widget tree.
+  Future<List<CollabMosaic>> discoverMosaics() async {
+    final collaborative = _collaborative;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return const [];
+    }
+    try {
+      return await collaborative.listMosaics();
+    } catch (e) {
+      if (mounted) state = state.copyWith(error: 'Discover failed: $e');
+      return const [];
+    }
+  }
+
+  /// JOIN [hubMosaicId] as a participant: link this local project to the hub
+  /// mosaic with `collab_role = participant` so its claim/upload/download calls
+  /// resolve the hub mosaic. Prerequisite for a non-owner rig to contribute —
+  /// without it, claim/upload 400 with "not published to a hub". Then reload.
+  Future<void> joinAsParticipant(String hubMosaicId) async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    if (hubMosaicId.trim().isEmpty) {
+      state =
+          state.copyWith(error: 'Join failed: a hub mosaic id is required.');
+      return;
+    }
+    state = state.copyWith(isJoining: true, clearError: true);
+    try {
+      await collaborative.joinAsParticipant(_projectId, hubMosaicId);
+      await load();
+      if (mounted) state = state.copyWith(isJoining: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isJoining: false, error: 'Join failed: $e');
+    }
+  }
+
+  /// Refresh this project's `collab_status` from the hub (the owner polling for
+  /// `assembling`, or a participant polling for `complete`), then reload so the
+  /// header reflects the live lifecycle.
+  Future<void> refreshStatus() async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isRefreshing: true, clearError: true);
+    try {
+      await collaborative.refreshStatus(_projectId);
+      await load();
+      if (mounted) state = state.copyWith(isRefreshing: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isRefreshing: false, error: 'Refresh failed: $e');
+    }
+  }
+
+  /// Download the finished collaborative mosaic the owner assembled + published
+  /// back to the swarm — the participant end of the "publish the finished mosaic
+  /// to every participant" loop. Persists it as this project's output master,
+  /// then reload so the stitched hero appears.
+  Future<void> downloadOutput() async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isDownloading: true, clearError: true);
+    try {
+      await collaborative.downloadOutput(_projectId);
+      await load();
+      if (mounted) state = state.copyWith(isDownloading: false);
+    } catch (e) {
+      if (!mounted) return;
+      state =
+          state.copyWith(isDownloading: false, error: 'Download failed: $e');
     }
   }
 
@@ -367,6 +763,13 @@ final mosaicProjectControllerProvider = StateNotifierProvider.family<
       panelsDao: ref.watch(mosaicPanelsDaoProvider),
       mastersDao: ref.watch(integratedMastersDaoProvider),
       service: ref.watch(mosaicProjectServiceProvider),
+      collaborativeService: ref.watch(collaborativeMosaicServiceProvider),
+      // The hub-aware service is always wired, so gate the collaborative
+      // affordances on whether a hub is actually configured/signed-in. Reuses
+      // the same signal the Constellation screens use; unknown-while-loading
+      // resolves false so the actions fail closed rather than enabled-then-fail.
+      hubConfigured:
+          ref.watch(constellationConfiguredProvider).valueOrNull ?? false,
       panelOutputPathBuilder: args.panelOutputPathBuilder,
       stitchOutputDirectory: args.stitchOutputDirectory,
       captureLauncher: buildMosaicCaptureLauncher(ref),
@@ -376,10 +779,11 @@ final mosaicProjectControllerProvider = StateNotifierProvider.family<
 );
 
 /// Lists every durable mosaic project (newest first) for the projects list
-/// screen. A plain `FutureProvider` over [MosaicProjectsDao]; the list screen
-/// invalidates it on pull-to-refresh.
+/// screen. An `autoDispose` `FutureProvider` over [MosaicProjectsDao] so it
+/// re-reads whenever the list screen is re-opened (a project created elsewhere
+/// then shows on revisit); the screen also invalidates it on pull-to-refresh.
 final mosaicProjectsListProvider =
-    FutureProvider<List<MosaicProject>>((ref) async {
+    FutureProvider.autoDispose<List<MosaicProject>>((ref) async {
   return ref.watch(mosaicProjectsDaoProvider).listAll();
 });
 

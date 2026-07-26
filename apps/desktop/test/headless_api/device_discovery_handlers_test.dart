@@ -308,6 +308,39 @@ void main() {
         expect(backend.callCounts[DeviceType.mount], isNull);
       },
     );
+
+    test(
+      'point-source discovery validates host and port before backend use',
+      () async {
+        final backend = _FakeDeviceBackend();
+        final container = containerWith(backend);
+        addTearDown(container.dispose);
+        final handlers = DeviceDiscoveryHandlers(container);
+        final methods = <Future<Response> Function(Request)>[
+          handlers.handleDiscoverIndiAtAddress,
+          handlers.handleDiscoverAlpacaAtAddress,
+        ];
+
+        for (final method in methods) {
+          for (final query in const [
+            'port=7624',
+            'host=localhost&port=abc',
+            'host=localhost&port=0',
+            'host=localhost&port=65536',
+          ]) {
+            final response = await translateHandlerErrors(
+              method(
+                Request(
+                  'GET',
+                  Uri.parse('http://localhost/api/devices/discover?$query'),
+                ),
+              ),
+            );
+            expect(response.statusCode, HttpStatus.badRequest, reason: query);
+          }
+        }
+      },
+    );
   });
 
   group('DeviceDiscoveryHandlers.handleRescanDevices', () {

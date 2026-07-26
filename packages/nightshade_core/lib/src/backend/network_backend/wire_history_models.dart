@@ -1,5 +1,140 @@
 part of '../network_backend.dart';
 
+/// Wire row for `/api/sequence-management/summaries`.
+///
+/// The remote sequence library must use the host's persisted metadata rather
+/// than reconstructing a lossy summary from full sequence documents. Every
+/// field is required except the two genuinely nullable display values, so a
+/// mismatched/legacy response fails loudly instead of looking like an empty
+/// tag/favorite/run history.
+class RemoteSequenceSummary {
+  final int id;
+  final String name;
+  final int nodeCount;
+  final int targetCount;
+  final int exposureCount;
+  final int totalIntegrationSecs;
+  final String? primaryTargetName;
+  final DateTime? lastRunAt;
+  final int runCount;
+  final List<String> tags;
+  final bool isFavorite;
+  final DateTime createdAt;
+  final DateTime modifiedAt;
+
+  const RemoteSequenceSummary({
+    required this.id,
+    required this.name,
+    required this.nodeCount,
+    required this.targetCount,
+    required this.exposureCount,
+    required this.totalIntegrationSecs,
+    required this.runCount,
+    required this.tags,
+    required this.isFavorite,
+    required this.createdAt,
+    required this.modifiedAt,
+    this.primaryTargetName,
+    this.lastRunAt,
+  });
+
+  factory RemoteSequenceSummary.fromJson(Map<String, dynamic> json) {
+    const context = 'sequence-summary row';
+    final runCount = _historyRequiredInt(json, 'runCount', context, min: 0);
+    final lastRunAt = _historyOptionalDate(json, 'lastRunAt', context);
+    if ((runCount == 0) != (lastRunAt == null)) {
+      throw const FormatException(
+        'sequence-summary row runCount and lastRunAt disagree',
+      );
+    }
+    final createdAt = _historyRequiredDate(json, 'createdAt', context);
+    final modifiedAt = _historyRequiredDate(json, 'modifiedAt', context);
+    if (modifiedAt.isBefore(createdAt)) {
+      throw const FormatException(
+        'sequence-summary row modifiedAt precedes createdAt',
+      );
+    }
+    return RemoteSequenceSummary(
+      id: _historyRequiredInt(json, 'id', context, min: 1),
+      name: _historyRequiredString(json, 'name', context),
+      nodeCount: _historyRequiredInt(json, 'nodeCount', context, min: 0),
+      targetCount: _historyRequiredInt(json, 'targetCount', context, min: 0),
+      exposureCount: _historyRequiredInt(
+        json,
+        'exposureCount',
+        context,
+        min: 0,
+      ),
+      totalIntegrationSecs: _historyRequiredInt(
+        json,
+        'totalIntegrationSecs',
+        context,
+        min: 0,
+      ),
+      primaryTargetName: _historyOptionalString(
+        json,
+        'primaryTargetName',
+        context,
+      ),
+      lastRunAt: lastRunAt,
+      runCount: runCount,
+      tags: _historyRequiredStringList(json, 'tags', context),
+      isFavorite: _historyRequiredBool(json, 'isFavorite', context),
+      createdAt: createdAt,
+      modifiedAt: modifiedAt,
+    );
+  }
+}
+
+/// Metadata-only wire row for a stored sequence's version-history list.
+class RemoteSequenceVersionSummary {
+  final int id;
+  final int sequenceId;
+  final String? label;
+  final DateTime createdAt;
+
+  const RemoteSequenceVersionSummary({
+    required this.id,
+    required this.sequenceId,
+    required this.createdAt,
+    this.label,
+  });
+
+  factory RemoteSequenceVersionSummary.fromJson(Map<String, dynamic> json) {
+    const context = 'sequence-version summary row';
+    return RemoteSequenceVersionSummary(
+      id: _historyRequiredInt(json, 'id', context, min: 1),
+      sequenceId: _historyRequiredInt(json, 'sequenceId', context, min: 1),
+      label: _historyOptionalString(json, 'label', context, allowEmpty: true),
+      createdAt: _historyRequiredDate(json, 'createdAt', context),
+    );
+  }
+}
+
+/// Full wire row returned only when the operator chooses a version to restore.
+class RemoteSequenceVersion extends RemoteSequenceVersionSummary {
+  final String snapshotJson;
+
+  const RemoteSequenceVersion({
+    required super.id,
+    required super.sequenceId,
+    required this.snapshotJson,
+    required super.createdAt,
+    super.label,
+  });
+
+  factory RemoteSequenceVersion.fromJson(Map<String, dynamic> json) {
+    const context = 'sequence-version row';
+    return RemoteSequenceVersion(
+      id: _historyRequiredInt(json, 'id', context, min: 1),
+      sequenceId: _historyRequiredInt(json, 'sequenceId', context, min: 1),
+      snapshotJson: _historyRequiredString(json, 'snapshotJson', context),
+      label: _historyOptionalString(json, 'label', context, allowEmpty: true),
+      createdAt: _historyRequiredDate(json, 'createdAt', context),
+    );
+  }
+}
+
 class RemotePage<T> {
   final List<T> items;
   final int total;
@@ -12,16 +147,37 @@ class RemotePage<T> {
   ) {
     final rawItems = json['items'];
     if (rawItems is! List) {
-      throw StateError('Malformed paginated response: missing items list');
+      throw const FormatException(
+        'Malformed paginated response: missing items list',
+      );
     }
-    final items = rawItems
-        .whereType<Map>()
-        .map((m) => itemFromJson(m.cast<String, dynamic>()))
-        .toList(growable: false);
-    return RemotePage(
-      items: items,
-      total: (json['total'] as num?)?.toInt() ?? items.length,
+    final items = <T>[];
+    for (var index = 0; index < rawItems.length; index++) {
+      final raw = rawItems[index];
+      if (raw is! Map) {
+        throw FormatException('Paginated response row $index is not an object');
+      }
+      try {
+        items.add(itemFromJson(raw.cast<String, dynamic>()));
+      } on TypeError catch (error) {
+        throw FormatException(
+          'Paginated response row $index has non-string keys',
+          error,
+        );
+      }
+    }
+    final total = _historyRequiredInt(
+      json,
+      'total',
+      'paginated response',
+      min: 0,
     );
+    if (total < items.length) {
+      throw FormatException(
+        'Paginated response total $total is smaller than its ${items.length} rows',
+      );
+    }
+    return RemotePage(items: List.unmodifiable(items), total: total);
   }
 }
 
@@ -46,14 +202,27 @@ class RemoteSequenceRun {
   });
 
   factory RemoteSequenceRun.fromJson(Map<String, dynamic> json) {
+    const context = 'sequence-run row';
+    final startedAt = _historyRequiredDate(json, 'startedAt', context);
+    final endedAt = _historyOptionalDate(json, 'endedAt', context);
+    if (endedAt != null && endedAt.isBefore(startedAt)) {
+      throw const FormatException(
+        'sequence-run row endedAt precedes startedAt',
+      );
+    }
     return RemoteSequenceRun(
-      id: (json['id'] as num).toInt(),
-      sequenceId: (json['sequenceId'] as num?)?.toInt(),
-      sequenceName: json['sequenceName'] as String?,
-      startedAt: DateTime.parse(json['startedAt'] as String),
-      endedAt: _parseDateField(json['endedAt']),
-      status: json['status'] as String? ?? 'unknown',
-      statsJson: json['statsJson'] as String?,
+      id: _historyRequiredInt(json, 'id', context, min: 1),
+      sequenceId: _historyOptionalInt(json, 'sequenceId', context, min: 1),
+      sequenceName: _historyOptionalString(json, 'sequenceName', context),
+      startedAt: startedAt,
+      endedAt: endedAt,
+      status: _historyRequiredString(json, 'status', context),
+      statsJson: _historyOptionalString(
+        json,
+        'statsJson',
+        context,
+        allowEmpty: true,
+      ),
     );
   }
 }
@@ -397,16 +566,29 @@ class RemoteSequenceRunDetail {
   });
 
   factory RemoteSequenceRunDetail.fromJson(Map<String, dynamic> json) {
+    const context = 'sequence-run detail';
+    final startedAt = _historyRequiredDate(json, 'startedAt', context);
+    final endedAt = _historyOptionalDate(json, 'endedAt', context);
+    if (endedAt != null && endedAt.isBefore(startedAt)) {
+      throw const FormatException(
+        'sequence-run detail endedAt precedes startedAt',
+      );
+    }
     return RemoteSequenceRunDetail(
-      id: (json['id'] as num).toInt(),
-      sequenceId: (json['sequenceId'] as num?)?.toInt(),
-      sequenceName: json['sequenceName'] as String?,
-      startedAt: DateTime.parse(json['startedAt'] as String),
-      endedAt: _parseDateField(json['endedAt']),
-      status: json['status'] as String? ?? 'unknown',
-      statsJson: json['statsJson'] as String?,
-      frameCount: (json['frameCount'] as num?)?.toInt() ?? 0,
-      targetName: json['targetName'] as String?,
+      id: _historyRequiredInt(json, 'id', context, min: 1),
+      sequenceId: _historyOptionalInt(json, 'sequenceId', context, min: 1),
+      sequenceName: _historyOptionalString(json, 'sequenceName', context),
+      startedAt: startedAt,
+      endedAt: endedAt,
+      status: _historyRequiredString(json, 'status', context),
+      statsJson: _historyOptionalString(
+        json,
+        'statsJson',
+        context,
+        allowEmpty: true,
+      ),
+      frameCount: _historyRequiredInt(json, 'frameCount', context, min: 0),
+      targetName: _historyOptionalString(json, 'targetName', context),
     );
   }
 
@@ -414,6 +596,42 @@ class RemoteSequenceRunDetail {
     final end = endedAt;
     if (end == null) return null;
     return end.difference(startedAt);
+  }
+}
+
+/// The two persisted sequence documents needed for "diff vs previous run".
+///
+/// This is fetched explicitly rather than embedded in every run-history row:
+/// sequence snapshots can be large, while only the diff action needs them.
+class RemoteSequenceRunDiffContext {
+  final int runId;
+  final int? sequenceId;
+  final String? currentSnapshotJson;
+  final String? previousSnapshotJson;
+
+  const RemoteSequenceRunDiffContext({
+    required this.runId,
+    required this.sequenceId,
+    required this.currentSnapshotJson,
+    required this.previousSnapshotJson,
+  });
+
+  factory RemoteSequenceRunDiffContext.fromJson(Map<String, dynamic> json) {
+    const context = 'sequence-run diff context';
+    return RemoteSequenceRunDiffContext(
+      runId: _historyRequiredInt(json, 'runId', context, min: 1),
+      sequenceId: _historyOptionalInt(json, 'sequenceId', context, min: 1),
+      currentSnapshotJson: _historyOptionalString(
+        json,
+        'currentSnapshotJson',
+        context,
+      ),
+      previousSnapshotJson: _historyOptionalString(
+        json,
+        'previousSnapshotJson',
+        context,
+      ),
+    );
   }
 }
 
@@ -435,19 +653,41 @@ class RemoteReplayEvent {
   });
 
   factory RemoteReplayEvent.fromJson(Map<String, dynamic> json) {
-    final ts = json['timestamp'];
-    final tsMs = json['timestampMs'];
-    final timestamp = ts is String ? DateTime.parse(ts) : DateTime.now();
-    final timestampMs =
-        (tsMs as num?)?.toInt() ?? timestamp.millisecondsSinceEpoch;
+    const context = 'replay event';
+    final timestamp = _historyRequiredDate(json, 'timestamp', context);
+    final timestampMs = _historyRequiredInt(
+      json,
+      'timestampMs',
+      context,
+      min: 1,
+    );
+    if (timestamp.millisecondsSinceEpoch != timestampMs) {
+      throw const FormatException(
+        'replay event timestamp and timestampMs disagree',
+      );
+    }
     final rawFields = json['fields'];
+    Map<String, dynamic>? fields;
+    if (rawFields != null) {
+      if (rawFields is! Map) {
+        throw const FormatException('replay event fields must be an object');
+      }
+      try {
+        fields = rawFields.cast<String, dynamic>();
+      } on TypeError catch (error) {
+        throw FormatException(
+          'replay event fields have non-string keys',
+          error,
+        );
+      }
+    }
     return RemoteReplayEvent(
       timestamp: timestamp,
       timestampMs: timestampMs,
-      severity: json['severity'] as String? ?? 'info',
-      source: json['source'] as String?,
-      message: json['message'] as String? ?? '',
-      fields: rawFields is Map ? rawFields.cast<String, dynamic>() : null,
+      severity: _historyRequiredString(json, 'severity', context),
+      source: _historyOptionalString(json, 'source', context),
+      message: _historyRequiredString(json, 'message', context),
+      fields: fields,
     );
   }
 }
@@ -470,21 +710,61 @@ class RemoteReplayEventsPage {
   factory RemoteReplayEventsPage.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
     if (rawItems is! List) {
-      throw StateError('Malformed replay-events page: missing items list');
+      throw const FormatException(
+        'Malformed replay-events page: missing items list',
+      );
     }
-    final items = rawItems
-        .whereType<Map>()
-        .map((m) => RemoteReplayEvent.fromJson(m.cast<String, dynamic>()))
-        .toList(growable: false);
+    final items = <RemoteReplayEvent>[];
+    for (var index = 0; index < rawItems.length; index++) {
+      final raw = rawItems[index];
+      if (raw is! Map) {
+        throw FormatException('Replay-events row $index is not an object');
+      }
+      try {
+        items.add(RemoteReplayEvent.fromJson(raw.cast<String, dynamic>()));
+      } on TypeError catch (error) {
+        throw FormatException(
+          'Replay-events row $index has non-string keys',
+          error,
+        );
+      }
+    }
+    final total = _historyRequiredInt(
+      json,
+      'total',
+      'replay-events page',
+      min: 0,
+    );
+    if (total < items.length) {
+      throw FormatException(
+        'Replay-events total $total is smaller than ${items.length} rows',
+      );
+    }
+    final partial = json['is_partial'];
+    if (partial is! bool) {
+      throw const FormatException('Replay-events is_partial must be a boolean');
+    }
+    final partialReason = _historyOptionalString(
+      json,
+      'partialReason',
+      'replay-events page',
+    );
+    if (partial && partialReason == null) {
+      throw const FormatException(
+        'Replay-events partial response omitted partialReason',
+      );
+    }
+    if (!partial && partialReason != null) {
+      throw const FormatException(
+        'Replay-events complete response included partialReason',
+      );
+    }
     return RemoteReplayEventsPage(
-      items: items,
-      total: (json['total'] as num?)?.toInt() ?? items.length,
-      isPartial:
-          (json['is_partial'] as bool?) ??
-          (json['isPartial'] as bool?) ??
-          false,
-      partialReason: json['partialReason'] as String?,
-      source: json['source'] as String? ?? 'unknown',
+      items: List.unmodifiable(items),
+      total: total,
+      isPartial: partial,
+      partialReason: partialReason,
+      source: _historyRequiredString(json, 'source', 'replay-events page'),
     );
   }
 }
@@ -555,42 +835,91 @@ class RemoteReplayFrame {
   });
 
   factory RemoteReplayFrame.fromJson(Map<String, dynamic> json) {
-    final ts = json['capturedAt'];
-    final tsMs = json['capturedAtMs'];
-    final capturedAt = ts is String ? DateTime.parse(ts) : DateTime.now();
-    final capturedAtMs =
-        (tsMs as num?)?.toInt() ?? capturedAt.millisecondsSinceEpoch;
+    const context = 'replay frame';
+    final capturedAt = _historyRequiredDate(json, 'capturedAt', context);
+    final capturedAtMs = _historyRequiredInt(
+      json,
+      'capturedAtMs',
+      context,
+      min: 1,
+    );
+    if (capturedAt.millisecondsSinceEpoch != capturedAtMs) {
+      throw const FormatException(
+        'replay frame capturedAt and capturedAtMs disagree',
+      );
+    }
+    final frameType = _historyRequiredString(json, 'frameType', context);
+    const validFrameTypes = {
+      'light',
+      'dark',
+      'flat',
+      'bias',
+      'darkflat',
+      'snapshot',
+    };
+    if (!validFrameTypes.contains(frameType.toLowerCase())) {
+      throw FormatException('replay frame has unknown frameType "$frameType"');
+    }
+    final isAccepted = json['isAccepted'];
+    if (isAccepted is! bool) {
+      throw const FormatException('replay frame isAccepted must be a boolean');
+    }
     return RemoteReplayFrame(
-      id: (json['id'] as num).toInt(),
-      fileName: json['fileName'] as String? ?? '',
-      filePath: json['filePath'] as String? ?? '',
+      id: _historyRequiredInt(json, 'id', context, min: 1),
+      fileName: _historyRequiredString(json, 'fileName', context),
+      filePath: _historyRequiredString(json, 'filePath', context),
       capturedAt: capturedAt,
       capturedAtMs: capturedAtMs,
-      frameType: json['frameType'] as String? ?? 'light',
-      exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 0.0,
-      filter: json['filter'] as String?,
-      gain: (json['gain'] as num?)?.toInt(),
-      offset: (json['offset'] as num?)?.toInt(),
-      binX: (json['binX'] as num?)?.toInt() ?? 1,
-      binY: (json['binY'] as num?)?.toInt() ?? 1,
-      sensorTemp: (json['sensorTemp'] as num?)?.toDouble(),
-      hfr: (json['hfr'] as num?)?.toDouble(),
-      starCount: (json['starCount'] as num?)?.toInt(),
-      background: (json['background'] as num?)?.toDouble(),
-      noise: (json['noise'] as num?)?.toDouble(),
-      qualityScore: (json['qualityScore'] as num?)?.toDouble(),
-      guidingRmsRa: (json['guidingRmsRa'] as num?)?.toDouble(),
-      guidingRmsDec: (json['guidingRmsDec'] as num?)?.toDouble(),
-      guidingRmsTotal: (json['guidingRmsTotal'] as num?)?.toDouble(),
-      mountRa: (json['mountRa'] as num?)?.toDouble(),
-      mountDec: (json['mountDec'] as num?)?.toDouble(),
-      mountAltitude: (json['mountAltitude'] as num?)?.toDouble(),
-      mountAzimuth: (json['mountAzimuth'] as num?)?.toDouble(),
-      focuserPosition: (json['focuserPosition'] as num?)?.toInt(),
-      isAccepted: json['isAccepted'] as bool? ?? true,
-      rejectionReason: json['rejectionReason'] as String?,
-      sessionId: (json['sessionId'] as num?)?.toInt(),
-      targetId: (json['targetId'] as num?)?.toInt(),
+      frameType: frameType,
+      exposureDuration: _historyRequiredDouble(
+        json,
+        'exposureDuration',
+        context,
+        min: 0,
+      ),
+      filter: _historyOptionalString(json, 'filter', context),
+      gain: _historyOptionalInt(json, 'gain', context, min: 0),
+      offset: _historyOptionalInt(json, 'offset', context, min: 0),
+      binX: _historyRequiredInt(json, 'binX', context, min: 1),
+      binY: _historyRequiredInt(json, 'binY', context, min: 1),
+      sensorTemp: _historyOptionalDouble(json, 'sensorTemp', context),
+      hfr: _historyOptionalDouble(json, 'hfr', context, min: 0),
+      starCount: _historyOptionalInt(json, 'starCount', context, min: 0),
+      background: _historyOptionalDouble(json, 'background', context),
+      noise: _historyOptionalDouble(json, 'noise', context, min: 0),
+      qualityScore: _historyOptionalDouble(json, 'qualityScore', context),
+      guidingRmsRa: _historyOptionalDouble(
+        json,
+        'guidingRmsRa',
+        context,
+        min: 0,
+      ),
+      guidingRmsDec: _historyOptionalDouble(
+        json,
+        'guidingRmsDec',
+        context,
+        min: 0,
+      ),
+      guidingRmsTotal: _historyOptionalDouble(
+        json,
+        'guidingRmsTotal',
+        context,
+        min: 0,
+      ),
+      mountRa: _historyOptionalDouble(json, 'mountRa', context),
+      mountDec: _historyOptionalDouble(json, 'mountDec', context),
+      mountAltitude: _historyOptionalDouble(json, 'mountAltitude', context),
+      mountAzimuth: _historyOptionalDouble(json, 'mountAzimuth', context),
+      focuserPosition: _historyOptionalInt(
+        json,
+        'focuserPosition',
+        context,
+        min: 0,
+      ),
+      isAccepted: isAccepted,
+      rejectionReason: _historyOptionalString(json, 'rejectionReason', context),
+      sessionId: _historyOptionalInt(json, 'sessionId', context, min: 1),
+      targetId: _historyOptionalInt(json, 'targetId', context, min: 1),
     );
   }
 }
@@ -599,9 +928,11 @@ class RemoteReplayFrame {
 // Wire types for the plugin management endpoints.
 // =========================================================================
 
-/// Wire row for `/api/plugins`, returned individually by upload/enable/
-/// disable. Mirrors the on-disk plugin manifest that the
-/// PluginManagementService maintains under app-data.
+/// Wire row for `/api/plugins`.
+///
+/// New hosts report the live, compiled-in plugin runtime. Older hosts may
+/// return archive-registry rows, so [source], [runtimeLoaded], and [canEnable]
+/// let clients distinguish an executable plugin from a stored artifact.
 class RemotePluginManifest {
   final String id;
   final String name;
@@ -616,6 +947,9 @@ class RemotePluginManifest {
   final DateTime? installedAt;
   final String? installedFilename;
   final String? loadError;
+  final String source;
+  final bool runtimeLoaded;
+  final bool canEnable;
 
   const RemotePluginManifest({
     required this.id,
@@ -631,6 +965,9 @@ class RemotePluginManifest {
     this.installedAt,
     this.installedFilename,
     this.loadError,
+    this.source = 'uploadedArchive',
+    this.runtimeLoaded = false,
+    this.canEnable = false,
   });
 
   factory RemotePluginManifest.fromJson(Map<String, dynamic> json) {
@@ -648,8 +985,144 @@ class RemotePluginManifest {
       installedAt: _parseDateField(json['installedAt']),
       installedFilename: json['installedFilename'] as String?,
       loadError: json['loadError'] as String?,
+      source: json['source'] as String? ?? 'uploadedArchive',
+      runtimeLoaded: json['runtimeLoaded'] as bool? ?? false,
+      canEnable: json['canEnable'] as bool? ?? false,
     );
   }
+}
+
+int _historyRequiredInt(
+  Map<String, dynamic> json,
+  String key,
+  String context, {
+  required int min,
+}) {
+  if (!json.containsKey(key)) {
+    throw FormatException('$context is missing $key');
+  }
+  final value = json[key];
+  if (value is! num || !value.isFinite || value != value.truncateToDouble()) {
+    throw FormatException('$context.$key must be an integer');
+  }
+  final result = value.toInt();
+  if (result < min) {
+    throw FormatException('$context.$key must be at least $min');
+  }
+  return result;
+}
+
+int? _historyOptionalInt(
+  Map<String, dynamic> json,
+  String key,
+  String context, {
+  required int min,
+}) {
+  if (!json.containsKey(key) || json[key] == null) return null;
+  return _historyRequiredInt(json, key, context, min: min);
+}
+
+double _historyRequiredDouble(
+  Map<String, dynamic> json,
+  String key,
+  String context, {
+  double? min,
+}) {
+  if (!json.containsKey(key)) {
+    throw FormatException('$context is missing $key');
+  }
+  final value = json[key];
+  if (value is! num || !value.isFinite || (min != null && value < min)) {
+    throw FormatException('$context.$key must be a valid finite number');
+  }
+  return value.toDouble();
+}
+
+double? _historyOptionalDouble(
+  Map<String, dynamic> json,
+  String key,
+  String context, {
+  double? min,
+}) {
+  if (!json.containsKey(key) || json[key] == null) return null;
+  return _historyRequiredDouble(json, key, context, min: min);
+}
+
+String _historyRequiredString(
+  Map<String, dynamic> json,
+  String key,
+  String context, {
+  bool allowEmpty = false,
+}) {
+  final value = json[key];
+  if (value is! String || (!allowEmpty && value.trim().isEmpty)) {
+    throw FormatException('$context.$key must be a valid string');
+  }
+  return value;
+}
+
+String? _historyOptionalString(
+  Map<String, dynamic> json,
+  String key,
+  String context, {
+  bool allowEmpty = false,
+}) {
+  if (!json.containsKey(key) || json[key] == null) return null;
+  return _historyRequiredString(json, key, context, allowEmpty: allowEmpty);
+}
+
+bool _historyRequiredBool(
+  Map<String, dynamic> json,
+  String key,
+  String context,
+) {
+  final value = json[key];
+  if (value is! bool) {
+    throw FormatException('$context.$key must be a boolean');
+  }
+  return value;
+}
+
+List<String> _historyRequiredStringList(
+  Map<String, dynamic> json,
+  String key,
+  String context,
+) {
+  final value = json[key];
+  if (value is! List) {
+    throw FormatException('$context.$key must be a string array');
+  }
+  final result = <String>[];
+  for (var index = 0; index < value.length; index++) {
+    final item = value[index];
+    if (item is! String || item.trim().isEmpty) {
+      throw FormatException('$context.$key[$index] must be a non-empty string');
+    }
+    result.add(item);
+  }
+  return List.unmodifiable(result);
+}
+
+DateTime _historyRequiredDate(
+  Map<String, dynamic> json,
+  String key,
+  String context,
+) {
+  final raw = _historyRequiredString(json, key, context);
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) {
+    throw FormatException('$context.$key is not a valid timestamp');
+  }
+  return parsed;
+}
+
+DateTime? _historyOptionalDate(
+  Map<String, dynamic> json,
+  String key,
+  String context,
+) {
+  if (!json.containsKey(key) || json[key] == null) return null;
+  return _historyRequiredDate(json, key, context);
 }
 
 /// Helper function to consolidate HTTP response bytes
