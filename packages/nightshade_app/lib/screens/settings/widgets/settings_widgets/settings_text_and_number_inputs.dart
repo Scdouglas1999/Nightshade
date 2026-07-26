@@ -145,7 +145,17 @@ class _SettingsTextInputState extends State<SettingsTextInput> {
           return;
         }
         _confirmedValue = value;
-      } catch (_) {
+      } catch (e) {
+        // The field snaps back to the confirmed value, which is the honest
+        // rendering, but on its own it does not tell the operator a save was
+        // attempted and refused. Log so a settings backend rejecting writes is
+        // diagnosable rather than looking like a field that will not take input.
+        developer.log(
+          'Settings text write failed; reverted the field to the last '
+          'confirmed value: $e',
+          name: 'SettingsInput',
+          level: 900,
+        );
         if (!mounted ||
             !identical(widget.authorityKey, authority) ||
             generation != _editGeneration) {
@@ -363,7 +373,15 @@ class _SettingsNumberInputState extends State<SettingsNumberInput> {
           return;
         }
         _confirmedValue = value;
-      } catch (_) {
+      } catch (e) {
+        // Same reasoning as the text input above: the revert is truthful about
+        // the stored value but silent about the refused write.
+        developer.log(
+          'Settings number write failed; reverted the field to the last '
+          'confirmed value: $e',
+          name: 'SettingsInput',
+          level: 900,
+        );
         if (!mounted ||
             !identical(widget.authorityKey, authority) ||
             generation != _editGeneration) {

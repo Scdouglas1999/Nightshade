@@ -437,6 +437,20 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
         seqTarget['completedExposures'] ?? seqTarget['completed'],
       );
 
+      // Queue timestamps are history, not state: they may only come from the
+      // sequencer payload or from what this queue already recorded. Stamping
+      // "now" onto a target the sequencer added (or finished) at some earlier
+      // point would invent an event time the operator could later read back as
+      // fact, so an unreported time stays null — QueuedTarget models all three
+      // as nullable precisely so "unknown" is expressible.
+      final syncedStatus = _mapSequencerStatus(seqTarget['status']?.toString());
+      final addedAt =
+          existing?.addedAt ?? _dateTimeFromAny(seqTarget['addedAt']);
+      final completedAt = syncedStatus == QueuedTargetStatus.completed
+          ? (existing?.completedAt ??
+                _dateTimeFromAny(seqTarget['completedAt']))
+          : existing?.completedAt;
+
       final queuedTarget = QueuedTarget(
         id: resolvedId,
         object: existing?.object,
@@ -444,15 +458,12 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
         displayName: (seqTarget['name']?.toString().trim().isNotEmpty ?? false)
             ? seqTarget['name'].toString().trim()
             : (existing?.displayName ?? resolvedId),
-        status: _mapSequencerStatus(seqTarget['status']?.toString()),
+        status: syncedStatus,
         priority: _intFromAny(seqTarget['priority']) ?? (i + 1),
-        addedAt: existing?.addedAt ?? DateTime.now(),
-        startedAt: existing?.startedAt,
-        completedAt:
-            _mapSequencerStatus(seqTarget['status']?.toString()) ==
-                QueuedTargetStatus.completed
-            ? (existing?.completedAt ?? DateTime.now())
-            : existing?.completedAt,
+        addedAt: addedAt,
+        startedAt:
+            existing?.startedAt ?? _dateTimeFromAny(seqTarget['startedAt']),
+        completedAt: completedAt,
         plannedExposures: plannedExposures ?? existing?.plannedExposures ?? 0,
         completedExposures:
             completedExposures ?? existing?.completedExposures ?? 0,
@@ -513,6 +524,18 @@ class TargetQueueNotifier extends StateNotifier<TargetQueueState> {
     if (value is double) return value;
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString());
+  }
+
+  /// A sequencer-reported instant, or null when the payload carries none.
+  /// Accepts epoch milliseconds and ISO-8601; anything else is "not reported"
+  /// rather than a guess.
+  DateTime? _dateTimeFromAny(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is num) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+    }
+    return DateTime.tryParse(value.toString());
   }
 
   CelestialCoordinate? _coordinatesFromSequencer(

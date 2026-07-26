@@ -520,7 +520,10 @@ class DarkLibraryNotifier extends StateNotifier<DarkLibraryUiState> {
     }
 
     try {
-      late final int frameCount;
+      // Null when the imaging host completed the stack but did not report how
+      // many frames went into it. The count is only ever a reported number, so
+      // it stays absent rather than becoming a fabricated "0 frames".
+      late final int? frameCount;
       if (_remote != null) {
         final result = await _remote.createDarkLibraryMaster(
           exposureTime: exposureTime,
@@ -531,7 +534,7 @@ class DarkLibraryNotifier extends StateNotifier<DarkLibraryUiState> {
           outputPath: outputPath,
           frameType: frameType,
         );
-        frameCount = (result['frameCount'] as num?)?.toInt() ?? 0;
+        frameCount = (result['frameCount'] as num?)?.toInt();
       } else {
         final frames = await _local!.getMatchingFrames(
           exposureTime: exposureTime,
@@ -562,7 +565,11 @@ class DarkLibraryNotifier extends StateNotifier<DarkLibraryUiState> {
 
       if (!mounted) return;
       _refreshLibrary();
-      _finishMutation(status: 'Master dark created from $frameCount frames.');
+      _finishMutation(
+        status: frameCount != null
+            ? 'Master dark created from $frameCount frames.'
+            : 'Master dark created.',
+      );
     } catch (e) {
       _finishMutation(error: 'Failed to create master dark: $e');
     }

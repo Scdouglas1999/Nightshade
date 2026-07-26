@@ -182,11 +182,27 @@ class StackShareExportService {
           'linked.',
         );
       }
-    } catch (_) {
+    } catch (e) {
+      _logger.error(
+        'Failed to write the Stack-and-Share viewer preview for result $id to '
+        '$outputPath: $e',
+        source: 'StackShareExportService',
+      );
       for (final path in [partialPath, outputPath]) {
-        final file = File(path);
-        if (await file.exists()) {
-          await file.delete();
+        try {
+          final file = File(path);
+          if (await file.exists()) {
+            await file.delete();
+          }
+        } catch (cleanupError) {
+          // Cleanup must never replace the export failure being rethrown, but
+          // a file we could not remove is a stale artifact the operator would
+          // otherwise find on disk with no record of why it is there.
+          _logger.warning(
+            'Could not remove partial Stack-and-Share export $path after a '
+            'failed write: $cleanupError',
+            source: 'StackShareExportService',
+          );
         }
       }
       rethrow;

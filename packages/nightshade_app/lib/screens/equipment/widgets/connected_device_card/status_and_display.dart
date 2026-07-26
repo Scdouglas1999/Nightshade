@@ -651,10 +651,11 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
               label: 'Light',
             ),
             _DeviceMetric(
-              value: snapshot.calibratorStatus == CalibratorStatus.ready ||
-                      snapshot.calibratorStatus == CalibratorStatus.notReady
-                  ? '${snapshot.brightness ?? 0}/${snapshot.maxBrightness}'
-                  : '---',
+              // Brightness is a driver reading. A calibrator that reports no
+              // brightness, or no brightness scale, must read '---' — showing
+              // "0/0" or "0/100" claims the panel is measurably dark when the
+              // truth is that nothing was measured.
+              value: _calibratorBrightnessLabel(snapshot),
               label: 'Brightness',
             ),
           ],
@@ -710,6 +711,22 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       CalibratorStatus.error => 'ERROR',
       CalibratorStatus.unknown || null => 'UNKNOWN',
     };
+  }
+
+  /// `<level>/<max>` only when the driver actually reported both halves.
+  ///
+  /// `maxBrightness` arrives as 0 when neither the host payload nor the native
+  /// capability probe carried a brightness scale, and `brightness` is null when
+  /// the level itself was not reported. Either way there is no reading to show.
+  String _calibratorBrightnessLabel(CoverCalibratorCapabilitySnapshot snapshot) {
+    final isPowered =
+        snapshot.calibratorStatus == CalibratorStatus.ready ||
+        snapshot.calibratorStatus == CalibratorStatus.notReady;
+    if (!isPowered) return '---';
+    final level = snapshot.brightness;
+    final max = snapshot.maxBrightness;
+    if (level == null || max <= 0) return '---';
+    return '$level/$max';
   }
 
   String _formatTimeAgo(DateTime time) {

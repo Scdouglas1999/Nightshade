@@ -133,6 +133,45 @@ void main() {
       },
     );
 
+    test(
+      'save-full rejects a malformed payload as 400 without leaking internals',
+      () async {
+        // Regression: this path used to answer `500 internal_error` with
+        // `e.toString()` pasted into the caller-visible message, which both
+        // invited a retry storm (500 reads as "the host broke") and shipped
+        // Dart class names over the wire. A bad `nodes` encoding is a CLIENT
+        // error, so it must be a 400 whose message names the offending field
+        // and nothing else.
+        final response = await translateHandlerErrors(
+          handlers.handleSaveFullSequence(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/sequence-management/save-full'),
+              body: jsonEncode({
+                'sequence': {
+                  'name': 'Bad',
+                  // `nodes` must be a JSON object keyed by node id.
+                  'nodes': <dynamic>['not', 'an', 'object'],
+                },
+              }),
+              headers: {'Content-Type': 'application/json'},
+            ),
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.badRequest);
+        expect(response.headers['content-type'], 'application/json');
+        final raw = await response.readAsString();
+        final body = jsonDecode(raw) as Map;
+        expect(body['field'], 'sequence');
+        expect(body['expected'], 'sequence_document');
+        // No Dart type/exception names may reach the caller.
+        expect(raw, isNot(contains('FormatException')));
+        expect(raw, isNot(contains('TypeError')));
+        expect(raw, isNot(contains('is not a subtype of')));
+      },
+    );
+
     test('save-full persists sequence and notifies catalog bus', () async {
       final updates = <SequenceCatalogUpdate>[];
       final sub = container

@@ -89,9 +89,19 @@ extension _DeviceServiceFilterWheelControls on DeviceService {
       FilterWheelCapabilities? capabilities;
       try {
         capabilities = await _backend.getFilterWheelCapabilities(deviceId);
-      } catch (_) {
+      } catch (e) {
         // Older drivers may not expose capabilities; the status/command path
-        // remains authoritative in that case.
+        // remains authoritative in that case. Logged because losing it also
+        // loses the positionCount range check below, so an out-of-range slot
+        // would reach the driver instead of being rejected here.
+        _safeLog(
+          (l) => l.info(
+            'Filter wheel $deviceId capability lookup failed; the slot-count '
+            'range check will be skipped for this move: $e',
+            source: 'DeviceService',
+          ),
+          'filter-wheel-capabilities',
+        );
       }
       if (!_isStillConnectedToFilterWheel(deviceId)) {
         throw StateError(
@@ -176,8 +186,18 @@ extension _DeviceServiceFilterWheelControls on DeviceService {
       FilterWheelCapabilities? capabilities;
       try {
         capabilities = await _backend.getFilterWheelCapabilities(deviceId);
-      } catch (_) {
-        // Capability lookup is advisory for older drivers.
+      } catch (e) {
+        // Capability lookup is advisory for older drivers, but losing it also
+        // drops the canSetFilterNames guard and falls back to the cached slot
+        // count for the length check, so record that we are writing blind.
+        _safeLog(
+          (l) => l.info(
+            'Filter wheel $deviceId capability lookup failed; writing slot '
+            'names without the driver canSetFilterNames guard: $e',
+            source: 'DeviceService',
+          ),
+          'filter-wheel-capabilities',
+        );
       }
       if (!_isStillConnectedToFilterWheel(deviceId)) {
         throw StateError(

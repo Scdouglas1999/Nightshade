@@ -125,8 +125,17 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
             if (starting != null) {
               try {
                 await starting;
-              } catch (_) {
-                // A partial native start still needs the same best-effort stop.
+              } catch (e) {
+                // This is a join, not the owner of the error: whoever called
+                // start() already receives that failure. We only need to know
+                // the start settled so the stop below cannot race a half-built
+                // native stacker — but record it so a stop that then also
+                // misbehaves can be traced to the failed start.
+                _logger.debug(
+                  'Live stack start failed before the host swap; releasing the '
+                  'local stacker anyway: $e',
+                  source: 'LiveStackingNotifier',
+                );
               }
             }
             await localService.stop();

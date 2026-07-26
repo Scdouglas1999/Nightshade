@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -81,7 +82,16 @@ class SequenceDiffDialog extends StatelessWidget {
                 'Check the connection and try again.',
       );
       return;
-    } catch (_) {
+    } catch (e) {
+      // Fallback arm for anything that is not a typed ServerError — decode
+      // failures, transport errors, a repository fault. The dialog tells the
+      // operator the comparison is unavailable; the log is the only place the
+      // actual cause survives for a run whose snapshots will not load.
+      developer.log(
+        'Could not load run diff context for run ${run.id}: $e',
+        name: 'SequenceDiff',
+        level: 900,
+      );
       if (!context.mounted) return;
       await _showNoComparison(
         context,

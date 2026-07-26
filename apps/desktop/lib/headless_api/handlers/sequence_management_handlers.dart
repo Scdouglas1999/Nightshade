@@ -246,14 +246,39 @@ class SequenceManagementHandlers {
     var sequence = (() {
       try {
         return fileService.parseFromMap(Map<String, dynamic>.from(sequenceMap));
-      } on Object catch (e) {
-        final reason = e.toString();
+      } on FormatException catch (error) {
+        // `parseFromMap` raises FormatException with an authored, caller-facing
+        // reason that names the offending field ("Sequence node missing
+        // nodeType", "Unsupported sequence node type: ..."). Echo only that
+        // `message`: the stringified exception would prefix the Dart class name
+        // ("FormatException: ..."), which HandlerFailure/BadRequestError
+        // explicitly forbid shipping to the network.
+        final reason = error.message.trim();
+        throw BadRequestError(
+          field: 'sequence',
+          expected: 'sequence_document',
+          message: reason.isEmpty
+              ? 'Malformed sequence payload.'
+              : 'Malformed sequence payload: '
+                    '${reason.length > 200 ? '${reason.substring(0, 200)}...' : reason}',
+        );
+      } on Object catch (error, stackTrace) {
+        // Any other shape is a parser bug, not an authored validation message:
+        // a TypeError reads "type 'String' is not a subtype of type 'int' in
+        // type cast", which tells the caller nothing actionable and leaks our
+        // internals. The caller still gets 400 — the payload really is
+        // unparseable — but the diagnostic goes to the host log only.
+        _logger.error(
+          'save-full: sequence payload rejected by parser',
+          source: 'SequenceManagementHandlers',
+          fields: {'error': '$error', 'stack': stackTrace.toString()},
+        );
         throw BadRequestError(
           field: 'sequence',
           expected: 'sequence_document',
           message:
-              'Malformed sequence payload: '
-              '${reason.length > 200 ? '${reason.substring(0, 200)}...' : reason}',
+              'Malformed sequence payload: the document could not be parsed. '
+              'See the host log for the parser diagnostic.',
         );
       }
     })();

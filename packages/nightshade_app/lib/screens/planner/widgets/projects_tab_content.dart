@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -694,11 +696,20 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
 
     try {
       await notifier.setActiveProject(resolved);
-    } catch (_) {
+    } catch (e) {
       // The header still shows projects.first via the fallback above, so the tab
       // stays usable; we simply could not persist the coherence write. Record the
       // target so we don't respin it every rebuild — an explicit selection, or a
-      // change to the resolved fallback, retries it.
+      // change to the resolved fallback, retries it. This arm is the one place
+      // in this file with no snackbar (it is a repair the operator never asked
+      // for), so the log is the only signal that the selection on screen is not
+      // the one that will come back after a restart.
+      developer.log(
+        'Could not persist the reconciled active project ($resolved); the tab '
+        'shows it but the selection was not saved: $e',
+        name: 'ProjectsTab',
+        level: 900,
+      );
       _reconcileFailedFor = resolved;
     }
   }

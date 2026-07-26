@@ -338,7 +338,17 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
         if (next != null) merged = next;
       }
       return merged;
-    } catch (_) {
+    } catch (e) {
+      // Display-only overlay: on failure the operator sees the host's theme
+      // instead of this device's, which is visible and self-correcting. It is
+      // logged because the same failure means the local settings DAO is not
+      // readable, and that has non-cosmetic consequences elsewhere.
+      developer.log(
+        'Could not overlay device-local display preferences on host settings; '
+        'keeping the host values: $e',
+        name: 'AppSettings',
+        level: 900,
+      );
       return fromHost;
     }
   }

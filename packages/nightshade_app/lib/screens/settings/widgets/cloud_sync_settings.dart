@@ -9,6 +9,8 @@
 // CONFLICT STANCE shown to the user: sync is bundle-based, no merging —
 // restoring a remote bundle replaces local configuration.
 
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -705,7 +707,15 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
         _status = status;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      // The banner tells the operator the status is unavailable; the cause is
+      // only in the log, and cloud backup is exactly the thing that fails
+      // quietly for weeks before anyone notices.
+      developer.log(
+        'Could not load cloud sync status from the imaging host: $e',
+        name: 'CloudSyncSettings',
+        level: 900,
+      );
       if (!mounted ||
           generation != _loadGeneration ||
           !identical(ref.read(backendProvider), backend)) {
@@ -743,7 +753,14 @@ class _RemoteCloudSyncCardState extends ConsumerState<RemoteCloudSyncCard> {
         'Host backup pushed to ${result.remotePath ?? 'cloud storage'}',
       );
       await _load();
-    } catch (_) {
+    } catch (e) {
+      // The panel says the push failed; without this line the reason is lost,
+      // and a backup that never lands is only discovered when it is needed.
+      developer.log(
+        'Cloud backup push to the imaging host failed: $e',
+        name: 'CloudSyncSettings',
+        level: 1000,
+      );
       if (!mounted || !identical(ref.read(backendProvider), backend)) return;
       setState(() {
         _error = 'The imaging host could not push its cloud backup. Check the '

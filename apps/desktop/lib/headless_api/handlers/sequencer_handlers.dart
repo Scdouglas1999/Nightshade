@@ -172,11 +172,26 @@ class SequencerHandlers {
         '${e.result.errorCount} validation errors',
       );
       return jsonBadRequest(e.toJsonBody());
-    } catch (e) {
+    } catch (error) {
       // Pressing Start with nothing loaded is an ordinary operator mistake, not
       // a server fault. Every other sequencer verb (pause/resume/stop/skip)
       // already answers cleanly when idle; this one surfaced a 500.
-      if (e.toString().contains('No sequence loaded')) {
+      //
+      // `Executor::start()` returns the bare string "No sequence loaded"
+      // (sequencer/src/executor/mod.rs), which `sequencer_api::sequencer_start`
+      // wraps as `OperationFailed`. Match that typed variant first; the
+      // stringified fallback only covers a chained network backend that
+      // re-raises the host message untyped. Neither value reaches the response
+      // body — it selects the status code and nothing more.
+      const marker = 'No sequence loaded';
+      final isNoSequenceLoaded =
+          (error is bridge_api.NightshadeError &&
+              error.maybeMap(
+                operationFailed: (failure) => failure.field0.contains(marker),
+                orElse: () => false,
+              )) ||
+          error.toString().contains(marker);
+      if (isNoSequenceLoaded) {
         _logInfo(
           '[API] POST /api/sequencer/start rejected: no sequence loaded',
         );

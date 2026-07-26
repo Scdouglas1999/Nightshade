@@ -9,6 +9,82 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
+## [6.0.0] — Make It Real / Collaborative Sky (build 24)
+
+Everything since 5.0.0: a reliability substrate for rigs left running unattended,
+coordinated multi-rig imaging through a self-hosted hub, and an extended
+validation pass against real imaging hardware.
+
+### Added
+
+- **Collaborative Sky** — shared calibration libraries with provenance and
+  consent, claimable distributed mosaic panels, and live co-imaging sessions
+  through a self-hosted hub.
+- **Headless unattended services** — auto-connect bootstrap, a bounded
+  shutdown coordinator, and a scriptable HTTP surface covering the desktop
+  feature set.
+- **Windows ASCOM STA worker** so unattended ASCOM work no longer hangs on COM
+  apartment behaviour.
+- Signed OTA update machinery, dormant until keys are provisioned.
+- Run history gains an `interrupted` state for runs a dead process left behind,
+  with a filter for it alongside `stopped` and `paused-stopped`.
+
+### Changed
+
+- Weather and SafeRig refuse to report "safe" when they do not know, rather
+  than defaulting to safe.
+- Sequencer lifecycle reports the truth mid-stop and mid-finalize instead of
+  publishing a terminal state early.
+- Backend errors reaching a client are mapped to operator-readable sentences;
+  the mapping is exhaustive, so a new error variant breaks the build rather
+  than leaking its constructor form.
+- Stop/abort endpoints distinguish "stopped something" from "there was nothing
+  to stop" while remaining idempotent.
+- A successful pairing clears the bearer-token failure lockout.
+
+### Fixed
+
+Approximately sixty defects found by driving running software on real hardware.
+The dominant class was the application reporting something untrue:
+
+- Out-of-range camera gain/offset were silently clamped by the SDK but reported
+  back as requested, poisoning FITS `GAIN`/`OFFSET` keywords and dark-library
+  matching.
+- Device capabilities served volatile state (cooler, filter position, safety)
+  from a five-minute cache.
+- Out-of-bounds subframes were silently relocated and reported as success.
+- Overlapping exposures destroyed both frames and returned a generic 500.
+- An unattended run could deadlock indefinitely on a rig with no focuser.
+- Untargeted runs aborted the exposure after the shutter had opened, discarding
+  real photons.
+- Stop could wait forever on a terminal event the bridge may legitimately drop.
+- Automatic recovery could command mount tracking on a parked mount.
+- Analytics under-reported total integration time by a factor of nearly eight
+  because session counters were lost when a session did not end cleanly.
+- Runs left `running` by a crashed process were never reconciled, so the run
+  list contradicted the sequencer's own idle state.
+- The weather endpoints returned HTTP 500 on a clear night, because the
+  "no cloud front" sentinel is infinite and has no JSON encoding.
+- The dashboard reported darkness as ~21 hours away while the sun was 30°
+  below the horizon.
+- Settings, sequencer, dashboard and polar alignment surfaces overflowed at
+  1024×768 and below, including at the large font-size setting.
+
+### Verification and limitations
+
+- Validated against a Windows host with an ASCOM Pegasus NYX-101 mount, a native
+  ZWO ASI1600MM-Cool and a ZWO EFW, plus simulator and GUI drives. The mount was
+  never commanded to move.
+- **Not validated: imaging under a real night sky.** A real frame was captured
+  through the optics at the parked pointing, but contained no stellar field.
+- Mount motion (slew, sync, park/unpark, homing, meridian flip) is unexercised
+  against this hardware.
+- No switch device exists on either test machine, so that capability path is
+  unverified.
+- macOS and iOS remain unbuilt and untested.
+- Long-duration unattended soak, live S3/MinIO/B2 restore and production signing
+  evidence remain owner-gated.
+
 ## [5.0.0] — Living Sky (build 23)
 
 Everything since 4.3.0: a personal growing atlas, First Light discovery and

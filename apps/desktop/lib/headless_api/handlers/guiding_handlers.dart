@@ -512,14 +512,31 @@ class GuidingHandlers {
     final double y;
     try {
       (x, y) = await backend.guiderFindStar(deviceId: deviceId);
-    } catch (e) {
+    } catch (error, stackTrace) {
       // "No guide star found" is an ordinary outcome — a sparse field, clouds,
       // or a defocused frame — not a server fault. The native layer raises it as
       // an unstructured `OperationFailed`, which the error translator maps to
       // `500 internal_error` (observed live against the built-in guider). A 500
       // tells a remote client the HOST broke and invites a retry storm, so
       // answer 404 with a code the caller can branch on.
-      if (e.toString().toLowerCase().contains('no guide star found')) {
+      //
+      // Classify off the typed bridge variant first (same shape as the
+      // exposure-cancelled check in camera_handlers): builtin_guider raises
+      // `OperationFailed("No guide star found")` and the PHD2 path raises
+      // `OperationFailed("Failed to find star: <phd2 text>")`. The stringified
+      // fallback only covers a chained network backend, which re-raises the
+      // host's message without the bridge type. Neither value is ever placed in
+      // a response body — it selects the status code and nothing more.
+      const marker = 'no guide star found';
+      final isNoStarFound =
+          (error is bridge.NightshadeError &&
+              error.maybeMap(
+                operationFailed: (failure) =>
+                    failure.field0.toLowerCase().contains(marker),
+                orElse: () => false,
+              )) ||
+          error.toString().toLowerCase().contains(marker);
+      if (isNoStarFound) {
         throw HandlerFailure(
           code: 'guide_star_not_found',
           message:
@@ -527,7 +544,8 @@ class GuidingHandlers {
               'exposure length, and that the guide camera is on sky.',
           statusCode: 404,
           details: {'deviceId': deviceId},
-          cause: e,
+          cause: error,
+          stackTrace: stackTrace,
         );
       }
       rethrow;

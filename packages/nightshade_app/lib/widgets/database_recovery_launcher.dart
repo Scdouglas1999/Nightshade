@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -82,7 +83,17 @@ class _DatabaseRecoveryLauncherState
           widget.markerConsumer ?? NightshadeDatabase.readRecoveryMarker;
       try {
         _pendingMarker = await consumer();
-      } catch (_) {
+      } catch (e) {
+        // This marker is how the operator learns their database was rebuilt
+        // and data may be missing. A read that keeps failing retries forever
+        // and the notice never appears, so the failure must be recorded —
+        // otherwise a recovered database looks exactly like a healthy one.
+        developer.log(
+          'Could not read the database recovery marker; the recovery notice '
+          'will not be shown until a retry succeeds: $e',
+          name: 'DatabaseRecovery',
+          level: 1000,
+        );
         if (!mounted) return;
         _hasReadMarker = false;
         _scheduleRetry();
@@ -179,7 +190,17 @@ class _DatabaseRecoveryLauncherState
     try {
       await acknowledge(marker);
       if (mounted) _pendingMarker = null;
-    } catch (_) {
+    } catch (e) {
+      // An unacknowledged marker re-surfaces the recovery dialog on every
+      // launch. Harmless on its own, but a permanently failing acknowledge
+      // means the marker store is unwritable, which is worth knowing before
+      // the next recovery needs to record one.
+      developer.log(
+        'Could not acknowledge the database recovery marker; the notice will '
+        'be shown again: $e',
+        name: 'DatabaseRecovery',
+        level: 900,
+      );
       if (mounted) _scheduleRetry();
     }
   }

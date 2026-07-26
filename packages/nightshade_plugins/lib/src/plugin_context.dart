@@ -263,8 +263,15 @@ class FilePluginStorage implements PluginStorage {
       if (await tempFile.exists()) {
         try {
           await tempFile.delete();
-        } catch (_) {
-          // Best-effort cleanup; the real error (if any) already propagated.
+        } catch (e) {
+          // The real write error (if any) already propagated; this only
+          // reports the orphan left behind, which would otherwise accumulate
+          // in the plugin storage directory with nothing explaining it.
+          developer.log(
+            'Could not remove plugin storage temp file ${tempFile.path}: $e',
+            name: 'PluginStorage',
+            level: 900,
+          );
         }
       }
     }

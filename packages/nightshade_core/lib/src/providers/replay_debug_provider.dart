@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -82,6 +83,22 @@ int _clampRetentionDays(int days) {
   if (days < 1) return 1;
   if (days > 3650) return 3650;
   return days;
+}
+
+/// Record a rollback that itself failed.
+///
+/// The aborted-update error the caller receives is still the primary failure,
+/// but a rollback that did not land leaves the persisted value out of step
+/// with what the caller was just told. Without this line the next read of the
+/// setting reports a value the operator never confirmed, with nothing in the
+/// log tying it to the update that was reported as not applied.
+void _logFailedReplayRollback(String what, Object error) {
+  developer.log(
+    'Failed to roll back $what after an aborted update; the persisted value '
+    'may no longer match the result reported to the caller: $error',
+    name: 'ReplayDebug',
+    level: 900,
+  );
 }
 
 /// Local decision-log service. Only meaningful on the host: the live
@@ -287,8 +304,8 @@ class ReplayDebugSettingsController {
         } else {
           await dao.setSetting(replayDebugEnabledKey, previousRaw);
         }
-      } catch (_) {
-        // The authority-change failure below remains the actionable error.
+      } catch (e) {
+        _logFailedReplayRollback('the decision-logging flag', e);
       }
       _ref.invalidate(replayDebugEnabledProvider);
       throw StateError('Replay settings authority changed during the update.');
@@ -304,9 +321,11 @@ class ReplayDebugSettingsController {
         } else {
           await dao.setSetting(replayDebugEnabledKey, previousRaw);
         }
-      } catch (_) {
-        // Rollback itself failed; the surfaced error below is still the
-        // primary failure the caller must see.
+      } catch (e) {
+        _logFailedReplayRollback(
+          'the decision-logging flag after the executor rejected it',
+          e,
+        );
       }
       _ref.invalidate(replayDebugEnabledProvider);
       Error.throwWithStackTrace(error, stack);
@@ -320,8 +339,11 @@ class ReplayDebugSettingsController {
         } else {
           await dao.setSetting(replayDebugEnabledKey, previousRaw);
         }
-      } catch (_) {
-        // The authority-change failure below remains the actionable error.
+      } catch (e) {
+        _logFailedReplayRollback(
+          'the decision-logging flag and its executor mirror',
+          e,
+        );
       }
       _ref.invalidate(replayDebugEnabledProvider);
       throw StateError('Replay settings authority changed during the update.');
@@ -369,8 +391,8 @@ class ReplayDebugSettingsController {
         } else {
           await dao.setSetting(replayDebugRetentionDaysKey, previousRaw);
         }
-      } catch (_) {
-        // The authority-change failure below remains the actionable error.
+      } catch (e) {
+        _logFailedReplayRollback('the decision-log retention window', e);
       }
       _ref.invalidate(replayDebugRetentionDaysProvider);
       throw StateError('Replay settings authority changed during the update.');

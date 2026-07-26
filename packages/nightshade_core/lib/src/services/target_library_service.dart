@@ -184,13 +184,26 @@ class TargetLibraryService {
       return DateTime.fromMillisecondsSinceEpoch(0);
     }
 
+    // RA/Dec are the only fields on this row a mount can be commanded to. A
+    // missing coordinate must fail the load loudly: coalescing it to 0 would
+    // mint a target that *looks* valid and points at 0h/+0deg, and the slew
+    // path has no way to tell that apart from a genuine equatorial target.
+    double coordinate(String key) {
+      final value = json[key];
+      if (value is num) return value.toDouble();
+      throw FormatException(
+        'Target ${json['id']} from the imaging host is missing a numeric '
+        '"$key" — refusing to substitute a sky coordinate.',
+      );
+    }
+
     return db.Target(
       id: (json['id'] as num).toInt(),
       name: json['name'] as String? ?? 'Untitled target',
       catalogId: json['catalogId'] as String?,
       objectType: json['objectType'] as String?,
-      ra: (json['ra'] as num?)?.toDouble() ?? 0,
-      dec: (json['dec'] as num?)?.toDouble() ?? 0,
+      ra: coordinate('ra'),
+      dec: coordinate('dec'),
       positionAngle: (json['positionAngle'] as num?)?.toDouble(),
       magnitude: (json['magnitude'] as num?)?.toDouble(),
       constellation: json['constellation'] as String?,

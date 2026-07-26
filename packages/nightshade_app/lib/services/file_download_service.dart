@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:nightshade_core/nightshade_core.dart'
@@ -149,7 +150,14 @@ Future<void> _deleteQuietly(String path) async {
   try {
     final f = File(path);
     if (await f.exists()) await f.delete();
-  } catch (_) {
-    // Best-effort cleanup; a leftover temp file is harmless.
+  } catch (e) {
+    // The download outcome reported to the caller is unaffected, but these
+    // temps are full-size images and logs — one we cannot remove is disk the
+    // operator will never account for, so it must not vanish silently.
+    developer.log(
+      'Could not remove the temporary download file $path: $e',
+      name: 'FileDownload',
+      level: 900,
+    );
   }
 }

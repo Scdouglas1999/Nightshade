@@ -47,7 +47,17 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
     final operation = _writeTail.then((_) async {
       try {
         await Future<void>.sync(() => callback(color));
-      } catch (_) {
+      } catch (e) {
+        // The swatch snaps back to the confirmed colour, which is the honest
+        // rendering, but the revert alone does not say a save was attempted
+        // and refused. Log so a settings backend that is rejecting writes is
+        // diagnosable instead of looking like a UI that ignores taps.
+        developer.log(
+          'Settings colour write failed; reverted the swatch to the last '
+          'confirmed value: $e',
+          name: 'SettingsInput',
+          level: 900,
+        );
         if (mounted && generation == _editGeneration) {
           setState(() => _selectedColor = widget.selectedColor);
         }

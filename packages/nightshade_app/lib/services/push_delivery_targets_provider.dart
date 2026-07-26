@@ -19,6 +19,8 @@
 ///     decides whether a cloud channel exists at all.
 library;
 
+import 'dart:developer' as developer;
+
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -46,7 +48,17 @@ final hostCloudPushConfiguredProvider = FutureProvider<bool>((ref) async {
     // No platform channel (widget tests / headless harness) — we cannot claim
     // a channel exists.
     return false;
-  } catch (_) {
+  } catch (e) {
+    // Reporting "no cloud channel" is the fail-closed answer and stays. But an
+    // unreadable/corrupt push_config.json presents identically to a genuinely
+    // unconfigured host, so the operator would be told push is not set up when
+    // it is. The log is the only place that distinction survives.
+    developer.log(
+      'Could not read the host push configuration; reporting no cloud channel: '
+      '$e',
+      name: 'PushDeliveryTargets',
+      level: 900,
+    );
     return false;
   }
 });
@@ -67,8 +79,16 @@ final pushDeliveryTargetsProvider = FutureProvider<PushDeliveryTargets>((
   if (backend is NetworkBackend) {
     try {
       return await backend.getPushDeliveryTargets();
-    } catch (_) {
+    } catch (e) {
       // An unreachable/older host cannot be shown as "delivery works".
+      // Logged because "host unreachable" and "host has no push targets"
+      // render identically in settings, and only the first is actionable.
+      developer.log(
+        'Could not query push delivery targets from the host; reporting no '
+        'delivery targets: $e',
+        name: 'PushDeliveryTargets',
+        level: 900,
+      );
       return PushDeliveryTargets.none;
     }
   }
@@ -97,7 +117,16 @@ final pushDeliveryTargetsProvider = FutureProvider<PushDeliveryTargets>((
       apnsTokenCount: apns,
       cloudDeliveryConfigured: cloudConfigured,
     );
-  } catch (_) {
+  } catch (e) {
+    // Same reasoning as the remote branch: a failed pairing-database read must
+    // not be presented as "no phones registered", which is what the settings
+    // row would otherwise say about a rig that does have devices paired.
+    developer.log(
+      'Could not read locally registered push tokens; reporting no delivery '
+      'targets: $e',
+      name: 'PushDeliveryTargets',
+      level: 900,
+    );
     return PushDeliveryTargets.none;
   }
 });

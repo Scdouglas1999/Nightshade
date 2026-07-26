@@ -186,6 +186,17 @@ class UpdateService {
       final previousBuild = payload['previousBuildNumber'] as int?;
       final backupDirPath = payload['backupDir'] as String?;
 
+      // The marker is the only record of what was being installed. When it does
+      // not name a build, say so — rendering "+0" would put a build number the
+      // operator can compare against their running build into a message where
+      // no build number was ever recorded.
+      final targetLabel = switch ((targetVersion, targetBuild)) {
+        (final String v, final int b) => '$v+$b',
+        (final String v, null) => '$v (build not recorded)',
+        (null, final int b) => 'an unnamed version+$b',
+        _ => 'an unrecorded version',
+      };
+
       if (targetVersion == _currentVersion &&
           targetBuild == _currentBuildNumber) {
         await pendingFile.delete();
@@ -205,13 +216,12 @@ class UpdateService {
         await pendingFile.delete();
         return PendingInstallStatus.rolledBack(
           'Rollback restored build $_currentVersion+$_currentBuildNumber '
-          'after update to ${targetVersion ?? "unknown"}+${targetBuild ?? 0}.',
+          'after update to $targetLabel.',
         );
       }
 
       return PendingInstallStatus.requiresAttention(
-        'Pending update marker targets ${targetVersion ?? "unknown"}+'
-        '${targetBuild ?? 0}, but the running build is '
+        'Pending update marker targets $targetLabel, but the running build is '
         '$_currentVersion+$_currentBuildNumber.',
       );
     } catch (e) {
