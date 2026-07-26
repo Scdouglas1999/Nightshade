@@ -37,7 +37,14 @@ dependencies:
   # -Bsymbolic on Linux so it can coexist with GTK→tinysparql's system copy).
   # Do not re-add sqlite3_flutter_libs — that plugin embeds a second copy
   # without symbol isolation and crashes Linux desktop at startup.
-  sqlite3: ^3.0.0
+  # Pinned to 3.3.x, not ^3: melos resolves each package independently (this
+  # repo is not a pub workspace), and sqlite3 3.5.0 shipped upstream mid-release.
+  # Under 3.5.0 the Dart build hook stopped producing
+  # build/native_assets/linux/libsqlite3.so, which the Linux packaging step
+  # copies into bundle/lib — the release build failed on the missing asset while
+  # every local build, holding 3.3.2 in pub-cache, kept working. Evaluate 3.5.0
+  # deliberately rather than by floating into it.
+  sqlite3: ">=3.3.2 <3.4.0"
   path_provider: ^2.1.2
   path: ^1.8.3
   # Why direct dep: DiagnosticDumpService bundles logs/profile/sequence/system

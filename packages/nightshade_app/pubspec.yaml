@@ -61,6 +61,11 @@ dependencies:
   flutter_markdown: ^0.7.0
   qr_flutter: ^4.1.0
   http: ^1.2.0
+  # Declared explicitly (normally transitive via drift/nightshade_core) because
+  # melos resolves this package on its own: CI floated it to 3.5.0 here while
+  # every other package held 3.3.2, and the Linux release build lost its
+  # hermetic libsqlite3 native asset. Keep in step with nightshade_core.
+  sqlite3: ">=3.3.2 <3.4.0"
 
 dev_dependencies:
   flutter_test:
