@@ -125,13 +125,25 @@ foreach(bundled_library ${PLUGIN_BUNDLED_LIBRARIES})
     COMPONENT Runtime)
 endforeach(bundled_library)
 
-# Copy the native assets provided by the build.dart from all packages.
-set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux/")
-if(EXISTS "${NATIVE_ASSETS_DIR}")
-  install(DIRECTORY "${NATIVE_ASSETS_DIR}"
-     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
-     COMPONENT Runtime)
-endif()
+# Copy the native assets produced by package build hooks (package:sqlite3's
+# hermetic libsqlite3.so is the one this release depends on).
+#
+# The existence check MUST happen at install time. It used to be a configure
+# time `if(EXISTS ...)`, and the hooks do not run until the Flutter build,
+# after CMake has configured — so on a clean tree the directory did not exist
+# yet, the install rule was never created, and the asset was silently dropped
+# from the bundle. That is invisible on any machine whose build/ directory
+# still holds native_assets/ from an earlier build, which is exactly why every
+# local build passed and every clean CI build shipped a bundle without SQLite.
+set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/linux")
+install(CODE "
+  file(GLOB _ns_assets \"${NATIVE_ASSETS_DIR}/*\")
+  if(_ns_assets)
+    file(COPY \${_ns_assets} DESTINATION \"${INSTALL_BUNDLE_LIB_DIR}\")
+  else()
+    message(WARNING \"No native assets found in ${NATIVE_ASSETS_DIR}; the bundle will have no hermetic libsqlite3.\")
+  endif()
+" COMPONENT Runtime)
 
 # Copy Rust native library if it exists
 # This allows the library to be found at runtime.
