@@ -184,7 +184,8 @@ jobs:
   test-dart:
     name: Dart Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Raised from 20: the 6.0 suite grew past it and the job was being killed mid-run.
+    timeout-minutes: 45
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -459,7 +460,8 @@ jobs:
     # the Dart Tests job, which alone runs ~15 min), so it needs more headroom
     # than the uninstrumented jobs. 20 min was too tight and the job was
     # cancelled on timeout; 40 gives margin without masking a genuine hang.
-    timeout-minutes: 40
+    # Raised from 40: the 6.0 suite grew past it and the job was being killed mid-run.
+    timeout-minutes: 75
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
