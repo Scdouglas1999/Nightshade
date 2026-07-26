@@ -29,7 +29,9 @@ void main() {
     backend = _RangeBackend();
     final container = ProviderContainer(
       overrides: [
-        backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -58,7 +60,11 @@ void main() {
               .having((BadRequestError e) => e.expected, 'expected', '0 to 7'),
         ),
       );
-      expect(backend.positionCalls, isEmpty, reason: 'driver must not be called');
+      expect(
+        backend.positionCalls,
+        isEmpty,
+        reason: 'driver must not be called',
+      );
     });
 
     test('the last valid slot is accepted', () async {
@@ -239,32 +245,38 @@ void main() {
       expect(backend.coolingCalls, [-10.0]);
     });
 
-    test('turning the cooler off without a target skips the range check', () async {
-      // No targetTemp supplied: nothing to validate, and an operator must always
-      // be able to switch the cooler off.
-      final response = await handlers.handleCameraSetCooling(
-        post('/api/camera/cooling', {
-          'deviceId': 'native:zwo:0',
-          'enabled': false,
-        }),
-      );
-      expect(response.statusCode, 200);
-      expect(backend.coolingCalls, [null]);
-    });
+    test(
+      'turning the cooler off without a target skips the range check',
+      () async {
+        // No targetTemp supplied: nothing to validate, and an operator must always
+        // be able to switch the cooler off.
+        final response = await handlers.handleCameraSetCooling(
+          post('/api/camera/cooling', {
+            'deviceId': 'native:zwo:0',
+            'enabled': false,
+          }),
+        );
+        expect(response.statusCode, 200);
+        expect(backend.coolingCalls, [null]);
+      },
+    );
 
-    test('a camera advertising no cooling range is not second-guessed', () async {
-      backend.coolerMinTempC = null;
-      backend.coolerMaxTempC = null;
-      final response = await handlers.handleCameraSetCooling(
-        post('/api/camera/cooling', {
-          'deviceId': 'native:zwo:0',
-          'enabled': true,
-          'targetTemp': -273.0,
-        }),
-      );
-      expect(response.statusCode, 200);
-      expect(backend.coolingCalls, [-273.0]);
-    });
+    test(
+      'a camera advertising no cooling range is not second-guessed',
+      () async {
+        backend.coolerMinTempC = null;
+        backend.coolerMaxTempC = null;
+        final response = await handlers.handleCameraSetCooling(
+          post('/api/camera/cooling', {
+            'deviceId': 'native:zwo:0',
+            'enabled': true,
+            'targetTemp': -273.0,
+          }),
+        );
+        expect(response.statusCode, 200);
+        expect(backend.coolingCalls, [-273.0]);
+      },
+    );
   });
 }
 
@@ -310,12 +322,12 @@ class _RangeBackend extends DisconnectedBackend {
       throwOnReads
       ? throw StateError('driver poll faulted')
       : FilterWheelStatus(
-        connected: true,
-        position: 1,
-        moving: false,
-        filterCount: filterCount,
-        filterNames: filterNames,
-      );
+          connected: true,
+          position: 1,
+          moving: false,
+          filterCount: filterCount,
+          filterNames: filterNames,
+        );
 
   @override
   Future<void> filterWheelSetPosition(String deviceId, int position) async {
@@ -332,12 +344,12 @@ class _RangeBackend extends DisconnectedBackend {
       throwOnReads
       ? throw StateError('driver poll faulted')
       : CameraCapabilities(
-        maxWidth: 4656,
-        maxHeight: 3520,
-        bitDepth: 12,
-        coolerMinTempC: coolerMinTempC,
-        coolerMaxTempC: coolerMaxTempC,
-      );
+          maxWidth: 4656,
+          maxHeight: 3520,
+          bitDepth: 12,
+          coolerMinTempC: coolerMinTempC,
+          coolerMaxTempC: coolerMaxTempC,
+        );
 
   @override
   Future<void> cameraSetCooling({

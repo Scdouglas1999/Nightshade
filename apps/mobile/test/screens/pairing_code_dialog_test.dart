@@ -55,8 +55,9 @@ Finder _pairButton() => find.widgetWithText(NightshadeButton, 'Pair');
 
 void main() {
   group('PairingCodeDialog empty-code validation', () {
-    testWidgets('tapping Pair with a blank code shows an inline error',
-        (tester) async {
+    testWidgets('tapping Pair with a blank code shows an inline error', (
+      tester,
+    ) async {
       await _pumpDialog(tester);
 
       expect(find.byType(PairingCodeDialog), findsOneWidget);
@@ -93,8 +94,11 @@ void main() {
       await tester.enterText(find.byType(TextField), 'M');
       await tester.pumpAndSettle();
 
-      expect(errorFinder, findsNothing,
-          reason: 'stale validation must not linger while the user corrects it');
+      expect(
+        errorFinder,
+        findsNothing,
+        reason: 'stale validation must not linger while the user corrects it',
+      );
     });
 
     testWidgets('a real code still pops the trimmed value', (tester) async {

@@ -32,6 +32,7 @@ pub const SIM_H: usize = 1080;
 ///   * putting it at the edge (25200, tried first) gives the sweep a monotonic
 ///     slope instead of a V — the parabola fit then degenerates and autofocus
 ///     correctly refuses it with "curve fit R² 0.000 is below 0.700".
+///
 /// 25075 brackets the minimum on both sides while still requiring real movement.
 pub const SIM_TRUE_FOCUS: i32 = 25_075;
 

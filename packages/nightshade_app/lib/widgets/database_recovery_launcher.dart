@@ -205,9 +205,35 @@ class _DatabaseRecoveryLauncherState
     }
   }
 
+  /// Retry backoff. The ordinary reason for a retry is that another startup
+  /// surface holds the dialog slot, which clears in a second or two, so the
+  /// first attempts stay fast. The pathological reason is a marker store that
+  /// cannot be read at all — and at a flat 100ms that was an unbounded hot loop
+  /// for the life of the process, on a machine that is expected to run all
+  /// night. Back off to a slow poll instead.
+  ///
+  /// It keeps polling rather than giving up: this notice is how the operator
+  /// learns their database was rebuilt and data may be missing, so abandoning
+  /// it silently would be worse than the delay.
+  static const _retryFloor = Duration(milliseconds: 100);
+  static const _retryCeiling = Duration(seconds: 5);
+  int _retryAttempt = 0;
+
   void _scheduleRetry() {
     _deferTimer?.cancel();
-    _deferTimer = Timer(const Duration(milliseconds: 100), _maybeShow);
+    final backoff = _retryFloor * (1 << _retryAttempt.clamp(0, 6));
+    final delay = backoff > _retryCeiling ? _retryCeiling : backoff;
+    if (delay == _retryCeiling && _retryAttempt == 6) {
+      developer.log(
+        'Database recovery notice still cannot be surfaced after '
+        '$_retryAttempt attempts; continuing to poll every '
+        '${_retryCeiling.inSeconds}s.',
+        name: 'DatabaseRecovery',
+        level: 900,
+      );
+    }
+    _retryAttempt++;
+    _deferTimer = Timer(delay, _maybeShow);
   }
 
   @override

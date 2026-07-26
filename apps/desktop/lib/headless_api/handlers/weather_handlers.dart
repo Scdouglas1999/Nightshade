@@ -458,8 +458,9 @@ class WeatherHandlers {
       'level': alert.level.name,
       'message': alert.message,
       'eta': alert.eta?.millisecondsSinceEpoch,
-      'cloudDensityPercent':
-          alert.cloudDensityPercent.isFinite ? alert.cloudDensityPercent : null,
+      'cloudDensityPercent': alert.cloudDensityPercent.isFinite
+          ? alert.cloudDensityPercent
+          : null,
       // "No cloud front detected" is represented in memory as an infinite
       // distance, which is the right sentinel for the threshold comparisons in
       // WeatherAlertService but has no JSON encoding — emitting it raw made

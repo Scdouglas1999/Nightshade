@@ -109,6 +109,7 @@ pub(crate) fn get_sim_last_exposure_secs() -> &'static Arc<RwLock<f64>> {
 ///     progress, remaining-time estimates and any "still integrating" UI state
 ///     could not be exercised without hardware, and a bug in them would ship
 ///     unseen.
+///
 /// Real cameras pace their callers by simply not being finished yet; the
 /// simulator has to do the same to be worth testing against.
 static SIM_EXPOSURE_START: OnceLock<Arc<RwLock<Option<std::time::Instant>>>> = OnceLock::new();

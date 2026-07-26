@@ -163,6 +163,12 @@ pub trait DeviceOps: Send + Sync {
     /// The default delegates to `camera_start_exposure`, treating every frame as
     /// shutter-open — so implementations that don't drive shuttered hardware (test
     /// doubles, simulators, the guider) need not override it.
+    // Wide by design: this is the compatibility rung above `camera_start_exposure`
+    // (itself 7 params), so it must mirror that signature plus `frame_type` for the
+    // default delegation to work. Bundling into a params struct here would force the
+    // whole three-method ladder and every implementor/caller to change with no
+    // clarity gained.
+    #[allow(clippy::too_many_arguments)]
     async fn camera_start_exposure_with_frame_type(
         &self,
         camera_id: &str,
@@ -183,6 +189,10 @@ pub trait DeviceOps: Send + Sync {
     /// The default keeps existing implementations source-compatible while
     /// failing closed if a caller asks an implementation that has not opted
     /// into ROI support to crop a frame.
+    // Wide by design: top rung of the same compatibility ladder, so it carries the
+    // full per-frame acquisition contract and delegates down by forwarding each
+    // parameter unchanged. See the note on `camera_start_exposure_with_frame_type`.
+    #[allow(clippy::too_many_arguments)]
     async fn camera_start_exposure_configured(
         &self,
         camera_id: &str,

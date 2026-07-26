@@ -30,7 +30,9 @@ void main() {
     backend = _AbortBackend();
     final container = ProviderContainer(
       overrides: [
-        backendProvider.overrideWith((ref) => _TestBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _TestBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -102,21 +104,23 @@ void main() {
     });
   }
 
-  test('a faulted status read still aborts — fail safe, not just honest',
-      () async {
-    backend.throwOnStatus = true;
+  test(
+    'a faulted status read still aborts — fail safe, not just honest',
+    () async {
+      backend.throwOnStatus = true;
 
-    final body = await abort();
+      final body = await abort();
 
-    expect(
-      backend.abortCalls,
-      ['native:zwo:0'],
-      reason:
-          'refusing to abort because the precondition could not be confirmed '
-          'would turn a truthfulness fix into a safety regression',
-    );
-    expect(body[kWasRunningField], isTrue);
-  });
+      expect(
+        backend.abortCalls,
+        ['native:zwo:0'],
+        reason:
+            'refusing to abort because the precondition could not be confirmed '
+            'would turn a truthfulness fix into a safety regression',
+      );
+      expect(body[kWasRunningField], isTrue);
+    },
+  );
 
   // ------------------------------------------------------------------------
   // /api/framing/abort-slew
@@ -135,8 +139,9 @@ void main() {
       slewBackend = _SlewBackend();
       final container = ProviderContainer(
         overrides: [
-          backendProvider
-              .overrideWith((ref) => _TestBackendNotifier(ref, slewBackend)),
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, slewBackend),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -184,7 +189,8 @@ void main() {
       expect(
         slewBackend.abortCalls,
         ['sim_mount_1'],
-        reason: 'never skip a mount abort because motion could not be confirmed',
+        reason:
+            'never skip a mount abort because motion could not be confirmed',
       );
       expect(body[kWasRunningField], isTrue);
     });

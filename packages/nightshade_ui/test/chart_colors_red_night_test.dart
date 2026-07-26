@@ -44,7 +44,8 @@ void main() {
         expect(
           mapped.b,
           lessThanOrEqualTo(mapped.r),
-          reason: 'blue channel outranks red for $series -- this is the '
+          reason:
+              'blue channel outranks red for $series -- this is the '
               'dark-adaptation regression',
         );
         expect(
@@ -75,9 +76,9 @@ void main() {
         NightshadeColors.redNight,
       );
       // Distinguished by lightness rather than hue.
-      final delta = (HSLColor.fromColor(ra).lightness -
-              HSLColor.fromColor(dec).lightness)
-          .abs();
+      final delta =
+          (HSLColor.fromColor(ra).lightness - HSLColor.fromColor(dec).lightness)
+              .abs();
       expect(
         delta,
         greaterThan(0.02),

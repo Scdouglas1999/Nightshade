@@ -308,8 +308,7 @@ class SequencerHandlers {
       'status': 'stopped',
       'preserveCheckpoint': preserveCheckpoint,
       kWasRunningField: wasRunning,
-      if (!wasRunning)
-        'message': 'No sequence was running; nothing to stop.',
+      if (!wasRunning) 'message': 'No sequence was running; nothing to stop.',
     });
   }
 

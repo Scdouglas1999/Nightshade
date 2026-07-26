@@ -337,9 +337,7 @@ impl From<DeviceOpError> for NightshadeError {
                 device_id: String::new(),
                 operation: detail,
             },
-            DeviceOpError::InvalidParameter { detail } => {
-                NightshadeError::InvalidParameter(detail)
-            }
+            DeviceOpError::InvalidParameter { detail } => NightshadeError::InvalidParameter(detail),
             DeviceOpError::InvalidDeviceId { detail } => NightshadeError::InvalidDeviceId {
                 device_id: String::new(),
                 reason: detail,

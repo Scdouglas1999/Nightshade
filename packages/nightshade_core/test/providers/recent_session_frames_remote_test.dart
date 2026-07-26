@@ -137,36 +137,38 @@ void main() {
     },
   );
 
-  test('frames from an older, already-finished session are not attributed to now',
-      () async {
-    final container = _container(
-      sessions: [
-        _session(
-          id: 56,
-          status: 'completed',
-          startTime: now.subtract(const Duration(hours: 1)),
-        ),
-      ],
-      images: [
-        _imageRow(
-          id: 140,
-          sessionId: 56,
-          capturedAt: now.subtract(const Duration(minutes: 50)),
-        ),
-      ],
-    );
+  test(
+    'frames from an older, already-finished session are not attributed to now',
+    () async {
+      final container = _container(
+        sessions: [
+          _session(
+            id: 56,
+            status: 'completed',
+            startTime: now.subtract(const Duration(hours: 1)),
+          ),
+        ],
+        images: [
+          _imageRow(
+            id: 140,
+            sessionId: 56,
+            capturedAt: now.subtract(const Duration(minutes: 50)),
+          ),
+        ],
+      );
 
-    await container.read(allSessionsProvider.future);
-    await container.read(allDbImagesProvider.future);
+      await container.read(allSessionsProvider.future);
+      await container.read(allDbImagesProvider.future);
 
-    expect(
-      container.read(recentSessionFramesProvider),
-      isEmpty,
-      reason:
-          'no active session on the host — an empty strip is the truth here, '
-          'and last night\'s frames must not be replayed as "this session"',
-    );
-  });
+      expect(
+        container.read(recentSessionFramesProvider),
+        isEmpty,
+        reason:
+            'no active session on the host — an empty strip is the truth here, '
+            'and last night\'s frames must not be replayed as "this session"',
+      );
+    },
+  );
 
   test('the newest active session wins when the host lists several', () async {
     final container = _container(

@@ -34,7 +34,8 @@ Future<void> _type(WidgetTester tester, int field, String value) async {
 }
 
 void main() {
-  testWidgets('an implausible train renders no derived value and flags the field',
+  testWidgets(
+      'an implausible train renders no derived value and flags the field',
       (tester) async {
     final handle = await pumpAppScreen(
       tester,

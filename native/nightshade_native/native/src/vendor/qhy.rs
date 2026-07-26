@@ -1849,8 +1849,12 @@ impl NativeCamera for QhyCamera {
 
         // Read the current read mode first so we can restore it if the re-init
         // below fails, leaving the camera in its prior working state.
-        // SAFETY: qhy_mutex held; handle validated; `&mut prev_mode` is a valid out-pointer.
         let mut prev_mode: c_uint = 0;
+        // SAFETY: qhy_mutex is held (acquired above) so no other task is inside the
+        // QHY SDK. `handle` was opened by OpenQHYCCD during connect() and is still
+        // open: it is only ever taken/closed by disconnect(), which needs both the
+        // same mutex and the `&mut self` this method already holds exclusively.
+        // `&mut prev_mode` is a live stack local of exactly the c_uint the SDK writes.
         let _ = unsafe { (sdk.get_qhyccd_read_mode)(handle, &mut prev_mode) };
 
         // SAFETY: qhy_mutex held above; handle was validated via Option::ok_or; self.connected
@@ -1872,6 +1876,8 @@ impl NativeCamera for QhyCamera {
             // Restore the previous read mode + re-init so the camera stays usable.
             // SAFETY: qhy_mutex held; handle valid; prev_mode is the mode read above.
             let _ = unsafe { (sdk.set_qhyccd_read_mode)(handle, prev_mode) };
+            // SAFETY: same held mutex and same still-open handle as the restore call
+            // immediately above; InitQHYCCD takes only that handle, no pointers.
             let _ = unsafe { (sdk.init_qhyccd)(handle) };
             let _ = self.load_camera_info();
             // SAFETY: qhy_mutex held; handle valid; full-frame ROI from refreshed dims.
@@ -2222,8 +2228,9 @@ const QHY_CFW_POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 fn parse_cfw_slot_count(count: f64) -> Result<i32, NativeError> {
     if !count.is_finite()
-        || count >= QHYCCD_ERROR_VALUE
-        || count < 1.0
+        // Rejects both the SDK's u32::MAX error sentinel and a nonsensical
+        // sub-one wheel; a real CFW always reports at least one slot.
+        || !(1.0..QHYCCD_ERROR_VALUE).contains(&count)
         || count > f64::from(MAX_QHY_CFW_SLOTS)
         || count.fract() != 0.0
     {

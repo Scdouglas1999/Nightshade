@@ -45,8 +45,8 @@ import 'response_helpers.dart';
 ///     "message":"Failed to fetch last image: NightshadeError.noImageAvailable()"}
 /// Any handler interpolating a caught backend error into a user-facing
 /// string must route it through here.
-String describeBackendError(Object error) => error
-        is bridge_error.NightshadeError
+String describeBackendError(Object error) =>
+    error is bridge_error.NightshadeError
     ? _cleanBackendErrorMessage(error)
     : error.toString();
 
@@ -59,12 +59,10 @@ String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
   final message = e.map(
     // --- Connection / presence -------------------------------------------
     deviceNotFound: (v) => 'Device not found: ${v.field0}',
-    connectionFailed: (v) =>
-        'Could not connect to ${v.deviceId}: ${v.reason}',
+    connectionFailed: (v) => 'Could not connect to ${v.deviceId}: ${v.reason}',
     alreadyConnected: (v) => 'Device already connected: ${v.field0}',
     notConnected: (v) => 'Device not connected: ${v.field0}',
-    deviceDisconnected: (v) =>
-        'Device ${v.deviceId} disconnected: ${v.reason}',
+    deviceDisconnected: (v) => 'Device ${v.deviceId} disconnected: ${v.reason}',
     // --- Hardware / transport --------------------------------------------
     hardwareError: (v) => 'Hardware error on ${v.deviceId}: ${v.message}',
     communicationError: (v) =>

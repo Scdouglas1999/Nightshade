@@ -17,16 +17,16 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 Widget _host(List<Widget> children) => MaterialApp(
   theme: NightshadeTheme.dark,
-  home: Scaffold(body: Column(mainAxisSize: MainAxisSize.min, children: children)),
+  home: Scaffold(
+    body: Column(mainAxisSize: MainAxisSize.min, children: children),
+  ),
 );
 
 void main() {
   testWidgets('Tab reaches the button and Enter activates it', (tester) async {
     var pressed = 0;
     await tester.pumpWidget(
-      _host([
-        NightshadeButton(label: 'Next', onPressed: () => pressed++),
-      ]),
+      _host([NightshadeButton(label: 'Next', onPressed: () => pressed++)]),
     );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -46,9 +46,7 @@ void main() {
   testWidgets('Space activates the focused button', (tester) async {
     var pressed = 0;
     await tester.pumpWidget(
-      _host([
-        NightshadeButton(label: 'Save', onPressed: () => pressed++),
-      ]),
+      _host([NightshadeButton(label: 'Save', onPressed: () => pressed++)]),
     );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -98,7 +96,8 @@ void main() {
     expect(
       pressed,
       1,
-      reason: 'the first Tab stop must be the enabled button, not the '
+      reason:
+          'the first Tab stop must be the enabled button, not the '
           'disabled one, and a disabled button must never fire',
     );
   });

@@ -143,8 +143,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
     if (x + width > binnedWidth || y + height > binnedHeight) {
       throw BadRequestError(
         field: 'subframe',
-        expected:
-            'x + width <= $binnedWidth and y + height <= $binnedHeight',
+        expected: 'x + width <= $binnedWidth and y + height <= $binnedHeight',
         message:
             'Subframe ${width}x$height at ($x, $y) does not fit inside the '
             '${binnedWidth}x$binnedHeight frame $deviceId provides at '
@@ -256,9 +255,7 @@ extension CameraDeviceHandlers on DeviceHandlers {
     } catch (error) {
       // A failed status read must not block a legitimate exposure; same
       // contract as the capability guard below.
-      _logInfo(
-        'busy check skipped for $deviceId: status read failed ($error)',
-      );
+      _logInfo('busy check skipped for $deviceId: status read failed ($error)');
     }
 
     // Reject exposure parameters the camera cannot honour rather than
@@ -395,7 +392,8 @@ extension CameraDeviceHandlers on DeviceHandlers {
       return jsonOk({
         'status': 'aborted',
         kWasRunningField: false,
-        'message': 'No exposure was in progress on $deviceId; nothing to abort.',
+        'message':
+            'No exposure was in progress on $deviceId; nothing to abort.',
       });
     }
 

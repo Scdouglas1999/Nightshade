@@ -844,8 +844,9 @@ async fn refresh_volatile_state(device_id: &str, capabilities: &mut DeviceCapabi
                     crate::device::ShutterState::Closed => ShutterStatus::Closed,
                     crate::device::ShutterState::Opening => ShutterStatus::Opening,
                     crate::device::ShutterState::Closing => ShutterStatus::Closing,
-                    crate::device::ShutterState::Error
-                    | crate::device::ShutterState::Unknown => ShutterStatus::Unknown,
+                    crate::device::ShutterState::Error | crate::device::ShutterState::Unknown => {
+                        ShutterStatus::Unknown
+                    }
                 });
             }
         }

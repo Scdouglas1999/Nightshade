@@ -57,7 +57,11 @@ void main() {
     // shipped as
     // "NightshadeError.exposureFailed(cameraId: native:zwo:0, reason: ...)"
     // — observed live against the rig.
-    expect(result.body['message'], reason, reason: 'reason verbatim, no wrapper');
+    expect(
+      result.body['message'],
+      reason,
+      reason: 'reason verbatim, no wrapper',
+    );
     expect(result.body['message'], isNot(contains('NightshadeError')));
     expect(result.body['message'], isNot(contains('cameraId:')));
   });

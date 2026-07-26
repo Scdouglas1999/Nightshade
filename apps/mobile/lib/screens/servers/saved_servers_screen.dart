@@ -266,8 +266,8 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
             authExpired
                 ? 'savedServersPairingExpired'
                 : outcome == ServerProbeOutcome.incompatible
-                    ? 'savedServersIncompatible'
-                    : 'savedServersUnreachable',
+                ? 'savedServersIncompatible'
+                : 'savedServersUnreachable',
             params: {'name': server.displayName, 'host': host},
           ),
           isError: true,

@@ -18,6 +18,10 @@
       "reason": "Headless appliance layer: dome API + ShutterState/ShutterStatus enums on the local hardware owner."
     },
     {
+      "file": "apps/desktop/lib/headless_api/handlers/guiding_handlers.dart",
+      "reason": "Headless appliance layer: catches bridge.NightshadeError to shape HTTP error responses on the local hardware owner. Matches the exception already granted to device_handlers.dart and validation.dart for the same purpose. The typed match replaced string-sniffing the error text, which the fail-closed handlers_e_tostring rule forbids."
+    },
+    {
       "file": "apps/desktop/lib/headless_api/handlers/imaging_handlers.dart",
       "reason": "Headless appliance layer: image calibration/FITS read on the local hardware owner."
     },

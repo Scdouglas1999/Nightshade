@@ -539,18 +539,43 @@ fn discovered_efw_serials() -> &'static Mutex<HashMap<c_int, String>> {
     DISCOVERED_EFW_SERIALS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Resolve the live SDK enumeration index for a camera serial.
+///
+/// # Preconditions
+///
+/// The caller MUST already hold [`atik_mutex`]. The Artemis SDK keeps its device
+/// table in process-global state and is not thread-safe, so both the enumeration
+/// and the index-keyed queries below are only coherent (and the index only stays
+/// meaningful between calls) while that lock is held. The sole caller,
+/// `AtikCamera::connect`, takes the lock before calling.
 fn camera_index_for_serial(sdk: &AtikSdk, serial_number: &str) -> Result<c_int, NativeError> {
-    // SAFETY: caller holds atik_mutex; refresh/device-count take no arguments.
     let count = match sdk.refresh_devices_count {
+        // SAFETY: atik_mutex is held by the caller (see preconditions), so no other
+        // task is inside the Artemis SDK. ArtemisRefreshDevicesCount takes no
+        // arguments and returns a plain c_int, so there is no pointer to invalidate.
+        // `sdk` is borrowed from the process-lifetime `SDK` OnceLock, whose library
+        // is never unloaded, so the function pointer stays valid for the call.
         Some(refresh) => unsafe { refresh() },
+        // SAFETY: identical to the refresh arm above — same held lock, same
+        // never-unloaded library, and ArtemisDeviceCount likewise takes no arguments
+        // and returns a c_int.
         None => unsafe { (sdk.device_count)() },
     };
 
     for index in 0..count {
-        // SAFETY: caller holds atik_mutex; index is inside the SDK enumeration range.
-        if unsafe { (sdk.device_present)(index) } == 0
-            || unsafe { (sdk.device_is_camera)(index) } == 0
-        {
+        // SAFETY: atik_mutex is held by the caller; `index` comes from `0..count`
+        // where `count` is the SDK's own device count read above under the same
+        // lock, which is exactly the range ArtemisDevicePresent accepts. Only that
+        // c_int is passed; no pointers are involved.
+        if unsafe { (sdk.device_present)(index) } == 0 {
+            continue;
+        }
+        // SAFETY: atik_mutex is held by the caller; `index` is in enumeration range
+        // AND was just confirmed present, which is ArtemisDeviceIsCamera's
+        // precondition. This is kept as a separate `if` rather than folded into the
+        // presence check with `||` so the short-circuit survives: an absent slot must
+        // never be asked whether it is a camera.
+        if unsafe { (sdk.device_is_camera)(index) } == 0 {
             continue;
         }
 
@@ -645,10 +670,15 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
     // up on the FIRST scan instead of needing a manual rescan. Falls back to the
     // passive ArtemisDeviceCount on older SDKs. This is the correct fix over a
     // blanket retry-sleep, which would slow discovery for the common no-Atik case.
-    // SAFETY: atik_mutex held above ensuring single-threaded SDK access; both
-    // entry points take no arguments and return a c_int (no pointers involved).
     let count = match sdk.refresh_devices_count {
+        // SAFETY: atik_mutex is held (acquired above), so no other task is inside the
+        // Artemis SDK for the duration of this call. ArtemisRefreshDevicesCount takes
+        // no arguments and returns a c_int, so there is no pointer to invalidate, and
+        // `sdk` is borrowed from the process-lifetime `SDK` OnceLock whose library is
+        // never unloaded, keeping the function pointer valid.
         Some(refresh) => unsafe { refresh() },
+        // SAFETY: identical to the refresh arm above — same held lock, same
+        // never-unloaded library, and ArtemisDeviceCount takes no arguments either.
         None => unsafe { (sdk.device_count)() },
     };
     let sdk_version = sdk_version_from_sdk(sdk);

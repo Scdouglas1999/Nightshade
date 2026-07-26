@@ -315,14 +315,8 @@ impl DeviceManager {
                         .set_start_y(start_y)
                         .await
                         .map_err(DeviceOpError::from)?;
-                    camera
-                        .set_num_x(num_x)
-                        .await
-                        .map_err(DeviceOpError::from)?;
-                    camera
-                        .set_num_y(num_y)
-                        .await
-                        .map_err(DeviceOpError::from)?;
+                    camera.set_num_x(num_x).await.map_err(DeviceOpError::from)?;
+                    camera.set_num_y(num_y).await.map_err(DeviceOpError::from)?;
                     // Start the exposure
                     return camera
                         .start_exposure(duration, true)
@@ -1823,10 +1817,7 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
-                        return camera
-                            .set_offset(offset)
-                            .await
-                            .map_err(DeviceOpError::from);
+                        return camera.set_offset(offset).await.map_err(DeviceOpError::from);
                     }
                 }
                 Err(DeviceOpError::not_connected(
@@ -1837,10 +1828,7 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera
-                        .set_offset(offset)
-                        .await
-                        .map_err(DeviceOpError::from);
+                    return camera.set_offset(offset).await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -1850,10 +1838,7 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera
-                        .set_offset(offset)
-                        .await
-                        .map_err(DeviceOpError::from);
+                    return camera.set_offset(offset).await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),
@@ -2354,10 +2339,7 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let native_cameras = self.native_cameras.read().await;
                 if let Some(camera) = native_cameras.get(device_id) {
-                    return camera
-                        .capture_preview()
-                        .await
-                        .map_err(DeviceOpError::from);
+                    return camera.capture_preview().await.map_err(DeviceOpError::from);
                 }
                 Err(DeviceOpError::not_connected(
                     Some(device_id.to_string()),

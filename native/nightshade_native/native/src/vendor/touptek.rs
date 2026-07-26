@@ -1549,6 +1549,12 @@ impl Drop for TouptekCamera {
                         // owned by this camera. Stop then Close quiesces callbacks before
                         // the event-state box is allowed to drop.
                         unsafe { (sdk.stop)(handle) };
+                        // SAFETY: same held touptek_mutex and same handle as the Stop
+                        // above, which has already returned (so the SDK's streaming
+                        // thread is quiesced). Close is the contractual release for the
+                        // Open that produced this handle, and it has not been closed
+                        // yet: disconnect() nulls `self.handle` after closing, and this
+                        // branch only runs because the handle is still non-null.
                         unsafe { (sdk.close)(handle) };
                         Ok(())
                     })

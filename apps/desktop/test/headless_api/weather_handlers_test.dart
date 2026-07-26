@@ -132,40 +132,47 @@ void main() {
     // encoding. Serialising it raw made jsonEncode throw, so the two endpoints
     // that answer "is it safe to image?" returned an opaque internal error on
     // precisely the nights when the answer was "yes, perfectly clear".
-    test('clear sky (no cloud front) serialises instead of failing to encode',
-        () async {
-      final service = container.read(weatherAlertServiceProvider);
-      final alert = service.evaluateConditions(
-        motion: null,
-        currentCloudDensity: 0,
-        settings: const WeatherSettings(),
-      );
-      // Precondition: this is the in-memory sentinel that used to break JSON.
-      expect(alert.distanceKm.isFinite, isFalse,
-          reason: 'clear sky should still use the infinite-distance sentinel');
-      service.emitAlert(alert);
+    test(
+      'clear sky (no cloud front) serialises instead of failing to encode',
+      () async {
+        final service = container.read(weatherAlertServiceProvider);
+        final alert = service.evaluateConditions(
+          motion: null,
+          currentCloudDensity: 0,
+          settings: const WeatherSettings(),
+        );
+        // Precondition: this is the in-memory sentinel that used to break JSON.
+        expect(
+          alert.distanceKm.isFinite,
+          isFalse,
+          reason: 'clear sky should still use the infinite-distance sentinel',
+        );
+        service.emitAlert(alert);
 
-      final response = await translateHandlerErrors(
-        handlers.handleGetAlerts(
-          Request('GET', Uri.parse('http://localhost/api/weather/alerts')),
-        ),
-      );
+        final response = await translateHandlerErrors(
+          handlers.handleGetAlerts(
+            Request('GET', Uri.parse('http://localhost/api/weather/alerts')),
+          ),
+        );
 
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      final alerts = body['alerts'] as List;
-      expect(alerts, hasLength(1));
-      // No front means no distance to it — null, not a crash and not a number.
-      expect((alerts.single as Map)['distanceKm'], isNull);
-    });
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final alerts = body['alerts'] as List;
+        expect(alerts, hasLength(1));
+        // No front means no distance to it — null, not a crash and not a number.
+        expect((alerts.single as Map)['distanceKm'], isNull);
+      },
+    );
 
     test('current weather serialises a clear sky without a 500', () async {
       final service = container.read(weatherAlertServiceProvider);
-      service.emitAlert(service.evaluateConditions(
-        motion: null,
-        currentCloudDensity: 0,
-        settings: const WeatherSettings(),
-      ));
+      service.emitAlert(
+        service.evaluateConditions(
+          motion: null,
+          currentCloudDensity: 0,
+          settings: const WeatherSettings(),
+        ),
+      );
 
       final response = await translateHandlerErrors(
         handlers.handleGetCurrent(
@@ -177,6 +184,5 @@ void main() {
       final body = jsonDecode(await response.readAsString()) as Map;
       expect((body['currentAlert'] as Map)['distanceKm'], isNull);
     });
-
   });
 }

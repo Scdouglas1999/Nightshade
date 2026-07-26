@@ -775,7 +775,7 @@ impl NativeDevice for MoravianCamera {
                 let native = native_bayer(deb_x_odd != 0, deb_y_odd != 0);
                 // We vertically mirror every frame; for even sensor height that
                 // mirror swaps the two Bayer rows, so report the flipped phase.
-                if height % 2 == 0 {
+                if height.is_multiple_of(2) {
                     Some(flip_bayer_vertical(native))
                 } else {
                     Some(native)

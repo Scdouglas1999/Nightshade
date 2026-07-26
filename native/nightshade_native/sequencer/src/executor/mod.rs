@@ -1505,20 +1505,30 @@ fn build_trigger_autofocus_context(
     }
 }
 
+/// The target a trigger-initiated meridian flip is being built for.
+///
+/// Grouped into a struct rather than passed as three positional parameters:
+/// `ra_hours` and `dec_degrees` are both `Option<f64>`, so as bare positional
+/// arguments they are silently transposable at a call site, and a flip aimed at
+/// the transposed coordinates would recentre onto the wrong sky.
+struct TriggerFlipTarget {
+    name: String,
+    ra_hours: Option<f64>,
+    dec_degrees: Option<f64>,
+}
+
 fn build_trigger_flip_context(
     trigger_context: &TriggerActionContext,
-    target_name: String,
-    target_ra_hours: Option<f64>,
-    target_dec_degrees: Option<f64>,
+    target: TriggerFlipTarget,
     cancellation_token: Option<Arc<AtomicBool>>,
     trigger_state: Option<Arc<RwLock<TriggerState>>>,
     autofocus_config: Option<crate::AutofocusConfig>,
     current_filter: Option<String>,
 ) -> Option<crate::meridian_flip_executor::FlipContext> {
     Some(crate::meridian_flip_executor::FlipContext {
-        target_name,
-        target_ra_hours: target_ra_hours?,
-        target_dec_degrees: target_dec_degrees?,
+        target_name: target.name,
+        target_ra_hours: target.ra_hours?,
+        target_dec_degrees: target.dec_degrees?,
         mount_id: trigger_context.mount_id.clone()?,
         camera_id: trigger_context.camera_id.clone(),
         focuser_id: trigger_context.focuser_id.clone(),
@@ -5809,9 +5819,11 @@ impl SequenceExecutor {
 
                                     if let Some(flip_ctx) = build_trigger_flip_context(
                                         &trigger_action_context,
-                                        target_name.clone(),
-                                        target_ra,
-                                        target_dec,
+                                        TriggerFlipTarget {
+                                            name: target_name.clone(),
+                                            ra_hours: target_ra,
+                                            dec_degrees: target_dec,
+                                        },
                                         Some(is_cancelled_clone.clone()),
                                         Some(trigger_state_for_actions.clone()),
                                         autofocus_config,
@@ -7528,9 +7540,11 @@ mod tests {
 
         let flip_ctx = build_trigger_flip_context(
             &trigger_context,
-            "M42".to_string(),
-            Some(5.5),
-            Some(-5.0),
+            TriggerFlipTarget {
+                name: "M42".to_string(),
+                ra_hours: Some(5.5),
+                dec_degrees: Some(-5.0),
+            },
             None,
             None,
             None,
@@ -7560,9 +7574,11 @@ mod tests {
 
         let flip_ctx = build_trigger_flip_context(
             &trigger_context,
-            "M42".to_string(),
-            Some(5.5),
-            Some(-5.0),
+            TriggerFlipTarget {
+                name: "M42".to_string(),
+                ra_hours: Some(5.5),
+                dec_degrees: Some(-5.0),
+            },
             None,
             None,
             Some(autofocus_config),
@@ -7720,7 +7736,13 @@ mod tests {
         // `return terminate_with(...)` inside the action dispatch).
         fn early_return(flag: &Arc<AtomicBool>) -> &'static str {
             let _guard = TriggerActionInFlightGuard::new(flag);
-            return "terminated";
+            // The branch keeps this a *real* early return (not a tail
+            // expression), which is the shape being regression-tested; it also
+            // proves the guard had already latched at the return point.
+            if flag.load(Ordering::Acquire) {
+                return "terminated";
+            }
+            "guard never latched"
         }
         assert_eq!(early_return(&flag), "terminated");
         assert!(

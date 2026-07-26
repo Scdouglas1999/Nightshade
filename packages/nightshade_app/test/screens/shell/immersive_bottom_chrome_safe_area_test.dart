@@ -117,7 +117,8 @@ void main() {
 
       expect(find.byKey(const ValueKey('nav')), findsOneWidget);
       expect(find.text('Menu'), findsNothing,
-          reason: 'the labelled reveal handle belongs to the hidden state only');
+          reason:
+              'the labelled reveal handle belongs to the hidden state only');
     });
   });
 }

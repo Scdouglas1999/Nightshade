@@ -76,9 +76,9 @@ void main() {
     when(
       () => mockBackend.disconnectDevice(any(), any()),
     ).thenAnswer((_) async {});
-    when(() => mockBackend.getMountStatus(any())).thenAnswer(
-      (_) async => _mountStatus,
-    );
+    when(
+      () => mockBackend.getMountStatus(any()),
+    ).thenAnswer((_) async => _mountStatus);
 
     container = ProviderContainer(
       overrides: [
@@ -132,33 +132,28 @@ void main() {
       await service.connectMount(realMount);
       await service.connectMount(realMount);
 
-      verifyNever(
-        () => mockBackend.disconnectDevice(DeviceType.mount, any()),
-      );
+      verifyNever(() => mockBackend.disconnectDevice(DeviceType.mount, any()));
       expect(container.read(mountStateProvider).deviceId, realMount);
     });
 
-    test(
-      'a displaced device that fails to disconnect does not block the '
-      'incoming connect',
-      () async {
-        final service = container.read(deviceServiceProvider);
-        await service.connectMount(realMount);
+    test('a displaced device that fails to disconnect does not block the '
+        'incoming connect', () async {
+      final service = container.read(deviceServiceProvider);
+      await service.connectMount(realMount);
 
-        // Cable already yanked: the teardown throws.
-        when(
-          () => mockBackend.disconnectDevice(DeviceType.mount, realMount),
-        ).thenThrow(Exception('driver already gone'));
+      // Cable already yanked: the teardown throws.
+      when(
+        () => mockBackend.disconnectDevice(DeviceType.mount, realMount),
+      ).thenThrow(Exception('driver already gone'));
 
-        await service.connectMount(simMount);
+      await service.connectMount(simMount);
 
-        expect(container.read(mountStateProvider).deviceId, simMount);
-        expect(
-          container.read(mountStateProvider).connectionState,
-          DeviceConnectionState.connected,
-        );
-      },
-    );
+      expect(container.read(mountStateProvider).deviceId, simMount);
+      expect(
+        container.read(mountStateProvider).connectionState,
+        DeviceConnectionState.connected,
+      );
+    });
 
     test('handover applies to non-mount types too', () async {
       final service = container.read(deviceServiceProvider);

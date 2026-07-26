@@ -7,6 +7,7 @@ import '../database/database.dart' as db;
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import 'catalog_target_resolver.dart';
+import 'logging_service.dart';
 
 /// Host-aware targets-library CRUD for planetarium and transient flows.
 class TargetLibraryService {
@@ -168,7 +169,25 @@ class TargetLibraryService {
     final backend = _backend;
     if (backend is NetworkBackend) {
       final rows = await backend.getAllTargets();
-      return rows.map(_targetFromRemoteJson).toList(growable: false);
+      // Drop rows the host sent without a usable sky coordinate rather than
+      // failing the whole library. `_targetFromRemoteJson` refuses to invent an
+      // RA/Dec, which is right — but mapping straight over the list would let a
+      // single bad row from an older or third-party host take away every target
+      // the operator has. Skip the row, say so, and keep the rest.
+      final targets = <db.Target>[];
+      for (final row in rows) {
+        try {
+          targets.add(_targetFromRemoteJson(row));
+        } on FormatException catch (e) {
+          _ref
+              .read(loggingServiceProvider)
+              .warning(
+                'Skipping a target from the imaging host: $e',
+                source: 'TargetLibraryService',
+              );
+        }
+      }
+      return List<db.Target>.unmodifiable(targets);
     }
     final dao = _ref.read(targetsDaoProvider);
     return dao.getAllTargets();

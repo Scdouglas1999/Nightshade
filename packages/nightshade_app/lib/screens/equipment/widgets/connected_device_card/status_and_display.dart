@@ -718,9 +718,9 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
   /// `maxBrightness` arrives as 0 when neither the host payload nor the native
   /// capability probe carried a brightness scale, and `brightness` is null when
   /// the level itself was not reported. Either way there is no reading to show.
-  String _calibratorBrightnessLabel(CoverCalibratorCapabilitySnapshot snapshot) {
-    final isPowered =
-        snapshot.calibratorStatus == CalibratorStatus.ready ||
+  String _calibratorBrightnessLabel(
+      CoverCalibratorCapabilitySnapshot snapshot) {
+    final isPowered = snapshot.calibratorStatus == CalibratorStatus.ready ||
         snapshot.calibratorStatus == CalibratorStatus.notReady;
     if (!isPowered) return '---';
     final level = snapshot.brightness;

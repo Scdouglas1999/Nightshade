@@ -1188,8 +1188,7 @@ impl NativeCamera for ZwoCamera {
         // Set offset if provided
         if let Some(offset) = params.offset {
             self.set_control(ASIControlType::ASI_OFFSET, offset as c_long, false)?;
-            self.current_offset =
-                self.read_back_control_sync(ASIControlType::ASI_OFFSET, offset);
+            self.current_offset = self.read_back_control_sync(ASIControlType::ASI_OFFSET, offset);
         }
 
         // Start exposure with the correct shutter state for calibration frames.
@@ -3005,6 +3004,11 @@ impl NativeDevice for ZwoFilterWheel {
         // A profile can connect a persisted hardware ID before any discovery
         // has run; on real ZWO SDK builds, calling EFWOpen directly in that
         // state returns EFW_ERROR_INVALID_ID even though the wheel is present.
+        // SAFETY: zwo_efw_mutex is held (acquired above), so no other task is inside
+        // the EFW SDK while it re-scans its internal ID table. EFWGetNum takes no
+        // arguments and returns a c_int, so there is no pointer to invalidate, and
+        // `sdk` comes from the process-lifetime EfwSdk singleton whose library is
+        // never unloaded.
         let num_wheels = unsafe { (sdk.get_num)() };
         let mut id_is_present = false;
         for index in 0..num_wheels {

@@ -799,7 +799,8 @@ mod tests {
         let pixels = patterned_raw(BayerPattern::RGGB, 4, 4);
         let rgb = debayer_to_rgb16(&pixels, 4, 4, BayerPattern::RGGB, DebayerAlgorithm::VNG);
         // Green site at (x=0, y=1): a blue-row green on the border.
-        let idx = (1 * 4 + 0) * 3;
+        let (x, y) = (0usize, 1usize);
+        let idx = (y * 4 + x) * 3;
         assert_eq!(
             rgb[idx], 1000,
             "red must come from the vertical red neighbours"

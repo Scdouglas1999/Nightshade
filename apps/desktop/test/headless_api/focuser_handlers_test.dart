@@ -99,7 +99,10 @@ void main() {
         'POST',
         Uri.parse('http://localhost/api/focuser/move-to'),
         headers: {'content-type': 'application/json'},
-        body: jsonEncode({'deviceId': 'ascom:Sim.Focuser', 'position': position}),
+        body: jsonEncode({
+          'deviceId': 'ascom:Sim.Focuser',
+          'position': position,
+        }),
       ),
     );
 
@@ -120,7 +123,11 @@ void main() {
         throwsA(
           isA<BadRequestError>()
               .having((BadRequestError e) => e.field, 'field', 'position')
-              .having((BadRequestError e) => e.expected, 'expected', '0 to 50000'),
+              .having(
+                (BadRequestError e) => e.expected,
+                'expected',
+                '0 to 50000',
+              ),
         ),
       );
       expect(backend.moveToCalls, isEmpty, reason: 'driver must not be called');
@@ -170,14 +177,17 @@ void main() {
       expect(backend.moveRelativeCalls, [-500]);
     });
 
-    test('a driver advertising no travel range is not second-guessed', () async {
-      // maxPosition 0 means MaxStep threw PropertyNotImplementedException;
-      // there is nothing to validate against, so the request passes through.
-      backend.maxPosition = 0;
-      final response = await moveTo(123456);
-      expect(response.statusCode, 200);
-      expect(backend.moveToCalls, [123456]);
-    });
+    test(
+      'a driver advertising no travel range is not second-guessed',
+      () async {
+        // maxPosition 0 means MaxStep threw PropertyNotImplementedException;
+        // there is nothing to validate against, so the request passes through.
+        backend.maxPosition = 0;
+        final response = await moveTo(123456);
+        expect(response.statusCode, 200);
+        expect(backend.moveToCalls, [123456]);
+      },
+    );
   });
 }
 
@@ -245,15 +255,16 @@ class _TravelBackend extends DisconnectedBackend {
   final List<int> moveRelativeCalls = [];
 
   @override
-  Future<FocuserStatus> getFocuserStatus(String deviceId) async => FocuserStatus(
-    connected: true,
-    position: position,
-    moving: false,
-    maxPosition: maxPosition,
-    stepSize: 20.0,
-    isAbsolute: true,
-    hasTemperature: false,
-  );
+  Future<FocuserStatus> getFocuserStatus(String deviceId) async =>
+      FocuserStatus(
+        connected: true,
+        position: position,
+        moving: false,
+        maxPosition: maxPosition,
+        stepSize: 20.0,
+        isAbsolute: true,
+        hasTemperature: false,
+      );
 
   @override
   Future<void> focuserMoveTo(String deviceId, int position) async {
