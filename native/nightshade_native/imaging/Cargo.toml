@@ -29,7 +29,7 @@ bytemuck = { version = "1.14", features = ["derive"] }
 # Memory-mapped file access for large files
 memmap2 = "0.9"
 wgpu = "0.19"
-pollster = "0.3"
+pollster = "1.0"
 
 # Note: LibRaw support via custom FFI bindings (see raw.rs)
 # Using pre-compiled libraw.dll to avoid Windows compilation issues
