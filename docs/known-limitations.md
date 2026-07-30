@@ -5,11 +5,24 @@ for a release candidate. Do not use it to hide blockers. An accepted limitation
 must be documented, understandable to users, paired with a workaround when one
 exists, and reflected in release notes.
 
-## 5.0.0 Verified Scope
+## 6.0.0 Verified Scope
 
-This is the scoped capability statement that must match the README "First public
-beta" callout, the release notes, and `supported-hardware-by-platform.md` word
-for word:
+This is the scoped capability statement for the current release. It must match
+the README "What is actually verified" section and the `## What's verified`
+section of [`release/v6.0.0.md`](release/v6.0.0.md) word for word:
+
+> Real-hardware validation for 6.0.0 was a Windows bench run between 22 and 26 July 2026 against an ASCOM Pegasus NYX-101 mount, a native ZWO ASI1600MM-Cool camera, and a ZWO EFW filter wheel, alongside a simulator instance. Camera connect, cooling, exposure, and image download are exercised on that hardware. **The mount was never commanded to move**, so slew, sync, park, unpark, homing, and meridian flip are unexercised on real equipment. **No frame was taken under a real sky** — the acquisition path is validated, the sky is not. The web dashboard and the Android companion were driven against a running host, but a second physical device on a real LAN with a firewall in the path was not tested. Fully-unattended **headless** acquisition and a full-night soak are **not** verified and must be supervised. **Linux** is early testing; **macOS** and **iOS** are unbuilt, untested, and ship no artifact. Every other device path — switches, domes, covers, and the remaining vendor SDKs — is **capability-gated**: present in the app, but not a support guarantee until it is verified on your rig.
+
+Evidence: the *Hardware validation* section of
+[`release/v6.0.0.md`](release/v6.0.0.md). A dedicated
+`release-evidence/6.0.0.md` has not been cut yet.
+
+## 5.0.0 Verified Scope (previous release)
+
+This is the scoped capability statement that matched the 5.0.0 README callout,
+the 5.0.0 release notes, and `supported-hardware-by-platform.md` word for word.
+It is retained as the historical record for 5.0.0 and is superseded by the
+6.0.0 statement above:
 
 > Nightshade is verified on **Windows**, where the desktop app drives ASCOM/Alpaca
 > cameras, focuser, filter wheel, and PHD2, with plate-solving and planning. Remote
