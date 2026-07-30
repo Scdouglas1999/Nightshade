@@ -5,6 +5,40 @@ import '../tables/observing_lists.dart';
 
 part 'observing_lists_dao.g.dart';
 
+/// Thrown by [ObservingListsDao.addItem] when the catalog object is already in
+/// the target list.
+///
+/// Why a type instead of a bare `StateError`: adding something twice is an
+/// ordinary thing for a user to do, not a fault, and callers need to tell it
+/// apart from a real write failure so they can say "already there" instead of
+/// "failed". It still extends [StateError] so the headless API's existing
+/// `on StateError` → HTTP 409 mapping keeps working unchanged.
+///
+/// [toString] deliberately drops Dart's `Bad state: ` prefix — the planner's
+/// add-to-list dialog rendered `'Failed to add item: $e'` verbatim in red, so
+/// users were shown `Failed to add item: Bad state: NGC6015 is already in this
+/// list as "NGC6015"`.
+class ObservingListDuplicateItemException extends StateError {
+  ObservingListDuplicateItemException({
+    required this.listId,
+    required this.catalogId,
+    required this.existingItemId,
+    required this.existingObjectName,
+  }) : super(
+         catalogId == existingObjectName
+             ? '$catalogId is already in this list'
+             : '$catalogId is already in this list as "$existingObjectName"',
+       );
+
+  final int listId;
+  final String catalogId;
+  final int existingItemId;
+  final String existingObjectName;
+
+  @override
+  String toString() => message;
+}
+
 @DriftAccessor(tables: [ObservingLists, ObservingListItems])
 class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ObservingListsDaoMixin {
@@ -114,7 +148,8 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
   // ─── Item CRUD ──────────────────────────────────────────────────────────────
 
   /// Add an item to an observing list. Returns the generated row ID.
-  /// If the catalogId already exists in the list, throws a StateError.
+  /// If the catalogId already exists in the list, throws an
+  /// [ObservingListDuplicateItemException].
   Future<int> addItem({
     required int listId,
     required String objectName,
@@ -134,8 +169,11 @@ class ObservingListsDao extends DatabaseAccessor<NightshadeDatabase>
               ))
               .getSingleOrNull();
       if (existing != null) {
-        throw StateError(
-          '$catalogId is already in this list as "${existing.objectName}"',
+        throw ObservingListDuplicateItemException(
+          listId: listId,
+          catalogId: catalogId,
+          existingItemId: existing.id,
+          existingObjectName: existing.objectName,
         );
       }
     }

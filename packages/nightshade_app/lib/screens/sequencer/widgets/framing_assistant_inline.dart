@@ -6,9 +6,11 @@
 // target's sky context. Rotating the FOV on the assistant writes
 // directly back to the selected TargetHeaderNode.rotation.
 //
-// The dialog also pre-syncs the equipmentFOVProvider with the active
-// equipment profile / connected camera so the rendered FOV matches the
-// rig the user is about to use.
+// The dialog activates `equipmentFovBindingProvider`, which keeps the
+// planetarium's equipmentFOVProvider fed from the active equipment
+// profile / connected camera, so the rendered FOV matches the rig the
+// user is about to use. That binding is the single source of truth for
+// the overlay; this dialog only overrides the *rotation*.
 //
 // The "Use current rotator" button reads `rotatorStateProvider` and
 // applies the live mechanical angle — useful when the rotator is
@@ -30,11 +32,11 @@ Future<double?> showFramingAssistantDialog({
   required WidgetRef ref,
   required TargetHeaderNode target,
 }) async {
-  // Pre-seed the planetarium's equipmentFOVProvider from the active
-  // profile + connected camera so the FOV box reflects the user's
-  // rig. We do this *before* the dialog opens so the first paint
-  // shows the right size.
-  _syncEquipmentFOVFromProfile(ref);
+  // Activate the equipment binding before the dialog opens so the FOV box
+  // reflects the user's rig from the first paint. It is idempotent — the
+  // planetarium screen activates the same provider — and it keeps tracking
+  // profile/camera changes for as long as the container lives.
+  ref.read(equipmentFovBindingProvider);
 
   final initialRotation = target.rotation ?? 0;
   ref
@@ -46,49 +48,6 @@ Future<double?> showFramingAssistantDialog({
     barrierDismissible: false,
     builder: (ctx) => FramingAssistantDialog(target: target),
   );
-}
-
-/// Sync the planetarium-side equipmentFOVProvider from the user's
-/// active equipment profile + connected camera. Used by the framing
-/// assistant so the FOV box on the framing view matches what's
-/// actually installed on the scope.
-///
-/// Reads `opticalConfigProvider` (which already does the heavy
-/// lifting: profile + connected camera capabilities → unified
-/// telescope + sensor view), then forwards into the planetarium's
-/// `equipmentFOVProvider`. If sensor dimensions are not available
-/// (no connected camera), we approximate using a typical 4096×2731
-/// sensor so the FOV outline still renders.
-void _syncEquipmentFOVFromProfile(WidgetRef ref) {
-  final config = ref.read(opticalConfigProvider);
-  if (config == null) return;
-
-  final fl = config.focalLength;
-  if (fl == null || fl <= 0) return;
-
-  ref.read(equipmentFOVProvider.notifier).setTelescope(TelescopeSpecs(
-        name: config.telescopeName ?? 'Telescope',
-        focalLengthMm: fl,
-        apertureMm: config.aperture ?? 0,
-      ));
-
-  final pixelSize = config.pixelSize;
-  if (pixelSize == null || pixelSize <= 0) return;
-
-  final pixelsX = config.sensorWidth ?? 4096;
-  final pixelsY = config.sensorHeight ?? 2731;
-  final widthMm = pixelsX * pixelSize / 1000.0;
-  final heightMm = pixelsY * pixelSize / 1000.0;
-  ref.read(equipmentFOVProvider.notifier).setCamera(
-        CameraSensorSpecs(
-          name: config.cameraName ?? 'Profile camera',
-          widthMm: widthMm,
-          heightMm: heightMm,
-          pixelsX: pixelsX,
-          pixelsY: pixelsY,
-          pixelSizeMicrons: pixelSize,
-        ),
-      );
 }
 
 class FramingAssistantDialog extends ConsumerStatefulWidget {
@@ -116,13 +75,18 @@ class _FramingAssistantDialogState
     final colors = NightshadeColors.of(context);
     final equipmentFOV = ref.watch(equipmentFOVProvider);
     final fovTuple = equipmentFOV.fov;
-    // The FOV is approximate when the optical config can't supply real sensor
-    // dimensions (no connected camera) and the sync fell back to a typical
-    // 4096x2731 sensor. Surface that so the user doesn't trust the framing
-    // box dimensions as exact.
+    // Sensor geometry only exists once a camera is connected and has reported
+    // its capabilities. Say which half of the rig is missing instead of
+    // substituting a typical sensor and drawing a framing box the user would
+    // reasonably read as measured.
     final config = ref.watch(opticalConfigProvider);
-    final fovIsApproximate = config != null &&
-        (config.sensorWidth == null || config.sensorHeight == null);
+    final missingOptics = fovTuple != null
+        ? null
+        : (config == null || config.focalLength == null
+            ? 'No equipment profile with a focal length — set one in Settings '
+                'to size the framing box.'
+            : 'No camera connected, so the sensor size is unknown. Connect the '
+                'camera to see the real framing box.');
 
     return NightshadeDialog(
       title: 'Frame target — ${widget.target.targetName}',
@@ -162,7 +126,7 @@ class _FramingAssistantDialogState
                     colors: colors,
                     target: widget.target,
                     fov: fovTuple,
-                    fovIsApproximate: fovIsApproximate,
+                    missingOptics: missingOptics,
                   ),
                   const SizedBox(height: 12),
                   _RotationControls(
@@ -222,19 +186,21 @@ class _ContextCard extends StatelessWidget {
   final NightshadeColors colors;
   final TargetHeaderNode target;
   final (double, double)? fov;
-  final bool fovIsApproximate;
+
+  /// Why the framing box can't be drawn, or null when [fov] is known.
+  final String? missingOptics;
 
   const _ContextCard({
     required this.colors,
     required this.target,
     required this.fov,
-    required this.fovIsApproximate,
+    required this.missingOptics,
   });
 
   @override
   Widget build(BuildContext context) {
     final fovLabel = fov == null
-        ? 'No camera FOV — pick equipment profile'
+        ? 'Field of view unknown'
         : '${fov!.$1.toStringAsFixed(2)}° × ${fov!.$2.toStringAsFixed(2)}°';
     return Container(
       padding: const EdgeInsets.all(12),
@@ -288,7 +254,7 @@ class _ContextCard extends StatelessWidget {
               ),
             ],
           ),
-          if (fov != null && fovIsApproximate) ...[
+          if (missingOptics != null) ...[
             const SizedBox(height: 6),
             Row(
               children: [
@@ -296,8 +262,7 @@ class _ContextCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Approximate FOV — no camera connected; using a typical '
-                    'sensor size. Connect the camera for exact framing.',
+                    missingOptics!,
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize10,
                       color: colors.warning,

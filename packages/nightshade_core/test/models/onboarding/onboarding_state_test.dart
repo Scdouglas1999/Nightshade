@@ -119,6 +119,46 @@ void main() {
       expect(OnboardingStep.site.order, OnboardingStep.summary.order - 1);
     });
 
+    test('clear flags null out acquisition set-points a plain null cannot', () {
+      // `copyWith(defaultGain: null)` means "leave unchanged", so the
+      // camera-defaults step needs an explicit way to say "the user emptied
+      // this field" — otherwise a blank box sits above a stored value and the
+      // created profile disagrees with the wizard that built it.
+      const applied = OnboardingDraft(
+        defaultGain: 100,
+        defaultOffset: 50,
+        defaultBinX: 2,
+        defaultBinY: 2,
+        defaultCoolingTempC: -10,
+      );
+
+      expect(
+        applied.copyWith().defaultGain,
+        100,
+        reason: 'a plain copyWith still preserves the value',
+      );
+
+      final cleared = applied.copyWith(
+        clearGain: true,
+        clearOffset: true,
+        clearBinX: true,
+        clearBinY: true,
+        clearCoolingTempC: true,
+      );
+      expect(cleared.defaultGain, isNull);
+      expect(cleared.defaultOffset, isNull);
+      expect(cleared.defaultBinX, isNull);
+      expect(cleared.defaultBinY, isNull);
+      expect(cleared.defaultCoolingTempC, isNull);
+
+      // Clearing one field leaves its neighbours alone.
+      final onlyGain = applied.copyWith(clearGain: true);
+      expect(onlyGain.defaultGain, isNull);
+      expect(onlyGain.defaultOffset, 50);
+      expect(onlyGain.defaultBinX, 2);
+      expect(onlyGain.defaultCoolingTempC, -10);
+    });
+
     test('step order maps to display index', () {
       expect(OnboardingStep.welcome.order, 0);
       // The terminal step is now `nextSteps` (the post-creation "what's next"

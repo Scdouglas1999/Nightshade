@@ -37,6 +37,9 @@ class _FakeRemoteLibrary implements RemoteCalibrationLibrary {
   final List<String> retracted = [];
 
   @override
+  Future<bool> isConfigured() async => true;
+
+  @override
   Future<List<CalibrationMasterRecord>> queryCandidates(
     LightFrameContext context,
   ) async {
@@ -251,6 +254,41 @@ void main() {
     sensorWidth: 6248,
     sensorHeight: 4176,
   );
+
+  group('no configured hub', () {
+    CalibrationLibraryService serviceWithNoHub() => CalibrationLibraryService(
+      db: db,
+      flatLibraryDao: flatDao,
+      tagsDao: tagsDao,
+      remoteLibrary: HubCalibrationLibrary(
+        credentialsResolver: () async => null,
+      ),
+      sharedMasterDirResolver: () async => tmp.path,
+      now: () => now,
+    );
+
+    test('match warns that shared masters were not consulted', () async {
+      final result = await serviceWithNoHub().match(darkContext);
+
+      expect(
+        result.warnings.any((w) => w.contains('not consulted')),
+        isTrue,
+        reason: 'signed out must be distinguishable from "the hub had nothing"',
+      );
+    });
+
+    test('a reachable hub with no candidates does NOT warn', () async {
+      final result = await buildService(
+        _FakeRemoteLibrary([]),
+      ).match(darkContext);
+
+      expect(
+        result.warnings.any((w) => w.contains('not consulted')),
+        isFalse,
+        reason: 'the hub WAS consulted — it simply had nothing to offer',
+      );
+    });
+  });
 
   group('match folding', () {
     test('folds a remote dark into the ranking with provenance', () async {

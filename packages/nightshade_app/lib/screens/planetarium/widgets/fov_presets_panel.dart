@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
@@ -99,11 +100,18 @@ class FovPresetsPanel extends ConsumerWidget {
 
   Future<void> _showAddRigSheet(BuildContext context, WidgetRef ref) async {
     final existing = ref.read(fovPresetsProvider).presets.length;
+    // Seed the dialog from the rig that is actually connected so the common
+    // case ("overlay MY scope") needs no dropdown work at all. Either half may
+    // be null (no profile / no connected camera); the dialog then falls back to
+    // the bundled catalog for that half only.
+    final config = ref.read(opticalConfigProvider);
     final result = await showDialog<FovPreset>(
       context: context,
       builder: (context) => _AddRigDialog(
         colors: colors,
         nextColor: _kPresetColors[existing % _kPresetColors.length],
+        profileTelescope: telescopeSpecsFromOpticalConfig(config),
+        profileCamera: cameraSensorSpecsFromOpticalConfig(config),
       ),
     );
     if (result != null) {
@@ -301,19 +309,49 @@ class _ActivePresetControls extends StatelessWidget {
 /// Dialog for composing a new preset from the bundled telescope + camera
 /// catalog, with an optional reducer/Barlow multiplier. Shows a live FOV /
 /// image-scale preview so the user can confirm the rig before adding it.
+///
+/// When the active equipment profile can describe the connected rig
+/// ([profileTelescope] / [profileCamera]) it is offered as the first, selected
+/// entry of the matching dropdown, so "Add Rig" defaults to the user's own gear
+/// rather than to an arbitrary catalog entry.
 class _AddRigDialog extends StatefulWidget {
   final NightshadeColors colors;
   final Color nextColor;
 
-  const _AddRigDialog({required this.colors, required this.nextColor});
+  /// The active profile's telescope, or null when no profile supplies a focal
+  /// length.
+  final TelescopeSpecs? profileTelescope;
+
+  /// The connected camera's sensor, or null when no camera has reported one.
+  final CameraSensorSpecs? profileCamera;
+
+  const _AddRigDialog({
+    required this.colors,
+    required this.nextColor,
+    this.profileTelescope,
+    this.profileCamera,
+  });
 
   @override
   State<_AddRigDialog> createState() => _AddRigDialogState();
 }
 
 class _AddRigDialogState extends State<_AddRigDialog> {
-  late TelescopeSpecs _telescope = TelescopeSpecs.commonTelescopes.first;
-  late CameraSensorSpecs _camera = CameraSensorSpecs.commonCameras.first;
+  /// Dropdown entries. The profile-derived entry (when present) is prepended so
+  /// it is both the default and the top choice; the identical instance is held
+  /// in `_telescope` / `_camera` because these spec types use identity
+  /// equality, which `DropdownButton.value` matches on.
+  late final List<TelescopeSpecs> _telescopes = [
+    if (widget.profileTelescope != null) widget.profileTelescope!,
+    ...TelescopeSpecs.commonTelescopes,
+  ];
+  late final List<CameraSensorSpecs> _cameras = [
+    if (widget.profileCamera != null) widget.profileCamera!,
+    ...CameraSensorSpecs.commonCameras,
+  ];
+
+  late TelescopeSpecs _telescope = _telescopes.first;
+  late CameraSensorSpecs _camera = _cameras.first;
   double _multiplier = 1.0;
 
   static const List<(String, double)> _multipliers = [
@@ -323,6 +361,10 @@ class _AddRigDialogState extends State<_AddRigDialog> {
     ('1.5× Barlow', 1.5),
     ('2.0× Barlow', 2.0),
   ];
+
+  bool _isFromProfile(Object spec) =>
+      identical(spec, widget.profileTelescope) ||
+      identical(spec, widget.profileCamera);
 
   FovPreset _buildPreset() {
     return FovPreset.fromEquipment(
@@ -360,12 +402,14 @@ class _AddRigDialogState extends State<_AddRigDialog> {
                 value: _telescope,
                 dropdownColor: colors.surfaceAlt,
                 items: [
-                  for (final t in TelescopeSpecs.commonTelescopes)
+                  for (final t in _telescopes)
                     DropdownMenuItem(
                       value: t,
                       child: Text(
-                        '${t.name} · ${t.focalLengthMm.toStringAsFixed(0)}mm '
-                        'f/${t.focalRatio.toStringAsFixed(1)}',
+                        '${_isFromProfile(t) ? 'My rig — ' : ''}${t.name} · '
+                        '${t.focalLengthMm.toStringAsFixed(0)}mm'
+                        '${t.apertureMm > 0 ? ' f/${t.focalRatio.toStringAsFixed(1)}' : ''}',
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: colors.textPrimary),
                       ),
                     ),
@@ -379,12 +423,14 @@ class _AddRigDialogState extends State<_AddRigDialog> {
                 value: _camera,
                 dropdownColor: colors.surfaceAlt,
                 items: [
-                  for (final c in CameraSensorSpecs.commonCameras)
+                  for (final c in _cameras)
                     DropdownMenuItem(
                       value: c,
                       child: Text(
-                        '${c.name} · ${c.widthMm.toStringAsFixed(1)}×'
+                        '${_isFromProfile(c) ? 'My rig — ' : ''}${c.name} · '
+                        '${c.widthMm.toStringAsFixed(1)}×'
                         '${c.heightMm.toStringAsFixed(1)}mm',
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(color: colors.textPrimary),
                       ),
                     ),

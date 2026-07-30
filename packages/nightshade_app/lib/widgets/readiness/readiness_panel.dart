@@ -62,6 +62,8 @@ IconData readinessItemIcon(ReadinessItemId id) {
   switch (id) {
     case ReadinessItemId.criticalDevices:
       return LucideIcons.plug;
+    case ReadinessItemId.profileDevices:
+      return LucideIcons.unplug;
     case ReadinessItemId.location:
       return LucideIcons.mapPin;
     case ReadinessItemId.outputPath:
@@ -342,11 +344,24 @@ class _ReadinessRow extends StatelessWidget {
         final leading = Padding(
           // Optically align the dot with the first text line.
           padding: const EdgeInsets.only(top: NightshadeTokens.spaceXs + 1),
+          // `attention`, never `urgent`. A blocked readiness item is a STATIC
+          // configuration fact ("no plate solver installed") that stays blocked
+          // until the operator acts — not a live urgency like a sequencer
+          // recovery. `urgent` is a repeating pulse, and a repeating controller
+          // re-schedules a frame on every vsync for as long as it is painted, so
+          // an always-blocked checklist made the Equipment screen's status rail
+          // produce frames forever: measured at 231-251% CPU with the rail open
+          // versus 22-23% with it collapsed, on a static "No devices connected"
+          // screen with nothing visibly moving (the pulse is a slow opacity fade
+          // on a 7 px dot, invisible in a screenshot). `attention` gives a single
+          // 400 ms flash when an item's severity CHANGES and is silent
+          // otherwise — which is the actual signal, since a cue that never stops
+          // carries no information.
           child: StatusDot(
             color: levelColor,
-            variant: item.level == ReadinessLevel.blocked
-                ? StatusDotVariant.urgent
-                : StatusDotVariant.static,
+            variant: item.level == ReadinessLevel.ready
+                ? StatusDotVariant.static
+                : StatusDotVariant.attention,
           ),
         );
 

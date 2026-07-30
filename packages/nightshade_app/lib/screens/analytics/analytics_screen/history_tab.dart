@@ -13,7 +13,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _timeFilter = 'All Time';
-  String _targetFilter = 'All Targets';
+  String _targetFilter = kAllTargetsFilter;
 
   @override
   void dispose() {
@@ -26,7 +26,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     setState(() {
       _searchQuery = '';
       _timeFilter = 'All Time';
-      _targetFilter = 'All Targets';
+      _targetFilter = kAllTargetsFilter;
     });
   }
 
@@ -35,20 +35,27 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
     final colors = NightshadeColors.of(context);
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
+    // Target names for the filter predicate: the dropdown lists real target
+    // names, so matching a session needs its targetId resolved.
+    final targetNameById = {
+      for (final t
+          in ref.watch(allDbTargetsProvider).valueOrNull ?? const <DbTarget>[])
+        t.id: t.name,
+    };
     final l10n = context.l10n;
 
     // Get target list from sessions, fallback to default if loading/error
     final targetList = targetNamesAsync.when(
       data: (targets) => targets,
-      loading: () => const ['All Targets'],
-      error: (_, __) => const ['All Targets'],
+      loading: () => const [kAllTargetsFilter],
+      error: (_, __) => const [kAllTargetsFilter],
     );
 
     // Reset target filter if current selection no longer exists
     if (!targetList.contains(_targetFilter)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          setState(() => _targetFilter = 'All Targets');
+          setState(() => _targetFilter = kAllTargetsFilter);
         }
       });
     }
@@ -147,9 +154,13 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                                   ?.toLowerCase()
                                   .contains(_searchQuery.toLowerCase()) ??
                               false);
-                      // Target filter
-                      final targetMatch = _targetFilter == 'All Targets' ||
-                          session.name == _targetFilter;
+                      // Target filter (real targets — session names are
+                      // filterable through the search field above).
+                      final targetMatch = sessionMatchesTargetFilter(
+                        session,
+                        _targetFilter,
+                        targetNameById,
+                      );
                       // Time filter
                       bool timeMatch = true;
                       if (_timeFilter == 'This Month') {

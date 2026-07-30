@@ -26,6 +26,7 @@ const Map<String, String> _defaultSettings = {
   'plate_solve_timeout': '60',
   'plate_solve_search_radius': '30.0',
   'blind_solve': 'false',
+  'centering_sync_mount': 'true',
   'phd2_path': '',
   'phd2_host': 'localhost',
   'phd2_port': '4400',

@@ -482,14 +482,27 @@ class _FramingViewState extends ConsumerState<FramingView> {
     FramingTarget target,
     double rotation,
   ) async {
+    // Carry the DRAWN mosaic through. Previously the panels on the canvas were
+    // dropped and a single header went in at the grid centre, with nothing in
+    // the dialog or the confirmation to say the mosaic had been discarded.
+    final framingState = ref.read(framingProvider);
+    final panels = framingState.mosaicEnabled
+        ? framingState.mosaicPanels
+        : const <FramingMosaicPanel>[];
+
     final added = await addFramedTargetToExistingSequence(
       context: context,
       ref: ref,
       target: target,
       rotationDegrees: rotation,
+      mosaicPanels: panels,
     );
     if (added && mounted) {
-      context.showInfoSnackBar('Added ${target.name} to sequence');
+      context.showInfoSnackBar(
+        panels.length >= 2
+            ? 'Added ${panels.length} mosaic panels to sequence'
+            : 'Added ${target.name} to sequence',
+      );
     }
   }
 

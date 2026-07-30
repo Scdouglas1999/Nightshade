@@ -1,14 +1,20 @@
 // Part of ../planner_screen.dart -- extracted for maintainability.
 //
-// "Projects" tab: the multi-night campaign workspace. The former "Projects" and
+// "Projects" tab: the multi-night project workspace. The former "Projects" and
 // "Progress" tabs are unified here behind one clearly-labelled scope switch —
-// the active campaign's goal tracking vs. the global all-targets roll-up — so a
+// the active project's goal tracking vs. the global all-targets roll-up — so a
 // user reaches both from a single tab instead of two siblings that read the
 // same captured-frames / integration-goal data at different scopes.
+//
+// Terminology: this surface says "project" everywhere, because Project is what
+// the schema calls it. `Campaign` is a DIFFERENT entity in
+// nightshade_core/lib/src/models/campaign.dart (the durable per-(target,filter)
+// accepted-frame counter), so using "campaign" here for a Project would collide
+// head-on once that UI lands.
 part of '../planner_screen.dart';
 
 /// Which progress scope the consolidated "Projects" tab shows.
-enum _ProjectsScope { campaign, allTargets }
+enum _ProjectsScope { thisProject, allTargets }
 
 class _ProjectsTab extends StatefulWidget {
   const _ProjectsTab();
@@ -18,7 +24,7 @@ class _ProjectsTab extends StatefulWidget {
 }
 
 class _ProjectsTabState extends State<_ProjectsTab> {
-  _ProjectsScope _scope = _ProjectsScope.campaign;
+  _ProjectsScope _scope = _ProjectsScope.thisProject;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +46,8 @@ class _ProjectsTabState extends State<_ProjectsTab> {
             child: SegmentedButton<_ProjectsScope>(
               segments: const [
                 ButtonSegment(
-                  value: _ProjectsScope.campaign,
-                  label: Text('This Campaign'),
+                  value: _ProjectsScope.thisProject,
+                  label: Text('This Project'),
                   icon: Icon(LucideIcons.folderKanban),
                 ),
                 ButtonSegment(
@@ -70,7 +76,7 @@ class _ProjectsTabState extends State<_ProjectsTab> {
           ),
         ),
         Expanded(
-          child: _scope == _ProjectsScope.campaign
+          child: _scope == _ProjectsScope.thisProject
               ? const ProjectsTabContent()
               : const ProgressTabContent(),
         ),

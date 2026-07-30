@@ -44,6 +44,17 @@ class EquipmentHealthInsight {
     required this.message,
     required this.severity,
   });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EquipmentHealthInsight &&
+          other.title == title &&
+          other.message == message &&
+          other.severity == severity;
+
+  @override
+  int get hashCode => Object.hash(title, message, severity);
 }
 
 class EquipmentHealthReport {
@@ -68,6 +79,26 @@ class EquipmentHealthReport {
     required this.insights,
     this.assessed = true,
   });
+
+  /// Value equality so `equipmentHealthReportProvider` does not notify (and the
+  /// equipment screen's status rail does not rebuild) every time an unrelated
+  /// device-state tick recomputes an identical report. Without this every
+  /// recompute produced a new object identity and Riverpod treated it as a
+  /// change.
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! EquipmentHealthReport) return false;
+    if (other.score != score || other.assessed != assessed) return false;
+    if (other.insights.length != insights.length) return false;
+    for (var i = 0; i < insights.length; i++) {
+      if (other.insights[i] != insights[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(score, assessed, Object.hashAll(insights));
 }
 
 /// Connected-device descriptor used by [EquipmentHealthService.buildSnapshots]
@@ -147,9 +178,20 @@ class EquipmentHealthService {
     return byId.values.toList(growable: false);
   }
 
+  /// Points deducted when a device the active profile assigns is not connected.
+  ///
+  /// Sized so a single offline profile device cannot leave the score in the
+  /// "Excellent" band (>= 85). The observed failure this guards: a profile whose
+  /// guider never connected on launch still scored `100 - Excellent` in green
+  /// because the degradation score only subtracted for guiding/HFR drift, failed
+  /// exposures, and unhealthy HEARTBEATS — and a device that never connected has
+  /// no heartbeat, so it deducted nothing.
+  static const double offlineProfileDevicePenalty = 20.0;
+
   EquipmentHealthReport analyze({
     required List<ImagingSession> sessions,
     required List<DeviceHealthSnapshot> deviceHealth,
+    List<String> offlineProfileDevices = const <String>[],
   }) {
     final recentSessions = [...sessions]
       ..sort((a, b) => b.startTime.compareTo(a.startTime));
@@ -227,9 +269,30 @@ class EquipmentHealthService {
       );
     }
 
+    if (offlineProfileDevices.isNotEmpty) {
+      score -= offlineProfileDevicePenalty;
+      final names = offlineProfileDevices.join(', ');
+      insights.add(
+        EquipmentHealthInsight(
+          title: offlineProfileDevices.length == 1
+              ? 'Profile device not connected'
+              : 'Profile devices not connected',
+          message:
+              'Your equipment profile assigns $names but '
+              '${offlineProfileDevices.length == 1 ? 'it is' : 'they are'} not '
+              'connected. Reconnect before an unattended run — the rig cannot '
+              'use hardware it never reached.',
+          severity: EquipmentHealthSeverity.critical,
+        ),
+      );
+    }
+
     // No history AND no devices to watch means nothing could have been
     // measured — say so instead of implying a clean bill of health.
-    final assessed = recentSessions.isNotEmpty || deviceHealth.isNotEmpty;
+    final assessed =
+        recentSessions.isNotEmpty ||
+        deviceHealth.isNotEmpty ||
+        offlineProfileDevices.isNotEmpty;
 
     if (insights.isEmpty) {
       insights.add(

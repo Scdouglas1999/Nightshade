@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    show meanRaHours;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -76,8 +81,12 @@ Future<void> _confirmForceRelease(
 /// reboots and OS temp-dir sweeps (the old `Directory.systemTemp` default was a
 /// data-loss footgun: panel masters and the stitched mosaic could vanish the
 /// moment the OS cleaned temp).
+///
+/// Bounded: a platform channel that never answers must become a visible error
+/// on the screen, not a spinner that outlives the session.
 final mosaicArtifactsBaseDirProvider = FutureProvider<String>((ref) async {
-  final supportDir = await getApplicationSupportDirectory();
+  final supportDir = await getApplicationSupportDirectory()
+      .timeout(const Duration(seconds: 10));
   return p.join(supportDir.path, 'nightshade_mosaic');
 });
 
@@ -92,85 +101,120 @@ final mosaicArtifactsBaseDirProvider = FutureProvider<String>((ref) async {
 /// Design-system pure: every colour, gap, and type style comes from
 /// `nightshade_ui` tokens; the stitched-master hero is the morning-report widget
 /// reused verbatim.
-class MosaicProjectScreen extends ConsumerWidget {
+class MosaicProjectScreen extends ConsumerStatefulWidget {
   /// The `mosaic_projects.id` to review.
   final int projectId;
 
-  /// Builds a panel's per-panel master FITS base path. When omitted the screen
-  /// derives a DURABLE path under `<applicationSupport>/nightshade_mosaic`
-  /// (resolved via [mosaicArtifactsBaseDirProvider]); the app/router can inject
-  /// an explicit builder.
-  final String Function(MosaicProjectPanel panel)? panelOutputPathBuilder;
-
-  /// Builds the directory the stitched mosaic artifacts land in. When omitted
-  /// the screen derives a DURABLE per-project subfolder under
-  /// `<applicationSupport>/nightshade_mosaic`.
-  final String Function(MosaicProject project)? stitchOutputDirectory;
+  /// Overrides the DURABLE artifacts base directory panel masters and stitched
+  /// output are written under. When omitted the screen resolves
+  /// `<applicationSupport>/nightshade_mosaic` via
+  /// [mosaicArtifactsBaseDirProvider]; tests pass a temp directory.
+  ///
+  /// A plain VALUE (not a builder closure) on purpose — it becomes part of the
+  /// controller's family key, and a closure there re-keys the family on every
+  /// rebuild (see [MosaicProjectControllerArgs]).
+  final String? artifactsBaseDir;
 
   const MosaicProjectScreen({
     super.key,
     required this.projectId,
-    this.panelOutputPathBuilder,
-    this.stitchOutputDirectory,
+    this.artifactsBaseDir,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MosaicProjectScreen> createState() =>
+      _MosaicProjectScreenState();
+}
+
+class _MosaicProjectScreenState extends ConsumerState<MosaicProjectScreen> {
+  /// The controller key this screen visit has already refreshed. The family is
+  /// cached (one controller per project + artifacts dir), so re-entering the
+  /// screen would otherwise render whatever the last visit loaded — panels
+  /// captured or integrated in the meantime would be invisible. Exactly one
+  /// re-read per visit, never a poll.
+  MosaicProjectControllerArgs? _refreshedFor;
+
+  int get projectId => widget.projectId;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     if (ref.watch(backendProvider) is NetworkBackend) {
-      return Scaffold(
-        backgroundColor: colors.background,
-        body: const SafeArea(
-          child: EmptyState(
-            icon: NightshadeIcons.device,
-            title: 'Open this mosaic project on the imaging host',
-            body: 'Mosaic project records, panel masters, and stitched '
-                'artifacts live on the imaging computer. Remote project '
-                'control is unavailable in this release.',
-          ),
+      return _chrome(
+        context,
+        colors,
+        child: const EmptyState(
+          icon: NightshadeIcons.device,
+          title: 'Open this mosaic project on the imaging host',
+          body: 'Mosaic project records, panel masters, and stitched '
+              'artifacts live on the imaging computer. Remote project '
+              'control is unavailable in this release.',
         ),
       );
     }
 
     // Resolve the DURABLE artifacts base before constructing the controller, so
     // panel/stitch FITS never land in (and get swept from) the system temp dir.
-    // Explicit builders bypass the async resolution entirely.
-    final hasExplicitBuilders =
-        panelOutputPathBuilder != null && stitchOutputDirectory != null;
-    if (hasExplicitBuilders) {
-      return _scaffold(
-        context,
-        ref,
-        colors,
-        panelOutputPathBuilder!,
-        stitchOutputDirectory!,
-      );
+    // An injected base bypasses the async resolution entirely.
+    final injectedBase = widget.artifactsBaseDir;
+    if (injectedBase != null) {
+      return _scaffold(context, ref, colors, injectedBase);
     }
 
     final baseDir = ref.watch(mosaicArtifactsBaseDirProvider);
     return baseDir.when(
-      loading: () => Scaffold(
-        backgroundColor: colors.background,
-        body: const SafeArea(
-          child: Center(child: CircularProgressIndicator()),
-        ),
-      ),
-      error: (e, _) => Scaffold(
-        backgroundColor: colors.background,
-        body: SafeArea(
-          child: EmptyState(
-            icon: NightshadeIcons.warning,
-            title: 'Mosaic storage unavailable',
-            body: 'Could not resolve a durable artifacts directory: $e',
+      loading: () => _chrome(
+        context,
+        colors,
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: NightshadeTokens.spaceMd),
+              Text('Preparing mosaic storage…'),
+            ],
           ),
         ),
       ),
-      data: (base) => _scaffold(
+      error: (e, _) => _chrome(
         context,
-        ref,
         colors,
-        panelOutputPathBuilder ?? _durablePanelOutputPathBuilder(base),
-        stitchOutputDirectory ?? _durableStitchOutputDirectory(base),
+        child: EmptyState(
+          icon: NightshadeIcons.warning,
+          title: 'Mosaic storage unavailable',
+          body: 'Could not resolve a durable artifacts directory, so panel '
+              'masters and the stitched mosaic have nowhere to live: $e',
+          action: NightshadeButton(
+            label: 'Try again',
+            icon: NightshadeIcons.refresh,
+            variant: ButtonVariant.outline,
+            onPressed: () => ref.invalidate(mosaicArtifactsBaseDirProvider),
+          ),
+        ),
+      ),
+      data: (base) => _scaffold(context, ref, colors, base),
+    );
+  }
+
+  /// The screen shell every state shares: background, safe area, and — first —
+  /// a back affordance. Whatever goes wrong below, the operator can always
+  /// leave this screen instead of being stranded on it.
+  Widget _chrome(
+    BuildContext context,
+    NightshadeColors colors, {
+    required Widget child,
+  }) {
+    return Scaffold(
+      backgroundColor: colors.background,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _BackBar(colors: colors),
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }
@@ -179,45 +223,97 @@ class MosaicProjectScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     NightshadeColors colors,
-    String Function(MosaicProjectPanel panel) panelBuilder,
-    String Function(MosaicProject project) stitchBuilder,
+    String artifactsBase,
   ) {
+    // VALUE-comparable family key: the same screen rebuilding must resolve the
+    // SAME controller, or every frame spawns a new one (and a new load).
     final args = MosaicProjectControllerArgs(
       projectId: projectId,
-      panelOutputPathBuilder: panelBuilder,
-      stitchOutputDirectory: stitchBuilder,
+      artifactsBaseDir: artifactsBase,
     );
     final state = ref.watch(mosaicProjectControllerProvider(args));
     final controller = ref.read(mosaicProjectControllerProvider(args).notifier);
+    _refreshOnEntry(args);
 
     return Scaffold(
       backgroundColor: colors.background,
       body: SafeArea(
-        child: _body(context, state, controller),
+        child: _body(context, colors, state, controller),
       ),
     );
   }
 
+  /// Re-read the project ONCE per screen visit when the controller was already
+  /// cached from an earlier visit (a fresh controller is loading already).
+  /// Panels captured, integrated or claimed while the operator was elsewhere
+  /// then show up instead of a stale snapshot.
+  void _refreshOnEntry(MosaicProjectControllerArgs args) {
+    if (_refreshedFor == args) return;
+    _refreshedFor = args;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final state = ref.read(mosaicProjectControllerProvider(args));
+      // Only when it is showing settled data: never interrupt the first load,
+      // an in-flight action, or a not-found result.
+      if (state.project == null || state.isLoading || state.isBusy) return;
+      unawaited(
+          ref.read(mosaicProjectControllerProvider(args).notifier).load());
+    });
+  }
+
   Widget _body(
     BuildContext context,
+    NightshadeColors colors,
     MosaicProjectState state,
     MosaicProjectController controller,
   ) {
     if (state.isLoading && state.project == null) {
-      return const Center(child: CircularProgressIndicator());
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BackBar(colors: colors),
+          const Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: NightshadeTokens.spaceMd),
+                  Text('Loading mosaic project…'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
     }
     final project = state.project;
     if (project == null) {
-      return EmptyState(
-        icon: NightshadeIcons.grid,
-        title: 'Mosaic project not found',
-        body: state.error ?? 'No mosaic project with id $projectId.',
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _BackBar(colors: colors),
+          Expanded(
+            child: EmptyState(
+              icon: NightshadeIcons.grid,
+              title: 'Mosaic project not found',
+              body: state.error ?? 'No mosaic project with id $projectId.',
+              action: NightshadeButton(
+                label: 'Try again',
+                icon: NightshadeIcons.refresh,
+                variant: ButtonVariant.outline,
+                onPressed: controller.load,
+              ),
+            ),
+          ),
+        ],
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _BackBar(colors: colors),
         MosaicProjectHeader(project: project, state: state),
         if (state.error != null)
           _ErrorBanner(message: state.error!, onDismiss: controller.clearError),
@@ -256,6 +352,11 @@ class MosaicProjectScreen extends ConsumerWidget {
                   collaborative: controller.canCollaborate && state.isPublished,
                   collaborativeBusy: state.isBusy,
                   onClaimPanel: controller.claimPanel,
+                  // WS2 self-release: whoever holds the baton hands it back
+                  // themselves. Not gated on role and not confirm-guarded — it
+                  // is reversible (re-claim) and the hub only accepts it from
+                  // the claim's own account.
+                  onReleasePanel: controller.releasePanel,
                   // WS2 owner/admin recovery: evict a squatting claim or a
                   // poisoned upload back to pending. Only the owner path gets the
                   // callback (the grid hides the button when it is null), so a
@@ -288,25 +389,61 @@ class MosaicProjectScreen extends ConsumerWidget {
       ],
     );
   }
+}
 
-  /// Per-panel master FITS base path under the DURABLE [base] artifacts dir:
-  /// `<base>/project_<id>/panel_<index>.fits`.
-  static String Function(MosaicProjectPanel panel)
-      _durablePanelOutputPathBuilder(
-    String base,
-  ) =>
-          (panel) => p.join(
-                base,
-                'project_${panel.projectId}',
-                'panel_${panel.panelIndex}.fits',
-              );
+/// The slim "leave this screen" bar the mosaic project view carries in EVERY
+/// state — loading, loaded, not-found, and storage-failure alike.
+///
+/// The review screen is always reached by a push (the projects list, the
+/// collaborative detail view, or a deep link that builds the list beneath it),
+/// and before this existed a failed/slow load rendered a bare spinner with no
+/// app chrome at all: the operator had no way back and had to restart the app.
+class _BackBar extends StatelessWidget {
+  final NightshadeColors colors;
 
-  /// Per-project stitched-mosaic artifacts directory under the DURABLE [base]:
-  /// `<base>/project_<id>`.
-  static String Function(MosaicProject project) _durableStitchOutputDirectory(
-    String base,
-  ) =>
-      (project) => p.join(base, 'project_${project.id}');
+  const _BackBar({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: NightshadeTokens.spaceXs,
+      ),
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(
+              NightshadeIcons.chevronLeft,
+              size: NightshadeTokens.iconMd,
+            ),
+            color: colors.textSecondary,
+            tooltip: 'Back',
+            onPressed: () => _leave(context),
+          ),
+          Text(
+            'Mosaic projects',
+            style:
+                NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pop when this screen sits on a stack (the normal case). A deep link that
+  /// left nothing beneath it falls back to the projects list, so the button is
+  /// never inert.
+  void _leave(BuildContext context) {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    context.go('/mosaic');
+  }
 }
 
 /// The project header: name, target region (RA/Dec), NxM grid, and lifecycle
@@ -331,7 +468,7 @@ class MosaicProjectHeader extends StatelessWidget {
       title: project.name.isEmpty ? 'Mosaic project' : project.name,
       subtitle: [
         '${project.cols}x${project.rows} grid',
-        '${project.totalPanels} panels',
+        _panelCountLabel(project, state.panels),
         if (center != null) center,
         '$integrated integrated',
       ].join('  ·  '),
@@ -344,17 +481,39 @@ class MosaicProjectHeader extends StatelessWidget {
     );
   }
 
+  /// The panel-count claim, counted from the panels that actually EXIST.
+  ///
+  /// `project.totalPanels` is `rows * cols`, but a project created with cells
+  /// disabled in the wizard persists a sparse panel set — so the header used to
+  /// announce "9 panels" directly above a grid of 8 and an action row reading
+  /// "3 of 8 panels integrated". When the two disagree, say both: the grid is
+  /// still NxM, but only some of its cells are planned.
+  static String _panelCountLabel(
+    MosaicProject project,
+    List<MosaicProjectPanel> panels,
+  ) {
+    final actual = panels.length;
+    final grid = project.totalPanels;
+    if (actual == grid) return '$grid panels';
+    return '$actual of $grid panels';
+  }
+
   /// The mosaic's centre as a compact "RA · Dec" string, derived from the panel
-  /// centres (mean), or null when there are no panels.
+  /// centres, or null when there are no panels (or the RA mean is undefined).
+  ///
+  /// RA is averaged with [meanRaHours] — a CIRCULAR mean. A plain arithmetic
+  /// mean is wrong for an angle: a mosaic straddling RA 0h has panels at e.g.
+  /// 23.97h and 0.03h, which average to 12.0h and made this header state, with
+  /// full confidence, a centre on the opposite side of the sky. Dec has no
+  /// wraparound (it is bounded by ±90°), so it stays a plain mean.
   static String? _centerLabel(List<MosaicProjectPanel> panels) {
     if (panels.isEmpty) return null;
-    var ra = 0.0;
+    final ra = meanRaHours(panels.map((panel) => panel.centerRa));
+    if (ra == null) return null;
     var dec = 0.0;
     for (final panel in panels) {
-      ra += panel.centerRa;
       dec += panel.centerDec;
     }
-    ra /= panels.length;
     dec /= panels.length;
     return '${CoordinateParser.formatRaHms(ra)} '
         '${CoordinateParser.formatDecDms(dec)}';
@@ -481,8 +640,10 @@ class MosaicProjectActions extends StatelessWidget {
 ///
 /// State machine rendered from the durable project + live `collab_status`:
 ///  * not yet published  → "Publish to hub" (becomes claimable work items);
-///  * published          → hub id + role + status, claim-all / upload-all, and
-///    a "Refresh status" poll control;
+///  * published          → hub id + role + status, bulk claim (everything
+///    pending for the owner, a bounded batch for a participant so one rig
+///    cannot lock a shared mosaic in a tap) / upload-all, the hub's own claim
+///    expiry, and a "Refresh status" poll control;
 ///  * owner + assembling  → "Assemble + publish" (pull every panel, stitch,
 ///    push the finished mosaic to the swarm);
 ///  * complete            → "Download finished mosaic".
@@ -543,13 +704,13 @@ class MosaicCollaborativeSection extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 NightshadeButton(
-                  label: 'Claim all pending',
+                  label: _bulkClaimLabel(isOwner, controller.bulkClaimCount),
                   icon: NightshadeIcons.download,
                   variant: ButtonVariant.outline,
                   isLoading: state.isClaiming,
-                  onPressed: (state.isBusy || state.unclaimedPanels.isEmpty)
+                  onPressed: (state.isBusy || controller.bulkClaimCount == 0)
                       ? null
-                      : () => controller.claimAllPending(),
+                      : () => controller.claimPendingBatch(),
                 ),
                 NightshadeButton(
                   label: 'Upload all integrated',
@@ -597,11 +758,52 @@ class MosaicCollaborativeSection extends StatelessWidget {
               style: NightshadeTypography.captionSm
                   .copyWith(color: colors.textMuted),
             ),
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              _claimHoldCaption(context, state),
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textMuted),
+            ),
           ],
         ],
       ),
     );
   }
+}
+
+/// The bulk-claim action label. The owner of the mosaic claims everything still
+/// pending; a participant takes a bounded batch, and the label says exactly how
+/// many panels the tap will take rather than implying "all of them".
+String _bulkClaimLabel(bool isOwner, int count) {
+  if (isOwner) return 'Claim all pending';
+  return count == 1 ? 'Claim 1 panel' : 'Claim $count panels';
+}
+
+/// The claim-hold caption: what holding a claim commits the operator to. Once
+/// panels are held it shows the HUB's own expiry for them (never a client-side
+/// copy of the TTL), so "how long am I holding this?" has a real answer, and it
+/// always points at releasing a panel that will not be shot.
+String _claimHoldCaption(BuildContext context, MosaicProjectState state) {
+  final expiresAt = state.claimExpiresAt;
+  if (expiresAt == null) {
+    return 'A claimed panel is held for your rig until you release it or the '
+        'hub claim expires.';
+  }
+  return 'Your claim is held until ${_formatClaimExpiry(context, expiresAt)} — '
+      'release any panel you are not going to shoot.';
+}
+
+/// Format a hub claim expiry in the operator's local time, adding the date when
+/// the deadline falls on another day.
+String _formatClaimExpiry(BuildContext context, DateTime expiresAt) {
+  final local = expiresAt.toLocal();
+  final l10n = MaterialLocalizations.of(context);
+  final time = l10n.formatTimeOfDay(TimeOfDay.fromDateTime(local));
+  final now = DateTime.now();
+  final sameDay = local.year == now.year &&
+      local.month == now.month &&
+      local.day == now.day;
+  return sameDay ? time : '${l10n.formatShortDate(local)} $time';
 }
 
 /// The published-mosaic summary line: hub id, this device's role, and the live

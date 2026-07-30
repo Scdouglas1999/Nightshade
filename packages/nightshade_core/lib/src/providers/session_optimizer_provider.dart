@@ -376,8 +376,9 @@ final plannerTargetIntegrationPreviewProvider = FutureProvider.autoDispose
       final settings = await ref.watch(appSettingsProvider.future);
       if (settings.latitude == 0.0 && settings.longitude == 0.0) return null;
 
+      // An empty list is a wheel-less rig, not missing data — the service
+      // estimates an unfiltered night for it.
       final filters = ref.watch(effectiveFiltersProvider);
-      if (filters.isEmpty) return null;
 
       late final ({DateTime start, DateTime end, TwilightTimes twilight})
       window;

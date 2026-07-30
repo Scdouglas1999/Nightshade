@@ -68,10 +68,13 @@ class _SpinningIconState extends State<_SpinningIcon>
   @override
   void initState() {
     super.initState();
+    // Started by the OnScreenAnimationGate in build(), not here: a repeat that
+    // outlives visibility schedules a frame on every vsync and stops the whole
+    // app from idling.
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat();
+    );
   }
 
   @override
@@ -82,18 +85,22 @@ class _SpinningIconState extends State<_SpinningIcon>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Transform.rotate(
-          angle: _controller.value * 2 * 3.14159,
-          child: Icon(
-            widget.icon,
-            size: widget.size,
-            color: widget.color,
-          ),
-        );
-      },
+    return OnScreenAnimationGate(
+      controller: _controller,
+      repeating: true,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _controller.value * 2 * 3.14159,
+            child: Icon(
+              widget.icon,
+              size: widget.size,
+              color: widget.color,
+            ),
+          );
+        },
+      ),
     );
   }
 }

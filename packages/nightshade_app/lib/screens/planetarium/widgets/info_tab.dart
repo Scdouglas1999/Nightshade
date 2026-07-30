@@ -12,6 +12,7 @@ import '../../../services/mount_command_service.dart';
 import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../framing/add_target_to_sequence_flow.dart';
+import '../providers/sequenced_object_ids_provider.dart';
 import 'fov_presets_panel.dart';
 import 'sidebar_shared_widgets.dart';
 
@@ -83,6 +84,9 @@ class InfoTab extends ConsumerWidget {
                 colors: colors,
               ),
               const SizedBox(height: 8),
+              InSequenceBadge(colors: colors, object: obj),
+              AddToTargetQueueButton(colors: colors, object: obj),
+              const SizedBox(height: 8),
               FovPresetsPanel(colors: colors, selectedObject: selectedObject),
             ],
           ),
@@ -101,7 +105,7 @@ class InfoTab extends ConsumerWidget {
             // suggestion (so Framing can round-trip into Smart Night), set it
             // on the framing provider, then route to the Framing screen.
             final coords = obj.coordinates;
-            final visibility = ref.read(selectedObjectProvider).visibility;
+            final visibility = ref.read(selectedObjectVisibilityProvider);
             final meta = celestialObjectMetadata(obj);
             final target = await catalogTargetSuggestion(
               ref: ref,
@@ -140,7 +144,7 @@ class InfoTab extends ConsumerWidget {
           },
           onAddToTargets: () async {
             final coords = obj.coordinates;
-            final visibility = ref.read(selectedObjectProvider).visibility;
+            final visibility = ref.read(selectedObjectVisibilityProvider);
             final meta = celestialObjectMetadata(obj);
             final target = await catalogTargetSuggestion(
               ref: ref,
@@ -170,7 +174,7 @@ class InfoTab extends ConsumerWidget {
 
     // Fallback for coordinates-only selection (rare case)
     final coords = selectedObject.coordinates;
-    final altAz = selectedObject.currentAltAz;
+    final altAz = ref.watch(selectedObjectAltAzProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -232,6 +236,118 @@ class InfoTab extends ConsumerWidget {
           FovPresetsPanel(colors: colors, selectedObject: selectedObject),
         ],
       ),
+    );
+  }
+}
+
+/// "In tonight's sequence" marker for the selected sky object.
+///
+/// The sky itself is still blind to the sequence — drawing a third per-DSO
+/// marker on the canvas needs a renderer change (a `sequencedObjectIds` set on
+/// `SkyCanvasPainter`, see [sequencedObjectIdsProvider]) — but the object panel
+/// can answer "am I already imaging this?" today, which is the question that
+/// otherwise sends the user to the sequencer to check.
+///
+/// Renders nothing when the object is not planned, so it costs no space in the
+/// common case.
+class InSequenceBadge extends ConsumerWidget {
+  final NightshadeColors colors;
+  final CelestialObject object;
+
+  const InSequenceBadge({
+    super.key,
+    required this.colors,
+    required this.object,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final planned = ref.watch(
+      sequencedObjectIdsProvider.select(
+        (ids) => _matches(ids, object),
+      ),
+    );
+    if (!planned) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(LucideIcons.listOrdered, size: 13, color: colors.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              "In tonight's sequence",
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                fontWeight: FontWeight.w600,
+                color: colors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Mirrors the renderer's lenient DSO matching (id, name, Messier number,
+  /// NGC/IC designation) so this badge and a future canvas marker agree.
+  static bool _matches(Set<String> ids, CelestialObject object) {
+    if (ids.isEmpty) return false;
+    if (ids.contains(object.id) || ids.contains(object.name)) return true;
+    if (object is DeepSkyObject) {
+      final messier = object.isMessier ? object.messierNumber : null;
+      if (messier != null && ids.contains(messier)) return true;
+      final ngcIc = object.ngcIcDesignation;
+      if (ngcIc != null && ids.contains(ngcIc)) return true;
+    }
+    return false;
+  }
+}
+
+/// "Add to target queue" action for the selected sky object.
+///
+/// The target queue ([targetQueueProvider]) is the shortlist the sequencer
+/// Builder's Target Queue panel renders and drags onto the instruction tree, so
+/// this is the light-weight counterpart to "Add to sequence": it records the
+/// intent without authoring any nodes.
+///
+/// Reflects membership rather than blindly appending — a wishlist that silently
+/// grows a second M31 every time the user re-taps a bright object is worse than
+/// no button.
+class AddToTargetQueueButton extends ConsumerWidget {
+  final NightshadeColors colors;
+  final CelestialObject object;
+
+  const AddToTargetQueueButton({
+    super.key,
+    required this.colors,
+    required this.object,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final name = object.name.isNotEmpty ? object.name : object.id;
+    final queued = ref.watch(
+      targetQueueProvider.select(
+        (queue) => queue.targets.any(
+          (t) => t.displayName.toLowerCase() == name.toLowerCase(),
+        ),
+      ),
+    );
+
+    return NightshadeButton(
+      key: const ValueKey('info_tab_add_to_target_queue'),
+      label: queued ? 'In target queue' : 'Add to target queue',
+      icon: queued ? NightshadeIcons.check : LucideIcons.listChecks,
+      variant: ButtonVariant.outline,
+      size: ButtonSize.small,
+      onPressed: queued
+          ? null
+          : () {
+              ref.read(targetQueueProvider.notifier).addTarget(object);
+              context.showSuccessSnackBar('Added $name to the target queue');
+            },
     );
   }
 }

@@ -664,9 +664,7 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
       );
     }
 
-    final fitsCapturedAt = fits?.dateObs == null
-        ? null
-        : DateTime.tryParse(fits!.dateObs!);
+    final fitsCapturedAt = tryParseUtcTimestamp(fits?.dateObs);
     final capturedAt = capturedImage?.capturedAt ?? fitsCapturedAt;
     if (capturedAt == null) {
       throw StateError(

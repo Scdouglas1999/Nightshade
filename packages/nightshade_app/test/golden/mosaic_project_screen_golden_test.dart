@@ -246,16 +246,13 @@ Future<File> _capture(
               child: SizedBox(
                 width: width,
                 height: height,
-                // Inject explicit (temp) path builders so the screen bypasses
-                // the async durable-artifacts-dir resolution
+                // Inject an explicit (temp) artifacts dir so the screen
+                // bypasses the async durable-artifacts-dir resolution
                 // (getApplicationSupportDirectory is unavailable in a widget
                 // test); the golden only renders the loaded review chrome.
                 child: MosaicProjectScreen(
                   projectId: projectId,
-                  panelOutputPathBuilder: (panel) =>
-                      '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
-                  stitchOutputDirectory: (project) =>
-                      '/tmp/mosaic/${project.id}',
+                  artifactsBaseDir: '/tmp/mosaic',
                 ),
               ),
             ),

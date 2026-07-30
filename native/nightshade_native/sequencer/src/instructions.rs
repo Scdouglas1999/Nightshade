@@ -215,6 +215,21 @@ impl InstructionResult {
         node_name: &str,
         ctx: &InstructionContext,
     ) -> NodeStatus {
+        // Publish the reason BEFORE the recovery handler consumes `self`. It is
+        // the only copy: the node tree hands the executor a bare `NodeStatus`,
+        // so without this the message reached the log and nowhere else, and the
+        // run's terminal event, toast and persisted `errorMessages` all fell
+        // back to the hardcoded "Sequence failed".
+        if matches!(self.status, NodeStatus::Failure) {
+            if let (Some(message), Some(event_tx)) =
+                (self.message.as_deref(), ctx.event_tx.as_ref())
+            {
+                let _ = event_tx.send(crate::executor::ExecutorEvent::InstructionFailed {
+                    node_name: node_name.to_string(),
+                    message: message.to_string(),
+                });
+            }
+        }
         self.log_and_get_status_with_recovery(
             node_name,
             ctx.recovery_request_tx.as_ref(),
@@ -952,9 +967,34 @@ async fn wait_for_filterwheel_idle(
     }
 }
 
+/// Claim `path` for this caller by creating it, failing if it already exists.
+///
+/// `exists()`-then-return left a window in which two concurrent frames both
+/// saw a free path and both wrote to it; `create_new` collapses the check and
+/// the claim into one filesystem operation.
+fn claim_save_path(path: &std::path::Path) -> std::io::Result<()> {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map(|_| ())
+}
+
 fn ensure_unique_save_path(path: PathBuf) -> PathBuf {
-    if !path.exists() {
-        return path;
+    match claim_save_path(&path) {
+        Ok(()) => return path,
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => {
+            // Not a collision — the directory is unwritable, full, or gone.
+            // Suffixing cannot help; hand the path back so the FITS save
+            // surfaces the real error.
+            tracing::warn!(
+                "[FS] could not claim save path {}: {}. Handing it to the writer unclaimed.",
+                path.display(),
+                e
+            );
+            return path;
+        }
     }
 
     // parent and stem fallbacks here are defensive — by the time
@@ -995,10 +1035,18 @@ fn ensure_unique_save_path(path: PathBuf) -> PathBuf {
             _ => format!("{}_{:03}", stem, suffix),
         };
         let candidate = parent.join(candidate_name);
-        if !candidate.exists() {
-            return candidate;
+        match claim_save_path(&candidate) {
+            Ok(()) => return candidate,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => suffix += 1,
+            Err(e) => {
+                tracing::warn!(
+                    "[FS] could not claim save path {}: {}. Handing it to the writer unclaimed.",
+                    candidate.display(),
+                    e
+                );
+                return candidate;
+            }
         }
-        suffix += 1;
     }
 }
 
@@ -1509,6 +1557,7 @@ async fn apply_center_rotation(
 async fn wait_for_meridian_flip_window(
     ctx: &InstructionContext,
     exposure_secs: f64,
+    control: &BurstControl<'_>,
 ) -> Option<InstructionResult> {
     /// Margin between predicted frame end and predicted trigger fire.
     const SAFETY_MARGIN_SECS: f64 = 30.0;
@@ -1522,25 +1571,43 @@ async fn wait_for_meridian_flip_window(
         if let Some(result) = ctx.check_cancelled() {
             return Some(result);
         }
-        let (threshold_min, ha, flipped, pier) = {
+        let (threshold_min, polled_ha, flipped, pier, trigger_has_target) = {
             let state = lock.read().await;
             (
                 state.meridian_flip_minutes_past,
                 state.current_hour_angle,
                 state.has_flipped_this_target,
                 state.pier_side,
+                state.target_ra.is_some() && state.target_dec.is_some(),
             )
         };
-        // No MinutesPastMeridian trigger armed / already flipped / no HA yet
-        // (mount poll hasn't run) — nothing predictable to gate on.
+        // No MinutesPastMeridian trigger armed / already flipped — nothing
+        // predictable to gate on.
         let threshold_min = threshold_min?;
         if flipped {
             return None;
         }
-        let ha = ha?;
-        // Mirror the trigger's pre-flip-side logic: pier East is the
-        // post-flip side, where the trigger can no longer fire.
-        if matches!(pier, Some(crate::PierSide::East)) {
+        // Mirror the trigger's own precondition: a flip is meaningless without
+        // a target, and the trigger returns false outright in that case.
+        if !trigger_has_target {
+            return None;
+        }
+        let ha = current_target_hour_angle(ctx).or(polled_ha)?;
+        // Mirror the trigger's pre-flip-side logic exactly. Pier East is the
+        // post-flip side, where the trigger can no longer fire; on West (and
+        // on Unknown / unreported, which is what a simulator and many mounts
+        // give) it additionally requires a POSITIVE hour angle — i.e. the
+        // target is west of the meridian.
+        //
+        // Only the East case was mirrored here before. A target EAST of the
+        // meridian (negative HA) with unreported pier side could therefore
+        // hold: `fire_in_secs` came out non-positive from a stale HA left over
+        // by an earlier run (the mount poll only runs while a sequence is
+        // executing, so the very first frame of a run reads the previous run's
+        // value), the gate logged "meridian flip fires in ~0s", and every
+        // light frame in the sequence blocked for the gate's full bound while
+        // the trigger it was waiting on could not fire at all.
+        if matches!(pier, Some(crate::PierSide::East)) || ha <= 0.0 {
             return None;
         }
 
@@ -1549,20 +1616,27 @@ async fn wait_for_meridian_flip_window(
             return None; // frame finishes comfortably before the flip fires
         }
         if started.elapsed() > MERIDIAN_GATE_MAX_WAIT {
-            tracing::warn!(
+            let message = format!(
                 "Meridian gate held the next exposure for {}s without observing a \
                  completed flip — proceeding anyway (the flip trigger remains the backstop)",
                 started.elapsed().as_secs()
             );
+            tracing::warn!("{}", message);
+            control.report(&message);
             return None;
         }
         if !announced {
-            tracing::info!(
-                "Holding next {:.0}s exposure: meridian flip fires in ~{:.0}s and would \
-                 interrupt it — waiting for the flip to complete",
+            let message = format!(
+                "Waiting for the meridian flip before the next {:.0}s exposure: the flip \
+                 fires in ~{:.0}s (hour angle {:+.2}h, threshold {:.0} min past meridian) \
+                 and would interrupt the frame",
                 exposure_secs,
-                fire_in_secs.max(0.0)
+                fire_in_secs.max(0.0),
+                ha,
+                threshold_min
             );
+            tracing::info!("{}", message);
+            control.report(&message);
             announced = true;
         }
         tokio::select! {
@@ -1572,6 +1646,25 @@ async fn wait_for_meridian_flip_window(
             }
         }
     }
+}
+
+/// Hour angle of the ACTIVE TARGET right now, in hours, normalized to
+/// [-12, +12]. Negative is east of the meridian.
+///
+/// The gate used to read `TriggerState::current_hour_angle`, which is written
+/// by the executor's mount-poll loop — i.e. only while a sequence is running,
+/// only for the MOUNT's reported coordinates, and never invalidated between
+/// runs. Recomputing from the target's own RA and the observer longitude makes
+/// the prediction fresh by construction and answers the question the gate is
+/// actually asking ("will the flip for THIS target interrupt THIS frame").
+/// Falls back to the polled value when the target or the site is unknown.
+fn current_target_hour_angle(ctx: &InstructionContext) -> Option<f64> {
+    let ra_hours = ctx.target_ra?;
+    let longitude = ctx.longitude?;
+    let now = chrono::Utc::now();
+    let jd = crate::meridian::julian_day(&now);
+    let lst = crate::meridian::local_sidereal_time(jd, longitude);
+    Some(crate::meridian::hour_angle(ra_hours, lst))
 }
 
 /// Calculate separation between two coordinates in arcseconds
@@ -1679,7 +1772,35 @@ pub async fn execute_exposure(
     ctx: &InstructionContext,
     progress_callback: impl Fn(u32, u32),
 ) -> InstructionResult {
-    execute_exposure_with_renderer(config, ctx, None, progress_callback).await
+    execute_exposure_with_renderer(
+        config,
+        ctx,
+        None,
+        &BurstControl::default(),
+        progress_callback,
+    )
+    .await
+}
+
+/// Run-scoped controls a burst needs but an [`InstructionContext`] cannot
+/// carry: the operator-pause handle the per-frame loop honours, and a status
+/// sink so a legitimate hold explains itself instead of looking like a stall.
+///
+/// [`Default`] is "never paused, nowhere to report" — correct for the
+/// standalone callers (bridge one-shots, wizards, tests) that have no run
+/// behind them.
+#[derive(Default)]
+pub struct BurstControl<'a> {
+    pub pause: crate::node::context::PauseGate,
+    pub status: Option<&'a (dyn Fn(&str) + Send + Sync)>,
+}
+
+impl BurstControl<'_> {
+    fn report(&self, message: &str) {
+        if let Some(status) = self.status {
+            status(message);
+        }
+    }
 }
 
 /// entry point that accepts a save-path renderer. Use this from
@@ -1690,6 +1811,7 @@ pub async fn execute_exposure_with_renderer(
     config: &ExposureConfig,
     ctx: &InstructionContext,
     path_renderer: Option<FrameSavePathRenderer>,
+    control: &BurstControl<'_>,
     progress_callback: impl Fn(u32, u32),
 ) -> InstructionResult {
     let camera_id = match ctx.camera_id() {
@@ -1874,6 +1996,26 @@ pub async fn execute_exposure_with_renderer(
             return result;
         }
 
+        // Operator Pause, honoured BETWEEN frames. The node tree checks
+        // `is_paused` at instruction boundaries, but a burst is N frames
+        // inside ONE instruction — so a Pause pressed during frame 2 of 3 used
+        // to show a PAUSED badge, a Resume button and "Paused 33%" while the
+        // camera went on to expose frame 3 and the run then recorded
+        // `completed`. An operator pauses to walk in front of the telescope,
+        // so no NEW exposure may start while paused.
+        //
+        // The frame already integrating is allowed to finish: aborting it
+        // throws away data the operator did not ask to lose, and the shutter
+        // is already open by the time the request lands. The guarantee is
+        // therefore "no new exposure starts", not "the shutter shuts now".
+        if !control
+            .pause
+            .wait_while_paused(&ctx.cancellation_token)
+            .await
+        {
+            return InstructionResult::cancelled("Exposure cancelled while paused");
+        }
+
         // Pre-frame meridian gate (N.I.N.A.-style): when the flip trigger
         // would fire while this frame is still exposing, hold here until the
         // trigger-driven flip completes instead of starting a frame the slew
@@ -1892,7 +2034,9 @@ pub async fn execute_exposure_with_renderer(
             && ctx.target_ra.is_some()
             && ctx.mount_id.is_some();
         if gate_for_meridian {
-            if let Some(result) = wait_for_meridian_flip_window(ctx, config.duration_secs).await {
+            if let Some(result) =
+                wait_for_meridian_flip_window(ctx, config.duration_secs, control).await
+            {
                 return result;
             }
         }
@@ -3384,6 +3528,7 @@ pub async fn execute_autofocus_for_node(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    pause: &crate::node::context::PauseGate,
 ) -> InstructionResult {
     // An autofocus run is at most a few minutes (per-node timeout); cap the
     // admission wait generously above that so a genuine concurrent run always
@@ -3397,7 +3542,7 @@ pub async fn execute_autofocus_for_node(
                 .to_string(),
         );
     };
-    execute_autofocus_admitted(config, ctx, progress_callback, guard).await
+    execute_autofocus_admitted_with_pause(config, ctx, progress_callback, guard, pause).await
 }
 
 /// Acquire the shared autofocus admission gate, waiting (bounded) for any
@@ -3429,11 +3574,36 @@ async fn admit_autofocus_run_waiting(max_wait: Duration) -> Option<AutofocusRunG
 /// Execute a run for a caller that already owns [AutofocusRunGuard]. This is
 /// public so the bridge can translate an admission rejection into the typed
 /// `DeviceBusy` error expected by the REST layer.
+///
+/// One-shot callers have no run to pause, so this entry point uses the
+/// never-paused gate. Sequence callers go through
+/// [execute_autofocus_admitted_with_pause].
 pub async fn execute_autofocus_admitted(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    guard: AutofocusRunGuard,
+) -> InstructionResult {
+    execute_autofocus_admitted_with_pause(
+        config,
+        ctx,
+        progress_callback,
+        guard,
+        &crate::node::context::PauseGate::default(),
+    )
+    .await
+}
+
+/// [execute_autofocus_admitted] with the run's operator-pause handle attached,
+/// so the V-curve sweep holds between sample points instead of driving the
+/// focuser and opening the shutter for the rest of the sweep while the UI
+/// says PAUSED.
+pub async fn execute_autofocus_admitted_with_pause(
+    config: &AutofocusConfig,
+    ctx: &InstructionContext,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
     _guard: AutofocusRunGuard,
+    pause: &crate::node::context::PauseGate,
 ) -> InstructionResult {
     let mut effective_config = config.clone();
 
@@ -3590,7 +3760,7 @@ pub async fn execute_autofocus_admitted(
 
     let mut result = match pre_run_error {
         Some(error) => InstructionResult::failure(error),
-        None => execute_autofocus_attempts(&effective_config, ctx, progress_callback).await,
+        None => execute_autofocus_attempts(&effective_config, ctx, progress_callback, pause).await,
     };
 
     if filter_restore_required {
@@ -3619,10 +3789,14 @@ async fn execute_autofocus_attempts(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    pause: &crate::node::context::PauseGate,
 ) -> InstructionResult {
     let attempts = config.number_of_attempts.max(1);
     for attempt in 1..=attempts {
-        let result = execute_autofocus_once(config, ctx, progress_callback).await;
+        if !pause.wait_while_paused(&ctx.cancellation_token).await {
+            return InstructionResult::cancelled("Autofocus cancelled while paused");
+        }
+        let result = execute_autofocus_once(config, ctx, progress_callback, pause).await;
         if !matches!(result.status, NodeStatus::Failure) || attempt == attempts {
             return result;
         }
@@ -3814,6 +3988,7 @@ async fn execute_autofocus_once(
     config: &AutofocusConfig,
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+    pause: &crate::node::context::PauseGate,
 ) -> InstructionResult {
     let camera_id = match ctx.camera_id() {
         Ok(id) => id.to_string(),
@@ -3938,24 +4113,42 @@ async fn execute_autofocus_once(
         // nonsense.
         const MIN_HFR_VARIANCE: f64 = 1.0;
         let mut low_star_count_warnings = 0;
+        // Time the operator spent holding the run paused mid-sweep. Excluded
+        // from the autofocus deadline below: a Pause is not the focuser being
+        // slow, and charging it to the budget would fail a sweep that was
+        // healthy right up to the moment the operator stepped away.
+        let mut paused_duration = Duration::ZERO;
 
         for point in 0..total_points {
             // Check timeout
-            if af_start_time.elapsed() > af_timeout {
+            let working_elapsed = af_start_time.elapsed().saturating_sub(paused_duration);
+            if working_elapsed > af_timeout {
                 tracing::warn!(
                 "Autofocus timed out after {:.0}s (limit: {:.0}s), returning focuser to original position",
-                af_start_time.elapsed().as_secs_f64(),
+                working_elapsed.as_secs_f64(),
                 config.max_duration_secs,
             );
                 return InstructionResult::failure(format!(
                     "Autofocus timed out after {:.0}s (max duration: {:.0}s)",
-                    af_start_time.elapsed().as_secs_f64(),
+                    working_elapsed.as_secs_f64(),
                     config.max_duration_secs,
                 ));
             }
 
             if let Some(result) = ctx.check_cancelled() {
                 return result;
+            }
+
+            // Honour an operator Pause between sample points. A V-curve sweep
+            // is ~15 exposures plus focuser motion inside ONE instruction, so
+            // the node-boundary check the tree does never sees a Pause pressed
+            // during the sweep.
+            if pause.is_paused() {
+                let paused_at = tokio::time::Instant::now();
+                if !pause.wait_while_paused(&ctx.cancellation_token).await {
+                    return InstructionResult::cancelled("Autofocus cancelled while paused");
+                }
+                paused_duration += paused_at.elapsed();
             }
 
             let position = positions[point];
@@ -7121,6 +7314,36 @@ mod tests {
     /// without this they race (one test's held gate breaks another's admit).
     static AF_GATE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// Q3: `ensure_unique_save_path` tested existence and then returned the
+    /// path without claiming it, so two callers racing on the same rendered
+    /// filename both got the same path — two `captured_images` rows, one file,
+    /// one frame's pixels gone. Allocation must be atomic.
+    #[test]
+    fn concurrent_save_path_allocation_never_hands_out_the_same_file_twice() {
+        let dir = std::env::temp_dir().join(format!("ns-save-path-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let contended = dir.join("Dark_nofilter_0001.fits");
+
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let candidate = contended.clone();
+                std::thread::spawn(move || ensure_unique_save_path(candidate))
+            })
+            .collect();
+        let allocated: Vec<PathBuf> = handles
+            .into_iter()
+            .map(|h| h.join().expect("allocation thread"))
+            .collect();
+
+        let distinct: std::collections::HashSet<&PathBuf> = allocated.iter().collect();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(
+            distinct.len(),
+            allocated.len(),
+            "every concurrent caller must get its own file; got {allocated:?}"
+        );
+    }
+
     #[test]
     fn autofocus_admission_is_atomic_and_released_by_guard() {
         let _serial = AF_GATE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -7569,6 +7792,9 @@ mod tests {
         camera_exposure_calls: AtomicU32,
         camera_abort_calls: AtomicU32,
         hang_camera_exposure: bool,
+        /// Raised by the first exposure only; see
+        /// [`ScriptedDomeRotatorOps::pausing_after_first_exposure`].
+        pause_flag_after_first_exposure: Option<Arc<AtomicBool>>,
         // --- autofocus cleanup ---
         focuser_moves: Mutex<Vec<i32>>,
         focuser_halt_calls: AtomicU32,
@@ -7602,6 +7828,7 @@ mod tests {
                 camera_exposure_calls: AtomicU32::new(0),
                 camera_abort_calls: AtomicU32::new(0),
                 hang_camera_exposure: false,
+                pause_flag_after_first_exposure: None,
                 mount_parked: false,
                 focuser_moves: Mutex::new(Vec::new()),
                 focuser_halt_calls: AtomicU32::new(0),
@@ -7648,6 +7875,13 @@ mod tests {
 
         fn with_hanging_camera(mut self) -> Self {
             self.hang_camera_exposure = true;
+            self
+        }
+
+        /// Stand in for the operator pressing Pause while frame 1 of a burst
+        /// is integrating: the FIRST exposure raises `flag`, later ones don't.
+        fn pausing_after_first_exposure(mut self, flag: Arc<AtomicBool>) -> Self {
+            self.pause_flag_after_first_exposure = Some(flag);
             self
         }
 
@@ -7747,7 +7981,12 @@ mod tests {
             bx: i32,
             by: i32,
         ) -> DeviceResult<ImageData> {
-            self.camera_exposure_calls.fetch_add(1, Ordering::SeqCst);
+            let call = self.camera_exposure_calls.fetch_add(1, Ordering::SeqCst) + 1;
+            if call == 1 {
+                if let Some(flag) = &self.pause_flag_after_first_exposure {
+                    flag.store(true, Ordering::SeqCst);
+                }
+            }
             if self.hang_camera_exposure {
                 return std::future::pending::<DeviceResult<ImageData>>().await;
             }
@@ -7980,6 +8219,178 @@ mod tests {
         assert!(!ops.guiding.load(Ordering::SeqCst));
     }
 
+    /// P0 SAFETY regression. Pause was cosmetic inside a burst: the node tree
+    /// only checks `is_paused` between instructions, and a burst is N frames
+    /// inside ONE instruction. Live evidence — Take Exposures 3x8s, Pause
+    /// pressed during frame 2: the UI showed a PAUSED badge, a Resume button
+    /// and "Paused 33%", the log went `Pausing sequence execution` ->
+    /// `Capturing frame 3/3 (8.0s)` five seconds later, and the run recorded
+    /// `status=completed, framesCaptured=3` without Resume ever being pressed.
+    ///
+    /// Pre-fix this test sees 3 exposures and a completed burst.
+    #[tokio::test]
+    async fn pause_stops_the_burst_before_the_next_frame_starts() {
+        let paused = Arc::new(AtomicBool::new(false));
+        let ops =
+            Arc::new(ScriptedDomeRotatorOps::new().pausing_after_first_exposure(paused.clone()));
+        let dir = std::env::temp_dir().join(format!("ns-pause-burst-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let mut ec = crate::node::context::ExecutionContext::new("pause-node".to_string());
+        ec.device_ops = ops.clone();
+        ec.camera_id = Some("camera-1".to_string());
+        ec.save_path = Some(dir.clone());
+        ec.is_paused = paused.clone();
+        let ctx = ec.to_instruction_context("pause-node").await;
+        let control = BurstControl {
+            pause: ec.pause_gate(),
+            status: None,
+        };
+        // Calibration frames so the burst is not daylight-gated or graded.
+        let config = ExposureConfig {
+            count: 3,
+            duration_secs: 0.0,
+            frame_type: "dark".to_string(),
+            ..ExposureConfig::default()
+        };
+
+        let burst = std::pin::pin!(execute_exposure_with_renderer(
+            &config,
+            &ctx,
+            None,
+            &control,
+            |_, _| {}
+        ));
+        let mut burst = burst;
+
+        let held = tokio::time::timeout(Duration::from_millis(400), &mut burst).await;
+        assert!(
+            held.is_err(),
+            "the burst must still be holding while the operator has it paused"
+        );
+        assert_eq!(
+            ops.camera_exposure_calls.load(Ordering::SeqCst),
+            1,
+            "no NEW exposure may start while paused — the operator pauses to \
+             stand in front of the telescope"
+        );
+
+        paused.store(false, Ordering::SeqCst);
+        let result = tokio::time::timeout(Duration::from_secs(10), burst)
+            .await
+            .expect("resume must let the burst finish");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(result.status, NodeStatus::Success);
+        assert_eq!(
+            ops.camera_exposure_calls.load(Ordering::SeqCst),
+            3,
+            "Resume must complete the remaining frames"
+        );
+    }
+
+    /// P1 regression for the pre-exposure meridian gate. A target EAST of the
+    /// meridian cannot make a MinutesPastMeridian trigger fire (the trigger
+    /// requires `hour_angle > 0` on the pre-flip / unreported pier side), yet
+    /// the gate held anyway on a stale hour angle and logged "meridian flip
+    /// fires in ~0s". Live: target RA 23.4h at LST 21:27 (HA -1.93h) sat at
+    /// 0/3 frames for minutes with no UI explanation, and with a 30-minute
+    /// bound PER EXPOSURE a normal sub sequence stalls for hours.
+    ///
+    /// Pre-fix this test hangs on the gate and trips the timeout.
+    #[tokio::test]
+    async fn meridian_gate_does_not_hold_a_target_east_of_the_meridian() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = crate::node::context::ExecutionContext::new("gate-node".to_string());
+        ec.device_ops = ops;
+        ec.camera_id = Some("camera-1".to_string());
+        ec.mount_id = Some("mount-1".to_string());
+        ec.longitude = Some(104.65);
+        ec.latitude = Some(39.9846);
+
+        let trigger_state = Arc::new(tokio::sync::RwLock::new(
+            crate::triggers::TriggerState::new(),
+        ));
+        {
+            let mut state = trigger_state.write().await;
+            state.meridian_flip_minutes_past = Some(5.0);
+            state.target_ra = Some(23.4);
+            state.target_dec = Some(40.0);
+            // Stale positive hour angle left behind by an earlier run: the
+            // mount poll only runs while a sequence executes, so the first
+            // frame of the next run reads the previous run's value.
+            state.current_hour_angle = Some(0.19);
+            state.pier_side = None;
+        }
+        ec.trigger_state = Some(trigger_state);
+
+        let mut ctx = ec.to_instruction_context("gate-node").await;
+        // LST for longitude 104.65 puts RA 23.4h roughly two hours EAST of the
+        // meridian for most of the day; pick the RA that is currently east so
+        // the assertion does not depend on the wall clock.
+        let lst = crate::meridian::local_sidereal_time(
+            crate::meridian::julian_day(&chrono::Utc::now()),
+            104.65,
+        );
+        ctx.target_ra = Some((lst + 4.0) % 24.0);
+
+        let gate = tokio::time::timeout(
+            Duration::from_secs(2),
+            wait_for_meridian_flip_window(&ctx, 2.0, &BurstControl::default()),
+        )
+        .await
+        .expect("an east-of-meridian target must not be held by the flip gate");
+
+        assert!(
+            gate.is_none(),
+            "the gate must let the exposure proceed when the flip trigger cannot fire"
+        );
+    }
+
+    /// The gate must still hold when a flip really is imminent, otherwise the
+    /// fix above would just delete the feature.
+    #[tokio::test]
+    async fn meridian_gate_still_holds_when_the_flip_is_imminent() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new());
+        let mut ec = crate::node::context::ExecutionContext::new("gate-node".to_string());
+        ec.device_ops = ops;
+        ec.camera_id = Some("camera-1".to_string());
+        ec.mount_id = Some("mount-1".to_string());
+        ec.longitude = Some(0.0);
+
+        let trigger_state = Arc::new(tokio::sync::RwLock::new(
+            crate::triggers::TriggerState::new(),
+        ));
+        {
+            let mut state = trigger_state.write().await;
+            state.meridian_flip_minutes_past = Some(5.0);
+            state.target_ra = Some(1.0);
+            state.target_dec = Some(40.0);
+            state.pier_side = Some(crate::PierSide::West);
+        }
+        ec.trigger_state = Some(trigger_state);
+
+        let mut ctx = ec.to_instruction_context("gate-node").await;
+        // Ten minutes PAST the meridian with a 5-minute threshold: the trigger
+        // is already due, so the frame would be ruined by the flip slew.
+        let lst = crate::meridian::local_sidereal_time(
+            crate::meridian::julian_day(&chrono::Utc::now()),
+            0.0,
+        );
+        ctx.target_ra = Some((lst - 10.0 / 60.0 + 24.0) % 24.0);
+
+        let held = tokio::time::timeout(
+            Duration::from_millis(500),
+            wait_for_meridian_flip_window(&ctx, 2.0, &BurstControl::default()),
+        )
+        .await;
+
+        assert!(
+            held.is_err(),
+            "a flip that is already due must still hold the next exposure"
+        );
+    }
+
     #[tokio::test]
     async fn dropped_exposure_instruction_aborts_camera() {
         let ops = Arc::new(ScriptedDomeRotatorOps::new().with_hanging_camera());
@@ -8021,7 +8432,13 @@ mod tests {
             ..AutofocusConfig::default()
         };
 
-        let result = execute_autofocus_once(&config, &ctx, None).await;
+        let result = execute_autofocus_once(
+            &config,
+            &ctx,
+            None,
+            &crate::node::context::PauseGate::default(),
+        )
+        .await;
 
         assert_eq!(result.status, NodeStatus::Failure);
         assert!(

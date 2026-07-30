@@ -292,5 +292,129 @@ void main() {
         );
       }
     });
+
+    test('real Dart scorer matches the Rust score_moon_distance source', () {
+      // The second cross-language canary, and the reason it exists: the Rust
+      // twin kept the pre-fix `return 100.0` for the "far enough from the moon"
+      // branch long after this Dart copy was corrected, so a FULL moon at 120 deg
+      // scored a perfect 100.0 in the native scheduler while a NEW moon at the
+      // same separation scored 96.7 — it preferred the worse night. The existing
+      // canary above only parsed `fn score_altitude`, so nothing detected it,
+      // even though scoring.rs's own header states the two must agree. That
+      // scorer is on a live path: `score_targets` picks the next target mid-run.
+      final candidates = [
+        File(
+          '../../native/nightshade_native/sequencer/src/scheduling/scoring.rs',
+        ),
+        File(
+          '${Directory.current.path}/../../native/nightshade_native/sequencer/'
+          'src/scheduling/scoring.rs',
+        ),
+      ];
+      final rustFile = candidates.firstWhere(
+        (f) => f.existsSync(),
+        orElse: () => candidates.first,
+      );
+      if (!rustFile.existsSync()) {
+        // Native tree stripped on this shard; the Dart-side ordering assertions
+        // below still run via the service pins elsewhere in this file.
+        return;
+      }
+      final src = rustFile.readAsStringSync();
+
+      final fnMatch = RegExp(
+        r'fn score_moon_distance\(distance: f64, illumination: f64\) -> f64 \{'
+        r'(.*?)\n\}',
+        dotAll: true,
+      ).firstMatch(src);
+      expect(
+        fnMatch,
+        isNotNull,
+        reason: 'could not locate Rust fn score_moon_distance in scoring.rs',
+      );
+      final body = fnMatch!.group(1)!;
+
+      // The exact defect, asserted structurally: the "far enough" branch must
+      // NOT return a bare 100.0. Parsing for it is what a constant-only sweep
+      // would miss if both sides were wrong in the same way.
+      expect(
+        RegExp(r'return\s+100\.0\s*;').hasMatch(body),
+        isFalse,
+        reason:
+            'Rust score_moon_distance returns a flat 100.0 again — a bright '
+            'moon must never score perfect at any separation',
+      );
+
+      // Parse the illumination penalty coefficient and the min-good-distance
+      // ramp so a change to either side's constants trips this.
+      final penalty = double.parse(
+        RegExp(
+          r'100\.0\s*-\s*([0-9.]+)\s*\*\s*moon_factor',
+        ).firstMatch(body)!.group(1)!,
+      );
+      final rampMatch = RegExp(
+        r'([0-9.]+)\s*\+\s*([0-9.]+)\s*\*\s*moon_factor',
+      ).firstMatch(body)!;
+      final rampBase = double.parse(rampMatch.group(1)!);
+      final rampSpan = double.parse(rampMatch.group(2)!);
+
+      double expectedFromRust(double distance, double illumination) {
+        final moonFactor = (illumination / 100).clamp(0.0, 1.0);
+        if (illumination < 10) return 90 + (distance / 180) * 10;
+        final minGoodDist = rampBase + rampSpan * moonFactor;
+        final bestAchievable = 100 - penalty * moonFactor;
+        if (distance >= minGoodDist) return bestAchievable;
+        if (distance < 10) return 10 * (1 - moonFactor * 0.8);
+        return (distance / minGoodDist) * bestAchievable;
+      }
+
+      final service = TargetScoringService(
+        latitude: 40.0,
+        longitude: -74.0,
+        observationTime: DateTime.utc(2026, 1, 15, 6, 0, 0),
+      );
+      for (final illumination in [
+        0.0,
+        5.0,
+        9.999,
+        10.0,
+        25.0,
+        50.0,
+        75.0,
+        100.0,
+      ]) {
+        for (final distance in [
+          0.0,
+          5.0,
+          9.999,
+          10.0,
+          30.0,
+          60.0,
+          100.0,
+          120.0,
+          180.0,
+        ]) {
+          expect(
+            service.debugScoreMoonDistance(distance, illumination),
+            closeTo(expectedFromRust(distance, illumination), 1e-9),
+            reason:
+                'Dart and Rust moon scorers disagree at distance=$distance '
+                'illumination=$illumination',
+          );
+        }
+      }
+
+      // The property that the numbers exist to preserve, asserted directly on
+      // the production scorer so it survives any future re-parameterisation.
+      for (final distance in [30.0, 60.0, 120.0, 180.0]) {
+        expect(
+          service.debugScoreMoonDistance(distance, 100.0),
+          lessThan(service.debugScoreMoonDistance(distance, 5.0)),
+          reason:
+              'a full moon at $distance deg must not outscore a new moon at '
+              'the same separation',
+        );
+      }
+    });
   });
 }

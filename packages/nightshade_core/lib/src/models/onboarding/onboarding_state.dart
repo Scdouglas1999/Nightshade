@@ -231,6 +231,14 @@ class OnboardingDraft {
     bool clearAperture = false,
     bool clearPixelSize = false,
     bool clearCoolingTempC = false,
+    // A plain null argument means "leave unchanged", which cannot express the
+    // user emptying a field. Without these the camera-defaults step showed a
+    // blank Gain box while the draft — and the profile created from it — still
+    // carried the number the preset had put there.
+    bool clearGain = false,
+    bool clearOffset = false,
+    bool clearBinX = false,
+    bool clearBinY = false,
   }) {
     return OnboardingDraft(
       currentStep: currentStep ?? this.currentStep,
@@ -263,10 +271,10 @@ class OnboardingDraft {
       telescopePresetId: telescopePresetId ?? this.telescopePresetId,
       telescopeName: telescopeName ?? this.telescopeName,
       cameraPresetId: cameraPresetId ?? this.cameraPresetId,
-      defaultGain: defaultGain ?? this.defaultGain,
-      defaultOffset: defaultOffset ?? this.defaultOffset,
-      defaultBinX: defaultBinX ?? this.defaultBinX,
-      defaultBinY: defaultBinY ?? this.defaultBinY,
+      defaultGain: clearGain ? null : (defaultGain ?? this.defaultGain),
+      defaultOffset: clearOffset ? null : (defaultOffset ?? this.defaultOffset),
+      defaultBinX: clearBinX ? null : (defaultBinX ?? this.defaultBinX),
+      defaultBinY: clearBinY ? null : (defaultBinY ?? this.defaultBinY),
       defaultCoolingTempC: clearCoolingTempC
           ? null
           : (defaultCoolingTempC ?? this.defaultCoolingTempC),

@@ -114,59 +114,65 @@ class ImagingBottomBanner extends ConsumerWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Wide enough to give the filter strip the slack (Expanded) with the
-          // stats + display controls pinned trailing. Below this the whole bar
-          // scrolls horizontally so nothing is clipped.
-          const wideEnough = 720.0;
           final stats = showStats ? _BannerStats(colors: colors) : null;
           const display = StretchControls(compact: true);
 
-          if (constraints.maxWidth >= wideEnough) {
-            return Row(
-              children: [
-                capture,
-                _divider(),
-                duration,
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                exposurePopover,
-                _divider(),
-                Expanded(
-                  child: hasFilters
-                      ? Align(alignment: Alignment.centerLeft, child: filters)
-                      : const SizedBox.shrink(),
-                ),
-                if (stats != null) ...[
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                  stats,
-                  _divider(),
-                ] else
-                  const SizedBox(width: NightshadeTokens.spaceSm),
-                display,
-              ],
-            );
-          }
-
+          // ONE layout, and no width threshold — because no constant can be
+          // right here.
+          //
+          // This used to fork on `constraints.maxWidth >= wideEnough`, with
+          // `wideEnough` a hand-picked constant (720, later 880 when auto-stretch
+          // is on). Every child of the wide Row except the filter strip is
+          // intrinsically sized, so whether they fit depends on runtime content:
+          // the stretch method dropdown, the stats text, filter names, the
+          // locale, the user's text scale. A constant can only ever be right for
+          // one combination — raising 720 to 880 did not fix the clipping, it
+          // moved which widths clipped. Measured afterwards, the wide branch
+          // still overflowed by 86 dp at a 1280x800 window with stretch on (the
+          // advanced-settings button laid out at x=1002 in a bar ending at 950,
+          // entirely unreachable), and by 36 dp at 820 dp with stretch OFF.
+          //
+          // Instead, let the layout answer the question it is actually asking:
+          //   * IntrinsicWidth gives the Row its natural width, which both makes
+          //     `Expanded` legal inside the (horizontally unbounded) scroll view
+          //     and yields the real "how much room do I need" number.
+          //   * ConstrainedBox(minWidth: viewport) lets it fill the viewport when
+          //     there IS slack, so the stats + display cluster stays pinned
+          //     trailing exactly as the wide branch did.
+          //   * When the natural width exceeds the viewport the scroll view
+          //     scrolls. Nothing is ever clipped, at any width, in any locale.
+          //
+          // Net effect: identical appearance to the old wide branch whenever it
+          // was correct, and a reachable (scrollable) bar everywhere it was not.
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                capture,
-                _divider(),
-                duration,
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                exposurePopover,
-                if (hasFilters) ...[
-                  _divider(),
-                  filters,
-                ],
-                if (stats != null) ...[
-                  _divider(),
-                  stats,
-                ],
-                _divider(),
-                display,
-              ],
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: IntrinsicWidth(
+                child: Row(
+                  children: [
+                    capture,
+                    _divider(),
+                    duration,
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    exposurePopover,
+                    _divider(),
+                    Expanded(
+                      child: hasFilters
+                          ? Align(
+                              alignment: Alignment.centerLeft, child: filters)
+                          : const SizedBox.shrink(),
+                    ),
+                    if (stats != null) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      stats,
+                      _divider(),
+                    ] else
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                    display,
+                  ],
+                ),
+              ),
             ),
           );
         },

@@ -25,6 +25,7 @@ export 'src/catalogs/mpcorb.dart';
 
 // Astronomy calculations
 export 'src/astronomy/astronomy_calculations.dart';
+export 'src/astronomy/observability.dart';
 export 'src/astronomy/planetary_positions.dart';
 export 'src/astronomy/milky_way_data.dart';
 export 'src/astronomy/sgp4.dart';

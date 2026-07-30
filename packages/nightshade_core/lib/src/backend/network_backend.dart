@@ -442,7 +442,10 @@ class NetworkBackend extends _NetworkBackendTransport
         _NetworkBackendImagingProfileOperations,
         _NetworkBackendPlanningDataOperations,
         _NetworkBackendObservingListOperations
-    implements NightshadeBackend, EnvironmentalStatusBackend {
+    implements
+        NightshadeBackend,
+        EnvironmentalStatusBackend,
+        DomeStatusBackend {
   static const _requestIdHeader = _NetworkBackendTransport._requestIdHeader;
 
   NetworkBackend({

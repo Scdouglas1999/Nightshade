@@ -75,7 +75,7 @@ class _ProjectFormDialogState extends State<_ProjectFormDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Group several targets into a multi-night campaign to track '
+            'Group several targets into a multi-night project to track '
             'integration goals across clear nights.',
             style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
@@ -97,7 +97,7 @@ class _ProjectFormDialogState extends State<_ProjectFormDialog> {
           NightshadeTextField(
             controller: _descCtl,
             label: 'Description (optional)',
-            hint: 'Notes about this campaign',
+            hint: 'Notes about this project',
             maxLines: 3,
           ),
         ],
@@ -181,7 +181,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                     icon: LucideIcons.star,
                     title: 'No targets in the catalog',
                     body: 'Add targets to your library first, then attach '
-                        'them to this campaign.',
+                        'them to this project.',
                   );
                 }
                 if (available.isEmpty) {
@@ -189,7 +189,7 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                     icon: LucideIcons.searchX,
                     title: 'No matching targets',
                     body: _query.isEmpty
-                        ? 'Every catalog target is already in this campaign.'
+                        ? 'Every catalog target is already in this project.'
                         : 'No catalog target matches "$_query".',
                   );
                 }

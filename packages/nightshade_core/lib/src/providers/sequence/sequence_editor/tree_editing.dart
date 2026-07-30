@@ -15,13 +15,26 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     return false;
   }
 
-  /// Add a node to the sequence
+  /// Add a node to the sequence.
+  ///
+  /// When [parentId] names a LEAF instruction the node is inserted as that
+  /// instruction's next SIBLING instead. Every palette "+" passes the current
+  /// selection as [parentId] and then moves the selection to the node it just
+  /// created, so without this each tap nested the new instruction inside the
+  /// previous one: adding Unpark, Slew and Take Exposures under a Target
+  /// produced `Target > Unpark > Slew > TakeExposure` on a single spine. The
+  /// builder draws that as a flat list, and the executor — which never
+  /// descends into a leaf — ran only Unpark and reported the run `completed`
+  /// with 0 frames.
   void addNode(SequenceNode node, {String? parentId, int? index}) {
     if (_currentSequence == null) return;
     _ensureEditable('add node');
     _saveUndo();
 
     final newNodes = Map<String, SequenceNode>.from(_currentSequence!.nodes);
+    final resolved = _resolveInsertionPoint(newNodes, parentId, index);
+    parentId = resolved.parentId;
+    index = resolved.index;
     newNodes[node.id] = node;
 
     if (parentId != null && newNodes.containsKey(parentId)) {
@@ -74,6 +87,34 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
       nodes: newNodes,
       modifiedAt: DateTime.now(),
     );
+  }
+
+  /// Walk [parentId] up to the nearest node that can actually hold children,
+  /// returning the position the new node should take under it.
+  ///
+  /// A leaf resolves to its own parent with the index just after it, which is
+  /// what "add the next step" means in the flat list the builder draws. A
+  /// parent that can hold children is returned unchanged.
+  ({String? parentId, int? index}) _resolveInsertionPoint(
+    Map<String, SequenceNode> nodes,
+    String? parentId,
+    int? index,
+  ) {
+    var cursor = parentId;
+    var resolvedIndex = index;
+    while (cursor != null) {
+      final candidate = nodes[cursor];
+      if (candidate == null) return (parentId: null, index: resolvedIndex);
+      if (isContainerNode(candidate))
+        return (parentId: cursor, index: resolvedIndex);
+      final grandparentId = candidate.parentId;
+      if (grandparentId == null) return (parentId: null, index: null);
+      final siblings = nodes[grandparentId]?.childIds ?? const <String>[];
+      final position = siblings.indexOf(cursor);
+      resolvedIndex = position >= 0 ? position + 1 : null;
+      cursor = grandparentId;
+    }
+    return (parentId: null, index: resolvedIndex);
   }
 
   /// Add a target header node, adopting any orphan instructions.

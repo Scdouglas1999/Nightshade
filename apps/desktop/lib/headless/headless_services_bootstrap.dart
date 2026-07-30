@@ -12,6 +12,7 @@ import '../headless_api/tls_provisioner.dart';
 import '../headless_api_server.dart';
 import 'headless_discovery_bootstrap.dart';
 import 'headless_security_advisories.dart';
+import 'host_checkpoint_directory.dart';
 
 const _headlessLogSource = 'HeadlessMain';
 
@@ -97,11 +98,7 @@ Future<HeadlessApiServer> startHeadlessServices(
   // Crash recovery is a production feature, not an opt-in API call. Configure
   // its durable directory before accepting requests so the first sequence and
   // `/api/sequencer/checkpoint/save` share the same checkpoint manager.
-  final checkpointSupportDir = await getApplicationSupportDirectory();
-  final checkpointDir = Directory(
-    '${checkpointSupportDir.path}${Platform.pathSeparator}checkpoints',
-  );
-  await checkpointDir.create(recursive: true);
+  final checkpointDir = await resolveHostCheckpointDirectory();
   await container
       .read(sequenceExecutorProvider)
       .initializeCheckpoints(checkpointDir.path);

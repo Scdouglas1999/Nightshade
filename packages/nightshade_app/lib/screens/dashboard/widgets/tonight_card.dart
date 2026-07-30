@@ -6,8 +6,10 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import '../../../localization/nightshade_localizations.dart';
 import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../planetarium/show_in_sky.dart';
 import '../../sequencer/widgets/smart_night_dialog.dart';
 import 'glass_card.dart';
 
@@ -214,6 +216,8 @@ class TonightCard extends ConsumerWidget {
               target: optimization.primaryTarget!,
               onSendToFraming: () => _sendPrimaryToFraming(
                   context, ref, optimization.primaryTarget!),
+              onShowInSky: () =>
+                  _showPrimaryInSky(context, ref, optimization.primaryTarget!),
               onAddToSequencer: () => _addPrimaryToSequencer(
                 context,
                 ref,
@@ -262,6 +266,23 @@ class TonightCard extends ConsumerWidget {
   ) {
     ref.read(framingProvider.notifier).setTargetSuggestion(target);
     context.goNamed('framing');
+  }
+
+  /// Sky-context counterpart to "Frame target": jump to tonight's pick in the
+  /// planetarium so the operator can see where it actually sits before
+  /// committing the night to it.
+  void _showPrimaryInSky(
+    BuildContext context,
+    WidgetRef ref,
+    TargetSuggestion target,
+  ) {
+    showTargetInSky(
+      context,
+      ref,
+      raHours: target.raHours,
+      decDegrees: target.decDegrees,
+      name: target.targetName,
+    );
   }
 
   Future<void> _addPrimaryToSequencer(
@@ -504,19 +525,22 @@ String _formatRecommendedFilters(SessionOptimizationPlan plan) {
   if (plan.recommendedFilterName != null) {
     return plan.recommendedFilterName!;
   }
-  return '--';
+  // No named filters anywhere on the rig — the plan will capture unfiltered.
+  return 'No filter';
 }
 
 class _TonightTargetActions extends StatefulWidget {
   final NightshadeColors colors;
   final TargetSuggestion target;
   final VoidCallback onSendToFraming;
+  final VoidCallback onShowInSky;
   final Future<void> Function() onAddToSequencer;
 
   const _TonightTargetActions({
     required this.colors,
     required this.target,
     required this.onSendToFraming,
+    required this.onShowInSky,
     required this.onAddToSequencer,
   });
 
@@ -561,6 +585,20 @@ class _TonightTargetActionsState extends State<_TonightTargetActions> {
             onPressed: _adding ? null : widget.onSendToFraming,
             icon: Icon(
               LucideIcons.frame,
+              size: 15,
+              color: widget.colors.primary,
+            ),
+          ),
+        ),
+        Tooltip(
+          message: context.l10n.text('plannerOpenPlanetarium'),
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            padding: EdgeInsets.zero,
+            onPressed: _adding ? null : widget.onShowInSky,
+            icon: Icon(
+              LucideIcons.globe,
               size: 15,
               color: widget.colors.primary,
             ),

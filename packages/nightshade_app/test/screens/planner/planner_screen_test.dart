@@ -779,4 +779,353 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+      'a duplicate add closes with a plain-language outcome, not a '
+      'raw Dart exception', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 61,
+      targetName: 'NGC6015',
+      raHours: 15.86,
+      decDegrees: 62.31,
+      totalScore: 81,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 40,
+        currentAzimuth: 40,
+        airmass: 1.5,
+        moonDistance: 101,
+        peakAltitude: 62.6,
+        hoursAboveMinAlt: 5,
+      ),
+      catalogId: 'NGC6015',
+      objectType: 'Galaxy',
+    );
+    final stamp = DateTime.utc(2026, 7, 29);
+    final list = ObservingList(
+      id: 5,
+      name: 'Summer Galaxies',
+      sortOrder: 0,
+      createdAt: stamp,
+      updatedAt: stamp,
+    );
+    final backend = _MockNetworkBackend();
+    // Membership unknown (host cannot answer), so the row stays enabled and the
+    // add is attempted — the exact state the reporter hit.
+    when(() => backend.getListsContaining('NGC6015'))
+        .thenThrow(Exception('not supported'));
+    when(
+      () => backend.addObservingListItem(
+        listId: 5,
+        objectName: 'NGC6015',
+        catalogId: 'NGC6015',
+        objectType: 'Galaxy',
+        ra: 15.86,
+        dec: 62.31,
+        magnitude: null,
+        sizeArcmin: null,
+        notes: null,
+      ),
+    ).thenThrow(
+      const ServerError(
+        code: 'conflict',
+        message: 'NGC6015 is already in this list',
+        httpStatus: 409,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+          backendProvider.overrideWith(
+            (ref) => _SwappableBackendNotifier(ref, backend),
+          ),
+          observingListsProvider.overrideWith((ref) => Stream.value([list])),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Add to observing list').first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Summer Galaxies'));
+    await tester.pumpAndSettle();
+
+    // The dialog does not sit there accusing the user of a failure...
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.textContaining('Bad state'), findsNothing);
+    expect(find.textContaining('Failed to add item'), findsNothing);
+    // ...it states what actually happened.
+    expect(find.text('NGC6015 is already in this list'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a list that already holds the target says so instead of '
+      'offering a no-op add', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 62,
+      targetName: 'NGC6015',
+      raHours: 15.86,
+      decDegrees: 62.31,
+      totalScore: 81,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 40,
+        currentAzimuth: 40,
+        airmass: 1.5,
+        moonDistance: 101,
+        peakAltitude: 62.6,
+        hoursAboveMinAlt: 5,
+      ),
+      catalogId: 'NGC6015',
+      objectType: 'Galaxy',
+    );
+    final stamp = DateTime.utc(2026, 7, 29);
+    final list = ObservingList(
+      id: 5,
+      name: 'Summer Galaxies',
+      sortOrder: 0,
+      createdAt: stamp,
+      updatedAt: stamp,
+    );
+    final backend = _MockNetworkBackend();
+    when(() => backend.getListsContaining('NGC6015'))
+        .thenAnswer((_) async => [list]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+          backendProvider.overrideWith(
+            (ref) => _SwappableBackendNotifier(ref, backend),
+          ),
+          observingListsProvider.overrideWith((ref) => Stream.value([list])),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(
+      find.widgetWithText(NightshadeButton, 'Add to observing list').first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Already added'), findsOneWidget);
+    await tester.tap(find.text('Summer Galaxies'));
+    await tester.pumpAndSettle();
+    verifyNever(
+      () => backend.addObservingListItem(
+        listId: any(named: 'listId'),
+        objectName: any(named: 'objectName'),
+        catalogId: any(named: 'catalogId'),
+        objectType: any(named: 'objectType'),
+        ra: any(named: 'ra'),
+        dec: any(named: 'dec'),
+        magnitude: any(named: 'magnitude'),
+        sizeArcmin: any(named: 'sizeArcmin'),
+        notes: any(named: 'notes'),
+      ),
+    );
+  });
+
+  testWidgets('the peak chip names which peak it is', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 71,
+      targetName: 'NGC6015',
+      raHours: 15.86,
+      decDegrees: 62.31,
+      totalScore: 81,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 40,
+        currentAzimuth: 40,
+        airmass: 1.5,
+        moonDistance: 101,
+        peakAltitude: 62.6,
+        hoursAboveMinAlt: 5,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // A bare "Peak 63°" beside the chart's transit altitude looked like the app
+    // contradicting itself; the label now says which peak it is.
+    expect(find.textContaining('Peak in dark'), findsWidgets);
+    expect(find.text('Peak 63°'), findsNothing);
+  });
+
+  testWidgets('candidates use extra width for more candidates, not more void',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const first = TargetSuggestion(
+      targetId: 81,
+      targetName: 'NGC6015',
+      raHours: 15.86,
+      decDegrees: 62.31,
+      totalScore: 81,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 40,
+        currentAzimuth: 40,
+        airmass: 1.5,
+        moonDistance: 101,
+        peakAltitude: 62.6,
+        hoursAboveMinAlt: 5,
+      ),
+    );
+    const second = TargetSuggestion(
+      targetId: 82,
+      targetName: 'NGC6140',
+      raHours: 16.35,
+      decDegrees: 65.4,
+      totalScore: 79,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 38,
+        currentAzimuth: 42,
+        airmass: 1.6,
+        moonDistance: 99,
+        peakAltitude: 60,
+        hoursAboveMinAlt: 4.5,
+      ),
+    );
+
+    Future<void> pumpAtWidth(double width) async {
+      tester.view.physicalSize = Size(width, 1400);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ..._commonOverrides(),
+            tonightSuggestionsProvider
+                .overrideWith((ref) async => [first, second]),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const Scaffold(body: PlannerScreen()),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    Rect cardRect(int targetId) =>
+        tester.getRect(find.byKey(ValueKey('candidate-$targetId')));
+
+    await pumpAtWidth(1400);
+    expect(
+      cardRect(81).top,
+      lessThan(cardRect(82).top),
+      reason: 'One column at 1400px: the cards stack.',
+    );
+
+    await pumpAtWidth(2600);
+    expect(
+      cardRect(81).top,
+      cardRect(82).top,
+      reason: 'A 2560px-wide window left a ~1240px void in the middle of every '
+          'card while only three of 1200+ candidates fit on screen; the extra '
+          'width must buy another column instead.',
+    );
+    expect(
+      cardRect(81).width,
+      lessThan(1400),
+      reason: 'Each card should now be about half the list width.',
+    );
+  });
+
+  testWidgets(
+      'the object-type filter opens in the same kind of surface as its '
+      'sibling chips', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1600, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _commonOverrides(),
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.tap(find.text('Type: any'));
+    // Fixed pumps, not pumpAndSettle: this screen carries a perpetual
+    // animation (tour prompt / skeleton shimmer) that never settles.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // Magnitude / Size / Alt / Moon all use a centered dialog. "Type" was the
+    // one chip that threw a bottom sheet, so two neighbouring chips opened
+    // their panels at opposite ends of the window.
+    expect(find.text('Object types'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
+
+    final dialog = tester.getRect(find.byType(AlertDialog));
+    final chip = tester.getRect(find.text('Type: any'));
+    expect(
+      (dialog.center.dy - 500).abs() < 250,
+      isTrue,
+      reason: 'the panel should be centered like its siblings, not pinned to '
+          'the bottom of a 1000px window (was ~y=870); got $dialog for a chip '
+          'at $chip',
+    );
+  });
 }

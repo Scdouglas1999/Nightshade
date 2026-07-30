@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -62,51 +61,27 @@ class LivePreviewArea extends ConsumerStatefulWidget {
 /// in the canvas must keep clear of it.
 const double _cornerReadoutBandHeight = 120.0;
 
+/// Whether the on-canvas measurement readouts — the histogram, the HFR / ECC /
+/// star-count chip and the image-stats panel — are drawn.
+///
+/// This replaces a 2.5 s idle timer that faded them out whenever the pointer
+/// stopped moving. The intent was "leave a clean captured frame", but nobody
+/// wiggles the mouse while a sequence runs and a remote operator watching over
+/// a screen share has no local pointer at all, so in real use the two numbers
+/// an astrophotographer checks constantly were hidden essentially always — a
+/// new frame would land and the panel would still be blank until you jiggled
+/// the mouse. Visibility is now explicit and user-owned (Overlays → Readouts),
+/// defaulting on: nothing on this canvas disappears because of a timer.
+final previewReadoutsVisibleProvider = StateProvider<bool>((ref) => true);
+
 class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
-  /// How long the pointer can sit still over the image before the corner
-  /// readout chrome (histogram / stats / quality / annotation status) fades
-  /// out, leaving a clean captured frame.
-  static const Duration _idleHideDelay =
-      Duration(seconds: 2, milliseconds: 500);
-
-  /// Whether the fade-able corner chrome is currently visible. Starts visible;
-  /// the first idle period hides it. Any pointer movement reveals it again.
-  bool _chromeVisible = true;
-  Timer? _idleTimer;
-
-  @override
-  void dispose() {
-    _idleTimer?.cancel();
-    super.dispose();
-  }
-
-  /// Reveal the corner chrome and restart the idle countdown. Called on any
-  /// pointer movement over the canvas.
-  void _onPointerActivity() {
-    _idleTimer?.cancel();
-    if (!_chromeVisible) {
-      setState(() => _chromeVisible = true);
-    }
-    _idleTimer = Timer(_idleHideDelay, () {
-      if (!mounted) return;
-      setState(() => _chromeVisible = false);
-    });
-  }
-
-  /// Wrap a corner readout overlay so it fades out on idle and back in on
-  /// pointer activity. Faded-out chrome is also made non-interactive via
-  /// [IgnorePointer] so it can't swallow pan/annotation pointer events while
-  /// invisible — but the underlying [MouseRegion] still receives hover, so the
-  /// next mouse move re-reveals it.
-  Widget _fadeChrome(Widget child) {
-    return IgnorePointer(
-      ignoring: !_chromeVisible,
-      child: AnimatedOpacity(
-        opacity: _chromeVisible ? 1.0 : 0.0,
-        duration: NightshadeTokens.durationNormal,
-        child: child,
-      ),
-    );
+  /// Gate a measurement readout on [previewReadoutsVisibleProvider].
+  ///
+  /// Hidden readouts are removed from the tree rather than made transparent so
+  /// they cannot swallow pan / annotation pointer events while invisible.
+  Widget _readout(Widget child, {required bool visible}) {
+    if (!visible) return const SizedBox.shrink();
+    return child;
   }
 
   @override
@@ -120,6 +95,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
     final onZoomOut = widget.onZoomOut;
     final onPanUpdate = widget.onPanUpdate;
     final currentImage = ref.watch(currentImageProvider);
+    final readoutsVisible = ref.watch(previewReadoutsVisibleProvider);
     final previewHistogram = ref.watch(previewDisplayHistogramProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final lastStats = ref.watch(lastImageStatsProvider);
@@ -254,49 +230,50 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
               }
             }
           },
-          // MouseRegion drives the idle auto-hide: any movement/enter reveals
-          // the corner readout chrome and restarts the hide countdown. It is
-          // hit-test transparent for gestures, so panning and the on-image
-          // annotation drawing layer keep working underneath it.
-          child: MouseRegion(
-            opaque: false,
-            onEnter: (_) => _onPointerActivity(),
-            onHover: (_) => _onPointerActivity(),
-            child: GestureDetector(
-              onPanUpdate: (details) => onPanUpdate(details.delta),
-              // Tap the frame on a phone to inspect it fullscreen (pinch-zoom +
-              // pan), since the in-place preview shares the short cover-screen
-              // height with the controls. No-op when empty or on desktop, where
-              // the preview already has room and a tap shouldn't hijack.
-              onTap: (currentImage != null && Responsive.isPhone(context))
-                  ? () => FullscreenImageViewer.show(context, currentImage)
-                  : null,
-              child: Container(
-                color: const Color(0xFF08080C),
-                child: Stack(
-                  children: [
-                    // Image display or empty state
-                    if (currentImage != null)
-                      Positioned.fill(
-                        child: ImageDisplayWidget(
-                          imageData: currentImage,
-                          zoomLevel: zoomLevel,
-                          panOffset: panOffset,
-                        ),
-                      )
-                    else
-                      // Star field background with empty-state message
-                      Positioned.fill(
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: CustomPaint(
-                                painter: StarFieldPainter(colors: colors),
-                              ),
+          child: GestureDetector(
+            onPanUpdate: (details) => onPanUpdate(details.delta),
+            // Tap the frame on a phone to inspect it fullscreen (pinch-zoom +
+            // pan), since the in-place preview shares the short cover-screen
+            // height with the controls. No-op when empty or on desktop, where
+            // the preview already has room and a tap shouldn't hijack.
+            onTap: (currentImage != null && Responsive.isPhone(context))
+                ? () => FullscreenImageViewer.show(context, currentImage)
+                : null,
+            child: Container(
+              color: const Color(0xFF08080C),
+              child: Stack(
+                children: [
+                  // Image display or empty state
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: ImageDisplayWidget(
+                        imageData: currentImage,
+                        zoomLevel: zoomLevel,
+                        panOffset: panOffset,
+                      ),
+                    )
+                  else
+                    // Star field background with empty-state message
+                    Positioned.fill(
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: StarFieldPainter(colors: colors),
                             ),
-                            // Centered when there's room; on very short preview
-                            // heights (e.g. a phone held in landscape) the
-                            // message scrolls instead of overflowing the canvas.
+                          ),
+                          // While an exposure is in flight the progress
+                          // overlay owns the centre of the canvas, so the
+                          // empty state stands down. Drawing both stacked
+                          // "32%" on top of "No Image" and told the operator
+                          // to "take a snapshot or start a capture loop"
+                          // directly above a countdown for the capture already
+                          // running.
+                          //
+                          // Centered when there's room; on very short preview
+                          // heights (e.g. a phone held in landscape) the
+                          // message scrolls instead of overflowing the canvas.
+                          if (!isExposing)
                             SingleChildScrollView(
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(
@@ -371,428 +348,423 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                 ),
                               ),
                             ),
-                          ],
+                        ],
+                      ),
+                    ),
+
+                  // Crosshair overlay
+                  if (showCrosshair && currentImage != null)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: CrosshairOverlayPainter(
+                          color: colors.primary.withValues(alpha: 0.4),
                         ),
                       ),
+                    ),
 
-                    // Crosshair overlay
-                    if (showCrosshair && currentImage != null)
-                      Positioned.fill(
+                  // Pixel grid overlay
+                  if (gridType == GridType.pixel && currentImage != null)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: GridOverlayPainter(
+                          color: colors.primary.withValues(alpha: 0.2),
+                        ),
+                      ),
+                    ),
+
+                  // Celestial RA/Dec grid overlay (requires plate solve)
+                  if (gridType == GridType.celestial &&
+                      currentImage != null &&
+                      currentSkySolution.plateSolve != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
                         child: CustomPaint(
-                          painter: CrosshairOverlayPainter(
-                            color: colors.primary.withValues(alpha: 0.4),
-                          ),
-                        ),
-                      ),
-
-                    // Pixel grid overlay
-                    if (gridType == GridType.pixel && currentImage != null)
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: GridOverlayPainter(
-                            color: colors.primary.withValues(alpha: 0.2),
-                          ),
-                        ),
-                      ),
-
-                    // Celestial RA/Dec grid overlay (requires plate solve)
-                    if (gridType == GridType.celestial &&
-                        currentImage != null &&
-                        currentSkySolution.plateSolve != null)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: CelestialGridPainter(
-                              plateSolve: currentSkySolution.plateSolve!,
-                              zoomLevel: zoomLevel,
-                              imageOffset: imageOffset,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Star overlay
-                    if (showStarOverlay &&
-                        currentImage != null &&
-                        starDetectionResult != null &&
-                        starDetectionResult.stars.isNotEmpty)
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: StarOverlayPainter(
-                            stars: starDetectionResult.stars,
-                            color: colors.accent.withValues(alpha: 0.8),
+                          painter: CelestialGridPainter(
+                            plateSolve: currentSkySolution.plateSolve!,
                             zoomLevel: zoomLevel,
                             imageOffset: imageOffset,
                           ),
                         ),
                       ),
+                    ),
 
-                    // Annotation overlay with fade effects
-                    if (currentImage != null)
-                      Positioned.fill(
-                        child: AnnotationOverlayWrapper(
+                  // Star overlay
+                  if (showStarOverlay &&
+                      currentImage != null &&
+                      starDetectionResult != null &&
+                      starDetectionResult.stars.isNotEmpty)
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: StarOverlayPainter(
+                          stars: starDetectionResult.stars,
+                          color: colors.accent.withValues(alpha: 0.8),
                           zoomLevel: zoomLevel,
                           imageOffset: imageOffset,
-                          imageSize: Size(currentImage.width.toDouble(),
-                              currentImage.height.toDouble()),
-                          colors: colors,
-                          previewViewportWidth: viewportSize.width,
-                          onPanToObject: (imagePoint) {
-                            // Calculate pan delta to center the image point on screen
-                            final viewportSize = MediaQuery.sizeOf(context);
-                            final screenCenter = Offset(
-                              viewportSize.width / 2,
-                              viewportSize.height / 2,
-                            );
-                            final currentScreenPos = imageToViewport(
-                              imagePoint: imagePoint,
-                              imageOffset: imageOffset,
-                              zoomLevel: zoomLevel,
-                            );
-                            final delta = screenCenter - currentScreenPos;
-                            onPanUpdate(delta);
-                          },
                         ),
                       ),
+                    ),
 
-                    // Catalog overlay (F5-CATALOG-OVERLAY): live projection of
-                    // Messier / NGC / IC / bright stars from the planetarium
-                    // catalog through the solved WCS. Independent of the
-                    // existing annotation pipeline.
-                    if (currentImage != null)
-                      Positioned.fill(
-                        child: CatalogOverlayWidget(
-                          wcs: currentSkySolution.catalogWcs,
-                          zoomLevel: zoomLevel,
-                          imageOffset: imageOffset,
-                          imageSize: Size(currentImage.width.toDouble(),
-                              currentImage.height.toDouble()),
-                        ),
-                      ),
-
-                    // Custom user-drawn annotations (circles, arrows, text)
-                    if (currentImage != null)
-                      Positioned.fill(
-                        child: CustomAnnotationDrawingLayer(
-                          zoomLevel: zoomLevel,
-                          imageOffset: imageOffset,
-                          imageSize: Size(currentImage.width.toDouble(),
-                              currentImage.height.toDouble()),
-                        ),
-                      ),
-
-                    // Compass and scale bar overlays (require plate solve data)
-                    if (currentImage != null)
-                      _CompassScaleBarOverlay(
+                  // Annotation overlay with fade effects
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: AnnotationOverlayWrapper(
                         zoomLevel: zoomLevel,
-                        plateSolve: currentSkySolution.plateSolve,
+                        imageOffset: imageOffset,
+                        imageSize: Size(currentImage.width.toDouble(),
+                            currentImage.height.toDouble()),
+                        colors: colors,
+                        previewViewportWidth: viewportSize.width,
+                        onPanToObject: (imagePoint) {
+                          // Pan delta that centres the image point in the
+                          // PREVIEW, not on the screen: imageToViewport works
+                          // in preview-local coordinates, so measuring the
+                          // centre off MediaQuery threw the object off by
+                          // half the surrounding chrome — the wider the
+                          // window, the further the miss.
+                          final previewCenter = Offset(
+                            viewportSize.width / 2,
+                            viewportSize.height / 2,
+                          );
+                          final currentScreenPos = imageToViewport(
+                            imagePoint: imagePoint,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                          );
+                          final delta = previewCenter - currentScreenPos;
+                          onPanUpdate(delta);
+                        },
                       ),
+                    ),
 
-                    if (currentImage != null &&
-                        scienceOverlaysEnabled &&
-                        scienceOverlay.showPsfHeatmap &&
-                        psfTiles.isNotEmpty)
-                      Positioned.fill(
-                        child: IgnorePointer(
+                  // Catalog overlay (F5-CATALOG-OVERLAY): live projection of
+                  // Messier / NGC / IC / bright stars from the planetarium
+                  // catalog through the solved WCS. Independent of the
+                  // existing annotation pipeline.
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: CatalogOverlayWidget(
+                        wcs: currentSkySolution.catalogWcs,
+                        zoomLevel: zoomLevel,
+                        imageOffset: imageOffset,
+                        imageSize: Size(currentImage.width.toDouble(),
+                            currentImage.height.toDouble()),
+                      ),
+                    ),
+
+                  // Custom user-drawn annotations (circles, arrows, text)
+                  if (currentImage != null)
+                    Positioned.fill(
+                      child: CustomAnnotationDrawingLayer(
+                        zoomLevel: zoomLevel,
+                        imageOffset: imageOffset,
+                        imageSize: Size(currentImage.width.toDouble(),
+                            currentImage.height.toDouble()),
+                      ),
+                    ),
+
+                  // Compass and scale bar overlays (require plate solve data)
+                  if (currentImage != null)
+                    _CompassScaleBarOverlay(
+                      zoomLevel: zoomLevel,
+                      plateSolve: currentSkySolution.plateSolve,
+                    ),
+
+                  if (currentImage != null &&
+                      scienceOverlaysEnabled &&
+                      scienceOverlay.showPsfHeatmap &&
+                      psfTiles.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: SciencePsfOverlayPainter(
+                            tiles: psfTiles,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                            imageWidth: currentImage.width.toDouble(),
+                            imageHeight: currentImage.height.toDouble(),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      residualVectors.isNotEmpty &&
+                      (annotationShowResiduals ||
+                          (scienceOverlaysEnabled &&
+                              scienceOverlay.showResidualVectors)))
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: ScienceResidualOverlayPainter(
+                            vectors: residualVectors,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceOverlaysEnabled &&
+                      scienceOverlay.showUniformityMap &&
+                      uniformityTiles.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: ScienceUniformityOverlayPainter(
+                            tiles: uniformityTiles,
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                            imageWidth: currentImage.width.toDouble(),
+                            imageHeight: currentImage.height.toDouble(),
+                            opacity: scienceVizPrefs.overlayOpacity,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceOverlaysEnabled &&
+                      (scienceOverlay.showClipHighMap ||
+                          scienceOverlay.showClipLowMap))
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(
+                          painter: ScienceClipOverlayPainter(
+                            highTiles: scienceOverlay.showClipHighMap
+                                ? clipHighTiles
+                                : const <ScienceTileMetricRow>[],
+                            lowTiles: scienceOverlay.showClipLowMap
+                                ? clipLowTiles
+                                : const <ScienceTileMetricRow>[],
+                            imageOffset: imageOffset,
+                            zoomLevel: zoomLevel,
+                            imageWidth: currentImage.width.toDouble(),
+                            imageHeight: currentImage.height.toDouble(),
+                            opacity: scienceVizPrefs.overlayOpacity,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (currentImage != null &&
+                      scienceOverlaysEnabled &&
+                      scienceOverlay.showMovingObjectTracks &&
+                      projectedMovingTracks.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: RepaintBoundary(
                           child: CustomPaint(
-                            painter: SciencePsfOverlayPainter(
-                              tiles: psfTiles,
+                            painter: ScienceMovingTrackOverlayPainter(
+                              tracks: projectedMovingTracks,
                               imageOffset: imageOffset,
                               zoomLevel: zoomLevel,
-                              imageWidth: currentImage.width.toDouble(),
-                              imageHeight: currentImage.height.toDouble(),
                             ),
                           ),
                         ),
                       ),
+                    ),
 
-                    if (currentImage != null &&
-                        residualVectors.isNotEmpty &&
-                        (annotationShowResiduals ||
-                            (scienceOverlaysEnabled &&
-                                scienceOverlay.showResidualVectors)))
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: ScienceResidualOverlayPainter(
-                              vectors: residualVectors,
-                              imageOffset: imageOffset,
-                              zoomLevel: zoomLevel,
+                  // Exposure progress overlay
+                  if (isExposing)
+                    Positioned.fill(
+                      child: ExposureProgressOverlay(
+                        progress: exposureProgress,
+                        colors: colors,
+                      ),
+                    ),
+
+                  // Upper-right preview status badges: raw/HQ progress and
+                  // calibration provenance. Both ride above the overlay bar
+                  // chips so the user sees them even when zoomed in.
+                  if (currentImage != null)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
+                            RawPreviewStatusBadge(
+                              status: currentImage.rawLoadStatus,
+                              colors: colors,
                             ),
+                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
+                            const SizedBox(width: 6),
+                          // Surface whether the on-disk frame
+                          // backing the current preview has actually been
+                          // through the calibration pipeline. The provider
+                          // only reports true when the saved file path
+                          // ended up at `_cal.fits` — calibration failures
+                          // leave the original path untouched, so this
+                          // badge never lies about a frame that the
+                          // pipeline couldn't calibrate.
+                          _CalibratedBadge(colors: colors),
+                        ],
+                      ),
+                    ),
+
+                  // Top-right science chrome column: the Night Narrator
+                  // ticker (surface #2) over the Science HUD panel. Both fade
+                  // with the rest of the corner readouts on idle. The ticker
+                  // self-gates (hidden when sessionless or the feed is empty)
+                  // and the HUD self-gates on advanced mode, so this column
+                  // occupies zero height until there is something to show and
+                  // the two stack without overlapping when both are present.
+                  if (viewportSize.height > 120)
+                    Positioned(
+                      top: 56,
+                      right: 16,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: Responsive.previewOverlayMaxWidth(
+                            viewportSize.width,
                           ),
+                          maxHeight: viewportSize.height - 72,
                         ),
-                      ),
-
-                    if (currentImage != null &&
-                        scienceOverlaysEnabled &&
-                        scienceOverlay.showUniformityMap &&
-                        uniformityTiles.isNotEmpty)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: ScienceUniformityOverlayPainter(
-                              tiles: uniformityTiles,
-                              imageOffset: imageOffset,
-                              zoomLevel: zoomLevel,
-                              imageWidth: currentImage.width.toDouble(),
-                              imageHeight: currentImage.height.toDouble(),
-                              opacity: scienceVizPrefs.overlayOpacity,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    if (currentImage != null &&
-                        scienceOverlaysEnabled &&
-                        (scienceOverlay.showClipHighMap ||
-                            scienceOverlay.showClipLowMap))
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: CustomPaint(
-                            painter: ScienceClipOverlayPainter(
-                              highTiles: scienceOverlay.showClipHighMap
-                                  ? clipHighTiles
-                                  : const <ScienceTileMetricRow>[],
-                              lowTiles: scienceOverlay.showClipLowMap
-                                  ? clipLowTiles
-                                  : const <ScienceTileMetricRow>[],
-                              imageOffset: imageOffset,
-                              zoomLevel: zoomLevel,
-                              imageWidth: currentImage.width.toDouble(),
-                              imageHeight: currentImage.height.toDouble(),
-                              opacity: scienceVizPrefs.overlayOpacity,
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    if (currentImage != null &&
-                        scienceOverlaysEnabled &&
-                        scienceOverlay.showMovingObjectTracks &&
-                        projectedMovingTracks.isNotEmpty)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              painter: ScienceMovingTrackOverlayPainter(
-                                tracks: projectedMovingTracks,
-                                imageOffset: imageOffset,
-                                zoomLevel: zoomLevel,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Exposure progress overlay
-                    if (isExposing)
-                      Positioned.fill(
-                        child: ExposureProgressOverlay(
-                          progress: exposureProgress,
-                          colors: colors,
-                        ),
-                      ),
-
-                    // Upper-right preview status badges: raw/HQ progress and
-                    // calibration provenance. Both ride above the overlay bar
-                    // chips so the user sees them even when zoomed in.
-                    if (currentImage != null)
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (currentImage.rawLoadStatus !=
-                                RawLoadStatus.idle)
-                              RawPreviewStatusBadge(
-                                status: currentImage.rawLoadStatus,
-                                colors: colors,
+                            const NarratorTicker(),
+                            if (scienceMode.scienceHudVisible) ...[
+                              const SizedBox(height: NightshadeTokens.spaceSm),
+                              Flexible(
+                                child: SingleChildScrollView(
+                                  child: ScienceHudPanel(colors: colors),
+                                ),
                               ),
-                            if (currentImage.rawLoadStatus !=
-                                RawLoadStatus.idle)
-                              const SizedBox(width: 6),
-                            // Surface whether the on-disk frame
-                            // backing the current preview has actually been
-                            // through the calibration pipeline. The provider
-                            // only reports true when the saved file path
-                            // ended up at `_cal.fits` — calibration failures
-                            // leave the original path untouched, so this
-                            // badge never lies about a frame that the
-                            // pipeline couldn't calibrate.
-                            _CalibratedBadge(colors: colors),
+                            ],
                           ],
                         ),
                       ),
-
-                    // Top-right science chrome column: the Night Narrator
-                    // ticker (surface #2) over the Science HUD panel. Both fade
-                    // with the rest of the corner readouts on idle. The ticker
-                    // self-gates (hidden when sessionless or the feed is empty)
-                    // and the HUD self-gates on advanced mode, so this column
-                    // occupies zero height until there is something to show and
-                    // the two stack without overlapping when both are present.
-                    if (viewportSize.height > 120)
-                      Positioned(
-                        top: 56,
-                        right: 16,
-                        child: _fadeChrome(
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                              ),
-                              maxHeight: viewportSize.height - 72,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const NarratorTicker(),
-                                if (scienceMode.scienceHudVisible) ...[
-                                  const SizedBox(
-                                      height: NightshadeTokens.spaceSm),
-                                  Flexible(
-                                    child: SingleChildScrollView(
-                                      child: ScienceHudPanel(colors: colors),
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    // Bottom-left histogram overlay
-                    Positioned(
-                      bottom: 16,
-                      left: 16,
-                      child: _fadeChrome(
-                        HistogramWidget(
-                          key: ImagingTutorialKeys.histogram,
-                          colors: colors,
-                          histogram: previewHistogram,
-                        ),
-                      ),
                     ),
 
-                    // Bottom-right stats readout
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: _fadeChrome(
-                        ImageStatsOverlay(
-                          key: ImagingTutorialKeys.statsPanel,
-                          colors: colors,
-                          stats: lastStats,
-                        ),
+                  // Bottom-left histogram overlay
+                  Positioned(
+                    bottom: 16,
+                    left: 16,
+                    child: _readout(
+                      HistogramWidget(
+                        key: ImagingTutorialKeys.histogram,
+                        colors: colors,
+                        histogram: previewHistogram,
                       ),
+                      visible: readoutsVisible,
                     ),
+                  ),
 
-                    // Bottom-left at-a-glance quality stack: the tappable
-                    // FrameScienceChip over a per-sub quality verdict badge and
-                    // a live "Guiding" indicator. The chip leads so its touch
-                    // target sits furthest from the bottom-left histogram (which
-                    // occupies bottom:16 + 80px height); the whole stack is
-                    // anchored a full spaceLg above the histogram top so a long
-                    // REJECT verdict never crowds it, and constrained to the same
-                    // previewOverlayMaxWidth as the sibling overlays so it can't
-                    // run over the bottom-right ImageStatsOverlay. The detailed
-                    // ImageStatsOverlay continues to own the bottom-right corner.
-                    // All children self-gate on their own providers, so this
-                    // region is empty until there is something honest to show.
-                    //
-                    // Deliberately NOT wrapped in IgnorePointer: the children
-                    // expose hover tooltips (GuidingActiveChip's RMS-units note
-                    // and SubQualityBadge's reject-reason) that an IgnorePointer
-                    // would silently kill. Like the bottom-right ImageStatsOverlay
-                    // these are small, non-gesture corner widgets; they absorb the
-                    // pointer only within their own compact footprint, matching
-                    // that overlay's established pointer behaviour, and the rest
-                    // of the canvas keeps its pan/zoom gestures.
-                    if (currentImage != null)
-                      Positioned(
-                        bottom: 112,
-                        left: 12,
-                        child: _fadeChrome(
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.previewOverlayMaxWidth(
-                                viewportSize.width,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const FrameScienceChip(),
-                                const SizedBox(
-                                    height: NightshadeTokens.spaceXs),
-                                SubQualityBadge(
-                                    eccentricity: frameEccentricity),
-                                const SizedBox(
-                                    height: NightshadeTokens.spaceXs),
-                                const GuidingActiveChip(),
-                              ],
+                  // Bottom-right stats readout
+                  Positioned(
+                    bottom: 16,
+                    right: 16,
+                    child: _readout(
+                      ImageStatsOverlay(
+                        key: ImagingTutorialKeys.statsPanel,
+                        colors: colors,
+                        stats: lastStats,
+                      ),
+                      visible: readoutsVisible,
+                    ),
+                  ),
+
+                  // Bottom-left at-a-glance quality stack: the tappable
+                  // FrameScienceChip over a per-sub quality verdict badge and
+                  // a live "Guiding" indicator. The chip leads so its touch
+                  // target sits furthest from the bottom-left histogram (which
+                  // occupies bottom:16 + 80px height); the whole stack is
+                  // anchored a full spaceLg above the histogram top so a long
+                  // REJECT verdict never crowds it, and constrained to the same
+                  // previewOverlayMaxWidth as the sibling overlays so it can't
+                  // run over the bottom-right ImageStatsOverlay. The detailed
+                  // ImageStatsOverlay continues to own the bottom-right corner.
+                  // All children self-gate on their own providers, so this
+                  // region is empty until there is something honest to show.
+                  //
+                  // Deliberately NOT wrapped in IgnorePointer: the children
+                  // expose hover tooltips (GuidingActiveChip's RMS-units note
+                  // and SubQualityBadge's reject-reason) that an IgnorePointer
+                  // would silently kill. Like the bottom-right ImageStatsOverlay
+                  // these are small, non-gesture corner widgets; they absorb the
+                  // pointer only within their own compact footprint, matching
+                  // that overlay's established pointer behaviour, and the rest
+                  // of the canvas keeps its pan/zoom gestures.
+                  if (currentImage != null)
+                    Positioned(
+                      bottom: 112,
+                      left: 12,
+                      child: _readout(
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: Responsive.previewOverlayMaxWidth(
+                              viewportSize.width,
                             ),
                           ),
-                        ),
-                      ),
-
-                    // Mini annotation object chips (top, below overlay bar)
-                    if (currentImage != null)
-                      Positioned(
-                        top: 44,
-                        left: 8,
-                        right: 8,
-                        child: _fadeChrome(AnnotationMiniChips(colors: colors)),
-                      ),
-
-                    // Annotation status indicator (top left, below the overlay bar + chips)
-                    if (currentImage != null)
-                      Positioned(
-                        top: 72,
-                        left: 16,
-                        child: _fadeChrome(
-                          Column(
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              AnnotationStatusIndicator(colors: colors),
-                              const SizedBox(height: 6),
-                              ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: Responsive.previewOverlayMaxWidth(
-                                    viewportSize.width,
-                                    maxAbsolute: 380,
-                                  ),
-                                ),
-                                child:
-                                    ReAnnotateSuggestionBanner(colors: colors),
-                              ),
+                              const FrameScienceChip(),
+                              const SizedBox(height: NightshadeTokens.spaceXs),
+                              SubQualityBadge(eccentricity: frameEccentricity),
+                              const SizedBox(height: NightshadeTokens.spaceXs),
+                              const GuidingActiveChip(),
                             ],
                           ),
                         ),
+                        visible: readoutsVisible,
                       ),
+                    ),
 
-                    // Custom annotation drawing palette — docked bottom-centre
-                    // just above the bottom histogram/stats strip, and shown
-                    // ONLY while annotate/draw mode is active so it never floats
-                    // over an idle frame. Opened via the off-canvas toolbar's
-                    // "Annotate" toggle.
-                    if (currentImage != null &&
-                        ref.watch(customAnnotationDrawModeActiveProvider))
-                      Positioned(
-                        bottom: 110,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: CustomAnnotationToolbar(colors: colors),
-                        ),
+                  // Mini annotation object chips (top, below overlay bar)
+                  if (currentImage != null)
+                    Positioned(
+                      top: 44,
+                      left: 8,
+                      right: 8,
+                      child: AnnotationMiniChips(colors: colors),
+                    ),
+
+                  // Annotation status indicator (top left, below the overlay bar + chips)
+                  if (currentImage != null)
+                    Positioned(
+                      top: 72,
+                      left: 16,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnnotationStatusIndicator(colors: colors),
+                          const SizedBox(height: 6),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: Responsive.previewOverlayMaxWidth(
+                                viewportSize.width,
+                                maxAbsolute: 380,
+                              ),
+                            ),
+                            child: ReAnnotateSuggestionBanner(colors: colors),
+                          ),
+                        ],
                       ),
-                  ],
-                ),
+                    ),
+
+                  // Custom annotation drawing palette — docked bottom-centre
+                  // just above the bottom histogram/stats strip, and shown
+                  // ONLY while annotate/draw mode is active so it never floats
+                  // over an idle frame. Opened via the off-canvas toolbar's
+                  // "Annotate" toggle.
+                  if (currentImage != null &&
+                      ref.watch(customAnnotationDrawModeActiveProvider))
+                    Positioned(
+                      bottom: 110,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: CustomAnnotationToolbar(colors: colors),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

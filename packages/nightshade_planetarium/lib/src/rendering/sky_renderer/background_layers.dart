@@ -4,6 +4,11 @@ part of '../sky_renderer.dart';
 
 extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
   void _drawBackground(Canvas canvas, Size size) {
+    // A host is drawing its own sky background beneath this view (survey
+    // imagery). Painting the opaque gradient here would hide it, so leave the
+    // pixels untouched — the layer underneath is the background this frame.
+    if (!paintsOpaqueBackground) return;
+
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
 
     // Check if twilight gradient is enabled
@@ -117,12 +122,10 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
 
     // Check if we can reuse a cached Milky Way Picture.
     // The Milky Way is fixed on the sky, so it only needs redrawing when the view moves.
-    if (_milkyWayCache.isValid(
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
-      size,
-    )) {
+    final poseLst = viewState.viewMode == SkyViewMode.horizontal
+        ? _lstHours
+        : null;
+    if (_milkyWayCache.isValid(viewState, size, poseLst)) {
       canvas.drawPicture(_milkyWayCache.picture!);
       return;
     }
@@ -190,13 +193,7 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     }
 
     final picture = recorder.endRecording();
-    _milkyWayCache.store(
-      picture,
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
-      size,
-    );
+    _milkyWayCache.store(picture, viewState, size, poseLst);
 
     canvas.drawPicture(picture);
   }

@@ -186,6 +186,23 @@ final starsProvider = FutureProvider<List<Star>>((ref) async {
   return catalog.loadObjects();
 });
 
+/// True once the star load has resolved onto the built-in fallback list
+/// because no HYG catalog is installed.
+///
+/// The fallback is a few dozen naked-eye stars — the sky it draws is not a
+/// usable one, so surfaces that render it must say so rather than let it pass
+/// for the real catalog.
+final starCatalogFallbackProvider = Provider<bool>((ref) {
+  final stars = ref.watch(starsProvider);
+  if (!stars.hasValue) return false;
+  return ref.watch(starCatalogProvider).isUsingFallback;
+});
+
+/// Number of stars in the built-in fallback list.
+final fallbackStarCountProvider = Provider<int>(
+  (ref) => HygStarCatalog.fallbackStarCount,
+);
+
 /// Provider for loading DSOs
 final dsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
   final catalog = ref.watch(dsoCatalogProvider);

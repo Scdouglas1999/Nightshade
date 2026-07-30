@@ -225,6 +225,7 @@ class TargetSuggestionService {
         score,
         dataProgress,
         nightWindow,
+        moonIllumination: moonIllumination,
         framingFitScore: framingFitScore,
         targetSizeArcmin: target.sizeArcmin,
         fovShortAxisArcmin: fovShortAxisArcmin,
@@ -455,6 +456,7 @@ class TargetSuggestionService {
     TargetScore score,
     double dataProgress,
     _NightWindow nightWindow, {
+    required double moonIllumination,
     double? framingFitScore,
     double? targetSizeArcmin,
     double? fovShortAxisArcmin,
@@ -474,16 +476,22 @@ class TargetSuggestionService {
       parts.add('Low peak altitude (${peakAlt.toStringAsFixed(0)}°)');
     }
 
-    // Moon distance
+    // Moon: separation AND illumination. Separation alone reads as good news
+    // on a full-moon night ("far from moon (101°)") when the whole sky is
+    // washed out, so the phase is always stated alongside it.
     final moonDist = score.visibility.moonDistance;
+    final illum = moonIllumination.clamp(0.0, 100.0);
+    final moonPhase = '${illum.toStringAsFixed(0)}% moon';
     if (moonDist >= 90) {
-      parts.add('far from moon (${moonDist.toStringAsFixed(0)}°)');
+      parts.add('far from the $moonPhase (${moonDist.toStringAsFixed(0)}°)');
     } else if (moonDist >= 60) {
-      parts.add('good moon distance (${moonDist.toStringAsFixed(0)}°)');
+      parts.add(
+        'good separation from the $moonPhase (${moonDist.toStringAsFixed(0)}°)',
+      );
     } else if (moonDist >= 30) {
-      parts.add('moon nearby (${moonDist.toStringAsFixed(0)}°)');
+      parts.add('$moonPhase nearby (${moonDist.toStringAsFixed(0)}°)');
     } else {
-      parts.add('close to moon (${moonDist.toStringAsFixed(0)}°)');
+      parts.add('close to the $moonPhase (${moonDist.toStringAsFixed(0)}°)');
     }
 
     // Transit timing relative to the night
@@ -508,6 +516,17 @@ class TargetSuggestionService {
     if (hoursAbove != null && hoursAbove > 0) {
       reasoning +=
           ' ${hoursAbove.toStringAsFixed(1)} hours above minimum altitude.';
+    }
+
+    // Bright-moon disclosure, independent of separation. A wide separation does
+    // not rescue a broadband target under a bright moon: the sky background is
+    // elevated across the whole sky. Saying nothing at all made a full-moon
+    // night read exactly like a new-moon night.
+    if (illum >= 65) {
+      reasoning +=
+          ' Sky background is elevated by the '
+          '${illum.toStringAsFixed(0)}%-illuminated moon; narrowband filters '
+          'will fare much better than broadband tonight.';
     }
 
     // Data progress

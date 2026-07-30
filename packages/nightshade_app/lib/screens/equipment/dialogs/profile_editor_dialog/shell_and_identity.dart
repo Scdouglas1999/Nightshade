@@ -3,6 +3,69 @@
 part of '../profile_editor_dialog.dart';
 
 extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
+  /// Persistent validation summary rendered INSIDE the dialog, above the
+  /// sections.
+  ///
+  /// Replaces relying on a transient snackbar that appeared ~150 px below the
+  /// Save button at the bottom edge of the window, dimmed by the modal barrier to
+  /// a measured 2.00:1 contrast ratio, and disappeared after a few seconds. The
+  /// banner stays until the form validates, sits where the user is already
+  /// looking, and is not subject to the scrim.
+  Widget _buildValidationBanner(NightshadeColors colors) {
+    final messages = <String>[
+      if (_nameError != null) _nameError!,
+      ..._fieldErrors.values.whereType<String>(),
+      ..._formErrors,
+    ];
+    if (messages.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.error.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          border: Border.all(color: colors.error.withValues(alpha: 0.45)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(LucideIcons.alertTriangle, size: 16, color: colors.error),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    messages.length == 1
+                        ? 'Fix 1 problem before saving'
+                        : 'Fix ${messages.length} problems before saving',
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: colors.error),
+                  ),
+                  const SizedBox(height: 4),
+                  for (final message in messages)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        '• $message',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textPrimary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(
       NightshadeColors colors, ThemeData theme, bool isEditing) {
     return Container(

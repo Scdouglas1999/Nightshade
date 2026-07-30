@@ -75,7 +75,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
       if (mounted &&
           _hasCurrentDeviceAuthority(backend, deviceService, deviceId)) {
         context.showSuccessSnackBar(
-            'Cooling to ${targetTemp.toStringAsFixed(0)}C');
+            'Cooling to ${formatCelsius(targetTemp, decimals: 0)}');
       }
     } catch (e) {
       if (mounted &&
@@ -149,7 +149,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
                           Navigator.pop(context);
                           if (pageContext.mounted) {
                             pageContext.showSuccessSnackBar(
-                                'Cooling to ${temp.toStringAsFixed(0)}C');
+                                'Cooling to ${formatCelsius(temp, decimals: 0)}');
                           }
                         } catch (e) {
                           if (!context.mounted) return;
@@ -445,6 +445,14 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
         ref.read(domeStateProvider).deviceId == deviceId;
   }
 
+  /// Re-read dome telemetry so the card reflects the command that just
+  /// completed. Without this the dome readouts only moved on the 5 s poll, and
+  /// before the poll existed at all they never moved — the shutter button stayed
+  /// on "Open Shutter" forever while a green toast claimed the shutter was
+  /// opening.
+  Future<void> _refreshDomeAfterCommand() =>
+      ref.read(deviceServiceProvider).refreshDomeStatus();
+
   Future<void> _handleDomeShutter(ShutterStatus currentStatus) async {
     final domeState = ref.read(domeStateProvider);
     final deviceId = domeState.deviceId;
@@ -458,11 +466,21 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
       } else {
         await backend.domeOpenShutter(deviceId);
       }
+      await _refreshDomeAfterCommand();
       if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
+        // Report what we actually know. The command was accepted; whether the
+        // shutter is moving is only knowable from the telemetry read above, so
+        // when that read leaves the state unknown we say "sent", not "opening".
+        final observed = ref.read(domeStateProvider).shutterStatus;
+        final closing = currentStatus == ShutterStatus.open;
+        final verb = closing ? 'Close' : 'Open';
         context.showSuccessSnackBar(
-          currentStatus == ShutterStatus.open
-              ? 'Closing dome shutter'
-              : 'Opening dome shutter',
+          observed == ShutterStatus.unknown
+              ? '$verb shutter command sent — dome is not reporting '
+                  'shutter state'
+              : closing
+                  ? 'Closing dome shutter'
+                  : 'Opening dome shutter',
         );
       }
     } catch (e) {
@@ -483,6 +501,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     final backend = ref.read(backendProvider);
     try {
       await backend.domePark(deviceId);
+      await _refreshDomeAfterCommand();
       if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showSuccessSnackBar('Parking dome');
       }
@@ -504,6 +523,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     final backend = ref.read(backendProvider);
     try {
       await backend.domeFindHome(deviceId);
+      await _refreshDomeAfterCommand();
       if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showSuccessSnackBar('Homing dome');
       }
@@ -525,6 +545,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     final backend = ref.read(backendProvider);
     try {
       await backend.domeAbortSlew(deviceId);
+      await _refreshDomeAfterCommand();
       if (mounted && _hasCurrentDomeAuthority(backend, deviceId)) {
         context.showSuccessSnackBar('Stopping dome');
       }

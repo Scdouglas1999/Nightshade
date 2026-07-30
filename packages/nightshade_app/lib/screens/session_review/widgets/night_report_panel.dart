@@ -82,8 +82,12 @@ class NightReportPanel extends StatelessWidget {
           if (findings.isEmpty) ...[
             // Keep the calm "clean night" state attached to whichever slot
             // renders findings; pad it off the verdict only when both show.
-            if (showVerdict) const SizedBox(height: NightshadeTokens.spaceMd),
-            const _NoFindings(),
+            // An un-graded night gets nothing here: "no problems found" would be
+            // a claim the analysis never made.
+            if (report.graded) ...[
+              if (showVerdict) const SizedBox(height: NightshadeTokens.spaceMd),
+              const _NoFindings(),
+            ],
           ] else
             ...findings.asMap().entries.map(
                   (e) => Padding(
@@ -155,8 +159,11 @@ class _VerdictHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    // An un-graded night has no number to show: the grade would be a 100/100
+    // "Excellent" earned by having produced nothing to measure.
+    final graded = report.graded;
     final score = report.score.clamp(0, 100);
-    final scoreColor = _scoreColor(score, colors);
+    final scoreColor = graded ? _scoreColor(score, colors) : colors.textMuted;
 
     return NightshadeCard(
       variant: CardVariant.elevated,
@@ -164,7 +171,10 @@ class _VerdictHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _ScoreRing(score: score, color: scoreColor),
+          if (graded)
+            _ScoreRing(score: score, color: scoreColor)
+          else
+            _UngradedRing(color: colors.textMuted, track: colors.border),
           const SizedBox(width: NightshadeTokens.spaceXl),
           Expanded(
             child: Column(
@@ -189,7 +199,9 @@ class _VerdictHeader extends StatelessWidget {
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 Text(
                   report.headline.isEmpty
-                      ? 'Your night, summarised.'
+                      ? (graded
+                          ? 'Your night, summarised.'
+                          : 'Not graded — this night had nothing to analyse.')
                       : report.headline,
                   style: NightshadeTypography.h3.copyWith(
                     color: colors.textPrimary,
@@ -201,10 +213,17 @@ class _VerdictHeader extends StatelessWidget {
                   runSpacing: NightshadeTokens.spaceSm,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _GradeChip(label: _scoreGrade(score), color: scoreColor),
+                    _GradeChip(
+                      label: graded ? _scoreGrade(score) : 'Not graded',
+                      color: scoreColor,
+                    ),
                     Text(
-                      '${report.findings.length} finding'
-                      '${report.findings.length == 1 ? '' : 's'}',
+                      // "0 findings" on an un-graded night would imply the
+                      // checks ran and came back clean; they never ran.
+                      (!graded && report.findings.isEmpty)
+                          ? 'nothing to analyse'
+                          : '${report.findings.length} finding'
+                              '${report.findings.length == 1 ? '' : 's'}',
                       style: NightshadeTypography.bodySm.copyWith(
                         color: colors.textSecondary,
                       ),
@@ -256,6 +275,42 @@ class _ScoreRing extends StatelessWidget {
                 style: NightshadeTypography.captionSm.copyWith(
                   color: colors.textMuted,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The score ring's un-graded twin: the same footprint (so the header does not
+/// reflow) with an empty track and an em dash where the number would be. Used
+/// when [NightReport.graded] is false — there is no grade to draw.
+class _UngradedRing extends StatelessWidget {
+  final Color color;
+  final Color track;
+
+  const _UngradedRing({required this.color, required this.track});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _ScoreRing._size,
+      height: _ScoreRing._size,
+      child: CustomPaint(
+        painter: _ScoreRingPainter(fraction: 0, color: color, track: track),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '—',
+                style: NightshadeTypography.telemetryLg.copyWith(color: color),
+              ),
+              Text(
+                'not graded',
+                style: NightshadeTypography.captionSm.copyWith(color: color),
               ),
             ],
           ),

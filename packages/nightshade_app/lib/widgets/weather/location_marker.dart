@@ -42,8 +42,9 @@ class _LocationMarkerState extends State<LocationMarker>
       ),
     );
 
-    // Start the pulsing animation
-    _controller.repeat(reverse: true);
+    // The pulse is started by the OnScreenAnimationGate in build(), not here: a
+    // repeat that outlives visibility schedules a frame on every vsync and
+    // stops the whole app from idling.
   }
 
   @override
@@ -56,18 +57,23 @@ class _LocationMarkerState extends State<LocationMarker>
   Widget build(BuildContext context) {
     final highlightColor = Theme.of(context).colorScheme.onPrimary;
 
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return CustomPaint(
-          painter: _LocationMarkerPainter(
-            colors: widget.colors,
-            highlightColor: highlightColor,
-            pulseScale: _pulseAnimation.value,
-          ),
-          size: const Size(40, 40),
-        );
-      },
+    return OnScreenAnimationGate(
+      controller: _controller,
+      repeating: true,
+      reverse: true,
+      child: AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: _LocationMarkerPainter(
+              colors: widget.colors,
+              highlightColor: highlightColor,
+              pulseScale: _pulseAnimation.value,
+            ),
+            size: const Size(40, 40),
+          );
+        },
+      ),
     );
   }
 }

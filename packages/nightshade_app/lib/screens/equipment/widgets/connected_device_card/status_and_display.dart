@@ -104,6 +104,24 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     );
   }
 
+  /// Full-width notice for a device that is connected but is NOT the device the
+  /// active profile assigns to this slot.
+  ///
+  /// Returns [SizedBox.shrink] otherwise, so a profile device keeps its compact
+  /// card.
+  Widget _buildSessionOnlyNotice(
+    NightshadeColors colors,
+    DeviceConnectionState state,
+  ) {
+    if (state != DeviceConnectionState.connected || !widget.sessionOnly) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+      child: _SessionOnlyNotice(colors: colors),
+    );
+  }
+
   /// When the device is in an error state, render a full-width
   /// row beneath the header that surfaces the same plain-language headline the
   /// troubleshooter dialog uses (via [DeviceErrorSubtitle]), with the raw driver
@@ -435,9 +453,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(cameraStateProvider);
         return [
           _DeviceMetric(
-            value: state.temperature != null
-                ? '${state.temperature!.toStringAsFixed(1)}C'
-                : '---',
+            value: formatCelsius(state.temperature),
             label: 'Sensor Temp',
           ),
           _DeviceMetric(
@@ -491,9 +507,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
             label: 'Position',
           ),
           _DeviceMetric(
-            value: state.temperature != null
-                ? '${state.temperature!.toStringAsFixed(1)}C'
-                : '---',
+            value: formatCelsius(state.temperature),
             label: 'Temp',
           ),
           _DeviceMetric(
@@ -609,17 +623,38 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       case ConnectedDeviceType.safetyMonitor:
         final state = ref.watch(safetyMonitorStateProvider);
         final colors = NightshadeColors.of(context);
+        // The age must be driven by a CLOCK, not by the provider that sets
+        // `lastChecked`. Computing it at build time only worked out to "0s ago"
+        // forever: the widget rebuilt exactly when lastChecked was set to
+        // DateTime.now(), so sampling the label every 3 s over 42 s produced
+        // fourteen consecutive "0s ago" against a 5 s poll.
+        final now = _tickNow();
+        final lastChecked = state.lastChecked;
+        final age = lastChecked == null ? null : now.difference(lastChecked);
+        final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
+          // A stale reading is NOT a safe reading. A wedged driver read used to
+          // leave this pinned on green "SAFE" indefinitely while nothing was
+          // actually being polled.
           _DeviceMetric(
-            value: state.isSafe ? 'SAFE' : 'UNSAFE',
+            value: lastChecked == null
+                ? 'UNKNOWN'
+                : isStale
+                    ? 'STALE'
+                    : state.isSafe
+                        ? 'SAFE'
+                        : 'UNSAFE',
             label: 'Status',
-            valueColor: state.isSafe ? colors.success : colors.error,
+            valueColor: lastChecked == null || isStale
+                ? colors.warning
+                : state.isSafe
+                    ? colors.success
+                    : colors.error,
           ),
           _DeviceMetric(
-            value: state.lastChecked != null
-                ? _formatTimeAgo(state.lastChecked!)
-                : '---',
+            value: age != null ? '${_formatAge(age)} ago' : '---',
             label: 'Last Checked',
+            valueColor: isStale ? colors.warning : null,
           ),
         ];
 
@@ -729,10 +764,78 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     return '$level/$max';
   }
 
-  String _formatTimeAgo(DateTime time) {
-    final diff = DateTime.now().difference(time);
-    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    return '${diff.inHours}h ago';
+  /// "Now" as seen by the card's own 5 s freshness clock
+  /// (see `_startFreshnessTicker`).
+  ///
+  /// Freshness labels MUST derive from a clock, not from `DateTime.now()` read
+  /// during a build that only happens when the value being aged is refreshed —
+  /// that combination pinned "Last Checked" at "0s ago" permanently, including
+  /// while polling was wedged.
+  DateTime _tickNow() => _freshnessNow;
+}
+
+/// Marks a card whose device is connected but is NOT the device the active
+/// profile assigns to that slot.
+///
+/// Discovery's "Assign" (persistent) and "Connect" (ephemeral) sat side by side
+/// with no wording, icon or hint that Connect alone would not survive a restart,
+/// and the resulting cards were pixel-identical to the profile devices. A user
+/// who set up nine devices at dusk saw "9 connected" and reasonably concluded the
+/// rig was configured; the next night four came up.
+class _SessionOnlyNotice extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _SessionOnlyNotice({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: NightshadeDecorations.tintedBadge(
+        colors.warning,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(LucideIcons.bookmarkMinus, size: 12, color: colors.warning),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'This session only — not saved to your profile, so it will not '
+              'reconnect next launch. Use Assign in Discovery to keep it.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                fontWeight: FontWeight.w500,
+                color: colors.warning,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
+
+/// Renders a duration as `12s` / `4m` / `2h`. Takes the age rather than a
+/// timestamp so the caller supplies the clock — see the safety-monitor branch of
+/// `_getMetrics` for why reading `DateTime.now()` in here made the label
+/// structurally incapable of ageing.
+String _formatAge(Duration age) {
+  if (age.isNegative) return '0s';
+  if (age.inSeconds < 60) return '${age.inSeconds}s';
+  if (age.inMinutes < 60) return '${age.inMinutes}m';
+  return '${age.inHours}h';
+}
+
+/// How old a safety reading may be before the card stops presenting it as the
+/// current safety verdict.
+///
+/// The environmental poll runs every 5 s with a 4 s read cap, so a healthy cycle
+/// completes well inside 10 s. 30 s therefore cannot fire on ordinary jitter but
+/// still catches a wedged or unresponsive monitor within half a minute — which
+/// matters because the previous behaviour was to keep rendering green "SAFE"
+/// forever.
+const Duration _safetyStatusStaleAfter = Duration(seconds: 30);

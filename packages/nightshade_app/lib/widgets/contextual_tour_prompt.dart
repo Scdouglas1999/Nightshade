@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -42,6 +43,17 @@ class ContextualTourPrompt extends ConsumerStatefulWidget {
   /// The child widget this prompt is attached to.
   final Widget child;
 
+  /// Whether to hold a band of the child's height clear for the card.
+  ///
+  /// Right for a page of cards, where a floating nudge lands on top of live
+  /// content. Wrong for a full-bleed canvas: the planetarium's sky is one
+  /// continuous map with nothing in its bottom-right corner, and reserving the
+  /// band there cut a constant ~150px strip of flat page background across the
+  /// bottom of the star field — about 25% of the viewport on a 1366x768 laptop,
+  /// which snapped back the instant the card was dismissed. Such a screen sets
+  /// this false and lets the card float over the corner it already occupies.
+  final bool reserveSpaceForCard;
+
   const ContextualTourPrompt({
     super.key,
     required this.screenId,
@@ -51,6 +63,7 @@ class ContextualTourPrompt extends ConsumerStatefulWidget {
     this.durationMinutes = 3,
     this.alignment = Alignment.bottomRight,
     this.offset = const Offset(-16, -16),
+    this.reserveSpaceForCard = true,
     required this.child,
   });
 
@@ -242,7 +255,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
   /// Space held clear for the prompt card on the edge it is anchored to,
   /// clamped so content always keeps the majority of [availableHeight].
   EdgeInsets _reservedInset(double availableHeight) {
-    if (!_isVisible) return EdgeInsets.zero;
+    if (!widget.reserveSpaceForCard || !_isVisible) return EdgeInsets.zero;
     final height = _promptSize?.height;
     if (height == null) return EdgeInsets.zero;
     // The card is offset from the edge by the alignment offset; leave a small
@@ -711,12 +724,23 @@ class _OverlayPrompt extends StatelessWidget {
           break;
       }
 
-      // Clamp to screen bounds
+      // Clamp to screen bounds. The far edge is floored at the near one so a
+      // viewport too small to hold the prompt plus both margins pins it to the
+      // near edge (and clips) instead of inverting the clamp and throwing —
+      // this prompt is mounted over most screens, so a throw here blanks them.
       if (left != null) {
-        left = left.clamp(padding, screenSize.width - promptWidth - padding);
+        final maxLeft = math.max(
+          padding,
+          screenSize.width - promptWidth - padding,
+        );
+        left = left.clamp(padding, maxLeft);
       }
       if (top != null) {
-        top = top.clamp(padding, screenSize.height - promptHeight - padding);
+        final maxTop = math.max(
+          padding,
+          screenSize.height - promptHeight - padding,
+        );
+        top = top.clamp(padding, maxTop);
       }
     }
 

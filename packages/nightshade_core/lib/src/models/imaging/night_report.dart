@@ -158,11 +158,32 @@ class NightReport {
   final int? sessionId;
   final int? targetId;
 
-  /// Overall night quality, 0..100.
+  /// Overall night quality, 0..100 — or [ungradedScore] when the night could
+  /// not be graded at all. Read [graded] before showing this number.
   final int score;
   final String headline;
   final List<NightFinding> findings;
   final DateTime createdAt;
+
+  /// Sentinel [score] for a night the Night Doctor could not grade: no light
+  /// frames, too few to judge, or frames carrying no quality metrics.
+  ///
+  /// The score is a DEGRADATION score — it starts at 100 and only subtracts
+  /// per-finding penalties — so a night that produced nothing to analyse used to
+  /// come out at a perfect 100 with the headline "A clean night — no problems
+  /// detected". That was observed on a FAILED run with zero accepted frames and
+  /// on a dark-only session. Absence of evidence is not evidence of a good
+  /// night, so those reports now carry this sentinel and the UI must render
+  /// "Not graded" instead of a number.
+  ///
+  /// It is deliberately outside 0..100 so it survives the `night_reports.score`
+  /// round-trip (an `INTEGER NOT NULL` column) with no schema migration.
+  static const int ungradedScore = -1;
+
+  /// Whether [score] is a real grade. False for an un-gradable night (see
+  /// [ungradedScore]); the UI must then present "Not graded" and never a ring,
+  /// number or grade word.
+  bool get graded => score >= 0;
 
   const NightReport({
     this.sessionId,
@@ -172,6 +193,16 @@ class NightReport {
     this.findings = const [],
     required this.createdAt,
   });
+
+  /// A report for a night that could not be graded: [headline] states why, and
+  /// [score] is [ungradedScore] so no surface can print a flattering number.
+  const NightReport.ungraded({
+    this.sessionId,
+    this.targetId,
+    required this.headline,
+    this.findings = const [],
+    required this.createdAt,
+  }) : score = ungradedScore;
 
   NightReport copyWith({
     int? sessionId,
@@ -207,7 +238,9 @@ class NightReport {
     return NightReport(
       sessionId: (json['sessionId'] as num?)?.toInt(),
       targetId: (json['targetId'] as num?)?.toInt(),
-      score: (json['score'] as num?)?.toInt() ?? 0,
+      // A blob with no score is a blob with no grade — decode it as un-graded
+      // rather than as a real (and very bad) 0.
+      score: (json['score'] as num?)?.toInt() ?? ungradedScore,
       headline: json['headline'] as String? ?? '',
       findings: json['findings'] is List
           ? (json['findings'] as List)

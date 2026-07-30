@@ -27,10 +27,15 @@ import 'optical_train_diagnostics_service.dart';
 ///
 /// **Fail-soft contract.** Every detector emits *nothing* (rather than throwing
 /// or guessing) when the signal it needs is missing — too few subs, a metric
-/// that is null across the night, or an absent science table. A night with no
-/// usable signal yields a neutral report (score 100, empty findings) instead of
-/// an error. This is the rule the brief calls out: "detectors that need missing
-/// data fail-soft (emit nothing rather than throw)".
+/// that is null across the night, or an absent science table. This is the rule
+/// the brief calls out: "detectors that need missing data fail-soft (emit
+/// nothing rather than throw)".
+///
+/// **Un-gradable nights.** Because the score only ever subtracts, silence from
+/// every detector is indistinguishable from a flawless night. A night with
+/// nothing analysable ([ungradableReason]) therefore yields an explicitly
+/// un-graded report ([NightReport.graded] false, [NightReport.ungradedScore])
+/// whose headline says why — never a 100/100 "clean night".
 class NightAnalysisService {
   NightAnalysisService({
     required ImagesDao images,
@@ -51,8 +56,8 @@ class NightAnalysisService {
   ///
   /// Exactly one of [sessionId] / [targetId] should be supplied; if both are
   /// given the session scopes the sub fetch and the target is recorded on the
-  /// report. If neither is supplied the report is empty (score 100, no
-  /// findings) — there is nothing to analyze.
+  /// report. If neither is supplied there is nothing to analyze, so the report
+  /// comes back explicitly un-graded ([NightReport.graded] false).
   ///
   /// When [persist] is true (the default) the report is written to
   /// `night_reports` and the returned [NightReport] is the persisted value.
@@ -101,6 +106,21 @@ class NightAnalysisService {
     }
     findings.sort(_bySeverityDesc);
 
+    // A night with nothing to analyse cannot be graded. The score subtracts
+    // penalties from 100, so without analysable frames it would land on a
+    // perfect 100 / "A clean night" — the exact opposite of the truth for a
+    // failed or dark-only run. Say "not graded" and why.
+    final ungradable = ungradableReason(data);
+    if (ungradable != null) {
+      return NightReport.ungraded(
+        sessionId: sessionId,
+        targetId: targetId,
+        headline: ungradable,
+        findings: List.unmodifiable(findings),
+        createdAt: _clock().toUtc(),
+      );
+    }
+
     final score = _score(findings);
     final headline = _headline(score, findings);
     return NightReport(
@@ -112,6 +132,47 @@ class NightAnalysisService {
       createdAt: _clock().toUtc(),
     );
   }
+
+  /// Fewest light subs that can carry a night grade. Every detector needs at
+  /// least a handful of points to distinguish a trend from noise, so below this
+  /// the honest answer is "not graded", not "no problems detected".
+  static const int minGradableSubs = 4;
+
+  /// Why [data] cannot be graded, in one user-facing sentence — or null when it
+  /// can. Public so the tests (and any other surface that wants to pre-check)
+  /// use the same rule the report does.
+  static String? ungradableReason(NightData data) {
+    final total = data.subs.length;
+    if (total == 0) {
+      return 'Not graded — this session captured no light frames, so there is '
+          'nothing to analyse.';
+    }
+    if (total < minGradableSubs) {
+      return 'Not graded — only $total light '
+          '${total == 1 ? 'frame was' : 'frames were'} captured; the night needs '
+          'at least $minGradableSubs to be judged.';
+    }
+    final measured = data.subs.where(_hasAnyMetric).length;
+    if (measured < minGradableSubs) {
+      return 'Not graded — the captured frames carry no quality measurements '
+          '(HFR, star count, background or guiding), so the night could not be '
+          'analysed.';
+    }
+    return null;
+  }
+
+  /// Whether [sub] carries at least one metric any detector can read. A sub with
+  /// every metric null contributes nothing, so a night of those is un-gradable
+  /// however many frames it holds.
+  static bool _hasAnyMetric(NightSub sub) =>
+      sub.hfr != null ||
+      sub.starCount != null ||
+      sub.background != null ||
+      sub.noise != null ||
+      sub.guidingRmsTotal != null ||
+      sub.snr != null ||
+      sub.fwhm != null ||
+      sub.eccentricity != null;
 
   // ---------------------------------------------------------------------------
   // Detector registry

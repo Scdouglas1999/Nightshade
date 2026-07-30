@@ -142,18 +142,17 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
   /// Midpoint of the two frames' DATE-OBS values in UTC, or null when
   /// either is missing/unparseable.
   DateTime? _midpointEpochUtc(String? firstObs, String? lastObs) {
-    final t0 = firstObs == null ? null : DateTime.tryParse(firstObs);
-    final t1 = lastObs == null ? null : DateTime.tryParse(lastObs);
-    if (t0 == null || t1 == null) return null;
-    final t0Utc = t0.toUtc();
+    final t0Utc = tryParseUtcTimestamp(firstObs);
+    final t1Utc = tryParseUtcTimestamp(lastObs);
+    if (t0Utc == null || t1Utc == null) return null;
     return t0Utc.add(
-      Duration(milliseconds: t1.toUtc().difference(t0Utc).inMilliseconds ~/ 2),
+      Duration(milliseconds: t1Utc.difference(t0Utc).inMilliseconds ~/ 2),
     );
   }
 
   double _deltaMinutes(String? firstObs, String? lastObs, int frameCount) {
-    final t0 = firstObs == null ? null : DateTime.tryParse(firstObs);
-    final t1 = lastObs == null ? null : DateTime.tryParse(lastObs);
+    final t0 = tryParseUtcTimestamp(firstObs);
+    final t1 = tryParseUtcTimestamp(lastObs);
     if (t0 != null && t1 != null) {
       return math.max(
         1.0 / 60.0,

@@ -16,4 +16,5 @@ pub(crate) mod safety;
 pub(crate) mod switch;
 pub(crate) mod weather;
 
+pub(crate) mod sim_faults;
 pub(crate) mod sim_gate;

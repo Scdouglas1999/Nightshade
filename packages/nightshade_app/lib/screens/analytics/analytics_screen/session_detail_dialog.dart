@@ -111,11 +111,20 @@ class _SessionDetailDialog extends ConsumerWidget {
                             onPressed: () => _exportReport(context, ref),
                             tooltip: l10n.text('analyticsExportHtml'),
                           ),
-                          IconButton(
-                            icon: const Icon(LucideIcons.share, size: 18),
-                            onPressed: () => _exportAndShare(context, ref),
-                            tooltip: l10n.text('share'),
-                          ),
+                          // Share only exists where the OS has a share sheet.
+                          // On desktop `shareXFiles()` is unimplemented — the
+                          // button used to throw
+                          // "UnimplementedError: shareXFiles() has not been
+                          // implemented on Linux" into a red toast — and the
+                          // CSV button beside it already writes the same file
+                          // and shows its path, so there is nothing left for
+                          // this action to do there.
+                          if (Platform.isAndroid || Platform.isIOS)
+                            IconButton(
+                              icon: const Icon(LucideIcons.share, size: 18),
+                              onPressed: () => _exportAndShare(context, ref),
+                              tooltip: l10n.text('share'),
+                            ),
                           IconButton(
                             icon: const Icon(LucideIcons.x, size: 18),
                             onPressed: () => Navigator.of(context).pop(),
@@ -338,31 +347,41 @@ class _SessionDetailDialog extends ConsumerWidget {
     }
   }
 
+  /// Export the session to CSV and hand it to the platform's reachable
+  /// destination.
+  ///
+  /// This used to call `Share.shareXFiles` directly, which throws
+  /// `UnimplementedError: shareXFiles() has not been implemented on Linux` in
+  /// the shipping desktop build — leaving the user with an internal API name in
+  /// a red toast and an orphaned export file. [revealExportedFile] is the
+  /// existing helper the other three export actions already use: share sheet on
+  /// Android/iOS, path snackbar on desktop.
   Future<void> _exportAndShare(BuildContext context, WidgetRef ref) async {
     try {
       final backend = ref.read(backendProvider);
+      final String filePath;
       if (backend is NetworkBackend) {
-        final filePath = await _saveRemoteExport(backend, session.id, 'csv');
-        await Share.shareXFiles([XFile(filePath)],
-            text: 'Session data for ${session.name ?? "session"}');
-        return;
+        filePath = await _saveRemoteExport(backend, session.id, 'csv');
+      } else {
+        final clock = ref.read(clockProvider);
+        final exportService = SessionExportService(
+          sessionsDao: ref.read(sessionsDaoProvider),
+          imagesDao: ref.read(imagesDaoProvider),
+          nowProvider: clock.now,
+        );
+        // CSV is the most universal format to hand off.
+        filePath = await exportService.exportToCsv(session.id);
       }
-      final clock = ref.read(clockProvider);
-      final exportService = SessionExportService(
-        sessionsDao: ref.read(sessionsDaoProvider),
-        imagesDao: ref.read(imagesDaoProvider),
-        nowProvider: clock.now,
+
+      if (!context.mounted) return;
+      await revealExportedFile(
+        context,
+        filePath,
+        subject: 'Session data for ${session.name ?? "session"}',
       );
-
-      // Export to CSV for sharing (more universal format)
-      final filePath = await exportService.exportToCsv(session.id);
-
-      // Share the file
-      await Share.shareXFiles([XFile(filePath)],
-          text: 'Session data for ${session.name ?? "session"}');
     } catch (e) {
       if (context.mounted) {
-        context.showErrorSnackBar('Share failed: $e');
+        context.showErrorSnackBar('Export failed: $e');
       }
     }
   }

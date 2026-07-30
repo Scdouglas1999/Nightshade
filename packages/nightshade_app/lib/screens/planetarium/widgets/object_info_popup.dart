@@ -47,22 +47,31 @@ ObjectInfoPopupLayout resolveObjectInfoPopupLayout(
 ) {
   final screenSize = MediaQuery.sizeOf(context);
   const padding = 16.0;
+  // 340 rather than 300: the action stack has to fit 'Log Observation',
+  // 'Target Queue' and 'Sequence' without ellipsizing them, and a truncated
+  // control label ('Sequ...') is not a legible control.
   final popupWidth = Responsive.previewOverlayMaxWidth(
     screenSize.width,
-    maxAbsolute: 300,
-  ).clamp(240.0, 300.0);
+    maxAbsolute: 340,
+  ).clamp(260.0, 340.0);
   final popupHeight =
-      math.min(400.0, screenSize.height * 0.55).clamp(280.0, 400.0);
+      math.min(460.0, screenSize.height * 0.6).clamp(300.0, 460.0);
 
   var left = anchor.dx - popupWidth / 2;
   var top = anchor.dy + 20;
 
-  left = left.clamp(padding, screenSize.width - popupWidth - padding);
+  // Both popup extents carry their own floor (240 wide, 280 tall), so a
+  // viewport smaller than that floor plus two margins would invert these
+  // bounds and throw. Pin to the near margin and let the far edge clip.
+  final maxLeft = math.max(padding, screenSize.width - popupWidth - padding);
+  final maxTop = math.max(padding, screenSize.height - popupHeight - padding);
+
+  left = left.clamp(padding, maxLeft);
 
   if (top + popupHeight > screenSize.height - padding) {
     top = anchor.dy - popupHeight - 20;
   }
-  top = top.clamp(padding, screenSize.height - popupHeight - padding);
+  top = top.clamp(padding, maxTop);
 
   return ObjectInfoPopupLayout(
     width: popupWidth,
@@ -73,15 +82,18 @@ ObjectInfoPopupLayout resolveObjectInfoPopupLayout(
   );
 }
 
-class ObjectInfoPopup extends StatefulWidget {
+class ObjectInfoPopup extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final CelestialObject object;
   final CelestialCoordinate coordinates;
-  final SelectedObjectState selectedObjectState;
   final Offset position;
   final VoidCallback onDismiss;
   final VoidCallback onSendToFraming;
   final VoidCallback onAddToSequencer;
+
+  /// Queue this object in the shared target queue (the sequencer Builder's
+  /// Target Queue panel renders the same provider).
+  final VoidCallback onAddToQueue;
   final VoidCallback onSlewToTarget;
   final VoidCallback onSlewAndCenter;
   final VoidCallback onSlewCenterRotate;
@@ -93,11 +105,11 @@ class ObjectInfoPopup extends StatefulWidget {
     required this.colors,
     required this.object,
     required this.coordinates,
-    required this.selectedObjectState,
     required this.position,
     required this.onDismiss,
     required this.onSendToFraming,
     required this.onAddToSequencer,
+    required this.onAddToQueue,
     required this.onSlewToTarget,
     required this.onSlewAndCenter,
     required this.onSlewCenterRotate,
@@ -106,10 +118,10 @@ class ObjectInfoPopup extends StatefulWidget {
   });
 
   @override
-  State<ObjectInfoPopup> createState() => _ObjectInfoPopupState();
+  ConsumerState<ObjectInfoPopup> createState() => _ObjectInfoPopupState();
 }
 
-class _ObjectInfoPopupState extends State<ObjectInfoPopup>
+class _ObjectInfoPopupState extends ConsumerState<ObjectInfoPopup>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -217,7 +229,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                               _buildObjectDetails(),
                               const SizedBox(height: 16),
                               _buildCoordinates(),
-                              if (widget.selectedObjectState.currentAltAz !=
+                              if (ref.watch(selectedObjectAltAzProvider) !=
                                   null) ...[
                                 const SizedBox(height: 12),
                                 _buildAltAz(),
@@ -461,25 +473,29 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
   }
 
   Widget _buildAltAz() {
-    final altAz = widget.selectedObjectState.currentAltAz!;
+    final altAz = ref.watch(selectedObjectAltAzProvider)!;
     final alt = altAz.$1;
     final az = altAz.$2;
 
-    Color altColor;
-    String statusText;
-    if (alt > 30) {
-      altColor = widget.colors.success;
-      statusText = 'Excellent';
-    } else if (alt > 15) {
-      altColor = widget.colors.warning;
-      statusText = 'Good';
-    } else if (alt > 0) {
-      altColor = widget.colors.warning;
-      statusText = 'Low';
-    } else {
-      altColor = widget.colors.error;
-      statusText = 'Below Horizon';
-    }
+    // The badge used to grade on altitude alone, so at 11:52 local — with the
+    // app's own dashboard reading "Dark in 10h 36m" — a target 63 deg up got a
+    // green "Excellent" pill while the Sun was also 63 deg up. Sky brightness
+    // outranks altitude: an unobservable target must not be badged green.
+    final grade = gradeObservability(
+      altitudeDeg: alt,
+      sunAltitudeDeg: ref.watch(sunAltitudeProvider),
+    );
+    final statusText = grade.label;
+    final altColor = switch (grade) {
+      ObservabilityGrade.excellent => widget.colors.success,
+      ObservabilityGrade.good ||
+      ObservabilityGrade.low ||
+      ObservabilityGrade.twilight =>
+        widget.colors.warning,
+      ObservabilityGrade.belowHorizon ||
+      ObservabilityGrade.daylight =>
+        widget.colors.error,
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -569,23 +585,25 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
   }
 
   Widget _buildActions() {
+    // At most two actions per row. Three-up crammed 'Framing' and 'Sequence'
+    // into ~87 px each inside a 300 px popup, which rendered them as 'Frami…'
+    // and 'Sequ…' — and 'Sequ…' at 2am is genuinely ambiguous. Slew keeps its
+    // own row because it carries a dropdown caret as well as a label.
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          SlewPopupMenuButton(
+            colors: widget.colors,
+            onSlew: widget.onSlewToTarget,
+            onSlewAndCenter: widget.onSlewAndCenter,
+            onSlewCenterRotate: widget.onSlewCenterRotate,
+            showRotateOption: widget.hasRotator,
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: SlewPopupMenuButton(
-                  colors: widget.colors,
-                  onSlew: widget.onSlewToTarget,
-                  onSlewAndCenter: widget.onSlewAndCenter,
-                  onSlewCenterRotate: widget.onSlewCenterRotate,
-                  showRotateOption: widget.hasRotator,
-                ),
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: PopupActionButton(
                   key: PlanetariumTutorialKeys.sendFraming,
@@ -609,30 +627,29 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
             ],
           ),
           const SizedBox(height: 8),
+          // 'Log Observation' is the longest label in the popup, so it takes a
+          // full row rather than half of one.
+          PopupActionButton(
+            icon: NightshadeIcons.book,
+            label: 'Log Observation',
+            colors: widget.colors,
+            onTap: () async {
+              final saved = await showDialog<bool>(
+                context: context,
+                builder: (context) => ObservationLogDialog(
+                  object: widget.object,
+                  coordinates: widget.coordinates,
+                  altAz: ref.read(selectedObjectAltAzProvider),
+                ),
+              );
+              if (saved == true && mounted) {
+                context.showSuccessSnackBar('Logged ${widget.object.name}');
+              }
+            },
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: PopupActionButton(
-                  icon: NightshadeIcons.book,
-                  label: 'Log Observation',
-                  colors: widget.colors,
-                  onTap: () async {
-                    final saved = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => ObservationLogDialog(
-                        object: widget.object,
-                        coordinates: widget.coordinates,
-                        altAz: widget.selectedObjectState.currentAltAz,
-                      ),
-                    );
-                    if (saved == true && mounted) {
-                      context
-                          .showSuccessSnackBar('Logged ${widget.object.name}');
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: PopupActionButton(
                   icon: LucideIcons.listPlus,
@@ -641,6 +658,16 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                   onTap: () {
                     _showAddToListDialog(context);
                   },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: PopupActionButton(
+                  key: const ValueKey('popup_add_to_target_queue'),
+                  icon: LucideIcons.listChecks,
+                  label: 'Target Queue',
+                  colors: widget.colors,
+                  onTap: widget.onAddToQueue,
                 ),
               ),
             ],

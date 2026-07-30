@@ -49,10 +49,20 @@ class _OnboardingCameraDefaultsStepState
   String? _binYError;
   String? _coolingError;
 
+  /// Whether the regulated-cooling section is expanded.
+  ///
+  /// Seeded from the draft, then owned locally. It cannot be derived from
+  /// `defaultCoolingTempC != null` any more: emptying the set-point field has
+  /// to null the stored value (otherwise a blank box sits above a profile that
+  /// still carries the old set-point), and deriving the toggle from that value
+  /// would collapse the field out from under the user mid-edit.
+  late bool _coolingOn;
+
   @override
   void initState() {
     super.initState();
     final draft = ref.read(onboardingDraftProvider);
+    _coolingOn = draft.defaultCoolingTempC != null;
     _gainController =
         TextEditingController(text: draft.defaultGain?.toString() ?? '');
     _offsetController =
@@ -81,28 +91,44 @@ class _OnboardingCameraDefaultsStepState
   /// Push the edited integer set-points (gain/offset/binning) into the draft,
   /// validating each. Cooling is committed separately by [_commitCooling]
   /// because it is nullable and gated behind the cooling toggle.
+  ///
+  /// A field the user emptied is cleared, not left at its previous value: these
+  /// numbers are copied verbatim into the created equipment profile, so a blank
+  /// Gain box above a profile that still carries the preset's gain is the
+  /// wizard telling the user something untrue about the rig it is about to
+  /// build. A rejected value (a binning below 1) is likewise not stored — the
+  /// red field message is the honest answer, and the profile falls back to its
+  /// own default rather than recording a number the step refused.
   void _commitIntegers() {
-    final gain = int.tryParse(_gainController.text.trim());
-    final offset = int.tryParse(_offsetController.text.trim());
-    final binX = int.tryParse(_binXController.text.trim());
-    final binY = int.tryParse(_binYController.text.trim());
+    final gainRaw = _gainController.text.trim();
+    final offsetRaw = _offsetController.text.trim();
+    final binXRaw = _binXController.text.trim();
+    final binYRaw = _binYController.text.trim();
+    final gain = int.tryParse(gainRaw);
+    final offset = int.tryParse(offsetRaw);
+    final binX = int.tryParse(binXRaw);
+    final binY = int.tryParse(binYRaw);
 
     setState(() {
-      _gainError = _gainController.text.trim().isEmpty || gain != null
-          ? null
-          : 'Enter a whole number.';
-      _offsetError = _offsetController.text.trim().isEmpty || offset != null
-          ? null
-          : 'Enter a whole number.';
+      _gainError =
+          gainRaw.isEmpty || gain != null ? null : 'Enter a whole number.';
+      _offsetError =
+          offsetRaw.isEmpty || offset != null ? null : 'Enter a whole number.';
       _binXError = (binX != null && binX >= 1) ? null : 'Binning is 1 or more.';
       _binYError = (binY != null && binY >= 1) ? null : 'Binning is 1 or more.';
     });
 
+    final usableBinX = binX != null && binX >= 1;
+    final usableBinY = binY != null && binY >= 1;
     ref.read(onboardingDraftProvider.notifier).setCameraDefaults(
           gain: gain,
           offset: offset,
-          binX: (binX != null && binX >= 1) ? binX : null,
-          binY: (binY != null && binY >= 1) ? binY : null,
+          binX: usableBinX ? binX : null,
+          binY: usableBinY ? binY : null,
+          clearGain: gain == null,
+          clearOffset: offset == null,
+          clearBinX: !usableBinX,
+          clearBinY: !usableBinY,
         );
   }
 
@@ -118,11 +144,19 @@ class _OnboardingCameraDefaultsStepState
       ref
           .read(onboardingDraftProvider.notifier)
           .setCameraDefaults(coolingTempC: temp);
+    } else {
+      // Blank or half-typed ("-"): there is no set-point to save. Keep the
+      // section open (the user is mid-edit) but do not leave a stale number on
+      // record behind an empty box.
+      ref
+          .read(onboardingDraftProvider.notifier)
+          .setCameraDefaults(clearCoolingTempC: true);
     }
   }
 
   Future<void> _toggleCooling(bool enabled) async {
     final notifier = ref.read(onboardingDraftProvider.notifier);
+    setState(() => _coolingOn = enabled);
     if (enabled) {
       // Seed a sensible set-point when the user turns cooling on and nothing is
       // entered yet. Prefer whatever is already typed; otherwise ask the
@@ -188,6 +222,9 @@ class _OnboardingCameraDefaultsStepState
         ? preset.recommendedCoolingTempC!.toStringAsFixed(0)
         : '';
     setState(() {
+      // A DSLR preset (no regulated cooling) closes the section; a cooled preset
+      // opens it on its recommended set-point.
+      _coolingOn = preset.recommendedCoolingTempC != null;
       _gainError = null;
       _offsetError = null;
       _binXError = null;
@@ -202,7 +239,8 @@ class _OnboardingCameraDefaultsStepState
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
-    final coolingEnabled = draft.defaultCoolingTempC != null;
+    // Local, not derived from the stored set-point — see [_coolingOn].
+    final coolingEnabled = _coolingOn;
 
     return SingleChildScrollView(
       child: Column(

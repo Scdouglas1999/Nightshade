@@ -1,6 +1,13 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../coordinate_system.dart';
+// [SkyFovProjector] is declared in a part of the interactive sky view library
+// because Dart part files cannot declare their own imports, so that is the only
+// place all three FOV overlays can share one projection from. Reaching for it
+// here is deliberate: a second, parallel projection is exactly the bug this
+// overlay used to have.
+import '../widgets/interactive_sky_view.dart';
+import 'sky_renderer.dart';
 
 /// Type of FOV indicator
 enum FOVType {
@@ -182,6 +189,10 @@ class FOVOverlayPainter extends CustomPainter {
   /// Center coordinates for the FOV indicators (if different from view center)
   final CelestialCoordinate? indicatorCenter;
 
+  /// Projection the sky view is drawn with. Defaults to the sky view's own
+  /// default so existing call sites are unchanged.
+  final SkyProjection projection;
+
   FOVOverlayPainter({
     required this.centerRA,
     required this.centerDec,
@@ -189,19 +200,39 @@ class FOVOverlayPainter extends CustomPainter {
     this.viewRotation = 0,
     required this.indicators,
     this.indicatorCenter,
+    this.projection = SkyProjection.stereographic,
   });
+
+  /// The pose the indicators are projected against.
+  SkyViewState get _viewState => SkyViewState(
+    centerRA: centerRA,
+    centerDec: centerDec,
+    fieldOfView: viewFOV,
+    rotation: viewRotation,
+    projection: projection,
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final scale = math.min(size.width, size.height) / 2 / (viewFOV / 2);
+    if (viewFOV <= 0 || size.shortestSide <= 0) return;
 
-    // Calculate indicator center offset if different from view center
-    Offset indicatorCenterOffset = center;
-    if (indicatorCenter != null) {
-      final dx = (indicatorCenter!.ra - centerRA) * 15 * scale;
-      final dy = -(indicatorCenter!.dec - centerDec) * scale;
-      indicatorCenterOffset = center + Offset(dx, dy);
+    // Place the indicators with the exact projection the sky painter uses, so
+    // the drawn footprint always agrees with the star field. A flat
+    // `(ra - centerRA) * 15 * scale` offset — what this used to do — mirrors
+    // the sky in RA, drops the cos(dec) foreshortening, and flings the glyphs
+    // off-canvas at the 0h/24h seam.
+    final projector = SkyFovProjector.forSize(_viewState, size);
+    final scale = projector.pixelsPerDegree;
+
+    final target = indicatorCenter;
+    Offset indicatorCenterOffset = projector.screenCenter;
+    double northRad = viewRotation * math.pi / 180;
+    if (target != null) {
+      final projected = projector.project(target);
+      // Behind the viewer: draw nothing rather than something false.
+      if (projected == null) return;
+      indicatorCenterOffset = projected;
+      northRad = projector.northAngleAt(target) ?? northRad;
     }
 
     for (final indicator in indicators) {
@@ -215,6 +246,7 @@ class FOVOverlayPainter extends CustomPainter {
             size,
             indicatorCenterOffset,
             scale,
+            northRad,
             indicator,
           );
           break;
@@ -235,11 +267,12 @@ class FOVOverlayPainter extends CustomPainter {
     Size size,
     Offset center,
     double scale,
+    double northRad,
     FOVIndicator indicator,
   ) {
     final width = indicator.widthDegrees * scale;
     final height = indicator.heightDegrees * scale;
-    final rotation = (indicator.rotation + viewRotation) * math.pi / 180;
+    final rotation = indicator.rotation * math.pi / 180 + northRad;
 
     final paint = Paint()
       ..color = indicator.color
@@ -451,7 +484,8 @@ class FOVOverlayPainter extends CustomPainter {
         viewFOV != oldDelegate.viewFOV ||
         viewRotation != oldDelegate.viewRotation ||
         indicators != oldDelegate.indicators ||
-        indicatorCenter != oldDelegate.indicatorCenter;
+        indicatorCenter != oldDelegate.indicatorCenter ||
+        projection != oldDelegate.projection;
   }
 }
 
@@ -469,6 +503,9 @@ class FOVOverlayWidget extends StatelessWidget {
   /// Center coordinates for the FOV indicators (if different from view center)
   final CelestialCoordinate? indicatorCenter;
 
+  /// Projection the sky view is drawn with.
+  final SkyProjection projection;
+
   const FOVOverlayWidget({
     super.key,
     required this.centerRA,
@@ -477,6 +514,7 @@ class FOVOverlayWidget extends StatelessWidget {
     this.viewRotation = 0,
     required this.indicators,
     this.indicatorCenter,
+    this.projection = SkyProjection.stereographic,
   });
 
   @override
@@ -489,6 +527,7 @@ class FOVOverlayWidget extends StatelessWidget {
         viewRotation: viewRotation,
         indicators: indicators,
         indicatorCenter: indicatorCenter,
+        projection: projection,
       ),
       child: const SizedBox.expand(),
     );

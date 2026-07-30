@@ -289,7 +289,7 @@ class MosaicHandlers {
         'mosaicId': claim.mosaicId,
         'panelIndex': claim.panelIndex,
         'claimToken': claim.claimToken,
-        'expiresAt': claim.expiresAt?.toIso8601String(),
+        'expiresAt': claim.expiresAt?.toUtc().toIso8601String(),
       });
     } catch (e) {
       return _collabError(

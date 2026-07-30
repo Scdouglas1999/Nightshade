@@ -133,7 +133,10 @@ class FfiBackend extends _FfiBackendBase
         _FfiStatusProfileOperations,
         _FfiImagePolarOperations,
         _FfiSessionHeartbeatOperations
-    implements NightshadeBackend, EnvironmentalStatusBackend {
+    implements
+        NightshadeBackend,
+        EnvironmentalStatusBackend,
+        DomeStatusBackend {
   FfiBackend({super.database});
 
   /// Pure bridge conversion seams. They avoid loading the native library in

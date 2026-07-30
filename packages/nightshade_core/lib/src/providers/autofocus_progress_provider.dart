@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/autofocus_progress.dart';
 import 'backend_provider.dart';
+import 'operation_progress_provider.dart';
 
 /// State for the non-blocking autofocus progress overlay
 class AutofocusOverlayState {
@@ -168,6 +169,9 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
               .map((p) => p.hfr)
               .reduce((a, b) => a < b ? a : b);
 
+    final phase =
+        'Measuring point ${progressData.point}/${progressData.totalPoints}';
+
     state = state.copyWith(
       isRunning: true,
       isVisible: true,
@@ -179,9 +183,24 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
       starCount: progressData.starCount,
       focusRange: progressData.focusRange,
       starCrops: progressData.starCrops,
-      status:
-          'Measuring point ${progressData.point}/${progressData.totalPoints}',
+      status: phase,
     );
+
+    // Keep the always-visible status-bar chip in step with the floating panel.
+    // The chip's step text was only ever set once, at startOperation
+    // ("Initializing..."), so a 35-second sweep read as a hung run on every
+    // screen other than the one hosting the overlay. `updateProgress` is a
+    // no-op when no autofocus operation is registered (e.g. a sequencer-driven
+    // run), so this is safe on every path that emits progress.
+    _ref
+        .read(activeOperationsProvider.notifier)
+        .updateProgress(
+          OperationType.autofocus,
+          progress: progressData.totalPoints > 0
+              ? progressData.point / progressData.totalPoints
+              : null,
+          currentStep: phase,
+        );
   }
 
   /// Called when autofocus starts (from any trigger: focus tab, dashboard, sequencer)
@@ -195,11 +214,20 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   }
 
   /// Called when autofocus completes with a result
+  ///
+  /// The panel collapses to its one-line summary as soon as the run ends. It is
+  /// a shell-mounted floating panel pinned bottom-right, which is exactly where
+  /// the imaging screen's focus column lives: left expanded it covered the
+  /// "Run Autofocus" button plus the Step Size / Steps Out / Exposure fields
+  /// and swallowed every click aimed at them, so retrying a focus run appeared
+  /// to do nothing. Minimised it keeps the result readable (and one tap
+  /// re-expands the V-curve) without holding the controls hostage.
   void onAutofocusCompleted(AutofocusResult result) {
     state = state.copyWith(
       isRunning: false,
       hasError: false,
       result: result,
+      isMinimized: true,
       status:
           'Complete - HFR: ${result.bestHfr.toStringAsFixed(2)} '
           'at position ${result.bestPosition}',
@@ -211,6 +239,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
     state = state.copyWith(
       isRunning: false,
       hasError: true,
+      isMinimized: true,
       status: 'Failed: $error',
     );
   }
@@ -229,6 +258,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
     state = state.copyWith(
       isRunning: false,
       hasError: false,
+      isMinimized: true,
       status: 'Autofocus cancelled',
       clearResult: true,
     );

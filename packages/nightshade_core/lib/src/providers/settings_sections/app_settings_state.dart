@@ -78,6 +78,7 @@ class AppSettingsState {
   final int plateSolveTimeout;
   final double plateSolveSearchRadius;
   final bool blindSolve;
+  final bool centeringSyncMount;
 
   // PHD2 Guiding
   final String phd2Path;
@@ -511,6 +512,7 @@ class AppSettingsState {
     this.plateSolveTimeout = 60,
     this.plateSolveSearchRadius = 30.0,
     this.blindSolve = false,
+    this.centeringSyncMount = true,
 
     // PHD2 Guiding
     this.phd2Path = '',
@@ -699,6 +701,7 @@ class AppSettingsState {
     int? plateSolveTimeout,
     double? plateSolveSearchRadius,
     bool? blindSolve,
+    bool? centeringSyncMount,
     String? phd2Path,
     String? phd2Host,
     int? phd2Port,
@@ -892,6 +895,7 @@ class AppSettingsState {
       plateSolveSearchRadius:
           plateSolveSearchRadius ?? this.plateSolveSearchRadius,
       blindSolve: blindSolve ?? this.blindSolve,
+      centeringSyncMount: centeringSyncMount ?? this.centeringSyncMount,
       phd2Path: phd2Path ?? this.phd2Path,
       phd2Host: phd2Host ?? this.phd2Host,
       phd2Port: phd2Port ?? this.phd2Port,

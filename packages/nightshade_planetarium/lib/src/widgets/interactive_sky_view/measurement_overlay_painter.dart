@@ -6,8 +6,8 @@ part of '../interactive_sky_view.dart';
 ///
 /// The endpoints are stored as celestial coordinates so the ruler stays pinned
 /// to the sky as the user pans or zooms — each paint re-projects them through
-/// the same stereographic geometry the interaction layer uses, so the drawn
-/// line always lands exactly where the user dragged.
+/// the shared [SkyFovProjector], the same projection the sky painter uses, so
+/// the drawn line always lands exactly where the user dragged.
 ///
 /// This is a pure overlay painter. It is mounted on the animated overlay
 /// RepaintBoundary, so drawing/clearing the ruler never repaints the expensive
@@ -25,8 +25,6 @@ class _MeasurementOverlayPainter extends CustomPainter {
   final double latitude;
 
   static const Color _lineColor = Color(0xFF7DD3FC); // sky-300, schematic cyan
-  static const double _deg2rad = math.pi / 180;
-  static const double _rad2deg = 180 / math.pi;
 
   _MeasurementOverlayPainter({
     required this.viewState,
@@ -83,61 +81,21 @@ class _MeasurementOverlayPainter extends CustomPainter {
     );
   }
 
-  /// Project a celestial coordinate to the screen using the same stereographic
-  /// geometry as the interaction layer's inverse map (see
-  /// [_InteractiveSkyViewState._inverseStereographic]), so the ruler endpoints
-  /// land exactly under the cursor in both view frames.
+  /// Project a celestial coordinate through the shared [SkyFovProjector], the
+  /// same projection the sky painter and the FOV overlays use.
+  ///
+  /// This used to hardcode the stereographic branch, so in orthographic or
+  /// azimuthal-equidistant mode the ruler drifted away from the stars it was
+  /// drawn between — the measurement stayed numerically right but pointed at
+  /// the wrong pair of objects.
   Offset? _project(CelestialCoordinate coord, Offset center, double scale) {
-    double lonDeg;
-    double latDeg;
-    double centerLonDeg;
-    double centerLatDeg;
-
-    if (viewState.viewMode == SkyViewMode.horizontal && lstHours != null) {
-      final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
-        raDeg: coord.ra * 15,
-        decDeg: coord.dec,
-        latitudeDeg: latitude,
-        lstHours: lstHours!,
-      );
-      lonDeg = -az;
-      latDeg = alt;
-      centerLonDeg = -viewState.centerAz;
-      centerLatDeg = viewState.centerAltitude;
-    } else {
-      lonDeg = coord.ra * 15;
-      latDeg = coord.dec;
-      centerLonDeg = viewState.centerRA * 15;
-      centerLatDeg = viewState.centerDec;
-    }
-
-    final lon1 = centerLonDeg * _deg2rad;
-    final lat1 = centerLatDeg * _deg2rad;
-    final lon2 = lonDeg * _deg2rad;
-    final lat2 = latDeg * _deg2rad;
-
-    final cosc =
-        math.sin(lat1) * math.sin(lat2) +
-        math.cos(lat1) * math.cos(lat2) * math.cos(lon2 - lon1);
-
-    // Behind the projection plane.
-    if (cosc < 0.01) return null;
-
-    final k = 2 / (1 + cosc);
-    final x = k * math.cos(lat2) * math.sin(lon2 - lon1);
-    final y =
-        k *
-        (math.cos(lat1) * math.sin(lat2) -
-            math.sin(lat1) * math.cos(lat2) * math.cos(lon2 - lon1));
-
-    final rotRad = viewState.rotation * _deg2rad;
-    final xRot = x * math.cos(rotRad) - y * math.sin(rotRad);
-    final yRot = x * math.sin(rotRad) + y * math.cos(rotRad);
-
-    return Offset(
-      center.dx - xRot * scale * _rad2deg,
-      center.dy - yRot * scale * _rad2deg,
-    );
+    return SkyFovProjector(
+      viewState: viewState,
+      screenCenter: center,
+      pixelsPerDegree: scale,
+      latitude: latitude,
+      lstHours: lstHours,
+    ).project(coord);
   }
 
   void _paintReadout(

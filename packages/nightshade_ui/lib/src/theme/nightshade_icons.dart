@@ -428,6 +428,11 @@ abstract final class NightshadeIcons {
   /// Security warning.
   static const IconData shieldAlert = LucideIcons.shieldAlert;
 
+  /// Protection switched off / not being monitored. Use instead of [shieldOk]
+  /// whenever a check is disabled: a green "verified" shield over an unchecked
+  /// subsystem tells the operator they are protected when they are not.
+  static const IconData shieldOff = LucideIcons.shieldOff;
+
   /// Locked.
   static const IconData lock = LucideIcons.lock;
 

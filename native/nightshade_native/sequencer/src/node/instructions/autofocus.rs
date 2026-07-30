@@ -52,7 +52,8 @@ impl InstructionNode for AutofocusInstruction {
             }
         };
 
-        let result = execute_autofocus_for_node(config, &ctx, Some(&progress_fn)).await;
+        let pause = context.pause_gate();
+        let result = execute_autofocus_for_node(config, &ctx, Some(&progress_fn), &pause).await;
 
         if result.status == NodeStatus::Success {
             if let Some(trigger_state_lock) = &context.trigger_state {

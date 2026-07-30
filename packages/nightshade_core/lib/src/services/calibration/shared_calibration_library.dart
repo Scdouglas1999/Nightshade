@@ -17,6 +17,14 @@ import 'shared_calibration_client.dart';
 
 /// The remote shared-calibration-library seam the local matcher folds in.
 abstract class RemoteCalibrationLibrary {
+  /// Whether a hub is actually configured/signed-in for this library.
+  ///
+  /// [queryCandidates] answers empty both when no hub is configured and when a
+  /// reachable hub simply has nothing, and a signed-out rig is a NORMAL state,
+  /// not a failure to raise. This is what lets the caller tell those apart and
+  /// report that shared masters were not consulted.
+  Future<bool> isConfigured();
+
   /// Candidate remote masters matching [context]'s sensor + capture tuple,
   /// already folded into the local [CalibrationMasterRecord] shape (each marked
   /// REMOTE via `remoteId`). The hub does the coarse sensor-keyed filter; the
@@ -83,6 +91,9 @@ class HubCalibrationLibrary implements RemoteCalibrationLibrary {
     final port = hubBaseUrl.hasPort ? ':${hubBaseUrl.port}' : '';
     return '${hubBaseUrl.scheme}://${hubBaseUrl.host}$port';
   }
+
+  @override
+  Future<bool> isConfigured() async => await _credentialsResolver() != null;
 
   @override
   Future<List<CalibrationMasterRecord>> queryCandidates(

@@ -226,4 +226,84 @@ void main() {
     expect(rows.length, 2);
     expect(rows.first.capturedImageId, imageId);
   });
+
+  // The `watchSessionless*Recent` streams are UI PREVIEW feeds and cap their row
+  // count; the CSV export used to reuse them, which silently dropped 27-62% of
+  // the user's science data while reporting the truncated count as the export
+  // size. The `getAllSessionless*` reads the export uses must return everything.
+  group('sessionless export reads are not capped', () {
+    test(
+      'getAllSessionlessPhotometry returns rows beyond the preview limit',
+      () async {
+        final t0 = DateTime.utc(2026, 7, 28, 20);
+        // 260 rows: past the 200-row preview cap of
+        // watchSessionlessPhotometryRecent.
+        await dao.insertPhotometryMeasurements([
+          for (var i = 0; i < 260; i++)
+            PhotometryMeasurementsCompanion.insert(
+              objectId: 'standalone_$i',
+              role: const Value('target'),
+              x: 1,
+              y: 1,
+              flux: 100.0 + i,
+              timestamp: Value(t0.add(Duration(seconds: i))),
+            ),
+        ]);
+
+        final preview = await dao.watchSessionlessPhotometryRecent().first;
+        expect(preview, hasLength(200), reason: 'preview feed stays capped');
+
+        final all = await dao.getAllSessionlessPhotometry();
+        expect(all, hasLength(260));
+        // Newest first, same ordering as the preview feed.
+        expect(all.first.objectId, 'standalone_259');
+      },
+    );
+
+    test(
+      'getAllSessionlessPsfTiles returns rows beyond the preview limit',
+      () async {
+        final t0 = DateTime.utc(2026, 7, 28, 21);
+        await database.batch((batch) {
+          batch.insertAll(database.psfFieldTiles, [
+            for (var i = 0; i < 520; i++)
+              PsfFieldTilesCompanion.insert(
+                timestamp: Value(t0.add(Duration(seconds: i))),
+                tileRow: 0,
+                tileCol: 0,
+                starCount: const Value(12),
+              ),
+          ]);
+        });
+
+        final preview = await dao.watchSessionlessPsfTilesRecent().first;
+        expect(preview, hasLength(500), reason: 'preview feed stays capped');
+
+        final all = await dao.getAllSessionlessPsfTiles();
+        expect(all, hasLength(520));
+      },
+    );
+
+    test('getAllSessionlessFrameQualityMetrics is not capped', () async {
+      final t0 = DateTime.utc(2026, 7, 28, 22);
+      for (var i = 0; i < 60; i++) {
+        await database
+            .into(database.scienceFrameQualityMetrics)
+            .insert(
+              ScienceFrameQualityMetricsCompanion.insert(
+                timestamp: Value(t0.add(Duration(seconds: i))),
+                snr: const Value(30),
+              ),
+            );
+      }
+
+      final preview = await dao
+          .watchSessionlessFrameQualityMetricsRecent()
+          .first;
+      expect(preview, hasLength(50), reason: 'preview feed stays capped');
+
+      final all = await dao.getAllSessionlessFrameQualityMetrics();
+      expect(all, hasLength(60));
+    });
+  });
 }

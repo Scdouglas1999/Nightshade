@@ -18,7 +18,14 @@ mixin _$WeatherSettings {
 /// Distance threshold for alerts in kilometers
  double get triggerDistanceKm;/// Cloud density threshold for warnings (0-100 percent)
  double get cloudDensityThreshold;/// Lead time for alerts in minutes
- int get leadTimeMinutes;/// Enable weather safety monitoring
+ int get leadTimeMinutes;/// Enable weather safety monitoring.
+///
+/// Defaults OFF: with no weather source or hardware safety monitor
+/// configured (the out-of-box state), an enabled monitor fails closed and
+/// aborts every automated sequence within seconds — the flagship use case
+/// broken on night one for the majority of rigs. Weather gating is now
+/// opt-in; a user connects a weather source / safety monitor and turns
+/// this on. Existing installs keep their persisted value.
  bool get weatherSafetyEnabled;/// Maximum safe humidity before weather safety pauses imaging
  double get maxHumidityPercent;/// Maximum safe wind speed before weather safety pauses imaging
  double get maxWindSpeedKph;/// Maximum safe cloud cover before weather safety pauses imaging
@@ -239,7 +246,14 @@ class _WeatherSettings implements WeatherSettings {
 @override@JsonKey() final  double cloudDensityThreshold;
 /// Lead time for alerts in minutes
 @override@JsonKey() final  int leadTimeMinutes;
-/// Enable weather safety monitoring
+/// Enable weather safety monitoring.
+///
+/// Defaults OFF: with no weather source or hardware safety monitor
+/// configured (the out-of-box state), an enabled monitor fails closed and
+/// aborts every automated sequence within seconds — the flagship use case
+/// broken on night one for the majority of rigs. Weather gating is now
+/// opt-in; a user connects a weather source / safety monitor and turns
+/// this on. Existing installs keep their persisted value.
 @override@JsonKey() final  bool weatherSafetyEnabled;
 /// Maximum safe humidity before weather safety pauses imaging
 @override@JsonKey() final  double maxHumidityPercent;

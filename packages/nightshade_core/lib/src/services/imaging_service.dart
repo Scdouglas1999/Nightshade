@@ -33,6 +33,7 @@ import 'capture_preview_loader.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
 import '../database/daos/images_dao.dart' show ImagesDao;
 import '../providers/thumbnail_sidecar_provider.dart';
+import '../utils/utc_timestamp.dart';
 import 'calibration_service.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
@@ -322,7 +323,7 @@ class ImagingService {
         // Capture timestamp before any processing - use try-catch for robustness
         DateTime captureTimestamp;
         try {
-          captureTimestamp = DateTime.parse(capturedImage.timestamp);
+          captureTimestamp = parseUtcTimestamp(capturedImage.timestamp);
         } catch (e) {
           _logger.warning(
             'Failed to parse timestamp "${capturedImage.timestamp}": $e - using current time',

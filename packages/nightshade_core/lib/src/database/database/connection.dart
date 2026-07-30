@@ -24,12 +24,38 @@ Future<File> resolveDefaultDatabaseFile({
   return File(p.join(dbFolder.path, 'Nightshade', 'nightshade.db'));
 }
 
+/// Held for the life of the process once [_openConnection] resolves. Kept in
+/// a library-level field so the [RandomAccessFile] behind it is never
+/// collected while the database is open — dropping it would silently hand the
+/// database to a second instance.
+SingleInstanceLock? _instanceLock;
+
+/// The single-instance claim this process holds, for diagnostics.
+SingleInstanceLock? get activeDatabaseInstanceLock => _instanceLock;
+
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final file = await resolveDefaultDatabaseFile();
 
     // Ensure directory exists
     await file.parent.create(recursive: true);
+
+    // WHY a single-instance lock, and why FIRST: the GUI and the headless
+    // service resolve the same default database path, so "launch the app
+    // twice" or "run both on one machine" points two SQLite writers at one
+    // file. That is not just a consistency risk — the second opener used to
+    // see the first one's lock, report SQLITE_BUSY, and get the healthy
+    // database quarantined out from under the user. Claiming the directory
+    // before anything touches the file turns that into one clear sentence.
+    //
+    // Throws [NightshadeAlreadyRunningException], which propagates out of the
+    // LazyDatabase so startup fails loudly instead of racing.
+    _instanceLock = await SingleInstanceLock.acquire(file);
+
+    // A restore requested from the recovery dialog is performed here, before
+    // any connection exists, because drift holds the live file open once it
+    // does and the swap could not complete underneath it.
+    await integrity.applyPendingRestore(file);
 
     // WHY pre-flight integrity check: Drift's `beforeOpen` runs after the
     // SQLite connection is established, which is too late to swap a corrupt
@@ -47,7 +73,9 @@ LazyDatabase _openConnection() {
     // Per project policy we do NOT swallow recovery failures here: if the
     // integrity check itself throws (file lock, permission denied, etc.)
     // the exception propagates and the operator sees the real error rather
-    // than a silently broken database.
+    // than a silently broken database. The check only quarantines a file
+    // SQLite reports as SQLITE_CORRUPT/SQLITE_NOTADB or that fails
+    // `PRAGMA integrity_check`; every other error is rethrown untouched.
     await integrity.runIntegrityCheckAndRecover(file);
 
     return NativeDatabase.createInBackground(file);

@@ -121,26 +121,48 @@ class _CatalogResultRow extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
-            NightshadeButton(
-              label: 'Send to Framing',
-              icon: LucideIcons.crosshair,
-              size: ButtonSize.small,
-              onPressed: () {
-                ref.read(framingProvider.notifier).setTargetCoordinates(
-                      match.ra / 15.0,
-                      match.dec,
+            Flexible(
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: NightshadeTokens.spaceSm,
+                runSpacing: NightshadeTokens.spaceXs,
+                children: [
+                  NightshadeButton(
+                    label: context.l10n.text('plannerOpenPlanetarium'),
+                    icon: LucideIcons.globe,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () => showTargetInSky(
+                      context,
+                      ref,
+                      raHours: match.ra / 15.0,
+                      decDegrees: match.dec,
                       name: match.name,
-                    );
-                final uri = Uri(
-                  path: '/framing',
-                  queryParameters: {
-                    'ra': (match.ra / 15.0).toStringAsFixed(6),
-                    'dec': match.dec.toStringAsFixed(6),
-                    'name': match.name,
-                  },
-                );
-                context.go(uri.toString());
-              },
+                    ),
+                  ),
+                  NightshadeButton(
+                    label: 'Send to Framing',
+                    icon: LucideIcons.crosshair,
+                    size: ButtonSize.small,
+                    onPressed: () {
+                      ref.read(framingProvider.notifier).setTargetCoordinates(
+                            match.ra / 15.0,
+                            match.dec,
+                            name: match.name,
+                          );
+                      final uri = Uri(
+                        path: '/framing',
+                        queryParameters: {
+                          'ra': (match.ra / 15.0).toStringAsFixed(6),
+                          'dec': match.dec.toStringAsFixed(6),
+                          'name': match.name,
+                        },
+                      );
+                      context.go(uri.toString());
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -276,26 +298,48 @@ class _SimbadResultRow extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
-            NightshadeButton(
-              label: 'Send to Framing',
-              icon: LucideIcons.crosshair,
-              size: ButtonSize.small,
-              onPressed: () {
-                ref.read(framingProvider.notifier).setTargetCoordinates(
-                      match.raHours,
-                      match.decDegrees,
+            Flexible(
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: NightshadeTokens.spaceSm,
+                runSpacing: NightshadeTokens.spaceXs,
+                children: [
+                  NightshadeButton(
+                    label: context.l10n.text('plannerOpenPlanetarium'),
+                    icon: LucideIcons.globe,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () => showTargetInSky(
+                      context,
+                      ref,
+                      raHours: match.raHours,
+                      decDegrees: match.decDegrees,
                       name: match.mainId,
-                    );
-                final uri = Uri(
-                  path: '/framing',
-                  queryParameters: {
-                    'ra': match.raHours.toStringAsFixed(6),
-                    'dec': match.decDegrees.toStringAsFixed(6),
-                    'name': match.mainId,
-                  },
-                );
-                context.go(uri.toString());
-              },
+                    ),
+                  ),
+                  NightshadeButton(
+                    label: 'Send to Framing',
+                    icon: LucideIcons.crosshair,
+                    size: ButtonSize.small,
+                    onPressed: () {
+                      ref.read(framingProvider.notifier).setTargetCoordinates(
+                            match.raHours,
+                            match.decDegrees,
+                            name: match.mainId,
+                          );
+                      final uri = Uri(
+                        path: '/framing',
+                        queryParameters: {
+                          'ra': match.raHours.toStringAsFixed(6),
+                          'dec': match.decDegrees.toStringAsFixed(6),
+                          'name': match.mainId,
+                        },
+                      );
+                      context.go(uri.toString());
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),

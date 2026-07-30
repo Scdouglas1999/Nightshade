@@ -124,40 +124,89 @@ impl InstructionNode for ExposeInstruction {
         // Cloning ExecutionContext is cheap (every field is `Arc`/`Copy`)
         // and the closure runs synchronously inside the exposure loop —
         // there is no concurrent-borrow concern.
-        let path_renderer = build_save_path_renderer(context, &effective_config, duration_secs);
-
-        let result = execute_exposure_with_renderer(
-            &effective_config,
-            &ctx,
-            path_renderer,
-            |current, total| {
-                if let Some(cb) = progress_cb {
-                    let percent = if total > 0 {
-                        100.0 * f64::from(current) / f64::from(total)
-                    } else {
-                        0.0
-                    };
-                    // Per-frame structured Exposure progress. current_frame /
-                    // total_frames must remain populated because the executor's
-                    // progress callback uses them to synthesize ExposureStarted
-                    // / ExposureCompleted events.
-                    let mut upd = ProgressUpdate::instruction_progress(
-                        node_id.to_string(),
-                        "Exposure",
-                        percent,
-                        ProgressDetail::Exposure {
-                            frame: current,
-                            total,
-                            duration_secs,
-                        },
-                    );
-                    upd.current_frame = Some(current);
-                    upd.total_frames = Some(total);
-                    cb(upd);
+        let path_renderer =
+            match build_save_path_renderer(context, &effective_config, duration_secs) {
+                Ok(renderer) => renderer,
+                Err(message) => {
+                    tracing::error!("{}", message);
+                    if let Some(event_tx) = &context.event_tx {
+                        let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                            message: message.clone(),
+                        });
+                    }
+                    return NodeStatus::Failure;
                 }
-            },
-        )
-        .await;
+            };
+
+        // Q3: serialise the burst against the camera it uses. `execute_parallel`
+        // clones this context per branch, so two branches exposing on the same
+        // sensor would otherwise interleave — two rows, one file, one frame's
+        // pixels gone. The lock is per-device, so separate cameras still run
+        // concurrently.
+        let camera_lock = ctx
+            .camera_id
+            .as_deref()
+            .map(|id| context.device_locks.handle(id));
+        // A burst is many frames inside one node, so the node-boundary pause
+        // check the tree does never fires between them; the gate handle is
+        // what lets the frame loop honour a Pause. `status` gives an in-burst
+        // hold (the meridian gate) a way to say so, instead of the run
+        // appearing stalled at 0/N with no explanation.
+        let status_cb = context.progress_callback.clone();
+        let status_node_id = node_id.to_string();
+        let status_fn = move |message: &str| {
+            if let Some(cb) = status_cb.as_ref() {
+                cb(ProgressUpdate::lifecycle(
+                    status_node_id.clone(),
+                    NodeStatus::Running,
+                    message.to_string(),
+                ));
+            }
+        };
+        let control = crate::instructions::BurstControl {
+            pause: context.pause_gate(),
+            status: Some(&status_fn),
+        };
+        let result = {
+            let _camera_guard = match camera_lock.as_ref() {
+                Some(lock) => Some(lock.lock().await),
+                None => None,
+            };
+
+            execute_exposure_with_renderer(
+                &effective_config,
+                &ctx,
+                Some(path_renderer),
+                &control,
+                |current, total| {
+                    if let Some(cb) = progress_cb {
+                        let percent = if total > 0 {
+                            100.0 * f64::from(current) / f64::from(total)
+                        } else {
+                            0.0
+                        };
+                        // Per-frame structured Exposure progress. current_frame /
+                        // total_frames must remain populated because the executor's
+                        // progress callback uses them to synthesize ExposureStarted
+                        // / ExposureCompleted events.
+                        let mut upd = ProgressUpdate::instruction_progress(
+                            node_id.to_string(),
+                            "Exposure",
+                            percent,
+                            ProgressDetail::Exposure {
+                                frame: current,
+                                total,
+                                duration_secs,
+                            },
+                        );
+                        upd.current_frame = Some(current);
+                        upd.total_frames = Some(total);
+                        cb(upd);
+                    }
+                },
+            )
+            .await
+        };
 
         // Canonical integration accounting: the entire burst's exposure time
         // is added here in one shot. Per-frame updates would race with the
@@ -267,20 +316,6 @@ impl InstructionNode for ExposeInstruction {
     }
 }
 
-/// build the per-burst save-path renderer.
-///
-/// `save_to` semantics:
-/// * `None`: render the default template `${target.name}_${filter}_${frame:04}.fits`
-///   into the context's base `save_path` directory. Backwards-compatible
-///   with all pre-Wave-4 sequences.
-/// * `Some(template)`: interpolate `template` and treat the result as a
-///   relative path under the context's base `save_path` (or as absolute
-///   when the user typed an absolute path). The final component is the
-///   filename; any leading path segments are sub-directories that the
-///   FITS-save code creates on demand.
-///
-/// Returns `None` when neither a `save_to` nor a base `save_path` is set —
-/// the exposure-save code already handles that case by skipping the save.
 /// Stand-in target name for a target-less calibration frame, or `None` for a
 /// light frame (which must not have a target name invented for it).
 fn calibration_target_label(frame_type: &str) -> Option<String> {
@@ -294,21 +329,47 @@ fn calibration_target_label(frame_type: &str) -> Option<String> {
     }
 }
 
+/// build the per-burst save-path renderer.
+///
+/// `save_to` semantics:
+/// * `None`: render the default template `${target.name}_${filter}_${frame:04}.fits`
+///   into the context's base `save_path` directory. Backwards-compatible
+///   with all pre-Wave-4 sequences.
+/// * `Some(template)`: interpolate `template` and treat the result as a
+///   relative path under the context's base `save_path` (or as absolute
+///   when the user typed an absolute path). The final component is the
+///   filename; any leading path segments are sub-directories that the
+///   FITS-save code creates on demand.
+///
+/// Returns `Err` when the burst has no resolvable destination — no base
+/// `save_path` and no absolute `save_to`. The caller turns that into a node
+/// failure so the frames are never captured-then-dropped.
 fn build_save_path_renderer(
     context: &ExecutionContext,
     config: &ExposureConfig,
     duration_secs: f64,
-) -> Option<FrameSavePathRenderer> {
+) -> Result<FrameSavePathRenderer, String> {
     let base_path = context.save_path.clone();
     let template = config.save_to.clone();
-    // No template AND no base path → nothing to render.
-    base_path.as_ref()?;
 
     // Default template matches the legacy hardcoded filename so existing
     // sequences see no behavioural change.
     let effective_template = template
-        .filter(|t| !t.is_empty())
+        .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| "${target.name}_${filter}_${frame:04}.fits".to_string());
+
+    // With no base path the only complete destination is an absolute template.
+    // Anything else has nowhere to write, and this used to return `None` — the
+    // burst then ran to completion, counted every frame, and dropped all of
+    // them. Refuse instead: a run that cannot keep its data must not claim it
+    // succeeded.
+    if base_path.is_none() && !std::path::Path::new(&effective_template).is_absolute() {
+        return Err(format!(
+            "Exposure has no save location: the sequencer save path is not set and the node's \
+             save_to template (`{effective_template}`) is not an absolute path. Every frame this \
+             node captures would be discarded. Set the save path before starting the run."
+        ));
+    }
 
     // Snapshot the per-burst exposure fields so the renderer closure does
     // not need a reference back to `config`.
@@ -335,7 +396,7 @@ fn build_save_path_renderer(
         }
     }
 
-    Some(Box::new(move |frame: u32, total: u32| {
+    Ok(Box::new(move |frame: u32, total: u32| {
         let eval = EvaluationFrame {
             frame: Some(frame),
             frame_total: Some(total),
@@ -1040,6 +1101,163 @@ mod tests {
             }
             other => panic!("unexpected detail: {:?}", other),
         }
+    }
+
+    /// A burst with nowhere to write must FAIL. The pre-fix path built no
+    /// renderer, hit the "no save location" warn branch, counted every frame
+    /// as completed and returned Success — a full night reported 100% with
+    /// zero files on disk.
+    #[tokio::test]
+    async fn exposure_with_no_save_location_fails_instead_of_discarding_frames() {
+        let mut ctx = ExecutionContext::new("expose-nosave".to_string());
+        ctx.camera_id = Some("sim_camera_1".to_string());
+        ctx.save_path = None;
+
+        let node_type = NodeType::TakeExposure(crate::ExposureConfig {
+            count: 1,
+            duration_secs: 0.01,
+            frame_type: "dark".to_string(),
+            ..Default::default()
+        });
+
+        let status = ExposeInstruction
+            .execute("expose-nosave", &node_type, &mut ctx)
+            .await;
+
+        assert_eq!(
+            status,
+            NodeStatus::Failure,
+            "an exposure with no resolvable save location must fail loudly, not \
+             report success while discarding every frame"
+        );
+    }
+
+    /// An absolute per-node `save_to` is a complete destination on its own, so
+    /// it must still run with no sequencer base path configured.
+    #[tokio::test]
+    async fn exposure_with_an_absolute_save_to_runs_without_a_base_path() {
+        let dir = std::env::temp_dir().join(format!("ns-expose-abs-{}", uuid::Uuid::new_v4()));
+        let mut ctx = ExecutionContext::new("expose-abs".to_string());
+        ctx.camera_id = Some("sim_camera_1".to_string());
+        ctx.save_path = None;
+
+        let node_type = NodeType::TakeExposure(crate::ExposureConfig {
+            count: 1,
+            duration_secs: 0.01,
+            frame_type: "dark".to_string(),
+            save_to: Some(format!("{}/${{frame:04}}.fits", dir.display())),
+            ..Default::default()
+        });
+
+        let status = ExposeInstruction
+            .execute("expose-abs", &node_type, &mut ctx)
+            .await;
+        let written: Vec<_> = std::fs::read_dir(&dir)
+            .map(|entries| entries.filter_map(Result::ok).map(|e| e.path()).collect())
+            .unwrap_or_default();
+
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(status, NodeStatus::Success);
+        assert_eq!(
+            written.len(),
+            1,
+            "the absolute template is a complete destination; the frame must land there"
+        );
+    }
+
+    /// Q3: two `Parallel` branches exposing on the SAME camera must not
+    /// overlap. `execute_parallel` clones the context per branch, so the
+    /// serialisation has to live on shared (Arc'd) state — this test drives
+    /// exactly that clone. Pre-fix the two 0.4s bursts ran concurrently and
+    /// the pair finished in ~0.4s.
+    #[tokio::test]
+    async fn two_branches_on_one_camera_serialise_their_exposures() {
+        let dir = std::env::temp_dir().join(format!("ns-expose-lock-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let mut ctx_a = ExecutionContext::new("expose-a".to_string());
+        ctx_a.camera_id = Some("sim_camera_1".to_string());
+        ctx_a.save_path = Some(dir.clone());
+        let mut ctx_b = ctx_a.clone();
+        ctx_b.node_id = "expose-b".to_string();
+
+        let node_type = NodeType::TakeExposure(crate::ExposureConfig {
+            count: 1,
+            duration_secs: 0.4,
+            frame_type: "dark".to_string(),
+            ..Default::default()
+        });
+        let node_type_b = node_type.clone();
+
+        let started = std::time::Instant::now();
+        let (status_a, status_b) = tokio::join!(
+            async {
+                ExposeInstruction
+                    .execute("expose-a", &node_type, &mut ctx_a)
+                    .await
+            },
+            async {
+                ExposeInstruction
+                    .execute("expose-b", &node_type_b, &mut ctx_b)
+                    .await
+            },
+        );
+        let elapsed = started.elapsed();
+
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(status_a, NodeStatus::Success);
+        assert_eq!(status_b, NodeStatus::Success);
+        assert!(
+            elapsed >= std::time::Duration::from_millis(700),
+            "two 0.4s exposures on one camera must run one after the other; \
+             finished in {elapsed:?}, so they overlapped on the same sensor"
+        );
+    }
+
+    /// Two different cameras must still expose in parallel — the lock is
+    /// per-device, not global.
+    #[tokio::test]
+    async fn two_branches_on_different_cameras_still_run_in_parallel() {
+        let dir = std::env::temp_dir().join(format!("ns-expose-par-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let mut ctx_a = ExecutionContext::new("expose-a".to_string());
+        ctx_a.camera_id = Some("sim_camera_1".to_string());
+        ctx_a.save_path = Some(dir.clone());
+        let mut ctx_b = ctx_a.clone();
+        ctx_b.node_id = "expose-b".to_string();
+        ctx_b.camera_id = Some("sim_camera_2".to_string());
+
+        let node_type = NodeType::TakeExposure(crate::ExposureConfig {
+            count: 1,
+            duration_secs: 0.4,
+            frame_type: "dark".to_string(),
+            ..Default::default()
+        });
+        let node_type_b = node_type.clone();
+
+        let started = std::time::Instant::now();
+        let (status_a, status_b) = tokio::join!(
+            async {
+                ExposeInstruction
+                    .execute("expose-a", &node_type, &mut ctx_a)
+                    .await
+            },
+            async {
+                ExposeInstruction
+                    .execute("expose-b", &node_type_b, &mut ctx_b)
+                    .await
+            },
+        );
+        let elapsed = started.elapsed();
+
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(status_a, NodeStatus::Success);
+        assert_eq!(status_b, NodeStatus::Success);
+        assert!(
+            elapsed < std::time::Duration::from_millis(700),
+            "separate cameras must still expose concurrently; took {elapsed:?}"
+        );
     }
 
     #[test]

@@ -500,7 +500,16 @@ impl DeviceManager {
                     // duration: the simulator integrates for the time it was
                     // asked for, so callers are paced the way real hardware
                     // paces them.
-                    crate::api::devices::simulation::begin_sim_exposure(duration).await;
+                    crate::api::devices::simulation::begin_sim_exposure(
+                        crate::api::devices::simulation::SimExposureRequest {
+                            secs: duration,
+                            frame_type,
+                            subframe: subframe
+                                .as_ref()
+                                .map(|r| (r.start_x, r.start_y, r.width, r.height)),
+                        },
+                    )
+                    .await;
                     let sim = crate::api::devices::simulation::get_sim_camera();
                     let mut guard = sim.write().await;
                     if let Some(g) = gain {
@@ -1068,24 +1077,27 @@ impl DeviceManager {
                 // Project gain/offset/bin/temperature from the singleton so a
                 // simulated download reflects whatever the test or UI
                 // configured via set_gain / set_offset / set_binning /
-                // set_cooler. Sensor dimensions remain the singleton's defaults
-                // (sensor_width=4144, sensor_height=2822); we keep the older
-                // 1920x1080 image-size for the synthetic pixel buffer because
-                // the singleton does not declare an "exposure region" and
-                // tests rely on a deterministic image size.
+                // set_cooler, and take the frame geometry from the SAME sensor
+                // declaration the camera advertised.
                 let sim = crate::device_manager::ops::sim_gate::read_camera_status().await?;
-                let sim_exposure_secs =
-                    crate::device_manager::ops::sim_gate::read_camera_last_exposure_secs().await?;
-                // The frame has been read out, so the exposure is no longer in
-                // flight. Without this a caller that downloads and then polls
-                // completion again would be told to keep waiting.
-                crate::api::devices::simulation::clear_sim_exposure().await;
-                // Synthetic download: gradient background plus a star field whose
-                // PSF width tracks focuser defocus. Extracted into
-                // `crate::sim_frame` so it can be unit-tested against the real
-                // star detector — an unverified synthetic frame is worse than
-                // none, because every focus/HFR result measured against it is
-                // then unfalsifiable.
+                let request =
+                    crate::device_manager::ops::sim_gate::read_camera_last_exposure().await?;
+                // Claim the finished frame, which both refuses a download the
+                // camera cannot honestly satisfy and returns it to idle so a
+                // caller that polls completion afterwards is not told to keep
+                // waiting. Ungated, this synthesized a full frame stamped with
+                // the requested EXPTIME mid-exposure and after an abort, so a
+                // cancelled or raced capture still produced a saved light frame.
+                crate::api::devices::simulation::take_sim_exposure_for_download()
+                    .await
+                    .map_err(|detail| {
+                        DeviceOpError::hardware(Some(device_id.to_string()), detail)
+                    })?;
+                // Synthetic download: an electron-domain frame whose star PSF
+                // tracks focuser defocus. Extracted into `crate::sim_frame` so it
+                // can be unit-tested against the real star detector — an
+                // unverified synthetic frame is worse than none, because every
+                // focus/HFR result measured against it is then unfalsifiable.
                 let focus_position = {
                     let focuser = crate::api::devices::simulation::get_sim_focuser()
                         .read()
@@ -1100,26 +1112,46 @@ impl DeviceManager {
                 // tracking drift are visible to whatever is measuring the frame.
                 let (offset_x, offset_y) =
                     crate::api::devices::simulation::sim_guide_offset_px().await;
-                let sim_data = crate::sim_frame::synthesize_sim_frame_with_offset(
+                let frame_request = crate::sim_frame::SimFrameRequest {
+                    width: sim.sensor_width.max(1) as usize,
+                    height: sim.sensor_height.max(1) as usize,
+                    exposure_secs: request.secs,
+                    gain: sim.gain,
+                    offset: sim.offset,
+                    frame_type: request.frame_type,
                     focus_position,
                     offset_x,
                     offset_y,
-                );
+                    bin_x: sim.bin_x.max(1) as u32,
+                    bin_y: sim.bin_y.max(1) as u32,
+                    subframe: request.subframe,
+                    max_adu: sim.max_adu.clamp(1, u32::from(u16::MAX)) as u16,
+                    seed: crate::api::devices::simulation::next_sim_frame_seed(),
+                };
+                let (width, height) = crate::sim_frame::sim_frame_dimensions(&frame_request);
+                let sim_data = crate::sim_frame::synthesize_sim_frame(&frame_request);
                 Ok(ImageData {
-                    width: 1920,
-                    height: 1080,
+                    width,
+                    height,
                     data: sim_data,
                     bits_per_pixel: 16,
                     bayer_pattern: None,
                     metadata: nightshade_native::camera::ImageMetadata {
-                        exposure_time: sim_exposure_secs,
+                        exposure_time: request.secs,
                         gain: sim.gain,
                         offset: sim.offset,
                         bin_x: sim.bin_x,
                         bin_y: sim.bin_y,
                         temperature: sim.sensor_temp,
                         timestamp: chrono::Utc::now(),
-                        subframe: None,
+                        subframe: request.subframe.map(|(start_x, start_y, width, height)| {
+                            nightshade_native::camera::SubFrame {
+                                start_x,
+                                start_y,
+                                width,
+                                height,
+                            }
+                        }),
                         readout_mode: None,
                         vendor_data: nightshade_native::camera::VendorFeatures::default(),
                     },
@@ -1204,9 +1236,10 @@ impl DeviceManager {
                 crate::device_manager::ops::sim_gate::require_camera_connected()
                     .await
                     .map_err(DeviceOpError::from)?;
-                // Drop the in-flight exposure clock, so a later poll reports
-                // idle rather than waiting out an exposure that was abandoned.
-                crate::api::devices::simulation::clear_sim_exposure().await;
+                // Release a caller polling for completion, but remember that the
+                // frame was abandoned: a download afterwards has nothing to
+                // hand back and must say so.
+                crate::api::devices::simulation::abort_sim_exposure().await;
                 Ok(())
             }
             Some(DriverType::Native) => {
@@ -2475,5 +2508,184 @@ mod fits_card_tests {
             Some(120)
         );
         assert_eq!(camera_setting_or_unknown(0).or(Some(120)), Some(0));
+    }
+}
+
+#[cfg(test)]
+mod sim_camera_tests {
+    use crate::api::devices::simulation::{
+        clear_sim_exposure, get_sim_camera, sim_singleton_test_lock,
+    };
+    use crate::api::get_device_manager;
+    use crate::device::{CameraState, DeviceInfo, DeviceType, DriverType};
+    use nightshade_native::camera::FrameType;
+
+    /// `expect_err` on a `Result<ImageData, _>` would dump a whole 1920x1080
+    /// frame into the failure output, which buries the assertion.
+    async fn download_error(device_id: &str, why: &str) -> String {
+        match get_device_manager().camera_download_image(device_id).await {
+            Ok(image) => panic!(
+                "{why}, yet a complete {}x{} frame was returned \
+                 (metadata claims a {}s exposure)",
+                image.width, image.height, image.metadata.exposure_time
+            ),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    async fn attach_sim_camera(device_id: &str) {
+        let info = DeviceInfo {
+            id: device_id.to_string(),
+            name: "Simulated Camera".to_string(),
+            device_type: DeviceType::Camera,
+            driver_type: DriverType::Simulator,
+            description: "Simulated camera".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Simulated Camera".to_string(),
+        };
+        get_device_manager().register_device(info, false).await;
+        get_sim_camera().write().await.status.connected = true;
+        clear_sim_exposure().await;
+    }
+
+    /// `camera_get_status` and `camera_is_exposure_complete` are polled by the
+    /// same UI and must never contradict each other. The status arm reported
+    /// `Idle` throughout a running exposure while the completion arm said "not
+    /// yet", so the dashboard showed an idle camera mid-frame and no progress
+    /// UI could be exercised without hardware.
+    #[tokio::test]
+    async fn status_walks_the_exposure_state_machine() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_camera_state_machine";
+        attach_sim_camera(device_id).await;
+        let mgr = get_device_manager();
+
+        assert_eq!(
+            mgr.camera_get_status(device_id).await.unwrap().state,
+            CameraState::Idle,
+            "a camera with no exposure in flight is idle"
+        );
+
+        mgr.camera_start_exposure(device_id, 0.4, None, None, 1, 1, FrameType::Light)
+            .await
+            .expect("simulated exposure should start");
+
+        let mid = mgr.camera_get_status(device_id).await.unwrap();
+        assert!(
+            !mgr.camera_is_exposure_complete(device_id).await.unwrap(),
+            "0.4s exposure cannot be complete immediately"
+        );
+        assert_eq!(
+            mid.state,
+            CameraState::Exposing,
+            "status said {:?} while the exposure was still integrating",
+            mid.state
+        );
+
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        assert!(mgr.camera_is_exposure_complete(device_id).await.unwrap());
+        assert_eq!(
+            mgr.camera_get_status(device_id).await.unwrap().state,
+            CameraState::Reading,
+            "an integrated but undownloaded frame is waiting to be read out"
+        );
+
+        mgr.camera_download_image(device_id)
+            .await
+            .expect("a completed exposure should download");
+        assert_eq!(
+            mgr.camera_get_status(device_id).await.unwrap().state,
+            CameraState::Idle,
+            "the camera returns to idle once the frame has been read out"
+        );
+    }
+
+    /// Downloading mid-exposure returned a complete frame stamped with the full
+    /// requested `EXPTIME`. A caller that skipped (or raced) the completion poll
+    /// therefore wrote a FITS file whose header was a lie about how long the
+    /// sensor had integrated.
+    #[tokio::test]
+    async fn download_before_completion_is_refused() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_camera_early_download";
+        attach_sim_camera(device_id).await;
+        let mgr = get_device_manager();
+
+        mgr.camera_start_exposure(device_id, 3.0, None, None, 1, 1, FrameType::Light)
+            .await
+            .unwrap();
+        assert!(!mgr.camera_is_exposure_complete(device_id).await.unwrap());
+
+        let err = download_error(device_id, "the exposure was still integrating").await;
+        assert!(
+            err.contains("still integrating"),
+            "expected a not-ready error, got: {err}"
+        );
+
+        mgr.camera_abort_exposure(device_id).await.unwrap();
+    }
+
+    /// An aborted exposure has no frame to hand back. Returning one made abort
+    /// indistinguishable from success, so a cancelled sequence still produced
+    /// a saved light frame.
+    #[tokio::test]
+    async fn download_after_abort_is_refused() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_camera_aborted_download";
+        attach_sim_camera(device_id).await;
+        let mgr = get_device_manager();
+
+        mgr.camera_start_exposure(device_id, 5.0, None, None, 1, 1, FrameType::Light)
+            .await
+            .unwrap();
+        mgr.camera_abort_exposure(device_id).await.unwrap();
+
+        assert_eq!(
+            mgr.camera_get_status(device_id).await.unwrap().state,
+            CameraState::Idle,
+            "an aborted camera is idle, not still exposing"
+        );
+        let err = download_error(device_id, "the exposure was aborted").await;
+        assert!(
+            err.contains("aborted"),
+            "expected an abort error, got: {err}"
+        );
+    }
+
+    /// Aborting must still release a caller that is waiting on completion —
+    /// the refusal above applies to the download, not to the poll loop.
+    #[tokio::test]
+    async fn abort_releases_a_waiting_poller() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_camera_abort_releases";
+        attach_sim_camera(device_id).await;
+        let mgr = get_device_manager();
+
+        mgr.camera_start_exposure(device_id, 30.0, None, None, 1, 1, FrameType::Light)
+            .await
+            .unwrap();
+        assert!(!mgr.camera_is_exposure_complete(device_id).await.unwrap());
+        mgr.camera_abort_exposure(device_id).await.unwrap();
+        assert!(
+            mgr.camera_is_exposure_complete(device_id).await.unwrap(),
+            "abort must not strand a poll loop waiting out the original duration"
+        );
+    }
+
+    /// Downloading without having started anything is a caller bug, not an
+    /// invitation to synthesize a frame out of the last request's parameters.
+    #[tokio::test]
+    async fn download_without_an_exposure_is_refused() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        let device_id = "sim_camera_no_exposure";
+        attach_sim_camera(device_id).await;
+
+        let err = download_error(device_id, "no exposure had been started").await;
+        assert!(
+            err.contains("No exposure"),
+            "expected a no-exposure error, got: {err}"
+        );
     }
 }

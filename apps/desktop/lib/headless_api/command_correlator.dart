@@ -61,8 +61,27 @@ const Map<String, Set<String>> commandCompletionEventTypes = {
   'focuser.autofocus.cancel': {'AutofocusCancelled'},
   'filter-wheel.set-position': {'FilterWheelMoveComplete', 'FilterChanged'},
   'rotator.move-to': {'RotatorMoveComplete', 'RotatorMoved'},
-  'sequencer.start': {'SequenceStarted', 'SequenceCompleted', 'SequenceFailed'},
-  'sequencer.stop': {'SequenceStopped', 'SequenceCompleted'},
+  // The sequencer's lifecycle events reach the wire under their BARE names —
+  // `Started`, `Completed`, `Stopped` (see
+  // `nightshade_core/.../ffi_backend/event_mapping.dart`); only the terminal
+  // failure is prefixed (`SequenceFailed`). This table listed only prefixed
+  // spellings, so no sequencer command's completion event was ever stamped
+  // with its `correlatingCommandId` even though `/api/docs` advertises the
+  // correlation. Both spellings are matched now.
+  //
+  // `Paused` / `Resumed` are deliberately NOT listed: the guiding subsystem
+  // emits those same bare names and [operationForCompletionEvent] matches on
+  // eventType alone, so adding them would let a guider pause satisfy a pending
+  // `sequencer.pause`. A mis-stamped id is worse than an unstamped one — it
+  // tells a client its command completed when nothing of the sort happened.
+  'sequencer.start': {
+    'Started',
+    'SequenceStarted',
+    'Completed',
+    'SequenceCompleted',
+    'SequenceFailed',
+  },
+  'sequencer.stop': {'Stopped', 'SequenceStopped'},
   'sequencer.pause': {'SequencePaused'},
   'sequencer.resume': {'SequenceResumed'},
   'sequencer.skip': {'NodeSkipped'},

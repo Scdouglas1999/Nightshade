@@ -439,23 +439,70 @@ final analyticsRemoteImagePollIntervalProvider = Provider<Duration>(
   (ref) => const Duration(seconds: 10),
 );
 
-/// Provider for unique target names derived from sessions
-/// Returns a list of unique session names to use as target filter options
+/// The label of the History target filter's "no filter" entry.
+const String kAllTargetsFilter = 'All Targets';
+
+/// The label of the History target filter's "sessions with no target" entry.
+/// Only offered when at least one session actually has a null `targetId`.
+const String kUntargetedSessionsFilter = 'Untargeted sessions';
+
+/// Options for the History tab's target filter — REAL targets.
+///
+/// This used to return the distinct `imaging_sessions.name` values, i.e. a
+/// sequence-name filter wearing a "All Targets" label: the one row in `targets`
+/// never appeared in it, so a user with three targets over forty nights could
+/// not filter their history by target at all. Session names remain filterable
+/// through the search field beside the dropdown.
+///
+/// The list is the names of the targets that the recorded sessions actually
+/// reference (a target with no sessions would filter to nothing), plus
+/// [kUntargetedSessionsFilter] when some sessions carry no target.
 final sessionTargetNamesProvider = Provider<AsyncValue<List<String>>>((ref) {
   final sessionsAsync = ref.watch(allSessionsProvider);
-  return sessionsAsync.when(
-    data: (sessions) {
-      // Extract unique non-null session names
-      final uniqueNames = sessions
-          .map((s) => s.name)
-          .where((name) => name != null && name.isNotEmpty)
-          .cast<String>()
-          .toSet()
-          .toList()
-        ..sort();
-      return AsyncValue.data(['All Targets', ...uniqueNames]);
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (e, st) => AsyncValue.error(e, st),
-  );
+  final targetsAsync = ref.watch(allDbTargetsProvider);
+  if (sessionsAsync.hasError) {
+    return AsyncValue.error(sessionsAsync.error!, sessionsAsync.stackTrace!);
+  }
+  if (targetsAsync.hasError) {
+    return AsyncValue.error(targetsAsync.error!, targetsAsync.stackTrace!);
+  }
+  final sessions = sessionsAsync.valueOrNull;
+  final targets = targetsAsync.valueOrNull;
+  if (sessions == null || targets == null) return const AsyncValue.loading();
+
+  final nameById = {for (final t in targets) t.id: t.name};
+  final referenced = <String>{};
+  var hasUntargeted = false;
+  for (final session in sessions) {
+    final id = session.targetId;
+    final name = id == null ? null : nameById[id];
+    if (name != null && name.isNotEmpty) {
+      referenced.add(name);
+    } else {
+      hasUntargeted = true;
+    }
+  }
+  final sorted = referenced.toList()..sort();
+  return AsyncValue.data([
+    kAllTargetsFilter,
+    ...sorted,
+    if (hasUntargeted && sorted.isNotEmpty) kUntargetedSessionsFilter,
+  ]);
 });
+
+/// Maps a target-filter label to the predicate the History list applies.
+/// Exposed (rather than inlined in the tab) so the mapping is unit-testable and
+/// cannot drift from [sessionTargetNamesProvider]'s labels.
+bool sessionMatchesTargetFilter(
+  ImagingSession session,
+  String filter,
+  Map<int, String> targetNameById,
+) {
+  if (filter == kAllTargetsFilter) return true;
+  final id = session.targetId;
+  final name = id == null ? null : targetNameById[id];
+  if (filter == kUntargetedSessionsFilter) {
+    return name == null || name.isEmpty;
+  }
+  return name == filter;
+}

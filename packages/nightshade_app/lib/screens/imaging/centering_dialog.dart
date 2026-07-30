@@ -127,7 +127,22 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   /// caller is responsible for validating the exposure via
   /// [_parseValidExposureSeconds] first; this method never substitutes a
   /// default for a bad value.
-  CenteringConfig _buildCenteringConfig(double exposureTime) {
+  /// Settings this run depends on (solver path/timeout plus the centering mount
+  /// sync), awaited rather than read cold: a run started before the provider
+  /// resolves would silently use an empty solver path and the built-in
+  /// defaults instead of the operator's configuration.
+  Future<AppSettingsState?> _resolvedAppSettings() async {
+    try {
+      return await ref.read(appSettingsProvider.future);
+    } catch (_) {
+      return ref.read(appSettingsProvider).valueOrNull;
+    }
+  }
+
+  CenteringConfig _buildCenteringConfig(
+    double exposureTime,
+    AppSettingsState? settings,
+  ) {
     final profile = ref.read(activeEquipmentProfileProvider);
     return CenteringConfig(
       maxIterations: 5,
@@ -136,7 +151,10 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       binning: profile?.defaultBinX ?? 2,
       gain: profile?.defaultGain,
       offset: profile?.defaultOffset,
-      syncMount: false,
+      // Settings → Plate Solving → "Sync mount when centering". Without the
+      // sync each correction re-issues the slew that produced the mis-pointed
+      // frame, so the offset never changes and the run ends on max iterations.
+      syncMount: settings?.centeringSyncMount ?? true,
     );
   }
 
@@ -919,7 +937,8 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       return;
     }
 
-    final appSettings = ref.read(appSettingsProvider).value;
+    final appSettings = await _resolvedAppSettings();
+    if (!mounted) return;
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
       executablePath: appSettings?.astapPath ?? '',
@@ -932,7 +951,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         targetRa: widget.targetRa!,
         targetDec: widget.targetDec!,
         solverConfig: solverConfig,
-        config: _buildCenteringConfig(exposureTime),
+        config: _buildCenteringConfig(exposureTime, appSettings),
         onStatusUpdate: (status) {
           ref.read(centeringStatusProvider.notifier).state = status;
         },

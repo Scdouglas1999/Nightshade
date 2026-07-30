@@ -1744,9 +1744,11 @@ class SequenceExecutor {
     await backend.sequencerSetSimulationMode(
       effectiveSimulationMode(settings.useSimulationMode),
     );
-    await backend.sequencerSetSafetyFailMode(
-      _safetyFailModeToBackendString(settings.safetyFailMode),
-    );
+    // Through the SAME weather-safety guard the start path uses. Pushing the
+    // raw configured mode here armed the always-on `WeatherUnsafe` trigger on
+    // every rig without a safety-monitor device, so Resume parked the mount
+    // and aborted within ~100 ms with only "Sequence cancelled" shown.
+    await _pushEffectiveSafetyFailMode(backend, settings.safetyFailMode);
     // Save path: only override the checkpoint's restored path when the
     // user actually has one configured — pushing null here would clobber
     // a perfectly good snapshot path with "don't save".

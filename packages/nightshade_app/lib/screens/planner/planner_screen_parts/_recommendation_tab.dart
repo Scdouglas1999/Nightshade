@@ -35,8 +35,12 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
 
   void _maybeLoadMore() {
     if (!_scrollController.hasClients) return;
-    if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - 240) {
+    final position = _scrollController.position;
+    // Page in a screenful ahead of the end. A fixed 240px lead is most of a
+    // page on a phone but a sliver of a tall desktop viewport, where the list
+    // ran dry mid-flick before the next page was appended.
+    final lead = position.viewportDimension * 0.5;
+    if (position.pixels >= position.maxScrollExtent - lead) {
       final filtered =
           ref.read(plannerFilteredSuggestionsProvider).valueOrNull ?? const [];
       final current = ref.read(_plannerVisibleCountProvider);

@@ -512,6 +512,14 @@ class SessionOptimizerService {
             strategy: inferSmartNightStrategy(primary, availableFilters),
             availableFilters: availableFilters,
           );
+    // A rig that reports no filter names at all captures unfiltered. The
+    // exposure model still uses a luminance passband to size the sub, but
+    // reporting that as "L" would promise a filter the built sequence never
+    // selects. A missing exposure context is a different case — that falls
+    // back to the planning-estimate rig, which does name a filter.
+    final rigNamesFilters = (exposureContext ?? _fallbackExposureContext)
+        .availableFilterNames
+        .any((name) => name.trim().isNotEmpty);
 
     final rationale = <String>[
       primary.reasoning,
@@ -542,7 +550,7 @@ class SessionOptimizerService {
       primaryTarget: primary,
       alternates: alternates,
       recommendedExposureSeconds: exposurePlan.seconds,
-      recommendedFilterName: exposurePlan.filterName,
+      recommendedFilterName: rigNamesFilters ? exposurePlan.filterName : null,
       recommendedFilterNames: recommendedFilterNames,
       estimatedUsableHours: estimatedUsableHours,
       rationale: rationale,

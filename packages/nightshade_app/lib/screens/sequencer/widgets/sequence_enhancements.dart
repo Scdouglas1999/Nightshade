@@ -361,10 +361,13 @@ class _PulsingIndicatorState extends State<_PulsingIndicator>
   @override
   void initState() {
     super.initState();
+    // Started by the OnScreenAnimationGate in build(), not here: a repeat that
+    // outlives visibility schedules a frame on every vsync and stops the whole
+    // app from idling.
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat();
+    );
   }
 
   @override
@@ -375,22 +378,26 @@ class _PulsingIndicatorState extends State<_PulsingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final value = (1 - _controller.value).clamp(0.3, 1.0);
-        return Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: widget.color.withValues(alpha: value),
-            border: Border.all(
-              color: widget.color.withValues(alpha: 0.5),
+    return OnScreenAnimationGate(
+      controller: _controller,
+      repeating: true,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final value = (1 - _controller.value).clamp(0.3, 1.0);
+          return Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: widget.color.withValues(alpha: value),
+              border: Border.all(
+                color: widget.color.withValues(alpha: 0.5),
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

@@ -66,6 +66,30 @@ NoDataResolution noDataFailModeResolution(SafetyFailMode mode) {
   }
 }
 
+/// What a single safety source currently contributes to the combined verdict.
+///
+/// Simulator campaign 2026-07-28 (S1): a bare `bool` per source could not tell
+/// "the sensor says safe" apart from "the sensor is configured but has stopped
+/// answering", so an unreachable sensor kept an optimistic `true` and the rig
+/// was reported SAFE in fail-closed mode while its own device row said
+/// `connected: false`.
+enum SafetySourceReading {
+  /// The operator has no such source configured; it contributes nothing and
+  /// must never force unsafe on its own.
+  absent,
+
+  /// Configured but currently unreadable: unreachable, erroring, or older than
+  /// the freshness budget. Resolved through the fail mode, so fail-closed
+  /// treats it as unsafe and the permissive modes do not.
+  unknown,
+
+  /// The source has a current reading and it is within limits.
+  safe,
+
+  /// The source has a current reading and it is out of limits.
+  unsafe,
+}
+
 /// Weather safety status for sequencer integration
 enum WeatherSafetyStatus {
   /// OK to continue imaging
@@ -125,8 +149,36 @@ class WeatherSafetyState {
   final bool hardwareWeatherSafe;
   final bool safetyMonitorSafe;
   final bool apiWeatherSafe;
+  final SafetySourceReading hardwareWeatherReading;
+  final SafetySourceReading safetyMonitorReading;
   final String? failModeWarning;
   final DateTime? lastEvaluation;
+
+  /// Whether weather safety is actually being monitored.
+  ///
+  /// When the operator has "Enable weather safety" switched off nothing is
+  /// evaluated, so [status] falls through to [WeatherSafetyStatus.safe] purely
+  /// because there is no verdict to report. UI must NOT render that as a green
+  /// "conditions safe for imaging" — it is "not assessed". Surfaces read this
+  /// flag to tell the two states apart.
+  final bool monitoringEnabled;
+
+  /// Whether unsafe WEATHER would actually park the mount.
+  ///
+  /// Composed truth: auto-park needs the weather-safety master switch, the
+  /// Sequencer "Park on unsafe weather" policy AND the Weather Safety
+  /// "Auto-park mount" toggle. Any surface that reports auto-park to the
+  /// operator must use this instead of a single toggle, otherwise it claims
+  /// protection the rig does not have.
+  ///
+  /// Scope is deliberately weather-only. The park-before-dawn watchdog can also
+  /// park with weather safety off, but it is a separate feature disclosed on the
+  /// Sequencer page; folding it in here would let a weather panel imply that
+  /// weather is covered when nothing is watching the sky.
+  final bool autoParkArmed;
+
+  /// Whether auto-resume would actually run (needs the master switch too).
+  final bool autoResumeArmed;
 
   const WeatherSafetyState({
     required this.status,
@@ -137,8 +189,13 @@ class WeatherSafetyState {
     this.hardwareWeatherSafe = true,
     this.safetyMonitorSafe = true,
     this.apiWeatherSafe = true,
+    this.hardwareWeatherReading = SafetySourceReading.absent,
+    this.safetyMonitorReading = SafetySourceReading.absent,
     this.failModeWarning,
     this.lastEvaluation,
+    this.monitoringEnabled = true,
+    this.autoParkArmed = false,
+    this.autoResumeArmed = false,
   });
 
   factory WeatherSafetyState.initial() => const WeatherSafetyState(
@@ -152,6 +209,8 @@ class WeatherSafetyState {
     hardwareWeatherSafe: false,
     safetyMonitorSafe: false,
     apiWeatherSafe: false,
+    hardwareWeatherReading: SafetySourceReading.unknown,
+    safetyMonitorReading: SafetySourceReading.unknown,
   );
 
   /// Check if conditions are safe for imaging
@@ -167,9 +226,14 @@ class WeatherSafetyState {
     bool? hardwareWeatherSafe,
     bool? safetyMonitorSafe,
     bool? apiWeatherSafe,
+    SafetySourceReading? hardwareWeatherReading,
+    SafetySourceReading? safetyMonitorReading,
     String? failModeWarning,
     bool clearWarning = false,
     DateTime? lastEvaluation,
+    bool? monitoringEnabled,
+    bool? autoParkArmed,
+    bool? autoResumeArmed,
   }) {
     return WeatherSafetyState(
       status: status ?? this.status,
@@ -180,10 +244,16 @@ class WeatherSafetyState {
       hardwareWeatherSafe: hardwareWeatherSafe ?? this.hardwareWeatherSafe,
       safetyMonitorSafe: safetyMonitorSafe ?? this.safetyMonitorSafe,
       apiWeatherSafe: apiWeatherSafe ?? this.apiWeatherSafe,
+      hardwareWeatherReading:
+          hardwareWeatherReading ?? this.hardwareWeatherReading,
+      safetyMonitorReading: safetyMonitorReading ?? this.safetyMonitorReading,
       failModeWarning: clearWarning
           ? null
           : (failModeWarning ?? this.failModeWarning),
       lastEvaluation: lastEvaluation ?? this.lastEvaluation,
+      monitoringEnabled: monitoringEnabled ?? this.monitoringEnabled,
+      autoParkArmed: autoParkArmed ?? this.autoParkArmed,
+      autoResumeArmed: autoResumeArmed ?? this.autoResumeArmed,
     );
   }
 }
@@ -226,6 +296,12 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
   static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
+
+  /// How old a hardware source's last successful read may be before it stops
+  /// counting as data. Device telemetry is polled every 5 seconds, so this is
+  /// generous; it exists to catch a source that has frozen while still
+  /// reporting itself connected.
+  static const _sourceFreshnessBudget = Duration(minutes: 5);
 
   /// Push cadence for cloud-motion data into the Rust
   /// executor. 60 seconds matches the brief's "every 60s say".
@@ -365,6 +441,10 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       );
       final lastEvaluationRaw = response['lastEvaluation'];
       final snoozeUntilRaw = response['snoozeUntil'];
+      final hardwareWeatherSafe =
+          response['hardwareWeatherSafe'] as bool? ?? isSafe;
+      final safetyMonitorSafe =
+          response['safetyMonitorSafe'] as bool? ?? isSafe;
       state = WeatherSafetyState(
         status: status,
         actions: WeatherSafetyActions(
@@ -382,11 +462,26 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
         snoozeUntil: wireDate(snoozeUntilRaw),
         currentAlertLevel: alertLevel,
         dataSource: dataSource,
-        hardwareWeatherSafe: response['hardwareWeatherSafe'] as bool? ?? isSafe,
-        safetyMonitorSafe: response['safetyMonitorSafe'] as bool? ?? isSafe,
+        hardwareWeatherSafe: hardwareWeatherSafe,
+        safetyMonitorSafe: safetyMonitorSafe,
         apiWeatherSafe: response['apiWeatherSafe'] as bool? ?? isSafe,
+        hardwareWeatherReading: _readingFromWire(
+          response['hardwareWeatherReading'],
+          hardwareWeatherSafe,
+        ),
+        safetyMonitorReading: _readingFromWire(
+          response['safetyMonitorReading'],
+          safetyMonitorSafe,
+        ),
         failModeWarning: failModeWarning,
         lastEvaluation: wireDate(lastEvaluationRaw),
+        // Pre-parity hosts do not report whether monitoring is on or whether
+        // the park/resume policies are armed. Assume the host IS monitoring
+        // (claiming "not monitoring" about a host that is would be its own
+        // lie) but never claim protection we have not been told about.
+        monitoringEnabled: response['monitoringEnabled'] as bool? ?? true,
+        autoParkArmed: response['autoParkArmed'] as bool? ?? false,
+        autoResumeArmed: response['autoResumeArmed'] as bool? ?? false,
       );
     } catch (error) {
       if (!mounted) return;
@@ -397,6 +492,17 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     } finally {
       _remoteFetchInFlight = false;
     }
+  }
+
+  /// Pre-parity hosts do not send the per-source reading, so fall back to the
+  /// boolean they do send.
+  static SafetySourceReading _readingFromWire(Object? raw, bool sourceSafe) {
+    if (raw is String) {
+      for (final candidate in SafetySourceReading.values) {
+        if (candidate.name == raw) return candidate;
+      }
+    }
+    return sourceSafe ? SafetySourceReading.safe : SafetySourceReading.unsafe;
   }
 
   /// Start periodic re-evaluation timer independent of weather screen
@@ -476,31 +582,37 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     final dawnParkDue = _isParkBeforeDawnDue(appSettings);
     var shouldShowFailModeWarning = false;
 
-    // Get hardware weather device state
+    // Read each hardware source as a three-state verdict. A source the
+    // operator has configured but that is unreachable or stale reads `unknown`
+    // and is resolved through the fail mode below; it must never keep an
+    // optimistic "safe" just because its device is no longer connected.
     final weatherDeviceState = _ref.read(weatherStateProvider);
-    final isWeatherDeviceConnected =
-        weatherDeviceState.connectionState == DeviceConnectionState.connected;
-
-    // Get safety monitor device state
     final safetyMonitorState = _ref.read(safetyMonitorStateProvider);
-    final isSafetyMonitorConnected =
-        safetyMonitorState.connectionState == DeviceConnectionState.connected;
+    final hardwareWeatherReading = _readHardwareWeatherSource(
+      weatherDeviceState,
+      weatherSettings,
+    );
+    final safetyMonitorReading = _readSafetyMonitorSource(safetyMonitorState);
 
-    // Evaluate hardware weather device
-    bool hardwareWeatherSafe = true;
-    if (isWeatherDeviceConnected) {
-      // Check if conditions are safe based on hardware weather data
-      hardwareWeatherSafe = _evaluateHardwareWeather(
-        weatherDeviceState,
-        weatherSettings,
-      );
-    }
+    final unknownIsUnsafe =
+        noDataFailModeResolution(failMode) == NoDataResolution.unsafe;
+    bool resolveSource(SafetySourceReading reading) => switch (reading) {
+      SafetySourceReading.unsafe => false,
+      SafetySourceReading.unknown => !unknownIsUnsafe,
+      SafetySourceReading.safe || SafetySourceReading.absent => true,
+    };
+    final hardwareWeatherSafe = resolveSource(hardwareWeatherReading);
+    final safetyMonitorSafe = resolveSource(safetyMonitorReading);
 
-    // Evaluate safety monitor
-    bool safetyMonitorSafe = true;
-    if (isSafetyMonitorConnected) {
-      safetyMonitorSafe = safetyMonitorState.isSafe;
-    }
+    final unreachableSources = <String>[
+      if (hardwareWeatherReading == SafetySourceReading.unknown)
+        'Weather device',
+      if (safetyMonitorReading == SafetySourceReading.unknown) 'Safety monitor',
+    ];
+    final unreachableWarning = unreachableSources.isEmpty
+        ? null
+        : '${unreachableSources.join(' and ')} is not reporting; '
+              'no current safety data';
 
     // Get API weather status
     final alertService = _ref.read(weatherAlertServiceProvider);
@@ -511,24 +623,26 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
         currentAlert.level == AlertLevel.watch;
 
     // Determine data source
+    final hasLiveHardwareSource =
+        _isLiveReading(hardwareWeatherReading) ||
+        _isLiveReading(safetyMonitorReading);
     SafetyDataSource dataSource;
-    if (isWeatherDeviceConnected || isSafetyMonitorConnected) {
+    if (hasLiveHardwareSource) {
       dataSource = SafetyDataSource.combined;
     } else {
       dataSource = SafetyDataSource.weatherApi;
     }
 
     // Check for failures requiring fail mode handling
-    String? failModeWarning;
+    String? failModeWarning = unreachableWarning;
     bool useFailMode = false;
 
     // If no data sources are available, apply fail mode
-    if (!isWeatherDeviceConnected &&
-        !isSafetyMonitorConnected &&
-        currentAlert == null) {
+    if (!hasLiveHardwareSource && currentAlert == null) {
       useFailMode = true;
       dataSource = SafetyDataSource.unavailable;
-      failModeWarning = 'No weather data sources available';
+      failModeWarning =
+          unreachableWarning ?? 'No weather data sources available';
     }
 
     // Combine all sources for final safety determination
@@ -547,9 +661,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       finalStatus = WeatherSafetyStatus.snoozed;
       finalActions = WeatherSafetyActions.safe;
     } else if (!weatherSettings.weatherSafetyEnabled) {
-      // Safety disabled
+      // Safety disabled: nothing was assessed. `safe` here means "no verdict to
+      // act on", NOT "conditions are good" — the `monitoringEnabled: false`
+      // flag on the state below is what surfaces must render, and the reason
+      // carries the same statement in words for anything that only shows text.
       finalStatus = WeatherSafetyStatus.safe;
-      finalActions = WeatherSafetyActions.safe;
+      finalActions = const WeatherSafetyActions(
+        reason: 'Weather safety is off — conditions are not being checked',
+      );
     } else if (useFailMode) {
       // Cross-language parity: the no-data fail-mode resolution comes from the
       // SINGLE shared truth table ([noDataFailModeResolution], mirrored by the
@@ -583,13 +702,20 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     } else if (allSourcesSafe) {
       finalStatus = WeatherSafetyStatus.safe;
       finalActions = WeatherSafetyActions.safe;
+      // A permissive fail mode may have resolved an unreachable source to safe.
+      // warnOnly still owes the operator the disclosure.
+      shouldShowFailModeWarning =
+          unreachableWarning != null &&
+          noDataFailModeResolution(failMode) == NoDataResolution.preserve;
     } else {
       // Determine which source caused unsafe
       String reason;
-      if (!safetyMonitorSafe) {
+      if (safetyMonitorReading == SafetySourceReading.unsafe) {
         reason = 'Safety monitor reports unsafe conditions';
-      } else if (!hardwareWeatherSafe) {
+      } else if (hardwareWeatherReading == SafetySourceReading.unsafe) {
         reason = 'Weather device reports unsafe conditions';
+      } else if (!safetyMonitorSafe || !hardwareWeatherSafe) {
+        reason = unreachableWarning!;
       } else {
         reason = currentAlert?.message ?? 'Unsafe weather conditions detected';
       }
@@ -622,8 +748,16 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       hardwareWeatherSafe: hardwareWeatherSafe,
       safetyMonitorSafe: safetyMonitorSafe,
       apiWeatherSafe: apiWeatherSafe,
+      hardwareWeatherReading: hardwareWeatherReading,
+      safetyMonitorReading: safetyMonitorReading,
       failModeWarning: failModeWarning,
+      clearWarning: failModeWarning == null,
       lastEvaluation: DateTime.now(),
+      monitoringEnabled: weatherSettings.weatherSafetyEnabled,
+      autoParkArmed: shouldAutoPark && weatherSettings.weatherSafetyEnabled,
+      autoResumeArmed:
+          weatherSettings.autoResumeEnabled &&
+          weatherSettings.weatherSafetyEnabled,
     );
 
     if (shouldShowFailModeWarning) {
@@ -1259,6 +1393,63 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     );
     return result.isSafe;
   }
+
+  /// Read the hardware weather device as a three-state source verdict.
+  SafetySourceReading _readHardwareWeatherSource(
+    WeatherState weatherState,
+    WeatherSettings settings,
+  ) {
+    if (!_isSourceConfigured(
+      weatherState.connectionState,
+      weatherState.deviceId,
+    )) {
+      return SafetySourceReading.absent;
+    }
+    if (weatherState.connectionState != DeviceConnectionState.connected ||
+        _isStaleReading(weatherState.lastUpdated)) {
+      return SafetySourceReading.unknown;
+    }
+    return _evaluateHardwareWeather(weatherState, settings)
+        ? SafetySourceReading.safe
+        : SafetySourceReading.unsafe;
+  }
+
+  /// Read the safety monitor as a three-state source verdict.
+  SafetySourceReading _readSafetyMonitorSource(
+    SafetyMonitorState monitorState,
+  ) {
+    if (!_isSourceConfigured(
+      monitorState.connectionState,
+      monitorState.deviceId,
+    )) {
+      return SafetySourceReading.absent;
+    }
+    if (monitorState.connectionState != DeviceConnectionState.connected ||
+        _isStaleReading(monitorState.lastChecked)) {
+      return SafetySourceReading.unknown;
+    }
+    return monitorState.isSafe
+        ? SafetySourceReading.safe
+        : SafetySourceReading.unsafe;
+  }
+
+  /// A source counts as configured once the operator has selected a device for
+  /// it. A never-selected source stays [SafetySourceReading.absent] so a rig
+  /// without that sensor is not permanently unsafe.
+  static bool _isSourceConfigured(
+    DeviceConnectionState connectionState,
+    String? deviceId,
+  ) =>
+      (deviceId != null && deviceId.isNotEmpty) ||
+      connectionState != DeviceConnectionState.disconnected;
+
+  static bool _isStaleReading(DateTime? timestamp) =>
+      timestamp == null ||
+      DateTime.now().difference(timestamp) > _sourceFreshnessBudget;
+
+  static bool _isLiveReading(SafetySourceReading reading) =>
+      reading == SafetySourceReading.safe ||
+      reading == SafetySourceReading.unsafe;
 
   /// Determine if dome should be closed
   bool _shouldCloseDome(WeatherAlert? alert) {

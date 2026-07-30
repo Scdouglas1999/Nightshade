@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../../headless/host_checkpoint_directory.dart';
 import '../command_correlator.dart';
 import '../response_helpers.dart';
 import '../validation.dart';
@@ -618,12 +620,48 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
+  /// POST /api/sequencer/save-path.
+  ///
+  /// The save path is where a run's science frames land, so an unusable value
+  /// is data loss with a delay: the endpoint used to answer `ok` to the empty
+  /// string, to an uncreatable directory and to a read-only one, and the
+  /// sequencer then captured a full run and discarded every frame. Nothing is
+  /// forwarded to the backend until this host has proved it can write there.
   Future<Response> handleSequencerSetSavePath(Request request) async {
     _logInfo('[API] POST /api/sequencer/save-path');
     final payload = await readJsonObject(request);
+    final requested = optionalString(payload, 'path')?.trim();
+    if (requested == null || requested.isEmpty) {
+      return jsonBadRequest({
+        'error':
+            'path is required and must name a directory this host can write '
+            'to. Captured frames are written there; without it a run would '
+            'discard every frame.',
+        'code': 'save_path_required',
+      });
+    }
+
+    final directory = Directory(requested);
+    try {
+      await directory.create(recursive: true);
+      final probe = File(
+        '${directory.path}${Platform.pathSeparator}'
+        '.nightshade-write-probe-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      await probe.writeAsString('');
+      await probe.delete();
+    } on FileSystemException catch (error) {
+      return jsonBadRequest({
+        'error':
+            'Save path "$requested" is not usable: ${error.message}. Choose a '
+            'directory this host can write to.',
+        'code': 'save_path_unwritable',
+      });
+    }
+
     final backend = container.read(sequencerBackendProvider);
-    await backend.sequencerSetSavePath(optionalString(payload, 'path'));
-    return jsonOk({'status': 'ok'});
+    await backend.sequencerSetSavePath(requested);
+    return jsonOk({'status': 'ok', 'path': requested});
   }
 
   Future<Response> handleSequencerSetActiveSequenceRunId(
@@ -838,14 +876,48 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
+  /// POST /api/sequencer/checkpoint/dir.
+  ///
+  /// The host owns its crash-recovery storage layout. A paired client used to
+  /// be able to push its own documents directory here, which replaced the
+  /// host's checkpoint directory with a path that does not exist on the rig —
+  /// every subsequent checkpoint write failed and a mid-night crash became
+  /// unrecoverable. A client-supplied path is now refused; an empty body
+  /// re-asserts the host's own directory.
   Future<Response> handleSequencerSetCheckpointDir(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/dir');
     final payload = await readJsonObject(request);
-    final path = requireString(payload, 'path');
+    final requested = optionalString(payload, 'path')?.trim();
+    if (requested != null && requested.isNotEmpty) {
+      _logger.warning(
+        'Refused client-supplied checkpoint directory "$requested" — the host '
+        'owns its crash-recovery storage layout',
+        source: 'SequencerHandlers',
+        fields: {'requestedPath': requested},
+      );
+      return jsonForbidden({
+        'error':
+            'The host owns its crash-recovery checkpoint directory; a client '
+            'cannot set it. Omit "path" to re-assert the host directory.',
+        'code': 'checkpoint_dir_host_owned',
+      });
+    }
+
+    final Directory directory;
+    try {
+      directory = await resolveHostCheckpointDirectory();
+    } on FileSystemException catch (error) {
+      return jsonBadRequest({
+        'error':
+            'The host checkpoint directory is not usable: ${error.message}. '
+            'Crash recovery is disabled until it can be written to.',
+        'code': 'checkpoint_dir_unwritable',
+      });
+    }
 
     final backend = container.read(sequencerBackendProvider);
-    await backend.sequencerSetCheckpointDir(path);
-    return jsonOk({'status': 'ok'});
+    await backend.sequencerSetCheckpointDir(directory.path);
+    return jsonOk({'status': 'ok', 'path': directory.path});
   }
 
   Future<Response> handleSequencerHasCheckpoint(Request request) async {

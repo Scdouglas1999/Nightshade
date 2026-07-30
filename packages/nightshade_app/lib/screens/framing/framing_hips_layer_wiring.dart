@@ -79,20 +79,42 @@ class FramingHipsLayerWiring extends ConsumerWidget {
         ref.watch(framingProvider.select((s) => s.surveySource));
     final active = ref.watch(hipsFramingActiveProvider(surveySource));
 
-    // Inactive for this survey: contribute nothing. The framing canvas's single
-    // survey snapshot / starfield remains the visible background unchanged.
-    if (!active) {
+    // Whether the canvas is showing the single hips2fits CUTOUT for this survey.
+    // This is the delivery path used by every survey without a verified pyramid
+    // — six of the eight — and it is real publisher imagery that carries the
+    // same acknowledgement requirement as the tiled path.
+    final hasCutoutImagery =
+        ref.watch(framingProvider.select((s) => s.surveyImage != null));
+
+    // Whether the streamed tile mosaic has imagery resident. Only meaningful
+    // while the tile layer is active for this survey.
+    final hasTileImagery = active &&
+        ref.watch(
+          hipsResidentTilesProvider
+              .select((snapshot) => snapshot.hasAnyImagery),
+        );
+
+    // The credit is shown whenever THIS SURVEY'S IMAGERY IS ON SCREEN, by either
+    // delivery path. It used to be gated on the tile layer being ACTIVE, so
+    // selecting 2MASS / SDSS / WISE / DSS2 IR streamed publisher imagery with no
+    // credit anywhere on the canvas — this widget returned SizedBox.shrink()
+    // before it ever looked at whether imagery was visible.
+    final hasImagery = hasTileImagery || hasCutoutImagery;
+
+    // Contribute nothing at all when there is neither an active tile layer nor
+    // any cutout imagery: no imagery, nothing to credit. When the tile layer IS
+    // active the badge is mounted and gates its own visibility on `visible`,
+    // which is the composition contract the C8b wiring tests pin.
+    if (!active && !hasImagery) {
       return const SizedBox.shrink();
     }
 
-    // Active: the HiPS layer streams imagery once it is resident. The badge is
-    // shown only while imagery is actually on screen (the licence requirement),
-    // so it reads the resident snapshot's `hasAnyImagery`.
-    final hasImagery = ref.watch(
-      hipsResidentTilesProvider.select((snapshot) => snapshot.hasAnyImagery),
-    );
-    final propertiesAsync =
-        ref.watch(framingHipsPropertiesProvider(surveySource));
+    // `properties` is only fetched for tile-capable surveys; for the rest the
+    // registry's static credit is the (offline-safe) source of truth.
+    final propertiesAsync = active
+        ? ref.watch(framingHipsPropertiesProvider(surveySource))
+        : const AsyncValue<HipsProperties?>.data(null);
+    final entry = HipsSurveyRegistry.entryFor(surveySource);
 
     // This wiring renders ONLY the survey attribution credit as top chrome. The
     // streamed HiPS tile mosaic itself ([HipsTileLayer]) is composed inside
@@ -116,6 +138,8 @@ class FramingHipsLayerWiring extends ConsumerWidget {
         child: HipsAttributionBadge(
           properties: propertiesAsync.valueOrNull,
           visible: hasImagery,
+          fallbackCredit: entry.attributionCredit,
+          fallbackCreditUrl: entry.attributionUrl,
         ),
       ),
     );

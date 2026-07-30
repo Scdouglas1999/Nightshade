@@ -162,7 +162,13 @@ class CenteringConfig {
   /// offset is preserved.
   final int? offset;
 
-  /// Whether to sync mount after successful plate solve
+  /// Whether to sync the mount to the solved position before re-slewing.
+  ///
+  /// Defaults ON: with it off the correction slew is the SAME slew that
+  /// produced the mis-pointed frame, so the measured offset is bit-identical
+  /// on every iteration and the run can only end on max iterations. Off is for
+  /// mounts that build a pointing model from syncs, where the operator wants
+  /// the model left alone.
   final bool syncMount;
 
   /// Maximum wall-clock time for the full centering operation
@@ -175,7 +181,7 @@ class CenteringConfig {
     this.binning = 2,
     this.gain,
     this.offset,
-    this.syncMount = false,
+    this.syncMount = true,
     this.overallTimeout = const Duration(minutes: 10),
   });
 }
@@ -662,6 +668,13 @@ class CenteringService {
       }
     }
 
+    // Coordinates last commanded to the mount. Corrections are applied to THIS,
+    // not to the original target: with `syncMount` off the correction is an
+    // offset slew, and re-deriving it from the target each time would throw
+    // away the correction already applied and oscillate.
+    var commandedRa = targetRa;
+    var commandedDec = targetDec;
+
     for (int iteration = 1; iteration <= config.maxIterations; iteration++) {
       if (_abortRequested) return _abortedResult(iteration - 1, iterations);
 
@@ -911,13 +924,24 @@ class CenteringService {
       _slewInFlight = true;
       try {
         if (config.syncMount) {
-          // Sync mount to solved coordinates, then slew to target
+          // Tell the mount where it ACTUALLY is (solved position, RA in hours
+          // like every other coordinate here), then re-slew to the target: the
+          // slew now moves by the true pointing error.
           await deviceService.syncMountToCoordinates(solvedRa, solvedDec);
           if (_abortRequested) return _abortedResult(iteration, iterations);
-          await deviceService.slewMountToCoordinates(targetRa, targetDec);
+          commandedRa = targetRa;
+          commandedDec = targetDec;
+          await deviceService.slewMountToCoordinates(commandedRa, commandedDec);
         } else {
-          // Just slew to target coordinates
-          await deviceService.slewMountToCoordinates(targetRa, targetDec);
+          // No sync: correct by offsetting the commanded coordinates by the
+          // measured error. Re-issuing the target unchanged is what made
+          // centering repeat a bit-identical slew until it ran out of
+          // iterations.
+          commandedRa = _normalizedRaHours(commandedRa - (solvedRa - targetRa));
+          commandedDec = _clampedDecDegrees(
+            commandedDec - (solvedDec - targetDec),
+          );
+          await deviceService.slewMountToCoordinates(commandedRa, commandedDec);
         }
         if (_abortRequested) return _abortedResult(iteration, iterations);
 
@@ -1203,6 +1227,18 @@ class CenteringService {
   /// fell below tolerance and the loop ran out its iterations.
   static double _solvedRaHours(double solvedRaDegrees) {
     return solvedRaDegrees / 15.0;
+  }
+
+  /// Wrap an RA in **hours** into [0, 24) so an offset correction across 0h
+  /// stays a legal slew target.
+  static double _normalizedRaHours(double raHours) {
+    final wrapped = raHours % 24.0;
+    return wrapped < 0 ? wrapped + 24.0 : wrapped;
+  }
+
+  /// Clamp a Dec in **degrees** to the legal [-90, 90] range.
+  static double _clampedDecDegrees(double decDegrees) {
+    return decDegrees.clamp(-90.0, 90.0);
   }
 
   /// Calculate angular separation between two celestial coordinates in

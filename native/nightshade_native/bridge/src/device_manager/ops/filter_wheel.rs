@@ -156,6 +156,12 @@ impl DeviceManager {
                 ))
             }
             DriverType::Simulator => {
+                use crate::device_manager::ops::sim_faults;
+                // Injected driver errors fire before the connected gate; see
+                // `sim_faults` for the key grammar.
+                sim_faults::check("filterwheel.set_position")
+                    .await
+                    .map_err(|e| DeviceOpError::driver(e))?;
                 let fw = crate::api::devices::simulation::get_sim_filterwheel();
                 let mut fw = fw.write().await;
                 if !fw.status.connected {
@@ -163,6 +169,14 @@ impl DeviceManager {
                         None,
                         crate::device_manager::ops::sim_gate::not_connected_filterwheel(),
                     ));
+                }
+                // A stalled wheel ACCEPTS the move and never arrives: the
+                // command returns `Ok` and `position` keeps reporting where the
+                // wheel actually is. This is the failure that silently labels
+                // every subsequent frame with the wrong filter, and it is
+                // invisible to any check that only looks at the return value.
+                if sim_faults::is_stalled("filterwheel.set_position") {
+                    return Ok(());
                 }
                 fw.status.position = position;
                 Ok(())

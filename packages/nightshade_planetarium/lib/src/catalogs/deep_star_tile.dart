@@ -136,10 +136,15 @@ class ViewportRegion {
   factory ViewportRegion.compute(
     double centerRaHours,
     double centerDecDeg,
-    double fovDegrees,
-  ) {
-    final queryFov = fovDegrees * 1.5;
-    final decHalf = queryFov / 2;
+    double fovDegrees, {
+    double aspectRatio = 1.0,
+  }) {
+    // Aspect-corrected: fovDegrees is the canvas SHORT axis, so the long axis
+    // spans that much again times the aspect ratio. A square region leaves a
+    // wide window's outer columns with no tile data (see CelestialSpatialIndex).
+    final a = (aspectRatio.isFinite && aspectRatio > 0) ? aspectRatio : 1.0;
+    final queryFov = fovDegrees * 1.5 * (a >= 1.0 ? a : 1.0);
+    final decHalf = fovDegrees * 1.5 * (a < 1.0 ? 1.0 / a : 1.0) / 2;
     final minDec = (centerDecDeg - decHalf).clamp(-90.0, 90.0);
     final maxDec = (centerDecDeg + decHalf).clamp(-90.0, 90.0);
     final cosDec = math.cos(centerDecDeg.abs() * math.pi / 180);

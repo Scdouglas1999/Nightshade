@@ -147,21 +147,49 @@ class CoordinateParser {
     }
   }
 
-  /// Format RA from decimal hours to HMS string (HH:MM:SS.ss)
+  /// Split a non-negative angle into sexagesimal (whole, minutes, seconds)
+  /// parts, ROUNDED to hundredths of a second and carried.
+  ///
+  /// Rounding each field independently produces impossible strings: formatting
+  /// 5.6h field-by-field yields minutes=35 and seconds=59.999…, which
+  /// `toStringAsFixed(2)` renders as "60.00" — i.e. "05:35:60.00", a time that
+  /// does not exist and that this class's own parser would reject. Quantizing
+  /// the whole angle to hundredths FIRST and then decomposing makes the carry
+  /// structural, so seconds can never reach 60 and minutes can never reach 60.
+  static (int whole, int minutes, double seconds) _sexagesimal(double value) {
+    // Hundredths of a second is the display precision, so quantize there.
+    var hundredths = (value * 360000).round();
+    final seconds = hundredths % 6000;
+    hundredths ~/= 6000;
+    final minutes = hundredths % 60;
+    final whole = hundredths ~/ 60;
+    return (whole, minutes, seconds / 100.0);
+  }
+
+  static String _pad2(int value) => value.toString().padLeft(2, '0');
+
+  static String _padSeconds(double seconds) =>
+      seconds.toStringAsFixed(2).padLeft(5, '0');
+
+  /// Format RA from decimal hours to HMS string (HH:MM:SS.ss).
+  ///
+  /// [raHours] is folded into [0, 24) first, so 24h and negative inputs render
+  /// as a real time of day rather than "24:00:00.00" or a negative hour.
   static String formatRaHms(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    final seconds = ((raHours - hours - minutes / 60) * 3600);
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toStringAsFixed(2).padLeft(5, '0')}';
+    if (raHours.isNaN || raHours.isInfinite) return '--:--:--.--';
+    var wrapped = raHours % 24.0;
+    if (wrapped < 0) wrapped += 24.0;
+    var (hours, minutes, seconds) = _sexagesimal(wrapped);
+    // The rounding itself can push 23:59:59.999 up to a full 24h.
+    if (hours >= 24) hours -= 24;
+    return '${_pad2(hours)}:${_pad2(minutes)}:${_padSeconds(seconds)}';
   }
 
   /// Format Dec from decimal degrees to DMS string (+DD:MM:SS.ss)
   static String formatDecDms(double decDegrees) {
+    if (decDegrees.isNaN || decDegrees.isInfinite) return '+--:--:--.--';
     final sign = decDegrees < 0 ? '-' : '+';
-    final absDec = decDegrees.abs();
-    final degrees = absDec.floor();
-    final minutes = ((absDec - degrees) * 60).floor();
-    final seconds = ((absDec - degrees - minutes / 60) * 3600);
-    return '$sign${degrees.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toStringAsFixed(2).padLeft(5, '0')}';
+    final (degrees, minutes, seconds) = _sexagesimal(decDegrees.abs());
+    return '$sign${_pad2(degrees)}:${_pad2(minutes)}:${_padSeconds(seconds)}';
   }
 }

@@ -49,7 +49,15 @@ abstract final class AdaptiveDialogConstraints {
     );
   }
 
-  /// Clamps a sidebar or panel to a design width while respecting viewport limits.
+  /// Clamps a sidebar or panel to a design width while respecting viewport
+  /// limits.
+  ///
+  /// The viewport cap wins over [minWidth] when the two disagree. A caller that
+  /// takes the defaults on a phone asks for a 200 px floor against a cap of
+  /// 0.4 x 411 = 164 px; ordering the bounds before clamping keeps that from
+  /// throwing `Invalid argument(s)` mid-layout and blanking the screen behind
+  /// a release-mode [ErrorWidget]. A panel narrower than its design floor is a
+  /// cramped panel; a thrown build is no panel at all.
   static double clampPanelWidth(
     BuildContext context, {
     required double designWidth,
@@ -60,6 +68,6 @@ abstract final class AdaptiveDialogConstraints {
     final viewportCap =
         MediaQuery.sizeOf(context).width * maxWidthFractionOfViewport;
     final cap = maxWidth ?? viewportCap;
-    return designWidth.clamp(minWidth, cap);
+    return designWidth.clamp(math.min(minWidth, cap), cap);
   }
 }

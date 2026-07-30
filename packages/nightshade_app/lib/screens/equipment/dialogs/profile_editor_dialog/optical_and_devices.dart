@@ -71,9 +71,13 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                       controller: _focalLengthController,
                       hint: 'e.g., 550',
                       suffix: 'mm',
+                      errorText: _fieldErrors[ProfileEditorField.focalLength],
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) {
+                        clearFieldError(ProfileEditorField.focalLength);
+                        setState(() {});
+                      },
                     ),
                   ],
                 ),
@@ -96,9 +100,13 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
                       controller: _apertureController,
                       hint: 'e.g., 100',
                       suffix: 'mm',
+                      errorText: _fieldErrors[ProfileEditorField.aperture],
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) {
+                        clearFieldError(ProfileEditorField.aperture);
+                        setState(() {});
+                      },
                     ),
                   ],
                 ),

@@ -3,6 +3,97 @@
 part of '../sky_renderer.dart';
 
 extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
+  /// Altitude (degrees) of the view center.
+  ///
+  /// Every caller is a horizontal-frame layer (ground plane, horizon glow,
+  /// light-pollution dome — see `_paint`), and in [SkyViewMode.horizontal] the
+  /// center IS an alt/az point. `centerRA` / `centerDec` hold the *preserved
+  /// inactive* equatorial pose there (see [SkyViewState]), so deriving the
+  /// altitude from them would place these layers at the altitude of an
+  /// unrelated sky point — in practice a ground band slapped across the upper
+  /// sky in the one mode whose whole purpose is "the sky from where I stand".
+  double get _viewCenterAltitudeDeg => viewState.centerAltitude;
+
+  /// Screen Y of altitude [targetAltDeg] for a view centered at [centerAltDeg].
+  ///
+  /// Uses the painter's own pixels-per-degree ([scale] = `min(w, h) / fov`)
+  /// rather than `height / fov`; the two agree only on a landscape canvas, so
+  /// the old form misplaced the horizon on every portrait (phone) layout.
+  /// The offset is clamped to a bounded band so an extreme pose cannot produce
+  /// runaway rect coordinates (matching the previous +/-1.5 half-height clamp).
+  double _altitudeScreenY(
+    Size size,
+    double scale,
+    double centerAltDeg, [
+    double targetAltDeg = 0.0,
+  ]) {
+    final halfHeight = size.height / 2;
+    final offsetPx = ((centerAltDeg - targetAltDeg) * scale).clamp(
+      -1.5 * halfHeight,
+      1.5 * halfHeight,
+    );
+    return halfHeight + offsetPx;
+  }
+
+  /// True when the ground the observer is standing on is between them and the
+  /// object at [raDeg] / [decDeg].
+  ///
+  /// Only meaningful where the ground is actually depicted: the horizontal frame
+  /// with the ground plane on. The equatorial star atlas draws no terrain, so
+  /// nothing is occluded there and this returns false (which also leaves the
+  /// committed equatorial render goldens untouched).
+  ///
+  /// The ground fill is painted *after* the sky objects in the horizontal frame,
+  /// so a below-horizon star's dot is already hidden — but the label passes run
+  /// after the ground, so their text was still printed over the terrain. That is
+  /// how a view looking 12 deg BELOW the horizon came to show 'Fomalhaut',
+  /// 'Alnair', 'GRUS' and 'TUCANA' as named, apparently-observable objects, and
+  /// at midday 'CRUX' and 'CENTAURUS' — never visible from 40N at all.
+  ///
+  /// Call sites are label passes (a few dozen objects a frame), not the hot
+  /// per-star sprite loop, so the trig here is not on the critical path.
+  bool _isBehindGround(double raDeg, double decDeg) {
+    if (viewState.viewMode != SkyViewMode.horizontal) return false;
+    if (!config.showGroundPlane) return false;
+
+    final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
+      raDeg: raDeg,
+      decDeg: decDeg,
+      latitudeDeg: latitude,
+      lstHours: _lstHours,
+    );
+
+    // A custom terrain profile raises the effective horizon per azimuth.
+    final profile = horizonAltitudes;
+    if (profile != null && profile.isNotEmpty) {
+      final idx = az.round() % 360;
+      final floor = idx < profile.length ? profile[idx] : 0.0;
+      return alt < floor;
+    }
+    return alt < 0;
+  }
+
+  /// Draw the ground fill and, for custom horizon profiles, the horizon line.
+  ///
+  /// HORIZONTAL frame only. The ground fill is a horizontal screen band placed
+  /// by the view centre's altitude, which only describes the horizon in the
+  /// frame where screen-up is altitude; the equatorial frame draws no ground
+  /// at all and calls [_drawHorizon] directly for the profile line (see
+  /// `_paint`).
+  void _drawGroundAndHorizon(
+    Canvas canvas,
+    Size size,
+    Offset center,
+    double scale,
+  ) {
+    if (config.showGroundPlane) {
+      _drawGroundPlane(canvas, size, center, scale);
+    }
+    if (config.showHorizon) {
+      _drawHorizon(canvas, size, center, scale);
+    }
+  }
+
   void _drawHorizon(Canvas canvas, Size size, Offset center, double scale) {
     // For flat horizons the ground-plane gradient transition IS the horizon
     // indicator -- drawing an explicit stroke line creates a hard visible edge
@@ -22,10 +113,9 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
       ),
     );
 
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
+    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
+    // time separately in each layer, several times per frame.
+    final lst = _lstHours;
 
     final path = Path();
     var firstPoint = true;
@@ -75,10 +165,9 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   void _drawGroundPlane(Canvas canvas, Size size, Offset center, double scale) {
     if (!config.showGroundPlane) return;
 
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
+    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
+    // time separately in each layer, several times per frame.
+    final lst = _lstHours;
 
     if (horizonAltitudes != null && horizonAltitudes!.isNotEmpty) {
       // Custom horizon: fill below the profile as a polygon
@@ -87,19 +176,14 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     }
 
     // Flat horizon: original fast path
-    final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
-      raDeg: viewState.centerRA * 15,
-      decDeg: viewState.centerDec,
-      latitudeDeg: latitude,
-      lstHours: lst,
-    );
+    final centerAlt = _viewCenterAltitudeDeg;
 
-    final fovHalf = viewState.fieldOfView / 2;
-    final horizonY = size.height / 2 * (1 + centerAlt / fovHalf);
+    final horizonY = _altitudeScreenY(size, scale, centerAlt);
 
     if (horizonY >= size.height) return;
 
     if (horizonY <= 0) {
+      // Looking entirely below the horizon: solid ground.
       final paint = _PaintCache.getGroundPaint(config.groundColorDark);
       canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
       return;
@@ -114,9 +198,15 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     );
     final (_, skyHorizonColor) = _getTwilightColors(sunAlt);
 
-    // Use a generous blend zone (20% of screen height) so the transition
-    // is a wide, imperceptible fade rather than a narrow band.
-    final blendZone = (size.height * 0.20).clamp(30.0, 180.0);
+    // Blend zone: how far ABOVE the horizon the ground starts fading in.
+    //
+    // The upper clamp used to be 180px, which on a 1440-tall window compressed
+    // the whole sky-to-ground transition into 12% of the height — the fade was
+    // steep enough to read as a visible horizontal seam between the blue sky
+    // and the dark ground rather than as a horizon. Letting the 20% actually
+    // apply keeps the transition a wide, gradual fade at any window size; the
+    // floor still protects small windows.
+    final blendZone = (size.height * 0.20).clamp(60.0, 460.0);
     final groundTop = horizonY - blendZone;
     final groundRect = Rect.fromLTRB(0, groundTop, size.width, size.height);
 
@@ -169,8 +259,8 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
         end: Alignment.bottomCenter,
         colors: [
           skyHorizonColor.withValues(alpha: 0.0),
-          skyHorizonColor.withValues(alpha: 0.10),
-          seamColor.withValues(alpha: 0.55),
+          skyHorizonColor.withValues(alpha: 0.06),
+          seamColor.withValues(alpha: 0.42),
           config.groundColorLight,
           config.groundColorDark,
         ],
@@ -231,12 +321,7 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
 
     if (horizonPoints.isEmpty) {
       // If no horizon points are visible, check if we're looking entirely below
-      final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
-        raDeg: viewState.centerRA * 15,
-        decDeg: viewState.centerDec,
-        latitudeDeg: latitude,
-        lstHours: lst,
-      );
+      final centerAlt = _viewCenterAltitudeDeg;
       if (centerAlt < 0) {
         // Looking below horizon, fill entire screen
         final paint = _PaintCache.getGroundPaint(config.groundColorDark);
@@ -351,20 +436,8 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     // Bortle 1-2 produces negligible light pollution
     if (bortleClass <= 2) return;
 
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
-
     // Get the altitude of the view center
-    final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
-      raDeg: viewState.centerRA * 15,
-      decDeg: viewState.centerDec,
-      latitudeDeg: latitude,
-      lstHours: lst,
-    );
-
-    final fovHalf = viewState.fieldOfView / 2;
+    final centerAlt = _viewCenterAltitudeDeg;
 
     // Scale factor based on Bortle class (0.0 at Bortle 2, 1.0 at Bortle 9)
     final bortleScale = (bortleClass - 2).clamp(0, 7) / 7.0;
@@ -380,10 +453,8 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     final maxAlt = 20.0 + bortleScale * 40.0; // 20-60 degrees
 
     // Calculate screen Y for the horizon (alt = 0) and the top of the dome
-    final horizonFraction = (centerAlt / fovHalf).clamp(-1.5, 1.5);
-    final horizonY = size.height / 2 + (horizonFraction * size.height / 2);
-    final topFraction = ((centerAlt - maxAlt) / fovHalf).clamp(-1.5, 1.5);
-    final domeTopY = size.height / 2 + (topFraction * size.height / 2);
+    final horizonY = _altitudeScreenY(size, scale, centerAlt);
+    final domeTopY = _altitudeScreenY(size, scale, centerAlt, maxAlt);
 
     // Skip if entirely off screen
     if (horizonY < -50 && domeTopY < -50) return;
@@ -422,20 +493,8 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
   /// uses a single vertical gradient rect that fades smoothly from the horizon
   /// upward, simulating the natural sky-brightening near the horizon.
   void _drawHorizonGlow(Canvas canvas, Size size, Offset center, double scale) {
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
-
     // Get the altitude of the view center
-    final (_, centerAlt) = AstronomyCalculations.equatorialToHorizontal(
-      raDeg: viewState.centerRA * 15,
-      decDeg: viewState.centerDec,
-      latitudeDeg: latitude,
-      lstHours: lst,
-    );
-
-    final fovHalf = viewState.fieldOfView / 2;
+    final centerAlt = _viewCenterAltitudeDeg;
 
     // Calculate sun altitude to determine glow color
     final sunAlt = AstronomyCalculations.sunAltitude(
@@ -469,13 +528,8 @@ extension _SkyCanvasPainterHorizonLayers on SkyCanvasPainter {
     // Calculate screen Y for altitude 0 (horizon) and the glow extent
     // (approximately 20 degrees above horizon).
     const glowExtentDeg = 20.0;
-    final horizonFraction = (centerAlt / fovHalf).clamp(-1.5, 1.5);
-    final horizonY = size.height / 2 + (horizonFraction * size.height / 2);
-    final topFraction = ((centerAlt - glowExtentDeg) / fovHalf).clamp(
-      -1.5,
-      1.5,
-    );
-    final glowTopY = size.height / 2 + (topFraction * size.height / 2);
+    final horizonY = _altitudeScreenY(size, scale, centerAlt);
+    final glowTopY = _altitudeScreenY(size, scale, centerAlt, glowExtentDeg);
 
     // Both off screen? Nothing to draw.
     if (horizonY < -50 && glowTopY < -50) return;

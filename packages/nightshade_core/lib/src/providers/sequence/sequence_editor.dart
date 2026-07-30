@@ -10,6 +10,7 @@ import '../../services/sequence_file_service.dart';
 import '../sequence_provider.dart' show sequenceExecutionStateProvider;
 import 'sequence_editor_exceptions.dart';
 import 'sequence_undo_batch.dart';
+import 'sequence_validation.dart' show isContainerNode;
 
 export 'sequence_editor_exceptions.dart';
 

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
@@ -243,24 +245,36 @@ class VisualTimeline extends ConsumerWidget {
 
           // Timeline bars - scrollable horizontally
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                // Minimum 800px wide, or scaled wider for long sequences
-                width: (totalSecs / 60 * 4).clamp(800, 4000).toDouble(),
-                child: CustomPaint(
-                  painter: _TimelinePainter(
-                    colors: colors,
-                    segments: segments,
-                    firstStart: firstStart,
-                    totalSecs: totalSecs,
-                    progress: progress,
-                    sequence: sequence,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // The painter spreads the whole night across this width, so a
+                // fixed 800px floor squeezed the run into the first fifth of a
+                // wide window and left the rest of the panel blank. Fill the
+                // viewport first (minus the scroll view's own padding), then
+                // grow past it for long sequences.
+                final trackWidth = math.max(
+                  constraints.maxWidth - 32,
+                  (totalSecs / 60 * 4).clamp(800, 4000).toDouble(),
+                );
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: trackWidth,
+                    child: CustomPaint(
+                      painter: _TimelinePainter(
+                        colors: colors,
+                        segments: segments,
+                        firstStart: firstStart,
+                        totalSecs: totalSecs,
+                        progress: progress,
+                        sequence: sequence,
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
                   ),
-                  child: const SizedBox.expand(),
-                ),
-              ),
+                );
+              },
             ),
           ),
 

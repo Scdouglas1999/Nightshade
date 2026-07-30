@@ -28,6 +28,19 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
   bool? _lastResult;
   String? _lastError;
 
+  /// The `host:port` the last test actually probed.
+  ///
+  /// The result line is only shown while the fields still read the same
+  /// endpoint. Editing the host after a green "PHD2 reachable. Selection
+  /// saved." left that sentence on screen describing a different machine — and
+  /// the guider stored in the draft (plus the phd2Host/phd2Port settings the
+  /// connect path reads) was still the *old* address, so the user carried on
+  /// believing the box they were now looking at had been verified and saved.
+  String? _testedEndpoint;
+
+  String get _currentEndpoint =>
+      '${_hostController.text.trim()}:${_portController.text.trim()}';
+
   @override
   void initState() {
     super.initState();
@@ -59,13 +72,14 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
   }
 
   Future<void> _testConnection() async {
+    final host = _hostController.text.trim();
+    final portText = _portController.text.trim();
     setState(() {
       _testing = true;
       _lastResult = null;
       _lastError = null;
+      _testedEndpoint = '$host:$portText';
     });
-    final host = _hostController.text.trim();
-    final portText = _portController.text.trim();
     final port = int.tryParse(portText);
     if (host.isEmpty || port == null) {
       setState(() {
@@ -171,6 +185,10 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                       flex: 2,
                       child: TextField(
                         controller: _hostController,
+                        // Re-derive the result line on every keystroke: a test
+                        // result describes one endpoint and must disappear the
+                        // moment the fields name a different one.
+                        onChanged: (_) => setState(() {}),
                         style: TextStyle(color: colors.textPrimary),
                         decoration: InputDecoration(
                           isDense: true,
@@ -194,6 +212,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                       child: TextField(
                         controller: _portController,
                         keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
                         style: TextStyle(color: colors.textPrimary),
                         decoration: InputDecoration(
                           isDense: true,
@@ -222,7 +241,8 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                     ),
                   ],
                 ),
-                if (_lastResult != null) ...[
+                if (_lastResult != null &&
+                    _testedEndpoint == _currentEndpoint) ...[
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -238,12 +258,34 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                       Expanded(
                         child: Text(
                           _lastResult == true
-                              ? 'PHD2 reachable. Selection saved.'
+                              ? 'PHD2 reachable at $_testedEndpoint. '
+                                  'Selection saved.'
                               : (_lastError ?? 'Connection failed.'),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: _lastResult == true
                                 ? colors.success
                                 : colors.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (_lastResult == true) ...[
+                  // Tested endpoint edited: the saved guider is still the one
+                  // that passed, and this box is not it. Say which is which
+                  // rather than leaving a green tick over a changed address.
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Icon(NightshadeIcons.info,
+                          size: 16, color: colors.warning),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Saved guider is still PHD2 at $_testedEndpoint. '
+                          'Press Test to use this address instead.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.warning,
                           ),
                         ),
                       ),

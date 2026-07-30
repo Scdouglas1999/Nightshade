@@ -187,6 +187,14 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
   final TextEditingController _customPathController = TextEditingController();
   String? _lastBrowsedHostPath;
 
+  /// True once the host has accepted and persisted an output path in this
+  /// session. The Stepper tick is drawn from this, never from "the operator
+  /// tapped ahead": tapping step 2 in the sidebar used to mark step 1 complete,
+  /// so a wizard that had saved nothing displayed a green check against "Image
+  /// output path" and the first capture of the night failed with nowhere to
+  /// write.
+  bool _outputPathCommitted = false;
+
   // Step 1 state.
   List<RemoteAvailableCatalog>? _availableCatalogs;
   final Set<String> _catalogsToInstall = {};
@@ -357,6 +365,7 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
       setState(() {
         _customPathController.text = validatedPath;
         _lastBrowsedHostPath = validatedPath;
+        _outputPathCommitted = true;
         _busy = false;
         _activeStep = 1;
       });
@@ -455,30 +464,56 @@ class _FirstRunSetupScreenState extends ConsumerState<FirstRunSetupScreen> {
           Step(
             title: const Text('Image output path'),
             isActive: _activeStep == 0,
-            state: widget.needs.missingImageOutputPath
-                ? (_activeStep > 0 ? StepState.complete : StepState.indexed)
-                : StepState.complete,
+            state: _outputPathState,
             content: _buildImagePathStep(colors),
           ),
           Step(
             title: const Text('Catalogs'),
             isActive: _activeStep == 1,
-            state: widget.needs.missingCatalogs
-                ? (_activeStep > 1 ? StepState.complete : StepState.indexed)
-                : StepState.complete,
+            state: _catalogsState,
             content: _buildCatalogsStep(colors),
           ),
           Step(
             title: const Text('Equipment profile'),
             isActive: _activeStep == 2,
-            state: widget.needs.missingProfiles
-                ? StepState.indexed
-                : StepState.complete,
+            state: _profileState,
             content: _buildProfileStep(colors),
           ),
         ],
       ),
     );
+  }
+
+  /// Step ticks describe what the *host* has, not where the operator has
+  /// browsed to. A `StepState.complete` here is a claim that the bootstrap
+  /// condition is satisfied, so each getter is answered from a fact — the
+  /// condition was already met when the wizard opened, or this session did
+  /// something about it — and stays [StepState.indexed] otherwise.
+  StepState get _outputPathState =>
+      !widget.needs.missingImageOutputPath || _outputPathCommitted
+      ? StepState.complete
+      : StepState.indexed;
+
+  /// Catalogs count as handled once at least one download has actually been
+  /// accepted by the host. Skipping the step leaves it unticked: plate solving
+  /// really is unavailable, and pretending otherwise is how an operator gets to
+  /// their first failed solve believing setup was finished.
+  StepState get _catalogsState =>
+      !widget.needs.missingCatalogs || _catalogsInFlight.isNotEmpty
+      ? StepState.complete
+      : StepState.indexed;
+
+  /// Prefer the profile list actually read back from the host over the
+  /// launch-time snapshot — the operator may have created one on the desktop
+  /// while this wizard was open.
+  StepState get _profileState {
+    final profiles = _profiles;
+    if (profiles != null) {
+      return profiles.isEmpty ? StepState.indexed : StepState.complete;
+    }
+    return widget.needs.missingProfiles
+        ? StepState.indexed
+        : StepState.complete;
   }
 
   Widget _buildImagePathStep(NightshadeColors colors) {

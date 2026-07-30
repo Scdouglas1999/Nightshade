@@ -114,7 +114,18 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     );
     _centerRa = widget.initialRa ?? 0.0;
     _centerDec = widget.initialDec ?? 0.0;
-    _probeForInterruptedMosaic();
+    // Start the checkpoint probe AFTER the first frame, never inline in
+    // initState. Its error path calls `context.showErrorSnackBar`, which reads
+    // an inherited Theme — and when the backend throws before the first `await`
+    // suspension (a disconnected/erroring backend does exactly that), that
+    // catch runs while initState is still on the stack, tripping
+    // "dependOnInheritedWidgetOfExactType() was called before
+    // initState() completed" and taking the whole dialog down instead of
+    // showing a snackbar. The probe only decides whether to show a resume
+    // banner, so a frame's delay costs nothing.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_probeForInterruptedMosaic());
+    });
   }
 
   @override

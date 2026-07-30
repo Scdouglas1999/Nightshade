@@ -38,7 +38,11 @@ final measurementModeProvider = StateProvider<bool>((ref) => false);
 // ============================================================================
 
 class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
-  SkyRenderConfigNotifier() : super(const SkyRenderConfig());
+  /// Nullable so existing tests that construct the notifier bare keep working;
+  /// [toggleGrid] falls back to the equatorial frame without it.
+  final Ref? _ref;
+
+  SkyRenderConfigNotifier([this._ref]) : super(const SkyRenderConfig());
 
   void toggleStars() {
     state = state.copyWith(showStars: !state.showStars);
@@ -66,8 +70,42 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
     state = state.copyWith(showDSOs: !state.showDSOs);
   }
 
+  /// Toggle the coordinate-grid master.
+  ///
+  /// Turning the master ON also selects a FRAME when neither is chosen, because
+  /// the renderer requires the master AND a frame flag
+  /// (`paint_lifecycle.dart`, `showCoordinateGrid && (showEquatorialGrid ||
+  /// showAltAzGrid)`), and all three default to false. Without this, the very
+  /// first thing a user does in that group on a stock install — flip
+  /// "Coordinate grid" — moved the switch and drew nothing: measured live, the
+  /// sky changed by 99 pixels out of 712,800, all of them one marker glyph. A
+  /// control that reports success and does nothing is the defect; making the
+  /// hierarchy legible in the panel did not fix it, it moved it onto the master.
+  ///
+  /// The frame chosen matches the view the user is looking at (alt/az grid in the
+  /// horizontal frame, RA/Dec grid otherwise) so the lines land where they are
+  /// expected. Turning the master OFF leaves the frame flags alone, so the
+  /// previous selection is remembered when it is switched back on.
   void toggleGrid() {
-    state = state.copyWith(showCoordinateGrid: !state.showCoordinateGrid);
+    final enabling = !state.showCoordinateGrid;
+    if (!enabling) {
+      state = state.copyWith(showCoordinateGrid: false);
+      return;
+    }
+
+    final hasFrame = state.showEquatorialGrid || state.showAltAzGrid;
+    if (hasFrame) {
+      state = state.copyWith(showCoordinateGrid: true);
+      return;
+    }
+
+    final horizontal =
+        _ref?.read(skyViewStateProvider).viewMode == SkyViewMode.horizontal;
+    state = state.copyWith(
+      showCoordinateGrid: true,
+      showAltAzGrid: horizontal,
+      showEquatorialGrid: !horizontal,
+    );
   }
 
   void toggleEquatorialGrid() {
@@ -159,7 +197,7 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
 
 final skyRenderConfigProvider =
     StateNotifierProvider<SkyRenderConfigNotifier, SkyRenderConfig>((ref) {
-      return SkyRenderConfigNotifier();
+      return SkyRenderConfigNotifier(ref);
     });
 
 /// Computed render config that combines the base config with the ground plane toggle
@@ -260,7 +298,34 @@ final lodTierProvider = Provider<LodTier>((ref) {
 final fovAdaptiveQualityProvider = Provider<RenderQualityConfig>((ref) {
   final userQuality = ref.watch(renderQualityProvider);
   final lodTier = ref.watch(lodTierProvider);
+  final (starMagLimit, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
 
+  // The FOV-aware limits are authoritative for what actually gets drawn.
+  //
+  // The painter gates every star and DSO on `qualityConfig`'s magnitude limits
+  // (see `_drawStars` / `_drawDSOs`), so leaving the tier's *static* value here
+  // capped the sky at that magnitude no matter how far the user zoomed: on the
+  // balanced tier nothing fainter than mag 8 ever appeared, which rendered a
+  // 1.5 deg field — an ordinary imaging FOV — all but empty, and made the deep
+  // star tileset (floor mag 11.5) invisible in every view.
+  //
+  // Frame time is protected by object COUNT, not by magnitude: the per-tier
+  // maxStarsToRender/maxDsosToRender caps below still bound the work, and the
+  // spatial index returns the brightest N in view, so a deeper limit fills the
+  // field in rather than uncapping it.
+  return _lodAdaptedQuality(
+    userQuality,
+    lodTier,
+  ).copyWith(starMagnitudeLimit: starMagLimit, dsoMagnitudeLimit: dsoMagLimit);
+});
+
+/// The tier's per-LOD effect/count adjustments, without the magnitude limits
+/// (those are applied by [fovAdaptiveQualityProvider] from the FOV-aware
+/// [dynamicMagnitudeLimitsProvider]).
+RenderQualityConfig _lodAdaptedQuality(
+  RenderQualityConfig userQuality,
+  LodTier lodTier,
+) {
   switch (lodTier) {
     case LodTier.wide:
       // Wide FOV (>60 deg): reduce quality for performance regardless of user setting.
@@ -312,7 +377,7 @@ final fovAdaptiveQualityProvider = Provider<RenderQualityConfig>((ref) {
         maxDsosToRender: userQuality.maxDsosToRender.clamp(2000, 8000),
       );
   }
-});
+}
 
 /// Computed magnitude limits based on current FOV and sky brightness.
 /// Returns (starMagLimit, dsoMagLimit)
@@ -329,12 +394,53 @@ final fovAdaptiveQualityProvider = Provider<RenderQualityConfig>((ref) {
 ///   Sun at -12 deg (nautical twilight): penalty = 1.5 mag
 ///   Sun at -18 deg (astronomical twilight): penalty = 0.5 mag
 ///   Below -18 deg (full dark): penalty = 0
-final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
-  final viewState = ref.watch(skyViewStateProvider);
-  final quality = ref.watch(fovAdaptiveQualityProvider);
+/// How many magnitudes of limiting depth the current sky brightness costs.
+///
+/// Penalties are intentionally modest because the planetarium is a planning
+/// tool — users want to see Messier/NGC objects during the day to plan
+/// tonight's imaging session. A penalty of 6 during daylight still leaves DSOs
+/// to about magnitude 6-8 visible (all 110 Messier objects plus bright NGCs).
+/// This is NOT meant to simulate naked-eye visibility.
+///
+/// Sun altitude thresholds (standard astronomical definitions):
+///   > 0 deg: daylight — penalty 6.0
+///  -6 to 0: civil twilight — 3.0 to 6.0
+/// -12 to -6: nautical twilight — 1.5 to 3.0
+/// -18 to -12: astronomical twilight — 0 to 0.5
+///   < -18: full darkness — no penalty
+///
+/// Separate from [dynamicMagnitudeLimitsProvider] because it depends only on
+/// the minute and the observing site. Folded into that provider it re-ran an
+/// iterative sun-altitude solve on every single zoom frame, for a value that
+/// cannot have changed.
+final _skyBrightnessPenaltyProvider = Provider<double>((ref) {
   final location = ref.watch(observerLocationProvider);
   final time = ref.watch(_currentMinuteProvider);
-  final fov = viewState.fieldOfView;
+
+  final sunAlt = AstronomyCalculations.sunAltitude(
+    dt: time,
+    latitudeDeg: location.latitude,
+    longitudeDeg: location.longitude,
+  );
+
+  if (sunAlt >= 0) return 6.0;
+  // sunAlt is negative below here, so each ramp is linear in sunAlt.
+  if (sunAlt >= -6) return 6.0 + sunAlt; // -6 -> 3.0, 0 -> 6.0
+  if (sunAlt >= -12) return 1.5 + (sunAlt + 12.0) / 6.0 * 1.5;
+  if (sunAlt >= -18) return (sunAlt + 18.0) / 6.0 * 0.5;
+  return 0.0;
+});
+
+final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
+  // Read the base limits from the USER's tier, not from
+  // [fovAdaptiveQualityProvider]. The adaptive provider applies the limits this
+  // provider computes, so watching it here would be a dependency cycle. The LOD
+  // branches never modify the magnitude limits anyway, so the base values are
+  // identical either way.
+  final quality = ref.watch(renderQualityProvider);
+  // Only the field of view matters here; selecting it keeps a pan or a roll
+  // from invalidating limits that cannot have changed.
+  final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
   // When stars are hidden the sky has no star clutter to declutter against, so
   // DSOs should be visible at any zoom rather than fading in as you zoom.
   final showStars = ref.watch(
@@ -361,48 +467,11 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
     7.0,
   );
 
-  // Sky brightness penalty: reduce limiting magnitude when the sky is bright.
-  // Penalties are intentionally modest because the planetarium is a planning
-  // tool — users want to see Messier/NGC objects during the day to plan their
-  // imaging session tonight. A penalty of 6 during daylight means DSOs up to
-  // about magnitude 6-8 remain visible (all 110 Messier objects plus bright
-  // NGCs). This is NOT meant to simulate naked-eye visibility.
-  //
-  // Sun altitude thresholds (standard astronomical definitions):
-  //   > 0 deg: daylight — penalty 6.0 (bright Messier/NGC objects visible)
-  //  -6 to 0: civil twilight — penalty 3.0
-  // -12 to -6: nautical twilight — penalty 1.5
-  // -18 to -12: astronomical twilight — penalty 0.5
-  //   < -18: full darkness — no penalty
-  final sunAlt = AstronomyCalculations.sunAltitude(
-    dt: time,
-    latitudeDeg: location.latitude,
-    longitudeDeg: location.longitude,
-  );
-
-  double skyBrightnessPenalty;
-  if (sunAlt >= 0) {
-    // Daylight: moderate penalty. Messier objects (mag ~3-9) still visible
-    // for planning. Users can see M31, M42, M45, M13, M51, etc.
-    skyBrightnessPenalty = 6.0;
-  } else if (sunAlt >= -6) {
-    // Civil twilight: sun between -6 and 0. Linear ramp from 3.0 to 6.0.
-    // At -6: penalty=3.0, at 0: penalty=6.0
-    skyBrightnessPenalty = 3.0 + (-sunAlt / 6.0) * -3.0;
-    // Simplify: penalty = 6 + sunAlt (sunAlt is negative, so this increases as sun rises)
-    skyBrightnessPenalty = 6.0 + sunAlt; // sunAlt=-6 -> 3.0, sunAlt=0 -> 6.0
-  } else if (sunAlt >= -12) {
-    // Nautical twilight: sun between -12 and -6. Linear ramp from 1.5 to 3.0.
-    // At -12: penalty=1.5, at -6: penalty=3.0
-    skyBrightnessPenalty = 1.5 + (sunAlt + 12.0) / 6.0 * 1.5;
-  } else if (sunAlt >= -18) {
-    // Astronomical twilight: sun between -18 and -12. Linear ramp from 0 to 0.5.
-    // At -18: penalty=0, at -12: penalty=0.5
-    skyBrightnessPenalty = (sunAlt + 18.0) / 6.0 * 0.5;
-  } else {
-    // Full darkness: no penalty
-    skyBrightnessPenalty = 0.0;
-  }
+  // Sky brightness penalty (see [_skyBrightnessPenaltyProvider]). Kept in its
+  // own provider so it is NOT recomputed on every zoom frame: it depends only
+  // on the minute and the site, while this provider recomputes continuously as
+  // the field of view changes.
+  final skyBrightnessPenalty = ref.watch(_skyBrightnessPenaltyProvider);
 
   // Apply penalty: stars are less affected than DSOs because point sources
   // remain visible longer than extended objects in bright skies.

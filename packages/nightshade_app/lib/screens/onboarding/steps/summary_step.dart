@@ -161,6 +161,12 @@ class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
                         ? '${imageScale.toStringAsFixed(2)} arcsec/px'
                         : null),
                 const Divider(height: 20),
+                // The camera-defaults step's set-points go straight into the
+                // profile, so a review screen that omitted them was hiding a
+                // whole step's worth of decisions from the last look the user
+                // gets before the rig is created.
+                _summaryRow(theme, colors, NightshadeIcons.sliders,
+                    'Capture defaults', _captureDefaults(draft)),
                 _summaryRow(theme, colors, NightshadeIcons.folder,
                     'Capture folder', draft.captureDirectory),
                 _summaryRow(
@@ -193,6 +199,22 @@ class _OnboardingSummaryStepState extends ConsumerState<OnboardingSummaryStep> {
         ],
       ),
     );
+  }
+
+  /// The acquisition set-points as one line, listing only what is actually on
+  /// record. Returns null (rendered "— not set —") when the user supplied
+  /// nothing, rather than printing invented gain/offset numbers the profile does
+  /// not carry.
+  static String? _captureDefaults(OnboardingDraft draft) {
+    final parts = <String>[
+      if (draft.defaultGain != null) 'gain ${draft.defaultGain}',
+      if (draft.defaultOffset != null) 'offset ${draft.defaultOffset}',
+      if (draft.defaultBinX != null || draft.defaultBinY != null)
+        'bin ${draft.defaultBinX ?? 1}×${draft.defaultBinY ?? 1}',
+      if (draft.defaultCoolingTempC != null)
+        '${draft.defaultCoolingTempC!.toStringAsFixed(0)} °C',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   Widget _summaryRow(ThemeData theme, NightshadeColors colors, IconData icon,

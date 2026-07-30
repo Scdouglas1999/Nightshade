@@ -182,6 +182,7 @@ impl TriggerStateSnapshot {
     }
 
     pub fn restore_into(&self, state: &mut TriggerState) {
+        state.restored_from_checkpoint = true;
         state.baseline_hfr = self.baseline_hfr;
         state.current_hfr = self.current_hfr;
         state.autofocus_invalidated = self.autofocus_invalidated;

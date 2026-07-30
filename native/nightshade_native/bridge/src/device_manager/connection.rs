@@ -445,6 +445,12 @@ impl DeviceManager {
             get_sim_rotator, get_sim_safety_monitor, get_sim_weather,
         };
 
+        // Arm any faults named by `NIGHTSHADE_SIM_FAULTS` before the device is
+        // usable, so a drive can inject hardware misbehaviour into a release
+        // build without a rebuild. Idempotent — re-arming the same spec on a
+        // second connect just resets its counters.
+        crate::device_manager::ops::sim_faults::arm_from_env();
+
         match info.device_type {
             DeviceType::Camera => {
                 let mut cam = get_sim_camera().write().await;

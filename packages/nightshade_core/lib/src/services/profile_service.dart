@@ -12,6 +12,7 @@ import '../models/equipment_profile.dart' as remote_profile;
 import '../models/equipment_profile_validation.dart';
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
+import '../providers/device_connection_progress_provider.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/settings_provider.dart';
@@ -398,18 +399,35 @@ class ProfileService {
   /// if any occurred, surfaced as a [ProfileAutoConnectException] so the caller
   /// can log/notify rather than pretend everything connected.
   Future<void> _connectProfileDevicesFromModel(
-    EquipmentProfileModel profile,
-  ) async {
+    EquipmentProfileModel profile, {
+    String progressSource = 'Profile connect',
+  }) async {
     final deviceService = _ref.read(deviceServiceProvider);
+    final progressNotifier = _ref.read(
+      deviceConnectionProgressProvider.notifier,
+    );
     final failures = <String>[];
 
-    await for (final progress in deviceService.connectAllFromProfile(profile)) {
-      if (progress.status == DeviceConnectProgressStatus.failed) {
-        failures.add(
-          '${progress.deviceType} (${progress.deviceId}): '
-          '${progress.errorMessage ?? progress.error ?? 'unknown error'}',
-        );
+    // Publish per-device outcomes to the same provider the equipment screen's
+    // progress strip renders. Before this, only the "Connect All" BUTTON
+    // recorded events, so a device that failed during startup auto-connect had
+    // no persistent surface anywhere: the card was simply absent and the only
+    // explanation in the product was a tooltip on a ~6 px status dot.
+    progressNotifier.startSweep(source: progressSource);
+    try {
+      await for (final progress in deviceService.connectAllFromProfile(
+        profile,
+      )) {
+        progressNotifier.record(progress);
+        if (progress.status == DeviceConnectProgressStatus.failed) {
+          failures.add(
+            '${progress.deviceType} (${progress.deviceId}): '
+            '${progress.errorMessage ?? progress.error ?? 'unknown error'}',
+          );
+        }
       }
+    } finally {
+      progressNotifier.endSweep();
     }
 
     if (failures.isNotEmpty) {
@@ -462,7 +480,10 @@ class ProfileService {
     _requireAuthority(authority);
 
     // The profile is now active; connect its devices (attempt-all + aggregate).
-    await _connectProfileDevicesFromModel(startupProfile);
+    await _connectProfileDevicesFromModel(
+      startupProfile,
+      progressSource: 'Startup auto-connect',
+    );
     _requireAuthority(authority);
   }
 

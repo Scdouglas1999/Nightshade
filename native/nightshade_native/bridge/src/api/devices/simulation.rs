@@ -65,11 +65,11 @@ impl Default for SimulatedCamera {
                 offset: 10,
                 bin_x: 1,
                 bin_y: 1,
-                sensor_width: 4144,
-                sensor_height: 2822,
+                sensor_width: crate::sim_frame::SIM_W as u32,
+                sensor_height: crate::sim_frame::SIM_H as u32,
                 pixel_size_x: 3.76,
                 pixel_size_y: 3.76,
-                max_adu: 65535,
+                max_adu: crate::sim_frame::SIM_MAX_ADU as u32,
                 can_cool: true,
                 can_set_gain: true,
                 can_set_offset: true,
@@ -82,7 +82,7 @@ pub(crate) fn get_sim_camera() -> &'static Arc<RwLock<SimulatedCamera>> {
     SIM_CAMERA.get_or_init(|| Arc::new(RwLock::new(SimulatedCamera::default())))
 }
 
-/// Duration of the most recently started simulated exposure, in seconds.
+/// What the most recently started simulated exposure was asked for.
 ///
 /// The simulator does not integrate for real, but the download path still has
 /// to report an `ImageMetadata::exposure_time`, and that value becomes the saved
@@ -90,15 +90,68 @@ pub(crate) fn get_sim_camera() -> &'static Arc<RwLock<SimulatedCamera>> {
 /// most. It was a hardcoded `1.0`, so every simulated frame claimed a 1-second
 /// exposure regardless of what the sequence asked for.
 ///
+/// `frame_type` and `subframe` live here for the same reason: the download op
+/// takes only a device id, so without them a DARK was generated as a star field
+/// and announced itself as a light, and a subframe request came back full-frame.
+///
 /// Kept out of [`SimulatedCamera`] on purpose: that struct is mirrored to Dart
 /// by flutter_rust_bridge, and Dart has no use for this.
-static SIM_LAST_EXPOSURE_SECS: OnceLock<Arc<RwLock<f64>>> = OnceLock::new();
-
-pub(crate) fn get_sim_last_exposure_secs() -> &'static Arc<RwLock<f64>> {
-    SIM_LAST_EXPOSURE_SECS.get_or_init(|| Arc::new(RwLock::new(1.0)))
+#[derive(Debug, Clone)]
+pub(crate) struct SimExposureRequest {
+    pub secs: f64,
+    pub frame_type: nightshade_native::camera::FrameType,
+    pub subframe: Option<(u32, u32, u32, u32)>,
 }
 
-/// Wall-clock start of the in-flight simulated exposure, or `None` when idle.
+impl Default for SimExposureRequest {
+    fn default() -> Self {
+        Self {
+            secs: 1.0,
+            frame_type: nightshade_native::camera::FrameType::Light,
+            subframe: None,
+        }
+    }
+}
+
+static SIM_LAST_EXPOSURE: OnceLock<Arc<RwLock<SimExposureRequest>>> = OnceLock::new();
+
+pub(crate) fn get_sim_last_exposure() -> &'static Arc<RwLock<SimExposureRequest>> {
+    SIM_LAST_EXPOSURE.get_or_init(|| Arc::new(RwLock::new(SimExposureRequest::default())))
+}
+
+/// Monotonic frame counter feeding the noise seed of each simulated read.
+///
+/// Successive frames must not be bit-identical or a stack cannot exercise
+/// sigma-clipping, while a fixed starting point keeps a run reproducible.
+static SIM_FRAME_SEED: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn next_sim_frame_seed() -> u64 {
+    SIM_FRAME_SEED.fetch_add(1, Ordering::Relaxed)
+}
+
+/// Reset the frame-noise sequence so a test can reproduce a run exactly.
+#[cfg(test)]
+pub(crate) fn reset_sim_frame_seed(seed: u64) {
+    SIM_FRAME_SEED.store(seed, Ordering::Relaxed);
+}
+
+/// Serializes every test that drives the process-global simulator singletons.
+///
+/// `SIM_CAMERA`, `SIM_MOUNT` and the exposure/slew clocks are one shared
+/// instance per process, and cargo runs tests in parallel threads, so without
+/// this one test's abort lands in the middle of another's exposure. It is
+/// deliberately a SINGLE lock covering all the singletons: the connection-gate
+/// tests flip several device types at once, so per-device locks would not
+/// actually exclude each other.
+#[cfg(test)]
+static SIM_SINGLETON_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+#[cfg(test)]
+pub(crate) fn sim_singleton_test_lock() -> &'static Mutex<()> {
+    SIM_SINGLETON_TEST_LOCK.get_or_init(|| Mutex::new(()))
+}
+
+/// Where the simulated camera is in its exposure cycle.
 ///
 /// The simulator used to report every exposure complete the instant it was
 /// asked, which is not a harmless shortcut:
@@ -112,34 +165,110 @@ pub(crate) fn get_sim_last_exposure_secs() -> &'static Arc<RwLock<f64>> {
 ///
 /// Real cameras pace their callers by simply not being finished yet; the
 /// simulator has to do the same to be worth testing against.
-static SIM_EXPOSURE_START: OnceLock<Arc<RwLock<Option<std::time::Instant>>>> = OnceLock::new();
-
-fn sim_exposure_start() -> &'static Arc<RwLock<Option<std::time::Instant>>> {
-    SIM_EXPOSURE_START.get_or_init(|| Arc::new(RwLock::new(None)))
+///
+/// `Aborted` is distinct from `Idle` on purpose. Both release a caller polling
+/// for completion, but only `Idle` follows a frame that was actually read out —
+/// collapsing them let a download after an abort hand back a full frame, so an
+/// aborted exposure was indistinguishable from a successful one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SimExposurePhase {
+    Idle,
+    Integrating(std::time::Instant),
+    Aborted,
 }
 
-/// Record the start of a simulated exposure of `secs`.
-pub(crate) async fn begin_sim_exposure(secs: f64) {
-    *get_sim_last_exposure_secs().write().await = secs;
-    *sim_exposure_start().write().await = Some(std::time::Instant::now());
+static SIM_EXPOSURE_PHASE: OnceLock<Arc<RwLock<SimExposurePhase>>> = OnceLock::new();
+
+fn sim_exposure_phase() -> &'static Arc<RwLock<SimExposurePhase>> {
+    SIM_EXPOSURE_PHASE.get_or_init(|| Arc::new(RwLock::new(SimExposurePhase::Idle)))
 }
 
-/// Forget any in-flight simulated exposure (abort, or download consumed it).
+/// Record the start of a simulated exposure.
+pub(crate) async fn begin_sim_exposure(request: SimExposureRequest) {
+    *get_sim_last_exposure().write().await = request;
+    *sim_exposure_phase().write().await = SimExposurePhase::Integrating(std::time::Instant::now());
+}
+
+/// Return the camera to idle without consuming a frame.
+///
+/// Production code never needs this — the download claims the frame via
+/// [`take_sim_exposure_for_download`] and an abort goes through
+/// [`abort_sim_exposure`] — but a test that drives the singleton has to be able
+/// to start from a known phase.
+#[cfg(test)]
 pub(crate) async fn clear_sim_exposure() {
-    *sim_exposure_start().write().await = None;
+    *sim_exposure_phase().write().await = SimExposurePhase::Idle;
+}
+
+/// Abandon the in-flight exposure. The frame is gone — a later download must
+/// fail rather than synthesize one.
+pub(crate) async fn abort_sim_exposure() {
+    *sim_exposure_phase().write().await = SimExposurePhase::Aborted;
 }
 
 /// Whether the in-flight simulated exposure has finished integrating.
 ///
-/// Idle (no exposure started) reads as complete: a caller polling without having
-/// started anything should not be made to wait forever.
+/// Idle and aborted both read as complete: a caller polling without having
+/// started anything, or after abandoning what it started, must not be made to
+/// wait forever.
 pub(crate) async fn sim_exposure_is_complete() -> bool {
-    let started = *sim_exposure_start().read().await;
-    match started {
-        None => true,
-        Some(start) => {
-            let requested = *get_sim_last_exposure_secs().read().await;
+    match *sim_exposure_phase().read().await {
+        SimExposurePhase::Idle | SimExposurePhase::Aborted => true,
+        SimExposurePhase::Integrating(start) => {
+            let requested = get_sim_last_exposure().read().await.secs;
             sim_exposure_elapsed_is_complete(start.elapsed().as_secs_f64(), requested)
+        }
+    }
+}
+
+/// The camera state a status read should report right now.
+///
+/// The device layer never drove this, so `camera_get_status` answered `Idle`
+/// for the whole of an exposure while `camera_is_exposure_complete` answered
+/// "not yet" — two contradictory answers on the same polling cycle.
+pub(crate) async fn sim_camera_state() -> CameraState {
+    match *sim_exposure_phase().read().await {
+        SimExposurePhase::Idle | SimExposurePhase::Aborted => CameraState::Idle,
+        SimExposurePhase::Integrating(start) => {
+            let requested = get_sim_last_exposure().read().await.secs;
+            if sim_exposure_elapsed_is_complete(start.elapsed().as_secs_f64(), requested) {
+                CameraState::Reading
+            } else {
+                CameraState::Exposing
+            }
+        }
+    }
+}
+
+/// Claim the finished frame for download, moving the camera back to idle.
+///
+/// Returns the reason the frame is not available when it is not: downloading
+/// mid-exposure, after an abort, or without having started anything at all are
+/// all caller errors that a real driver reports rather than satisfying.
+pub(crate) async fn take_sim_exposure_for_download() -> Result<(), String> {
+    let mut phase = sim_exposure_phase().write().await;
+    match *phase {
+        SimExposurePhase::Idle => Err(
+            "No exposure is available to download from the simulated camera. \
+             Start an exposure first."
+                .to_string(),
+        ),
+        SimExposurePhase::Aborted => Err(
+            "The simulated camera's exposure was aborted, so there is no frame to download."
+                .to_string(),
+        ),
+        SimExposurePhase::Integrating(start) => {
+            let requested = get_sim_last_exposure().read().await.secs;
+            let elapsed = start.elapsed().as_secs_f64();
+            if !sim_exposure_elapsed_is_complete(elapsed, requested) {
+                return Err(format!(
+                    "The simulated camera is still integrating ({:.1}s of {:.1}s elapsed); \
+                     wait for the exposure to complete before downloading.",
+                    elapsed, requested
+                ));
+            }
+            *phase = SimExposurePhase::Idle;
+            Ok(())
         }
     }
 }
@@ -369,13 +498,6 @@ pub(crate) async fn reset_sim_guide_offset() {
 
 /// Get camera status
 pub async fn api_get_camera_status(device_id: String) -> Result<CameraStatus, NightshadeError> {
-    // Handle simulator devices with local simulated state
-    if device_id.starts_with("sim_") {
-        let camera = get_sim_camera().read().await;
-        return Ok(camera.status.clone());
-    }
-
-    // Route real devices through the DeviceManager
     let mgr = get_device_manager();
     mgr.camera_get_status(&device_id)
         .await
@@ -388,22 +510,6 @@ pub async fn api_set_camera_cooler(
     enabled: u8,
     target_temp: Option<f64>,
 ) -> Result<(), NightshadeError> {
-    // Handle simulator devices with local simulated state
-    if device_id.starts_with("sim_") {
-        let mut camera = get_sim_camera().write().await;
-        camera.status.cooler_on = enabled != 0;
-        if let Some(temp) = target_temp {
-            camera.status.target_temp = Some(temp);
-        }
-        tracing::info!(
-            "Simulator camera cooler: enabled={}, target={:?}",
-            enabled,
-            target_temp
-        );
-        return Ok(());
-    }
-
-    // Route real devices through the DeviceManager
     tracing::info!(
         "Setting camera cooler for {}: enabled={}, target={:?}",
         device_id,
@@ -418,15 +524,6 @@ pub async fn api_set_camera_cooler(
 
 /// Set camera gain
 pub async fn api_set_camera_gain(device_id: String, gain: i32) -> Result<(), NightshadeError> {
-    // Handle simulator devices with local simulated state
-    if device_id.starts_with("sim_") {
-        let mut camera = get_sim_camera().write().await;
-        camera.status.gain = gain;
-        tracing::info!("Simulator camera gain set to: {}", gain);
-        return Ok(());
-    }
-
-    // Route real devices through the DeviceManager
     tracing::info!("Setting camera gain for {}: {}", device_id, gain);
     let mgr = get_device_manager();
     mgr.camera_set_gain(&device_id, gain)
@@ -436,15 +533,6 @@ pub async fn api_set_camera_gain(device_id: String, gain: i32) -> Result<(), Nig
 
 /// Set camera offset
 pub async fn api_set_camera_offset(device_id: String, offset: i32) -> Result<(), NightshadeError> {
-    // Handle simulator devices with local simulated state
-    if device_id.starts_with("sim_") {
-        let mut camera = get_sim_camera().write().await;
-        camera.status.offset = offset;
-        tracing::info!("Simulator camera offset set to: {}", offset);
-        return Ok(());
-    }
-
-    // Route real devices through the DeviceManager
     tracing::info!("Setting camera offset for {}: {}", device_id, offset);
     let mgr = get_device_manager();
     mgr.camera_set_offset(&device_id, offset)
@@ -506,18 +594,206 @@ pub(crate) fn get_sim_mount() -> &'static Arc<RwLock<SimulatedMount>> {
     SIM_MOUNT.get_or_init(|| Arc::new(RwLock::new(SimulatedMount::default())))
 }
 
+/// Simulated slew rate, degrees of arc per second.
+///
+/// Far brisker than real hardware (a good GEM manages 3-6 °/s) for the same
+/// reason the cooler ramp is: the motion has to COMPLETE inside a test or a
+/// sequence node's budget. It still takes time, which is the point — RA/Dec
+/// used to snap to the target and `slewing` was never true, so every
+/// wait-for-motion path in the app completed before the mount had moved and
+/// none of them could be exercised without hardware.
+const SIM_SLEW_DEG_PER_SEC: f64 = 180.0;
+
+/// Floor on how long any commanded slew takes.
+///
+/// A meridian flip re-slews to the SAME coordinates, so a pure
+/// distance/rate model would make the largest mechanical motion a GEM
+/// performs finish instantly.
+const SIM_MIN_SLEW_SECS: f64 = 0.2;
+
+/// Extra arc a slew covers when it also crosses the mount to the other side of
+/// the pier: the tube swings through roughly half a turn of the RA axis on top
+/// of whatever the coordinate change asks for.
+const SIM_FLIP_TRAVERSE_DEG: f64 = 180.0;
+
+/// An in-flight simulated slew.
+///
+/// Kept out of [`SimulatedMount`] because that struct is mirrored to Dart by
+/// flutter_rust_bridge and Dart has no use for the interpolation state.
+#[derive(Debug, Clone, Copy)]
+struct SimSlew {
+    start: std::time::Instant,
+    duration_secs: f64,
+    from: (f64, f64),
+    to: (f64, f64),
+    to_pier: PierSide,
+}
+
+static SIM_SLEW: OnceLock<Arc<RwLock<Option<SimSlew>>>> = OnceLock::new();
+
+fn sim_slew() -> &'static Arc<RwLock<Option<SimSlew>>> {
+    SIM_SLEW.get_or_init(|| Arc::new(RwLock::new(None)))
+}
+
+/// Great-circle separation between two equatorial positions, in degrees.
+fn angular_separation_deg(from: (f64, f64), to: (f64, f64)) -> f64 {
+    let (ra1, dec1) = ((from.0 * 15.0).to_radians(), from.1.to_radians());
+    let (ra2, dec2) = ((to.0 * 15.0).to_radians(), to.1.to_radians());
+    let cos_sep = dec1.sin() * dec2.sin() + dec1.cos() * dec2.cos() * (ra2 - ra1).cos();
+    cos_sep.clamp(-1.0, 1.0).acos().to_degrees()
+}
+
+/// How long a slew covering `separation_deg` takes, given whether it also
+/// crosses the pier.
+fn sim_slew_duration_secs(separation_deg: f64, crosses_pier: bool) -> f64 {
+    let arc = separation_deg
+        + if crosses_pier {
+            SIM_FLIP_TRAVERSE_DEG
+        } else {
+            0.0
+        };
+    (arc / SIM_SLEW_DEG_PER_SEC).max(SIM_MIN_SLEW_SECS)
+}
+
+/// Interpolate right ascension the short way around the 24h wrap, so a slew
+/// from 23h to 1h travels two hours forward rather than 22 hours backward.
+fn interpolate_ra(from: f64, to: f64, fraction: f64) -> f64 {
+    let mut delta = (to - from).rem_euclid(24.0);
+    if delta > 12.0 {
+        delta -= 24.0;
+    }
+    (from + delta * fraction).rem_euclid(24.0)
+}
+
+/// The side of the pier a German equatorial ends up on after slewing to `ra`,
+/// given the local sidereal time at the moment the slew is commanded.
+///
+/// Pier side is MECHANICAL STATE, not a projection of where the mount is
+/// pointing: a GEM tracks straight through the meridian without flipping, so
+/// the side only changes when a slew puts it on the other one. Deriving it from
+/// the current pointing instead made it change with the clock while the mount
+/// stood still, and made a meridian flip — whose entire signature is "the side
+/// changed" — impossible to detect, because re-slewing to the same coordinates
+/// re-derived the same answer.
+fn pier_side_after_slew_to(ra_hours: f64, lst_hours: f64) -> PierSide {
+    match nightshade_sequencer::meridian::expected_pier_side(
+        nightshade_sequencer::meridian::hour_angle(ra_hours, lst_hours),
+    ) {
+        nightshade_sequencer::meridian::PierSide::East => PierSide::East,
+        nightshade_sequencer::meridian::PierSide::West => PierSide::West,
+        nightshade_sequencer::meridian::PierSide::Unknown => PierSide::Unknown,
+    }
+}
+
+/// Local sidereal time now for the configured site, if there is one.
+fn sim_local_sidereal_time(now: chrono::DateTime<chrono::Utc>) -> Option<f64> {
+    let longitude = crate::api::get_state()
+        .get_observer_location()
+        .ok()
+        .flatten()?
+        .longitude;
+    Some(nightshade_sequencer::meridian::local_sidereal_time(
+        nightshade_sequencer::meridian::julian_day(&now),
+        longitude,
+    ))
+}
+
+/// Start a simulated slew to `(ra, dec)`, deciding the pier side it will land
+/// on from the local sidereal time at `now`.
+///
+/// Without a configured site there is no hour angle and therefore no honest
+/// answer for the pier side, so the mount keeps the side it was already on.
+pub(crate) async fn begin_sim_slew(ra: f64, dec: f64, now: chrono::DateTime<chrono::Utc>) {
+    let (from, current_pier) = {
+        let mount = get_sim_mount().read().await;
+        (
+            (mount.status.right_ascension, mount.status.declination),
+            mount.status.side_of_pier.unwrap_or(PierSide::Unknown),
+        )
+    };
+    let to_pier = match sim_local_sidereal_time(now) {
+        Some(lst) => pier_side_after_slew_to(ra, lst),
+        None => current_pier,
+    };
+    let duration_secs = sim_slew_duration_secs(
+        angular_separation_deg(from, (ra, dec)),
+        to_pier != current_pier && current_pier != PierSide::Unknown,
+    );
+
+    *sim_slew().write().await = Some(SimSlew {
+        start: std::time::Instant::now(),
+        duration_secs,
+        from,
+        to: (ra, dec),
+        to_pier,
+    });
+    let mut mount = get_sim_mount().write().await;
+    mount.status.slewing = true;
+    mount.status.parked = false;
+    mount.status.at_home = Some(false);
+}
+
+/// Advance an in-flight slew to now, updating the mount's pointing and, on
+/// arrival, its pier side.
+///
+/// Called from every simulated mount status read, which is what makes the
+/// motion observable to a caller polling `slewing`.
+pub(crate) async fn advance_sim_slew() {
+    let Some(slew) = *sim_slew().read().await else {
+        return;
+    };
+    let fraction = if slew.duration_secs > 0.0 {
+        (slew.start.elapsed().as_secs_f64() / slew.duration_secs).clamp(0.0, 1.0)
+    } else {
+        1.0
+    };
+
+    let mut mount = get_sim_mount().write().await;
+    if fraction >= 1.0 {
+        mount.status.right_ascension = slew.to.0;
+        mount.status.declination = slew.to.1;
+        mount.status.side_of_pier = Some(slew.to_pier);
+        mount.status.slewing = false;
+        drop(mount);
+        *sim_slew().write().await = None;
+    } else {
+        mount.status.right_ascension = interpolate_ra(slew.from.0, slew.to.0, fraction);
+        mount.status.declination = slew.from.1 + (slew.to.1 - slew.from.1) * fraction;
+        mount.status.slewing = true;
+    }
+}
+
+/// Drop any in-flight slew, leaving the mount wherever it had reached.
+///
+/// Abort/stop/park all need this: without it the interpolation would carry the
+/// mount on to the target it was told to stop travelling to.
+pub(crate) async fn cancel_sim_slew() {
+    *sim_slew().write().await = None;
+}
+
+/// The equatorial coordinates a parked simulated mount reports.
+///
+/// A parked German equatorial sits with the counterweights down pointing at the
+/// celestial pole, which is a fixed point in the horizon frame — altitude
+/// equals the site latitude and azimuth is due pole, whatever the time. Park
+/// used to leave RA/Dec at the previous target, so a parked mount reported the
+/// altitude of whatever it had been imaging, and that altitude went on tracking
+/// the sky.
+pub(crate) fn sim_park_position() -> (f64, f64) {
+    let southern = crate::api::get_state()
+        .get_observer_location()
+        .ok()
+        .flatten()
+        .is_some_and(|site| site.latitude < 0.0);
+    (0.0, if southern { -90.0 } else { 90.0 })
+}
+
 /// Get mount status
 pub async fn api_get_mount_status(device_id: String) -> Result<MountStatus, NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let mount = get_sim_mount().read().await;
-        Ok(mount.status.clone())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.mount_get_status(&device_id)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_get_status(&device_id)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Slew mount to coordinates
@@ -526,34 +802,10 @@ pub async fn api_mount_slew_to_coordinates(
     ra: f64,
     dec: f64,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = true;
-        }
-
-        // Simulate slew time
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = false;
-            mount.status.right_ascension = ra;
-            mount.status.declination = dec;
-            mount.status.parked = false;
-        }
-
-        tracing::info!("Slew complete");
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.mount_slew(&device_id, ra, dec)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_slew(&device_id, ra, dec)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Sync mount to coordinates
@@ -562,86 +814,34 @@ pub async fn api_mount_sync_to_coordinates(
     ra: f64,
     dec: f64,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Syncing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
-
-        let mut mount = get_sim_mount().write().await;
-        mount.status.right_ascension = ra;
-        mount.status.declination = dec;
-
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.mount_sync(&device_id, ra, dec)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_sync(&device_id, ra, dec)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Park the mount
 pub async fn api_mount_park(device_id: String) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Parking mount");
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = true;
-        }
-
-        // Simulate park time
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = false;
-            mount.status.parked = true;
-            mount.status.tracking = false;
-        }
-
-        tracing::info!("Mount parked");
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.mount_park(&device_id)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_park(&device_id)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Unpark the mount
 pub async fn api_mount_unpark(device_id: String) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let mut mount = get_sim_mount().write().await;
-        mount.status.parked = false;
-
-        tracing::info!("Mount unparked");
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.mount_unpark(&device_id)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_unpark(&device_id)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Set mount tracking
 pub async fn api_mount_set_tracking(device_id: String, enabled: u8) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let mut mount = get_sim_mount().write().await;
-        mount.status.tracking = enabled != 0;
-
-        tracing::info!("Mount tracking: {}", enabled);
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.mount_set_tracking(&device_id, enabled != 0)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_set_tracking(&device_id, enabled != 0)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Slew mount to alt/az coordinates (simulator handler)
@@ -650,63 +850,18 @@ pub async fn api_mount_slew_alt_az(
     altitude: f64,
     azimuth: f64,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Slewing to Alt: {:.4}°, Az: {:.4}°", altitude, azimuth);
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = true;
-        }
-
-        // Simulate slew time
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = false;
-            mount.status.altitude = Some(altitude);
-            mount.status.azimuth = Some(azimuth);
-            mount.status.parked = false;
-        }
-
-        tracing::info!("Alt/Az slew complete");
-        Ok(())
-    } else {
-        let mgr = get_device_manager();
-        mgr.mount_slew_alt_az(&device_id, altitude, azimuth)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_slew_alt_az(&device_id, altitude, azimuth)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Find mount home position (simulator handler)
 pub async fn api_mount_find_home(device_id: String) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Finding mount home position");
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = true;
-        }
-
-        // Simulate home-finding time
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-        {
-            let mut mount = get_sim_mount().write().await;
-            mount.status.slewing = false;
-            mount.status.at_home = Some(true);
-            mount.status.parked = false;
-        }
-
-        tracing::info!("Mount home found");
-        Ok(())
-    } else {
-        let mgr = get_device_manager();
-        mgr.mount_find_home(&device_id)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.mount_find_home(&device_id)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Pulse guide the mount in a direction for a duration
@@ -733,22 +888,6 @@ pub async fn api_mount_pulse_guide(
         }
     };
 
-    // For the simulator, take the duration AND move the star field.
-    //
-    // This arm used to only sleep. That made it a second, silently divergent
-    // implementation of simulated pulse guiding: the DeviceManager's Simulator
-    // arm is what the built-in guider drives, but every caller that goes through
-    // the api layer (the HTTP `/api/mount/pulse-guide` route, and so the manual
-    // guide-nudge UI) short-circuits here instead — so a nudge reported "ok",
-    // waited, and moved nothing.
-    if device_id.starts_with("sim_") {
-        tokio::time::sleep(std::time::Duration::from_millis(duration_ms as u64)).await;
-        advance_sim_guide_pulse(&direction, duration_ms.max(0) as u32).await;
-        tracing::info!("Pulse guide complete");
-        return Ok(());
-    }
-
-    // Route real devices through DeviceManager
     let mgr = get_device_manager();
     mgr.mount_pulse_guide(&device_id, direction, duration_ms as u32)
         .await
@@ -791,87 +930,53 @@ pub fn get_sim_focuser() -> &'static Arc<RwLock<SimulatedFocuser>> {
 
 /// Get focuser status
 pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let focuser = get_sim_focuser().read().await;
-        Ok(focuser.status.clone())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
+    let mgr = get_device_manager();
 
-        // Get all focuser status components
-        let position = mgr
-            .focuser_get_position(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
-        let moving = mgr
-            .focuser_is_moving(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
-        let temperature = mgr.focuser_get_temp(&device_id).await.unwrap_or(None);
-        let (max_position, step_size) = match mgr.focuser_get_details(&device_id).await {
-            Ok(details) => details,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to get focuser details for {}: {:?}. Returning unknown max/step values.",
-                    device_id,
-                    e
-                );
-                (0, 0.0)
-            }
-        };
-        let is_absolute = mgr
-            .focuser_is_absolute(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
+    // Get all focuser status components
+    let position = mgr
+        .focuser_get_position(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    let moving = mgr
+        .focuser_is_moving(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    let temperature = mgr.focuser_get_temp(&device_id).await.unwrap_or(None);
+    let (max_position, step_size) = match mgr.focuser_get_details(&device_id).await {
+        Ok(details) => details,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to get focuser details for {}: {:?}. Returning unknown max/step values.",
+                device_id,
+                e
+            );
+            (0, 0.0)
+        }
+    };
+    let is_absolute = mgr
+        .focuser_is_absolute(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
 
-        Ok(FocuserStatus {
-            connected: true,
-            position,
-            moving,
-            temperature,
-            max_position,
-            step_size,
-            is_absolute,
-            has_temperature: temperature.is_some(),
-        })
-    }
+    Ok(FocuserStatus {
+        connected: true,
+        position,
+        moving,
+        temperature,
+        max_position,
+        step_size,
+        is_absolute,
+        has_temperature: temperature.is_some(),
+    })
 }
 
 /// Move focuser to position
 pub async fn api_focuser_move_to(device_id: String, position: i32) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Moving simulator focuser to position: {}", position);
-
-        {
-            let mut focuser = get_sim_focuser().write().await;
-            focuser.status.moving = true;
-        }
-
-        // Simulate move time based on distance
-        let current_pos = {
-            let focuser = get_sim_focuser().read().await;
-            focuser.status.position
-        };
-        let distance = (position - current_pos).abs();
-        let move_time = (distance as f64 / 1000.0).max(0.5);
-
-        tokio::time::sleep(tokio::time::Duration::from_secs_f64(move_time)).await;
-
-        {
-            let mut focuser = get_sim_focuser().write().await;
-            focuser.status.moving = false;
-            focuser.status.position = position;
-        }
-
-        tracing::info!("Focuser move complete");
-        Ok(())
-    } else {
-        // Real device - use DeviceManager for proper driver routing
-        let mgr = get_device_manager();
-        mgr.focuser_move_abs(&device_id, position)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    // Real device - use DeviceManager for proper driver routing
+    let mgr = get_device_manager();
+    mgr.focuser_move_abs(&device_id, position)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Move focuser by relative amount
@@ -879,62 +984,18 @@ pub async fn api_focuser_move_relative(
     device_id: String,
     delta: i32,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        // Atomically read current position and set target while under write lock
-        // This prevents race conditions where two relative moves could read the same position
-        let (current_pos, target_pos) = {
-            let mut focuser = get_sim_focuser().write().await;
-            let current = focuser.status.position;
-            let target = current + delta;
-            // Set moving=true and update position atomically while we hold the lock
-            // This ensures another move_relative sees the updated position
-            focuser.status.moving = true;
-            focuser.status.position = target; // Pre-commit the target position
-            (current, target)
-        };
-
-        // Simulate move time based on distance (lock released during sleep)
-        let distance = delta.abs();
-        let move_time = (distance as f64 / 1000.0).max(0.5);
-        tokio::time::sleep(tokio::time::Duration::from_secs_f64(move_time)).await;
-
-        // Mark move as complete
-        {
-            let mut focuser = get_sim_focuser().write().await;
-            focuser.status.moving = false;
-            // Position was already set above, no need to set again
-        }
-
-        tracing::info!(
-            "Focuser relative move complete: {} + {} = {}",
-            current_pos,
-            delta,
-            target_pos
-        );
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.focuser_move_rel(&device_id, delta)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.focuser_move_rel(&device_id, delta)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Halt focuser
 pub async fn api_focuser_halt(device_id: String) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        // For simulator, just stop moving
-        let mut focuser = get_sim_focuser().write().await;
-        focuser.status.moving = false;
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.focuser_halt(&device_id)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.focuser_halt(&device_id)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -1101,45 +1162,40 @@ async fn poll_filter_wheel_position(
 pub async fn api_get_filterwheel_status(
     device_id: String,
 ) -> Result<FilterWheelStatus, NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let fw = get_sim_filterwheel().read().await;
-        Ok(fw.status.clone())
-    } else {
-        // Real device - use DeviceManager for proper driver routing
-        let mgr = get_device_manager();
-        let position = poll_filter_wheel_position(mgr, &device_id).await?;
-        let is_moving = mgr
-            .filter_wheel_poll_is_moving(&device_id, position)
-            .await
-            .map_err(NightshadeError::from)?;
-        // debug, not info: this whole status path is polled every few seconds by
-        // the dashboard/companions — at INFO it dominated the log volume.
-        tracing::debug!(
-            "[api_get_filterwheel_status] device={}, raw position from SDK={}",
-            device_id,
-            position
-        );
-        let (filter_count, filter_names) = mgr
-            .filter_wheel_get_config(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
+    // Real device - use DeviceManager for proper driver routing
+    let mgr = get_device_manager();
+    let position = poll_filter_wheel_position(mgr, &device_id).await?;
+    let is_moving = mgr
+        .filter_wheel_poll_is_moving(&device_id, position)
+        .await
+        .map_err(NightshadeError::from)?;
+    // debug, not info: this whole status path is polled every few seconds by
+    // the dashboard/companions — at INFO it dominated the log volume.
+    tracing::debug!(
+        "[api_get_filterwheel_status] device={}, raw position from SDK={}",
+        device_id,
+        position
+    );
+    let (filter_count, filter_names) = mgr
+        .filter_wheel_get_config(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
 
-        tracing::debug!(
-            "[api_get_filterwheel_status] Returning: position={}, moving={}, filter_count={}, names={:?}",
-            position,
-            is_moving,
-            filter_count,
-            filter_names
-        );
+    tracing::debug!(
+        "[api_get_filterwheel_status] Returning: position={}, moving={}, filter_count={}, names={:?}",
+        position,
+        is_moving,
+        filter_count,
+        filter_names
+    );
 
-        Ok(FilterWheelStatus {
-            connected: true,
-            position,
-            moving: is_moving,
-            filter_count,
-            filter_names,
-        })
-    }
+    Ok(FilterWheelStatus {
+        connected: true,
+        position,
+        moving: is_moving,
+        filter_count,
+        filter_names,
+    })
 }
 
 /// Set filter wheel position
@@ -1152,49 +1208,29 @@ pub async fn api_filterwheel_set_position(
         device_id,
         position
     );
-    if device_id.starts_with("sim_") {
-        tracing::info!("[API] Using simulator filter wheel");
-        let mut fw = get_sim_filterwheel().write().await;
-
-        // Simulate move
-        fw.status.moving = true;
-        fw.status.position = -1; // Unknown while moving
-
-        // Instant move for sim
-        fw.status.moving = false;
-        fw.status.position = position;
-
-        Ok(())
-    } else {
-        // Real device - use DeviceManager for proper driver routing
-        tracing::info!("[API] Using real device via DeviceManager");
-        let mgr = get_device_manager();
-        let result = mgr
-            .filter_wheel_set_position(&device_id, position)
-            .await
-            .map_err(NightshadeError::from);
-        match &result {
-            Ok(_) => tracing::info!("[API] Filter wheel position set successfully"),
-            Err(e) => tracing::error!("[API] Filter wheel set position failed: {:?}", e),
-        }
-        result
+    // Real device - use DeviceManager for proper driver routing
+    tracing::info!("[API] Using real device via DeviceManager");
+    let mgr = get_device_manager();
+    let result = mgr
+        .filter_wheel_set_position(&device_id, position)
+        .await
+        .map_err(NightshadeError::from);
+    match &result {
+        Ok(_) => tracing::info!("[API] Filter wheel position set successfully"),
+        Err(e) => tracing::error!("[API] Filter wheel set position failed: {:?}", e),
     }
+    result
 }
 
 /// Get filter names
 pub async fn api_filterwheel_get_names(device_id: String) -> Result<Vec<String>, NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let fw = get_sim_filterwheel().read().await;
-        Ok(fw.status.filter_names.clone())
-    } else {
-        // Real device - use DeviceManager for proper driver routing
-        let mgr = get_device_manager();
-        let (_, filter_names) = mgr
-            .filter_wheel_get_config(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
-        Ok(filter_names)
-    }
+    // Real device - use DeviceManager for proper driver routing
+    let mgr = get_device_manager();
+    let (_, filter_names) = mgr
+        .filter_wheel_get_config(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    Ok(filter_names)
 }
 
 /// Set filter by name
@@ -1202,48 +1238,30 @@ pub async fn api_filterwheel_set_by_name(
     device_id: String,
     name: String,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let position = {
-            let fw = get_sim_filterwheel().read().await;
-            fw.status.filter_names.iter().position(|n| n == &name)
-        };
+    // Real device - find position by name and use DeviceManager
+    let mgr = get_device_manager();
 
-        if let Some(pos) = position {
-            api_filterwheel_set_position(device_id, pos as i32).await
-        } else {
-            Err(NightshadeError::OperationFailed(format!(
-                "Filter {} not found",
-                name
-            )))
-        }
-    } else {
-        // Real device - find position by name and use DeviceManager
-        let mgr = get_device_manager();
+    // Get filter names from device
+    let (_, filter_names) = mgr.filter_wheel_get_config(&device_id).await.map_err(|e| {
+        NightshadeError::OperationFailed(format!("Failed to get filter config: {}", e))
+    })?;
 
-        // Get filter names from device
-        let (_, filter_names) = mgr.filter_wheel_get_config(&device_id).await.map_err(|e| {
-            NightshadeError::OperationFailed(format!("Failed to get filter config: {}", e))
+    // Find filter position by name (case-insensitive)
+    let position = find_filter_match(&filter_names, &name)
+        .map(|p| p as i32)
+        .ok_or_else(|| {
+            NightshadeError::OperationFailed(format!(
+                "Filter '{}' not found. Available: {:?}",
+                name, filter_names
+            ))
         })?;
 
-        // Find filter position by name (case-insensitive)
-        let position = find_filter_match(&filter_names, &name)
-            .map(|p| p as i32)
-            .ok_or_else(|| {
-                NightshadeError::OperationFailed(format!(
-                    "Filter '{}' not found. Available: {:?}",
-                    name, filter_names
-                ))
-            })?;
+    // Set the filter position
+    mgr.filter_wheel_set_position(&device_id, position)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to set filter: {}", e)))?;
 
-        // Set the filter position
-        mgr.filter_wheel_set_position(&device_id, position)
-            .await
-            .map_err(|e| {
-                NightshadeError::OperationFailed(format!("Failed to set filter: {}", e))
-            })?;
-
-        Ok(())
-    }
+    Ok(())
 }
 
 /// Set filter names on a filter wheel
@@ -1254,26 +1272,14 @@ pub async fn api_filterwheel_set_filter_names(
 ) -> Result<(), NightshadeError> {
     tracing::info!("API: Setting filter names for '{}': {:?}", device_id, names);
 
-    if device_id.starts_with("sim_") {
-        // Simulator - update the simulated filter wheel's names
-        let mut fw = get_sim_filterwheel().write().await;
-        // Only update up to the existing count
-        let count = fw.status.filter_names.len().min(names.len());
-        for i in 0..count {
-            fw.status.filter_names[i] = names[i].clone();
-        }
-        tracing::info!("API: Set {} filter names on simulator", count);
-        Ok(())
-    } else {
-        // Real device - use DeviceManager
-        let mgr = get_device_manager();
-        mgr.filter_wheel_set_filter_names(&device_id, names)
-            .await
-            .map_err(|e| {
-                NightshadeError::OperationFailed(format!("Failed to set filter names: {}", e))
-            })?;
-        Ok(())
-    }
+    // Real device - use DeviceManager
+    let mgr = get_device_manager();
+    mgr.filter_wheel_set_filter_names(&device_id, names)
+        .await
+        .map_err(|e| {
+            NightshadeError::OperationFailed(format!("Failed to set filter names: {}", e))
+        })?;
+    Ok(())
 }
 
 // =============================================================================
@@ -1310,74 +1316,45 @@ pub fn get_sim_rotator() -> &'static Arc<RwLock<SimulatedRotator>> {
 
 /// Get rotator status
 pub async fn api_get_rotator_status(device_id: String) -> Result<RotatorStatus, NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let rotator = get_sim_rotator().read().await;
-        Ok(rotator.status.clone())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
+    let mgr = get_device_manager();
 
-        let position = mgr
-            .rotator_get_position(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
-        let is_moving = mgr
-            .rotator_is_moving(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
-        let can_reverse = match api_get_rotator_capabilities(device_id.clone()).await {
-            Ok(caps) => caps.can_reverse,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to query rotator capabilities for {}: {:?}. Treating reverse as unsupported.",
-                    device_id,
-                    e
-                );
-                false
-            }
-        };
+    let position = mgr
+        .rotator_get_position(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    let is_moving = mgr
+        .rotator_is_moving(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    let can_reverse = match api_get_rotator_capabilities(device_id.clone()).await {
+        Ok(caps) => caps.can_reverse,
+        Err(e) => {
+            tracing::warn!(
+                "Failed to query rotator capabilities for {}: {:?}. Treating reverse as unsupported.",
+                device_id,
+                e
+            );
+            false
+        }
+    };
 
-        Ok(RotatorStatus {
-            connected: true,
-            position,
-            moving: is_moving,
-            mechanical_position: position,
-            is_moving,
-            can_reverse,
-        })
-    }
+    Ok(RotatorStatus {
+        connected: true,
+        position,
+        moving: is_moving,
+        mechanical_position: position,
+        is_moving,
+        can_reverse,
+    })
 }
 
 /// Move rotator to angle
 pub async fn api_rotator_move_to(device_id: String, angle: f64) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        tracing::info!("Moving simulator rotator to {}°", angle);
-
-        {
-            let mut rotator = get_sim_rotator().write().await;
-            rotator.status.moving = true;
-            rotator.status.is_moving = true;
-        }
-
-        // Simulate move time
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-        {
-            let mut rotator = get_sim_rotator().write().await;
-            rotator.status.moving = false;
-            rotator.status.is_moving = false;
-            rotator.status.position = angle;
-            rotator.status.mechanical_position = angle;
-        }
-
-        Ok(())
-    } else {
-        // Real device - use DeviceManager for proper driver routing
-        let mgr = get_device_manager();
-        mgr.rotator_move_absolute(&device_id, angle)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    // Real device - use DeviceManager for proper driver routing
+    let mgr = get_device_manager();
+    mgr.rotator_move_absolute(&device_id, angle)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Move rotator relative
@@ -1385,28 +1362,17 @@ pub async fn api_rotator_move_relative(
     device_id: String,
     delta: f64,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let current = {
-            let rotator = get_sim_rotator().read().await;
-            rotator.status.position
-        };
-        let target = (current + delta) % 360.0;
-        let target = if target < 0.0 { target + 360.0 } else { target };
-
-        api_rotator_move_to(device_id, target).await
-    } else {
-        // Real device - calculate target angle and use DeviceManager
-        let mgr = get_device_manager();
-        let current = mgr
-            .rotator_get_position(&device_id)
-            .await
-            .map_err(NightshadeError::from)?;
-        let target = (current + delta) % 360.0;
-        let target = if target < 0.0 { target + 360.0 } else { target };
-        mgr.rotator_move_absolute(&device_id, target)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    // Real device - calculate target angle and use DeviceManager
+    let mgr = get_device_manager();
+    let current = mgr
+        .rotator_get_position(&device_id)
+        .await
+        .map_err(NightshadeError::from)?;
+    let target = (current + delta) % 360.0;
+    let target = if target < 0.0 { target + 360.0 } else { target };
+    mgr.rotator_move_absolute(&device_id, target)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Set the rotator's reverse-direction flag (IRotatorV3 `Reverse`, Alpaca
@@ -1415,44 +1381,18 @@ pub async fn api_rotator_set_reverse(
     device_id: String,
     reverse: bool,
 ) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        let rotator = get_sim_rotator().read().await;
-        if !rotator.status.connected {
-            return Err(NightshadeError::NotConnected(device_id));
-        }
-        if rotator.status.can_reverse {
-            // The simulator has no directional behavior to invert; accepting
-            // keeps sim rigs exercising the same UI path as real hardware.
-            tracing::info!("Simulator rotator reverse set to {}", reverse);
-            Ok(())
-        } else {
-            Err(NightshadeError::OperationFailed(
-                "Simulator rotator does not support reverse".to_string(),
-            ))
-        }
-    } else {
-        let mgr = get_device_manager();
-        mgr.rotator_set_reverse(&device_id, reverse)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.rotator_set_reverse(&device_id, reverse)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Halt rotator
 pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        // For simulator, just stop moving
-        let mut rotator = get_sim_rotator().write().await;
-        rotator.status.moving = false;
-        rotator.status.is_moving = false;
-        Ok(())
-    } else {
-        // Route real devices through DeviceManager
-        let mgr = get_device_manager();
-        mgr.rotator_halt(&device_id)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.rotator_halt(&device_id)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 /// Sync rotator's reported sky angle to the supplied position angle without
@@ -1461,18 +1401,10 @@ pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> 
 /// this call aligns the rotator's reported PA so subsequent absolute moves
 /// land at the correct sky angle.
 pub async fn api_rotator_sync_to_pa(device_id: String, pa: f64) -> Result<(), NightshadeError> {
-    if device_id.starts_with("sim_") {
-        // Simulator has no mechanical offset — just snap the reported angle.
-        let mut rotator = get_sim_rotator().write().await;
-        rotator.status.position = pa;
-        rotator.status.mechanical_position = pa;
-        Ok(())
-    } else {
-        let mgr = get_device_manager();
-        mgr.rotator_sync(&device_id, pa)
-            .await
-            .map_err(NightshadeError::from)
-    }
+    let mgr = get_device_manager();
+    mgr.rotator_sync(&device_id, pa)
+        .await
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -1571,6 +1503,23 @@ pub(crate) fn get_sim_safety_monitor() -> &'static Arc<RwLock<SimulatedSafetyMon
 mod sim_motion_tests {
     use super::*;
 
+    /// Successive frames must draw different noise, and the sequence must be
+    /// resettable so a run can be reproduced exactly.
+    #[test]
+    fn frame_seed_sequence_is_reproducible_after_reset() {
+        reset_sim_frame_seed(100);
+        let first: Vec<u64> = (0..3).map(|_| next_sim_frame_seed()).collect();
+        reset_sim_frame_seed(100);
+        let second: Vec<u64> = (0..3).map(|_| next_sim_frame_seed()).collect();
+
+        assert_eq!(first, second, "a reset seed must replay the same sequence");
+        assert_eq!(
+            first.len(),
+            first.iter().collect::<std::collections::HashSet<_>>().len(),
+            "successive frames must not reuse a seed, or a stack is identical frames"
+        );
+    }
+
     /// The four cardinal directions must map to distinct, opposed, axis-aligned
     /// displacements. If east and north were parallel the guider's calibration
     /// matrix would be singular and it would (correctly) refuse to guide with
@@ -1640,15 +1589,34 @@ mod sim_motion_tests {
         );
     }
 
-    /// The api-layer `sim_` short-circuit must move the field, not just sleep.
-    /// It bypasses the DeviceManager entirely, so it is a separate call site that
-    /// silently regressed to a no-op once before — a manual guide nudge returned
-    /// "ok", waited the duration, and left the stars where they were.
+    /// Register and connect a simulated mount in the process-wide DeviceManager,
+    /// the way discovery plus a connect does for a real one.
+    async fn attach_sim_mount(device_id: &str) {
+        let info = DeviceInfo {
+            id: device_id.to_string(),
+            name: "Simulated Mount".to_string(),
+            device_type: DeviceType::Mount,
+            driver_type: DriverType::Simulator,
+            description: "Simulated mount".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Simulated Mount".to_string(),
+        };
+        get_device_manager().register_device(info, false).await;
+        get_sim_mount().write().await.status.connected = true;
+    }
+
+    /// A manual guide nudge must move the field, not just sleep: it silently
+    /// regressed to a no-op once before, returning "ok" and leaving the stars
+    /// where they were.
     #[tokio::test]
     async fn api_pulse_guide_moves_the_simulated_field() {
+        let _serialized = sim_singleton_test_lock().lock().await;
+        attach_sim_mount("sim_mount_pulse").await;
         reset_sim_guide_offset().await;
         let before = *sim_guide_offset().read().await;
-        api_mount_pulse_guide("sim_mount_1".to_string(), "east".to_string(), 1000)
+        api_mount_pulse_guide("sim_mount_pulse".to_string(), "east".to_string(), 1000)
             .await
             .expect("simulated pulse guide should succeed");
         let after = *sim_guide_offset().read().await;
@@ -1660,12 +1628,22 @@ mod sim_motion_tests {
         reset_sim_guide_offset().await;
     }
 
-    /// An unknown direction must be rejected rather than silently sleeping.
+    /// An unknown direction must be rejected rather than silently sleeping —
+    /// and rejected for THAT reason, not because the device was missing.
     #[tokio::test]
     async fn api_pulse_guide_rejects_an_unknown_direction() {
-        let result =
-            api_mount_pulse_guide("sim_mount_1".to_string(), "widdershins".to_string(), 10).await;
-        assert!(result.is_err(), "unknown direction should be an error");
+        attach_sim_mount("sim_mount_direction").await;
+        let result = api_mount_pulse_guide(
+            "sim_mount_direction".to_string(),
+            "widdershins".to_string(),
+            10,
+        )
+        .await;
+        let err = result.expect_err("unknown direction should be an error");
+        assert!(
+            err.to_string().contains("direction: widdershins"),
+            "expected a direction rejection, got: {err}"
+        );
     }
 
     /// A simulated exposure must not report complete before its integration
@@ -1694,13 +1672,18 @@ mod sim_motion_tests {
     /// the caller. Anything else strands a polling loop.
     #[tokio::test]
     async fn exposure_clock_starts_and_clears() {
+        let _serialized = sim_singleton_test_lock().lock().await;
         clear_sim_exposure().await;
         assert!(
             sim_exposure_is_complete().await,
             "an idle simulator must not make a poller wait"
         );
 
-        begin_sim_exposure(30.0).await;
+        begin_sim_exposure(SimExposureRequest {
+            secs: 30.0,
+            ..Default::default()
+        })
+        .await;
         assert!(
             !sim_exposure_is_complete().await,
             "a 30s exposure must not be complete the instant it starts"

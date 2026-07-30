@@ -19,6 +19,19 @@ part 'profile_editor_dialog/optical_and_devices.dart';
 part 'profile_editor_dialog/filters_and_camera_defaults.dart';
 part 'profile_editor_dialog/helper_widgets.dart';
 
+/// Stable keys for the profile editor's inline field errors.
+///
+/// Kept as constants (not an enum) because they double as the map keys the
+/// section builders read, and widget tests match on them.
+abstract final class ProfileEditorField {
+  static const focalLength = 'focalLength';
+  static const aperture = 'aperture';
+  static const gain = 'gain';
+  static const offset = 'offset';
+  static const coolingTarget = 'coolingTarget';
+  static const centeringExposure = 'centeringExposure';
+}
+
 /// Single-page profile editor dialog replacing the multi-step wizard.
 /// Allows creating new profiles or editing existing ones.
 class ProfileEditorDialog extends ConsumerStatefulWidget {
@@ -64,6 +77,27 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   // edits the field. Replaces the old `_isSaving`-keyed errorText, which never
   // produced a stable inline correction.
   String? _nameError;
+
+  /// Per-field inline validation errors, keyed by the constants in
+  /// [ProfileEditorField]. Only the NAME field used to get inline treatment;
+  /// every other error was joined into one snackbar that rendered OUTSIDE and
+  /// BELOW the dialog at the bottom edge of the window — dimmed by the modal
+  /// barrier to a measured 2.00:1 contrast ratio (WCAG AA wants 4.5:1 for body
+  /// text) — while the offending field kept its normal border. Two capture passes
+  /// missed the toast entirely, which is the point.
+  final Map<String, String?> _fieldErrors = <String, String?>{};
+
+  /// Errors that belong to no single field (optical-train cross-check, per-filter
+  /// row problems). Rendered as a persistent banner INSIDE the dialog so the
+  /// feedback cannot be dismissed by a timeout or dimmed by the scrim.
+  List<String> _formErrors = const <String>[];
+
+  /// Clears the inline error for [field] as soon as the user edits it, matching
+  /// the name field's existing behaviour.
+  void clearFieldError(String field) {
+    if (_fieldErrors[field] == null) return;
+    setState(() => _fieldErrors.remove(field));
+  }
 
   // Track which sections are expanded
   final Map<String, bool> _expandedSections = {
@@ -278,6 +312,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildValidationBanner(colors),
                   _buildIdentitySection(colors, theme),
                   const SizedBox(height: 16),
                   _buildOpticalTrainSection(colors, theme),

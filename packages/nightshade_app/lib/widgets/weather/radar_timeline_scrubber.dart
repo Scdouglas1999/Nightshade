@@ -287,48 +287,51 @@ class _RadarTimelineScrubberState extends ConsumerState<RadarTimelineScrubber>
 
               // Slider track
               Expanded(
-                child: GestureDetector(
-                  onHorizontalDragStart: (_) {
-                    setState(() {
-                      _isDragging = true;
-                    });
-                  },
-                  onHorizontalDragUpdate: (details) {
-                    if (widget.frames.isEmpty) return;
-                    final box = context.findRenderObject() as RenderBox?;
-                    if (box == null) return;
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    // Scrub against the track's own width. The drag used to be
+                    // measured off the whole control row and corrected with a
+                    // hardcoded 100/200px for the transport buttons, which is
+                    // only ever an estimate — the speed selector is optional
+                    // and its label width varies — so the frame you landed on
+                    // never matched the thumb you dragged.
+                    final trackWidth = constraints.maxWidth;
+                    return GestureDetector(
+                      onHorizontalDragStart: (_) {
+                        setState(() {
+                          _isDragging = true;
+                        });
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        if (widget.frames.isEmpty || trackWidth <= 0) return;
 
-                    final localPosition =
-                        box.globalToLocal(details.globalPosition);
-                    final sliderWidth =
-                        box.size.width - 200; // Account for controls
-                    if (sliderWidth <= 0) return;
-                    final relativeX =
-                        (localPosition.dx - 100).clamp(0.0, sliderWidth);
-                    final fraction = relativeX / sliderWidth;
-                    final newIndex = (fraction * widget.frames.length)
-                        .floor()
-                        .clamp(0, widget.frames.length - 1);
+                        final fraction = (details.localPosition.dx / trackWidth)
+                            .clamp(0.0, 1.0);
+                        final newIndex = (fraction * widget.frames.length)
+                            .floor()
+                            .clamp(0, widget.frames.length - 1);
 
-                    if (newIndex != currentIndex) {
-                      widget.onFrameChanged(newIndex);
-                    }
+                        if (newIndex != currentIndex) {
+                          widget.onFrameChanged(newIndex);
+                        }
+                      },
+                      onHorizontalDragEnd: (_) {
+                        setState(() {
+                          _isDragging = false;
+                        });
+                        _updateAnimationTimer();
+                      },
+                      child: CustomPaint(
+                        size: const Size(double.infinity, 40),
+                        painter: _TimelineTrackPainter(
+                          frames: widget.frames,
+                          currentIndex: currentIndex,
+                          nowIndex: nowIndex,
+                          colors: colors,
+                        ),
+                      ),
+                    );
                   },
-                  onHorizontalDragEnd: (_) {
-                    setState(() {
-                      _isDragging = false;
-                    });
-                    _updateAnimationTimer();
-                  },
-                  child: CustomPaint(
-                    size: const Size(double.infinity, 40),
-                    painter: _TimelineTrackPainter(
-                      frames: widget.frames,
-                      currentIndex: currentIndex,
-                      nowIndex: nowIndex,
-                      colors: colors,
-                    ),
-                  ),
                 ),
               ),
 

@@ -22,33 +22,134 @@ part 'status_bar/web_dashboard_button.dart';
 part 'status_bar/session_sharing.dart';
 part 'status_bar/temperature_and_time.dart';
 
-class _SavePathStatus {
-  final String path;
-  final bool exists;
+/// What the shell actually knows about the configured capture directory.
+///
+/// [unknown] is a first-class answer: settings may still be loading, or the
+/// existence probe may have failed (a remote host that did not answer). It must
+/// never be collapsed into [missing] — "your output path is gone" is an alarm,
+/// and raising it because a check has not finished yet is a lie.
+enum SavePathExistence { unknown, present, missing }
 
-  const _SavePathStatus({
+@visibleForTesting
+class SavePathStatus {
+  final String path;
+  final SavePathExistence existence;
+
+  const SavePathStatus({
     required this.path,
-    required this.exists,
+    required this.existence,
   });
 }
 
-final _savePathStatusProvider = FutureProvider<_SavePathStatus>((ref) async {
+final _savePathStatusProvider = FutureProvider<SavePathStatus>((ref) async {
   final settings = await ref.watch(appSettingsProvider.future);
   final savePath = settings.imageOutputPath.trim();
 
   if (savePath.isEmpty) {
-    return const _SavePathStatus(path: '', exists: false);
+    // Genuinely nothing configured — that IS the finding, not an unknown.
+    return const SavePathStatus(
+      path: '',
+      existence: SavePathExistence.missing,
+    );
   }
 
   final backend = ref.watch(backendProvider);
-  bool exists;
   try {
-    exists = await configuredSavePathExists(backend, savePath);
+    final exists = await configuredSavePathExists(backend, savePath);
+    return SavePathStatus(
+      path: savePath,
+      existence: exists ? SavePathExistence.present : SavePathExistence.missing,
+    );
   } catch (_) {
-    exists = false;
+    // The probe itself failed (remote host unreachable, permission error). We
+    // do not know whether the directory is there.
+    return SavePathStatus(
+      path: savePath,
+      existence: SavePathExistence.unknown,
+    );
   }
-  return _SavePathStatus(path: savePath, exists: exists);
 });
+
+/// How confident the save-path chip is allowed to look.
+enum SavePathTone {
+  /// Verified: the configured directory is there.
+  ok,
+
+  /// Not assessed (probe unfinished or failed). Neutral — never an alarm.
+  unknown,
+
+  /// Known bad: nothing configured, or the configured directory is gone.
+  alarm,
+}
+
+/// The save-path chip's rendering, derived from what is actually known.
+@visibleForTesting
+class SavePathChip {
+  final String label;
+  final String tooltip;
+  final SavePathTone tone;
+
+  const SavePathChip({
+    required this.label,
+    required this.tooltip,
+    required this.tone,
+  });
+}
+
+/// Maps the async save-path probe onto chip text.
+///
+/// Pure and directly testable. The previous code did
+/// `status.valueOrNull ?? const _SavePathStatus(path: '', exists: false)`, so
+/// every moment before the probe resolved — and every re-run of it, e.g. after a
+/// settings or backend change — the bar claimed "No save path" / "No image
+/// output path configured" with the folder-X alarm icon, on a rig whose path was
+/// configured and fine. On a remote backend that window is a full network
+/// round-trip, and a probe that threw was reported as "path is missing".
+@visibleForTesting
+SavePathChip savePathChipFor(
+  AsyncValue<SavePathStatus> status,
+  String Function(String path) formatLabel,
+) {
+  final value = status.valueOrNull;
+  if (value == null) {
+    // Not assessed yet (or the provider itself failed): say so.
+    return SavePathChip(
+      label: status.hasError ? 'Save path ?' : 'Checking…',
+      tooltip: status.hasError
+          ? 'Could not read the configured image output path'
+          : 'Checking the configured image output path…',
+      tone: SavePathTone.unknown,
+    );
+  }
+  if (value.path.isEmpty) {
+    return const SavePathChip(
+      label: 'No save path',
+      tooltip: 'No image output path configured',
+      tone: SavePathTone.alarm,
+    );
+  }
+  final label = formatLabel(value.path);
+  switch (value.existence) {
+    case SavePathExistence.present:
+      return SavePathChip(
+        label: label,
+        tooltip: 'Images save to ${value.path}',
+        tone: SavePathTone.ok,
+      );
+    case SavePathExistence.missing:
+      return SavePathChip(
+        label: label,
+        tooltip: 'Configured output path is missing: ${value.path}',
+        tone: SavePathTone.alarm,
+      );
+    case SavePathExistence.unknown:
+      return SavePathChip(
+        label: label,
+        tooltip: 'Could not verify the output path: ${value.path}',
+        tone: SavePathTone.unknown,
+      );
+  }
+}
 
 /// Checks the configured capture directory on the machine that performs the
 /// capture. A remote controller cannot infer host-path validity from its own
@@ -152,8 +253,10 @@ class _StatusBarState extends ConsumerState<StatusBar>
     // which is enough for the whole strip to fit at 800 px.
     final dense =
         !widget.compact && availableWidth < BreakpointTokens.breakpointDesktop;
-    final savePathStatus = ref.watch(_savePathStatusProvider).valueOrNull ??
-        const _SavePathStatus(path: '', exists: false);
+    final savePathChip = savePathChipFor(
+      ref.watch(_savePathStatusProvider),
+      _formatPathLabel,
+    );
 
     // Watch equipment state
     final cameraState = ref.watch(cameraStateProvider);
@@ -169,16 +272,6 @@ class _StatusBarState extends ConsumerState<StatusBar>
         guiderState.connectionState == DeviceConnectionState.connected;
     final focuserConnected =
         focuserState.connectionState == DeviceConnectionState.connected;
-    final savePath = savePathStatus.path;
-    final savePathExists = savePathStatus.exists;
-    final savePathLabel =
-        savePath.isEmpty ? 'No save path' : _formatPathLabel(savePath);
-    final savePathTooltip = savePath.isEmpty
-        ? 'No image output path configured'
-        : savePathExists
-            ? 'Images save to $savePath'
-            : 'Configured output path is missing: $savePath';
-
     final leading = <Widget>[
       const SizedBox(width: 12),
       _SequenceIndicator(colors: colors),
@@ -218,9 +311,13 @@ class _StatusBarState extends ConsumerState<StatusBar>
       _StatusPillButton(
         icon: NightshadeIcons.crosshair,
         label: 'Guider',
+        // "Idle" here meant "no guider" — the same word the app uses for a
+        // connected, ready guider that simply isn't guiding. At a glance the bar
+        // said the guider was present and calm when there was no guider at all.
+        // Match the Camera/Mount pills and name the actual state.
         value: guiderConnected
             ? (guiderState.isGuiding ? 'Guiding' : 'Ready')
-            : 'Idle',
+            : 'Disconnected',
         isConnected: guiderConnected,
         colors: colors,
         compact: widget.compact,
@@ -266,10 +363,16 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 12),
       if (!widget.compact)
         _InfoChip(
-          icon:
-              savePathExists ? NightshadeIcons.folderOpen : LucideIcons.folderX,
-          value: savePathLabel,
-          tooltip: savePathTooltip,
+          // The folder-X alarm is reserved for a path we KNOW is unusable.
+          // "Not checked yet" / "could not verify" gets the neutral search
+          // folder, so an unfinished probe never reads as a broken rig.
+          icon: switch (savePathChip.tone) {
+            SavePathTone.ok => NightshadeIcons.folderOpen,
+            SavePathTone.alarm => LucideIcons.folderX,
+            SavePathTone.unknown => LucideIcons.folderSearch,
+          },
+          value: savePathChip.label,
+          tooltip: savePathChip.tooltip,
           colors: colors,
         ),
       if (!widget.compact) const SizedBox(width: 12),

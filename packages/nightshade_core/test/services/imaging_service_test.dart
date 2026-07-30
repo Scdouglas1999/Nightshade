@@ -1378,6 +1378,126 @@ void main() {
       expect(result, isNotNull);
       expect(result!.isColor, isTrue);
     });
+
+    // The native bridge stamps frames with `chrono::Utc::now()`. When that
+    // string reached Dart without a `Z`, `DateTime.parse` read it as local
+    // time and the subsequent `.toUtc()` shifted DATE-OBS by the host's
+    // timezone offset — the frame claimed an instant it was not taken at.
+    test(
+      'DATE-OBS is the UTC instant for an offset-less bridge timestamp',
+      () async {
+        const settings = ExposureSettings(
+          exposureTime: 5.0,
+          gain: 100,
+          offset: 50,
+          binningX: 1,
+          binningY: 1,
+          frameType: FrameType.light,
+        );
+
+        when(
+          () => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          ),
+        ).thenAnswer((_) async {
+          eventStreamController.add(
+            NightshadeEvent(
+              timestamp: DateTime.now().millisecondsSinceEpoch,
+              severity: EventSeverity.info,
+              category: EventCategory.imaging,
+              eventType: 'ExposureComplete',
+              data: {},
+            ),
+          );
+        });
+
+        when(() => mockBackend.cameraGetLastImage(any())).thenAnswer(
+          (_) async =>
+              makeCapturedImageResult(timestamp: '2026-07-28T17:33:34'),
+        );
+
+        final headers = <FitsWriteHeader>[];
+        when(
+          () => mockBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          ),
+        ).thenAnswer((invocation) async {
+          headers.add(
+            invocation.namedArguments[#headerData] as FitsWriteHeader,
+          );
+        });
+
+        final service = container.read(imagingServiceProvider);
+        await service.captureImage(settings: settings);
+
+        expect(headers, hasLength(1));
+        expect(headers.single.captureTimestamp, '2026-07-28T17:33:34.000Z');
+      },
+    );
+
+    test('DATE-OBS honours an explicit non-zero offset on the bridge '
+        'timestamp', () async {
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        binningX: 1,
+        binningY: 1,
+        frameType: FrameType.light,
+      );
+
+      when(
+        () => mockBackend.cameraStartExposure(
+          deviceId: any(named: 'deviceId'),
+          exposureTime: any(named: 'exposureTime'),
+          frameType: any(named: 'frameType'),
+          gain: any(named: 'gain'),
+          offset: any(named: 'offset'),
+          binX: any(named: 'binX'),
+          binY: any(named: 'binY'),
+        ),
+      ).thenAnswer((_) async {
+        eventStreamController.add(
+          NightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.imaging,
+            eventType: 'ExposureComplete',
+            data: {},
+          ),
+        );
+      });
+
+      when(() => mockBackend.cameraGetLastImage(any())).thenAnswer(
+        (_) async =>
+            makeCapturedImageResult(timestamp: '2026-07-29T02:33:34+09:00'),
+      );
+
+      final headers = <FitsWriteHeader>[];
+      when(
+        () => mockBackend.saveFitsFromLastCapture(
+          deviceId: any(named: 'deviceId'),
+          filePath: any(named: 'filePath'),
+          headerData: any(named: 'headerData'),
+        ),
+      ).thenAnswer((invocation) async {
+        headers.add(invocation.namedArguments[#headerData] as FitsWriteHeader);
+      });
+
+      final service = container.read(imagingServiceProvider);
+      await service.captureImage(settings: settings);
+
+      expect(headers, hasLength(1));
+      expect(headers.single.captureTimestamp, '2026-07-28T17:33:34.000Z');
+    });
   });
 
   // C6/C9: the capture path must honour ExposureSettings.readoutModeIndex

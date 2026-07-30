@@ -70,7 +70,7 @@ final _nearbyGuideStarsProvider =
         (ref, key) async {
   final catalog = ref.watch(starCatalogProvider);
   final stars = await catalog.getStarsNear(
-    CelestialCoordinate(ra: key.raHours * 15.0, dec: key.decDegrees),
+    CelestialCoordinate(ra: key.raHours, dec: key.decDegrees),
     key.radiusDegrees,
     maxMagnitude: _guideStarMagnitudeLimit,
   );
@@ -79,8 +79,7 @@ final _nearbyGuideStarsProvider =
       GuideStarInput(
         id: star.id,
         name: star.name,
-        // The catalog stores RA in degrees; the framing projection wants hours.
-        raHours: star.coordinates.ra / 15.0,
+        raHours: star.coordinates.ra,
         decDegrees: star.coordinates.dec,
         magnitude: star.magnitude,
       ),

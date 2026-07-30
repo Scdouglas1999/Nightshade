@@ -224,6 +224,43 @@ class SessionExportService {
     return filePath;
   }
 
+  /// Non-null values of [pick] across [images] — the population a report
+  /// aggregate is computed over.
+  static List<double> _values(
+    List<CapturedImage> images,
+    double? Function(CapturedImage image) pick,
+  ) {
+    final out = <double>[];
+    for (final image in images) {
+      final v = pick(image);
+      if (v != null) out.add(v);
+    }
+    return out;
+  }
+
+  /// Arithmetic mean, or null for an empty population (never 0.0 — a zero would
+  /// read as a measurement).
+  static double? _mean(List<double> values) {
+    if (values.isEmpty) return null;
+    var sum = 0.0;
+    for (final v in values) {
+      sum += v;
+    }
+    return sum / values.length;
+  }
+
+  /// A report metric cell: the formatted value with its unit, or an em dash with
+  /// NO unit when the value is missing (the old `-%` / `- C` placeholders read
+  /// like a measurement of nothing).
+  static String _metric(double? value, int digits, String unit) =>
+      value == null ? '&mdash;' : '${value.toStringAsFixed(digits)}$unit';
+
+  /// A muted provenance line under a metric ("mean of 8 accepted frames",
+  /// "not recorded"), or nothing when there is no note to make.
+  static String _source(String? note) => note == null
+      ? ''
+      : '<div class="muted" style="font-size:11px;margin-top:4px">$note</div>';
+
   /// Get or create the export directory
   Future<Directory> _getExportDirectory() async {
     final docsDir = await _documentsDirectoryProvider();
@@ -275,14 +312,19 @@ class SessionExportService {
       'Total Integration: ${(session.totalIntegrationSecs / 3600).toStringAsFixed(2)} hours',
     );
 
-    if (session.avgHfr != null) {
-      buffer.writeln('Average HFR: ${session.avgHfr!.toStringAsFixed(2)} px');
+    // Same aggregate rule as the HTML report: prefer the session record, else
+    // the mean over the accepted frames this summary already lists.
+    final summaryHfr =
+        session.avgHfr ?? _mean(_values(acceptedImages, (i) => i.hfr));
+    if (summaryHfr != null) {
+      buffer.writeln('Average HFR: ${summaryHfr.toStringAsFixed(2)} px');
     }
 
-    if (session.avgGuidingRms != null) {
-      buffer.writeln(
-        'Average Guiding RMS: ${session.avgGuidingRms!.toStringAsFixed(2)} "',
-      );
+    final summaryRms =
+        session.avgGuidingRms ??
+        _mean(_values(acceptedImages, (i) => i.guidingRmsTotal));
+    if (summaryRms != null) {
+      buffer.writeln('Average Guiding RMS: ${summaryRms.toStringAsFixed(2)} "');
     }
 
     buffer.writeln('Autofocus Runs: ${session.autofocusCount}');
@@ -394,6 +436,30 @@ class SessionExportService {
       ''';
     }).join();
 
+    // Summary aggregates. `imaging_sessions.avg_hfr` / `avg_guiding_rms` are
+    // only written by some run paths, so a report could show "Average HFR -"
+    // directly above a frame table listing an HFR for every frame. Fall back to
+    // the mean over the frames the report itself is built from, and say where
+    // the number came from. Ambient humidity/temperature have no per-frame
+    // source (the per-frame temperature is the camera sensor, not the sky), so
+    // they stay blank rather than borrowing an unrelated reading.
+    final hfrValues = _values(acceptedImages, (image) => image.hfr);
+    final rmsValues = _values(acceptedImages, (image) => image.guidingRmsTotal);
+    final avgHfr = session.avgHfr ?? _mean(hfrValues);
+    final avgHfrSource = session.avgHfr != null
+        ? 'session record'
+        : (hfrValues.isEmpty
+              ? null
+              : 'mean of ${hfrValues.length} accepted '
+                    '${hfrValues.length == 1 ? 'frame' : 'frames'}');
+    final avgRms = session.avgGuidingRms ?? _mean(rmsValues);
+    final avgRmsSource = session.avgGuidingRms != null
+        ? 'session record'
+        : (rmsValues.isEmpty
+              ? null
+              : 'mean of ${rmsValues.length} accepted '
+                    '${rmsValues.length == 1 ? 'frame' : 'frames'}');
+
     final imageRows = acceptedImages.take(20).map((image) {
       return '''
         <tr>
@@ -444,10 +510,10 @@ class SessionExportService {
 
   <h2>Session Summary</h2>
   <div class="grid">
-    <div class="card"><div class="muted">Average HFR</div><strong>${session.avgHfr?.toStringAsFixed(2) ?? "-"}</strong></div>
-    <div class="card"><div class="muted">Guiding RMS</div><strong>${session.avgGuidingRms?.toStringAsFixed(2) ?? "-"}</strong></div>
-    <div class="card"><div class="muted">Humidity</div><strong>${session.avgHumidity?.toStringAsFixed(1) ?? "-"}%</strong></div>
-    <div class="card"><div class="muted">Temperature</div><strong>${session.avgTemperature?.toStringAsFixed(1) ?? "-"} C</strong></div>
+    <div class="card"><div class="muted">Average HFR</div><strong>${_metric(avgHfr, 2, ' px')}</strong>${_source(avgHfrSource)}</div>
+    <div class="card"><div class="muted">Guiding RMS</div><strong>${_metric(avgRms, 2, '"')}</strong>${_source(avgRmsSource)}</div>
+    <div class="card"><div class="muted">Humidity</div><strong>${_metric(session.avgHumidity, 1, '%')}</strong>${_source(session.avgHumidity == null ? 'not recorded' : null)}</div>
+    <div class="card"><div class="muted">Temperature</div><strong>${_metric(session.avgTemperature, 1, ' C')}</strong>${_source(session.avgTemperature == null ? 'not recorded' : null)}</div>
   </div>
 
   <h2>Accepted Frames by Filter</h2>

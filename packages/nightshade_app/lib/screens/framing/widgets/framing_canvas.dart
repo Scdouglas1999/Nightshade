@@ -178,6 +178,40 @@ class _FramingCanvasState extends State<FramingCanvas> {
     );
   }
 
+  /// Horizontal space kept clear at the canvas's top-left for the
+  /// optical-config affordance, which [FramingScreen] paints in its OWN Stack
+  /// at (16, 16): a 48px touch-target button when collapsed, or the panel
+  /// (capped at 260px) when open.
+  ///
+  /// Both Stacks used to place their children at the identical origin, so the
+  /// button's opaque body covered the survey dropdown's leading icon and first
+  /// glyph — "DSS2 Red" rendered as ")SS2 Red" on every entry to the Framing
+  /// screen — and the open panel hid the dropdown and the Grid chip outright.
+  /// Reserving the space here fixes it for every window size instead of
+  /// re-tuning two hard-coded offsets against each other.
+  ///
+  /// The gutter is skipped when the canvas is too narrow to give it away: on a
+  /// phone the controls already Wrap onto a second line and squeezing them
+  /// further would cost more than the overlap.
+  /// Whether the floating target card is shown (target resolved + labels on).
+  bool get _showTargetInfoOverlay =>
+      widget.framingState.target != null && widget.framingState.showLabels;
+
+  /// Whether the "configure equipment for accurate framing" hint is shown.
+  bool get _showEquipmentHint =>
+      !_hasEquipment && widget.framingState.target != null;
+
+  double _opticalConfigGutter() {
+    const gap = NightshadeTokens.spaceMd;
+    final reserved = widget.framingState.showOpticalConfigPanel
+        ? 260.0 + gap
+        : NightshadeTokens.minTouchTarget + gap;
+    final width = _canvasSize.width;
+    // Pre-layout (first frame) assume there is room; the next frame corrects it.
+    if (width <= 0) return reserved;
+    return (width - reserved) >= 240 ? reserved : 0;
+  }
+
   Widget _buildCanvas(BuildContext context, FramingPlateScale plateScale) {
     return GestureDetector(
       onPanStart: (details) {
@@ -443,58 +477,67 @@ class _FramingCanvasState extends State<FramingCanvas> {
                 ),
               ),
 
-              // Top controls
+              // Top chrome — ONE flow, not three hard-coded offsets.
+              //
+              // The toolbar was `top: 16` with a [Wrap] that flows onto a second
+              // line at narrow widths, while the target card and the
+              // equipment-status card were each pinned at a literal `top: 60`.
+              // Below roughly 1100 px the wrapped second row landed exactly
+              // under those cards, which — being LATER Stack children — painted
+              // over it and swallowed its hits: the "HiPS Tiles" chip was
+              // visible ghosting through the card and could not be clicked at
+              // all. Laying the three out in one Column means the cards always
+              // sit below the toolbar however many lines it takes, at any width.
               Positioned(
                 top: 16,
                 left: 16,
                 right: 16,
-                child: _CanvasControls(
-                  colors: widget.colors,
-                  framingState: widget.framingState,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      // The optical-config gutter reserves room for the gear
+                      // that floats at the canvas's left edge.
+                      padding: EdgeInsets.only(left: _opticalConfigGutter()),
+                      child: _CanvasControls(
+                        colors: widget.colors,
+                        framingState: widget.framingState,
+                      ),
+                    ),
+                    if (_showTargetInfoOverlay || _showEquipmentHint) ...[
+                      const SizedBox(height: NightshadeTokens.spaceMd),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_showTargetInfoOverlay)
+                            Flexible(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: FramingTargetInfoOverlay(
+                                  colors: widget.colors,
+                                  target: widget.framingState.target!,
+                                ),
+                              ),
+                            ),
+                          const Spacer(),
+                          if (_showEquipmentHint)
+                            Flexible(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: _EquipmentHintCard(
+                                  colors: widget.colors,
+                                  previewFovDegrees:
+                                      widget.framingState.previewFovDegrees,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
-
-              // Equipment status overlay (when not configured)
-              if (!_hasEquipment && widget.framingState.target != null)
-                Positioned(
-                  top: 60,
-                  right: 16,
-                  child: Container(
-                    padding: NightshadeTokens.paddingMd,
-                    decoration: BoxDecoration(
-                      color: widget.colors.info.withValues(
-                          alpha: NightshadeTokens.opacityStatusFill),
-                      borderRadius: NightshadeTokens.borderRadiusMd,
-                      border: Border.all(
-                          color: widget.colors.info
-                              .withValues(alpha: NightshadeTokens.opacityHalf)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(NightshadeIcons.visible,
-                            size: NightshadeTokens.iconXs,
-                            color: widget.colors.info),
-                        const SizedBox(width: NightshadeTokens.spaceSm),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Preview: ${widget.framingState.previewFovDegrees.toStringAsFixed(1)}° FOV',
-                              style: NightshadeTypography.labelQuiet
-                                  .copyWith(color: widget.colors.info),
-                            ),
-                            Text(
-                              'Configure equipment for accurate framing',
-                              style: NightshadeTypography.overline
-                                  .copyWith(color: widget.colors.textMuted),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
 
               // Zoom controls
               Positioned(
@@ -525,18 +568,6 @@ class _FramingCanvasState extends State<FramingCanvas> {
                 ),
               ),
 
-              // Target info overlay
-              if (widget.framingState.target != null &&
-                  widget.framingState.showLabels)
-                Positioned(
-                  top: 60,
-                  left: 16,
-                  child: FramingTargetInfoOverlay(
-                    colors: widget.colors,
-                    target: widget.framingState.target!,
-                  ),
-                ),
-
               // Error overlay
               if (widget.framingState.imageError != null)
                 Center(
@@ -559,6 +590,67 @@ class _FramingCanvasState extends State<FramingCanvas> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The "no equipment configured" hint card in the canvas's top chrome.
+///
+/// Extracted from an inline `Positioned` so it can take part in the single
+/// top-chrome [Column] instead of being pinned at a literal `top: 60` where a
+/// wrapped toolbar row could end up underneath it.
+class _EquipmentHintCard extends StatelessWidget {
+  final NightshadeColors colors;
+  final double previewFovDegrees;
+
+  const _EquipmentHintCard({
+    required this.colors,
+    required this.previewFovDegrees,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: NightshadeTokens.paddingMd,
+      decoration: BoxDecoration(
+        color:
+            colors.info.withValues(alpha: NightshadeTokens.opacityStatusFill),
+        borderRadius: NightshadeTokens.borderRadiusMd,
+        border: Border.all(
+          color: colors.info.withValues(alpha: NightshadeTokens.opacityHalf),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(NightshadeIcons.visible,
+              size: NightshadeTokens.iconXs, color: colors.info),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          // Flexible so a narrow canvas ellipsizes rather than overflowing.
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Preview: ${previewFovDegrees.toStringAsFixed(1)}° FOV',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.labelQuiet
+                      .copyWith(color: colors.info),
+                ),
+                Text(
+                  'Configure equipment for accurate framing',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.overline
+                      .copyWith(color: colors.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -733,15 +825,32 @@ class _SurveySourceSelector extends StatelessWidget {
             color: colors.textSecondary,
           ),
           const SizedBox(width: NightshadeTokens.spaceXs),
-          NightshadeDropdown(
-            value: source.name,
-            isDense: true,
-            items: SurveySource.values.map((s) => s.name).toList(),
-            itemLabels: SurveySource.values.map((s) => s.displayName).toList(),
-            onChanged: (name) {
-              if (name == null) return;
-              onChanged(SurveySource.values.byName(name));
-            },
+          // A TIGHT width (not just a minimum) for the widest survey label
+          // ('WISE 12μm' / 'DSS2 Blue' / 'SDSS Color') plus the dropdown's own
+          // 12px horizontal padding and its chevron.
+          //
+          // Two things depend on this. First: left to size itself inside the
+          // toolbar's [Wrap], the button was squeezed against the neighbouring
+          // chrome and lost the first character of the selection ('DSS2 Red'
+          // rendered as ')SS2 Red', '2MASS J' as '?MASS J') — the control
+          // misreporting which survey was on screen. Second: `isExpanded` uses
+          // an internal Expanded, which asserts on the unbounded width a Wrap
+          // hands its children, so the box must be tight rather than a
+          // ConstrainedBox(minWidth:).
+          SizedBox(
+            width: 148,
+            child: NightshadeDropdown(
+              value: source.name,
+              isDense: true,
+              isExpanded: true,
+              items: SurveySource.values.map((s) => s.name).toList(),
+              itemLabels:
+                  SurveySource.values.map((s) => s.displayName).toList(),
+              onChanged: (name) {
+                if (name == null) return;
+                onChanged(SurveySource.values.byName(name));
+              },
+            ),
           ),
         ],
       ),

@@ -140,11 +140,17 @@ native/nightshade_native/sequencer/src/executor/mod.rs:2541:            .unwrap_
 native/nightshade_native/sequencer/src/executor/mod.rs:6249:                                                    result.message.unwrap_or_default()
 native/nightshade_native/sequencer/src/executor/mod.rs:6411:                                                result.message.unwrap_or_default()
 native/nightshade_native/sequencer/src/executor/mod.rs:6537:                                                            .unwrap_or_default()
+native/nightshade_native/sequencer/src/executor/mod.rs:7419:        executor.stop().await.ok();
+native/nightshade_native/sequencer/src/executor/mod.rs:7483:        executor.stop().await.ok();
+native/nightshade_native/sequencer/src/executor/mod.rs:7540:        executor.stop().await.ok();
+native/nightshade_native/sequencer/src/executor/mod.rs:7564:        executor.stop().await.ok();
+native/nightshade_native/sequencer/src/executor/mod.rs:7579:        executor.stop().await.ok();
 native/nightshade_native/sequencer/src/instructions.rs:2946:                            .unwrap_or_default(),
 native/nightshade_native/sequencer/src/instructions.rs:3494:                config.filter.as_deref().unwrap_or_default().trim()
 native/nightshade_native/sequencer/src/instructions.rs:8190:        let msg = result.message.unwrap_or_default();
 native/nightshade_native/sequencer/src/instructions.rs:8299:        let msg = result.message.unwrap_or_default();
 native/nightshade_native/sequencer/src/meridian_flip_executor.rs:1033:        ctx.autofocus_config.clone().unwrap_or_default()
+native/nightshade_native/sequencer/src/node/instructions/expose.rs:1157:            .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/instructions/expose.rs:365:                    .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/instructions/science_photometry.rs:572:    states.get(node_id).cloned().unwrap_or_default()
 native/nightshade_native/sequencer/src/node/instructions/smart_exposure.rs:619:    states.get(node_id).cloned().unwrap_or_default()
@@ -155,6 +161,8 @@ native/nightshade_native/sequencer/src/node/progress.rs:541:                    
 native/nightshade_native/sequencer/src/node/progress.rs:640:                    .unwrap_or_default();
 native/nightshade_native/sequencer/src/node/progress.rs:699:                .unwrap_or_default();
 native/nightshade_native/sequencer/src/scheduling/adaptive_swap.rs:418:        self.checked_duration_since(other).unwrap_or_default()
+packages/nightshade_app/lib/screens/analytics/analytics_screen/session_detail_dialog.dart:117:                          // "UnimplementedError: shareXFiles() has not been
+packages/nightshade_app/lib/screens/analytics/analytics_screen/session_detail_dialog.dart:354:  /// `UnimplementedError: shareXFiles() has not been implemented on Linux` in
 packages/nightshade_app/lib/screens/diagnostics/diagnostic_dump_screen.dart:130:      // Android/iOS, so asking for one there threw UnimplementedError and this
 packages/nightshade_app/lib/screens/imaging/tabs/mount_tab.dart:103:    // `canPark` no longer ships a button that hits a "Not implemented"
 packages/nightshade_app/lib/screens/imaging/widgets/annotation_panel.dart:103:/// UnimplementedError), which made both annotation exports dead on a phone. On

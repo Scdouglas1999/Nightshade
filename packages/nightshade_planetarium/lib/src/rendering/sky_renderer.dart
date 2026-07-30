@@ -68,9 +68,6 @@ class SkyCanvasPainter extends CustomPainter {
   /// Current pan delta for parallax effect (pixels)
   final Offset? parallaxPanDelta;
 
-  /// Density hotspots for crowded regions (ra, dec, visibleCount, hiddenCount)
-  final List<(double, double, int, int)> densityHotspots;
-
   /// Set of catalog IDs or object names that have been observed.
   /// When non-empty, a small "observed" indicator is drawn on matching DSOs.
   final Set<String> observedObjectIds;
@@ -78,6 +75,11 @@ class SkyCanvasPainter extends CustomPainter {
   /// Set of catalog IDs or object names that are in user observing lists.
   /// When non-empty, a small bookmark marker is drawn on matching DSOs.
   final Set<String> listedObjectIds;
+
+  /// Set of catalog IDs or object names that are targets of the currently
+  /// loaded sequence. When non-empty, a small marker is drawn on matching DSOs
+  /// so the sky shows what tonight's plan is actually pointed at.
+  final Set<String> sequencedObjectIds;
 
   /// Bortle dark-sky scale (1-9). Controls light pollution dome intensity.
   /// 1 = pristine dark sky, 9 = inner-city.
@@ -87,6 +89,20 @@ class SkyCanvasPainter extends CustomPainter {
   /// each degree of azimuth, or null to use a flat 0 deg horizon.
   /// When provided, the ground plane and obstruction dimming use this profile.
   final List<double>? horizonAltitudes;
+
+  /// Whether to fill the canvas with the opaque twilight gradient before
+  /// drawing the sky.
+  ///
+  /// The base layer normally does, which makes the view opaque — so anything
+  /// composited *beneath* it (the sky-survey imagery layer) would be invisible.
+  /// A host that draws its own sky background underneath passes false here and
+  /// owns the never-blank guarantee: suppress the gradient only while the layer
+  /// underneath is actually covering the canvas.
+  ///
+  /// A real field rather than side-channel state, so [shouldRepaint] can see a
+  /// flip and the host does not have to force the repaint by re-keying its
+  /// `CustomPaint`.
+  final bool paintsOpaqueBackground;
 
   /// Which slice of the scene this painter renders. See [SkyRenderScope].
   /// Defaults to [SkyRenderScope.full] so a standalone painter draws the whole
@@ -108,8 +124,19 @@ class SkyCanvasPainter extends CustomPainter {
   static DateTime? _lstCacheTime;
   static double? _lstCacheLon;
 
-  /// Label layout manager to avoid overlapping labels
+  /// Label layout manager to avoid overlapping labels.
+  ///
+  /// Deliberately per-painter (so occupancy never accumulates across frames);
+  /// cross-*layer* sharing is handled by [_baseLabelRects].
   final LabelLayoutManager _labelManager = LabelLayoutManager();
+
+  /// The label rectangles the base layer placed on its last paint.
+  ///
+  /// The overlay layer seeds its own layout from this so bright-star names do
+  /// not overlap the DSO, planet and grid labels the base layer already drew.
+  /// Static because Flutter recreates the painter for every frame and the two
+  /// layers are separate painter instances.
+  static List<Rect> _baseLabelRects = const [];
 
   /// Per-pose projection cache shared between base and overlay layers.
   ///
@@ -169,12 +196,13 @@ class SkyCanvasPainter extends CustomPainter {
     this.popinAnimationPhase,
     this.dsoPopinAnimationPhase,
     this.parallaxPanDelta,
-    this.densityHotspots = const [],
     this.observedObjectIds = const {},
     this.listedObjectIds = const {},
+    this.sequencedObjectIds = const {},
     this.bortleClass = 5,
     this.horizonAltitudes,
     this.renderScope = SkyRenderScope.full,
+    this.paintsOpaqueBackground = true,
   });
 
   bool get _drawBase =>

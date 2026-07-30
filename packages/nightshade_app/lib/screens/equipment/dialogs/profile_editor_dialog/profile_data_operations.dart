@@ -317,35 +317,69 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
           )
         : null;
 
-    // Collect every non-name field error for the summary; the name gets its
-    // own inline treatment.
-    final fieldErrors = <String>[
-      if (!focalResult.isValid) focalResult.error!,
-      if (!apertureResult.isValid) apertureResult.error!,
+    // Errors that map onto a specific input get inline treatment on that input.
+    final inlineErrors = <String, String>{
+      if (!focalResult.isValid)
+        ProfileEditorField.focalLength: focalResult.error!,
+      if (!apertureResult.isValid)
+        ProfileEditorField.aperture: apertureResult.error!,
+      if (!gainResult.isValid) ProfileEditorField.gain: gainResult.error!,
+      if (!offsetResult.isValid) ProfileEditorField.offset: offsetResult.error!,
+      if (!coolingResult.isValid)
+        ProfileEditorField.coolingTarget: coolingResult.error!,
+      if (!centeringResult.isValid)
+        ProfileEditorField.centeringExposure: centeringResult.error!,
+    };
+
+    // Errors with no single owning input (the focal-length/aperture cross-check,
+    // the binning dropdown, per-filter rows) go in the in-dialog banner.
+    final unattachedErrors = <String>[
       if (trainError != null) trainError,
-      if (!gainResult.isValid) gainResult.error!,
-      if (!offsetResult.isValid) offsetResult.error!,
-      if (!coolingResult.isValid) coolingResult.error!,
-      if (!centeringResult.isValid) centeringResult.error!,
       if (!binningResult.isValid) binningResult.error!,
       if (!filterResult.isValid) ...filterResult.errors,
     ];
 
-    if (!nameResult.isValid || fieldErrors.isNotEmpty) {
+    if (!nameResult.isValid ||
+        inlineErrors.isNotEmpty ||
+        unattachedErrors.isNotEmpty) {
       setState(() {
         _nameError = nameResult.error;
-        // Keep the identity section open so the inline name error is visible.
+        _fieldErrors
+          ..clear()
+          ..addAll(inlineErrors);
+        _formErrors = List<String>.unmodifiable(unattachedErrors);
+        // Open every section that now carries an error so the inline message is
+        // actually on screen. Previously only the name did this, so a bad focal
+        // length inside a collapsed Optical Train section produced no visible
+        // marker at all.
         if (nameResult.error != null) _expandedSections['identity'] = true;
+        if (inlineErrors.containsKey(ProfileEditorField.focalLength) ||
+            inlineErrors.containsKey(ProfileEditorField.aperture) ||
+            trainError != null) {
+          _expandedSections['optical'] = true;
+        }
+        if (inlineErrors.containsKey(ProfileEditorField.gain) ||
+            inlineErrors.containsKey(ProfileEditorField.offset) ||
+            inlineErrors.containsKey(ProfileEditorField.coolingTarget) ||
+            inlineErrors.containsKey(ProfileEditorField.centeringExposure) ||
+            !binningResult.isValid) {
+          _expandedSections['camera'] = true;
+        }
+        if (!filterResult.isValid) _expandedSections['filters'] = true;
       });
-      final summary = <String>[
-        if (nameResult.error != null) nameResult.error!,
-        ...fieldErrors,
-      ].join('\n');
-      context.showErrorSnackBar(summary);
+      // The banner inside the dialog is now the primary surface. The toast is
+      // kept only as a secondary cue for a user whose focus is elsewhere.
+      context.showErrorSnackBar(
+        'Profile not saved — see the highlighted fields.',
+      );
       return null;
     }
 
-    setState(() => _nameError = null);
+    setState(() {
+      _nameError = null;
+      _fieldErrors.clear();
+      _formErrors = const <String>[];
+    });
 
     final focalLength = focalResult.value!;
     final aperture = apertureResult.value!;

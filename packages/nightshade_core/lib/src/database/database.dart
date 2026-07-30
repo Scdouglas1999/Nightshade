@@ -7,7 +7,9 @@ import 'package:path/path.dart' as p;
 
 import '../models/settings/app_settings.dart' show kDefaultAccentColorHex;
 import 'integrity_check.dart' as integrity;
-import 'integrity_check.dart' show DatabaseRecoveryMarker;
+import 'integrity_check.dart'
+    show DatabaseRecoveryMarker, QuarantinedDatabaseCheck;
+import 'single_instance_lock.dart';
 import 'tables/equipment_profiles.dart';
 import 'tables/imaging_sessions.dart';
 import 'tables/targets.dart';
@@ -201,5 +203,23 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   ) async {
     final dbFile = await resolveDefaultDatabaseFile();
     await integrity.acknowledgeRecoveryMarker(dbFile.parent, marker);
+  }
+
+  /// Re-checks a quarantined database so the UI can describe it truthfully.
+  /// Builds before the result-code fix quarantined healthy databases on
+  /// `SQLITE_BUSY`, so "we called it corrupt" is not evidence that it is.
+  static Future<QuarantinedDatabaseCheck> inspectQuarantinedDatabase(
+    String backupPath,
+  ) => integrity.inspectQuarantinedDatabase(backupPath);
+
+  /// Stages a quarantined database to be swapped back in on the next launch.
+  /// Applied by the pre-flight in `_openConnection` before drift opens
+  /// anything; the caller is responsible for telling the user to restart.
+  static Future<String> stageDatabaseRestore(String backupPath) async {
+    final dbFile = await resolveDefaultDatabaseFile();
+    return integrity.stageDatabaseRestore(
+      dbFile: dbFile,
+      backupPath: backupPath,
+    );
   }
 }

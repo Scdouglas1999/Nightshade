@@ -89,129 +89,141 @@ class _AdaptiveExposureSettingsState
     final colors = NightshadeColors.of(context);
     final settingsAsync = ref.watch(appSettingsProvider);
 
+    // Rebuilt on SettingsPage / SettingsSection / SettingRow like every other
+    // leaf (audit 2026-07-29): this page used to return a bare Column, and the
+    // desktop host mounts leaves with no padding of its own, so it rendered
+    // without cards and with its switch sliced off by the window edge.
     return settingsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Text('Could not load adaptive exposure settings.',
-            style: TextStyle(color: colors.error)),
+      loading: () => SettingsLoadingState(isMobile: widget.isMobile),
+      error: (e, _) => SettingsErrorState(
+        isMobile: widget.isMobile,
+        error: e,
+        onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
         final authority = ref.watch(backendProvider);
         final notifier = ref.read(appSettingsProvider.notifier);
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        final enabled = settings.adaptiveExposureEnabled;
+        return SettingsPage(
+          title: 'Adaptive Exposure',
+          description:
+              'Lengthens or shortens each frame automatically when the sky is '
+              'brighter or darker than your reference, so signal-to-noise stays '
+              'roughly constant as conditions change. A capture step that '
+              'carries its own adaptive settings always wins; this page sets the '
+              'default for steps that do not.',
+          isMobile: widget.isMobile,
+          hideHeader: widget.isMobile,
           children: [
-            // Header
-            Row(
+            SettingsSection(
+              title: 'Global default',
+              isMobile: widget.isMobile,
               children: [
-                Icon(LucideIcons.barChart3, size: 18, color: colors.primary),
-                const SizedBox(width: NightshadeTokens.spaceSm),
-                Text(
-                  'Adaptive Exposure (Sky-Brightness)',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
+                SettingRow(
+                  icon: LucideIcons.barChart3,
+                  title: 'Enable global default',
+                  subtitle:
+                      'Apply adaptive exposure to capture steps that have no '
+                      'settings of their own',
+                  trailing: SettingsSwitch(
+                    value: enabled,
+                    onChanged: (v) async {
+                      await notifier.setAdaptiveExposureEnabled(v);
+                    },
                   ),
+                  isMobile: widget.isMobile,
+                  isLast: !enabled,
                 ),
-              ],
-            ),
-            const SizedBox(height: NightshadeTokens.spaceXs),
-            Text(
-              'Dynamically stretches per-frame exposure when the sky is brighter than '
-              'the reference, so SNR stays roughly constant across changing conditions. '
-              'Per-ExposureNode overrides always win at runtime; this page sets the '
-              'default applied to nodes without their own block.',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceLg),
-
-            // Master toggle
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Enable global default',
-                    style: NightshadeTypography.labelStrong
-                        .copyWith(color: colors.textPrimary),
+                // Target SNR control hidden until the native executor honors
+                // target_snr; compute_adaptive_exposure ignores it today.
+                if (enabled) ...[
+                  SettingRow(
+                    icon: LucideIcons.moon,
+                    title: 'Reference sky brightness',
+                    subtitle:
+                        'The darkness your planned exposures were chosen for, '
+                        'in mag/arcsec²',
+                    trailing: SettingsNumberInput(
+                      key: const ValueKey('adaptive-reference-mag'),
+                      controller: _refMagController,
+                      authoritativeValue: settings.adaptiveExposureReferenceMag,
+                      authorityKey: authority,
+                      suffix: 'mag',
+                      min: 14,
+                      max: 24,
+                      decimals: 2,
+                      onChanged: notifier.setAdaptiveExposureReferenceMag,
+                    ),
+                    isMobile: widget.isMobile,
                   ),
-                ),
-                SettingsSwitch(
-                  value: settings.adaptiveExposureEnabled,
-                  onChanged: (v) async {
-                    await notifier.setAdaptiveExposureEnabled(v);
-                  },
-                ),
-              ],
-            ),
-
-            // Conditional knobs
-            if (settings.adaptiveExposureEnabled) ...[
-              const SizedBox(height: NightshadeTokens.spaceLg),
-              // Target SNR control hidden until the native executor honors
-              // target_snr; compute_adaptive_exposure ignores it today.
-              _LabeledNumberField(
-                fieldKey: const ValueKey('adaptive-reference-mag'),
-                label: 'Reference (mag/arcsec²)',
-                controller: _refMagController,
-                authoritativeValue: settings.adaptiveExposureReferenceMag,
-                authorityKey: authority,
-                min: 14,
-                max: 24,
-                decimals: 2,
-                onChanged: notifier.setAdaptiveExposureReferenceMag,
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              Row(
-                children: [
-                  Expanded(
-                    child: _LabeledNumberField(
-                      fieldKey: const ValueKey('adaptive-global-min-secs'),
-                      label: 'Global minimum exposure (s)',
+                  SettingRow(
+                    icon: LucideIcons.arrowDownNarrowWide,
+                    title: 'Shortest exposure',
+                    subtitle: 'Adaptive exposure never goes below this',
+                    trailing: SettingsNumberInput(
+                      key: const ValueKey('adaptive-global-min-secs'),
                       controller: _minSecsController,
                       authoritativeValue: settings.adaptiveExposureMinSecs,
                       authorityKey: authority,
+                      suffix: 's',
                       min: 0.1,
                       max: 86400,
                       decimals: 1,
                       onChanged: (_) => _commitGlobalBounds(notifier),
                     ),
+                    isMobile: widget.isMobile,
                   ),
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  Expanded(
-                    child: _LabeledNumberField(
-                      fieldKey: const ValueKey('adaptive-global-max-secs'),
-                      label: 'Global maximum exposure (s)',
+                  SettingRow(
+                    icon: LucideIcons.arrowUpNarrowWide,
+                    title: 'Longest exposure',
+                    subtitle: 'Adaptive exposure never goes above this',
+                    trailing: SettingsNumberInput(
+                      key: const ValueKey('adaptive-global-max-secs'),
                       controller: _maxSecsController,
                       authoritativeValue: settings.adaptiveExposureMaxSecs,
                       authorityKey: authority,
+                      suffix: 's',
                       min: 0.1,
                       max: 86400,
                       decimals: 1,
                       onChanged: (_) => _commitGlobalBounds(notifier),
                     ),
+                    isMobile: widget.isMobile,
+                    isLast: true,
                   ),
                 ],
-              ),
-              if (_globalBoundsError != null) ...[
-                const SizedBox(height: NightshadeTokens.spaceXs),
-                Text(
+              ],
+            ),
+            if (_globalBoundsError != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(
+                  bottom: NightshadeTokens.spaceLg,
+                ),
+                child: Text(
                   _globalBoundsError!,
                   style: TextStyle(
                     color: colors.error,
                     fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
-              ],
-              const SizedBox(height: NightshadeTokens.spaceLg),
-              _PerFilterEditor(
-                settings: settings,
-                notifier: notifier,
               ),
-              const SizedBox(height: NightshadeTokens.spaceLg),
+            ],
+            if (enabled) ...[
+              SettingsSection(
+                title: 'Per-filter overrides',
+                isMobile: widget.isMobile,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(
+                      widget.isMobile ? 12 : NightshadeTokens.spaceLg,
+                    ),
+                    child: _PerFilterEditor(
+                      settings: settings,
+                      notifier: notifier,
+                    ),
+                  ),
+                ],
+              ),
               Container(
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                 decoration: NightshadeDecorations.tintedBadge(
@@ -226,11 +238,11 @@ class _AdaptiveExposureSettingsState
                     const SizedBox(width: NightshadeTokens.spaceSm),
                     Expanded(
                       child: Text(
-                        'How it works: the Rust executor computes a flux ratio from the '
-                        'reference vs. live sky brightness (Pogson formula) and stretches '
-                        'or shrinks the configured exposure to keep the sky-noise-limited '
-                        'SNR roughly constant. Per-filter overrides are respected; the '
-                        'global min/max clamp prevents runaway exposures.',
+                        'How it works: Nightshade compares the live sky '
+                        'brightness with your reference and scales the planned '
+                        'exposure so the sky-limited signal-to-noise stays about '
+                        'the same. Per-filter overrides are respected, and the '
+                        'shortest/longest limits stop runaway exposures.',
                         style: TextStyle(
                             fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary),
@@ -243,57 +255,6 @@ class _AdaptiveExposureSettingsState
           ],
         );
       },
-    );
-  }
-}
-
-class _LabeledNumberField extends StatelessWidget {
-  const _LabeledNumberField({
-    required this.fieldKey,
-    required this.label,
-    required this.controller,
-    required this.authoritativeValue,
-    required this.authorityKey,
-    required this.min,
-    required this.max,
-    required this.decimals,
-    required this.onChanged,
-  });
-  final Key fieldKey;
-  final String label;
-  final TextEditingController controller;
-  final double authoritativeValue;
-  final Object authorityKey;
-  final double min;
-  final double max;
-  final int decimals;
-  final FutureOr<void> Function(double) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: NightshadeTypography.labelStrongSm
-              .copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: 4),
-        SettingsNumberInput(
-          key: fieldKey,
-          controller: controller,
-          authoritativeValue: authoritativeValue,
-          authorityKey: authorityKey,
-          suffix: '',
-          min: min,
-          max: max,
-          decimals: decimals,
-          onChanged: onChanged,
-          flexible: true,
-        ),
-      ],
     );
   }
 }
@@ -385,17 +346,15 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
     final maxMap = Map<String, double>.from(
         widget.settings.adaptiveExposurePerFilterMaxSecs);
 
+    // The section title lives on the enclosing SettingsSection now, so this
+    // widget renders only its own explanation + rows.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Per-filter overrides',
-          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
-        ),
-        const SizedBox(height: NightshadeTokens.spaceXs),
-        Text(
-          'Empty rows inherit the global enable + clamp. Enable a filter to opt it '
-          'into adaptive exposure; set min/max to override the global clamps.',
+          'A filter left blank follows the settings above. Tick a filter to opt '
+          'it into adaptive exposure, and set its own shortest/longest limits to '
+          'override them.',
           style: TextStyle(
               fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted),

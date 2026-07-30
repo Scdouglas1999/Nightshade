@@ -96,6 +96,11 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
   bool _standaloneOnly = false;
   bool _isExporting = false;
   String? _lastExportResult;
+
+  /// True once an export has included standalone rows that came from the host's
+  /// capped preview window (remote mode only). Drives the truncation note on the
+  /// export result so a row count is never presented as "everything".
+  bool _standaloneWindowed = false;
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
   int _authorityGeneration = 0;
 
@@ -464,7 +469,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                     fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
-                  maxLines: 2,
+                  // Room for the path AND a completeness caveat: a truncated
+                  // "…rows were dropped" note would be worse than none.
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -719,6 +726,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
   Future<void> _exportData(ScienceExportDataset dataType) async {
     final backend = ref.read(backendProvider);
     final generation = ++_authorityGeneration;
+    _standaloneWindowed = false;
     setState(() {
       _isExporting = true;
       _lastExportResult = null;
@@ -829,7 +837,12 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       if (!_isCurrentAuthority(backend, generation) || !mounted) return;
       setState(() {
         _isExporting = false;
-        _lastExportResult = 'Exported ${rows.length - 1} rows to $filePath';
+        _lastExportResult = 'Exported ${rows.length - 1} rows to $filePath'
+            // Never let a row count imply completeness it does not have.
+            '${_standaloneWindowed ? '\nNote: standalone rows came from the '
+                'imaging host\'s recent-data window, so older standalone '
+                'measurements may not be included. Export on the host for the '
+                'complete set.' : ''}';
       });
       // On mobile the export lives in the app sandbox; share it so it's
       // actually retrievable instead of naming an unreachable path.
@@ -933,6 +946,24 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     return true;
   }
 
+  /// Standalone (session-less) rows for an export.
+  ///
+  /// Reads the `sessionless*ExportProvider` family, which returns the COMPLETE
+  /// dataset locally — the CSV builders used to read the `sessionless*Provider`
+  /// UI preview feeds, whose row caps (200 photometry / 50 frame-quality / 500
+  /// PSF tiles …) silently dropped a large fraction of the user's science data
+  /// while the confirmation reported the truncated count as the export size.
+  /// In remote mode the rows still arrive in the host's windowed science bundle,
+  /// so that case is flagged for the UI to disclose.
+  Future<List<T>> _standaloneRows<T>(
+    ProviderListenable<Future<List<T>>> export,
+  ) {
+    if (ref.read(backendProvider) is NetworkBackend) {
+      _standaloneWindowed = true;
+    }
+    return ref.read(export);
+  }
+
   Future<List<List<dynamic>>> _buildPhotometryRows(
     List<int> sessionIds, {
     required bool includeStandalone,
@@ -956,7 +987,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
 
     final datasets = <List<PhotometryMeasurementRow>>[];
     if (includeStandalone) {
-      datasets.add(await ref.read(sessionlessPhotometryProvider.future));
+      datasets.add(
+        await _standaloneRows(sessionlessPhotometryExportProvider.future),
+      );
     }
     for (final sessionId in sessionIds) {
       datasets.add(
@@ -1015,7 +1048,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     final datasets = <List<ScienceFrameQualityMetricsRow>>[];
     if (includeStandalone) {
       datasets.add(
-        await ref.read(sessionlessFrameQualityMetricsProvider.future),
+        await _standaloneRows(
+          sessionlessFrameQualityMetricsExportProvider.future,
+        ),
       );
     }
     for (final sessionId in sessionIds) {
@@ -1070,7 +1105,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     final datasets = <List<TransparencySampleRow>>[];
     if (includeStandalone) {
       datasets.add(
-        await ref.read(sessionlessTransparencySamplesProvider.future),
+        await _standaloneRows(
+          sessionlessTransparencySamplesExportProvider.future,
+        ),
       );
     }
     for (final sessionId in sessionIds) {
@@ -1116,7 +1153,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
 
     final datasets = <List<PsfFieldTileRow>>[];
     if (includeStandalone) {
-      datasets.add(await ref.read(sessionlessPsfTilesProvider.future));
+      datasets.add(
+        await _standaloneRows(sessionlessPsfTilesExportProvider.future),
+      );
     }
     for (final sessionId in sessionIds) {
       datasets.add(await ref.read(sessionPsfTilesProvider(sessionId).future));
@@ -1161,7 +1200,11 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
 
     final datasets = <List<AstrometryResidualVectorRow>>[];
     if (includeStandalone) {
-      datasets.add(await ref.read(sessionlessResidualVectorsProvider.future));
+      datasets.add(
+        await _standaloneRows(
+          sessionlessResidualVectorsExportProvider.future,
+        ),
+      );
     }
     for (final sessionId in sessionIds) {
       datasets.add(
@@ -1209,7 +1252,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
 
     final datasets = <List<FramePhotometricCalibrationRow>>[];
     if (includeStandalone) {
-      datasets.add(await ref.read(sessionlessCalibrationsProvider.future));
+      datasets.add(
+        await _standaloneRows(sessionlessCalibrationsExportProvider.future),
+      );
     }
     for (final sessionId in sessionIds) {
       datasets.add(
@@ -1261,7 +1306,9 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     final datasets = <List<MovingObjectCandidateRow>>[];
     if (includeStandalone) {
       datasets.add(
-        await ref.read(sessionlessMovingObjectCandidatesProvider.future),
+        await _standaloneRows(
+          sessionlessMovingObjectCandidatesExportProvider.future,
+        ),
       );
     }
     for (final sessionId in sessionIds) {

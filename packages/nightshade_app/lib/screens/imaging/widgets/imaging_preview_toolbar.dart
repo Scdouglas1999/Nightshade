@@ -10,6 +10,7 @@ import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart' show annotationPanelVisibleProvider;
 import 'custom_annotation_drawing.dart'
     show customAnnotationDrawModeActiveProvider, toggleAnnotationDrawPalette;
+import 'live_preview_area.dart' show previewReadoutsVisibleProvider;
 import 'overlay_widgets.dart';
 
 /// Slim, off-canvas toolbar that sits *above* the live preview image rather
@@ -287,6 +288,7 @@ class OverlaysMenuButton extends ConsumerWidget {
     final catalogEnabled = ref.watch(catalogOverlayEnabledProvider);
     final scienceMode = ref.watch(scienceModeStateProvider);
     final scienceHudVisible = scienceMode.scienceHudVisible;
+    final readoutsVisible = ref.watch(previewReadoutsVisibleProvider);
 
     final anyOverlayActive = showCrosshair ||
         gridType != GridType.none ||
@@ -372,6 +374,20 @@ class OverlaysMenuButton extends ConsumerWidget {
                 scienceMode.copyWith(
               scienceHudVisible: !scienceHudVisible,
             ),
+          ),
+          // The measurement readouts used to vanish on a 2.5 s idle timer, so
+          // the numbers you check every frame were hidden whenever you weren't
+          // moving the mouse. They are now explicit and default on; this row is
+          // how you get the clean-frame view back.
+          _overlayItem(
+            value: 6,
+            icon: NightshadeIcons.activity,
+            label: 'Readouts',
+            subtitle: 'Histogram, HFR / stars, image stats',
+            active: readoutsVisible,
+            onTap: () => ref
+                .read(previewReadoutsVisibleProvider.notifier)
+                .state = !readoutsVisible,
           ),
         ];
       },

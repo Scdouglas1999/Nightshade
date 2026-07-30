@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/utils/confirm_dialog.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -78,6 +81,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   bool _saving = false;
   bool _transitioning = false;
+
+  /// True while the "Leave setup?" confirmation is on screen, so a repeated
+  /// back gesture cannot stack a second copy of it.
+  bool _leavePromptOpen = false;
 
   /// The current inline notice, or null when there is nothing to say.
   _WizardNotice? _notice;
@@ -259,6 +266,51 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return result ?? false;
   }
 
+  /// Android system back / desktop Escape, routed to the wizard's own back
+  /// affordance.
+  ///
+  /// This route is presented ABOVE the app shell, so the shell's back
+  /// dispatcher never sees it and there is nothing beneath it to pop — an
+  /// unhandled gesture finished the activity and dropped a first-run user on
+  /// the launcher from step 2 of 13. The wizard already renders a Back button
+  /// whenever a previous step exists; back means that. Where it does not (the
+  /// welcome step, and the terminal step whose profile is already created),
+  /// leaving is a decision the user makes rather than one a stray edge swipe
+  /// makes for them.
+  Future<void> _handleSystemBack() async {
+    if (_saving || _transitioning || _leavePromptOpen) return;
+    if (!ref.read(onboardingDraftProvider.notifier).isLoaded) return;
+
+    final step = ref.read(onboardingDraftProvider).currentStep;
+    if (step != OnboardingStep.welcome && step != OnboardingStep.nextSteps) {
+      await _onBack();
+      return;
+    }
+
+    _leavePromptOpen = true;
+    try {
+      final leave = await ConfirmDialog.show(
+        context: context,
+        title: 'Leave setup?',
+        message: step == OnboardingStep.nextSteps
+            ? 'Your equipment profile is saved. You can revisit these next '
+                'steps any time from Equipment.'
+            : 'Your progress is kept — you can pick setup back up from the '
+                'Equipment screen whenever you like.',
+        confirmLabel: 'Leave setup',
+        cancelLabel: 'Keep setting up',
+      );
+      if (!mounted || !leave) return;
+      if (step == OnboardingStep.nextSteps) {
+        await _finishTo('/dashboard');
+      } else {
+        await _onExitWizard();
+      }
+    } finally {
+      if (mounted) _leavePromptOpen = false;
+    }
+  }
+
   Future<void> _onExitWizard() => _runTransition(_exitWizard);
 
   Future<void> _exitWizard() async {
@@ -416,14 +468,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // coordinate would leave the site step's notice stranded on screen.
     ref.watch(onboardingSiteEntryErrorProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: notifier.isLoaded
-            ? _buildWizard(context, theme, colors, draft)
-            : Center(
-                child: CircularProgressIndicator(color: colors.primary),
-              ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_handleSystemBack());
+      },
+      child: Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: notifier.isLoaded
+              ? _buildWizard(context, theme, colors, draft)
+              : Center(
+                  child: CircularProgressIndicator(color: colors.primary),
+                ),
+        ),
       ),
     );
   }

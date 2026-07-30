@@ -160,7 +160,9 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     required double windowSecs,
   }) {
     final hours = (windowSecs / 3600).toStringAsFixed(1);
-    final filters = filterPlans.map((p) => p.filterName).join('+');
+    final filters = filterPlans
+        .map((p) => smartNightFilterLabel(p.filterName))
+        .join('+');
     final integrationHours =
         (filterPlans.fold<double>(0, (s, p) => s + p.integrationSecs) / 3600)
             .toStringAsFixed(1);
@@ -544,7 +546,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
           title: 'Automated flats skipped — no calibrated exposures',
           message:
               'Smart Night will not shoot blind flats. Run the Flat Wizard '
-              'once for ${uncalibrated.isEmpty ? "your filters" : uncalibrated.join(", ")} '
+              'once for ${uncalibrated.isEmpty ? "your filters" : uncalibrated.map(smartNightFilterLabel).join(", ")} '
               'so the ADU-targeted exposure + panel brightness are learned; '
               'after that, Smart Night will reuse them automatically.',
           level: NotificationLevel.warning,
@@ -603,25 +605,28 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       final exposures = byBrightness[brightness]!
         ..sort((a, b) => a.filterName.compareTo(b.filterName));
       for (final exposure in exposures) {
-        flatChildren.add(
-          FilterChangeNode(
-            id: SmartNightService._uuid.v4(),
-            name: 'Change filter → ${exposure.filterName}',
-            filterName: exposure.filterName,
-            parentId: flatGroupId,
-          ),
-        );
+        final unfiltered = exposure.filterName.trim().isEmpty;
+        if (!unfiltered) {
+          flatChildren.add(
+            FilterChangeNode(
+              id: SmartNightService._uuid.v4(),
+              name: 'Change filter → ${exposure.filterName}',
+              filterName: exposure.filterName,
+              parentId: flatGroupId,
+            ),
+          );
+        }
         flatChildren.add(
           ExposureNode(
             id: SmartNightService._uuid.v4(),
             name:
-                'Flats — ${exposure.filterName} '
+                'Flats — ${smartNightFilterLabel(exposure.filterName)} '
                 '(${exposure.exposureSecs.toStringAsFixed(2)}s @ '
                 '${exposure.histogramTargetPercent.toStringAsFixed(0)}% hist)',
             durationSecs: exposure.exposureSecs,
             count: settings.flatCountPerFilter,
             frameType: FrameType.flat,
-            filter: exposure.filterName,
+            filter: unfiltered ? null : exposure.filterName,
             gain: profile.defaultGain,
             offset: profile.defaultOffset,
             ditherEvery: 0, // no dither for flats
@@ -667,9 +672,9 @@ extension _SmartNightSequenceEmitter on SmartNightService {
           title: 'Some filters have no calibrated flat exposure',
           message:
               'Flats were captured for '
-              '${calibrated.keys.where((f) => !uncalibrated.contains(f)).join(", ")}. '
+              '${calibrated.keys.where((f) => !uncalibrated.contains(f)).map(smartNightFilterLabel).join(", ")}. '
               'No ADU-calibrated panel exposure exists for: '
-              '${uncalibrated.toSet().join(", ")}. Run the Flat Wizard '
+              '${uncalibrated.toSet().map(smartNightFilterLabel).join(", ")}. Run the Flat Wizard '
               'once for these filters so Smart Night can reuse the exposures.',
           level: NotificationLevel.warning,
           explicitTransports: const [NotificationTransportKind.inApp],
@@ -746,14 +751,25 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       );
     }
 
-    // 5. Smart Exposure — the heart of the night
-    final smartExposure = _emitSmartExposure(
-      planned: planned,
-      settings: settings,
-      context: context,
-      parentId: headerId,
+    // 5. The capture block — the heart of the night. A rig with no filter
+    //    wheel gets a plain ExposureNode: SmartExposure exists to rotate
+    //    filters, and emitting one would put a ChangeFilter instruction (and
+    //    a filter-wheel requirement) into a sequence that has no wheel to
+    //    drive.
+    children.add(
+      planned.isUnfiltered
+          ? _emitUnfilteredExposure(
+              planned: planned,
+              settings: settings,
+              parentId: headerId,
+            )
+          : _emitSmartExposure(
+              planned: planned,
+              settings: settings,
+              context: context,
+              parentId: headerId,
+            ),
     );
-    children.add(smartExposure);
 
     // 6. Optional meridian flip recovery — only inject when the target
     // crosses the meridian during its imaging window. The executor's
@@ -846,6 +862,30 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       ditherOnFilterChange: false,
       integrationBudgetSecs: planned.integrationSecs,
       batchSize: 1,
+      parentId: parentId,
+    );
+  }
+
+  /// Build the capture block for a rig with no filter wheel.
+  ///
+  /// `filter` and `filterIndex` are left null so the executor takes the
+  /// frames with whatever is in the light path and never asks a wheel that
+  /// isn't there to move — the same contract manual capture uses.
+  ExposureNode _emitUnfilteredExposure({
+    required SmartNightPlannedTarget planned,
+    required SmartNightSettings settings,
+    required String parentId,
+  }) {
+    final plan = planned.filterPlans.single;
+    return ExposureNode(
+      id: SmartNightService._uuid.v4(),
+      name:
+          'Exposures — ${plan.count} × '
+          '${plan.durationSecs.toStringAsFixed(0)}s (no filter)',
+      durationSecs: plan.durationSecs,
+      count: plan.count,
+      frameType: FrameType.light,
+      ditherEvery: settings.ditherEveryFrames,
       parentId: parentId,
     );
   }

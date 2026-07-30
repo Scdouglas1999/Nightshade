@@ -799,6 +799,124 @@ fn tree_contains_centering(node: &dyn Node) -> bool {
         .any(|child| tree_contains_centering(&**child))
 }
 
+/// True when some node in the tree captures frames it must persist through the
+/// run's base save path. A `TakeExposure` carrying an absolute `save_to` names
+/// its own complete destination, so it does not depend on the base path.
+fn tree_needs_base_save_path(node: &dyn Node) -> bool {
+    let needs_here = match node.node_type() {
+        NodeType::TakeExposure(config) => !config
+            .save_to
+            .as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .is_some_and(|t| std::path::Path::new(t).is_absolute()),
+        NodeType::SmartExposure(_) => true,
+        _ => false,
+    };
+    needs_here
+        || node
+            .children()
+            .iter()
+            .any(|child| tree_needs_base_save_path(&**child))
+}
+
+/// Collect every instruction in the tree that the executor can never reach,
+/// as `"<name>"` labels in tree order.
+///
+/// A node parented under a LEAF instruction is stored and drawn but never
+/// executed: the leaf's instruction returns a status and the tree walk stops
+/// there. Run 70 of the 6.0.0 sweep was exactly this — `Target → Unpark →
+/// SlewToTarget → TakeExposure` nested one inside the next, so the executor
+/// ran `Unpark`, returned Success, and reported the run `completed` with 0
+/// frames and an empty `errorMessages` while the header still advertised
+/// "3 frames".
+fn unreachable_instructions(node: &dyn Node, out: &mut Vec<String>) {
+    let reachable_children = node.node_type().accepts_children();
+    for child in node.children() {
+        if reachable_children {
+            unreachable_instructions(&**child, out);
+        } else {
+            collect_subtree_names(&**child, out);
+        }
+    }
+}
+
+fn collect_subtree_names(node: &dyn Node, out: &mut Vec<String>) {
+    out.push(node.name().to_string());
+    for child in node.children() {
+        collect_subtree_names(&**child, out);
+    }
+}
+
+/// Drain `rx` and return the reason from the most recent
+/// [`ExecutorEvent::InstructionFailed`], formatted for the operator.
+///
+/// Non-blocking by construction: the events were all sent before the node tree
+/// returned, so they are already buffered. `Lagged` is skipped rather than
+/// treated as end-of-stream — we want the newest reason, and lagging only ever
+/// discards older ones.
+pub(crate) fn last_instruction_failure(
+    rx: &mut broadcast::Receiver<ExecutorEvent>,
+) -> Option<String> {
+    let mut reason = None;
+    loop {
+        match rx.try_recv() {
+            Ok(ExecutorEvent::InstructionFailed { node_name, message }) => {
+                reason = Some(format!("{}: {}", node_name, message));
+            }
+            Ok(_) => {}
+            Err(broadcast::error::TryRecvError::Lagged(_)) => {}
+            Err(_) => return reason,
+        }
+    }
+}
+
+/// Operator-facing sentence naming the instructions a run could not reach.
+fn unreachable_instructions_message(names: &[String]) -> String {
+    format!(
+        "{} instruction(s) in this sequence are attached to an instruction that cannot \
+         hold children, so the executor never reaches them: {}. Move them so they sit \
+         beside that instruction rather than inside it.",
+        names.len(),
+        names.join(", ")
+    )
+}
+
+/// Confirm the run can actually keep the frames it is about to capture.
+///
+/// A missing or unwritable save path used to be discovered one frame at a time
+/// and only in the log: the burst "succeeded", the run reported 100%, and
+/// nothing reached disk. Fail here instead, before the mount moves.
+fn validate_capture_save_path(save_path: Option<&std::path::Path>) -> Result<(), String> {
+    let Some(path) = save_path.filter(|p| !p.as_os_str().is_empty()) else {
+        return Err(
+            "This sequence captures frames but no image save path is configured. Set the \
+             sequencer save path before starting — every frame would otherwise be captured \
+             and discarded."
+                .to_string(),
+        );
+    };
+
+    if let Err(e) = std::fs::create_dir_all(path) {
+        return Err(format!(
+            "The image save path `{}` cannot be created: {e}. Choose a save path this machine \
+             can write to before starting.",
+            path.display()
+        ));
+    }
+
+    let probe = path.join(format!(".nightshade-write-probe-{}", uuid::Uuid::new_v4()));
+    if let Err(e) = std::fs::write(&probe, b"") {
+        return Err(format!(
+            "The image save path `{}` is not writable: {e}. Choose a save path this machine \
+             can write to before starting.",
+            path.display()
+        ));
+    }
+    let _ = std::fs::remove_file(&probe);
+    Ok(())
+}
+
 /// Commands that can be sent to the executor
 #[derive(Debug, Clone)]
 pub enum ExecutorCommand {
@@ -1240,6 +1358,20 @@ pub enum ExecutorEvent {
     SequenceCompleted,
     SequenceFailed {
         error: String,
+    },
+    /// An instruction returned `Failure` and this is the reason it gave.
+    ///
+    /// The reason used to exist only in the log: a run killed by the daylight
+    /// gate carried "Daylight gate: refusing light-frame exposure — Sun
+    /// altitude 66.9° is above the maximum -12.0°" in its log while the toast,
+    /// the Session Report Errors section and the persisted
+    /// `stats_json.errorMessages` all said only "Sequence failed". The
+    /// executor consumes this to fill [`SequenceFailed::error`], and the
+    /// bridge surfaces it as a mid-run error so the operator reads the real
+    /// cause at the moment it happens.
+    InstructionFailed {
+        node_name: String,
+        message: String,
     },
     /// the executor has reached a `NodeType::PluginNode`
     /// and is waiting for the Dart side to run the plugin and reply with
@@ -2320,6 +2452,33 @@ impl SequenceExecutor {
              This ensures all device operations use real hardware instead of silently doing nothing."
                 .to_string()
         })?;
+
+        // Save-path preflight. A capture sequence with nowhere to write is not a
+        // run, it is a night thrown away — refuse it here rather than letting
+        // every frame reach the "captured but NOT SAVED" branch.
+        if self
+            .root_node
+            .as_ref()
+            .is_some_and(|root| tree_needs_base_save_path(&**root))
+        {
+            validate_capture_save_path(self.save_path.as_deref())?;
+        }
+
+        // Unreachable-instruction preflight. Detected before the mount moves so
+        // the operator learns the sequence is mis-shaped at Start instead of
+        // reading `completed` over a run that skipped most of its work.
+        let unreachable_instruction_names = {
+            let mut names = Vec::new();
+            if let Some(root) = self.root_node.as_ref() {
+                unreachable_instructions(&**root, &mut names);
+            }
+            names
+        };
+        if !unreachable_instruction_names.is_empty() {
+            let message = unreachable_instructions_message(&unreachable_instruction_names);
+            tracing::error!("{}", message);
+            let _ = self.event_tx.send(ExecutorEvent::Error { message });
+        }
 
         // Plate-solve preflight. If the sequence centers on a target it needs a
         // working solver, and ASTAP additionally needs a star catalog — ASTAP
@@ -3951,6 +4110,13 @@ impl SequenceExecutor {
                 // a ParkAndAbort sweep is active. This prevents the outer
                 // select! from choosing completed execution and dropping the
                 // trigger monitor halfway through the hardware-safe-state work.
+                // Subscribed BEFORE the tree runs so every
+                // `InstructionFailed` a failing run emits is still in the
+                // broadcast buffer when the terminal handler drains it below.
+                // A drain (rather than a listener task) is what makes it
+                // race-free: the event is sent before `execute()` returns, so
+                // it is queued by the time we look.
+                let mut instruction_failure_rx = event_tx.subscribe();
                 let park_and_abort_for_execution = park_and_abort_in_progress.clone();
                 let mut park_and_abort_done_rx = park_and_abort_done_rx;
                 let mut park_and_abort_done_for_checkpoint = park_and_abort_done_rx.clone();
@@ -6847,6 +7013,32 @@ impl SequenceExecutor {
                     result
                 };
 
+                // A tree that walked to the end but contains instructions the
+                // executor structurally cannot reach did NOT do what the
+                // sequence says it does. Reporting `completed` there is the
+                // same silent-data-loss class as the failed-flip coercion
+                // above: the operator sees a green Completed badge over a run
+                // that skipped most of its work.
+                let mut unreachable_failure_reason: Option<String> = None;
+                let result = if !unreachable_instruction_names.is_empty()
+                    && matches!(result, NodeStatus::Success | NodeStatus::Skipped)
+                {
+                    let message = unreachable_instructions_message(&unreachable_instruction_names);
+                    tracing::error!(
+                        "Sequence finished with {:?} but never executed part of its tree; \
+                         recording the run as a failure. {}",
+                        result,
+                        message
+                    );
+                    let _ = event_tx.send(ExecutorEvent::Error {
+                        message: message.clone(),
+                    });
+                    unreachable_failure_reason = Some(message);
+                    NodeStatus::Failure
+                } else {
+                    result
+                };
+
                 let final_state = executor_state_for_result(result);
 
                 *state.write().await = final_state;
@@ -6897,8 +7089,17 @@ impl SequenceExecutor {
                         );
                     }
                     NodeStatus::Failure => {
+                        // "Sequence failed" told the operator nothing: the run
+                        // that died on the daylight gate carried the real
+                        // reason in its log while the toast, the Session
+                        // Report and the persisted `errorMessages` all showed
+                        // the placeholder. Prefer the structural reason, then
+                        // the last instruction that actually reported one.
+                        let error = unreachable_failure_reason
+                            .or_else(|| last_instruction_failure(&mut instruction_failure_rx))
+                            .unwrap_or_else(|| "Sequence failed".to_string());
                         let _ = event_tx.send(ExecutorEvent::SequenceFailed {
-                            error: "Sequence failed".into(),
+                            error: error.clone(),
                         });
                         emit_lifecycle_decision(
                             &decision_tx_for_lifecycle,
@@ -6907,6 +7108,7 @@ impl SequenceExecutor {
                             "failed",
                             serde_json::json!({
                                 "elapsed_secs": start_time.elapsed().as_secs_f64(),
+                                "error": error,
                             }),
                         );
                     }
@@ -7094,6 +7296,289 @@ mod tests {
             result.err()
         );
         assert!(executor.sequence.is_some());
+    }
+
+    fn single_exposure_sequence(save_to: Option<String>) -> SequenceDefinition {
+        let mut sequence = SequenceDefinition::new("Capture".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "root".to_string(),
+            name: "Root".to_string(),
+            node_type: crate::NodeType::TakeExposure(crate::ExposureConfig {
+                count: 1,
+                duration_secs: 0.01,
+                frame_type: "dark".to_string(),
+                save_to,
+                ..Default::default()
+            }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("root".to_string());
+        sequence
+    }
+
+    /// Reproduce run 70's stored tree: the builder nested each newly added
+    /// instruction inside the previous one while drawing them as a flat list,
+    /// so `Target -> Unpark -> SlewToTarget -> TakeExposure` all sat on one
+    /// spine. `Unpark` is a leaf, so the executor ran it, returned Success and
+    /// never descended.
+    fn nested_leaf_chain_sequence() -> SequenceDefinition {
+        let mut sequence = SequenceDefinition::new("New Sequence".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "target".to_string(),
+            name: "Target".to_string(),
+            node_type: crate::NodeType::TargetHeader(crate::TargetHeaderConfig::default()),
+            enabled: true,
+            children: vec!["unpark".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "unpark".to_string(),
+            name: "Unpark Mount".to_string(),
+            node_type: crate::NodeType::Unpark,
+            enabled: true,
+            children: vec!["slew".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "slew".to_string(),
+            name: "Slew to Target".to_string(),
+            node_type: crate::NodeType::SlewToTarget(crate::SlewConfig::default()),
+            enabled: true,
+            children: vec!["expose".to_string()],
+        });
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "expose".to_string(),
+            name: "Take Exposures".to_string(),
+            node_type: crate::NodeType::TakeExposure(crate::ExposureConfig {
+                count: 3,
+                duration_secs: 0.01,
+                frame_type: "dark".to_string(),
+                ..Default::default()
+            }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("target".to_string());
+        sequence
+    }
+
+    #[test]
+    fn instructions_parented_under_a_leaf_are_reported_as_unreachable() {
+        let mut executor = SequenceExecutor::new();
+        executor
+            .load_sequence(nested_leaf_chain_sequence())
+            .expect("sequence loads");
+        let mut names = Vec::new();
+        unreachable_instructions(&**executor.root_node.as_ref().expect("root"), &mut names);
+        assert_eq!(
+            names,
+            vec!["Slew to Target".to_string(), "Take Exposures".to_string()],
+            "everything below the Unpark leaf is stored, drawn and never executed"
+        );
+    }
+
+    /// P0 DATA LOSS regression. Run 70 walked one instruction of four and the
+    /// Session Report still showed "New Sequence - completed", a green
+    /// Completed badge, 0 frames and `errorMessages: []` while the header chip
+    /// read "3 frames".
+    ///
+    /// Pre-fix this test sees `ExecutorState::Completed`.
+    #[tokio::test]
+    async fn a_run_that_never_reaches_part_of_its_tree_does_not_report_completed() {
+        let dir = std::env::temp_dir().join(format!("ns-unreachable-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor.set_devices(
+            Some("camera-1".to_string()),
+            Some("mount-1".to_string()),
+            None,
+            None,
+            None,
+        );
+        executor.set_save_path(Some(dir.clone()));
+        executor
+            .load_sequence(nested_leaf_chain_sequence())
+            .expect("sequence loads");
+        let mut events = executor.subscribe();
+
+        executor.start().await.expect("run starts");
+
+        let mut final_state = None;
+        for _ in 0..200 {
+            let state = executor.get_state().await;
+            if matches!(
+                state,
+                ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+            ) {
+                final_state = Some(state);
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert_eq!(
+            final_state,
+            Some(ExecutorState::Failed),
+            "a run that skipped most of its instructions must not report completed"
+        );
+
+        let mut failure_reason = None;
+        while let Ok(event) = events.try_recv() {
+            if let ExecutorEvent::SequenceFailed { error } = event {
+                failure_reason = Some(error);
+            }
+        }
+        let reason = failure_reason.expect("the run must publish a terminal failure reason");
+        assert!(
+            reason.contains("Slew to Target") && reason.contains("Take Exposures"),
+            "the failure must name the instructions that never executed; got: {reason}"
+        );
+    }
+
+    /// P1 regression. `SequenceFailed` was hardcoded to "Sequence failed", so
+    /// a run killed by the daylight gate carried "Daylight gate: refusing
+    /// light-frame exposure — Sun altitude 66.9° is above the maximum -12.0°"
+    /// in its log while the toast, the Session Report Errors section and the
+    /// persisted `stats_json.errorMessages` all read only ["Sequence failed"].
+    ///
+    /// Pre-fix this test sees exactly "Sequence failed".
+    #[tokio::test]
+    async fn a_failed_run_reports_the_reason_the_instruction_gave() {
+        // A misconfigured script fails immediately with a specific, quotable
+        // reason and touches no device — the point is the wire, not the
+        // instruction.
+        let mut sequence = SequenceDefinition::new("Misconfigured script".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "script".to_string(),
+            name: "Run Script".to_string(),
+            node_type: crate::NodeType::RunScript(crate::ScriptConfig {
+                script_path: "/nonexistent/nightshade-test-script".to_string(),
+                timeout_secs: Some(0),
+                ..Default::default()
+            }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("script".to_string());
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor.load_sequence(sequence).expect("sequence loads");
+        let mut events = executor.subscribe();
+
+        executor.start().await.expect("run starts");
+
+        for _ in 0..200 {
+            if matches!(
+                executor.get_state().await,
+                ExecutorState::Completed | ExecutorState::Failed | ExecutorState::Cancelled
+            ) {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        executor.stop().await.ok();
+
+        let mut failure_reason = None;
+        while let Ok(event) = events.try_recv() {
+            if let ExecutorEvent::SequenceFailed { error } = event {
+                failure_reason = Some(error);
+            }
+        }
+        let reason = failure_reason.expect("a failed run must publish a terminal failure reason");
+        assert!(
+            reason.contains("timeout_secs must be greater than zero"),
+            "the terminal event must carry the instruction's real reason, not a \
+             placeholder; got: {reason}"
+        );
+    }
+
+    #[test]
+    fn last_instruction_failure_prefers_the_most_recent_reason() {
+        let (tx, mut rx) = broadcast::channel(16);
+        let _ = tx.send(ExecutorEvent::Error {
+            message: "an earlier, benign warning".to_string(),
+        });
+        let _ = tx.send(ExecutorEvent::InstructionFailed {
+            node_name: "Take Exposures".to_string(),
+            message: "Daylight gate: refusing light-frame exposure".to_string(),
+        });
+        let reason = last_instruction_failure(&mut rx).expect("a reason was published");
+        assert_eq!(
+            reason,
+            "Take Exposures: Daylight gate: refusing light-frame exposure"
+        );
+        assert_eq!(
+            last_instruction_failure(&mut rx),
+            None,
+            "a run with no instruction failure must not invent one"
+        );
+    }
+
+    /// D2: a run that captures frames with no save path configured used to
+    /// start, report 100% complete and write nothing. Refuse it at the door.
+    #[tokio::test]
+    async fn start_refuses_a_capture_sequence_with_no_save_path() {
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_exposure_sequence(None))
+            .expect("sequence loads");
+        executor.set_save_path(None);
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("a capture run with nowhere to write must be refused");
+        assert!(
+            error.contains("save"),
+            "the refusal must name the save path; got: {error}"
+        );
+        executor.stop().await.ok();
+    }
+
+    /// D2b's sibling at the executor: a configured-but-unwritable directory is
+    /// just as fatal as no directory at all, and must be caught before the run.
+    #[tokio::test]
+    async fn start_refuses_a_save_path_that_cannot_be_written() {
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_exposure_sequence(None))
+            .expect("sequence loads");
+        executor.set_save_path(Some(std::path::PathBuf::from(
+            "/proc/nightshade-cannot-write",
+        )));
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("an uncreatable save directory must be refused");
+        assert!(
+            error.contains("save"),
+            "the refusal must name the save path; got: {error}"
+        );
+        executor.stop().await.ok();
+    }
+
+    /// The gate must not fire when there is a real destination.
+    #[tokio::test]
+    async fn start_accepts_a_capture_sequence_with_a_writable_save_path() {
+        let dir = std::env::temp_dir().join(format!("ns-start-gate-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_exposure_sequence(None))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(result.is_ok(), "unexpected refusal: {:?}", result.err());
     }
 
     #[test]

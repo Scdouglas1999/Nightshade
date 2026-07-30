@@ -1132,7 +1132,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
                 frameType: 'FLAT',
                 filter: filterSetting.filterName,
                 exposureTime: calibration.exposure,
-                captureTimestamp: captureTime.toIso8601String(),
+                captureTimestamp: captureTime.toUtc().toIso8601String(),
                 gain: config.gain,
                 offset: config.offset,
                 binX: config.binX,

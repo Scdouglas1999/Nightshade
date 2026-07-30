@@ -315,6 +315,28 @@ void main() {
       expect(operationForCompletionEvent(''), isNull);
     });
 
+    test('the sequencer lifecycle names a host really emits resolve', () {
+      // The FFI event mapper emits BARE lifecycle names — see
+      // `nightshade_core/lib/src/backend/ffi_backend/event_mapping.dart`
+      // (`return ('Started', ...)`, `('Stopped', {})`, `('Completed', {})`) —
+      // and only the terminal failure is prefixed. The table used to list only
+      // the prefixed spellings, so no sequencer command was ever stamped with
+      // its correlatingCommandId despite /api/docs advertising it.
+      expect(operationForCompletionEvent('Started'), 'sequencer.start');
+      expect(operationForCompletionEvent('Completed'), 'sequencer.start');
+      expect(operationForCompletionEvent('SequenceFailed'), 'sequencer.start');
+      expect(operationForCompletionEvent('Stopped'), 'sequencer.stop');
+    });
+
+    test('guiding-ambiguous bare names are deliberately not claimed', () {
+      // `Paused` / `Resumed` are emitted by the guiding subsystem too, and
+      // resolution is by eventType alone, so claiming them would let a guider
+      // pause satisfy a pending sequencer.pause — a wrong "your command
+      // completed" is worse than no correlation at all.
+      expect(operationForCompletionEvent('Paused'), isNull);
+      expect(operationForCompletionEvent('Resumed'), isNull);
+    });
+
     test('every key in commandCompletionEventTypes is reverse-resolvable', () {
       // For each (operation, eventTypes) entry, every eventType must
       // resolve to SOMETHING (the first key registering it, per the impl).

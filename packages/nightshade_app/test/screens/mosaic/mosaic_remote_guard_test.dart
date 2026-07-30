@@ -62,10 +62,9 @@ void main() {
         overrides: remoteOverrides(),
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: MosaicProjectScreen(
+          home: const MosaicProjectScreen(
             projectId: 42,
-            panelOutputPathBuilder: (panel) => '/client/panel.fits',
-            stitchOutputDirectory: (project) => '/client/stitch',
+            artifactsBaseDir: '/client/mosaic',
           ),
         ),
       ),

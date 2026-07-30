@@ -32,11 +32,21 @@ class DatabaseRecoveryLauncher extends ConsumerStatefulWidget {
   final Future<void> Function(DatabaseRecoveryMarker marker)?
       markerAcknowledger;
 
+  /// Re-checks the quarantined file so the dialog can describe it honestly.
+  /// Overridable so tests do not have to stage a real database on disk.
+  final Future<QuarantinedDatabaseCheck> Function(String backupPath)?
+      quarantineInspector;
+
+  /// Stages the quarantined file to be swapped back in on the next launch.
+  final Future<void> Function(String backupPath)? restoreStager;
+
   const DatabaseRecoveryLauncher({
     super.key,
     required this.child,
     this.markerConsumer,
     this.markerAcknowledger,
+    this.quarantineInspector,
+    this.restoreStager,
   });
 
   @override
@@ -51,6 +61,8 @@ class _DatabaseRecoveryLauncherState
   bool _dialogShown = false;
   DatabaseRecoveryMarker? _pendingMarker;
   Timer? _deferTimer;
+  bool _restoreStaged = false;
+  String? _restoreError;
 
   @override
   void initState() {
@@ -108,7 +120,30 @@ class _DatabaseRecoveryLauncherState
     }
 
     _surfaceQueued = true;
-    final shown = await _showRecoveryDialog(_pendingMarker!);
+    // Re-check the quarantined file BEFORE writing any copy about it. Builds
+    // before the result-code fix quarantined healthy databases whenever the
+    // open failed for any reason at all — a second instance holding the file,
+    // a hot journal after a crash — and then told the user their data was
+    // corrupt. The file being named `nightshade-corrupt-*` is not evidence.
+    final backupPath = _pendingMarker!.backupPath;
+    QuarantinedDatabaseCheck? check;
+    if (backupPath != null) {
+      final inspect = widget.quarantineInspector ??
+          NightshadeDatabase.inspectQuarantinedDatabase;
+      try {
+        check = await inspect(backupPath);
+      } catch (e) {
+        // Unverifiable is its own honest answer; the dialog says so rather
+        // than guessing in either direction.
+        developer.log(
+          'Could not re-check the quarantined database at $backupPath: $e',
+          name: 'DatabaseRecovery',
+          level: 900,
+        );
+      }
+      if (!mounted) return;
+    }
+    final shown = await _showRecoveryDialog(_pendingMarker!, check);
     if (!mounted) return;
     _surfaceQueued = false;
     if (!shown) {
@@ -119,61 +154,195 @@ class _DatabaseRecoveryLauncherState
     await _acknowledgePendingMarker();
   }
 
-  Future<bool> _showRecoveryDialog(DatabaseRecoveryMarker marker) {
+  Future<bool> _showRecoveryDialog(
+    DatabaseRecoveryMarker marker,
+    QuarantinedDatabaseCheck? check,
+  ) {
     return ref.read(startupSurfaceCoordinatorProvider).run(() async {
       if (!mounted) return false;
       final uiContext = resolveStartupUiContext(ref, context);
       if (uiContext == null || !uiContext.mounted) return false;
+      final canRestore = check?.canRestore ?? false;
       await showDialog<void>(
         context: uiContext,
         barrierDismissible: false,
         builder: (ctx) {
-          return AlertDialog(
-            title: const Text('Database recovered'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Nightshade detected that your database file was corrupted '
-                    'and recreated a fresh one so the app could start. Your '
-                    'existing settings, profiles, sessions, and captures from '
-                    'before the corruption are NOT in the new database.',
+          return StatefulBuilder(
+            builder: (ctx, setDialogState) {
+              if (_restoreStaged) {
+                return _buildRestoreStagedDialog(ctx);
+              }
+              return AlertDialog(
+                title: Text(_dialogTitle(check)),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_dialogExplanation(check)),
+                      const SizedBox(height: 12),
+                      Text(_dialogNextStep(check)),
+                      const SizedBox(height: 16),
+                      if (marker.backupPath != null) ...[
+                        const Text('Backup file:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        SelectableText(marker.backupPath!),
+                        const SizedBox(height: 8),
+                      ],
+                      if (check != null && check.exists) ...[
+                        Text(
+                          check.integrityOk
+                              ? 'Re-checked just now: SQLite reports this file '
+                                  'as healthy.'
+                              : 'Re-checked just now: SQLite still cannot read '
+                                  'this file.',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: check.integrityOk
+                                ? Theme.of(ctx).colorScheme.primary
+                                : Theme.of(ctx).colorScheme.error,
+                          ),
+                        ),
+                        if (check.detail != null) SelectableText(check.detail!),
+                        const SizedBox(height: 8),
+                      ],
+                      if (marker.reason != null) ...[
+                        const Text('What Nightshade reported at the time:',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        SelectableText(marker.reason!),
+                      ],
+                      if (_restoreError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Could not stage the restore: $_restoreError',
+                          style: TextStyle(
+                            color: Theme.of(ctx).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'A backup of the corrupt file has been retained on disk '
-                    'so support engineers can recover what is salvageable. '
-                    'Please contact support if you need help extracting '
-                    'historical data.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: Text(canRestore ? 'Keep the new database' : 'OK'),
                   ),
-                  const SizedBox(height: 16),
-                  if (marker.backupPath != null) ...[
-                    const Text('Backup file:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SelectableText(marker.backupPath!),
-                    const SizedBox(height: 8),
-                  ],
-                  if (marker.reason != null) ...[
-                    const Text('Reason reported by SQLite:',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SelectableText(marker.reason!),
-                  ],
+                  if (canRestore)
+                    FilledButton(
+                      onPressed: () async {
+                        // Success swaps this dialog for the restart notice;
+                        // failure re-renders it with the reason attached.
+                        await _stageRestore(marker.backupPath!);
+                        setDialogState(() {});
+                      },
+                      child: const Text('Restore my database'),
+                    ),
                 ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('OK'),
-              ),
-            ],
+              );
+            },
           );
         },
       );
       return true;
     });
+  }
+
+  Widget _buildRestoreStagedDialog(BuildContext ctx) {
+    return AlertDialog(
+      title: const Text('Restart to finish restoring'),
+      content: const SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Nightshade will put your previous database back the next time '
+              'it starts. The swap cannot happen now because the app already '
+              'has the current database open.',
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Close Nightshade and start it again. The database you are '
+              'using right now is kept alongside the restored one, so nothing '
+              'is thrown away either way.',
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('OK'),
+        ),
+      ],
+    );
+  }
+
+  /// The wording is keyed on what the file turned out to be, because calling
+  /// a healthy database "corrupted" is how a user gets talked out of the data
+  /// they still have.
+  String _dialogTitle(QuarantinedDatabaseCheck? check) {
+    if (check != null && check.canRestore) {
+      return 'Nightshade started with a new database';
+    }
+    return 'Database recovered';
+  }
+
+  String _dialogExplanation(QuarantinedDatabaseCheck? check) {
+    if (check != null && check.canRestore) {
+      return 'Nightshade could not open your database when it last started, '
+          'so it set that file aside and started with a new, empty one. '
+          'Your settings, profiles, sessions and captures are not in the '
+          'database you are using now.';
+    }
+    if (check != null && check.exists) {
+      return 'Nightshade detected that your database file was corrupted '
+          'and recreated a fresh one so the app could start. Your '
+          'existing settings, profiles, sessions, and captures from '
+          'before the corruption are NOT in the new database.';
+    }
+    return 'Nightshade could not open your database when it last started and '
+        'recreated a fresh one so the app could start. Your existing '
+        'settings, profiles, sessions and captures are not in the new '
+        'database.';
+  }
+
+  String _dialogNextStep(QuarantinedDatabaseCheck? check) {
+    if (check != null && check.canRestore) {
+      return 'The file that was set aside has just been re-checked and it is '
+          'intact — it was not corrupt. You can put it back, which replaces '
+          'the database you are using now (that one is kept too).';
+    }
+    if (check != null && check.exists) {
+      return 'A backup of the corrupt file has been retained on disk '
+          'so support engineers can recover what is salvageable. '
+          'Please contact support if you need help extracting '
+          'historical data.';
+    }
+    return 'A backup of the file was retained on disk so support engineers '
+        'can recover what is salvageable. Please contact support if you need '
+        'help extracting historical data.';
+  }
+
+  Future<void> _stageRestore(String backupPath) async {
+    final stage =
+        widget.restoreStager ?? NightshadeDatabase.stageDatabaseRestore;
+    try {
+      await stage(backupPath);
+      _restoreStaged = true;
+      _restoreError = null;
+    } catch (e) {
+      // The user asked for their data back and did not get it. Saying so in
+      // the dialog matters more than the log line: a silently ignored
+      // Restore looks identical to one that worked until the next launch.
+      developer.log(
+        'Could not stage a restore of $backupPath: $e',
+        name: 'DatabaseRecovery',
+        level: 1000,
+      );
+      _restoreError = '$e';
+    }
   }
 
   Future<void> _acknowledgePendingMarker() async {

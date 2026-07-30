@@ -96,11 +96,35 @@ class FinderChartService {
       latitude: latitude,
       longitude: longitude,
       chartConfig: chartConfig,
+      faintestPlotted: faintestPlottedMagnitude(stars: stars, dsos: dsos),
     );
 
     // Write to file
     final file = File(outputPath);
     await file.writeAsBytes(await pdf.save());
+  }
+
+  /// The magnitude of the faintest object actually drawn on the chart, or null
+  /// when nothing was plotted.
+  ///
+  /// The footer used to print `fieldOfView < 10 ? 12.0 : 6.0` and call it
+  /// "Mag limit" — a constant that claimed mag-12 depth over a chart holding
+  /// six stars, because the loaded catalogs simply do not go that faint. What a
+  /// finder chart's reader needs to know is how deep the paper in their hand
+  /// actually goes, so this reports the data instead of an aspiration.
+  static double? faintestPlottedMagnitude({
+    required List<Star> stars,
+    required List<DeepSkyObject> dsos,
+  }) {
+    double? faintest;
+    for (final magnitude in [
+      ...stars.map((s) => s.magnitude),
+      ...dsos.map((d) => d.magnitude),
+    ]) {
+      if (magnitude == null) continue;
+      if (faintest == null || magnitude > faintest) faintest = magnitude;
+    }
+    return faintest;
   }
 
   /// Render the sky to a PNG byte buffer using SkyCanvasPainter.
@@ -136,10 +160,19 @@ class FinderChartService {
       final canvas = Canvas(recorder, Offset.zero & size);
 
       if (chartConfig.printMode) {
-        // White background for print mode
+        // Print mode inverts the finished render rather than trying to repaint a
+        // light-on-dark sky onto white. The renderer has no star colour in its
+        // config — stars, labels and glyphs are all drawn bright — so the old
+        // "white background + dark grid colours" print config produced white
+        // stars on white paper. Inverting the whole layer turns the sky white
+        // and every mark on it dark in one step, which is what a printed finder
+        // chart needs.
+        canvas.saveLayer(Offset.zero & size, Paint()..colorFilter = _invert);
+        // Opaque black beneath, so the inverted sheet is pure white rather than
+        // transparent (a transparent PNG prints as whatever is behind it).
         canvas.drawRect(
           Offset.zero & size,
-          Paint()..color = const Color(0xFFFFFFFF),
+          Paint()..color = const Color(0xFF000000),
         );
       }
 
@@ -169,6 +202,10 @@ class FinderChartService {
 
       painter.paint(canvas, size);
 
+      if (chartConfig.printMode) {
+        canvas.restore();
+      }
+
       picture = recorder.endRecording();
       image = await picture.toImage(
         chartConfig.chartResolution,
@@ -189,20 +226,33 @@ class FinderChartService {
     }
   }
 
-  /// Build a SkyRenderConfig suitable for print mode (white bg, black stars).
+  /// Inverts RGB and leaves alpha alone. See the print-mode branch in
+  /// [_renderSkyChart].
+  static const ColorFilter _invert = ColorFilter.matrix(<double>[
+    -1, 0, 0, 0, 255, //
+    0, -1, 0, 0, 255, //
+    0, 0, -1, 0, 255, //
+    0, 0, 0, 1, 0, //
+  ]);
+
+  /// Build a SkyRenderConfig suitable for print mode.
+  ///
+  /// The palette stays light-on-dark — [_renderSkyChart] inverts the finished
+  /// layer — so the only job here is to drop the large soft washes (ground
+  /// gradient, Milky Way) that invert into grey ink over most of the page, and
+  /// to brighten the line work that would otherwise invert to near-white.
   static SkyRenderConfig _buildPrintModeConfig(SkyRenderConfig base) {
     return base.copyWith(
-      // Disable ground/horizon glow for clean print
       showGroundPlane: false,
       showMilkyWay: false,
       showMountPosition: false,
-      // High-contrast colors for print
-      gridColor: const Color(0x40000000),
-      constellationLineColor: const Color(0x60444444),
-      eclipticColor: const Color(0x40DAA520),
-      galacticPlaneColor: const Color(0x40008B8B),
-      horizonColor: const Color(0x60CC3300),
-      mountPositionColor: const Color(0xFFCC0000),
+      // Light lines on the dark render invert to dark lines on paper.
+      gridColor: const Color(0x80FFFFFF),
+      constellationLineColor: const Color(0x90CCCCCC),
+      eclipticColor: const Color(0x80FFD700),
+      galacticPlaneColor: const Color(0x8000CED1),
+      horizonColor: const Color(0xA0FF6633),
+      mountPositionColor: const Color(0xFFFF4444),
     );
   }
 
@@ -214,6 +264,7 @@ class FinderChartService {
     required double latitude,
     required double longitude,
     required FinderChartConfig chartConfig,
+    required double? faintestPlotted,
   }) {
     final pdf = pw.Document(
       title: chartConfig.objectName != null
@@ -272,7 +323,7 @@ class FinderChartService {
                 raStr: raStr,
                 decStr: decStr,
                 projectionStr: projectionStr,
-                magLimit: viewState.fieldOfView < 10 ? 12.0 : 6.0,
+                faintestPlotted: faintestPlotted,
                 chartConfig: chartConfig,
               ),
             ],
@@ -369,7 +420,7 @@ class FinderChartService {
     required String raStr,
     required String decStr,
     required String projectionStr,
-    required double magLimit,
+    required double? faintestPlotted,
     required FinderChartConfig chartConfig,
   }) {
     return pw.Row(
@@ -384,7 +435,12 @@ class FinderChartService {
         ),
         pw.Row(
           children: [
-            _footerItem('Mag limit', magLimit.toStringAsFixed(1)),
+            _footerItem(
+              'Faintest plotted',
+              faintestPlotted == null
+                  ? 'nothing in field'
+                  : 'mag ${faintestPlotted.toStringAsFixed(1)}',
+            ),
             pw.SizedBox(width: 16),
             _footerItem('Projection', projectionStr),
             if (chartConfig.printMode) ...[

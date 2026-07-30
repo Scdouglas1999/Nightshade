@@ -811,6 +811,131 @@ void main() {
       );
     });
 
+    group('no filter wheel', () {
+      const noFilterProfile = EquipmentProfileModel(
+        id: 20,
+        name: 'OSC, no filter wheel',
+        focalLength: 250,
+        aperture: 51,
+        cameraName: 'ZWO ASI2600MC Pro',
+      );
+
+      test('buildSingleTargetSequence plans a single unfiltered row', () {
+        final result = service.buildSingleTargetSequence(
+          profile: noFilterProfile,
+          suggestion: fakeSuggestion(id: 1, name: 'M51'),
+          windowStart: DateTime(2026, 5, 17, 22),
+          windowEnd: DateTime(2026, 5, 18, 5),
+          availableFilters: const [],
+          settings: const SmartNightSettings(subExposureFloorSecs: 1),
+        );
+
+        expect(result.strategy, SmartNightStrategy.oscOneShot);
+        expect(result.filterPlans, hasLength(1));
+        expect(result.filterPlans.single.filterName, isEmpty);
+        expect(result.filterPlans.single.count, greaterThan(0));
+      });
+
+      test('unfiltered sequence emits no filter-change instruction', () {
+        final result = service.buildSingleTargetSequence(
+          profile: noFilterProfile,
+          suggestion: fakeSuggestion(id: 1, name: 'M51'),
+          windowStart: DateTime(2026, 5, 17, 22),
+          windowEnd: DateTime(2026, 5, 18, 5),
+          availableFilters: const [],
+          settings: const SmartNightSettings(subExposureFloorSecs: 1),
+        );
+
+        final nodes = result.sequence.nodes.values;
+        expect(nodes.whereType<FilterChangeNode>(), isEmpty);
+        expect(nodes.whereType<SmartExposureNode>(), isEmpty);
+        expect(
+          nodes.every(
+            (node) => !node.requiredDevices.contains(DeviceType.filterWheel),
+          ),
+          isTrue,
+        );
+
+        final lights = nodes
+            .whereType<ExposureNode>()
+            .where((n) => n.frameType == FrameType.light)
+            .toList();
+        expect(lights, hasLength(1));
+        expect(lights.single.filter, isNull);
+        expect(lights.single.filterIndex, isNull);
+        expect(lights.single.count, greaterThan(0));
+        expect(lights.single.durationSecs, greaterThan(0));
+      });
+
+      test('unfiltered target header keeps an integration budget', () {
+        final result = service.buildSingleTargetSequence(
+          profile: noFilterProfile,
+          suggestion: fakeSuggestion(id: 1, name: 'M51'),
+          windowStart: DateTime(2026, 5, 17, 22),
+          windowEnd: DateTime(2026, 5, 18, 5),
+          availableFilters: const [],
+          settings: const SmartNightSettings(subExposureFloorSecs: 1),
+        );
+
+        final header = result.sequence.nodes.values
+            .whereType<TargetHeaderNode>()
+            .single;
+        expect(header.integrationBudget, isNotNull);
+        expect(header.integrationBudget!.isActive, isTrue);
+        expect(header.integrationBudget!.perFilter.keys, ['']);
+      });
+
+      test('previewTargetIntegration estimates an unfiltered night', () {
+        final preview = service.previewTargetIntegration(
+          profile: noFilterProfile,
+          suggestion: fakeSuggestion(id: 1, name: 'M51'),
+          windowStart: DateTime(2026, 5, 17, 22),
+          windowEnd: DateTime(2026, 5, 18, 5),
+          availableFilters: const [],
+          settings: const SmartNightSettings(subExposureFloorSecs: 1),
+        );
+
+        expect(preview, isNotNull);
+        expect(preview!.estimatedIntegrationHours, greaterThan(0));
+        expect(preview.filterNames, ['']);
+      });
+
+      test('sequence description names the unfiltered plan', () {
+        final result = service.buildSingleTargetSequence(
+          profile: noFilterProfile,
+          suggestion: fakeSuggestion(id: 1, name: 'M51'),
+          windowStart: DateTime(2026, 5, 17, 22),
+          windowEnd: DateTime(2026, 5, 18, 5),
+          availableFilters: const [],
+          settings: const SmartNightSettings(subExposureFloorSecs: 1),
+        );
+
+        expect(result.sequence.description, contains('no filter'));
+        expect(result.plannedTarget.rationale, contains('no filter'));
+      });
+
+      test('a profile whose filters miss the strategy still fails loud', () {
+        expect(
+          () => service.buildSingleTargetSequence(
+            profile: narrowbandProfile,
+            suggestion: fakeSuggestion(id: 1, name: 'M51'),
+            windowStart: DateTime(2026, 5, 17, 22),
+            windowEnd: DateTime(2026, 5, 18, 5),
+            availableFilters: narrowbandProfile.filterNames,
+            strategy: SmartNightStrategy.monoLrgb,
+            settings: const SmartNightSettings(subExposureFloorSecs: 1),
+          ),
+          throwsA(
+            isA<SmartNightBuildException>().having(
+              (e) => e.message,
+              'message',
+              contains('matched the available filter list'),
+            ),
+          ),
+        );
+      });
+    });
+
     test('integration goals merge with budget fill for remaining filters', () {
       final goals = [
         IntegrationGoalProgress(

@@ -283,22 +283,33 @@ class CalibrationLibraryService {
     final all = await _loadAll();
     String? remoteWarning;
     if (includeRemote && _remoteLibrary != null) {
-      try {
-        final candidates = await _remoteLibrary.queryCandidates(context);
-        for (final candidate in candidates) {
-          if (_remoteCandidatePasses(candidate, context)) all.add(candidate);
-        }
-      } on Object catch (e) {
-        // Folding remote candidates is strictly additive and best-effort: a hub
-        // failure must never degrade local matching, but the operator must see
-        // that shared masters were not consulted (offline != 'none exist').
-        developer.log(
-          'Remote calibration candidates skipped: $e',
-          name: 'CalibrationLibraryService',
-          level: 900,
-        );
+      // Signed out is a NORMAL state, not a failure: no exception, no error log
+      // — but it still means the shared library was not consulted, and an empty
+      // remote set here must never read as "the hub had nothing to offer".
+      if (!await _remoteLibrary.isConfigured()) {
         remoteWarning =
-            'Shared calibration hub unreachable — showing local masters only.';
+            'Not signed in to a shared calibration hub — shared masters were '
+            'not consulted; showing local masters only.';
+      } else {
+        try {
+          final candidates = await _remoteLibrary.queryCandidates(context);
+          for (final candidate in candidates) {
+            if (_remoteCandidatePasses(candidate, context)) all.add(candidate);
+          }
+        } on Object catch (e) {
+          // Folding remote candidates is strictly additive and best-effort: a
+          // hub failure must never degrade local matching, but the operator
+          // must see that shared masters were not consulted (offline != 'none
+          // exist').
+          developer.log(
+            'Remote calibration candidates skipped: $e',
+            name: 'CalibrationLibraryService',
+            level: 900,
+          );
+          remoteWarning =
+              'Shared calibration hub unreachable — shared masters were not '
+              'consulted; showing local masters only.';
+        }
       }
     }
     final setWarnings = <String>[];

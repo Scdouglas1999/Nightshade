@@ -145,6 +145,7 @@ extension CatalogManagerLegacyIo on CatalogManager {
       // Count objects, then atomically promote temp -> final.
       final objectCount = await _countObjects(tempPath);
       await _promoteTempFile(tempFile, filePath);
+      await _removeSupersededFiles(source);
       await _saveMetadata(type, source, package, objectCount);
       _invalidateLocalCatalogLoaders(
         stars: type == 'stars',
@@ -343,6 +344,24 @@ extension CatalogManagerLegacyIo on CatalogManager {
     await tempFile.rename(finalPath);
   }
 
+  /// Drop any pre-rename copy of [source] once the current file is installed,
+  /// so an upgraded install does not keep tens of MB of dead catalog around.
+  /// Only legacy names are considered, never [CatalogSource.fileName].
+  Future<void> _removeSupersededFiles(CatalogSource source) async {
+    for (final legacy in source.legacyFileNames) {
+      try {
+        final file = File(path.join(catalogDirectory, legacy));
+        if (await file.exists()) await file.delete();
+      } catch (e) {
+        developer.log(
+          '[Catalog] superseded $legacy cleanup failed: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
+      }
+    }
+  }
+
   Future<void> _cleanupTempFile(File tempFile) async {
     try {
       if (await tempFile.exists()) {
@@ -448,6 +467,7 @@ extension CatalogManagerLegacyIo on CatalogManager {
         final objectCount = await _countObjects(tempPath);
         await _promoteTempFile(tempFile, destPath);
         final source = type == 'stars' ? hygStarCatalog : openNgcCatalog;
+        await _removeSupersededFiles(source);
         await _saveMetadata(type, source, CatalogPackage.complete, objectCount);
         _invalidateLocalCatalogLoaders(
           stars: type == 'stars',
@@ -471,11 +491,10 @@ extension CatalogManagerLegacyIo on CatalogManager {
   /// Delete installed catalogs
   Future<void> _deleteCatalogs() async {
     final files = [
-      hygStarCatalog.fileName,
-      // Legacy HYG file name (pre-v44 rename) so an older install is not
-      // stranded on disk after the star catalog was renamed to hyg_v44.csv.
-      'hyg_v42.csv',
-      openNgcCatalog.fileName,
+      // Legacy names included so an install made before a rename is not
+      // stranded on disk (e.g. the pre-v44 hyg_v42.csv).
+      ...hygStarCatalog.candidateFileNames,
+      ...openNgcCatalog.candidateFileNames,
       'stars_metadata.json',
       'dso_metadata.json',
     ];

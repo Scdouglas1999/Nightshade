@@ -6,6 +6,9 @@
 //   * plateSolver (ASTAP / Astrometry.net / PlateSolve2)
 //   * astapPath, astrometryPath
 //   * plateSolveTimeout, plateSolveSearchRadius, blindSolve
+//   * centeringSyncMount — whether centering syncs the mount to the solved
+//     position between iterations, read by the callers that build a
+//     CenteringConfig
 //
 // Does NOT own:
 //   * Centering tolerance / framing-assistant defaults — those live in the
@@ -42,5 +45,10 @@ extension PlateSolveSettingsSection on AppSettingsNotifier {
   Future<void> setBlindSolve(bool value) async {
     await _saveSetting('blind_solve', value.toString());
     _patchState((s) => s.copyWith(blindSolve: value));
+  }
+
+  Future<void> setCenteringSyncMount(bool value) async {
+    await _saveSetting('centering_sync_mount', value.toString());
+    _patchState((s) => s.copyWith(centeringSyncMount: value));
   }
 }

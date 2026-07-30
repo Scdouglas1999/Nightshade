@@ -118,6 +118,10 @@ class _PrimaryTargetCard extends ConsumerWidget {
                 params: {'value': peakAlt.toStringAsFixed(1)},
               ),
               colors: colors,
+              tooltip:
+                  'Highest altitude this target reaches while the sky is astronomically '
+                  'dark tonight. The altitude chart\'s "Transit alt" is the '
+                  'altitude at culmination, which may fall in daylight.',
             ),
             _IntegrationEstimateChip(
               targetId: target.targetId,
@@ -149,10 +153,10 @@ class _PrimaryTargetCard extends ConsumerWidget {
                 label: plan.recommendedFilterNames.join(' · '),
                 colors: colors,
               )
-            else if (plan.recommendedFilterName != null)
+            else
               _StatChip(
                 icon: LucideIcons.aperture,
-                label: plan.recommendedFilterName!,
+                label: plan.recommendedFilterName ?? 'No filter',
                 colors: colors,
               ),
             if (target.magnitude != null)
@@ -221,6 +225,19 @@ class _PrimaryTargetCard extends ConsumerWidget {
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
               onPressed: onSendToFraming,
+            ),
+            NightshadeButton(
+              label: context.l10n.text('plannerOpenPlanetarium'),
+              icon: LucideIcons.globe,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () => showTargetInSky(
+                context,
+                ref,
+                raHours: target.raHours,
+                decDegrees: target.decDegrees,
+                name: target.targetName,
+              ),
             ),
           ],
         ),

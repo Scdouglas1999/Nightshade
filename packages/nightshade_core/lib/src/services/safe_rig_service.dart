@@ -33,14 +33,24 @@ class SafeRigResult {
   final bool exposureAborted;
 
   /// True when the independent secondary capture loop acknowledged stop.
+  ///
+  /// Only set when a secondary rig was actually armed. A stop command sent to a
+  /// rig that was never running is not an action that protected anything, and
+  /// reporting it as one ("secondary rig stopped") describes work that never
+  /// happened.
   final bool secondaryRigQuiesced;
 
   /// True when the mount park command was issued successfully.
   final bool mountParked;
 
-  /// True when the mount was already parked (or no mount connected) so no
-  /// park command was needed.
-  final bool mountAlreadySafe;
+  /// True when a park was requested but no mount was connected, so NOTHING was
+  /// parked. This is not a protection step: any mount tracking under another
+  /// program (or connected to a driver we do not own) is still exposed.
+  final bool mountAbsent;
+
+  /// True when the connected mount reported itself already parked, so no park
+  /// command was needed. This one genuinely is safe.
+  final bool mountAlreadyParked;
 
   /// True when the dome shutter close command was issued successfully.
   final bool domeClosed;
@@ -60,7 +70,8 @@ class SafeRigResult {
     this.exposureAborted = false,
     this.secondaryRigQuiesced = false,
     this.mountParked = false,
-    this.mountAlreadySafe = false,
+    this.mountAbsent = false,
+    this.mountAlreadyParked = false,
     this.domeClosed = false,
     this.coverClosed = false,
     this.coolerDisabled = false,
@@ -69,12 +80,21 @@ class SafeRigResult {
 
   bool get hasFailures => failures.isNotEmpty;
 
+  /// No park command was needed because there was nothing of ours to park.
+  ///
+  /// Kept as a derived value for callers that only need "we did not have to
+  /// park"; anything that TELLS THE OPERATOR what happened must use
+  /// [mountAlreadyParked] / [mountAbsent], which do not conflate a parked mount
+  /// with an absent one.
+  bool get mountAlreadySafe => mountAlreadyParked || mountAbsent;
+
   SafeRigResult copyWith({
     bool? sequencePaused,
     bool? exposureAborted,
     bool? secondaryRigQuiesced,
     bool? mountParked,
-    bool? mountAlreadySafe,
+    bool? mountAbsent,
+    bool? mountAlreadyParked,
     bool? domeClosed,
     bool? coverClosed,
     bool? coolerDisabled,
@@ -85,7 +105,8 @@ class SafeRigResult {
       exposureAborted: exposureAborted ?? this.exposureAborted,
       secondaryRigQuiesced: secondaryRigQuiesced ?? this.secondaryRigQuiesced,
       mountParked: mountParked ?? this.mountParked,
-      mountAlreadySafe: mountAlreadySafe ?? this.mountAlreadySafe,
+      mountAbsent: mountAbsent ?? this.mountAbsent,
+      mountAlreadyParked: mountAlreadyParked ?? this.mountAlreadyParked,
       domeClosed: domeClosed ?? this.domeClosed,
       coverClosed: coverClosed ?? this.coverClosed,
       coolerDisabled: coolerDisabled ?? this.coolerDisabled,
@@ -141,13 +162,17 @@ class SafeRigService {
   final Ref _ref;
   final NightshadeBackend _backend;
   final BackendNotifier _backendNotifier;
-  final Future<void> Function() _stopSecondaryRig;
+
+  /// Stops the secondary capture loop and returns whether a secondary rig was
+  /// actually running (so the outcome report can distinguish "stopped it" from
+  /// "there was nothing to stop").
+  final Future<bool> Function() _stopSecondaryRig;
   bool _retired = false;
 
   SafeRigService(
     Ref ref, {
     NightshadeBackend? backend,
-    required Future<void> Function() stopSecondaryRig,
+    required Future<bool> Function() stopSecondaryRig,
   }) : _ref = ref,
        _backend = backend ?? ref.read(backendProvider),
        _backendNotifier = ref.read(backendProvider.notifier),
@@ -215,9 +240,12 @@ class SafeRigService {
     // the primary sequence can be paused or the shared mount can move.
     if (quiesceSecondaryRig) {
       try {
-        await _stopSecondaryRig();
+        // The callback reports whether a secondary rig was actually running.
+        // A stop sent to a rig that was never armed protected nothing, so it
+        // must not be reported as a step that was carried out.
+        final stopped = await _stopSecondaryRig();
         _ensureAuthority(reason, result, failures);
-        result = result.copyWith(secondaryRigQuiesced: true);
+        result = result.copyWith(secondaryRigQuiesced: stopped);
       } catch (e) {
         failures['secondaryRig'] = e;
       }
@@ -272,11 +300,13 @@ class SafeRigService {
           mount.deviceId != null &&
           mount.deviceId!.isNotEmpty;
       if (!connected) {
-        // No mount to park — nothing tracking under our control.
-        result = result.copyWith(mountAlreadySafe: true);
+        // No mount connected: nothing was parked. Recorded as absent, NOT as
+        // "already safe" — the operator must not be told the mount is secure
+        // when we never had one to command.
+        result = result.copyWith(mountAbsent: true);
       } else if (mount.isParked) {
         // Already parked — already safe.
-        result = result.copyWith(mountAlreadySafe: true);
+        result = result.copyWith(mountAlreadyParked: true);
       } else {
         try {
           await _backend.mountPark(mount.deviceId!);
@@ -450,24 +480,51 @@ class SafeRigService {
       return;
     }
 
+    // Report ONLY what was actually done. A step that was skipped because its
+    // device is not connected is not an accomplishment, and listing it (the old
+    // "mount already safe" for an absent mount) told operators the rig was
+    // secure when nothing had been commanded at all.
     final steps = <String>[];
     if (result.sequencePaused) steps.add('sequence paused');
     if (result.exposureAborted) steps.add('exposure aborted');
     if (result.secondaryRigQuiesced) steps.add('secondary rig stopped');
     if (result.mountParked) steps.add('mount parked');
-    if (result.mountAlreadySafe && !result.mountParked) {
-      steps.add('mount already safe');
+    if (result.mountAlreadyParked && !result.mountParked) {
+      steps.add('mount was already parked');
     }
     if (result.domeClosed) steps.add('dome closed');
     if (result.coverClosed) steps.add('cover closed');
     if (result.coolerDisabled) steps.add('cooler disabled');
-    final detail = steps.isEmpty ? 'no action needed' : steps.join(', ');
+    final detail = steps.isEmpty ? 'no action was possible' : steps.join(', ');
+    final gap = result.mountAbsent
+        ? ' NO MOUNT CONNECTED — nothing was parked; if a mount is tracking '
+              'under another program it is still exposed.'
+        : '';
     notifier.showError(
-      'CRITICAL: $reason. Rig safed: $detail.',
+      'CRITICAL: $reason. Rig safed: $detail.$gap',
       title: 'Safe the rig',
       duration: const Duration(seconds: 16),
     );
   }
+}
+
+/// Stop the secondary capture loop, reporting whether one was actually armed.
+///
+/// The armed check runs first because after a successful stop the rig always
+/// reads disarmed, so there would be no way to tell afterwards whether anything
+/// was stopped. If the check itself fails we still issue the stop but report
+/// `false`: an unverified claim that the secondary rig was stopped is exactly
+/// the kind of statement this reporting must never make.
+Future<bool> _stopSecondaryRigReportingWhetherItRan(Ref ref) async {
+  final controller = ref.read(secondaryRigControllerProvider);
+  var wasArmed = false;
+  try {
+    wasArmed = await controller.isArmed();
+  } catch (_) {
+    wasArmed = false;
+  }
+  await controller.stop();
+  return wasArmed;
 }
 
 /// Provider for the shared safe-the-rig action.
@@ -476,7 +533,7 @@ final safeRigServiceProvider = Provider<SafeRigService>((ref) {
   final service = SafeRigService(
     ref,
     backend: backend,
-    stopSecondaryRig: () => ref.read(secondaryRigControllerProvider).stop(),
+    stopSecondaryRig: () => _stopSecondaryRigReportingWhetherItRan(ref),
   );
   ref.onDispose(service.retire);
   return service;

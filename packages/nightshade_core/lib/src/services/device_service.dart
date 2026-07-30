@@ -132,6 +132,27 @@ class DeviceService {
   Timer? _environmentPollTimer;
   bool _environmentPollInFlight = false;
 
+  /// How often environmental / dome telemetry is re-read while a relevant device
+  /// is connected.
+  ///
+  /// Public because UI that displays the AGE of one of these readings has to tick
+  /// faster than this to show anything but a constant. Naming it lets that
+  /// requirement be asserted instead of restated: the equipment card's
+  /// "Last checked" label was pinned at "0s ago" forever precisely because its
+  /// own ticker used this same 5 s period, so the sampled age was the fixed phase
+  /// offset between two timers rather than elapsed time.
+  static const Duration environmentPollInterval = Duration(seconds: 5);
+
+  /// Hard cap on a single environmental / dome telemetry read.
+  ///
+  /// Without it a driver that accepts the call and never answers pins
+  /// `_environmentPollInFlight` for the rest of the process: every later tick
+  /// returns early, `setError` is never reached, and the card keeps rendering
+  /// the last good value — a safety monitor frozen on "SAFE" while nothing is
+  /// actually being read. Shorter than the 5 s tick so a wedged read surfaces
+  /// as an error before the next poll instead of silently stacking up.
+  static const Duration _environmentReadTimeout = Duration(seconds: 4);
+
   /// Manual focuser moves are exclusive across every UI surface. A widget's
   /// local busy flag cannot prevent a dashboard button and an equipment dialog
   /// from driving the same focuser at the same time.
@@ -380,6 +401,13 @@ class DeviceService {
 
   Future<void> connectDome(String deviceId) => _connectDome(deviceId);
   Future<void> disconnectDome() => _disconnectDome();
+
+  /// Re-read dome telemetry now and publish it to `domeStateProvider`.
+  ///
+  /// Called right after a dome command so the card's shutter / park / azimuth
+  /// readouts reflect the command instead of holding the pre-command reading
+  /// for up to one 5 s poll interval. Best-effort by design.
+  Future<void> refreshDomeStatus() => _refreshDomeStatus();
   Future<void> connectWeather(String deviceId) => _connectWeather(deviceId);
   Future<void> disconnectWeather() => _disconnectWeather();
   Future<void> connectSafetyMonitor(String deviceId) =>

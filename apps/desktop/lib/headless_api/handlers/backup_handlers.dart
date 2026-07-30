@@ -198,12 +198,7 @@ class BackupHandlers {
     );
 
     if (result.success) {
-      return jsonOk({
-        'status': 'restored',
-        'itemsRestored': result.itemsRestored,
-        'categoryCounts': result.categoryCounts,
-        'timestamp': result.timestamp.millisecondsSinceEpoch,
-      });
+      return jsonOk(await _restoredBody(result));
     }
     // §2.23: restore-from-disk failures aren't necessarily caused by a bad
     // request body (the file path was valid syntactically). The most common
@@ -396,12 +391,7 @@ class BackupHandlers {
       );
 
       if (result.success) {
-        return jsonOk({
-          'status': 'restored',
-          'itemsRestored': result.itemsRestored,
-          'categoryCounts': result.categoryCounts,
-          'timestamp': result.timestamp.millisecondsSinceEpoch,
-        });
+        return jsonOk(await _restoredBody(result));
       }
 
       // §2.23: restore from an uploaded file failing means the file we just
@@ -447,6 +437,50 @@ class BackupHandlers {
       }
       _logError('[API] Upload restore backup error: $e');
       return jsonInternalServerError({'error': 'internal_error'});
+    }
+  }
+
+  /// Build the success body for a completed restore, re-hydrating the cached
+  /// state first.
+  ///
+  /// The restore writes straight to the database, but this process keeps its
+  /// pre-restore `AppSettings` snapshot in memory. `POST /api/settings` merges
+  /// the posted keys onto that snapshot and persists the whole map, so the
+  /// first settings write after a restore erased every restored value — the
+  /// API reported "restored" and then quietly undid it. The desktop screen has
+  /// always invalidated these three providers after a restore; the HTTP path
+  /// now does the same, and says whether it worked.
+  Future<Map<String, Object?>> _restoredBody(RestoreResult result) async {
+    final reloaded = await _reloadRestoredState();
+    return {
+      'status': 'restored',
+      'itemsRestored': result.itemsRestored,
+      'categoryCounts': result.categoryCounts,
+      'timestamp': result.timestamp.millisecondsSinceEpoch,
+      'reloaded': reloaded,
+      'message': reloaded
+          ? 'Restored ${result.itemsRestored} items. This host is now running '
+                'on the restored data.'
+          : 'Restored ${result.itemsRestored} items, but this host could not '
+                'reload its cached state. Restart Nightshade before the next '
+                'run or the restore may be overwritten.',
+    };
+  }
+
+  Future<bool> _reloadRestoredState() async {
+    container.invalidate(appSettingsProvider);
+    container.invalidate(equipmentProfilesProvider);
+    container.invalidate(savedSequencesProvider);
+    try {
+      await container.read(appSettingsProvider.future);
+      return true;
+    } on Object catch (error) {
+      _logError(
+        'Restore succeeded but the settings cache could not be reloaded: '
+        '$error. Restart before the next run — a settings write would '
+        'otherwise persist the pre-restore snapshot.',
+      );
+      return false;
     }
   }
 

@@ -40,7 +40,7 @@ class _GatedRepeatSafeRigService extends SafeRigService {
   final Completer<void> repeatGate;
   int calls = 0;
 
-  static Future<void> _stopSecondaryRig() async {}
+  static Future<bool> _stopSecondaryRig() async => false;
 
   @override
   Future<SafeRigResult> safeTheRig({

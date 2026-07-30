@@ -547,12 +547,35 @@ class ObservingListNotifier extends StateNotifier<ObservingListUiState> {
         state = state.copyWith(statusMessage: 'Added $objectName to list');
         return id;
       } catch (e) {
-        if (_isCurrentAuthority(authority)) {
-          state = state.copyWith(errorMessage: 'Failed to add item: $e');
+        if (!_isCurrentAuthority(authority)) return null;
+        // A duplicate is not a failure: the object the user asked for is
+        // already where they wanted it. Report it as a neutral STATUS (no
+        // errorMessage) so the UI stops showing a red "Failed to add item:
+        // Bad state: ..." for an ordinary, harmless action. Callers still get
+        // `null` — no row was written — but can tell the two apart because
+        // errorMessage stays null on this path.
+        final duplicate = _asDuplicateItem(e);
+        if (duplicate != null) {
+          state = state.copyWith(statusMessage: duplicate, errorMessage: null);
+          return null;
         }
+        state = state.copyWith(errorMessage: 'Failed to add item: $e');
         return null;
       }
     });
+  }
+
+  /// Recognise "this object is already in the list" for both authorities:
+  /// the local DAO throws [ObservingListDuplicateItemException]; the host
+  /// answers POST /api/observing-lists/items with HTTP 409 carrying the same
+  /// sentence. Returns the user-facing sentence, or null if [error] is a
+  /// genuine failure.
+  String? _asDuplicateItem(Object error) {
+    if (error is ObservingListDuplicateItemException) return error.message;
+    if (error is ServerError && error.httpStatus == 409) {
+      return error.message;
+    }
+    return null;
   }
 
   /// Remove an item from a list.

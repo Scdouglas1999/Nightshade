@@ -566,13 +566,12 @@ class SmartNightService {
     List<IntegrationGoalProgress>? integrationGoalProgress,
     SmartNightStrategy? strategy,
   }) {
-    if (availableFilters.isEmpty) return null;
-
+    final planningFilters = smartNightPlanningFilters(availableFilters);
     final resolvedStrategy =
-        strategy ?? inferSmartNightStrategy(suggestion, availableFilters);
+        strategy ?? inferSmartNightStrategy(suggestion, planningFilters);
     final activeFilters = _resolveFilterSet(
       strategy: resolvedStrategy,
-      availableFilters: availableFilters,
+      availableFilters: planningFilters,
     );
     if (activeFilters.isEmpty) return null;
 
@@ -626,7 +625,7 @@ class SmartNightService {
       recentGuideSamples: exposureContext?.guideSampleCount ?? 0,
       settings: settings,
       integrationGoalProgress: integrationGoalProgress,
-      availableFiltersForGoals: availableFilters,
+      availableFiltersForGoals: planningFilters,
     );
     if (filterPlans.isEmpty) return null;
 
@@ -664,19 +663,12 @@ class SmartNightService {
     List<IntegrationGoalProgress>? integrationGoalProgress,
     bool includeSessionPreamble = false,
   }) {
-    if (availableFilters.isEmpty) {
-      throw const SmartNightBuildException(
-        'No filters configured on the equipment profile or connected filter '
-        'wheel. Add filter names to your profile or connect a filter wheel '
-        'before building a sequence.',
-      );
-    }
-
+    final planningFilters = smartNightPlanningFilters(availableFilters);
     final resolvedStrategy =
-        strategy ?? inferSmartNightStrategy(suggestion, availableFilters);
+        strategy ?? inferSmartNightStrategy(suggestion, planningFilters);
     final activeFilters = _resolveFilterSet(
       strategy: resolvedStrategy,
-      availableFilters: availableFilters,
+      availableFilters: planningFilters,
     );
     if (activeFilters.isEmpty) {
       throw SmartNightBuildException(
@@ -745,7 +737,7 @@ class SmartNightService {
       recentGuideSamples: exposureContext?.guideSampleCount ?? 0,
       settings: settings,
       integrationGoalProgress: integrationGoalProgress,
-      availableFiltersForGoals: availableFilters,
+      availableFiltersForGoals: planningFilters,
     );
     if (filterPlans.isEmpty) {
       throw SmartNightBuildException(
@@ -949,7 +941,10 @@ class SmartNightService {
     final integrationHours =
         planned.fold<double>(0, (s, p) => s + p.integrationSecs) / 3600;
     final filters = planned
-        .expand((p) => p.filterPlans.map((fp) => fp.filterName))
+        .expand(
+          (p) =>
+              p.filterPlans.map((fp) => smartNightFilterLabel(fp.filterName)),
+        )
         .toSet()
         .toList();
     return 'Auto-built by Smart Night using the '

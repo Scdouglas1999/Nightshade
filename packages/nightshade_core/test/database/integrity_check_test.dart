@@ -219,6 +219,336 @@ void main() {
     });
   });
 
+  group('runIntegrityCheckAndRecover does not quarantine healthy data', () {
+    /// Everything in this group is a regression test for the data-loss bug
+    /// where ANY `SqliteException` while opening the database was treated as
+    /// corruption. A healthy database with the owner's only equipment profile
+    /// and 182 captured frames was renamed to `nightshade-corrupt-*.db` and
+    /// replaced with a blank one, purely because a second process had it open.
+    void expectNothingWasQuarantined(Directory dir) {
+      final quarantined = dir
+          .listSync()
+          .map((e) => p.basename(e.path))
+          .where(
+            (name) =>
+                name.startsWith('nightshade-corrupt-') ||
+                name.startsWith('.recovered-on-'),
+          )
+          .toList();
+      expect(
+        quarantined,
+        isEmpty,
+        reason:
+            'A healthy database must never be rotated out of the way. '
+            'Found: $quarantined',
+      );
+    }
+
+    test('a database another connection has locked is rethrown, NOT '
+        'quarantined', () async {
+      // Build a real database holding real rows, then take the same
+      // EXCLUSIVE lock a second Nightshade instance would hold while
+      // writing. This is the exact production trigger: the GUI and the
+      // headless service resolve the same default database path.
+      final holder = sqlite3.open(dbFile.path);
+      addTearDown(() {
+        try {
+          holder.execute('ROLLBACK;');
+        } on SqliteException {
+          // Already rolled back by close.
+        }
+        holder.close();
+      });
+      holder.execute('PRAGMA journal_mode=DELETE;');
+      holder.execute('CREATE TABLE captured_images (id INTEGER PRIMARY KEY);');
+      holder.execute('INSERT INTO captured_images (id) VALUES (1);');
+      holder.execute('BEGIN EXCLUSIVE;');
+      holder.execute('INSERT INTO captured_images (id) VALUES (2);');
+
+      // The operator must see the real SQLite error...
+      await expectLater(
+        runIntegrityCheckAndRecover(dbFile),
+        throwsA(
+          isA<SqliteException>().having(
+            (e) => e.resultCode,
+            'resultCode',
+            5, // SQLITE_BUSY
+          ),
+        ),
+      );
+
+      // ... and their database must still be exactly where they left it.
+      expect(await dbFile.exists(), isTrue);
+      expectNothingWasQuarantined(tempDir);
+    });
+
+    test(
+      'a hot rollback journal is replayed, not treated as corruption',
+      () async {
+        // A crash mid-transaction leaves a `-journal` behind. A read-only
+        // probe cannot replay it and reports SQLITE_READONLY_ROLLBACK, which
+        // the old code read as "corrupt" — so an ordinary crash cost the user
+        // their database on the very next launch.
+        final db = sqlite3.open(dbFile.path);
+        db.execute('PRAGMA journal_mode=DELETE;');
+        db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, blob BLOB);');
+        for (var i = 0; i < 200; i++) {
+          db.execute('INSERT INTO t (blob) VALUES (zeroblob(4000));');
+        }
+        db.close();
+
+        // A journal file with the SQLite rollback magic and no page records:
+        // enough for SQLite to classify it as hot and refuse a read-only open.
+        await File('${dbFile.path}-journal').writeAsBytes(
+          const [0xd9, 0xd5, 0x05, 0xf9, 0x20, 0xa1, 0x63, 0xd7] +
+              List.filled(64, 0),
+          flush: true,
+        );
+
+        final report = await runIntegrityCheckAndRecover(dbFile);
+
+        expect(
+          report.wasHealthy,
+          isTrue,
+          reason: 'A hot journal is a normal crash artefact, not corruption.',
+        );
+        expect(report.recovered, isFalse);
+        expect(await dbFile.exists(), isTrue);
+        expectNothingWasQuarantined(tempDir);
+
+        // And the rows really are still there.
+        final verify = sqlite3.open(dbFile.path, mode: OpenMode.readOnly);
+        addTearDown(verify.close);
+        expect(verify.select('SELECT COUNT(*) AS c FROM t;').first['c'], 200);
+      },
+    );
+
+    test(
+      'a database we cannot write to is rethrown, NOT quarantined',
+      () async {
+        // A WAL database needs a writable directory to create its `-shm`. On a
+        // read-only volume, a recovered backup folder, or a permissions
+        // mishap, SQLite reports SQLITE_READONLY_CANTINIT — again, nothing to
+        // do with the file being damaged.
+        final db = sqlite3.open(dbFile.path);
+        db.execute('PRAGMA journal_mode=WAL;');
+        db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY);');
+        db.execute('INSERT INTO t (id) VALUES (1);');
+        db.close();
+
+        final chmod = await Process.run('chmod', ['a-w', tempDir.path]);
+        if (chmod.exitCode != 0) {
+          markTestSkipped('chmod unavailable on this platform');
+          return;
+        }
+        addTearDown(() => Process.run('chmod', ['u+w', tempDir.path]));
+
+        await expectLater(
+          runIntegrityCheckAndRecover(dbFile),
+          throwsA(
+            isA<SqliteException>().having(
+              (e) => e.resultCode,
+              'resultCode',
+              8, // SQLITE_READONLY
+            ),
+          ),
+        );
+        expect(await dbFile.exists(), isTrue);
+      },
+      skip: Platform.isWindows ? 'POSIX permission bits' : null,
+    );
+  });
+
+  group('inspectQuarantinedDatabase', () {
+    test('reports a healthy quarantined file as healthy', () async {
+      // Files quarantined by the pre-fix builds are named
+      // `nightshade-corrupt-*` but are not corrupt. The UI has to be able to
+      // tell, so it stops repeating a claim that is not true.
+      final quarantined = File(
+        p.join(tempDir.path, 'nightshade-corrupt-1-nightshade.db'),
+      );
+      final db = sqlite3.open(quarantined.path);
+      db.execute('CREATE TABLE t (id INTEGER PRIMARY KEY);');
+      db.execute('INSERT INTO t (id) VALUES (1);');
+      db.close();
+
+      final check = await inspectQuarantinedDatabase(quarantined.path);
+
+      expect(check.exists, isTrue);
+      expect(check.integrityOk, isTrue);
+      expect(check.canRestore, isTrue);
+      expect(check.detail, isNull);
+      expect(check.sizeBytes, greaterThan(0));
+    });
+
+    test(
+      'reports a genuinely corrupt quarantined file as not restorable',
+      () async {
+        final quarantined = File(
+          p.join(tempDir.path, 'nightshade-corrupt-2-nightshade.db'),
+        );
+        await quarantined.writeAsBytes(Uint8List(4096), flush: true);
+
+        final check = await inspectQuarantinedDatabase(quarantined.path);
+
+        expect(check.exists, isTrue);
+        expect(check.integrityOk, isFalse);
+        expect(check.canRestore, isFalse);
+        expect(check.detail, isNotNull);
+      },
+    );
+
+    test('reports a missing quarantined file', () async {
+      final check = await inspectQuarantinedDatabase(
+        p.join(tempDir.path, 'nope.db'),
+      );
+      expect(check.exists, isFalse);
+      expect(check.canRestore, isFalse);
+    });
+
+    test('findQuarantinedDatabases lists backups newest first', () async {
+      final older = File(
+        p.join(tempDir.path, 'nightshade-corrupt-1-nightshade.db'),
+      );
+      final newer = File(
+        p.join(tempDir.path, 'nightshade-corrupt-2-nightshade.db'),
+      );
+      await older.writeAsBytes(Uint8List(16), flush: true);
+      await older.setLastModified(DateTime(2020));
+      await newer.writeAsBytes(Uint8List(16), flush: true);
+      await newer.setLastModified(DateTime(2024));
+      // A companion must not be offered as a database in its own right.
+      await File('${older.path}-wal').writeAsBytes(Uint8List(8), flush: true);
+
+      final found = await findQuarantinedDatabases(tempDir);
+
+      expect(found, equals([newer.path, older.path]));
+    });
+  });
+
+  group('restore of a quarantined database', () {
+    test(
+      'swaps the quarantined file back in and keeps the displaced one',
+      () async {
+        // The live (blank) database the user was left with.
+        final live = sqlite3.open(dbFile.path);
+        live.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, tag TEXT);');
+        live.execute("INSERT INTO t (tag) VALUES ('blank replacement');");
+        live.close();
+
+        // The quarantined database that actually holds their history.
+        final quarantined = File(
+          p.join(tempDir.path, 'nightshade-corrupt-9-nightshade.db'),
+        );
+        final old = sqlite3.open(quarantined.path);
+        old.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, tag TEXT);');
+        old.execute("INSERT INTO t (tag) VALUES ('the real history');");
+        old.close();
+
+        await stageDatabaseRestore(
+          dbFile: dbFile,
+          backupPath: quarantined.path,
+        );
+        expect(await readPendingRestore(tempDir), equals(quarantined.path));
+
+        final outcome = await applyPendingRestore(dbFile);
+
+        expect(outcome, isNotNull);
+        expect(outcome!.restored, isTrue);
+        expect(outcome.restoredFrom, equals(quarantined.path));
+
+        // The restored data is live ...
+        final restored = sqlite3.open(dbFile.path, mode: OpenMode.readOnly);
+        addTearDown(restored.close);
+        expect(
+          restored.select('SELECT tag FROM t;').first['tag'],
+          equals('the real history'),
+        );
+
+        // ... the quarantined file has moved, not been copied ...
+        expect(await quarantined.exists(), isFalse);
+
+        // ... the database it displaced is retained so a mistaken restore is
+        // itself reversible ...
+        expect(outcome.replacedPath, isNotNull);
+        expect(await File(outcome.replacedPath!).exists(), isTrue);
+        expect(
+          p.basename(outcome.replacedPath!),
+          startsWith('nightshade-replaced-'),
+          reason:
+              'A displaced database must not be named as if it were corrupt.',
+        );
+
+        // ... and the request is one-shot.
+        expect(await readPendingRestore(tempDir), isNull);
+        expect(await applyPendingRestore(dbFile), isNull);
+      },
+    );
+
+    test('restores WAL companions alongside the main file', () async {
+      final quarantined = File(
+        p.join(tempDir.path, 'nightshade-corrupt-7-nightshade.db'),
+      );
+      await quarantined.writeAsBytes(Uint8List(4096), flush: true);
+      await File(
+        '${quarantined.path}-wal',
+      ).writeAsBytes(Uint8List(64), flush: true);
+
+      await stageDatabaseRestore(dbFile: dbFile, backupPath: quarantined.path);
+      final outcome = await applyPendingRestore(dbFile);
+
+      expect(outcome!.restored, isTrue);
+      expect(
+        await File('${dbFile.path}-wal').exists(),
+        isTrue,
+        reason: 'A database and its WAL are one unit; restore both.',
+      );
+    });
+
+    test(
+      'a staged restore of a vanished file fails without wedging startup',
+      () async {
+        await dbFile.writeAsBytes(Uint8List(16), flush: true);
+        final ghost = File(p.join(tempDir.path, 'nightshade-corrupt-8.db'));
+        await ghost.writeAsBytes(Uint8List(16), flush: true);
+        await stageDatabaseRestore(dbFile: dbFile, backupPath: ghost.path);
+        await ghost.delete();
+
+        final outcome = await applyPendingRestore(dbFile);
+
+        expect(outcome!.restored, isFalse);
+        expect(outcome.failureReason, contains(ghost.path));
+        // Crucially the live database is untouched and the request is cleared,
+        // so the next launch is not stuck retrying an impossible restore.
+        expect(await dbFile.exists(), isTrue);
+        expect(await readPendingRestore(tempDir), isNull);
+      },
+    );
+
+    test('staging a restore of a file that is not there is refused', () async {
+      await expectLater(
+        stageDatabaseRestore(
+          dbFile: dbFile,
+          backupPath: p.join(tempDir.path, 'absent.db'),
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await readPendingRestore(tempDir), isNull);
+    });
+
+    test('cancelPendingRestore drops the request', () async {
+      final quarantined = File(p.join(tempDir.path, 'nightshade-corrupt-3.db'));
+      await quarantined.writeAsBytes(Uint8List(16), flush: true);
+      await stageDatabaseRestore(dbFile: dbFile, backupPath: quarantined.path);
+
+      await cancelPendingRestore(tempDir);
+
+      expect(await readPendingRestore(tempDir), isNull);
+      expect(await applyPendingRestore(dbFile), isNull);
+      expect(await quarantined.exists(), isTrue);
+    });
+  });
+
   group('consumeRecoveryMarker', () {
     test('returns null when no marker file is present', () async {
       // Sanity: a clean directory with no recovery history must not

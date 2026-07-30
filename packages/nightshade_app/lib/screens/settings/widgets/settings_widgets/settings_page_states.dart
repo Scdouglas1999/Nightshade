@@ -67,12 +67,34 @@ class SettingsPage extends StatelessWidget {
       ],
     );
 
+    // Cap the reading width on wide monitors. Settings rows are label-left /
+    // control-right, so an unbounded card on a 5120px-wide window put metres of
+    // empty space between the two and made every line a sentence-long scan.
+    // Mobile keeps the full width (it is never wider than the cap anyway).
+    final bounded = isMobile
+        ? content
+        : Align(
+            alignment: Alignment.centerLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: settingsContentMaxWidth,
+              ),
+              child: content,
+            ),
+          );
+
     if (!scrollable) {
-      return Padding(padding: padding, child: content);
+      return Padding(padding: padding, child: bounded);
     }
-    return SingleChildScrollView(padding: padding, child: content);
+    return SingleChildScrollView(padding: padding, child: bounded);
   }
 }
+
+/// Widest a settings leaf's content column may get on desktop.
+///
+/// Chosen so a 1920px window is unaffected (its leaf area is narrower than
+/// this) while an ultrawide window stops stretching rows across the screen.
+const double settingsContentMaxWidth = 1180;
 
 class SettingsLoadingState extends StatelessWidget {
   final bool isMobile;

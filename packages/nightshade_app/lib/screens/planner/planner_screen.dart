@@ -10,6 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../framing/altitude_chart.dart';
 import '../framing/framing_screen.dart';
 import '../planetarium/planetarium_screen.dart';
+import '../planetarium/show_in_sky.dart';
 import '../your_sky/your_sky_screen.dart';
 import '../constellation/constellation_screen.dart';
 import '../collaborative_sky/collaborative_sky_screen.dart';

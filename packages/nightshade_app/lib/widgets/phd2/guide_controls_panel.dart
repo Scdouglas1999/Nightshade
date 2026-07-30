@@ -32,6 +32,10 @@ extension Phd2GuidingStateIcon on Phd2GuidingState {
 
 /// Panel containing main guiding controls
 class GuideControlsPanel extends StatefulWidget {
+  /// Key of the "more content below" fade + chevron affordance. Present only
+  /// while the control list is taller than its slot.
+  static const Key moreBelowKey = ValueKey('guideControlsMoreBelow');
+
   /// Current guiding state
   final Phd2GuidingState state;
 
@@ -98,6 +102,38 @@ class GuideControlsPanel extends StatefulWidget {
 
 class _GuideControlsPanelState extends State<GuideControlsPanel> {
   bool _settleExpanded = false;
+
+  /// Scroll state for the overflow affordance. [_hasMoreBelow] drives the fade
+  /// + chevron, [_isScrolled] keeps the scrollbar thumb visible once the user
+  /// has reached the bottom so the region still reads as scrollable.
+  final ScrollController _scrollController = ScrollController();
+  bool _hasMoreBelow = false;
+  bool _isScrolled = false;
+
+  /// Recompute the overflow flags from live scroll metrics. Driven by both
+  /// `ScrollNotification` (user scrolled) and `ScrollMetricsNotification`
+  /// (content or viewport changed size without a scroll), so expanding the
+  /// Settle Settings section updates the affordance immediately.
+  void _updateOverflow(ScrollMetrics metrics) {
+    final hasMoreBelow = metrics.extentAfter > 4;
+    final isScrolled = metrics.extentBefore > 4;
+    if (hasMoreBelow == _hasMoreBelow && isScrolled == _isScrolled) return;
+    // Metrics notifications arrive during layout/paint; defer the rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (hasMoreBelow == _hasMoreBelow && isScrolled == _isScrolled) return;
+      setState(() {
+        _hasMoreBelow = hasMoreBelow;
+        _isScrolled = isScrolled;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   /// Two busy lanes mirroring the controller's command gate so a Stop can
   /// always pre-empt a settling Start (the safe abort direction) while a
@@ -194,24 +230,84 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
         children: [
           _buildStatusHeader(colors),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_errorText != null) ...[
-                    _buildErrorBanner(colors, _errorText!),
-                    const SizedBox(height: 16),
-                  ],
-                  _buildMainControls(colors),
-                  const SizedBox(height: 20),
-                  _buildStarSelection(colors),
-                  const SizedBox(height: 20),
-                  _buildDitherControls(colors),
-                  const SizedBox(height: 16),
-                  _buildSettleSettings(colors),
-                ],
-              ),
+            // At common laptop heights (e.g. a 1000 px-tall window) the panel
+            // is taller than its slot, and the only hint that Settle Settings
+            // existed was a few pixels of a card edge at the bottom margin —
+            // the control that governs post-dither settle was effectively
+            // invisible. Keep the scrollbar thumb permanently visible and fade
+            // the clipped edge so hidden content announces itself.
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: NotificationListener<ScrollMetricsNotification>(
+                    onNotification: (notification) {
+                      _updateOverflow(notification.metrics);
+                      return false;
+                    },
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        _updateOverflow(notification.metrics);
+                        return false;
+                      },
+                      child: Scrollbar(
+                        controller: _scrollController,
+                        thumbVisibility: _hasMoreBelow || _isScrolled,
+                        child: SingleChildScrollView(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_errorText != null) ...[
+                                _buildErrorBanner(colors, _errorText!),
+                                const SizedBox(height: 16),
+                              ],
+                              _buildMainControls(colors),
+                              const SizedBox(height: 20),
+                              _buildStarSelection(colors),
+                              const SizedBox(height: 20),
+                              _buildDitherControls(colors),
+                              const SizedBox(height: 16),
+                              _buildSettleSettings(colors),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_hasMoreBelow)
+                  Positioned(
+                    key: GuideControlsPanel.moreBelowKey,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 28,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              colors.surface.withValues(alpha: 0.0),
+                              colors.surface,
+                            ],
+                          ),
+                        ),
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Icon(
+                            LucideIcons.chevronDown,
+                            size: 14,
+                            color: colors.textMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

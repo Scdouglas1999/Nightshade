@@ -69,6 +69,44 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
     return status.isSafe;
   }
 
+  @override
+  Future<HardwareDomeStatus> getHardwareDomeStatus(String deviceId) async {
+    final status = await bridge_api.apiGetDomeStatus(deviceId: deviceId);
+    if (!status.connected) {
+      throw StateError('Dome $deviceId reported disconnected');
+    }
+    return HardwareDomeStatus(
+      azimuth: status.azimuth,
+      altitude: status.altitude,
+      // `canSetShutter: false` means the driver has no shutter property at all;
+      // reporting `closed` there would be a fabrication, so leave it unknown.
+      shutterStatus: status.canSetShutter
+          ? _shutterStateCode(status.shutterStatus)
+          : null,
+      isSlewing: status.slewing,
+      isAtHome: status.atHome,
+      isParked: status.atPark,
+      isSlaved: status.isSlaved,
+    );
+  }
+
+  static int? _shutterStateCode(bridge.ShutterState state) {
+    switch (state) {
+      case bridge.ShutterState.open:
+        return 0;
+      case bridge.ShutterState.closed:
+        return 1;
+      case bridge.ShutterState.opening:
+        return 2;
+      case bridge.ShutterState.closing:
+        return 3;
+      case bridge.ShutterState.error:
+        return 4;
+      case bridge.ShutterState.unknown:
+        return null;
+    }
+  }
+
   // Status conversion helpers
   // =========================================================================
   // Device Capabilities

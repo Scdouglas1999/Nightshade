@@ -120,9 +120,18 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'equipment',
         title: 'Connect your gear',
-        body: 'Connect your camera, mount, and filter wheel here. Nightshade '
-            'supports ASCOM, INDI, Alpaca, and 12 vendor SDKs natively, so '
-            'most drivers work without any setup.',
+        // Scoped to what the support matrix in README.md actually claims.
+        // This used to promise "12 vendor SDKs natively, so most drivers work
+        // without any setup" — two falsehoods in the first thing a new user
+        // reads: the count drifts with the bindings, and the native paths are
+        // *gated* on vendor libraries the installer deliberately does not
+        // redistribute. A first-nighter who trusted "no setup" would find the
+        // native camera path unable to load its SDK, in the dark.
+        body: 'Connect your camera, mount, and filter wheel here. ASCOM '
+            '(Windows), INDI, and Alpaca work against drivers you already '
+            'have. Native vendor paths (ZWO, QHY, Player One, SVBony, Atik, '
+            'FLI, Moravian, Touptek) need that vendor\'s own library '
+            'installed — Nightshade does not ship it.',
         targetKey: () => TutorialKeys.navEquipment,
       ),
       OnboardingStep(
@@ -135,19 +144,27 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       ),
       OnboardingStep(
         id: 'sequencer',
+        // Version stamps go stale silently: this said "v2.6.0 ships sample
+        // sequences" to users running 6.x. Point at where the templates live
+        // instead — that stays true across releases.
         title: 'Build a sequence',
-        body: 'Build automated imaging sequences here. v2.6.0 ships sample '
-            'sequences for narrowband, LRGB, mosaics, and lunar work — '
-            'load one and customize.',
+        body: 'Build automated imaging sequences here. The Templates tab has '
+            'ready-made starting points for narrowband, LRGB, mosaics, and '
+            'lunar work — load one and customize.',
         targetKey: () => TutorialKeys.navSequencer,
       ),
       OnboardingStep(
         id: 'scheduler',
+        // Names the SCREEN, not a tab. The previous copy pointed at a "Target
+        // Queue tab" that no longer exists: `plannerTabTargetQueue` is still in
+        // translations.dart but is referenced by no code, because Target Queue
+        // and This Week were unified into Schedule. A tour that names a tab the
+        // user cannot find is worse than a vaguer one that stays true — the
+        // same reason the sequencer step above points at Templates generally.
         title: 'Let the scheduler pick targets',
-        body: 'Plan Tonight has a new Target Queue tab — give it your '
-            'imaging goals and the scheduler picks which target to image '
-            'next based on altitude, moon separation, time remaining '
-            'tonight, and your integration goals.',
+        body: 'Plan Tonight ranks what is worth imaging and when, using each '
+            "target's altitude through the night and the time you actually "
+            'have before dawn.',
         targetKey: () => TutorialKeys.navPlanner,
       ),
       OnboardingStep(

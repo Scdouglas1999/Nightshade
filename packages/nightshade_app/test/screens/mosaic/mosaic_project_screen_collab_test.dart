@@ -68,9 +68,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           home: MosaicProjectScreen(
             projectId: projectId,
-            panelOutputPathBuilder: (panel) =>
-                '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
-            stitchOutputDirectory: (project) => '/tmp/mosaic/${project.id}',
+            artifactsBaseDir: '/tmp/mosaic',
           ),
         ),
       ),
@@ -200,6 +198,70 @@ void main() {
     await disposeScreen(tester);
   });
 
+  testWidgets('a panel this device holds a claim on offers a Release button',
+      (tester) async {
+    final projectId = await seedProject(cols: 1);
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    final panel = await panelsDao.getByIndex(projectId, 0);
+    await panelsDao.setClaim(
+      panel!.id!,
+      claimToken: 'baton-0',
+      rigId: 'rig-1',
+      accountId: 'acct-1',
+    );
+    await pumpScreen(tester, projectId);
+
+    // The holder hands their own claim back — without this the panel is locked
+    // until the owner force-releases it or the hub TTL expires.
+    expect(find.widgetWithText(NightshadeButton, 'Release'), findsOneWidget);
+    // Eviction stays owner-only.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Force release'),
+      findsNothing,
+    );
+    await disposeScreen(tester);
+  });
+
+  testWidgets('an unclaimed panel offers no Release button', (tester) async {
+    final projectId = await seedProject();
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    await pumpScreen(tester, projectId);
+
+    // Nothing is held here, so there is nothing to give back.
+    expect(find.widgetWithText(NightshadeButton, 'Release'), findsNothing);
+    await disposeScreen(tester);
+  });
+
+  testWidgets('a participant is not offered an unbounded "Claim all pending"',
+      (tester) async {
+    final projectId = await seedProject(cols: 6);
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+    await pumpScreen(tester, projectId);
+
+    // One tap must not be able to lock every panel of someone else's mosaic.
+    expect(
+      find.widgetWithText(NightshadeButton, 'Claim all pending'),
+      findsNothing,
+    );
+    // A bounded batch is still offered so a contributor can take real work.
+    expect(find.widgetWithText(NightshadeButton, 'Claim 3 panels'),
+        findsOneWidget);
+    await disposeScreen(tester);
+  });
+
+  testWidgets('the owner keeps "Claim all pending" on her own mosaic',
+      (tester) async {
+    final projectId = await seedProject(cols: 6);
+    await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+    await pumpScreen(tester, projectId);
+
+    expect(
+      find.widgetWithText(NightshadeButton, 'Claim all pending'),
+      findsOneWidget,
+    );
+    await disposeScreen(tester);
+  });
+
   testWidgets('no configured hub hides the whole collaborative section',
       (tester) async {
     final projectId = await seedProject();
@@ -216,9 +278,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           home: MosaicProjectScreen(
             projectId: projectId,
-            panelOutputPathBuilder: (panel) =>
-                '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
-            stitchOutputDirectory: (project) => '/tmp/mosaic/${project.id}',
+            artifactsBaseDir: '/tmp/mosaic',
           ),
         ),
       ),

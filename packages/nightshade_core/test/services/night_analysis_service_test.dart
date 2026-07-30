@@ -259,14 +259,43 @@ void main() {
       expect(f!.evidenceSubIds, containsAll([7, 8, 9]));
     });
 
-    test('every detector is silent on an empty / signal-less night', () {
-      // Subs exist but carry no usable per-sub metric → no findings, clean
-      // score, neutral headline.
+    test('a signal-less night is NOT graded (no findings, no score)', () {
+      // Subs exist but carry no usable per-sub metric. Every detector is silent,
+      // which is indistinguishable from "checked and healthy" — so the report
+      // must come back un-graded rather than a flattering 100/100.
       final data = NightData(_series(count: 20));
       final report = svc.analyze(data, sessionId: 1);
       expect(report.findings, isEmpty);
+      expect(report.graded, isFalse);
+      expect(report.score, NightReport.ungradedScore);
+      expect(report.headline.toLowerCase(), contains('not graded'));
+      expect(
+        report.headline.toLowerCase(),
+        contains('no quality measurements'),
+      );
+      expect(report.headline.toLowerCase(), isNot(contains('clean')));
+    });
+
+    test('a measured, problem-free night IS graded 100/100 clean', () {
+      // Flat HFR + flat star count over 20 subs: real measurements, nothing to
+      // flag. This is the only shape that may claim a clean night.
+      final data = NightData(
+        _series(count: 20, hfr: (i) => 2.1, starCount: (i) => 1200),
+      );
+      final report = svc.analyze(data, sessionId: 1);
+      expect(report.findings, isEmpty);
+      expect(report.graded, isTrue);
       expect(report.score, 100);
       expect(report.headline.toLowerCase(), contains('clean'));
+    });
+
+    test('a night with too few light frames is not graded', () {
+      final data = NightData(
+        _series(count: 2, hfr: (i) => 2.0, starCount: (i) => 1200),
+      );
+      final report = svc.analyze(data, sessionId: 1);
+      expect(report.graded, isFalse);
+      expect(report.headline, contains('only 2 light frames'));
     });
 
     test('tilt/collimation detector is silent without per-sub field data', () {
@@ -280,8 +309,10 @@ void main() {
     test('score is monotone non-increasing as severity worsens', () {
       final svc = _pureService();
 
-      // Clean night.
-      final clean = svc.analyze(NightData(_series(count: 20)));
+      // Clean night — measured (flat HFR + stars), so it is gradable.
+      final clean = svc.analyze(
+        NightData(_series(count: 20, hfr: (i) => 2.1, starCount: (i) => 1200)),
+      );
 
       // A warn-level focus drift: rel rise lands between 12% and 30%.
       final warn = svc.analyze(
@@ -422,15 +453,23 @@ void main() {
     );
 
     test(
-      'computeReport on a session with no lights yields a clean report',
+      'computeReport on a session with no lights is un-graded, not clean',
       () async {
+        // A dark-only / failed run. Grading it 100/100 "A clean night" was the
+        // observed defect: the operator checking at 6am was told a run that
+        // produced nothing was flawless.
         final sessionId = await insertSession();
         final report = await svc.computeReport(sessionId: sessionId);
         expect(report.findings, isEmpty);
-        expect(report.score, 100);
-        // Still persisted (an empty report is a valid verdict).
+        expect(report.graded, isFalse);
+        expect(report.score, NightReport.ungradedScore);
+        expect(report.headline, contains('no light frames'));
+        // Still persisted (an un-graded verdict is a verdict), and the
+        // un-graded flag survives the DB round-trip.
         final stored = await NightReportsDao(db).latestForSession(sessionId);
         expect(stored, isNotNull);
+        expect(stored!.graded, isFalse);
+        expect(stored.headline, report.headline);
       },
     );
 

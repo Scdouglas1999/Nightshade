@@ -81,7 +81,7 @@ class WeekForecastStrip extends ConsumerWidget {
             icon: LucideIcons.cloudMoon,
             title: 'Nothing to forecast yet',
             body: 'Add targets with integration goals to see the best upcoming '
-                'nights for your campaign.',
+                'nights for your project.',
           );
         }
 
@@ -98,7 +98,7 @@ class WeekForecastStrip extends ConsumerWidget {
               ),
               child: SectionHeader(
                 title: 'This Week',
-                subtitle: 'Best nights for your campaign targets',
+                subtitle: 'Best nights for your project targets',
               ),
             ),
             SizedBox(

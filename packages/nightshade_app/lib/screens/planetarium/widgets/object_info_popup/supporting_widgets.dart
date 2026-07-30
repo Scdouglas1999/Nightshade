@@ -470,6 +470,12 @@ class _AddToListDialogState extends ConsumerState<_AddToListDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(uiState.errorMessage!)),
         );
+      } else if (uiState.statusMessage != null) {
+        // No row written and no error: the benign "already in this list"
+        // outcome. Say so instead of closing silently.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(uiState.statusMessage!)),
+        );
       }
     }
   }

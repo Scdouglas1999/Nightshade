@@ -76,7 +76,14 @@ class ViewControls extends ConsumerWidget {
           ViewControlButton(
             icon: NightshadeIcons.home,
             onTap: () {
-              ref.read(skyViewStateProvider.notifier).setCenter(0, 0);
+              // Home = the observer's zenith, not the fixed point RA 0h/Dec 0
+              // (which is usually below the horizon). See
+              // [skyViewHomeCenterProvider].
+              final (ra, dec) = ref.read(skyViewHomeCenterProvider);
+              ref.read(skyViewStateProvider.notifier).setCenter(ra, dec);
+              ref
+                  .read(skyViewStateProvider.notifier)
+                  .setHorizontalCenter(0, 90);
               ref.read(skyViewStateProvider.notifier).setFieldOfView(60);
             },
           ),
@@ -299,15 +306,10 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
     setState(() => _isExporting = true);
 
     try {
-      final catalog = await ref.read(finderChartCatalogSnapshotProvider.future);
-      if (!mounted) return;
-
       final viewState = ref.read(skyViewStateProvider);
       final renderConfig = ref.read(skyRenderConfigProvider);
       final location = ref.read(observerLocationProvider);
       final time = ref.read(observationTimeProvider);
-      final stars = catalog.stars;
-      final dsos = catalog.dsos;
       final constellations = ref.read(constellationDataProvider);
       final selectedState = ref.read(selectedObjectProvider);
       final sunPos = ref.read(sunPositionProvider);
@@ -340,6 +342,20 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
         }
       }
 
+      // See [finderChartPose]: the chart is centred on the object it is titled
+      // for, and always rendered in the equatorial frame.
+      final (region: chartRegion, pose: chartPose) = finderChartPose(
+        viewState: viewState,
+        viewCenter: ref.read(viewCenterEquatorialProvider),
+        subject: selectedState.coordinates,
+      );
+      final catalog = await ref.read(
+        finderChartCatalogSnapshotProvider(chartRegion).future,
+      );
+      if (!mounted) return;
+      final stars = catalog.stars;
+      final dsos = catalog.dsos;
+
       final suggestedName = FinderChartService.suggestedFilename(
         objectName: objectName,
       );
@@ -358,7 +374,7 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
 
       await FinderChartService.generateChart(
         outputPath: target.path,
-        viewState: viewState,
+        viewState: chartPose,
         renderConfig: renderConfig,
         stars: stars,
         dsos: dsos,

@@ -10,6 +10,14 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
 
   String _formatDate(DateTime date);
 
+  /// Whether an appliance-reported catalog status counts as usable there.
+  static bool _rigHasCatalog(String status) =>
+      status == 'installed' || status == 'ok';
+
+  /// [rigStatus] is the connected appliance's status for this catalog, or null
+  /// for a local session. When it is set, the install badges name WHICH machine
+  /// holds the catalog — an unqualified "Installed" read off this device's own
+  /// filesystem is a claim about the wrong machine.
   Widget _buildCatalogCard({
     required BuildContext context,
     required String title,
@@ -20,6 +28,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
     required IconData icon,
     required String usedFor,
     String? latestVersion,
+    String? rigStatus,
   }) {
     final colors = context.nightshadeColors;
     final isInstalled = status?.isInstalled ?? false;
@@ -71,8 +80,20 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                         if (isInstalled)
                           _buildBadge(
                             context: context,
-                            label: 'Installed',
+                            label: rigStatus == null
+                                ? 'Installed'
+                                : 'On this device',
                             color: colors.success,
+                          ),
+                        if (rigStatus != null)
+                          _buildBadge(
+                            context: context,
+                            label: _rigHasCatalog(rigStatus)
+                                ? 'On the rig'
+                                : 'Not on the rig',
+                            color: _rigHasCatalog(rigStatus)
+                                ? colors.success
+                                : colors.warning,
                           ),
                         if (updateAvailable)
                           _buildBadge(

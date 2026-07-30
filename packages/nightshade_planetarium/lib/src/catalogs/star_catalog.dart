@@ -20,6 +20,7 @@ class HygStarCatalog extends Catalog<Star> {
 
   List<Star>? _cachedStars;
   bool _isLoading = false;
+  bool _usingFallback = false;
 
   /// Create a star catalog
   ///
@@ -38,6 +39,17 @@ class HygStarCatalog extends Catalog<Star> {
 
   /// Get the number of loaded stars
   int get starCount => _cachedStars?.length ?? 0;
+
+  /// Whether the last [loadObjects] served the built-in [_fallbackBrightStars]
+  /// list because no catalog file was installed.
+  ///
+  /// That list is a handful of naked-eye stars — enough to prove the renderer
+  /// works, nowhere near a usable sky — so the UI must say so rather than let
+  /// it pass for the real catalog.
+  bool get isUsingFallback => _usingFallback;
+
+  /// Number of stars in the built-in fallback list.
+  static int get fallbackStarCount => _fallbackBrightStars.length;
 
   @override
   Future<List<Star>> loadObjects() async {
@@ -58,6 +70,7 @@ class HygStarCatalog extends Catalog<Star> {
 
       if (!await file.exists()) {
         // Return fallback bright stars if catalog not installed
+        _usingFallback = true;
         _cachedStars = _fallbackBrightStars;
         return _cachedStars!;
       }
@@ -68,6 +81,7 @@ class HygStarCatalog extends Catalog<Star> {
           _loadStarsInIsolate,
           _LoadStarsArgs(path, magnitudeLimit),
         );
+        _usingFallback = false;
         _cachedStars = stars;
         return stars;
       } catch (e) {
@@ -137,6 +151,16 @@ class HygStarCatalog extends Catalog<Star> {
     if (parts.length < 30) return null;
 
     final hygId = int.tryParse(parts[0]) ?? 0;
+
+    // HYG row id 0 is the SUN, carried as a placeholder at RA 0h / Dec 0 with
+    // magnitude -26.7 because the catalogue's cartesian coordinates are
+    // heliocentric. It is not a sky position. Left in, it drew a huge blob
+    // labelled "Sol" in the middle of Pisces, and — being by far the brightest
+    // entry — it was the first result of every brightest-object-in-view query
+    // that touched the RA 0h / Dec 0 region. The real Sun is drawn separately
+    // from its computed ephemeris.
+    if (hygId == 0) return null;
+
     final hipId = int.tryParse(parts[1]);
     final hdId = int.tryParse(parts[2]);
     final hrId = int.tryParse(parts[3]);
@@ -237,10 +261,7 @@ class HygStarCatalog extends Catalog<Star> {
     return Star(
       id: id,
       name: starName.trim(),
-      coordinates: CelestialCoordinate(
-        ra: raHours * 15, // Convert hours to degrees
-        dec: dec,
-      ),
+      coordinates: CelestialCoordinate(ra: raHours, dec: dec),
       magnitude: magnitude,
       spectralType: spectralType?.isNotEmpty == true ? spectralType : null,
       colorIndex: colorIndex,
@@ -320,25 +341,32 @@ class HygStarCatalog extends Catalog<Star> {
         .toList();
   }
 
-  /// Get stars near a position (cone search)
+  /// Get stars within [radiusDegrees] of [center] (cone search).
+  ///
+  /// [center] is a [CelestialCoordinate], so its RA is HOURS; the radius is
+  /// degrees. Both sides of the comparison are taken to degrees, with the RA
+  /// separation narrowed by cos(dec) and wrapped across 0h/24h, so the cone is
+  /// a real angular cone rather than a rectangle in mixed units.
   Future<List<Star>> getStarsNear(
     CelestialCoordinate center,
     double radiusDegrees, {
     double? maxMagnitude,
   }) async {
     final stars = await loadObjects();
+    final cosDec = math.cos(center.decRadians).abs().clamp(0.05, 1.0);
+    final radiusSq = radiusDegrees * radiusDegrees;
 
     return stars.where((s) {
       if (maxMagnitude != null && (s.magnitude ?? 99) > maxMagnitude) {
         return false;
       }
 
-      // Simple angular distance (good enough for small radii)
-      final dRa = (s.coordinates.ra - center.ra).abs();
-      final dDec = (s.coordinates.dec - center.dec).abs();
-      final approxDist = dRa * dRa + dDec * dDec;
+      var dRaDeg = (s.coordinates.raDegrees - center.raDegrees).abs();
+      if (dRaDeg > 180) dRaDeg = 360 - dRaDeg;
+      final dxDeg = dRaDeg * cosDec;
+      final dyDeg = s.coordinates.dec - center.dec;
 
-      return approxDist <= radiusDegrees * radiusDegrees;
+      return dxDeg * dxDeg + dyDeg * dyDeg <= radiusSq;
     }).toList();
   }
 
@@ -555,7 +583,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP32349',
       name: 'Sirius',
-      coordinates: CelestialCoordinate(ra: 101.286, dec: -16.7161),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 101.286,
+        decDegrees: -16.7161,
+      ),
       magnitude: -1.46,
       spectralType: 'A1V',
       constellation: 'CMA',
@@ -563,7 +594,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP30438',
       name: 'Canopus',
-      coordinates: CelestialCoordinate(ra: 95.985, dec: -52.6957),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 95.985,
+        decDegrees: -52.6957,
+      ),
       magnitude: -0.72,
       spectralType: 'F0II',
       constellation: 'CAR',
@@ -571,7 +605,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP71683',
       name: 'Rigil Kentaurus',
-      coordinates: CelestialCoordinate(ra: 219.899, dec: -60.8354),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 219.899,
+        decDegrees: -60.8354,
+      ),
       magnitude: -0.29,
       spectralType: 'G2V',
       constellation: 'CEN',
@@ -579,7 +616,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP69673',
       name: 'Arcturus',
-      coordinates: CelestialCoordinate(ra: 213.918, dec: 19.1825),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 213.918,
+        decDegrees: 19.1825,
+      ),
       magnitude: -0.05,
       spectralType: 'K1.5III',
       constellation: 'BOO',
@@ -589,7 +629,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP91262',
       name: 'Vega',
-      coordinates: CelestialCoordinate(ra: 279.234, dec: 38.7837),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 279.234,
+        decDegrees: 38.7837,
+      ),
       magnitude: 0.03,
       spectralType: 'A0V',
       constellation: 'LYR',
@@ -597,7 +640,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP24608',
       name: 'Capella',
-      coordinates: CelestialCoordinate(ra: 79.176, dec: 45.9980),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 79.176,
+        decDegrees: 45.9980,
+      ),
       magnitude: 0.08,
       spectralType: 'G8III',
       constellation: 'AUR',
@@ -605,7 +651,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP24436',
       name: 'Rigel',
-      coordinates: CelestialCoordinate(ra: 78.633, dec: -8.2017),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 78.633,
+        decDegrees: -8.2017,
+      ),
       magnitude: 0.13,
       spectralType: 'B8Ia',
       constellation: 'ORI',
@@ -613,7 +662,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP37279',
       name: 'Procyon',
-      coordinates: CelestialCoordinate(ra: 114.828, dec: 5.2250),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 114.828,
+        decDegrees: 5.2250,
+      ),
       magnitude: 0.34,
       spectralType: 'F5IV',
       constellation: 'CMI',
@@ -621,7 +673,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP27989',
       name: 'Betelgeuse',
-      coordinates: CelestialCoordinate(ra: 88.793, dec: 7.4070),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 88.793,
+        decDegrees: 7.4070,
+      ),
       magnitude: 0.42,
       spectralType: 'M2Ib',
       constellation: 'ORI',
@@ -629,7 +684,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP7588',
       name: 'Achernar',
-      coordinates: CelestialCoordinate(ra: 24.428, dec: -57.2367),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 24.428,
+        decDegrees: -57.2367,
+      ),
       magnitude: 0.46,
       spectralType: 'B3V',
       constellation: 'ERI',
@@ -637,7 +695,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP80763',
       name: 'Hadar',
-      coordinates: CelestialCoordinate(ra: 210.956, dec: -60.3730),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 210.956,
+        decDegrees: -60.3730,
+      ),
       magnitude: 0.60,
       spectralType: 'B1III',
       constellation: 'CEN',
@@ -645,7 +706,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP97649',
       name: 'Altair',
-      coordinates: CelestialCoordinate(ra: 297.696, dec: 8.8683),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 297.696,
+        decDegrees: 8.8683,
+      ),
       magnitude: 0.77,
       spectralType: 'A7V',
       constellation: 'AQL',
@@ -653,7 +717,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP60718',
       name: 'Acrux',
-      coordinates: CelestialCoordinate(ra: 186.650, dec: -63.0990),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 186.650,
+        decDegrees: -63.0990,
+      ),
       magnitude: 0.76,
       spectralType: 'B0.5IV',
       constellation: 'CRU',
@@ -661,7 +728,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP21421',
       name: 'Aldebaran',
-      coordinates: CelestialCoordinate(ra: 68.982, dec: 16.5093),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 68.982,
+        decDegrees: 16.5093,
+      ),
       magnitude: 0.85,
       spectralType: 'K5III',
       constellation: 'TAU',
@@ -669,7 +739,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP80763',
       name: 'Antares',
-      coordinates: CelestialCoordinate(ra: 247.352, dec: -26.4320),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 247.352,
+        decDegrees: -26.4320,
+      ),
       magnitude: 1.06,
       spectralType: 'M1.5Ib',
       constellation: 'SCO',
@@ -677,7 +750,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP65474',
       name: 'Spica',
-      coordinates: CelestialCoordinate(ra: 201.298, dec: -11.1614),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 201.298,
+        decDegrees: -11.1614,
+      ),
       magnitude: 0.97,
       spectralType: 'B1V',
       constellation: 'VIR',
@@ -685,7 +761,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP37826',
       name: 'Pollux',
-      coordinates: CelestialCoordinate(ra: 116.330, dec: 28.0262),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 116.330,
+        decDegrees: 28.0262,
+      ),
       magnitude: 1.14,
       spectralType: 'K0III',
       constellation: 'GEM',
@@ -693,7 +772,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP102098',
       name: 'Fomalhaut',
-      coordinates: CelestialCoordinate(ra: 344.412, dec: -29.6223),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 344.412,
+        decDegrees: -29.6223,
+      ),
       magnitude: 1.16,
       spectralType: 'A3V',
       constellation: 'PSA',
@@ -701,7 +783,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP102488',
       name: 'Deneb',
-      coordinates: CelestialCoordinate(ra: 310.358, dec: 45.2803),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 310.358,
+        decDegrees: 45.2803,
+      ),
       magnitude: 1.25,
       spectralType: 'A2Ia',
       constellation: 'CYG',
@@ -709,7 +794,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP62434',
       name: 'Mimosa',
-      coordinates: CelestialCoordinate(ra: 191.930, dec: -59.6888),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 191.930,
+        decDegrees: -59.6888,
+      ),
       magnitude: 1.25,
       spectralType: 'B0.5IV',
       constellation: 'CRU',
@@ -717,7 +805,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP54061',
       name: 'Regulus',
-      coordinates: CelestialCoordinate(ra: 152.093, dec: 11.9672),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 152.093,
+        decDegrees: 11.9672,
+      ),
       magnitude: 1.40,
       spectralType: 'B8IV',
       constellation: 'LEO',
@@ -725,7 +816,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP31592',
       name: 'Adhara',
-      coordinates: CelestialCoordinate(ra: 104.656, dec: -28.9722),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 104.656,
+        decDegrees: -28.9722,
+      ),
       magnitude: 1.50,
       spectralType: 'B2II',
       constellation: 'CMA',
@@ -733,7 +827,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP36850',
       name: 'Castor',
-      coordinates: CelestialCoordinate(ra: 113.650, dec: 31.8884),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 113.650,
+        decDegrees: 31.8884,
+      ),
       magnitude: 1.58,
       spectralType: 'A1V',
       constellation: 'GEM',
@@ -741,7 +838,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP78820',
       name: 'Shaula',
-      coordinates: CelestialCoordinate(ra: 263.402, dec: -37.1038),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 263.402,
+        decDegrees: -37.1038,
+      ),
       magnitude: 1.63,
       spectralType: 'B2IV',
       constellation: 'SCO',
@@ -749,7 +849,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP63003',
       name: 'Gacrux',
-      coordinates: CelestialCoordinate(ra: 187.791, dec: -57.1132),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 187.791,
+        decDegrees: -57.1132,
+      ),
       magnitude: 1.64,
       spectralType: 'M3.5III',
       constellation: 'CRU',
@@ -757,7 +860,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP41037',
       name: 'Miaplacidus',
-      coordinates: CelestialCoordinate(ra: 138.300, dec: -69.7172),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 138.300,
+        decDegrees: -69.7172,
+      ),
       magnitude: 1.68,
       spectralType: 'A1III',
       constellation: 'CAR',
@@ -765,7 +871,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP25336',
       name: 'Bellatrix',
-      coordinates: CelestialCoordinate(ra: 81.282, dec: 6.3497),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 81.282,
+        decDegrees: 6.3497,
+      ),
       magnitude: 1.64,
       spectralType: 'B2III',
       constellation: 'ORI',
@@ -773,7 +882,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP27366',
       name: 'Elnath',
-      coordinates: CelestialCoordinate(ra: 81.573, dec: 28.6074),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 81.573,
+        decDegrees: 28.6074,
+      ),
       magnitude: 1.65,
       spectralType: 'B7III',
       constellation: 'TAU',
@@ -781,7 +893,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP26311',
       name: 'Alnilam',
-      coordinates: CelestialCoordinate(ra: 84.054, dec: -1.2019),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 84.054,
+        decDegrees: -1.2019,
+      ),
       magnitude: 1.70,
       spectralType: 'B0Ia',
       constellation: 'ORI',
@@ -791,7 +906,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP11767',
       name: 'Polaris',
-      coordinates: CelestialCoordinate(ra: 37.953, dec: 89.2641),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 37.953,
+        decDegrees: 89.2641,
+      ),
       magnitude: 1.98,
       spectralType: 'F7Ib',
       constellation: 'UMI',
@@ -799,7 +917,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP26727',
       name: 'Alnitak',
-      coordinates: CelestialCoordinate(ra: 85.190, dec: -1.9426),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 85.190,
+        decDegrees: -1.9426,
+      ),
       magnitude: 1.77,
       spectralType: 'O9.7Ib',
       constellation: 'ORI',
@@ -807,7 +928,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP15863',
       name: 'Mirfak',
-      coordinates: CelestialCoordinate(ra: 51.081, dec: 49.8612),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 51.081,
+        decDegrees: 49.8612,
+      ),
       magnitude: 1.79,
       spectralType: 'F5Ib',
       constellation: 'PER',
@@ -815,7 +939,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP59774',
       name: 'Dubhe',
-      coordinates: CelestialCoordinate(ra: 165.932, dec: 61.7510),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 165.932,
+        decDegrees: 61.7510,
+      ),
       magnitude: 1.79,
       spectralType: 'K0III',
       constellation: 'UMA',
@@ -823,7 +950,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP90185',
       name: 'Kaus Australis',
-      coordinates: CelestialCoordinate(ra: 276.044, dec: -34.3847),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 276.044,
+        decDegrees: -34.3847,
+      ),
       magnitude: 1.80,
       spectralType: 'B9.5III',
       constellation: 'SGR',
@@ -831,7 +961,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP65378',
       name: 'Alioth',
-      coordinates: CelestialCoordinate(ra: 193.506, dec: 55.9598),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 193.506,
+        decDegrees: 55.9598,
+      ),
       magnitude: 1.77,
       spectralType: 'A0p',
       constellation: 'UMA',
@@ -839,7 +972,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP62956',
       name: 'Alkaid',
-      coordinates: CelestialCoordinate(ra: 206.885, dec: 49.3133),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 206.885,
+        decDegrees: 49.3133,
+      ),
       magnitude: 1.86,
       spectralType: 'B3V',
       constellation: 'UMA',
@@ -847,7 +983,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP31681',
       name: 'Alhena',
-      coordinates: CelestialCoordinate(ra: 99.428, dec: 16.3993),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 99.428,
+        decDegrees: 16.3993,
+      ),
       magnitude: 1.93,
       spectralType: 'A0IV',
       constellation: 'GEM',
@@ -855,7 +994,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP82273',
       name: 'Atria',
-      coordinates: CelestialCoordinate(ra: 252.164, dec: -69.0277),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 252.164,
+        decDegrees: -69.0277,
+      ),
       magnitude: 1.92,
       spectralType: 'K2IIb',
       constellation: 'TRA',
@@ -863,7 +1005,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP46390',
       name: 'Alphard',
-      coordinates: CelestialCoordinate(ra: 141.896, dec: -8.6586),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 141.896,
+        decDegrees: -8.6586,
+      ),
       magnitude: 1.98,
       spectralType: 'K3III',
       constellation: 'HYA',
@@ -871,7 +1016,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP9884',
       name: 'Hamal',
-      coordinates: CelestialCoordinate(ra: 31.794, dec: 23.4624),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 31.794,
+        decDegrees: 23.4624,
+      ),
       magnitude: 2.00,
       spectralType: 'K2III',
       constellation: 'ARI',
@@ -879,7 +1027,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP14135',
       name: 'Diphda',
-      coordinates: CelestialCoordinate(ra: 10.898, dec: -17.9866),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 10.898,
+        decDegrees: -17.9866,
+      ),
       magnitude: 2.02,
       spectralType: 'K0III',
       constellation: 'CET',
@@ -887,7 +1038,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP89931',
       name: 'Nunki',
-      coordinates: CelestialCoordinate(ra: 283.816, dec: -26.2967),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 283.816,
+        decDegrees: -26.2967,
+      ),
       magnitude: 2.02,
       spectralType: 'B2.5V',
       constellation: 'SGR',
@@ -895,7 +1049,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP677',
       name: 'Alpheratz',
-      coordinates: CelestialCoordinate(ra: 2.097, dec: 29.0904),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 2.097,
+        decDegrees: 29.0904,
+      ),
       magnitude: 2.06,
       spectralType: 'B9p',
       constellation: 'AND',
@@ -903,7 +1060,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP1067',
       name: 'Mirach',
-      coordinates: CelestialCoordinate(ra: 17.432, dec: 35.6206),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 17.432,
+        decDegrees: 35.6206,
+      ),
       magnitude: 2.06,
       spectralType: 'M0III',
       constellation: 'AND',
@@ -911,7 +1071,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP86032',
       name: 'Rasalhague',
-      coordinates: CelestialCoordinate(ra: 263.735, dec: 12.5600),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 263.735,
+        decDegrees: 12.5600,
+      ),
       magnitude: 2.07,
       spectralType: 'A5III',
       constellation: 'OPH',
@@ -919,7 +1082,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP14576',
       name: 'Algol',
-      coordinates: CelestialCoordinate(ra: 47.046, dec: 40.9557),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 47.046,
+        decDegrees: 40.9557,
+      ),
       magnitude: 2.12,
       spectralType: 'B8V',
       constellation: 'PER',
@@ -927,7 +1093,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP49669',
       name: 'Denebola',
-      coordinates: CelestialCoordinate(ra: 177.266, dec: 14.5720),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 177.266,
+        decDegrees: 14.5720,
+      ),
       magnitude: 2.13,
       spectralType: 'A3V',
       constellation: 'LEO',
@@ -935,7 +1104,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP44816',
       name: 'Suhail',
-      coordinates: CelestialCoordinate(ra: 137.000, dec: -43.4326),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 137.000,
+        decDegrees: -43.4326,
+      ),
       magnitude: 2.21,
       spectralType: 'K4Ib',
       constellation: 'VEL',
@@ -943,7 +1115,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP3419',
       name: 'Schedar',
-      coordinates: CelestialCoordinate(ra: 10.128, dec: 56.5373),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 10.128,
+        decDegrees: 56.5373,
+      ),
       magnitude: 2.23,
       spectralType: 'K0II',
       constellation: 'CAS',
@@ -951,7 +1126,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP76267',
       name: 'Alphecca',
-      coordinates: CelestialCoordinate(ra: 233.673, dec: 26.7147),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 233.673,
+        decDegrees: 26.7147,
+      ),
       magnitude: 2.23,
       spectralType: 'A0V',
       constellation: 'CRB',
@@ -959,7 +1137,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP87833',
       name: 'Eltanin',
-      coordinates: CelestialCoordinate(ra: 269.150, dec: 51.4889),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 269.150,
+        decDegrees: 51.4889,
+      ),
       magnitude: 2.23,
       spectralType: 'K5III',
       constellation: 'DRA',
@@ -967,7 +1148,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP25930',
       name: 'Mintaka',
-      coordinates: CelestialCoordinate(ra: 83.002, dec: -0.2991),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 83.002,
+        decDegrees: -0.2991,
+      ),
       magnitude: 2.23,
       spectralType: 'O9.5II',
       constellation: 'ORI',
@@ -975,7 +1159,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP5447',
       name: 'Almach',
-      coordinates: CelestialCoordinate(ra: 30.975, dec: 42.3297),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 30.975,
+        decDegrees: 42.3297,
+      ),
       magnitude: 2.26,
       spectralType: 'K3II',
       constellation: 'AND',
@@ -983,7 +1170,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP39757',
       name: 'Naos',
-      coordinates: CelestialCoordinate(ra: 120.891, dec: -40.0033),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 120.891,
+        decDegrees: -40.0033,
+      ),
       magnitude: 2.25,
       spectralType: 'O5If',
       constellation: 'PUP',
@@ -991,7 +1181,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP67301',
       name: 'Mizar',
-      coordinates: CelestialCoordinate(ra: 200.982, dec: 54.9254),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 200.982,
+        decDegrees: 54.9254,
+      ),
       magnitude: 2.27,
       spectralType: 'A1V',
       constellation: 'UMA',
@@ -999,7 +1192,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP4427',
       name: 'Caph',
-      coordinates: CelestialCoordinate(ra: 2.295, dec: 59.1498),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 2.295,
+        decDegrees: 59.1498,
+      ),
       magnitude: 2.27,
       spectralType: 'F2III',
       constellation: 'CAS',
@@ -1007,7 +1203,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP53910',
       name: 'Merak',
-      coordinates: CelestialCoordinate(ra: 165.459, dec: 56.3824),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 165.459,
+        decDegrees: 56.3824,
+      ),
       magnitude: 2.37,
       spectralType: 'A1V',
       constellation: 'UMA',
@@ -1015,7 +1214,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP113368',
       name: 'Scheat',
-      coordinates: CelestialCoordinate(ra: 345.944, dec: 28.0828),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 345.944,
+        decDegrees: 28.0828,
+      ),
       magnitude: 2.42,
       spectralType: 'M2.5II',
       constellation: 'PEG',
@@ -1023,7 +1225,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP58001',
       name: 'Phecda',
-      coordinates: CelestialCoordinate(ra: 178.452, dec: 53.6948),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 178.452,
+        decDegrees: 53.6948,
+      ),
       magnitude: 2.44,
       spectralType: 'A0V',
       constellation: 'UMA',
@@ -1031,7 +1236,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP105199',
       name: 'Alderamin',
-      coordinates: CelestialCoordinate(ra: 319.644, dec: 62.5856),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 319.644,
+        decDegrees: 62.5856,
+      ),
       magnitude: 2.44,
       spectralType: 'A7IV',
       constellation: 'CEP',
@@ -1039,7 +1247,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP8886',
       name: 'Navi',
-      coordinates: CelestialCoordinate(ra: 14.180, dec: 60.7167),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 14.180,
+        decDegrees: 60.7167,
+      ),
       magnitude: 2.47,
       spectralType: 'B0IV',
       constellation: 'CAS',
@@ -1047,7 +1258,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP113881',
       name: 'Markab',
-      coordinates: CelestialCoordinate(ra: 346.197, dec: 15.2053),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 346.197,
+        decDegrees: 15.2053,
+      ),
       magnitude: 2.49,
       spectralType: 'A0IV',
       constellation: 'PEG',
@@ -1055,7 +1269,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP8645',
       name: 'Menkar',
-      coordinates: CelestialCoordinate(ra: 45.573, dec: 4.0897),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 45.573,
+        decDegrees: 4.0897,
+      ),
       magnitude: 2.53,
       spectralType: 'M1.5III',
       constellation: 'CET',
@@ -1063,7 +1280,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP88635',
       name: 'Ascella',
-      coordinates: CelestialCoordinate(ra: 285.656, dec: -29.8801),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 285.656,
+        decDegrees: -29.8801,
+      ),
       magnitude: 2.59,
       spectralType: 'A2IV',
       constellation: 'SGR',
@@ -1071,7 +1291,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP61084',
       name: 'Gienah',
-      coordinates: CelestialCoordinate(ra: 183.951, dec: -17.5419),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 183.951,
+        decDegrees: -17.5419,
+      ),
       magnitude: 2.59,
       spectralType: 'B8III',
       constellation: 'CRV',
@@ -1079,7 +1302,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP8903',
       name: 'Sheratan',
-      coordinates: CelestialCoordinate(ra: 28.659, dec: 20.8080),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 28.659,
+        decDegrees: 20.8080,
+      ),
       magnitude: 2.64,
       spectralType: 'A5V',
       constellation: 'ARI',
@@ -1087,7 +1313,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP77070',
       name: 'Unukalhai',
-      coordinates: CelestialCoordinate(ra: 236.065, dec: 6.4256),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 236.065,
+        decDegrees: 6.4256,
+      ),
       magnitude: 2.65,
       spectralType: 'K2III',
       constellation: 'SER',
@@ -1095,7 +1324,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP746',
       name: 'Ruchbah',
-      coordinates: CelestialCoordinate(ra: 21.459, dec: 60.2352),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 21.459,
+        decDegrees: 60.2352,
+      ),
       magnitude: 2.68,
       spectralType: 'A5IV',
       constellation: 'CAS',
@@ -1103,7 +1335,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP59747',
       name: 'Imai',
-      coordinates: CelestialCoordinate(ra: 183.786, dec: -58.7489),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 183.786,
+        decDegrees: -58.7489,
+      ),
       magnitude: 2.77,
       spectralType: 'B2IV',
       constellation: 'CRU',
@@ -1111,7 +1346,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP84345',
       name: 'Kornephoros',
-      coordinates: CelestialCoordinate(ra: 247.557, dec: 21.4897),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 247.557,
+        decDegrees: 21.4897,
+      ),
       magnitude: 2.77,
       spectralType: 'G7IIIa',
       constellation: 'HER',
@@ -1119,7 +1357,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP83207',
       name: 'Rasalgethi',
-      coordinates: CelestialCoordinate(ra: 258.662, dec: 14.3902),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 258.662,
+        decDegrees: 14.3902,
+      ),
       magnitude: 2.81,
       spectralType: 'M5Ib',
       constellation: 'HER',
@@ -1127,7 +1368,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP112158',
       name: 'Algenib',
-      coordinates: CelestialCoordinate(ra: 3.302, dec: 15.1836),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 3.302,
+        decDegrees: 15.1836,
+      ),
       magnitude: 2.83,
       spectralType: 'B2IV',
       constellation: 'PEG',
@@ -1135,7 +1379,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP109074',
       name: 'Sadalsuud',
-      coordinates: CelestialCoordinate(ra: 322.890, dec: -5.5712),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 322.890,
+        decDegrees: -5.5712,
+      ),
       magnitude: 2.91,
       spectralType: 'G0Ib',
       constellation: 'AQR',
@@ -1143,7 +1390,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP109139',
       name: 'Sadalmelik',
-      coordinates: CelestialCoordinate(ra: 331.446, dec: -0.3199),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 331.446,
+        decDegrees: -0.3199,
+      ),
       magnitude: 2.96,
       spectralType: 'G2Ib',
       constellation: 'AQR',
@@ -1151,7 +1401,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP10826',
       name: 'Mira',
-      coordinates: CelestialCoordinate(ra: 34.838, dec: -2.9776),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 34.838,
+        decDegrees: -2.9776,
+      ),
       magnitude: 3.04,
       spectralType: 'M7IIIe',
       constellation: 'CET',
@@ -1159,7 +1412,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP107315',
       name: 'Albireo',
-      coordinates: CelestialCoordinate(ra: 292.680, dec: 27.9597),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 292.680,
+        decDegrees: 27.9597,
+      ),
       magnitude: 3.18,
       spectralType: 'K3II',
       constellation: 'CYG',
@@ -1167,7 +1423,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP59774',
       name: 'Megrez',
-      coordinates: CelestialCoordinate(ra: 183.857, dec: 57.0326),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 183.857,
+        decDegrees: 57.0326,
+      ),
       magnitude: 3.31,
       spectralType: 'A3V',
       constellation: 'UMA',
@@ -1175,7 +1434,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP6686',
       name: 'Segin',
-      coordinates: CelestialCoordinate(ra: 28.598, dec: 63.6700),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 28.598,
+        decDegrees: 63.6700,
+      ),
       magnitude: 3.37,
       spectralType: 'B3III',
       constellation: 'CAS',
@@ -1183,7 +1445,10 @@ class HygStarCatalog extends Catalog<Star> {
     const Star(
       id: 'HIP9487',
       name: 'Eta Piscium',
-      coordinates: CelestialCoordinate(ra: 22.880, dec: 15.3458),
+      coordinates: CelestialCoordinate.fromDegrees(
+        raDegrees: 22.880,
+        decDegrees: 15.3458,
+      ),
       magnitude: 3.62,
       spectralType: 'G7III',
       constellation: 'PSC',

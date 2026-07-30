@@ -184,22 +184,34 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final token = backendBackupToken(backend);
     setState(() => _isCreatingBackup = true);
     try {
+      String? createdPath;
       if (backend is NetworkBackend) {
         final result = await backend.createBackup();
         if ((result['status'] as String?) != 'created') {
           throw Exception(result['error'] ?? 'Backup failed');
         }
+        createdPath = result['filePath'] as String?;
       } else {
         final result = await ref.read(backupServiceProvider).createBackup();
         if (!result.success) {
           throw Exception(result.errorMessage ?? 'Backup failed');
         }
+        createdPath = result.filePath;
       }
 
       // If the host switched mid-create, the new backup belongs to the old
       // host; don't paint success against the new one.
       if (!mounted || !_backendStillMatches(token)) return;
-      context.showSuccessSnackBar('Backup created successfully');
+      // The "Last Full Backup" summary is fed by a provider that reads the
+      // persisted timestamp when its stream starts, so it has to be re-read
+      // now — otherwise the card keeps showing the previous (or "Never") time
+      // right above the button that was just pressed.
+      ref.invalidate(autoSaveStatusProvider);
+      context.showSuccessSnackBar(
+        createdPath == null || createdPath.isEmpty
+            ? 'Backup created successfully'
+            : 'Backup created: ${path.basename(createdPath)}',
+      );
       await _loadAvailableBackups();
     } catch (e) {
       if (!mounted || !_backendStillMatches(token)) return;

@@ -3,6 +3,44 @@
 part of '../sky_renderer.dart';
 
 extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
+  /// "Nice" grid spacings in degrees, coarse to fine. Chosen so labels stay
+  /// readable (whole degrees and common sub-degree fractions).
+  static const List<double> _decSpacingLadderDeg = [
+    30.0,
+    15.0,
+    10.0,
+    5.0,
+    2.0,
+    1.0,
+    0.5,
+    0.25,
+    0.1,
+  ];
+
+  /// "Nice" right-ascension spacings in hours: 2h, 1h, 30m, 15m, 10m, 5m, 2m,
+  /// 1m, 30s, 10s.
+  static const List<double> _raSpacingLadderHours = [
+    2.0,
+    1.0,
+    0.5,
+    0.25,
+    1.0 / 6.0,
+    1.0 / 12.0,
+    1.0 / 30.0,
+    1.0 / 60.0,
+    1.0 / 120.0,
+    1.0 / 360.0,
+  ];
+
+  /// Pick the coarsest spacing from [ladder] that is still finer than [target],
+  /// so roughly a handful of grid lines cross the field at any zoom.
+  static double _chooseSpacing(List<double> ladder, double target) {
+    for (final s in ladder) {
+      if (s <= target) return s;
+    }
+    return ladder.last;
+  }
+
   void _drawEquatorialGrid(
     Canvas canvas,
     Size size,
@@ -13,73 +51,54 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     final paint = _PaintCache.getGridPaint(config.gridColor);
 
     final fov = viewState.fieldOfView;
+    final cull = _cull!;
 
-    // Adaptive grid spacing based on FOV
-    double raSpacing; // hours
-    double decSpacing; // degrees
-    double decStep; // interpolation step
+    // Grid spacing and sampling step both scale continuously with the field.
+    //
+    // These used to be fixed ladders bottoming out at 0.25h of RA (3.75 deg)
+    // and a 5 deg declination spacing, with a fixed sampling step. A segment is
+    // only emitted between two CONSECUTIVE on-screen samples, so below roughly
+    // a 4 deg field consecutive samples landed screens apart and the grid
+    // silently stopped being drawn at all — across the entire range an imager
+    // actually works in.
+    final targetSpacingDeg = fov / 4.0;
+    final decSpacing = _chooseSpacing(_decSpacingLadderDeg, targetSpacingDeg);
 
-    if (fov > 60) {
-      raSpacing = 2.0; // Every 2 hours (30 deg)
-      decSpacing = 30.0;
-      decStep = 5.0;
-    } else if (fov > 30) {
-      raSpacing = 1.0; // Every hour (15 deg)
-      decSpacing = 15.0;
-      decStep = 3.0;
-    } else if (fov > 10) {
-      raSpacing = 0.5; // Every 30 min
-      decSpacing = 10.0;
-      decStep = 2.0;
-    } else {
-      raSpacing = 0.25; // Every 15 min
-      decSpacing = 5.0;
-      decStep = 1.0;
-    }
+    // RA lines converge with declination, so the hour spacing that yields the
+    // same on-sky separation depends on where we are looking.
+    final cosCenterDec = math
+        .cos(cull.centerDecDeg * SkyCanvasPainter._deg2rad)
+        .abs()
+        .clamp(0.02, 1.0);
+    final raSpacing = _chooseSpacing(
+      _raSpacingLadderHours,
+      targetSpacingDeg / 15.0 / cosCenterDec,
+    );
 
-    // Draw RA lines with adaptive spacing. Each sample point is cheaply culled
-    // (dot product against the view center) BEFORE the projection trig, so a
-    // narrow FOV only projects the small window that can be visible instead of
-    // the whole 24h x 180deg grid.
-    for (var ra = 0.0; ra < 24; ra += raSpacing) {
-      final path = Path();
-      var firstPoint = true;
+    // Sample finely enough that a great circle reads as a curve, but never so
+    // finely that a narrow field walks the whole sphere.
+    final decStep = (fov / 8.0).clamp(0.01, 5.0);
+    final raStep = (decStep / 15.0 / cosCenterDec).clamp(1.0 / 3600.0, 0.5);
+
+    // Only the window that can be visible is walked (see [_CullContext]); the
+    // per-sample dot-product cull then rejects the corners of that window.
+    final (minDec, maxDec) = cull.decWindow;
+    final raHalf = cull.raHalfWindowHours;
+    final centerRaHours = cull.centerRaDeg / 15.0;
+
+    // Draw RA lines (constant right ascension, running in declination).
+    final firstRaIndex = ((centerRaHours - raHalf) / raSpacing).floor();
+    final lastRaIndex = ((centerRaHours + raHalf) / raSpacing).ceil();
+    for (var i = firstRaIndex; i <= lastRaIndex; i++) {
+      var ra = i * raSpacing;
+      ra = ra % 24.0;
+      if (ra < 0) ra += 24.0;
       final raDeg = ra * 15;
 
-      for (var dec = -90.0; dec <= 90; dec += decStep) {
-        if (_cull!.isCulled(raDeg, dec)) {
-          firstPoint = true;
-          continue;
-        }
-        final offset = _celestialToScreen(
-          CelestialCoordinate(ra: ra, dec: dec),
-          center,
-          scale,
-        );
-
-        if (offset != null && _isInView(offset, size)) {
-          if (firstPoint) {
-            path.moveTo(offset.dx, offset.dy);
-            firstPoint = false;
-          } else {
-            path.lineTo(offset.dx, offset.dy);
-          }
-        } else {
-          firstPoint = true;
-        }
-      }
-
-      canvas.drawPath(path, paint);
-    }
-
-    // Draw Dec lines with adaptive spacing
-    for (var dec = -90.0 + decSpacing; dec < 90; dec += decSpacing) {
       final path = Path();
       var firstPoint = true;
-
-      final raStep = fov > 30 ? 0.5 : 0.25;
-      for (var ra = 0.0; ra <= 24; ra += raStep) {
-        if (_cull!.isCulled(ra * 15, dec)) {
+      for (var dec = minDec; dec <= maxDec; dec += decStep) {
+        if (cull.isCulled(raDeg, dec)) {
           firstPoint = true;
           continue;
         }
@@ -104,10 +123,46 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       canvas.drawPath(path, paint);
     }
 
-    // Draw grid labels at major intersections when zoomed out
-    if (fov > 20) {
-      _drawGridLabels(canvas, size, center, scale, raSpacing, decSpacing);
+    // Draw Dec lines (constant declination, running in right ascension).
+    final firstDecIndex = (minDec / decSpacing).floor();
+    final lastDecIndex = (maxDec / decSpacing).ceil();
+    for (var i = firstDecIndex; i <= lastDecIndex; i++) {
+      final dec = i * decSpacing;
+      if (dec <= -90 || dec >= 90) continue;
+
+      final path = Path();
+      var firstPoint = true;
+      for (var raOffset = -raHalf; raOffset <= raHalf; raOffset += raStep) {
+        var ra = (centerRaHours + raOffset) % 24.0;
+        if (ra < 0) ra += 24.0;
+        if (cull.isCulled(ra * 15, dec)) {
+          firstPoint = true;
+          continue;
+        }
+        final offset = _celestialToScreen(
+          CelestialCoordinate(ra: ra, dec: dec),
+          center,
+          scale,
+        );
+
+        if (offset != null && _isInView(offset, size)) {
+          if (firstPoint) {
+            path.moveTo(offset.dx, offset.dy);
+            firstPoint = false;
+          } else {
+            path.lineTo(offset.dx, offset.dy);
+          }
+        } else {
+          firstPoint = true;
+        }
+      }
+
+      canvas.drawPath(path, paint);
     }
+
+    // Labels are drawn at every zoom now that they follow the view center — at
+    // a framing field the coordinate readout is more useful, not less.
+    _drawGridLabels(canvas, size, center, scale, raSpacing, decSpacing);
   }
 
   void _drawGridLabels(
@@ -123,44 +178,96 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       fontSize: 10,
       fontWeight: FontWeight.w500,
     );
+    final cull = _cull!;
+    final centerRaHours = cull.centerRaDeg / 15.0;
 
-    // Draw RA labels along dec=0 (celestial equator)
-    for (var ra = 0.0; ra < 24; ra += raSpacing * 2) {
+    // Label each line where it passes closest to the view center, rather than
+    // on the celestial equator / the RA 0h meridian. Those two reference lines
+    // are usually nowhere near the field, so at anything but a very wide view
+    // the labels were simply absent — which is why labelling used to be
+    // switched off below 20 degrees entirely.
+    final (minDec, maxDec) = cull.decWindow;
+    final raHalf = cull.raHalfWindowHours;
+
+    // RA labels, placed at the declination of the view center.
+    final firstRaIndex = ((centerRaHours - raHalf) / raSpacing).floor();
+    final lastRaIndex = ((centerRaHours + raHalf) / raSpacing).ceil();
+    for (var i = firstRaIndex; i <= lastRaIndex; i++) {
+      var ra = i * raSpacing;
+      ra = ra % 24.0;
+      if (ra < 0) ra += 24.0;
+
       final offset = _celestialToScreen(
-        CelestialCoordinate(ra: ra, dec: 0),
+        CelestialCoordinate(ra: ra, dec: cull.centerDecDeg),
         center,
         scale,
       );
+      if (offset == null || !_isInView(offset, size)) continue;
 
-      if (offset != null && _isInView(offset, size)) {
-        final hours = ra.floor();
-        final minutes = ((ra - hours) * 60).round();
-        final label = minutes == 0 ? '${hours}h' : '${hours}h${minutes}m';
-
-        // Use cached TextPainter
-        final textPainter = _TextCache.get(label, textStyle);
-        textPainter.paint(canvas, offset + Offset(-textPainter.width / 2, 4));
-      }
+      final textPainter = _TextCache.get(
+        _formatRaLabel(ra, raSpacing),
+        textStyle,
+      );
+      final pos = _labelManager.findPlacement(
+        offset + Offset(-textPainter.width / 2, 4),
+        Size(textPainter.width, textPainter.height),
+        size,
+      );
+      if (pos != null) textPainter.paint(canvas, pos);
     }
 
-    // Draw Dec labels along RA=0
-    for (var dec = -60.0; dec <= 60; dec += decSpacing) {
-      if (dec == 0) continue; // Skip equator label to avoid overlap
+    // Dec labels, placed at the right ascension of the view center.
+    final firstDecIndex = (minDec / decSpacing).floor();
+    final lastDecIndex = (maxDec / decSpacing).ceil();
+    for (var i = firstDecIndex; i <= lastDecIndex; i++) {
+      final dec = i * decSpacing;
+      if (dec <= -90 || dec >= 90) continue;
 
       final offset = _celestialToScreen(
-        CelestialCoordinate(ra: 0, dec: dec),
+        CelestialCoordinate(ra: centerRaHours, dec: dec),
         center,
         scale,
       );
+      if (offset == null || !_isInView(offset, size)) continue;
 
-      if (offset != null && _isInView(offset, size)) {
-        final label = dec > 0 ? '+${dec.toInt()}°' : '${dec.toInt()}°';
-
-        // Use cached TextPainter
-        final textPainter = _TextCache.get(label, textStyle);
-        textPainter.paint(canvas, offset + Offset(4, -textPainter.height / 2));
-      }
+      final textPainter = _TextCache.get(
+        _formatDecLabel(dec, decSpacing),
+        textStyle,
+      );
+      final pos = _labelManager.findPlacement(
+        offset + Offset(4, -textPainter.height / 2),
+        Size(textPainter.width, textPainter.height),
+        size,
+      );
+      if (pos != null) textPainter.paint(canvas, pos);
     }
+  }
+
+  /// Format a right ascension, carrying only as much precision as [spacing]
+  /// makes meaningful (whole hours at a wide field, minutes and then seconds as
+  /// the grid tightens).
+  static String _formatRaLabel(double raHours, double spacing) {
+    if (spacing >= 1.0) return '${raHours.round()}h';
+    final totalSeconds = (raHours * 3600).round();
+    final h = totalSeconds ~/ 3600;
+    final m = (totalSeconds % 3600) ~/ 60;
+    final s = totalSeconds % 60;
+    if (spacing >= 1.0 / 60.0) {
+      return s == 0 && spacing >= 1.0 / 60.0 && m == 0 ? '${h}h' : '${h}h${m}m';
+    }
+    return '${h}h${m}m${s}s';
+  }
+
+  /// Format a declination, carrying arcminutes once the grid is finer than a
+  /// degree.
+  static String _formatDecLabel(double decDeg, double spacing) {
+    final sign = decDeg < 0 ? '-' : '+';
+    final abs = decDeg.abs();
+    if (spacing >= 1.0) return '$sign${abs.round()}°';
+    final totalMinutes = (abs * 60).round();
+    final d = totalMinutes ~/ 60;
+    final m = totalMinutes % 60;
+    return "$sign$d°$m'";
   }
 
   void _drawZenithMarker(
@@ -170,10 +277,9 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
     double scale,
   ) {
     // Calculate zenith position (altitude 90 degrees)
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
+    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
+    // time separately in each layer, several times per frame.
+    final lst = _lstHours;
     final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
       altDeg: 90.0,
       azDeg: 0.0,
@@ -224,10 +330,9 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
       config.gridColor.withValues(alpha: 0.3),
     );
 
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
+    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
+    // time separately in each layer, several times per frame.
+    final lst = _lstHours;
 
     // Draw altitude circles
     for (var alt = 0; alt <= 90; alt += 30) {
@@ -394,10 +499,9 @@ extension _SkyCanvasPainterCoordinateLayers on SkyCanvasPainter {
   ) {
     if (!config.showMeridian) return;
 
-    final lst = AstronomyCalculations.localSiderealTime(
-      observationTime,
-      longitude,
-    );
+    // Memoized per paint (see [_lstHours]); this used to recompute sidereal
+    // time separately in each layer, several times per frame.
+    final lst = _lstHours;
 
     // Draw line from horizon to zenith along the meridian (azimuth 0/180)
     final path = Path();

@@ -96,6 +96,16 @@ class SafetyMonitorHandlers {
       'hardwareWeatherSafe': safety.hardwareWeatherSafe,
       'safetyMonitorSafe': safety.safetyMonitorSafe,
       'apiWeatherSafe': safety.apiWeatherSafe,
+      'hardwareWeatherReading': safety.hardwareWeatherReading.name,
+      'safetyMonitorReading': safety.safetyMonitorReading.name,
+      // `isSafe` is `true` both when conditions were checked and found good and
+      // when nothing was checked at all. These three tell a remote client which
+      // it is, so a phone cannot render "conditions safe for imaging" over a
+      // host that is not monitoring, or claim auto-park protection the composed
+      // policy does not actually arm.
+      'monitoringEnabled': safety.monitoringEnabled,
+      'autoParkArmed': safety.autoParkArmed,
+      'autoResumeArmed': safety.autoResumeArmed,
       'actions': {
         'shouldPause': safety.actions.shouldPause,
         'shouldPark': safety.actions.shouldPark,

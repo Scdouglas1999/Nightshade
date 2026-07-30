@@ -10,6 +10,18 @@ class CelestialCoordinate {
 
   const CelestialCoordinate({required this.ra, required this.dec});
 
+  /// Build from a right ascension expressed in DEGREES (0-360).
+  ///
+  /// Use this wherever the source data is published in degrees so the unit is
+  /// stated at the point of definition — [ra] itself is hours, and passing a
+  /// degree value to the default constructor silently multiplies every derived
+  /// position by 15.
+  const CelestialCoordinate.fromDegrees({
+    required double raDegrees,
+    required double decDegrees,
+  }) : ra = raDegrees / 15,
+       dec = decDegrees;
+
   /// RA in degrees
   double get raDegrees => ra * 15;
 

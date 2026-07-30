@@ -3068,8 +3068,8 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
     // Simulator devices have full capabilities
     if device_id_lower.contains("camera") {
         DeviceCapabilities::Camera(CameraCapabilities {
-            max_width: 4096,
-            max_height: 4096,
+            max_width: crate::sim_frame::SIM_W as u32,
+            max_height: crate::sim_frame::SIM_H as u32,
             bit_depth: 16,
             has_shutter: true,
             can_set_ccd_temperature: true,
@@ -3088,8 +3088,8 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_abort_exposure: true,
             can_stop_exposure: true,
             can_subframe: true,
-            pixel_size_x: Some(3.8),
-            pixel_size_y: Some(3.8),
+            pixel_size_x: Some(3.76),
+            pixel_size_y: Some(3.76),
             is_color: false,
             exposure_min: Some(0.001),
             exposure_max: Some(3600.0),

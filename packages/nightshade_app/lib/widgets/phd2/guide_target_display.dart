@@ -19,8 +19,13 @@ class GuideTargetDisplay extends StatelessWidget {
   /// Maximum number of historical points to display
   final int maxHistoryPoints;
 
-  /// Scale in arcseconds per ring
+  /// Scale in [unitSuffix] units per ring
   final double scaleArcsec;
+
+  /// Unit suffix for the ring labels. The guider reports residuals in
+  /// guide-camera pixels; callers convert to arcseconds only when a pixel
+  /// scale is known, so the label must not claim arcseconds unconditionally.
+  final String unitSuffix;
 
   /// Number of rings to display
   final int numRings;
@@ -39,6 +44,7 @@ class GuideTargetDisplay extends StatelessWidget {
     this.errorHistory = const [],
     this.maxHistoryPoints = 50,
     this.scaleArcsec = 1.0,
+    this.unitSuffix = '"',
     this.numRings = 3,
     this.showCurrentError = true,
     this.currentRaError = 0,
@@ -66,6 +72,7 @@ class GuideTargetDisplay extends StatelessWidget {
                 errorHistory: errorHistory,
                 maxHistoryPoints: maxHistoryPoints,
                 scaleArcsec: scaleArcsec,
+                unitSuffix: unitSuffix,
                 numRings: numRings,
                 showCurrentError: showCurrentError,
                 currentRaError: currentRaError,
@@ -84,6 +91,7 @@ class _TargetDisplayPainter extends CustomPainter {
   final List<GuideErrorPoint> errorHistory;
   final int maxHistoryPoints;
   final double scaleArcsec;
+  final String unitSuffix;
   final int numRings;
   final bool showCurrentError;
   final double currentRaError;
@@ -94,6 +102,7 @@ class _TargetDisplayPainter extends CustomPainter {
     required this.errorHistory,
     required this.maxHistoryPoints,
     required this.scaleArcsec,
+    required this.unitSuffix,
     required this.numRings,
     required this.showCurrentError,
     required this.currentRaError,
@@ -182,7 +191,7 @@ class _TargetDisplayPainter extends CustomPainter {
     );
 
     for (int i = 1; i <= numRings; i++) {
-      final label = '${(scaleArcsec * i).toStringAsFixed(1)}"';
+      final label = '${(scaleArcsec * i).toStringAsFixed(1)}$unitSuffix';
       textPainter.text = TextSpan(
         text: label,
         style: TextStyle(
@@ -263,6 +272,7 @@ class _TargetDisplayPainter extends CustomPainter {
     return errorHistory != oldDelegate.errorHistory ||
         currentRaError != oldDelegate.currentRaError ||
         currentDecError != oldDelegate.currentDecError ||
-        scaleArcsec != oldDelegate.scaleArcsec;
+        scaleArcsec != oldDelegate.scaleArcsec ||
+        unitSuffix != oldDelegate.unitSuffix;
   }
 }

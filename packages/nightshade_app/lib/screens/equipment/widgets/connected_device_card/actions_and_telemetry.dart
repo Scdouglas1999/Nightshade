@@ -138,7 +138,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         final state = ref.watch(cameraStateProvider);
         return [
           _ActionButton(
-            label: 'Cool to ${state.targetTemp.toStringAsFixed(0)}C',
+            label: 'Cool to ${formatCelsius(state.targetTemp, decimals: 0)}',
             onTap: _deviceCommandInFlight
                 ? null
                 : () => _handleCoolCamera(state.targetTemp),
@@ -538,7 +538,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
               colors: colors),
           _TelemetryRow(
             label: 'Target Temp',
-            value: '${state.targetTemp.toStringAsFixed(1)}C',
+            value: formatCelsius(state.targetTemp),
             colors: colors,
           ),
         ];
@@ -782,13 +782,18 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           if (state.lastUpdated != null)
             _TelemetryRow(
               label: 'Last Updated',
-              value: _formatTimeAgo(state.lastUpdated!),
+              value: '${_formatAge(_tickNow().difference(state.lastUpdated!))} '
+                  'ago',
               colors: colors,
             ),
         ];
 
       case ConnectedDeviceType.safetyMonitor:
         final state = ref.watch(safetyMonitorStateProvider);
+        final lastChecked = state.lastChecked;
+        final age =
+            lastChecked == null ? null : _tickNow().difference(lastChecked);
+        final isStale = age != null && age > _safetyStatusStaleAfter;
         return [
           _TelemetryRow(
               label: 'Device ID',
@@ -796,13 +801,20 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
               colors: colors),
           _TelemetryRow(
             label: 'Is Safe',
-            value: state.isSafe ? 'Yes' : 'No',
+            // Never answer Yes/No from a reading we can no longer vouch for.
+            value: lastChecked == null
+                ? 'Unknown — not read yet'
+                : isStale
+                    ? 'Unknown — reading is stale'
+                    : state.isSafe
+                        ? 'Yes'
+                        : 'No',
             colors: colors,
           ),
-          if (state.lastChecked != null)
+          if (age != null)
             _TelemetryRow(
               label: 'Last Checked',
-              value: _formatTimeAgo(state.lastChecked!),
+              value: '${_formatAge(age)} ago',
               colors: colors,
             ),
         ];

@@ -503,6 +503,69 @@ void main() {
       c.dispose();
     });
 
+    test('releasePanel hands this rig\'s own claim back and reloads', () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+      await c.claimPanel(0);
+      expect(c.state.panels.first.isClaimed, isTrue);
+
+      await c.releasePanel(0);
+
+      expect(collab.releasedIndices, [0]);
+      expect(c.state.isClaiming, isFalse);
+      // A contributor can undo their own claim without the owner evicting it.
+      expect(c.state.panels.firstWhere((p) => p.panelIndex == 0).isClaimed,
+          isFalse);
+      expect(c.state.error, isNull);
+      c.dispose();
+    });
+
+    test('a participant bulk claim is bounded, leaving panels for the owner',
+        () async {
+      final projectId = await seedProject(cols: 6);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.claimPendingBatch();
+
+      // Never the whole grid: the owner is not locked out of her own mosaic.
+      expect(collab.claimedIndices, [0, 1, 2]);
+      expect(c.state.unclaimedPanels, hasLength(3));
+      c.dispose();
+    });
+
+    test('the owner bulk claim still takes every pending panel', () async {
+      final projectId = await seedProject(cols: 6);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'owner');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+
+      await c.claimPendingBatch();
+
+      expect(collab.claimedIndices, [0, 1, 2, 3, 4, 5]);
+      expect(c.state.unclaimedPanels, isEmpty);
+      c.dispose();
+    });
+
+    test('a granted claim surfaces the hub\'s own expiry', () async {
+      final projectId = await seedProject(cols: 2);
+      await projectsDao.setHubMosaic(projectId, 'mos-1', 'participant');
+      final c = collabController(projectId);
+      await waitForLoad(c);
+      expect(c.state.claimExpiresAt, isNull);
+
+      await c.claimPanel(0);
+      expect(c.state.claimExpiresAt, isNotNull);
+
+      // Giving the panel back drops the deadline rather than leaving it stale.
+      await c.releasePanel(0);
+      expect(c.state.claimExpiresAt, isNull);
+      c.dispose();
+    });
+
     test('forceReleasePanel surfaces a thrown auth error (non-owner)',
         () async {
       final projectId = await seedProject(cols: 2);
@@ -587,6 +650,7 @@ class _FakeCollab extends CollaborativeMosaicService {
   final List<int> claimedIndices = [];
   final List<int> uploadedIndices = [];
   final List<int> forceReleasedIndices = [];
+  final List<int> releasedIndices = [];
   bool throwOnPublish = false;
   bool throwOnForceRelease = false;
 
@@ -654,6 +718,14 @@ class _FakeCollab extends CollaborativeMosaicService {
       assignedRigId: 'rig-1',
       uploaded: true,
     );
+  }
+
+  @override
+  Future<bool> releasePanel(int projectId, int panelIndex) async {
+    releasedIndices.add(panelIndex);
+    final panel = await panelsDao.getByIndex(projectId, panelIndex);
+    await panelsDao.clearClaim(panel!.id!);
+    return true;
   }
 
   @override

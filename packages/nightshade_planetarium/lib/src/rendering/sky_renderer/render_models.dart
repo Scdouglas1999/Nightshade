@@ -194,6 +194,97 @@ class SkyRenderConfig {
       mountPositionColor: mountPositionColor ?? this.mountPositionColor,
     );
   }
+
+  /// Value equality.
+  ///
+  /// Without this the painter's `config != oldDelegate.config` check was an
+  /// identity compare, so any rebuild that produced an equal-but-new config —
+  /// which [effectiveSkyRenderConfigProvider] does on every recompute, since
+  /// `copyWith` always allocates — forced a full repaint of the expensive base
+  /// layer for no visual change.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SkyRenderConfig &&
+          runtimeType == other.runtimeType &&
+          showStars == other.showStars &&
+          showConstellationLines == other.showConstellationLines &&
+          showConstellationLabels == other.showConstellationLabels &&
+          showConstellationBoundaries == other.showConstellationBoundaries &&
+          showDSOs == other.showDSOs &&
+          showDSOLabels == other.showDSOLabels &&
+          showCoordinateGrid == other.showCoordinateGrid &&
+          showAltAzGrid == other.showAltAzGrid &&
+          showEquatorialGrid == other.showEquatorialGrid &&
+          showEcliptic == other.showEcliptic &&
+          showGalacticPlane == other.showGalacticPlane &&
+          showHorizon == other.showHorizon &&
+          showCardinalDirections == other.showCardinalDirections &&
+          showMilkyWay == other.showMilkyWay &&
+          showMountPosition == other.showMountPosition &&
+          showSun == other.showSun &&
+          showMoon == other.showMoon &&
+          showPlanets == other.showPlanets &&
+          showGroundPlane == other.showGroundPlane &&
+          showMeridian == other.showMeridian &&
+          showSatellites == other.showSatellites &&
+          showVariableStars == other.showVariableStars &&
+          showMinorPlanets == other.showMinorPlanets &&
+          showConstellationArt == other.showConstellationArt &&
+          showPlanningOverlays == other.showPlanningOverlays &&
+          starMagnitudeLimit == other.starMagnitudeLimit &&
+          dsoMagnitudeLimit == other.dsoMagnitudeLimit &&
+          groundColorDark == other.groundColorDark &&
+          groundColorLight == other.groundColorLight &&
+          horizonGlowColor == other.horizonGlowColor &&
+          gridColor == other.gridColor &&
+          constellationLineColor == other.constellationLineColor &&
+          constellationBoundaryColor == other.constellationBoundaryColor &&
+          eclipticColor == other.eclipticColor &&
+          galacticPlaneColor == other.galacticPlaneColor &&
+          horizonColor == other.horizonColor &&
+          mountPositionColor == other.mountPositionColor;
+
+  @override
+  int get hashCode => Object.hashAll([
+    showStars,
+    showConstellationLines,
+    showConstellationLabels,
+    showConstellationBoundaries,
+    showDSOs,
+    showDSOLabels,
+    showCoordinateGrid,
+    showAltAzGrid,
+    showEquatorialGrid,
+    showEcliptic,
+    showGalacticPlane,
+    showHorizon,
+    showCardinalDirections,
+    showMilkyWay,
+    showMountPosition,
+    showSun,
+    showMoon,
+    showPlanets,
+    showGroundPlane,
+    showMeridian,
+    showSatellites,
+    showVariableStars,
+    showMinorPlanets,
+    showConstellationArt,
+    showPlanningOverlays,
+    starMagnitudeLimit,
+    dsoMagnitudeLimit,
+    groundColorDark,
+    groundColorLight,
+    horizonGlowColor,
+    gridColor,
+    constellationLineColor,
+    constellationBoundaryColor,
+    eclipticColor,
+    galacticPlaneColor,
+    horizonColor,
+    mountPositionColor,
+  ]);
 }
 
 /// Sky view projection type
@@ -357,50 +448,10 @@ class LabelLayoutManager {
   final Map<int, List<Rect>> _grid = <int, List<Rect>>{};
   static const double _cellSize = 96.0;
 
-  // Cache invalidation state
-  double _cachedCenterRA = double.nan;
-  double _cachedCenterDec = double.nan;
-  double _cachedFOV = double.nan;
-  bool _cacheValid = false;
-
   /// Clear the layout grid unconditionally.
   void clear() {
     _renderedLabels.clear();
     _grid.clear();
-    _cacheValid = false;
-  }
-
-  /// Conditionally clear the layout grid based on view movement.
-  /// Returns true if the cache was valid and reused, false if it was cleared.
-  ///
-  /// Only rebuilds when:
-  /// - View center moves more than 0.5 degrees in RA or Dec
-  /// - Zoom (FOV) changes more than 5%
-  bool clearIfViewChanged(double centerRA, double centerDec, double fov) {
-    if (_cacheValid) {
-      final raDelta = (centerRA - _cachedCenterRA).abs();
-      final decDelta = (centerDec - _cachedCenterDec).abs();
-      final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
-
-      // RA wraps at 24h, so check the shorter arc
-      final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
-      // Convert RA hours to degrees for threshold comparison
-      final raDeg = raWrapped * 15.0;
-
-      if (raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05) {
-        // View hasn't moved enough - reuse cached grid
-        return true;
-      }
-    }
-
-    // Cache miss: rebuild
-    _renderedLabels.clear();
-    _grid.clear();
-    _cachedCenterRA = centerRA;
-    _cachedCenterDec = centerDec;
-    _cachedFOV = fov;
-    _cacheValid = true;
-    return false;
   }
 
   int _cellKey(int x, int y) => Object.hash(x, y);
@@ -444,36 +495,91 @@ class LabelLayoutManager {
     return true;
   }
 
-  /// Try to find placement, returns offset or null
-  Offset? findPlacement(Offset preferred, Size labelSize, Size canvasSize) {
-    final offsets = [
-      preferred,
-      preferred + const Offset(0, -12), // Above
-      preferred + const Offset(12, 0), // Right
-      preferred + const Offset(-12, 0), // Left
-      preferred + const Offset(0, 12), // Below
-    ];
+  /// The rectangles placed so far, so one layer's occupancy can seed another's.
+  ///
+  /// The base and overlay render layers are painted by separate painter
+  /// instances; without sharing this, each starts empty and their labels
+  /// collide (bright-star names are laid out on the overlay, DSO/planet labels
+  /// on the base).
+  List<Rect> get occupancy => List<Rect>.unmodifiable(_renderedLabels);
 
-    for (final offset in offsets) {
+  /// Replace the occupancy with [rects] — used to seed the overlay layer with
+  /// the base layer's placements before it lays out its own labels.
+  void seed(List<Rect> rects) {
+    clear();
+    for (final r in rects) {
+      _register(r);
+    }
+  }
+
+  /// Try to find a placement, returning the offset or null if the label cannot
+  /// be shown without overlapping something already placed.
+  ///
+  /// Candidates radiate outward from [preferred] in eight directions at two
+  /// distances. Each candidate is first *nudged* inside the canvas rather than
+  /// rejected for crossing an edge: the old version required the box to be
+  /// fully in bounds, which silently dropped every label near a screen edge
+  /// even when there was free space a few pixels inward.
+  Offset? findPlacement(Offset preferred, Size labelSize, Size canvasSize) {
+    for (final offset in _candidates(preferred)) {
+      final clamped = _clampIntoBounds(offset, labelSize, canvasSize);
+      if (clamped == null) continue; // label is larger than the canvas
       final rect = Rect.fromLTWH(
-        offset.dx,
-        offset.dy,
+        clamped.dx,
+        clamped.dy,
         labelSize.width,
         labelSize.height,
       );
-      if (canPlace(rect) && _isInBounds(rect, canvasSize)) {
+      if (canPlace(rect)) {
         _register(rect);
-        return offset;
+        return clamped;
       }
     }
     return null;
   }
 
-  bool _isInBounds(Rect rect, Size canvasSize) {
-    return rect.left >= 0 &&
-        rect.top >= 0 &&
-        rect.right <= canvasSize.width &&
-        rect.bottom <= canvasSize.height;
+  static Iterable<Offset> _candidates(Offset preferred) sync* {
+    yield preferred;
+    for (final radius in const [12.0, 24.0]) {
+      yield preferred + Offset(0, -radius); // above
+      yield preferred + Offset(radius, 0); // right
+      yield preferred + Offset(-radius, 0); // left
+      yield preferred + Offset(0, radius); // below
+      yield preferred + Offset(radius, -radius);
+      yield preferred + Offset(-radius, -radius);
+      yield preferred + Offset(radius, radius);
+      yield preferred + Offset(-radius, radius);
+    }
+  }
+
+  /// Shift [offset] so a [labelSize] box sits fully inside [canvasSize].
+  ///
+  /// Only a box that already OVERLAPS the canvas is nudged. A label whose
+  /// anchor is entirely off-screen is refused instead, so labels belonging to
+  /// objects outside the view do not pile up along the edges — clamping those
+  /// in would advertise objects that are not on screen.
+  ///
+  /// Returns null when the label cannot fit or does not overlap at all.
+  static Offset? _clampIntoBounds(
+    Offset offset,
+    Size labelSize,
+    Size canvasSize,
+  ) {
+    if (labelSize.width > canvasSize.width ||
+        labelSize.height > canvasSize.height) {
+      return null;
+    }
+    final rect = Rect.fromLTWH(
+      offset.dx,
+      offset.dy,
+      labelSize.width,
+      labelSize.height,
+    );
+    if (!rect.overlaps(Offset.zero & canvasSize)) return null;
+    return Offset(
+      offset.dx.clamp(0.0, canvasSize.width - labelSize.width),
+      offset.dy.clamp(0.0, canvasSize.height - labelSize.height),
+    );
   }
 }
 

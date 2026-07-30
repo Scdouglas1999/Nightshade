@@ -218,7 +218,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   title: 'Curve fitting strategy',
                   trailing: SettingsDropdown(
                     value: settings.afCurveFitting,
-                    items: const ['Hyperbolic', 'Parabolic', 'Trend Lines'],
+                    items: AutofocusSettings.curveFittingOptions,
                     onChanged: (value) {
                       return notifier.setAfCurveFitting(value);
                     },
@@ -471,7 +471,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         title: 'Curve fitting strategy',
         trailing: SettingsDropdown(
           value: settings.afCurveFitting,
-          items: const ['Hyperbolic', 'Parabolic', 'Trend Lines'],
+          items: AutofocusSettings.curveFittingOptions,
           onChanged: (value) {
             return notifier.setAfCurveFitting(value);
           },

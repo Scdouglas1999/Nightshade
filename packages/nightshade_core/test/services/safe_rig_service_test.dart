@@ -25,7 +25,7 @@ class _RecordingSafeRig extends SafeRigService {
   _RecordingSafeRig(
     super.ref, {
     this.failDome = false,
-    Future<void> Function()? stopSecondaryRig,
+    Future<bool> Function()? stopSecondaryRig,
   }) : super(stopSecondaryRig: stopSecondaryRig ?? _noopSecondaryRigStop);
 
   final bool failDome;
@@ -50,7 +50,9 @@ class _RecordingSafeRig extends SafeRigService {
   }
 }
 
-Future<void> _noopSecondaryRigStop() async {}
+/// No secondary rig configured: the stop is a no-op and reports that nothing
+/// was running, so the outcome must not claim "secondary rig stopped".
+Future<bool> _noopSecondaryRigStop() async => false;
 
 void main() {
   setUpAll(registerMocktailFallbackValues);
@@ -193,6 +195,7 @@ void main() {
           ref,
           stopSecondaryRig: () async {
             order.add('secondary');
+            return true;
           },
         ),
       );
@@ -213,8 +216,10 @@ void main() {
       late _TestBackendNotifier backendNotifier;
       final container = makeContainer(
         captureBackendNotifier: (notifier) => backendNotifier = notifier,
-        safeRigBuilder: (ref) =>
-            SafeRigService(ref, stopSecondaryRig: () => secondaryStop.future),
+        safeRigBuilder: (ref) => SafeRigService(
+          ref,
+          stopSecondaryRig: () => secondaryStop.future.then((_) => true),
+        ),
       );
       addTearDown(container.dispose);
 
@@ -554,6 +559,89 @@ void main() {
           .safeTheRig(reason: 'test', park: true, notify: false);
 
       expect(container.read(uiNotificationProvider), isEmpty);
+    });
+
+    // Audit 2026-07-29: with only a simulated weather station connected, the
+    // safing toast read "Rig safed: secondary rig stopped, mount already safe"
+    // while the status bar said Mount Disconnected and no secondary rig had ever
+    // been configured. Both clauses described work that never happened.
+    group('reports only what it actually did', () {
+      test('an absent mount is recorded as absent, not as already safe', () {
+        final container = makeContainer(mountConnected: false);
+        addTearDown(container.dispose);
+
+        return container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'test', park: true, notify: false)
+            .then((result) {
+              expect(result.mountAbsent, isTrue);
+              expect(result.mountAlreadyParked, isFalse);
+              expect(result.mountParked, isFalse);
+            });
+      });
+
+      test('an already-parked mount is recorded as already parked', () async {
+        final container = makeContainer(mountParked: true);
+        addTearDown(container.dispose);
+
+        final result = await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'test', park: true, notify: false);
+
+        expect(result.mountAlreadyParked, isTrue);
+        expect(result.mountAbsent, isFalse);
+      });
+
+      test(
+        'notification says the mount was NOT parked when none is connected',
+        () async {
+          final container = makeContainer(mountConnected: false);
+          addTearDown(container.dispose);
+
+          await container
+              .read(safeRigServiceProvider)
+              .safeTheRig(reason: 'Weather turned unsafe', park: true);
+
+          final message = container.read(uiNotificationProvider).last.message;
+          expect(message, contains('NO MOUNT CONNECTED'));
+          expect(message, isNot(contains('mount already safe')));
+          expect(message, isNot(contains('already parked')));
+        },
+      );
+
+      test(
+        'notification does not claim the secondary rig was stopped when none '
+        'was running',
+        () async {
+          final container = makeContainer();
+          addTearDown(container.dispose);
+
+          await container
+              .read(safeRigServiceProvider)
+              .safeTheRig(reason: 'Weather turned unsafe', park: true);
+
+          final message = container.read(uiNotificationProvider).last.message;
+          expect(message, isNot(contains('secondary rig stopped')));
+          expect(message, contains('mount parked'));
+        },
+      );
+
+      test('a secondary rig that was running is reported as stopped', () async {
+        final container = makeContainer(
+          safeRigBuilder: (ref) =>
+              _RecordingSafeRig(ref, stopSecondaryRig: () async => true),
+        );
+        addTearDown(container.dispose);
+
+        await container
+            .read(safeRigServiceProvider)
+            .safeTheRig(reason: 'Weather turned unsafe', park: true);
+
+        expect(
+          container.read(uiNotificationProvider).last.message,
+          contains('secondary rig stopped'),
+        );
+      });
     });
   });
 }
