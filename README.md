@@ -16,7 +16,7 @@ Plan the target, connect the rig, frame and solve the field, run the sequence, g
 
 [**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [6.0.0 release notes](docs/release/v6.0.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
 
-<img src="assets/screenshots/planetarium.png?v=20260730" width="920" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
+<img src="docs/screenshots/planetarium.png?v=20260730" width="920" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
 
 </div>
 
@@ -63,19 +63,23 @@ Everything else in this README describes capability that exists in the source an
 </table>
 
 <div align="center">
-<img src="assets/screenshots/equipment.png?v=20260730" width="920" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
+<img src="docs/screenshots/dashboard.png?v=20260730" width="920" alt="Nightshade dashboard during a session: the active target with its altitude and time-to-set, the most recent captured frame with a thumbnail strip, and live camera, mount, focuser, filter wheel, rotator, guider and weather-safety readouts">
 </div>
 
 <div align="center">
-<img src="assets/screenshots/sequencer.png?v=20260730" width="430" alt="Nightshade visual sequencer showing a multi-node capture plan built from instruction and logic nodes">
-<img src="assets/screenshots/imaging.png?v=20260730" width="430" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
+<img src="docs/screenshots/equipment.png?v=20260730" width="920" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
+</div>
+
+<div align="center">
+<img src="docs/screenshots/sequence-library.png?v=20260730" width="430" alt="Nightshade sequence library listing saved multi-target imaging sequences with their node, target and exposure counts">
+<img src="docs/screenshots/imaging.png?v=20260730" width="430" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
 </div>
 
 ## From target to finished session
 
 <table>
 <tr>
-<td width="50%"><img src="assets/screenshots/plan-tonight.png?v=20260730" alt="Nightshade Plan Tonight showing a ranked target recommendation with its altitude forecast for the night"></td>
+<td width="50%"><img src="docs/screenshots/plan-tonight.png?v=20260730" alt="Nightshade Plan Tonight showing a ranked target recommendation with its altitude forecast for the night"></td>
 <td width="50%"><img src="assets/screenshots/framing.png?v=20260730" alt="Nightshade framing assistant showing a target over survey imagery with a multi-panel mosaic grid overlaid"></td>
 </tr>
 <tr>
@@ -84,14 +88,14 @@ Everything else in this README describes capability that exists in the source an
 </tr>
 <tr>
 <td><img src="assets/screenshots/guiding.png?v=20260730" alt="Nightshade guiding workspace with a guide-star image and RA/Dec error and RMS telemetry"></td>
-<td><img src="assets/screenshots/weather.png?v=20260730" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions"></td>
+<td><img src="docs/screenshots/weather.png?v=20260730" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions"></td>
 </tr>
 <tr>
 <td><strong>Track.</strong> Drive PHD2 from the same workspace — or use the built-in multi-star guider — and hold capture until dither settling completes.</td>
 <td><strong>Protect.</strong> Combine weather, safety monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/analytics.png?v=20260730" alt="Nightshade session analytics showing capture statistics and quality trends for a session"></td>
+<td><img src="docs/screenshots/analytics-history.png?v=20260730" alt="Nightshade session history listing past imaging sessions with duration, frame count, integration time and average HFR"></td>
 <td><img src="assets/screenshots/flat-wizard.png?v=20260730" alt="Nightshade flat wizard converging on a flat exposure from measured ADU samples"></td>
 </tr>
 <tr>
