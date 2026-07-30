@@ -16,7 +16,7 @@ Plan the target, connect the rig, frame and solve the field, run the sequence, g
 
 [**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [6.1.0 release notes](docs/release/v6.1.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
 
-<img src="docs/screenshots/planetarium.png?v=20260730" width="920" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
+<img src="docs/screenshots/planetarium.png" width="900" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
 
 </div>
 
@@ -41,66 +41,86 @@ Everything else in this README describes capability that exists in the source an
 
 <table>
 <tr>
-<td width="50%">
-<h3>Plan with the real sky</h3>
+<td width="50%" valign="top">
+<h4>Plan with the real sky</h4>
 <p>Explore an interactive planetarium, score targets against altitude, Moon, horizon, and darkness constraints, then compose exact framing and mosaic panel grids over survey imagery fetched from CDS HiPS2FITS or NASA SkyView.</p>
 </td>
-<td width="50%">
-<h3>Run with a real engine</h3>
+<td width="50%" valign="top">
+<h4>Run with a real engine</h4>
 <p>Build sequences from instruction nodes plus loops, conditionals, parallel branches, and triggers. A Rust executor owns the run, writes session checkpoints, and can resume from one after a restart.</p>
 </td>
 </tr>
 <tr>
-<td>
-<h3>Control the whole rig</h3>
+<td valign="top">
+<h4>Control the whole rig</h4>
 <p>Cameras, mounts, focusers, filter wheels, rotators, domes, covers, switches, weather stations, and safety monitors, through ASCOM COM on Windows, ASCOM Alpaca, INDI, and capability-gated native vendor SDKs.</p>
 </td>
-<td>
-<h3>Know what happened</h3>
+<td valign="top">
+<h4>Know what happened</h4>
 <p>Star detection, HFR, FWHM, and eccentricity are measured in Rust from the captured frames. Grading, integration totals, guiding RMS, and session history are stored in a local database you can query and back up.</p>
 </td>
 </tr>
 </table>
 
 <div align="center">
-<img src="docs/screenshots/dashboard.png?v=20260730" width="920" alt="Nightshade dashboard during a session: the active target with its altitude and time-to-set, the most recent captured frame with a thumbnail strip, and live camera, mount, focuser, filter wheel, rotator, guider and weather-safety readouts">
+
+<img src="docs/screenshots/dashboard.png" width="900" alt="Nightshade dashboard during a session: the active target with its altitude and time-to-set, the most recent captured frame with a thumbnail strip, and live camera, mount, focuser, filter wheel, rotator, guider and weather-safety readouts">
+
+<sub><b>One control room.</b> The active target, the frame that just landed, and every device on the rig — on one screen.</sub>
+
 </div>
 
-<div align="center">
-<img src="docs/screenshots/equipment.png?v=20260730" width="920" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
-</div>
-
-<div align="center">
-<img src="docs/screenshots/sequence-library.png?v=20260730" width="430" alt="Nightshade sequence library listing saved multi-target imaging sequences with their node, target and exposure counts">
-<img src="docs/screenshots/imaging.png?v=20260730" width="430" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
-</div>
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/screenshots/equipment.png" width="100%" alt="Nightshade equipment workspace showing connected device cards for camera, mount, focuser, filter wheel and related devices">
+<p><b>Connect once.</b> Every device in the profile, with live telemetry and its own controls.</p>
+</td>
+<td width="50%" valign="top">
+<img src="docs/screenshots/imaging.png" width="100%" alt="Nightshade imaging workspace showing a captured frame alongside live frame-analysis measurements">
+<p><b>See the frame.</b> Star count, HFR and eccentricity measured from the frame as it arrives.</p>
+</td>
+</tr>
+</table>
 
 ## From target to finished session
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/plan-tonight.png?v=20260730" alt="Nightshade Plan Tonight showing a ranked target recommendation with its altitude forecast for the night"></td>
-<td width="50%"><img src="assets/screenshots/framing.png?v=20260730" alt="Nightshade framing assistant showing a target over survey imagery with a multi-panel mosaic grid overlaid"></td>
+<td width="50%" valign="top">
+<img src="docs/screenshots/plan-tonight.png" width="100%" alt="Nightshade Plan Tonight showing a ranked target recommendation with its altitude forecast for the night">
+<p><b>1 · Decide.</b> Compare scheduler-ranked targets under the same altitude, horizon, darkness, and safety constraints the automation engine will enforce.</p>
+</td>
+<td width="50%" valign="top">
+<img src="assets/screenshots/framing.png" width="100%" alt="Nightshade framing assistant showing a target over survey imagery with a multi-panel mosaic grid overlaid">
+<p><b>2 · Compose.</b> Plate-solve, center, rotate, and lay out mosaic panels against registered survey imagery before spending clear-sky time.</p>
+</td>
 </tr>
 <tr>
-<td><strong>Decide.</strong> Compare scheduler-ranked targets under the same altitude, horizon, darkness, and safety constraints the automation engine will enforce.</td>
-<td><strong>Compose.</strong> Plate-solve, center, rotate, and lay out mosaic panels against registered survey imagery before spending clear-sky time.</td>
+<td valign="top">
+<img src="docs/screenshots/sequence-library.png" width="100%" alt="Nightshade sequence library listing saved multi-target imaging sequences with their node, target and exposure counts">
+<p><b>3 · Sequence.</b> Build the run from instruction nodes and reuse it. A saved sequence carries its targets, exposures, and planned integration with it.</p>
+</td>
+<td valign="top">
+<img src="assets/screenshots/guiding.png" width="100%" alt="Nightshade guiding workspace with a guide-star image and RA/Dec error and RMS telemetry">
+<p><b>4 · Track.</b> Drive PHD2 from the same workspace — or use the built-in multi-star guider — and hold capture until dither settling completes.</p>
+</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/guiding.png?v=20260730" alt="Nightshade guiding workspace with a guide-star image and RA/Dec error and RMS telemetry"></td>
-<td><img src="docs/screenshots/weather.png?v=20260730" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions"></td>
+<td valign="top">
+<img src="docs/screenshots/weather.png" width="100%" alt="Nightshade weather workspace displaying satellite cloud imagery and current conditions">
+<p><b>5 · Protect.</b> Combine weather, safety monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</p>
+</td>
+<td valign="top">
+<img src="assets/screenshots/flat-wizard.png" width="100%" alt="Nightshade flat wizard converging on a flat exposure from measured ADU samples">
+<p><b>6 · Calibrate.</b> The Flat Wizard measures median ADU, converges on an exposure inside your tolerance band, and reports non-convergence as an error rather than shipping a bad flat.</p>
+</td>
 </tr>
 <tr>
-<td><strong>Track.</strong> Drive PHD2 from the same workspace — or use the built-in multi-star guider — and hold capture until dither settling completes.</td>
-<td><strong>Protect.</strong> Combine weather, safety monitor, twilight, Sun altitude, and disk conditions into one host-authoritative safety verdict.</td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/analytics-history.png?v=20260730" alt="Nightshade session history listing past imaging sessions with duration, frame count, integration time and average HFR"></td>
-<td><img src="assets/screenshots/flat-wizard.png?v=20260730" alt="Nightshade flat wizard converging on a flat exposure from measured ADU samples"></td>
-</tr>
-<tr>
-<td><strong>Review.</strong> Follow frame quality, integration totals, guiding history, and the run decisions behind them. Quality labels are advisory: Nightshade does not delete or auto-reject your frames.</td>
-<td><strong>Calibrate.</strong> The Flat Wizard measures median ADU, converges on an exposure inside your tolerance band, and reports non-convergence as an error rather than shipping a bad flat.</td>
+<td colspan="2" valign="top">
+<img src="docs/screenshots/analytics-history.png" width="100%" alt="Nightshade session history listing past imaging sessions with duration, frame count, integration time and average HFR">
+<p><b>7 · Review.</b> Follow frame quality, integration totals, guiding history, and the run decisions behind them. Quality labels are advisory: Nightshade does not delete or auto-reject your frames.</p>
+</td>
 </tr>
 </table>
 
@@ -125,7 +145,10 @@ Nightshade runs as a desktop application or as a headless host at the telescope.
 | **Second desktop** | A full-size remote control room | Master/slave live session mirroring over the LAN |
 
 <div align="center">
-<img src="assets/screenshots/web-dashboard.png?v=20260730" width="760" alt="Nightshade browser dashboard with device, camera, mount, filter wheel, focuser, rotator, sequencer, guiding and planetarium panels">
+<img src="assets/screenshots/web-dashboard.png" width="820" alt="Nightshade browser dashboard with device, camera, mount, filter wheel, focuser, rotator, sequencer, guiding and planetarium panels">
+
+<sub><b>The browser dashboard</b>, served by the host at <code>/dashboard</code> — no install on the client.</sub>
+
 </div>
 
 Details worth knowing before you expose a host:
