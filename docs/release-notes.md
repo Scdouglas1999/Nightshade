@@ -37,9 +37,9 @@ unit tests only. Neither has been validated on sky.
 
 | Platform | Status | Build artifact | Verification |
 | --- | --- | --- | --- |
-| Windows | supported | `nightshade-windows-x64.zip` (built by `.github/workflows/release.yml` on a Windows runner) | Automated suites only this cycle. The local Windows bundle audit did NOT run for this candidate — `docs/production-readiness/windows-bundle-audit.json` reports `passed: false` with 16 required files missing, because no Windows build machine was reachable. Treat Windows as unverified for 6.1.0 until that audit is regenerated. |
-| Linux | supported | `nightshade-linux-x64.tar.gz` | Release bundle built and driven headless under Xvfb during this campaign; `docs/production-readiness/linux-release-build-evidence.json` passes. |
-| Android | limited | `nightshade-android.apk` (debug-signed) | Automated suites only this cycle. |
+| Windows | supported | `nightshade-6.1.0-windows-x64.zip` (built by `.github/workflows/release.yml` on a Windows runner) | Automated suites only this cycle. The local Windows bundle audit did NOT run for this candidate — `docs/production-readiness/windows-bundle-audit.json` reports `passed: false` with 16 required files missing, because no Windows build machine was reachable. Treat Windows as unverified for 6.1.0 until that audit is regenerated. |
+| Linux | supported | `nightshade-6.1.0-linux-x64.tar.gz` | Release bundle built and driven headless under Xvfb during this campaign; `docs/production-readiness/linux-release-build-evidence.json` passes. |
+| Android | limited | `nightshade-6.1.0-android-<abi>.apk`, one per ABI (`--split-per-abi`); debug-signed | Automated suites only this cycle. |
 | macOS | not shipped | none | Not built or released. |
 
 Platform capability boundaries (ASCOM COM is Windows-only, native SDK paths are
