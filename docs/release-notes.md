@@ -37,7 +37,7 @@ unit tests only. Neither has been validated on sky.
 
 | Platform | Status | Build artifact | Verification |
 | --- | --- | --- | --- |
-| Windows | supported | `nightshade-6.1.0-windows-x64.zip` (built by `.github/workflows/release.yml` on a Windows runner) | Automated suites only this cycle. The local Windows bundle audit did NOT run for this candidate — `docs/production-readiness/windows-bundle-audit.json` reports `passed: false` with 16 required files missing, because no Windows build machine was reachable. Treat Windows as unverified for 6.1.0 until that audit is regenerated. |
+| Windows | supported | `nightshade-6.1.0-windows-x64.zip` (built by `.github/workflows/release.yml` on a Windows runner) | Bundle audit PASSES against this candidate's own CI-built archive: 830 files, 0 required missing, 0 disallowed (`docs/production-readiness/windows-bundle-audit.json`). The archive was downloaded from the draft release, SHA-256 verified, and audited after extraction. Runtime behaviour on Windows was not exercised — no Windows machine was reachable — so this attests to bundle COMPOSITION, not to the app running. |
 | Linux | supported | `nightshade-6.1.0-linux-x64.tar.gz` | Release bundle built and driven headless under Xvfb during this campaign; `docs/production-readiness/linux-release-build-evidence.json` passes. |
 | Android | limited | `nightshade-6.1.0-android-<abi>.apk`, one per ABI (`--split-per-abi`); debug-signed | Automated suites only this cycle. |
 | macOS | not shipped | none | Not built or released. |
@@ -117,7 +117,7 @@ The limitations most relevant to 6.1.0:
 | Area | Limitation | Impact | Workaround |
 | --- | --- | --- | --- |
 | Validation | No on-sky or physical-rig validation was performed for 6.1.0. | The guider dead-band and moon-scoring changes alter real-run results and are unit-tested only. | Run a supervised night before relying on unattended guiding or automatic target selection. |
-| Windows | The Windows bundle audit did not run for this candidate. | The shipped Windows archive is built by CI but was not audited locally against the required file manifest. | Regenerate `docs/production-readiness/windows-bundle-audit.json` from a real Windows build before publishing. |
+| Windows | The Windows archive's composition is audited, but the app was never RUN on Windows this cycle. | A packaging defect would be caught; a Windows-only runtime regression would not. | Launch the archive on a Windows machine and exercise one capture before relying on it. |
 | Remote | Second-device LAN/firewall access is unverified for this candidate. | Access from a phone or tablet through a real router is untested this cycle. | Perform the smoke test on your own network before depending on remote access. |
 | Distribution | Windows is unsigned and Android is debug-signed. | SmartScreen and Android install warnings appear. | Verify the SHA-256 against the GitHub release. |
 | Updates | Artifacts are manual-update-only; no updater executable or update server ships. | The app will not install the next release automatically. | Download and replace the bundle manually. |

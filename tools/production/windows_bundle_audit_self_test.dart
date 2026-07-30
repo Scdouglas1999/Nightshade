@@ -34,8 +34,10 @@ Future<void> main() async {
       'missing bundle fixture should replace stale evidence with a failure report',
     );
     _expect(
-      missingBundleReport['missingRequiredFileCount'] ==
-          _requiredFiles.length + 1,
+      // No `+ 1`: the audit no longer carries a required glob prefix. It
+      // required `FF`, which never shipped in any real bundle — the published,
+      // working v6.0.0 Windows archive has no FF*/ffmpeg file either.
+      missingBundleReport['missingRequiredFileCount'] == _requiredFiles.length,
       'missing bundle report should list every required artifact',
     );
 
@@ -74,9 +76,8 @@ Future<void> main() async {
     final disallowed = failing['disallowedFiles'] as List? ?? const [];
     _expect(
       missing.contains('sqlite3.dll') &&
-          missing.contains('nightshade_bridge.dll (empty)') &&
-          missing.contains('FF*.dll'),
-      'failing fixture should identify missing, empty, and glob-required files',
+          missing.contains('nightshade_bridge.dll (empty)'),
+      'failing fixture should identify missing and empty required files',
     );
     _expect(
       disallowed.contains('nightshade_desktop.pdb') &&
@@ -98,14 +99,12 @@ Future<void> _writePassingBundle(Directory bundle) async {
   for (final path in _requiredFiles) {
     await _writeFile(bundle, path, 'fixture');
   }
-  await _writeFile(bundle, 'FFmpeg.dll', 'fixture');
 }
 
 Future<void> _writeFailingBundle(Directory bundle) async {
   await _writePassingBundle(bundle);
   await File('${bundle.path}/sqlite3.dll').delete();
   await File('${bundle.path}/nightshade_bridge.dll').writeAsString('');
-  await File('${bundle.path}/FFmpeg.dll').delete();
   await _writeFile(bundle, 'nightshade_desktop.pdb', 'debug symbols');
   await _writeFile(
     bundle,
@@ -169,7 +168,7 @@ const _requiredFiles = <String>[
   'libwebrtc.dll',
   'data/app.so',
   'data/icudtl.dat',
-  'data/flutter_assets/AssetManifest.json',
+  'data/flutter_assets/AssetManifest.bin',
   'data/flutter_assets/FontManifest.json',
   'data/flutter_assets/NativeAssetsManifest.json',
   'data/flutter_assets/web_dashboard/index.html',
