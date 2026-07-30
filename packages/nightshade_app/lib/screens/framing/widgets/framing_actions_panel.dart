@@ -137,6 +137,15 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
     final equipment = equipmentAsync.valueOrNull;
     final hasEquipment = equipment?.isReady ?? false;
 
+    // Step 4 must be badged from the SAME predicate that enables its button.
+    // [SlewDropdownButton] gates itself on the mount being connected, but this
+    // step's badge was driven by `hasTarget` alone — so with the mount
+    // disconnected it showed a green "Ready" over a button that swallowed every
+    // click in silence.
+    final isMountConnected = ref.watch(mountStateProvider).connectionState ==
+        DeviceConnectionState.connected;
+    final canSlew = hasTarget && isMountConnected;
+
     return NightshadeCard(
       padding: NightshadeTokens.cardPadding,
       child: Column(
@@ -255,24 +264,51 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
           _StepRow(
             number: 4,
             title: 'GoTo & Frame',
-            status:
-                hasTarget ? StatusPillStatus.active : StatusPillStatus.inactive,
-            statusValue: hasTarget ? 'Ready' : 'No target',
+            status: canSlew
+                ? StatusPillStatus.active
+                : (hasTarget
+                    // A target but no mount: the step genuinely cannot run, and
+                    // saying so is the point. 'Ready' here was a lie.
+                    ? StatusPillStatus.warning
+                    : StatusPillStatus.inactive),
+            // 'No mount' rather than 'Mount not connected': it stays honest (the
+            // point of the finding — 'Ready' here was a lie), reads in parallel
+            // with 'No target' below it, and fits the rail without ellipsizing.
+            // The full instruction is not lost — the step body renders 'Connect
+            // the mount in Equipment to enable slewing.' directly beneath.
+            statusValue:
+                canSlew ? 'Ready' : (hasTarget ? 'No mount' : 'No target'),
             colors: colors,
             child: hasTarget
-                ? SizedBox(
-                    width: double.infinity,
-                    child: SlewDropdownButton(
-                      key: FramingTutorialKeys.slewBtn,
-                      ra: target.raHours,
-                      dec: target.decDegrees,
-                      targetName: target.name,
-                      targetRotation: framingState.rotation != 0
-                          ? framingState.rotation
-                          : null,
-                      icon: NightshadeIcons.compass,
-                      label: 'Slew to Target',
-                    ),
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: SlewDropdownButton(
+                          key: FramingTutorialKeys.slewBtn,
+                          ra: target.raHours,
+                          dec: target.decDegrees,
+                          targetName: target.name,
+                          targetRotation: framingState.rotation != 0
+                              ? framingState.rotation
+                              : null,
+                          icon: NightshadeIcons.compass,
+                          label: 'Slew to Target',
+                        ),
+                      ),
+                      // The disabled button explains itself instead of
+                      // swallowing the click with no feedback at all.
+                      if (!isMountConnected) ...[
+                        const SizedBox(height: NightshadeTokens.spaceXs),
+                        Text(
+                          'Connect the mount in Equipment to enable slewing.',
+                          style: NightshadeTypography.caption.copyWith(
+                            color: colors.warning,
+                          ),
+                        ),
+                      ],
+                    ],
                   )
                 : Text(
                     'Resolve a target above to enable slewing.',
@@ -412,11 +448,20 @@ class _StepRow extends StatelessWidget {
             // this readiness state refers to, so an empty label keeps the pill
             // reading 'Resolved' / 'Loaded' / 'Ready' rather than repeating the
             // step name. (StatusPill renders value-only when label is empty.)
-            StatusPill(
-              icon: isDone ? NightshadeIcons.check : NightshadeIcons.circle,
-              label: '',
-              value: statusValue,
-              status: status,
+            //
+            // Flexible, because a non-flex child of a Row is given its intrinsic
+            // width and cannot shrink: a longer status value than the rail could
+            // fit overflowed the row (by 82 px on a phone in landscape and still
+            // 39 px in the 254 px DESKTOP sidebar) instead of ellipsizing.
+            // StatusPill already wraps its own text in Flexible + ellipsis, so it
+            // only ever needed a bounded width to do the right thing.
+            Flexible(
+              child: StatusPill(
+                icon: isDone ? NightshadeIcons.check : NightshadeIcons.circle,
+                label: '',
+                value: statusValue,
+                status: status,
+              ),
             ),
           ],
         ),

@@ -24,7 +24,23 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // solve, center-on-target) receive the JobManager
     // so their handlers return `{jobId, status: queued}` immediately and
     // run the work in the background. Other handlers don't need it.
-    _deviceHandlers = DeviceHandlers(container, jobManager: _jobManager);
+    // The correlator MUST be injected here or the whole command/event
+    // correlation feature is dead code while `/api/docs` advertises it.
+    //
+    // Both handler classes take `commandCorrelator` as an optional named
+    // parameter, and every call site guards with `commandCorrelator?.` — so
+    // omitting it failed silently and in the pass-making direction: action POSTs
+    // returned no `commandId`, every emitted event carried
+    // `correlatingCommandId: null`, and nothing errored. Table-level unit tests
+    // over `commandCompletionEventTypes` could not detect it either, because the
+    // table was always correct; it was never consulted with a registered
+    // command. `_commandCorrelator` is assigned in the constructor before
+    // `_initializeHandlers()` runs, so it is safe to read here.
+    _deviceHandlers = DeviceHandlers(
+      container,
+      commandCorrelator: _commandCorrelator,
+      jobManager: _jobManager,
+    );
     _deviceDiscoveryHandlers = DeviceDiscoveryHandlers(container);
     _collaborationHandlers = CollaborationHandlers(
       manager: _collaborationManager,
@@ -93,7 +109,10 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       logger: container.read(loggingServiceProvider),
     );
     _guidingHandlers = GuidingHandlers(container);
-    _sequencerHandlers = SequencerHandlers(container);
+    _sequencerHandlers = SequencerHandlers(
+      container,
+      commandCorrelator: _commandCorrelator,
+    );
     _replayDebugHandlers = ReplayDebugHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
     // [settings sync] inject `broadcastEvent` so handleUpdateSettings

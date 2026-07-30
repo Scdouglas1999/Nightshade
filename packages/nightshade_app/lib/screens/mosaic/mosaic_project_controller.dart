@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
 
 /// Immutable snapshot the [MosaicProjectScreen] renders: the durable project, its
 /// panels (ordered by index), the per-panel masters (so the grid can show a
@@ -61,6 +62,12 @@ class MosaicProjectState {
   /// True while [MosaicProjectController.downloadOutput] is running (WS2).
   final bool isDownloading;
 
+  /// When the claims this rig currently holds expire on the hub (WS2), or null
+  /// when nothing is held. Taken from the hub's own claim grant rather than a
+  /// client-side copy of the TTL, so what the operator is shown is the time the
+  /// hub will actually re-open their panels.
+  final DateTime? claimExpiresAt;
+
   /// A human-readable error from the last load or action, or null. Surfaced as
   /// a dismissible banner; it never tears down the already-loaded chrome.
   final String? error;
@@ -81,6 +88,7 @@ class MosaicProjectState {
     this.isJoining = false,
     this.isRefreshing = false,
     this.isDownloading = false,
+    this.claimExpiresAt,
     this.error,
   });
 
@@ -112,6 +120,10 @@ class MosaicProjectState {
   /// Panels not yet claimed for distributed capture (WS2) — the claim-all set.
   List<MosaicProjectPanel> get unclaimedPanels =>
       panels.where((p) => !p.isClaimed).toList(growable: false);
+
+  /// True when this device owns the collaborative mosaic (as opposed to having
+  /// joined a peer's as a participant).
+  bool get isOwner => project?.collabRole == 'owner';
 
   /// Integrated panels not yet uploaded to the hub (WS2) — the upload-all set.
   List<MosaicProjectPanel> get integratedNotUploaded => panels
@@ -155,6 +167,8 @@ class MosaicProjectState {
     bool? isJoining,
     bool? isRefreshing,
     bool? isDownloading,
+    DateTime? claimExpiresAt,
+    bool clearClaimExpiresAt = false,
     String? error,
     bool clearError = false,
   }) {
@@ -175,9 +189,27 @@ class MosaicProjectState {
       isJoining: isJoining ?? this.isJoining,
       isRefreshing: isRefreshing ?? this.isRefreshing,
       isDownloading: isDownloading ?? this.isDownloading,
+      claimExpiresAt:
+          clearClaimExpiresAt ? null : (claimExpiresAt ?? this.claimExpiresAt),
       error: clearError ? null : (error ?? this.error),
     );
   }
+}
+
+/// One database read of everything [MosaicProjectController.load] renders. A
+/// null [project] means "no such project" (not an error).
+class _MosaicProjectSnapshot {
+  final MosaicProject? project;
+  final List<MosaicProjectPanel> panels;
+  final Map<int, IntegratedMaster> panelMasters;
+  final IntegratedMaster? stitchedMaster;
+
+  const _MosaicProjectSnapshot({
+    this.project,
+    this.panels = const [],
+    this.panelMasters = const {},
+    this.stitchedMaster,
+  });
 }
 
 /// Riverpod controller for one mosaic project's review experience.
@@ -250,15 +282,22 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   final MosaicCaptureLauncher? _captureLauncher;
   final IntegrationSettings _integrationSettings;
 
+  /// How long the project read may take before the screen stops waiting on it.
+  /// A wedged/locked database must surface an actionable error rather than an
+  /// indefinite spinner the operator cannot interpret.
+  static const Duration loadTimeout = Duration(seconds: 20);
+
   /// Load (or reload) the project, its panels, the per-panel masters, and the
   /// stitched output. Errors are captured onto [MosaicProjectState.error]; the
   /// previously-loaded chrome is left intact so a transient read failure does
-  /// not blank the screen.
+  /// not blank the screen. The whole read is bounded by [loadTimeout], so
+  /// `isLoading` always resolves.
   Future<void> load() async {
     if (!mounted) return;
     state = state.copyWith(isLoading: state.project == null, clearError: true);
     try {
-      final project = await _projectsDao.getById(_projectId);
+      final snapshot = await _readSnapshot().timeout(loadTimeout);
+      final project = snapshot.project;
       if (project == null) {
         if (!mounted) return;
         state = state.copyWith(
@@ -267,31 +306,14 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         );
         return;
       }
-
-      final panels = await _panelsDao.getForProject(_projectId);
-
-      // Resolve each panel's per-panel master once, de-duplicated by master id
-      // (several panels never share a master, but the map keeps the lookup
-      // O(1) for the grid and tolerates a missing/deleted master row).
-      final masters = <int, IntegratedMaster>{};
-      for (final panel in panels) {
-        final masterId = panel.integratedMasterId;
-        if (masterId == null || masters.containsKey(masterId)) continue;
-        final master = await _mastersDao.getById(masterId);
-        if (master != null) masters[masterId] = master;
-      }
-
-      final outputMasterId = project.outputMasterId;
-      final stitched = outputMasterId == null
-          ? null
-          : await _mastersDao.getById(outputMasterId);
+      final panels = snapshot.panels;
 
       if (!mounted) return;
       state = MosaicProjectState(
         project: project,
         panels: panels,
-        panelMasters: masters,
-        stitchedMaster: stitched,
+        panelMasters: snapshot.panelMasters,
+        stitchedMaster: snapshot.stitchedMaster,
         isLoading: false,
         isStartingCapture: state.isStartingCapture,
         isIntegrating: state.isIntegrating,
@@ -303,11 +325,57 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         isJoining: state.isJoining,
         isRefreshing: state.isRefreshing,
         isDownloading: state.isDownloading,
+        // The held-claim expiry is only meaningful while this rig still holds
+        // one; releasing the last panel drops it rather than leaving a stale
+        // deadline on screen.
+        claimExpiresAt: panels.any((p) => p.isClaimed && !p.isUploaded)
+            ? state.claimExpiresAt
+            : null,
+      );
+    } on TimeoutException {
+      if (!mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Timed out reading mosaic project $_projectId after '
+            '${loadTimeout.inSeconds}s — the project database did not respond. '
+            'Close any other Nightshade instance using it and try again.',
       );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isLoading: false, error: 'Failed to load: $e');
     }
+  }
+
+  /// One consistent read of everything the screen renders. Split out of [load]
+  /// so the whole read can be bounded by a single timeout.
+  Future<_MosaicProjectSnapshot> _readSnapshot() async {
+    final project = await _projectsDao.getById(_projectId);
+    if (project == null) return const _MosaicProjectSnapshot();
+
+    final panels = await _panelsDao.getForProject(_projectId);
+
+    // Resolve each panel's per-panel master once, de-duplicated by master id
+    // (several panels never share a master, but the map keeps the lookup
+    // O(1) for the grid and tolerates a missing/deleted master row).
+    final masters = <int, IntegratedMaster>{};
+    for (final panel in panels) {
+      final masterId = panel.integratedMasterId;
+      if (masterId == null || masters.containsKey(masterId)) continue;
+      final master = await _mastersDao.getById(masterId);
+      if (master != null) masters[masterId] = master;
+    }
+
+    final outputMasterId = project.outputMasterId;
+    final stitched = outputMasterId == null
+        ? null
+        : await _mastersDao.getById(outputMasterId);
+
+    return _MosaicProjectSnapshot(
+      project: project,
+      panels: panels,
+      panelMasters: masters,
+      stitchedMaster: stitched,
+    );
   }
 
   /// Whether this controller can launch capture (a [MosaicCaptureLauncher] was
@@ -457,21 +525,50 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
   }
 
+  /// The most panels a NON-OWNER may take in a single bulk claim.
+  ///
+  /// A hub claim is held for hours and only its holder (or the owner, one panel
+  /// at a time) can give it back, so an unbounded "claim everything" on a mosaic
+  /// this rig does not own is a one-tap lockout of its owner. A participant gets
+  /// a batch worth a night's work instead and can claim further panels
+  /// individually from the grid.
+  static const int participantBulkClaimLimit = 4;
+
+  /// How many panels the bulk-claim action will actually take: everything still
+  /// pending for the OWNER of the mosaic, and for a participant at most
+  /// [participantBulkClaimLimit] and never more than half the grid, so one
+  /// contributor can never swallow a shared mosaic in a single tap.
+  int get bulkClaimCount {
+    final pending = state.unclaimedPanels.length;
+    if (state.isOwner) return pending;
+    final halfGrid = state.panels.length ~/ 2;
+    var limit = participantBulkClaimLimit;
+    if (halfGrid < limit) limit = halfGrid;
+    if (limit < 1) limit = 1;
+    return pending < limit ? pending : limit;
+  }
+
   /// Claim one panel of the published mosaic via the hub baton, then reload.
   Future<void> claimPanel(int panelIndex) async {
     await _runClaim(
         () => _collaborative!.claimPanels(_projectId, [panelIndex]));
   }
 
-  /// Claim every not-yet-claimed panel of the published mosaic, then reload.
-  Future<void> claimAllPending() async {
-    final indices =
-        state.unclaimedPanels.map((p) => p.panelIndex).toList(growable: false);
+  /// Claim a batch of not-yet-claimed panels of the published mosaic, then
+  /// reload. Bounded by [bulkClaimCount] — unlimited for the mosaic's owner,
+  /// capped for a participant.
+  Future<void> claimPendingBatch() async {
+    final indices = state.unclaimedPanels
+        .take(bulkClaimCount)
+        .map((p) => p.panelIndex)
+        .toList(growable: false);
     if (indices.isEmpty) return;
     await _runClaim(() => _collaborative!.claimPanels(_projectId, indices));
   }
 
-  Future<void> _runClaim(Future<void> Function() action) async {
+  Future<void> _runClaim(
+    Future<List<MosaicPanelClaim>> Function() action,
+  ) async {
     final collaborative = _collaborative;
     final project = state.project;
     if (project == null || state.isBusy) return;
@@ -483,12 +580,60 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     }
     state = state.copyWith(isClaiming: true, clearError: true);
     try {
-      await action();
+      final claims = await action();
       await load();
-      if (mounted) state = state.copyWith(isClaiming: false);
+      if (!mounted) return;
+      // Surface the hub's OWN deadline for what was just granted, so the person
+      // taking a panel can see how long they are holding it for.
+      final expiries = claims
+          .map((c) => c.expiresAt)
+          .whereType<DateTime>()
+          .toList(growable: false);
+      state = state.copyWith(
+        isClaiming: false,
+        claimExpiresAt: expiries.isEmpty
+            ? null
+            : expiries.reduce((a, b) => a.isBefore(b) ? a : b),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isClaiming: false, error: 'Claim failed: $e');
+    }
+  }
+
+  /// Hand THIS rig's own claim on [panelIndex] back to the pool, then reload.
+  ///
+  /// The counterpart to [claimPanel] and the only way a contributor can undo a
+  /// claim themselves: the hub accepts it from the account holding the baton,
+  /// where [forceReleasePanel] is owner/admin-only. Reuses the claim busy flag
+  /// since it is claim-baton management.
+  Future<void> releasePanel(int panelIndex) async {
+    final collaborative = _collaborative;
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    if (collaborative == null) {
+      state = state.copyWith(
+          error: 'Collaborative mosaics are unavailable: no '
+              'hub is configured for this screen.');
+      return;
+    }
+    state = state.copyWith(isClaiming: true, clearError: true);
+    try {
+      final released = await collaborative.releasePanel(_projectId, panelIndex);
+      await load();
+      if (!mounted) return;
+      if (released) {
+        state = state.copyWith(isClaiming: false);
+      } else {
+        state = state.copyWith(
+          isClaiming: false,
+          error: 'Panel ${panelIndex + 1} was not released — the hub no longer '
+              'holds a claim for this device.',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(isClaiming: false, error: 'Release failed: $e');
     }
   }
 
@@ -709,28 +854,52 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   }
 }
 
+/// Per-panel master FITS base path under the DURABLE [artifactsBaseDir]:
+/// `<base>/project_<id>/panel_<index>.fits`. The integration service derives the
+/// preview `.png` + rejection map from it by extension swap.
+String mosaicPanelOutputPath(
+    String artifactsBaseDir, MosaicProjectPanel panel) {
+  return p.join(
+    artifactsBaseDir,
+    'project_${panel.projectId}',
+    'panel_${panel.panelIndex}.fits',
+  );
+}
+
+/// Per-project stitched-mosaic artifacts directory under the DURABLE
+/// [artifactsBaseDir]: `<base>/project_<id>`.
+String mosaicStitchOutputDirectory(
+  String artifactsBaseDir,
+  MosaicProject project,
+) {
+  return p.join(artifactsBaseDir, 'project_${project.id}');
+}
+
 /// Arguments to construct a [MosaicProjectController] via its family provider —
-/// the project id plus the path builders the durable actions need (kept on the
-/// args, not hard-coded in the controller, so the screen/app supplies real
-/// on-disk locations while tests supply temp paths).
+/// the project id plus the DURABLE artifacts base directory the on-disk paths
+/// are derived from (the app resolves `<applicationSupport>/nightshade_mosaic`;
+/// tests pass a temp dir).
+///
+/// SHIP-BLOCKER CONTRACT — every field here must be VALUE-comparable. These args
+/// are the family key: Riverpod caches one controller per distinct key, and the
+/// screen rebuilds these args on every `build`. This used to carry the two path
+/// BUILDER CLOSURES; a closure is only ever equal to itself, so every frame
+/// minted a new key → a new controller → a new `load()` → a rebuild → an
+/// unbounded loop that pinned the CPU and left the screen spinning forever.
+/// Never put a closure (or any identity-compared object) on these args.
 class MosaicProjectControllerArgs {
   /// The `mosaic_projects.id` to review.
   final int projectId;
 
-  /// Maps a panel to its per-panel master FITS base path (the integration
-  /// service derives the preview/.png + rejection map by extension swap).
-  final String Function(MosaicProjectPanel panel) panelOutputPathBuilder;
-
-  /// Maps a project to the directory the stitched mosaic artifacts land in.
-  final String Function(MosaicProject project) stitchOutputDirectory;
+  /// The durable directory panel masters and stitched artifacts live under.
+  final String artifactsBaseDir;
 
   /// Integration settings the per-panel integration runs with.
   final IntegrationSettings integrationSettings;
 
   const MosaicProjectControllerArgs({
     required this.projectId,
-    required this.panelOutputPathBuilder,
-    required this.stitchOutputDirectory,
+    required this.artifactsBaseDir,
     this.integrationSettings = IntegrationSettings.defaults,
   });
 
@@ -738,15 +907,13 @@ class MosaicProjectControllerArgs {
   bool operator ==(Object other) =>
       other is MosaicProjectControllerArgs &&
       other.projectId == projectId &&
-      other.panelOutputPathBuilder == panelOutputPathBuilder &&
-      other.stitchOutputDirectory == stitchOutputDirectory &&
+      other.artifactsBaseDir == artifactsBaseDir &&
       other.integrationSettings == integrationSettings;
 
   @override
   int get hashCode => Object.hash(
         projectId,
-        panelOutputPathBuilder,
-        stitchOutputDirectory,
+        artifactsBaseDir,
         integrationSettings,
       );
 }
@@ -770,8 +937,12 @@ final mosaicProjectControllerProvider = StateNotifierProvider.family<
       // resolves false so the actions fail closed rather than enabled-then-fail.
       hubConfigured:
           ref.watch(constellationConfiguredProvider).valueOrNull ?? false,
-      panelOutputPathBuilder: args.panelOutputPathBuilder,
-      stitchOutputDirectory: args.stitchOutputDirectory,
+      // Derived from the value-comparable base dir on the args, NOT taken as
+      // closures on the args themselves (see the contract note there).
+      panelOutputPathBuilder: (panel) =>
+          mosaicPanelOutputPath(args.artifactsBaseDir, panel),
+      stitchOutputDirectory: (project) =>
+          mosaicStitchOutputDirectory(args.artifactsBaseDir, project),
       captureLauncher: buildMosaicCaptureLauncher(ref),
       integrationSettings: args.integrationSettings,
     );

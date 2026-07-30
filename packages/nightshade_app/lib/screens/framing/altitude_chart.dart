@@ -18,12 +18,21 @@ class AltitudeChart extends ConsumerStatefulWidget {
   final double decDegrees;
   final String? targetName;
 
+  /// Test seam for the wall clock. Production always uses [DateTime.now];
+  /// the astronomy here needs the true instant, so it deliberately does NOT
+  /// go through `clockProvider` (that clock returns the operator's *chosen*
+  /// timezone rendering, which would skew rise/transit/set math).
+  final DateTime Function()? nowOverride;
+
   const AltitudeChart({
     super.key,
     required this.raHours,
     required this.decDegrees,
     this.targetName,
+    this.nowOverride,
   });
+
+  DateTime nowValue() => nowOverride?.call() ?? DateTime.now();
 
   @override
   ConsumerState<AltitudeChart> createState() => _AltitudeChartState();
@@ -36,7 +45,16 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   ObjectVisibility? _visibility;
   DateTime _startTime = DateTime.now();
   DateTime _endTime = DateTime.now();
-  double _currentAltitude = 0;
+
+  /// The target's altitude right now, or null when it is NOT KNOWN — no
+  /// observing site is configured, so there is no basis for an altitude at all.
+  ///
+  /// Deliberately nullable rather than a `0` sentinel. As a plain double it
+  /// stayed at its `0` initial value whenever [_calculateData] bailed out for a
+  /// missing site, and the chip below rendered a hard red "Alt: 0.0°" — a
+  /// specific claim that the target is on the horizon — immediately above the
+  /// "Set location in Settings" panel that admits the app has no location.
+  double? _currentAltitude;
   double _currentAirmass = 0;
   bool _showAirmass = false;
 
@@ -67,21 +85,63 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       setState(() {
         _altitudeData = [];
         _airmassData = [];
+        // No site => no altitude. Clear it rather than leaving a stale (or
+        // initial-zero) value that the chip would present as fact.
+        _currentAltitude = null;
+        _currentAirmass = 0;
+        _visibility = null;
+        _twilight = null;
       });
       return;
     }
 
-    final now = DateTime.now();
+    final now = widget.nowValue();
     final raDeg = widget.raHours * 15.0;
     final decDeg = widget.decDegrees;
 
-    // Calculate for 12 hours centered around now (6 hours back, 6 hours forward)
-    // Or from sunset to sunrise if available
-    _twilight = AstronomyCalculations.calculateTwilightTimes(
-      date: now,
-      latitudeDeg: lat,
-      longitudeDeg: lon,
+    // Which night to plot. `calculateTwilightTimes(date:)` returns a
+    // sunset-tonight → sunrise-tomorrow window, so anchoring purely on the
+    // calendar date describes the NEXT night once the clock passes midnight —
+    // while the user is still imaging the current one. Mirror
+    // `twilightTimesProvider`: keep the previous date's window for as long as
+    // it is still running.
+    TwilightTimes twilightFor(DateTime date) =>
+        AstronomyCalculations.calculateTwilightTimes(
+          date: date,
+          latitudeDeg: lat,
+          longitudeDeg: lon,
+        );
+
+    final todayTwilight = twilightFor(now);
+    _twilight = todayTwilight;
+    final tonightStart = todayTwilight.sunset?.subtract(
+      const Duration(hours: 1),
     );
+    final todaySunrise = todayTwilight.sunrise;
+    if (tonightStart != null &&
+        todaySunrise != null &&
+        now.isBefore(tonightStart)) {
+      // A twilight solve costs ~1.3 ms and this widget is built once per
+      // planner candidate card, so estimate before paying for a second one.
+      // `sunrise` is TOMORROW morning's, so the previous night's window ended
+      // about 23 h earlier; sunrise drifts only a couple of minutes a day, and
+      // the slack covers that. Past that estimate there is no running night to
+      // switch to and the calendar-date window is already the right one.
+      final approximatePreviousEnd = todaySunrise.subtract(
+        const Duration(hours: 23) - const Duration(minutes: 15),
+      );
+      if (now.isBefore(approximatePreviousEnd)) {
+        final previousTwilight = twilightFor(
+          now.subtract(const Duration(days: 1)),
+        );
+        final previousEnd = previousTwilight.sunrise?.add(
+          const Duration(hours: 1),
+        );
+        if (previousEnd != null && previousEnd.isAfter(now)) {
+          _twilight = previousTwilight;
+        }
+      }
+    }
 
     // Determine time range - prefer sunset to sunrise, fallback to 12 hours
     if (_twilight?.sunset != null && _twilight?.sunrise != null) {
@@ -220,20 +280,40 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   }
 
   Widget _buildCurrentValues(NightshadeColors colors) {
-    return Row(
+    final altitude = _currentAltitude;
+    // Unknown altitude: show the same '--' the Coordinates card uses, with no
+    // severity colouring. A red "0.0°" here read as "your target is on the
+    // horizon", which the app cannot know without an observing site.
+    // Wrap, not Row: these chips size to their own content, so in a narrow
+    // framing rail (or a phone in landscape) a fixed Row had no way to yield and
+    // overflowed by ~5 px. Wrapping to a second line costs nothing here and
+    // cannot clip, whereas ellipsizing a value chip would hide the number that
+    // is the entire point of it.
+    if (altitude == null) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _buildValueChip(colors, 'Alt', '--', colors.textMuted),
+          _buildValueChip(colors, 'Airmass', '--', colors.textMuted),
+        ],
+      );
+    }
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _buildValueChip(
           colors,
           'Alt',
-          '${_currentAltitude.toStringAsFixed(1)}°',
-          _currentAltitude > 30
+          '${altitude.toStringAsFixed(1)}°',
+          altitude > 30
               ? colors.success
-              : _currentAltitude > 0
+              : altitude > 0
                   ? colors.warning
                   : colors.error,
         ),
-        const SizedBox(width: 8),
-        if (_currentAltitude > 0)
+        if (altitude > 0)
           _buildValueChip(
             colors,
             'Airmass',
@@ -306,7 +386,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   }
 
   Widget _buildChart(NightshadeColors colors) {
-    final now = DateTime.now();
+    final now = widget.nowValue();
     final nowX = now.difference(_startTime).inMinutes.toDouble();
     final totalMinutes = _endTime.difference(_startTime).inMinutes.toDouble();
 
@@ -442,21 +522,30 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           ],
           extraLinesData: ExtraLinesData(
             verticalLines: [
-              // Current time indicator
-              VerticalLine(
-                x: nowX.clamp(0, totalMinutes),
-                color: colors.error,
-                strokeWidth: 1,
-                dashArray: [4, 2],
-                label: VerticalLineLabel(
-                  show: true,
-                  alignment: Alignment.topRight,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize8,
-                      color: colors.error),
-                  labelResolver: (_) => 'Now',
+              // Current time indicator — ONLY when now actually falls inside
+              // the plotted window. This used to be `nowX.clamp(0,
+              // totalMinutes)`, which pinned a confident "Now" line to the
+              // chart's left edge for the whole daytime (the chart plots
+              // tonight's sunset→sunrise window). The marker then sat at an
+              // altitude the target will reach hours later, flatly
+              // contradicting the "Alt:" readout printed directly above it.
+              // With no marker the axis times still say what window is
+              // plotted, and the Alt chip remains the truth about right now.
+              if (nowX >= 0 && nowX <= totalMinutes)
+                VerticalLine(
+                  x: nowX,
+                  color: colors.error,
+                  strokeWidth: 1,
+                  dashArray: [4, 2],
+                  label: VerticalLineLabel(
+                    show: true,
+                    alignment: Alignment.topRight,
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize8,
+                        color: colors.error),
+                    labelResolver: (_) => 'Now',
+                  ),
                 ),
-              ),
               // Twilight markers
               if (_twilight?.astronomicalDusk != null)
                 _twilightLine(
@@ -564,11 +653,19 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     }
 
     if (_visibility!.transitAltitude != null) {
+      // Named "Transit alt", not "Max Alt": this is the altitude at
+      // culmination, which happens whenever it happens - often in daylight.
+      // The planner cards' "Peak" chip is a different quantity (the highest
+      // altitude while the sky is actually dark), and calling this one "Max
+      // Alt" made two correct numbers look like a contradiction.
       items.add(_buildTimeChip(
         colors,
-        'Max Alt',
+        'Transit alt',
         '${_visibility!.transitAltitude!.toStringAsFixed(1)}°',
         NightshadeIcons.chevronUp,
+        tooltip: 'Altitude at transit (culmination), whenever that falls - '
+            'including in daylight. The planner\'s "Peak in dark" chip is the '
+            'highest altitude while the sky is astronomically dark tonight.',
       ));
     }
 
@@ -598,8 +695,13 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   }
 
   Widget _buildTimeChip(
-      NightshadeColors colors, String label, String value, IconData icon) {
-    return Container(
+    NightshadeColors colors,
+    String label,
+    String value,
+    IconData icon, {
+    String? tooltip,
+  }) {
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
@@ -627,5 +729,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         ],
       ),
     );
+    if (tooltip == null) return chip;
+    return Tooltip(message: tooltip, child: chip);
   }
 }

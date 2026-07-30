@@ -139,6 +139,50 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     return await _get('dome/status', {'deviceId': deviceId});
   }
 
+  /// Typed dome telemetry for the equipment card's live readouts.
+  ///
+  /// Fails loudly when the host reports the dome disconnected rather than
+  /// returning a default-valued status the card would render as real hardware
+  /// state (azimuth 0, shutter closed).
+  @override
+  Future<HardwareDomeStatus> getHardwareDomeStatus(String deviceId) async {
+    final json = await getDomeStatus(deviceId);
+    if (json['connected'] != true) {
+      throw StateError('Dome $deviceId is not connected on the host');
+    }
+    double? number(String key) => (json[key] as num?)?.toDouble();
+    bool flag(String key) => json[key] == true;
+    return HardwareDomeStatus(
+      azimuth: number('azimuth'),
+      altitude: number('altitude'),
+      // canSetShutter false => the driver exposes no shutter; stay unknown.
+      shutterStatus: flag('canSetShutter')
+          ? _shutterCodeFromName(json['shutterState'])
+          : null,
+      isSlewing: flag('slewing'),
+      isAtHome: flag('atHome'),
+      isParked: flag('atPark'),
+      isSlaved: flag('syncEnabled'),
+    );
+  }
+
+  static int? _shutterCodeFromName(Object? name) {
+    switch (name) {
+      case 'open':
+        return 0;
+      case 'closed':
+        return 1;
+      case 'opening':
+        return 2;
+      case 'closing':
+        return 3;
+      case 'error':
+        return 4;
+      default:
+        return null;
+    }
+  }
+
   /// Get dome capabilities
   Future<DomeCapabilities?> getDomeCapabilities(String deviceId) async {
     final json = await _get('dome/capabilities', {'deviceId': deviceId});

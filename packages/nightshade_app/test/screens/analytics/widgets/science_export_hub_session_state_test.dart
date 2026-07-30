@@ -97,10 +97,12 @@ void main() {
           allSessionsProvider.overrideWith(
             (ref) => Stream.value(const <ImagingSession>[]),
           ),
-          sessionlessPhotometryProvider.overrideWith(
+          // The export reads the COMPLETE-dataset provider, not the capped UI
+          // preview stream (the preview cap silently truncated every CSV).
+          sessionlessPhotometryExportProvider.overrideWith(
             (ref) {
               standaloneProviderBuilds++;
-              return Stream.value([measurement]);
+              return Future.value([measurement]);
             },
           ),
           allTransientDetectionsProvider.overrideWith(

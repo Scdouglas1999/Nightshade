@@ -25,6 +25,10 @@ class NightshadeTextField extends StatefulWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextAlign textAlign;
 
+  /// Take focus as soon as the field is mounted. Needed by fields that are the
+  /// sole purpose of a dialog, so the user can type immediately.
+  final bool autofocus;
+
   const NightshadeTextField({
     super.key,
     this.initialValue,
@@ -47,6 +51,7 @@ class NightshadeTextField extends StatefulWidget {
     this.focusNode,
     this.inputFormatters,
     this.textAlign = TextAlign.start,
+    this.autofocus = false,
   });
 
   @override
@@ -149,6 +154,7 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
           child: TextFormField(
             controller: _controller,
             focusNode: _focusNode,
+            autofocus: widget.autofocus,
             onChanged: widget.onChanged,
             onFieldSubmitted: widget.onSubmitted,
             textInputAction: widget.textInputAction,

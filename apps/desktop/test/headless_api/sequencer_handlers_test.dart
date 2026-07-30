@@ -14,6 +14,8 @@ class _MockSequenceRepository extends Mock implements SequenceRepository {}
 
 class _MockSequenceExecutor extends Mock implements SequenceExecutor {}
 
+class _MockSequencerBackend extends Mock implements SequencerBackend {}
+
 void main() {
   group('SequencerHandlers', () {
     late ProviderContainer container;
@@ -562,5 +564,140 @@ void main() {
       );
       expect(response.headers['content-type'], 'application/json');
     });
+  });
+
+  // D2b: the endpoint confirmed every path as ok — including the empty string,
+  // which is exactly the input that made the sequencer capture a whole run and
+  // discard every frame.
+  group('SequencerHandlers save-path validation', () {
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+    late _MockSequencerBackend backend;
+
+    setUp(() {
+      backend = _MockSequencerBackend();
+      when(() => backend.sequencerSetSavePath(any())).thenAnswer((_) async {});
+      container = ProviderContainer(
+        overrides: [sequencerBackendProvider.overrideWithValue(backend)],
+      );
+      handlers = SequencerHandlers(container);
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    Future<Response> post(Object? body) => translateHandlerErrors(
+      handlers.handleSequencerSetSavePath(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/sequencer/save-path'),
+          body: jsonEncode(body),
+        ),
+      ),
+    );
+
+    for (final rejected in <Map<String, Object?>>[
+      <String, Object?>{},
+      {'path': ''},
+      {'path': '   '},
+      {'path': null},
+    ]) {
+      test('rejects $rejected instead of confirming it', () async {
+        final response = await post(rejected);
+
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], isA<String>());
+        verifyNever(() => backend.sequencerSetSavePath(any()));
+      });
+    }
+
+    test('rejects a directory that cannot be created', () async {
+      final response = await post({'path': '/proc/nightshade-cannot-write'});
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['code'], 'save_path_unwritable');
+      verifyNever(() => backend.sequencerSetSavePath(any()));
+    });
+
+    test('accepts a writable directory and forwards it', () async {
+      final dir = Directory.systemTemp.createTempSync('ns-save-path-ok');
+      addTearDown(() => dir.deleteSync(recursive: true));
+
+      final response = await post({'path': dir.path});
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['status'], 'ok');
+      expect(body['path'], dir.path);
+      verify(() => backend.sequencerSetSavePath(dir.path)).called(1);
+    });
+
+    test(
+      'creates a missing directory rather than accepting it blind',
+      () async {
+        final parent = Directory.systemTemp.createTempSync('ns-save-path-new');
+        addTearDown(() => parent.deleteSync(recursive: true));
+        final target = '${parent.path}/captures/tonight';
+
+        final response = await post({'path': target});
+
+        expect(response.statusCode, HttpStatus.ok);
+        expect(Directory(target).existsSync(), isTrue);
+        verify(() => backend.sequencerSetSavePath(target)).called(1);
+      },
+    );
+  });
+
+  // A paired phone pushed its own `getApplicationDocumentsDirectory()` at the
+  // host on every connection, permanently replacing the host's crash-recovery
+  // directory with an Android path that cannot exist on the rig. The host owns
+  // its storage layout; a client may not name it.
+  group('SequencerHandlers checkpoint-dir ownership', () {
+    late ProviderContainer container;
+    late SequencerHandlers handlers;
+    late _MockSequencerBackend backend;
+
+    setUp(() {
+      backend = _MockSequencerBackend();
+      when(
+        () => backend.sequencerSetCheckpointDir(any()),
+      ).thenAnswer((_) async {});
+      container = ProviderContainer(
+        overrides: [sequencerBackendProvider.overrideWithValue(backend)],
+      );
+      handlers = SequencerHandlers(container);
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    Future<Response> post(Object? body) => translateHandlerErrors(
+      handlers.handleSequencerSetCheckpointDir(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/sequencer/checkpoint/dir'),
+          body: jsonEncode(body),
+        ),
+      ),
+    );
+
+    for (final rejected in <String>[
+      '/data/user/0/com.nightshade.mobile/app_flutter',
+      '/tmp',
+      'relative/checkpoints',
+    ]) {
+      test('refuses client-supplied path "$rejected"', () async {
+        final response = await post({'path': rejected});
+
+        expect(response.statusCode, HttpStatus.forbidden);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['code'], 'checkpoint_dir_host_owned');
+        verifyNever(() => backend.sequencerSetCheckpointDir(any()));
+      });
+    }
   });
 }

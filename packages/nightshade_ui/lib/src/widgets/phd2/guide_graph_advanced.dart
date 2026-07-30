@@ -76,10 +76,22 @@ class GuideGraphAdvanced extends StatelessWidget {
   /// Whether to show pulse duration overlay
   final bool showPulses;
 
-  /// Current RMS values for the statistics bar
-  final double rmsRa;
-  final double rmsDec;
-  final double rmsTotal;
+  /// Current RMS values for the statistics bar, already converted into
+  /// [rmsUnit]. `null` means "not measured yet" and renders as an em dash —
+  /// a fabricated 0.00 here reads as flawless guiding.
+  final double? rmsRa;
+  final double? rmsDec;
+  final double? rmsTotal;
+
+  /// Unit suffix for the RMS readouts. The guider reports residuals in pixels;
+  /// callers convert to arcseconds only when a pixel scale is known, so the
+  /// suffix travels with the value instead of being hard-coded to arcsec.
+  final String rmsUnit;
+
+  /// Unit suffix for the plotted errors / Y-axis labels. Same contract as
+  /// [rmsUnit]: the axis must not claim arcseconds when it is plotting raw
+  /// guide-camera pixels.
+  final String valueUnit;
 
   /// Callback when time scale is changed
   final void Function(GraphTimeScale)? onTimeScaleChanged;
@@ -95,9 +107,11 @@ class GuideGraphAdvanced extends StatelessWidget {
     this.showRa = true,
     this.showDec = true,
     this.showPulses = false,
-    this.rmsRa = 0,
-    this.rmsDec = 0,
-    this.rmsTotal = 0,
+    this.rmsRa,
+    this.rmsDec,
+    this.rmsTotal,
+    this.rmsUnit = '"',
+    this.valueUnit = '"',
     this.onTimeScaleChanged,
     this.onYScaleChanged,
   });
@@ -132,6 +146,7 @@ class GuideGraphAdvanced extends StatelessWidget {
                     showRa: showRa,
                     showDec: showDec,
                     showPulses: showPulses,
+                    valueUnit: valueUnit,
                   ),
                 );
               },
@@ -243,7 +258,7 @@ class GuideGraphAdvanced extends StatelessWidget {
 
   Widget _buildRmsValue(
     String label,
-    double value,
+    double? value,
     Color color, {
     required NightshadeColors colors,
     bool bold = false,
@@ -259,9 +274,9 @@ class GuideGraphAdvanced extends StatelessWidget {
         ),
         const SizedBox(width: 2),
         Text(
-          '${value.toStringAsFixed(2)}"',
+          value == null ? '—' : '${value.toStringAsFixed(2)}$rmsUnit',
           style: TextStyle(
-            color: color,
+            color: value == null ? colors.textMuted : color,
             fontSize: fontSize,
             fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           ),
@@ -360,10 +375,44 @@ class _GraphPainter extends CustomPainter {
   final bool showDec;
   final bool showPulses;
 
+  /// Unit suffix for the Y-axis labels. The scale steps themselves are
+  /// unit-agnostic numbers; the caller says whether the errors it supplied are
+  /// arcseconds or guide-camera pixels.
+  final String valueUnit;
+
   static const double leftMargin = 35;
   static const double bottomMargin = 20;
   static const double topMargin = 5;
   static const double rightMargin = 5;
+
+  /// Clear space required between two stacked Y-axis labels.
+  static const double _yLabelGap = 2;
+
+  /// How many ticks to step between drawn Y-axis labels, or null when even the
+  /// thinnest set would not clear [_yLabelGap].
+  ///
+  /// The plot area collapses hard on a phone — the panel header, the scale
+  /// selector row and the card gutters take a fixed slice out of the graph
+  /// pane, so a banner-squeezed viewport can leave under 20 dp of plot. All
+  /// five labels drawn there stacked `±2" / 1.0" / 0 / -1.0" / -2"` into one
+  /// illegible smear. Thinning to the extremes-plus-zero (and then to nothing)
+  /// keeps whatever is drawn readable at any height, and measuring the laid-out
+  /// label rather than assuming its size keeps that true at any text scale.
+  ///
+  /// Strides are restricted to divisors of [divisions] so the first and last
+  /// tick — the ones that name the scale — are always among those drawn.
+  static int? _yAxisLabelStride({
+    required double graphHeight,
+    required int divisions,
+    required double labelHeight,
+  }) {
+    final pitch = graphHeight / divisions;
+    for (final stride in const [1, 2]) {
+      if (divisions % stride != 0) continue;
+      if (pitch * stride >= labelHeight + _yLabelGap) return stride;
+    }
+    return null;
+  }
 
   _GraphPainter({
     required this.colors,
@@ -373,6 +422,7 @@ class _GraphPainter extends CustomPainter {
     required this.showRa,
     required this.showDec,
     required this.showPulses,
+    required this.valueUnit,
   });
 
   @override
@@ -447,24 +497,36 @@ class _GraphPainter extends CustomPainter {
   }
 
   void _drawYAxisLabels(Canvas canvas, Rect graphRect) {
+    if (graphRect.height <= 0) return;
+
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    final style = TextStyle(color: colors.textMuted, fontSize: 9);
 
     final labels = [
-      '+${yScale.arcsec.toStringAsFixed(0)}"',
-      '+${(yScale.arcsec / 2).toStringAsFixed(1)}"',
+      '+${yScale.arcsec.toStringAsFixed(0)}$valueUnit',
+      '+${(yScale.arcsec / 2).toStringAsFixed(1)}$valueUnit',
       '0',
-      '-${(yScale.arcsec / 2).toStringAsFixed(1)}"',
-      '-${yScale.arcsec.toStringAsFixed(0)}"',
+      '-${(yScale.arcsec / 2).toStringAsFixed(1)}$valueUnit',
+      '-${yScale.arcsec.toStringAsFixed(0)}$valueUnit',
     ];
 
-    for (int i = 0; i < labels.length; i++) {
-      textPainter.text = TextSpan(
-        text: labels[i],
-        style: TextStyle(color: colors.textMuted, fontSize: 9),
-      );
+    textPainter.text = TextSpan(text: labels.first, style: style);
+    textPainter.layout();
+    final labelHeight = textPainter.height;
+
+    final divisions = labels.length - 1;
+    final stride = _yAxisLabelStride(
+      graphHeight: graphRect.height,
+      divisions: divisions,
+      labelHeight: labelHeight,
+    );
+    if (stride == null) return;
+
+    for (int i = 0; i <= divisions; i += stride) {
+      textPainter.text = TextSpan(text: labels[i], style: style);
       textPainter.layout();
 
-      final y = graphRect.top + (graphRect.height / (labels.length - 1)) * i;
+      final y = graphRect.top + (graphRect.height / divisions) * i;
       textPainter.paint(canvas, Offset(2, y - textPainter.height / 2));
     }
   }
@@ -561,6 +623,7 @@ class _GraphPainter extends CustomPainter {
         timeScale != oldDelegate.timeScale ||
         yScale != oldDelegate.yScale ||
         showRa != oldDelegate.showRa ||
-        showDec != oldDelegate.showDec;
+        showDec != oldDelegate.showDec ||
+        valueUnit != oldDelegate.valueUnit;
   }
 }

@@ -410,7 +410,19 @@ class _CenteringDialogWithResultState
   bool _cancelInFlight = false;
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
-  CenteringConfig get _centeringConfig {
+  /// Settings this run depends on (solver path/timeout plus the centering mount
+  /// sync), awaited rather than read cold: a run started before the provider
+  /// resolves would silently use an empty solver path and the built-in
+  /// defaults instead of the operator's configuration.
+  Future<AppSettingsState?> _resolvedAppSettings() async {
+    try {
+      return await ref.read(appSettingsProvider.future);
+    } catch (_) {
+      return ref.read(appSettingsProvider).valueOrNull;
+    }
+  }
+
+  CenteringConfig _centeringConfig(AppSettingsState? settings) {
     final profile = ref.read(activeEquipmentProfileProvider);
     final exposureTime = profile?.defaultCenteringExposure ?? 5.0;
     return CenteringConfig(
@@ -420,7 +432,10 @@ class _CenteringDialogWithResultState
       binning: profile?.defaultBinX ?? 2,
       gain: profile?.defaultGain,
       offset: profile?.defaultOffset,
-      syncMount: false,
+      // Settings → Plate Solving → "Sync mount when centering". Without the
+      // sync each correction re-issues the slew that produced the mis-pointed
+      // frame, so the offset never changes and the run ends on max iterations.
+      syncMount: settings?.centeringSyncMount ?? true,
     );
   }
 
@@ -452,7 +467,8 @@ class _CenteringDialogWithResultState
     });
 
     final centeringService = ref.read(centeringServiceProvider);
-    final appSettings = ref.read(appSettingsProvider).value;
+    final appSettings = await _resolvedAppSettings();
+    if (!mounted) return;
 
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
@@ -466,7 +482,7 @@ class _CenteringDialogWithResultState
         targetRa: widget.targetRa,
         targetDec: widget.targetDec,
         solverConfig: solverConfig,
-        config: _centeringConfig,
+        config: _centeringConfig(appSettings),
         onStatusUpdate: (status) {
           ref.read(centeringStatusProvider.notifier).state = status;
         },

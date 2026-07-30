@@ -318,6 +318,135 @@ void main() {
       expect(find.textContaining('Pick catalogs to install'), findsOneWidget);
     });
   });
+
+  group('FirstRunSetupScreen step ticks', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+    });
+
+    List<StepState> statesOf(WidgetTester tester) => tester
+        .widget<Stepper>(find.byType(Stepper))
+        .steps
+        .map((step) => step.state)
+        .toList();
+
+    testWidgets('tapping ahead does not tick off an unconfigured step', (
+      tester,
+    ) async {
+      final backend = _PathValidationBackend(
+        validationResult: const {'valid': true},
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [NightshadeColors.dark]),
+            home: FirstRunSetupScreen(
+              needs: const FirstRunSetupNeeds(
+                missingImageOutputPath: true,
+                missingProfiles: true,
+                missingCatalogs: true,
+              ),
+              onCompleted: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(statesOf(tester), [
+        StepState.indexed,
+        StepState.indexed,
+        StepState.indexed,
+      ]);
+
+      // Jump straight to the profile step without saving a path or installing
+      // a catalog. Nothing has been configured, so nothing may claim to be.
+      await tester.tap(find.text('Equipment profile'));
+      await tester.pumpAndSettle();
+
+      expect(
+        statesOf(tester),
+        [StepState.indexed, StepState.indexed, StepState.indexed],
+        reason: 'navigating past a step is not the same as completing it',
+      );
+      expect(backend.updatedSettings, isNull);
+    });
+
+    testWidgets('the output-path step ticks once the host accepts the path', (
+      tester,
+    ) async {
+      final backend = _PathValidationBackend(
+        validationResult: const {
+          'valid': true,
+          'normalizedPath': '/srv/captures',
+        },
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [NightshadeColors.dark]),
+            home: FirstRunSetupScreen(
+              needs: const FirstRunSetupNeeds(
+                missingImageOutputPath: true,
+                missingProfiles: true,
+                missingCatalogs: true,
+              ),
+              onCompleted: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '/srv/captures');
+      await tester.tap(find.text('Save and continue'));
+      await tester.pumpAndSettle();
+
+      expect(backend.updatedSettings?.imageOutputPath, '/srv/captures');
+      expect(statesOf(tester).first, StepState.complete);
+      expect(statesOf(tester)[1], StepState.indexed);
+    });
+
+    testWidgets('a profile read back from the host ticks the profile step', (
+      tester,
+    ) async {
+      // The launch-time snapshot said "no profiles", but the host answers with
+      // one — the tick follows the host, not the stale snapshot.
+      final backend = _CatalogFailureBackend();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [NightshadeColors.dark]),
+            home: FirstRunSetupScreen(
+              needs: const FirstRunSetupNeeds(
+                missingImageOutputPath: false,
+                missingProfiles: true,
+                missingCatalogs: true,
+              ),
+              onCompleted: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(statesOf(tester).last, StepState.complete);
+    });
+  });
 }
 
 class _PathValidationBackend extends NetworkBackend {

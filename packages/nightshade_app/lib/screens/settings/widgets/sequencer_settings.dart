@@ -520,6 +520,13 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
       data: (settings) {
         final authority = ref.watch(backendProvider);
         final seqDefaults = ref.watch(sequencerDefaultsProvider);
+        // This row and Weather Safety > "Auto-park mount" are two views of one
+        // runtime gate (`parkOnUnsafeWeather && autoParkEnabled`). Show and
+        // write the composed value from both places, otherwise turning this off
+        // silently disarms auto-park while the other page still reads "on".
+        final weatherSettings = ref.watch(weatherSettingsProvider);
+        final autoParkOnUnsafe =
+            settings.parkOnUnsafeWeather && weatherSettings.autoParkEnabled;
 
         return SettingsPage(
           title: 'Sequencer',
@@ -532,13 +539,14 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                   icon: LucideIcons.shieldAlert,
                   title: 'Park on unsafe weather',
                   subtitle:
-                      'Automatically park mount when weather becomes unsafe',
+                      'Automatically park mount when weather becomes unsafe. '
+                      'Same setting as Weather Safety > Auto-park mount.',
                   trailing: SettingsSwitch(
-                    value: settings.parkOnUnsafeWeather,
+                    value: autoParkOnUnsafe,
                     onChanged: (value) {
                       return ref
-                          .read(appSettingsProvider.notifier)
-                          .setParkOnUnsafeWeather(value);
+                          .read(weatherSettingsActionsProvider)
+                          .setAutoParkOnUnsafe(value);
                     },
                   ),
                 ),

@@ -99,7 +99,7 @@ class _GuideStarViewState extends State<GuideStarView> {
             decoration: BoxDecoration(
               color: const Color(0xFF0A0A12),
               border: Border.all(
-                color: _getSnrColor(colors).withValues(alpha: 0.5),
+                color: _frameColor(colors).withValues(alpha: 0.5),
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -277,11 +277,21 @@ class _GuideStarViewState extends State<GuideStarView> {
     return _cachedImage!;
   }
 
+  /// Traffic-light colour for the SNR badge. A non-positive SNR means no star
+  /// has been measured yet — that is an absence of data, not a bad star, so it
+  /// gets the neutral muted colour instead of error red.
   Color _getSnrColor(NightshadeColors colors) {
+    if (widget.snr <= 0) return colors.textMuted;
     if (widget.snr >= 10) return colors.success;
     if (widget.snr >= 5) return colors.warning;
     return colors.error;
   }
+
+  /// Frame colour. With no image there is nothing to grade, so the frame uses
+  /// the standard neutral border: an error-red frame around an idle guider
+  /// reads as an alarm in a dark observing field.
+  Color _frameColor(NightshadeColors colors) =>
+      widget.hasValidImage ? _getSnrColor(colors) : colors.border;
 
   void _handleTap(TapDownDetails details, BoxConstraints constraints) {
     // Convert tap position to image coordinates

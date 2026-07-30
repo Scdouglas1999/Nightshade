@@ -3,19 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
-Widget _host(void Function(WidgetRef) capture) {
+Widget _host(
+  void Function(WidgetRef) capture, {
+  double centerRaHours = 6.0,
+  double centerDecDeg = 0.0,
+}) {
   return ProviderScope(
     child: MaterialApp(
       home: Scaffold(
         body: Consumer(
           builder: (context, ref, _) {
             capture(ref);
-            return const SizedBox(
+            return SizedBox(
               width: 400,
               height: 400,
               child: MultiFovOverlay(
-                centerRaHours: 6.0,
-                centerDecDeg: 0.0,
+                centerRaHours: centerRaHours,
+                centerDecDeg: centerDecDeg,
                 fieldOfViewDeg: 10.0,
                 viewRotationDeg: 0.0,
               ),
@@ -26,6 +30,15 @@ Widget _host(void Function(WidgetRef) capture) {
     ),
   );
 }
+
+/// Screen rect of the active preset's interactive region, which is centered on
+/// wherever the overlay projected that preset.
+Rect _activeRegion(WidgetTester tester) => tester.getRect(
+  find.descendant(
+    of: find.byType(MultiFovOverlay),
+    matching: find.byType(GestureDetector),
+  ),
+);
 
 const _wideRig = FovPreset(
   id: 'a',
@@ -59,11 +72,103 @@ void main() {
     await tester.pump();
 
     final active = captured.read(fovPresetsProvider).active!;
-    // Drag pins the preset, and a rightward drag (toward increasing RA on a
-    // standard sky view) shifts the stored center away from the view center.
+    // Drag pins the preset and shifts the stored center away from the view
+    // center. Right on screen is DECREASING RA (the sky view runs RA to the
+    // left), so the stored coordinate must move west, not east.
     expect(active.center, isNotNull);
     expect(active.center!.ra, isNot(closeTo(6.0, 1e-6)));
+    expect(active.center!.ra, lessThan(6.0));
+    // 40 px at 40 px/deg = 1 deg of sky = 1/15 h of RA at dec 0.
+    expect(active.center!.ra, closeTo(6.0 - 1 / 15, 0.01));
   });
+
+  testWidgets('a preset pinned EAST of the view center is drawn to its LEFT', (
+    tester,
+  ) async {
+    // Regression: the overlay used to add the RA offset to x, mirroring every
+    // rig about the view center — a target 2° east was drawn 2° west, so the
+    // box an imager frames with sat on the wrong side of the sky.
+    late WidgetRef captured;
+    await tester.pumpWidget(_host((ref) => captured = ref));
+    final notifier = captured.read(fovPresetsProvider.notifier);
+    notifier.add(_wideRig);
+    // 2 degrees east of the view center (dec 0, so no cos(dec) foreshortening).
+    notifier.setActiveCenter(
+      const CelestialCoordinate(ra: 6.0 + 2.0 / 15, dec: 0),
+    );
+    await tester.pump();
+
+    final viewCenter = tester.getCenter(find.byType(MultiFovOverlay));
+    final region = _activeRegion(tester);
+    expect(region.center.dx, lessThan(viewCenter.dx));
+    // 2 degrees at 40 px/deg.
+    expect(viewCenter.dx - region.center.dx, closeTo(80, 2.0));
+  });
+
+  testWidgets('a preset near RA 0h stays on screen with the view at 23.9h', (
+    tester,
+  ) async {
+    // Regression: the raw RA difference (0.2h - 23.9h = -23.7h) used to be
+    // scaled straight into pixels, throwing the rig thousands of pixels off
+    // canvas. M31 and everything else near the 0h seam simply lost its FOV box.
+    late WidgetRef captured;
+    await tester.pumpWidget(
+      _host((ref) => captured = ref, centerRaHours: 23.9),
+    );
+    final notifier = captured.read(fovPresetsProvider.notifier);
+    notifier.add(_wideRig);
+    notifier.setActiveCenter(const CelestialCoordinate(ra: 0.2, dec: 0));
+    await tester.pump();
+
+    final viewCenter = tester.getCenter(find.byType(MultiFovOverlay));
+    final region = _activeRegion(tester);
+    // 0.3h = 4.5 deg east => 180 px to the LEFT at 40 px/deg.
+    expect(viewCenter.dx - region.center.dx, closeTo(180, 4.0));
+    expect(region.center.dx, greaterThan(viewCenter.dx - 200));
+  });
+
+  testWidgets(
+    'dragging lands the rig on the sky coordinate under the pointer',
+    (tester) async {
+      late WidgetRef captured;
+      await tester.pumpWidget(_host((ref) => captured = ref));
+      final notifier = captured.read(fovPresetsProvider.notifier);
+      notifier.add(_wideRig);
+      // 1 deg east and 1 deg north of the view center => drawn 40 px left and
+      // 40 px up of the overlay's center at 40 px/deg.
+      notifier.setActiveCenter(
+        const CelestialCoordinate(ra: 6.0 + 1.0 / 15, dec: 1.0),
+      );
+      await tester.pump();
+
+      final topLeft = tester.getTopLeft(find.byType(MultiFovOverlay));
+      await tester.dragFrom(
+        topLeft + const Offset(160, 160),
+        const Offset(20, 30),
+      );
+      await tester.pump();
+
+      // The drag is absolute: the rig must end up on exactly the coordinate the
+      // shared projector maps the final pointer position to, so the rectangle
+      // tracks the finger instead of sliding away from it.
+      const viewState = SkyViewState(
+        centerRA: 6,
+        centerDec: 0,
+        fieldOfView: 10,
+      );
+      final expected = SkyFovProjector.forSize(
+        viewState,
+        const Size(400, 400),
+      ).unproject(const Offset(180, 190))!;
+
+      final moved = captured.read(fovPresetsProvider).active!.center!;
+      expect(moved.ra, closeTo(expected.ra, 1e-9));
+      expect(moved.dec, closeTo(expected.dec, 1e-9));
+      // Moving right and down is moving west and south on this sky view.
+      expect(moved.ra, lessThan(6.0 + 1.0 / 15));
+      expect(moved.dec, lessThan(1.0));
+    },
+  );
 
   testWidgets('dragging empty sky away from the rig does not pin it '
       '(no gesture hijack)', (tester) async {

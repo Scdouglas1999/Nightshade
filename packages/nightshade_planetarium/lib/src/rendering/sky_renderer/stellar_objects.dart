@@ -73,6 +73,15 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // can be skipped — break instead of scanning the whole list.
       if (rawMag > magLimit) break;
 
+      // The overlay layer owns ONLY the bright (mag < 1.5) twinkle pass. Since
+      // the list is brightest-first, everything from the first non-bright star
+      // on belongs to the base layer, so the overlay is finished here. Breaking
+      // before the projection matters: this pass runs on every pan frame and,
+      // while an object is selected, on every selection-pulse tick — without
+      // the break it projected the entire star list (thousands of stars) to
+      // draw a dozen sprites.
+      if (!_drawBase && rawMag >= 1.5) break;
+
       // Cull BEFORE projecting: reject stars outside the view cone with a cheap
       // dot product, and reuse the per-pose projected offset when available.
       var offset = _projectObjectCulled(
@@ -93,6 +102,20 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       final isBright = magnitude < 1.5;
       if (isBright && !_drawOverlay) continue;
       if (!isBright && !_drawBase) continue;
+
+      // The ground is painted on the BASE layer (paint_lifecycle.dart, after the
+      // sky objects) so paint order occludes everything drawn there. This bright
+      // pass, however, runs in a SEPARATE CustomPaint stacked ABOVE the base
+      // whenever star twinkle is on — the desktop default — so paint order
+      // cannot reach it: a star 11.5 deg below the horizon measured peak
+      // luminance 196 on the overlay against 22 (pure ground colour) on the
+      // base. That is how Fomalhaut came to sit as a bright star in the middle
+      // of the terrain. Cull it explicitly for the overlay scope only; in `base`
+      // and `full` scopes the ground already covers it.
+      if (renderScope == SkyRenderScope.overlay &&
+          _isBehindGround(star.coordinates.raDegrees, star.coordinates.dec)) {
+        continue;
+      }
 
       // Apply parallax offset to dim stars (mag > 4)
       if (doParallax && magnitude > 4.0) {
@@ -121,7 +144,7 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       }
 
       // Star color
-      var color = _spectralTypeToColor(star.spectralType ?? 'G');
+      var color = _starColor(star);
       color = _getEnhancedStarColor(color, magnitude);
 
       // Atmospheric extinction for bright stars only - uses precomputed LUT
@@ -284,7 +307,16 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // Labels are only drawn for the brightest stars (the overlay pass owns
       // mag < 1.5; we extend labels to mag < 2.0 to match the old behaviour).
       if (magnitude >= 2.0) break;
-      if (star.name.isEmpty) {
+      // Only stars with a real designation are worth labelling. The catalogue
+      // loader falls back to the bare HYG row id when a star has no proper,
+      // Bayer or Flamsteed name, and printing "HYG113360" next to a star tells
+      // the user nothing while taking a label slot from something that would.
+      if (star.name.isEmpty || _isBareCatalogId(star.name)) {
+        processed++;
+        continue;
+      }
+      // Do not name a star the observer's own ground is in front of.
+      if (_isBehindGround(star.coordinates.raDegrees, star.coordinates.dec)) {
         processed++;
         continue;
       }
@@ -539,7 +571,11 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // enough that the object is > 10px on screen. Low tiers suppress DSO
       // labels entirely to save per-frame text work.
       if (config.showDSOLabels && !qualityConfig.reduceLabels) {
-        final showLabel = dsoMag < 10.0 || displaySize > 10.0;
+        // Same rule as the star labels: nothing behind the observer's ground
+        // gets named as though it were up.
+        final showLabel =
+            (dsoMag < 10.0 || displaySize > 10.0) &&
+            !_isBehindGround(dso.coordinates.raDegrees, dso.coordinates.dec);
         if (showLabel) {
           final labelText = _dsoLabelText(dso);
           final fontSize = _getLabelFontSize(dsoMag, 'dso');
@@ -577,6 +613,10 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // Draw listed marker if this DSO is in an observing list
       if (listedObjectIds.isNotEmpty && _isDsoListed(dso)) {
         _drawListedMarker(canvas, offset, displaySize);
+      }
+
+      if (sequencedObjectIds.isNotEmpty && _isDsoSequenced(dso)) {
+        _drawSequencedMarker(canvas, offset, displaySize);
       }
 
       dsosDrawn++;
@@ -664,17 +704,56 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
     return designation;
   }
 
+  /// Whether [name] is a bare catalogue row id rather than a real designation
+  /// (e.g. "HYG113360"), which the star loader substitutes when a row carries
+  /// no proper, Bayer or Flamsteed name.
+  static bool _isBareCatalogId(String name) =>
+      _bareCatalogIdPattern.hasMatch(name);
+
   /// Check if a DSO matches any listed catalog ID or object name.
-  bool _isDsoListed(DeepSkyObject dso) {
-    if (listedObjectIds.contains(dso.id)) return true;
-    if (listedObjectIds.contains(dso.name)) return true;
+  bool _isDsoListed(DeepSkyObject dso) => _dsoMatchesIds(dso, listedObjectIds);
+
+  /// Check if a DSO is a target of the currently loaded sequence.
+  bool _isDsoSequenced(DeepSkyObject dso) =>
+      _dsoMatchesIds(dso, sequencedObjectIds);
+
+  /// Whether [dso] is named by [ids] under any of the designations a user (or
+  /// a sequence target name) might have recorded it as.
+  bool _dsoMatchesIds(DeepSkyObject dso, Set<String> ids) {
+    if (ids.contains(dso.id)) return true;
+    if (ids.contains(dso.name)) return true;
     if (dso.isMessier) {
       final messier = dso.messierNumber;
-      if (messier != null && listedObjectIds.contains(messier)) return true;
+      if (messier != null && ids.contains(messier)) return true;
     }
     final ngcIc = dso.ngcIcDesignation;
-    if (ngcIc != null && listedObjectIds.contains(ngcIc)) return true;
+    if (ngcIc != null && ids.contains(ngcIc)) return true;
     return false;
+  }
+
+  /// Draw a small cyan target ring at the bottom-right of a DSO, marking it as
+  /// a target of tonight's sequence.
+  ///
+  /// Deliberately a different shape AND hue from the observed dot (green) and
+  /// the observing-list bookmark (amber), and on the opposite corner, so an
+  /// object that is all three still reads unambiguously.
+  void _drawSequencedMarker(Canvas canvas, Offset dsoCenter, double dsoSize) {
+    final markerSize = math.max(4.0, dsoSize * 0.3);
+    final markerPos =
+        dsoCenter +
+        Offset(dsoSize / 2 + markerSize * 0.5, dsoSize / 2 + markerSize * 0.5);
+    final radius = markerSize * 0.42;
+
+    final ringPaint = Paint()
+      ..color = const Color(0xFF4DD0E1).withValues(alpha: 0.95)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.0, markerSize * 0.16);
+    final corePaint = Paint()
+      ..color = const Color(0xFF4DD0E1).withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(markerPos, radius, ringPaint);
+    canvas.drawCircle(markerPos, radius * 0.32, corePaint);
   }
 
   /// Draw a small amber bookmark marker at the top-right of a DSO.
@@ -795,3 +874,10 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
     }
   }
 }
+
+/// Matches a star name that is only a catalogue row id — "HYG113360",
+/// "HIP 12345" and friends — as opposed to a real designation.
+final RegExp _bareCatalogIdPattern = RegExp(
+  r'^(HYG|HIP|HD|HR|TYC|GAIA)\s*[\d.\- ]+$',
+  caseSensitive: false,
+);

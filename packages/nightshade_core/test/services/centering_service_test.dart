@@ -685,6 +685,186 @@ void main() {
         },
       );
 
+      // A mis-pointed mount must actually be CORRECTED. Shipping 6.0.0 ran
+      // centering with `syncMount: false` from both desktop call sites, and
+      // that branch re-issued the original target slew unchanged: every
+      // iteration re-measured a bit-identical offset (observed live:
+      // 17570.40506768608 arcsec three times running) and the run ended on
+      // "Maximum iterations (3) reached". These tests drive a mount with a
+      // constant pointing error and require convergence on both branches.
+      group('pointing error correction', () {
+        const targetRaHours = 5.0;
+        const targetDecDeg = 30.0;
+        const errorRaHours = 0.02; // 0.3 deg of RA
+        const errorDecDeg = 0.2; // 720 arcsec, well outside tolerance
+        const solverConfig = PlateSolverConfig(
+          type: PlateSolverType.astap,
+          executablePath: '/usr/bin/astap',
+        );
+
+        late double commandedRa;
+        late double commandedDec;
+        late double pointingErrorRa;
+        late double pointingErrorDec;
+        late List<List<double>> slews;
+
+        /// Wire a mount that points `pointingError` away from whatever it was
+        /// last commanded, and a solver that reports where it truly points. A
+        /// sync teaches the mount its real position, so the next slew lands
+        /// where it was asked to.
+        void wireMisPointedMount() {
+          commandedRa = targetRaHours;
+          commandedDec = targetDecDeg;
+          pointingErrorRa = errorRaHours;
+          pointingErrorDec = errorDecDeg;
+          slews = [];
+
+          when(
+            mockImagingService.captureImage(
+              settings: anyNamed('settings'),
+              targetName: anyNamed('targetName'),
+            ),
+          ).thenAnswer((_) async => _centeringImage('/tmp/pointing.fits'));
+          when(mockDeviceService.slewMountToCoordinates(any, any)).thenAnswer((
+            invocation,
+          ) async {
+            commandedRa = invocation.positionalArguments[0] as double;
+            commandedDec = invocation.positionalArguments[1] as double;
+            slews.add([commandedRa, commandedDec]);
+          });
+          when(mockDeviceService.syncMountToCoordinates(any, any)).thenAnswer((
+            _,
+          ) async {
+            pointingErrorRa = 0.0;
+            pointingErrorDec = 0.0;
+          });
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer(
+            (_) async => _solvedAt(
+              (commandedRa + pointingErrorRa) * 15.0,
+              commandedDec + pointingErrorDec,
+            ),
+          );
+        }
+
+        test('the default config syncs and converges', () async {
+          wireMisPointedMount();
+
+          final service = container.read(centeringServiceProvider);
+          final result = await service.centerOnTarget(
+            targetRa: targetRaHours,
+            targetDec: targetDecDeg,
+            solverConfig: solverConfig,
+            config: const CenteringConfig(
+              maxIterations: 4,
+              toleranceArcsec: 30.0,
+              exposureTime: 1.0,
+            ),
+          );
+
+          expect(result.success, isTrue, reason: result.errorMessage ?? '');
+          expect(result.iterations, 2);
+          // The sync was handed the SOLVED position, in hours.
+          final synced = verify(
+            mockDeviceService.syncMountToCoordinates(captureAny, captureAny),
+          ).captured;
+          expect(
+            synced[0] as double,
+            closeTo(targetRaHours + errorRaHours, 1e-9),
+          );
+          expect(
+            synced[1] as double,
+            closeTo(targetDecDeg + errorDecDeg, 1e-9),
+          );
+        });
+
+        test(
+          'without a sync the correction is an offset slew, not a repeat',
+          () async {
+            wireMisPointedMount();
+
+            final service = container.read(centeringServiceProvider);
+            final result = await service.centerOnTarget(
+              targetRa: targetRaHours,
+              targetDec: targetDecDeg,
+              solverConfig: solverConfig,
+              config: const CenteringConfig(
+                maxIterations: 4,
+                toleranceArcsec: 30.0,
+                exposureTime: 1.0,
+                syncMount: false,
+              ),
+            );
+
+            expect(result.success, isTrue, reason: result.errorMessage ?? '');
+            expect(result.iterations, 2);
+            verifyNever(mockDeviceService.syncMountToCoordinates(any, any));
+            expect(slews, hasLength(1));
+            expect(
+              slews.single[0],
+              closeTo(targetRaHours - errorRaHours, 1e-9),
+              reason: 'the corrective slew must not repeat the target RA',
+            );
+            expect(
+              slews.single[1],
+              closeTo(targetDecDeg - errorDecDeg, 1e-9),
+              reason: 'the corrective slew must not repeat the target Dec',
+            );
+          },
+        );
+
+        test('a persistent pointing error never repeats one slew', () async {
+          wireMisPointedMount();
+          // The live failure: the solver reports the SAME offset every
+          // iteration. Even then each correction must command the mount
+          // somewhere new instead of re-issuing the coordinates that produced
+          // the mis-pointed frame.
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer(
+            (_) async => _solvedAt(
+              (targetRaHours + errorRaHours) * 15.0,
+              targetDecDeg + errorDecDeg,
+            ),
+          );
+
+          final service = container.read(centeringServiceProvider);
+          final result = await service.centerOnTarget(
+            targetRa: targetRaHours,
+            targetDec: targetDecDeg,
+            solverConfig: solverConfig,
+            config: const CenteringConfig(
+              maxIterations: 3,
+              toleranceArcsec: 30.0,
+              exposureTime: 1.0,
+              syncMount: false,
+            ),
+          );
+
+          expect(result.success, isFalse);
+          expect(slews, hasLength(3));
+          final distinct = slews.map((s) => '${s[0]}/${s[1]}').toSet();
+          expect(
+            distinct,
+            hasLength(3),
+            reason: 'each correction must move the mount somewhere new',
+          );
+        });
+      });
+
       test('succeeds after multiple iterations', () async {
         // Arrange
         const targetRa = 10.0; // hours

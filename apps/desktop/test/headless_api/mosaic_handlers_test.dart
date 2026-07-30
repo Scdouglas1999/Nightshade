@@ -68,6 +68,15 @@ void main() {
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['areaSquareDegrees'], isA<num>());
       expect(body['totalPanels'], 4);
+      // Overlap must be reflected in the coverage the wire reports. A 2x2 of
+      // 60'x40' panels at 10% overlap spans (1 + 0.9) x (0.6667 + 0.6) deg
+      // = 1.9 x 1.2667 = 2.4067 sq deg. The handler used to answer 2.6667 —
+      // the panel areas summed as if edge-to-edge — telling a remote planner
+      // the mosaic covered ~11% more sky than it ever would.
+      expect(
+        (body['areaSquareDegrees'] as num).toDouble(),
+        closeTo(1.9 * (40.0 / 60.0) * (1 + 0.9), 1e-9),
+      );
     });
 
     test('invalid payload returns JSON internal server error', () async {

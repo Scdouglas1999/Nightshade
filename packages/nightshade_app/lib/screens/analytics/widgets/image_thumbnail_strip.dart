@@ -365,33 +365,6 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                   ),
                   child: Stack(
                     children: [
-                      if (widget.assessment != null)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Tooltip(
-                            message: _qualityTooltip(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: qualityColor.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(
-                                    NightshadeTokens.radiusInline4),
-                              ),
-                              child: Text(
-                                widget.assessment!.label.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: NightshadeTypography.fontSize8,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFFFFFFF),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
                       Center(
                         child: FutureBuilder<_ThumbnailPayload>(
                           future: _thumbnailFuture,
@@ -481,6 +454,40 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                           },
                         ),
                       ),
+                      // Quality badge (GOOD / NEEDS REVIEW / POOR) is added
+                      // AFTER the thumbnail so it paints ON TOP of it. As the
+                      // Stack's first child it was covered by every thumbnail
+                      // that loaded (Image.memory, BoxFit.cover, infinite
+                      // width/height), so the chip only ever appeared on frames
+                      // whose image FAILED to load — exactly inverting the cull
+                      // workflow it exists for.
+                      if (widget.assessment != null)
+                        Positioned(
+                          top: 4,
+                          left: 4,
+                          child: Tooltip(
+                            message: _qualityTooltip(),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: qualityColor.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(
+                                    NightshadeTokens.radiusInline4),
+                              ),
+                              child: Text(
+                                widget.assessment!.label.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: NightshadeTypography.fontSize8,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFFFFFFF),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       if (widget.image.hfr != null)
                         Positioned(
                           top: 4,

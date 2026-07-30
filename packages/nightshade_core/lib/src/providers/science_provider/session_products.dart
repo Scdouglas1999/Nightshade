@@ -440,6 +440,85 @@ final sessionlessPhotometryProvider =
       return ref.watch(scienceDaoProvider).watchSessionlessPhotometryRecent();
     });
 
+// =========================================================================
+// Sessionless EXPORT providers — complete datasets, not the preview window
+// =========================================================================
+//
+// The `sessionless*Provider` streams above are UI preview feeds: each caps its
+// row count (200 photometry / 50 frame-quality / 500 PSF tiles …) so a list or
+// chart stays cheap. Reusing them for CSV export silently dropped 27–62% of the
+// user's science data while the confirmation reported the truncated count as the
+// export size. Export paths read these instead: locally the un-capped DAO query,
+// remotely the host's bundle slice (still windowed — the caller must say so).
+//
+// One per dataset the Science Data Export hub writes.
+
+final sessionlessPhotometryExportProvider =
+    FutureProvider<List<PhotometryMeasurementRow>>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return ref.watch(sessionlessPhotometryProvider.future);
+      }
+      return ref.watch(scienceDaoProvider).getAllSessionlessPhotometry();
+    });
+
+final sessionlessFrameQualityMetricsExportProvider =
+    FutureProvider<List<ScienceFrameQualityMetricsRow>>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return ref.watch(sessionlessFrameQualityMetricsProvider.future);
+      }
+      return ref
+          .watch(scienceDaoProvider)
+          .getAllSessionlessFrameQualityMetrics();
+    });
+
+final sessionlessTransparencySamplesExportProvider =
+    FutureProvider<List<TransparencySampleRow>>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return ref.watch(sessionlessTransparencySamplesProvider.future);
+      }
+      return ref.watch(scienceDaoProvider).getAllSessionlessTransparency();
+    });
+
+final sessionlessPsfTilesExportProvider = FutureProvider<List<PsfFieldTileRow>>(
+  (ref) {
+    final backend = ref.watch(backendProvider);
+    if (backend is NetworkBackend) {
+      return ref.watch(sessionlessPsfTilesProvider.future);
+    }
+    return ref.watch(scienceDaoProvider).getAllSessionlessPsfTiles();
+  },
+);
+
+final sessionlessResidualVectorsExportProvider =
+    FutureProvider<List<AstrometryResidualVectorRow>>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return ref.watch(sessionlessResidualVectorsProvider.future);
+      }
+      return ref.watch(scienceDaoProvider).getAllSessionlessResiduals();
+    });
+
+final sessionlessCalibrationsExportProvider =
+    FutureProvider<List<FramePhotometricCalibrationRow>>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return ref.watch(sessionlessCalibrationsProvider.future);
+      }
+      return ref.watch(scienceDaoProvider).getAllSessionlessCalibrations();
+    });
+
+final sessionlessMovingObjectCandidatesExportProvider =
+    FutureProvider<List<MovingObjectCandidateRow>>((ref) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return ref.watch(sessionlessMovingObjectCandidatesProvider.future);
+      }
+      return ref.watch(scienceDaoProvider).getAllSessionlessMovingObjects();
+    });
+
 final sessionlessLineRatioProductsProvider =
     StreamProvider<List<LineRatioProductRow>>((ref) {
       final backend = ref.watch(backendProvider);

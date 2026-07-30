@@ -56,6 +56,20 @@ WidgetBuilder mobileDashboardBuilder = (context) {
 final extraTopLevelRoutesProvider =
     Provider<List<RouteBase>>((ref) => const []);
 
+/// Where the standalone `/planetarium` deep-link lands.
+///
+/// Planetarium is a Plan Tonight tab, so the standalone path redirects onto the
+/// host — but it must carry its query across, because the "show in sky"
+/// hand-off encodes the target as `?ra=&dec=&name=` and the planetarium view
+/// parses it from whatever router state is above it. Dropping the query here
+/// silently turned "show M31 in the sky" into "open the sky wherever it was".
+///
+/// Extracted from the route so the forwarding is directly testable.
+String planetariumRedirectLocation(Uri uri) {
+  final query = uri.query;
+  return '/planner?tab=planetarium${query.isEmpty ? '' : '&$query'}';
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   final extraRoutes = ref.watch(extraTopLevelRoutesProvider);
   return GoRouter(
@@ -149,12 +163,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           // Planetarium is a first-class Plan Tonight tab. This standalone path
-          // is kept for deep-link compatibility (notifications, legacy links) and
+          // is kept for deep-link compatibility (notifications, legacy links,
+          // and the "show in sky" hand-off, which passes `?ra=&dec=&name=`) and
           // redirects onto the Planner's Planetarium tab.
           GoRoute(
             path: '/planetarium',
             name: 'planetarium',
-            redirect: (context, state) => '/planner?tab=planetarium',
+            redirect: (context, state) =>
+                planetariumRedirectLocation(state.uri),
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: PlanetariumScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,

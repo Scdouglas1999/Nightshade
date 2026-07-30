@@ -30,7 +30,10 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   Future<InstalledCatalogStatus> _statusFor(
     CatalogDescriptor descriptor,
   ) async {
-    final filePath = path.join(catalogDirectory, descriptor.fileName);
+    final filePath = path.join(
+      catalogDirectory,
+      descriptor.resolveInstalledName(catalogDirectory),
+    );
     final file = File(filePath);
     if (!await file.exists()) {
       return InstalledCatalogStatus(
@@ -623,14 +626,16 @@ extension CatalogManagerUnifiedApi on CatalogManager {
       return false;
     }
 
-    final dataFile = File(path.join(catalogDirectory, descriptor.fileName));
     final metaFile = File(
       path.join(catalogDirectory, descriptor.metadataFileName),
     );
     var removedAnything = false;
-    if (await dataFile.exists()) {
-      await dataFile.delete();
-      removedAnything = true;
+    for (final candidate in descriptor.candidateFileNames) {
+      final dataFile = File(path.join(catalogDirectory, candidate));
+      if (await dataFile.exists()) {
+        await dataFile.delete();
+        removedAnything = true;
+      }
     }
     if (await metaFile.exists()) {
       await metaFile.delete();
@@ -687,7 +692,12 @@ extension CatalogManagerUnifiedApi on CatalogManager {
   }
 
   Future<CatalogVerifyResult> _verifyOne(CatalogDescriptor descriptor) async {
-    final dataFile = File(path.join(catalogDirectory, descriptor.fileName));
+    final dataFile = File(
+      path.join(
+        catalogDirectory,
+        descriptor.resolveInstalledName(catalogDirectory),
+      ),
+    );
     if (!await dataFile.exists()) {
       const result = CatalogVerifyResult(
         ok: false,

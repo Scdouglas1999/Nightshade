@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -126,6 +128,12 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
     final autofocusRunning = sessionState.isAutofocusing || _isRunningAutofocus;
     final cameraConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
+    // Null until the persisted autofocus settings have loaded. The Curve fit
+    // row renders disabled with an explicit "still loading" note in that
+    // window rather than showing an empty control that looks like a broken or
+    // unset choice.
+    final curveFitting =
+        ref.watch(appSettingsProvider).valueOrNull?.afCurveFitting;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -332,19 +340,49 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
             colors: widget.colors,
             child: Column(
               children: [
+                // Curve fit is the control that actually decides how the sweep
+                // is solved, and it is owned by the persisted autofocus
+                // settings: `_runAutofocus` always resolves the fit from
+                // `AppSettings.afCurveFitting` (see autofocus_controls.dart),
+                // and the FFI backend maps THAT value — not the Dart `method`
+                // field — onto the native curve enum.
+                //
+                // This row used to be labelled "Method", bound to
+                // `focusSettings.method` and offer ['V-Curve','Hyperbolic',
+                // 'Parabolic']. `method` is the star metric, seeded from
+                // `afMethod`, whose only legal value is 'Star HFR' — so the
+                // closed dropdown matched no item and rendered blank on every
+                // launch, and picking a value here changed nothing about the
+                // run. Bind to the real setting, with the same vocabulary the
+                // Settings screen uses, and write edits through so the choice
+                // survives a restart.
                 DropdownRow(
-                  label: 'Method',
-                  value: focusSettings.method,
-                  items: const ['V-Curve', 'Hyperbolic', 'Parabolic'],
+                  label: 'Curve fit',
+                  value: curveFitting,
+                  items: AutofocusSettings.curveFittingOptions,
                   colors: widget.colors,
-                  onChanged: (value) {
-                    if (value != null) {
-                      ref
-                          .read(focusSettingsProvider.notifier)
-                          .update(focusSettings.copyWith(method: value));
-                    }
-                  },
+                  onChanged: curveFitting == null || autofocusRunning
+                      ? null
+                      : (value) {
+                          if (value == null) return;
+                          unawaited(
+                            ref
+                                .read(appSettingsProvider.notifier)
+                                .setAfCurveFitting(value),
+                          );
+                        },
                 ),
+                if (curveFitting == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Autofocus settings are still loading.',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: widget.colors.textMuted,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 InputRowEditable(
                   label: 'Step Size',

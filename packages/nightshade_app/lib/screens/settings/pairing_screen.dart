@@ -623,7 +623,11 @@ class PairingScreen extends ConsumerWidget {
                                 _formatDate(context, device.lastConnectedAt!),
                           },
                         )
-                      : 'Has not connected yet',
+                      // Deliberately about the RECORD, not about the device:
+                      // the host only stamps this on a fresh token
+                      // verification, so a device that connects every night can
+                      // legitimately have no entry here.
+                      : 'No connection recorded yet',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
@@ -669,14 +673,27 @@ class PairingScreen extends ConsumerWidget {
     );
   }
 
+  // The primary pairing path (mobile_pairing_service.pairWithCode) sends
+  // `defaultTargetPlatform.name`, so real rows carry 'android' / 'iOS' /
+  // 'windows' / 'macOS' / 'linux' — none of which used to be handled. Every
+  // Android phone therefore appeared as a desktop monitor labelled "Browser or
+  // device". Only the lanClaim fallback sends 'mobile'.
   IconData _getDeviceIcon(String deviceType) {
     switch (deviceType.toLowerCase()) {
       case 'mobile':
+      case 'android':
+      case 'ios':
         return NightshadeIcons.phone;
       case 'tablet':
         return LucideIcons.tablet;
       case 'desktop':
+      case 'windows':
+      case 'macos':
+      case 'linux':
         return NightshadeIcons.device;
+      case 'browser':
+      case 'web':
+        return LucideIcons.globe;
       default:
         return NightshadeIcons.device;
     }
@@ -686,12 +703,28 @@ class PairingScreen extends ConsumerWidget {
     switch (deviceType.toLowerCase()) {
       case 'mobile':
         return 'Phone';
+      case 'android':
+        return 'Android phone or tablet';
+      case 'ios':
+        return 'iPhone or iPad';
       case 'tablet':
         return 'Tablet';
       case 'desktop':
         return 'Computer';
+      case 'windows':
+        return 'Windows computer';
+      case 'macos':
+        return 'Mac';
+      case 'linux':
+        return 'Linux computer';
+      case 'browser':
+      case 'web':
+        return 'Browser';
       default:
-        return 'Browser or device';
+        // Say we do not recognise it rather than asserting a category.
+        return deviceType.trim().isEmpty
+            ? 'Unknown device type'
+            : 'Unrecognised device type ($deviceType)';
     }
   }
 
@@ -700,7 +733,10 @@ class PairingScreen extends ConsumerWidget {
       return 'Revoked';
     }
     if (device.lastConnectedAt == null) {
-      return 'Ready to connect';
+      // A stale pairing row is not an invitation. "Ready to connect" was a
+      // promise the app cannot make — it has never recorded this device
+      // connecting, and it has no idea whether the device still exists.
+      return 'Not seen yet';
     }
     final difference = DateTime.now().difference(device.lastConnectedAt!);
     if (difference.inHours < 24) {
@@ -714,7 +750,9 @@ class PairingScreen extends ConsumerWidget {
       return colors.error;
     }
     if (device.lastConnectedAt == null) {
-      return colors.primary;
+      // Muted, not the accent colour: nothing about this row is a positive
+      // signal, and a blue badge read as "this device is good to go".
+      return colors.textMuted;
     }
     final difference = DateTime.now().difference(device.lastConnectedAt!);
     if (difference.inHours < 24) {

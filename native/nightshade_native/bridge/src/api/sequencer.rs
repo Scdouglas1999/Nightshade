@@ -633,6 +633,19 @@ pub(crate) async fn run_sequencer_event_loop(
                         error: error.clone(),
                     }),
                 )),
+                // Mid-run reason, so it takes the recoverable `Error` payload
+                // rather than the terminal `Failed` one. Without it the real
+                // cause of a failure (daylight gate, missing device, refused
+                // slew) never left the Rust log.
+                ExecutorEvent::InstructionFailed { node_name, message } => {
+                    Some(create_event_auto_id(
+                        EventSeverity::Error,
+                        EventCategory::Sequencer,
+                        EventPayload::Sequencer(SequencerEvent::Error {
+                            message: format!("{}: {}", node_name, message),
+                        }),
+                    ))
+                }
                 ExecutorEvent::ExposureStarted {
                     frame,
                     total,

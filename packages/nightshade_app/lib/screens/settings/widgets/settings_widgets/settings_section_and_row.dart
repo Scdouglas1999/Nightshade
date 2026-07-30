@@ -183,7 +183,15 @@ class SettingRow extends StatelessWidget {
         // intrinsic size; a content-sized [Wrap] trailing (e.g. the Integrations
         // plugin row's pill + Configure + switch cluster) gets a finite width to
         // wrap within instead of demanding unbounded width and overflowing.
-        Flexible(child: trailing),
+        //
+        // Align pins the control to the card's right edge. Without it the
+        // control sat at the LEFT of its flexible half — i.e. at the row's
+        // horizontal midpoint — which looks correct at ~1600px only by
+        // coincidence and stranded every control mid-screen with ~2100px of
+        // empty card beside it on an ultrawide monitor (audit 2026-07-29).
+        Flexible(
+          child: Align(alignment: Alignment.centerRight, child: trailing),
+        ),
       ],
     );
   }

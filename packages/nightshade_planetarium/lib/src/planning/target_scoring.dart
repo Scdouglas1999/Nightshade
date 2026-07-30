@@ -521,6 +521,19 @@ class TargetScoringService {
   @visibleForTesting
   double debugScoreAltitude(double altitude) => _scoreAltitude(altitude);
 
+  /// Test-only seam for the moon factor, for the same reason as
+  /// [debugScoreAltitude].
+  ///
+  /// Added because the Rust twin (`scheduling/scoring.rs::score_moon_distance`)
+  /// kept the pre-fix `return 100.0` for months after this Dart copy was
+  /// corrected: the parity canary only parsed `fn score_altitude`, so the
+  /// divergence was invisible even though the file's own header states the two
+  /// must agree. Whichever scorer runs, a full moon must never beat a new moon at
+  /// the same separation.
+  @visibleForTesting
+  double debugScoreMoonDistance(double distance, double illumination) =>
+      _scoreMoonDistance(distance, illumination);
+
   double _scoreAltitude(double altitude) {
     if (altitude < 0) return 0;
     if (altitude < 15) return altitude * 2; // 0-30 for 0-15°
@@ -531,7 +544,7 @@ class TargetScoringService {
 
   double _scoreMoonDistance(double distance, double illumination) {
     // Moon distance matters more when moon is bright
-    final moonFactor = illumination / 100;
+    final moonFactor = (illumination / 100).clamp(0.0, 1.0);
 
     if (illumination < 10) {
       // New moon - distance doesn't matter much
@@ -541,10 +554,18 @@ class TargetScoringService {
     // Scale by illumination
     final minGoodDist = 30 + (70 * moonFactor); // 30-100° depending on moon
 
-    if (distance >= minGoodDist) return 100;
+    // The best achievable moon score falls as the moon brightens. Returning a
+    // flat 100 for "far enough away" meant a FULL moon at 101° scored 100 while
+    // a NEW moon at the same separation scored 95.6 — the factor literally
+    // rewarded the worse night. Moonlight raises the sky background over the
+    // whole hemisphere, so no separation earns a perfect moon score under a
+    // bright moon.
+    final bestAchievable = 100 - 22 * moonFactor;
+
+    if (distance >= minGoodDist) return bestAchievable;
     if (distance < 10) return 10 * (1 - moonFactor * 0.8);
 
-    return (distance / minGoodDist) * 100;
+    return (distance / minGoodDist) * bestAchievable;
   }
 
   double _scoreTransitProximity(ObjectVisibility visibility, DateTime time) {
@@ -802,6 +823,20 @@ class TargetScoringService {
           severity: WarningSeverity.caution,
           message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
           suggestion: 'Some sky glow may be present',
+        ),
+      ];
+    } else if (moonIllumination >= 65) {
+      // Wide separation but a bright moon: previously nothing fired at all, so
+      // a full-moon night presented exactly like a new-moon night. Moonlight
+      // raises the sky background everywhere, not just near the moon.
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.caution,
+          message:
+              'Moon is ${moonIllumination.toStringAsFixed(0)}% illuminated - '
+              'sky background elevated across the whole sky',
+          suggestion: 'Narrowband will fare far better than broadband tonight',
         ),
       ];
     }

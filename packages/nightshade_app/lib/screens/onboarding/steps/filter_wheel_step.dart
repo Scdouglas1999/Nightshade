@@ -58,11 +58,30 @@ class _OnboardingFilterWheelStepState
   @override
   void initState() {
     super.initState();
-    final draftNames = ref.read(onboardingDraftProvider).filterNames;
+    final draft = ref.read(onboardingDraftProvider);
+    final draftNames = draft.filterNames;
     _rebuildControllers(
       count: draftNames.isNotEmpty ? draftNames.length : _fallbackSlots,
       names: draftNames,
     );
+    // Re-entering the step with a wheel already picked but no names on record
+    // (an earlier visit whose connect failed) rendered the fallback slots
+    // without ever saving them. Adopt what is displayed so the profile carries
+    // the filters the user was shown.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (draft.filterWheelId == null) return;
+      _commitFiltersIfUnset();
+    });
+  }
+
+  /// Commit the on-screen slot names when the draft carries none.
+  ///
+  /// Only when the draft is empty: the driver-reported names take precedence,
+  /// and a user-typed name must never be replaced by a `Filter N` placeholder.
+  void _commitFiltersIfUnset() {
+    if (ref.read(onboardingDraftProvider).filterNames.isNotEmpty) return;
+    _commitFilters();
   }
 
   @override
@@ -121,7 +140,18 @@ class _OnboardingFilterWheelStepState
         level: 900,
       );
     } finally {
-      if (mounted) setState(() => _loadingSlots = false);
+      if (mounted) {
+        setState(() => _loadingSlots = false);
+        // The editor only reached the draft when the user typed in it, so a
+        // wheel whose slot count could not be read showed a column of named,
+        // apparently-saved slots and then created a profile with no filters at
+        // all — the sequencer's filter list came up empty on the first night.
+        // Commit what is on screen whenever the draft still has nothing, so the
+        // profile matches the slots the step displayed. Deliberately after the
+        // driver merge, and only when the draft is empty, so real driver names
+        // are never overwritten by the "Filter N" placeholders.
+        _commitFiltersIfUnset();
+      }
     }
   }
 

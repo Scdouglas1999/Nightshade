@@ -295,50 +295,97 @@ final StarPsfShaderCache _starPsfShaderCache = StarPsfShaderCache();
 /// Since constellation lines don't change unless the view moves significantly,
 /// we record them into a ui.Picture and replay it each frame.
 /// Cache invalidates when view center moves >0.5 degrees or zoom changes >5%.
+/// The full set of view parameters a cached [ui.Picture] was projected with.
+///
+/// The projection depends on the pose (center + FOV), the roll, the projection
+/// formula, the view frame, and — in [SkyViewMode.horizontal] — sidereal time.
+/// Keying only on (centerRA, centerDec, fov) was wrong in three ways:
+///
+/// * rotating the view replayed geometry at the old roll while the stars turned
+///   under it;
+/// * switching stereographic <-> orthographic replayed stale geometry;
+/// * worst, in the horizontal frame `centerRA`/`centerDec` never change while
+///   panning, so the key reported a hit on every frame and the cached geometry
+///   stayed glued to the screen while the whole star field slid beneath it.
+class _CachedPose {
+  double _ra = double.nan;
+  double _dec = double.nan;
+  double _az = double.nan;
+  double _alt = double.nan;
+  double _fov = double.nan;
+  double _rotation = double.nan;
+  int _lstBucket = -1;
+  SkyProjection? _projection;
+  SkyViewMode? _viewMode;
+  Size _size = Size.zero;
+
+  /// Sidereal time bucketed to the minute. A sidereal minute rotates the sky by
+  /// 0.25 deg, comfortably inside the 0.5 deg move tolerance below.
+  static int _bucketLst(double? lstHours) =>
+      lstHours == null ? -1 : (lstHours * 60).round();
+
+  bool matches(SkyViewState v, Size size, double? lstHours) {
+    if (size != _size) return false;
+    if (_projection != v.projection || _viewMode != v.viewMode) return false;
+    if ((v.rotation - _rotation).abs() > 0.1) return false;
+
+    final fovRatio = _fov > 0 ? (v.fieldOfView / _fov) : 0.0;
+    if (fovRatio <= 0.95 || fovRatio >= 1.05) return false;
+
+    if (v.viewMode == SkyViewMode.horizontal) {
+      if (_lstBucket != _bucketLst(lstHours)) return false;
+      var dAz = (v.centerAz - _az).abs();
+      if (dAz > 180) dAz = 360 - dAz;
+      // Azimuth converges at the zenith, so weight it by cos(altitude).
+      final cosAlt = math.cos(v.centerAltitude * math.pi / 180).abs();
+      return dAz * cosAlt < 0.5 && (v.centerAltitude - _alt).abs() < 0.5;
+    }
+
+    var dRa = (v.centerRA - _ra).abs();
+    if (dRa > 12) dRa = 24 - dRa; // RA wraps at 24h
+    return dRa * 15.0 < 0.5 && (v.centerDec - _dec).abs() < 0.5;
+  }
+
+  void store(SkyViewState v, Size size, double? lstHours) {
+    _ra = v.centerRA;
+    _dec = v.centerDec;
+    _az = v.centerAz;
+    _alt = v.centerAltitude;
+    _fov = v.fieldOfView;
+    _rotation = v.rotation;
+    _projection = v.projection;
+    _viewMode = v.viewMode;
+    _lstBucket = _bucketLst(lstHours);
+    _size = size;
+  }
+}
+
 class _ConstellationLineCache {
   ui.Picture? _picture;
-  double _cachedCenterRA = double.nan;
-  double _cachedCenterDec = double.nan;
-  double _cachedFOV = double.nan;
-  Size _cachedSize = Size.zero;
+  final _pose = _CachedPose();
   int _cachedConstellationCount = 0;
 
   bool isValid(
-    double centerRA,
-    double centerDec,
-    double fov,
+    SkyViewState viewState,
     Size size,
+    double? lstHours,
     int constellationCount,
   ) {
     if (_picture == null) return false;
-    if (size != _cachedSize) return false;
     if (constellationCount != _cachedConstellationCount) return false;
-
-    final raDelta = (centerRA - _cachedCenterRA).abs();
-    final decDelta = (centerDec - _cachedCenterDec).abs();
-    final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
-
-    // RA wraps at 24h
-    final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
-    final raDeg = raWrapped * 15.0;
-
-    return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
+    return _pose.matches(viewState, size, lstHours);
   }
 
   void store(
     ui.Picture picture,
-    double centerRA,
-    double centerDec,
-    double fov,
+    SkyViewState viewState,
     Size size,
+    double? lstHours,
     int constellationCount,
   ) {
     _picture?.dispose();
     _picture = picture;
-    _cachedCenterRA = centerRA;
-    _cachedCenterDec = centerDec;
-    _cachedFOV = fov;
-    _cachedSize = size;
+    _pose.store(viewState, size, lstHours);
     _cachedConstellationCount = constellationCount;
   }
 
@@ -353,38 +400,22 @@ class _ConstellationLineCache {
 /// Cached Milky Way rendering using the same view-invalidation strategy.
 class _MilkyWayCache {
   ui.Picture? _picture;
-  double _cachedCenterRA = double.nan;
-  double _cachedCenterDec = double.nan;
-  double _cachedFOV = double.nan;
-  Size _cachedSize = Size.zero;
+  final _pose = _CachedPose();
 
-  bool isValid(double centerRA, double centerDec, double fov, Size size) {
+  bool isValid(SkyViewState viewState, Size size, double? lstHours) {
     if (_picture == null) return false;
-    if (size != _cachedSize) return false;
-
-    final raDelta = (centerRA - _cachedCenterRA).abs();
-    final decDelta = (centerDec - _cachedCenterDec).abs();
-    final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
-
-    final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
-    final raDeg = raWrapped * 15.0;
-
-    return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
+    return _pose.matches(viewState, size, lstHours);
   }
 
   void store(
     ui.Picture picture,
-    double centerRA,
-    double centerDec,
-    double fov,
+    SkyViewState viewState,
     Size size,
+    double? lstHours,
   ) {
     _picture?.dispose();
     _picture = picture;
-    _cachedCenterRA = centerRA;
-    _cachedCenterDec = centerDec;
-    _cachedFOV = fov;
-    _cachedSize = size;
+    _pose.store(viewState, size, lstHours);
   }
 
   ui.Picture? get picture => _picture;
@@ -398,6 +429,67 @@ class _MilkyWayCache {
 // Global caches (persist across painter instances since they're recreated each frame)
 final _constellationLineCache = _ConstellationLineCache();
 final _milkyWayCache = _MilkyWayCache();
+
+/// Memoized night-long astronomy for the planning overlays.
+///
+/// Both overlays live on the *animated* overlay layer, so they repaint on every
+/// pan frame and on every selection-pulse tick. Recomputing them there meant an
+/// iterative rise/set solve plus 49 sidereal-time + horizontal transforms per
+/// frame for the altitude track, and a second iterative solve for the twilight
+/// gauge. Neither result can change faster than once a minute, and the altitude
+/// track only changes per (target, date, site).
+class _PlanningAstronomyCache {
+  ({double raDeg, double decDeg, int day, double lat, double lon})? _trackKey;
+  (List<double> altitudes, double maxAlt)? _track;
+
+  ({int day, double lat, double lon})? _twilightKey;
+  TwilightTimes? _twilight;
+
+  /// The sampled altitude track for [raDeg]/[decDeg] over the local noon→noon
+  /// window, computed by [compute] only on a key miss.
+  (List<double>, double) altitudeTrack({
+    required double raDeg,
+    required double decDeg,
+    required DateTime localNoon,
+    required double latitudeDeg,
+    required double longitudeDeg,
+    required (List<double>, double) Function() compute,
+  }) {
+    final key = (
+      raDeg: raDeg,
+      decDeg: decDeg,
+      day: _dayKey(localNoon),
+      lat: latitudeDeg,
+      lon: longitudeDeg,
+    );
+    final cached = _track;
+    if (cached != null && _trackKey == key) return cached;
+    final fresh = compute();
+    _trackKey = key;
+    _track = fresh;
+    return fresh;
+  }
+
+  /// Tonight's twilight times, computed by [compute] only on a key miss.
+  TwilightTimes twilight({
+    required DateTime date,
+    required double latitudeDeg,
+    required double longitudeDeg,
+    required TwilightTimes Function() compute,
+  }) {
+    final key = (day: _dayKey(date), lat: latitudeDeg, lon: longitudeDeg);
+    final cached = _twilight;
+    if (cached != null && _twilightKey == key) return cached;
+    final fresh = compute();
+    _twilightKey = key;
+    _twilight = fresh;
+    return fresh;
+  }
+
+  static int _dayKey(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
+}
+
+final _planningAstronomyCache = _PlanningAstronomyCache();
 
 /// Cached background gradient shader keyed by sun altitude bucket.
 /// The twilight gradient only changes meaningfully when the sun moves ~2 degrees.
@@ -455,7 +547,46 @@ class _CullContext {
   /// objects whose glow/label spills onscreen from just outside are kept.
   final double cosCullRadius;
 
-  const _CullContext(this.cx, this.cy, this.cz, this.cosCullRadius);
+  /// Equatorial coordinates of the view center (degrees), already resolved out
+  /// of whichever frame the view is in. Lets the great-circle overlays bound
+  /// their sampling to the window that can possibly be visible instead of
+  /// walking the whole sphere.
+  final double centerRaDeg;
+  final double centerDecDeg;
+
+  /// Half-angle of the cull cone in degrees — the widest angular separation
+  /// from the view center that can still appear on screen.
+  final double cullRadiusDeg;
+
+  const _CullContext(
+    this.cx,
+    this.cy,
+    this.cz,
+    this.cosCullRadius,
+    this.centerRaDeg,
+    this.centerDecDeg,
+    this.cullRadiusDeg,
+  );
+
+  /// Inclusive declination window that can be visible, clamped to the poles.
+  (double min, double max) get decWindow => (
+    (centerDecDeg - cullRadiusDeg).clamp(-90.0, 90.0),
+    (centerDecDeg + cullRadiusDeg).clamp(-90.0, 90.0),
+  );
+
+  /// Half-width in RA HOURS of the window that can be visible.
+  ///
+  /// Returns 12 (i.e. all right ascensions) when the window reaches a pole or
+  /// spans far enough that every RA is in view — at high declination a small
+  /// angular radius still covers every hour.
+  double get raHalfWindowHours {
+    final (minDec, maxDec) = decWindow;
+    if (minDec <= -89.9 || maxDec >= 89.9 || cullRadiusDeg >= 89.0) return 12.0;
+    final cosDec = math.cos(centerDecDeg * (math.pi / 180)).abs();
+    if (cosDec < 0.02) return 12.0;
+    final hours = cullRadiusDeg / 15.0 / cosDec;
+    return hours >= 12.0 ? 12.0 : hours;
+  }
 
   /// Build a cull context for the given view state and canvas size.
   ///
@@ -505,7 +636,15 @@ class _CullContext {
     var cullRadiusDeg = diagonalFovHalf * 1.25 + 3.0;
     if (cullRadiusDeg > 175.0) cullRadiusDeg = 175.0;
     final cosCullRadius = math.cos(cullRadiusDeg * (math.pi / 180));
-    return _CullContext(cx, cy, cz, cosCullRadius);
+    return _CullContext(
+      cx,
+      cy,
+      cz,
+      cosCullRadius,
+      centerRaDeg,
+      centerDecDeg,
+      cullRadiusDeg,
+    );
   }
 
   /// True if the given equatorial coordinate is outside the cull cone and can

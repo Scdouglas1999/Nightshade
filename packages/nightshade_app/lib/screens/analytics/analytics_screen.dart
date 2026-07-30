@@ -12,8 +12,10 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:share_plus/share_plus.dart';
 
+// Exports hand off through revealExportedFile (share sheet on mobile, path
+// snackbar on desktop) rather than calling share_plus directly — shareXFiles is
+// unimplemented on Linux/Windows and threw an internal API name at the user.
 import '../../utils/exported_file_reveal.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as path;

@@ -50,10 +50,17 @@ class _AutofocusProgressOverlayState
   @override
   void initState() {
     super.initState();
+    // NOT started here. This overlay is mounted once in the app shell, so it is
+    // alive on EVERY screen for the whole session and its State is never
+    // disposed. Repeating unconditionally kept a ticker scheduling a frame on
+    // every vsync forever — the app never idled and every screen ran at a
+    // degraded framerate — to animate an icon that is only ever built while an
+    // autofocus run is in progress. The pulse is started/stopped in build()
+    // from the real run state, matching _SequenceIndicator in the status bar.
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    );
   }
 
   @override
@@ -82,6 +89,17 @@ class _AutofocusProgressOverlayState
   Widget build(BuildContext context) {
     final overlayState = ref.watch(autofocusOverlayProvider);
 
+    // Only pulse while the overlay is actually on screen showing a live run;
+    // otherwise hold the controller still so a shell-mounted, invisible overlay
+    // does not schedule a frame every vsync for the life of the app.
+    if (overlayState.isVisible && overlayState.isRunning) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else if (_pulseController.isAnimating) {
+      _pulseController.stop();
+    }
+
     if (!overlayState.isVisible) {
       return const SizedBox.shrink();
     }
@@ -108,14 +126,15 @@ class _AutofocusProgressOverlayState
       child: GestureDetector(
         onPanUpdate: (details) {
           final screenSize = MediaQuery.sizeOf(context);
+          // Drag range, floored against its own start: a short viewport (the
+          // overlay plus the bottom-nav inset taller than the screen) would
+          // otherwise invert these bounds and throw out of the drag handler.
+          final maxDx = math.max(0.0, screenSize.width - width);
+          final maxDy = math.max(minBottomInset, screenSize.height - height);
           setState(() {
             _offset = Offset(
-              (_offset.dx - details.delta.dx)
-                  .clamp(0, screenSize.width - width),
-              (_offset.dy - details.delta.dy).clamp(
-                minBottomInset,
-                screenSize.height - height,
-              ),
+              (_offset.dx - details.delta.dx).clamp(0, maxDx),
+              (_offset.dy - details.delta.dy).clamp(minBottomInset, maxDy),
             );
           });
         },

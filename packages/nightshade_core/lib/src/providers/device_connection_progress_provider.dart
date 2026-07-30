@@ -34,9 +34,16 @@ class DeviceConnectionProgressState {
   /// `'camera'`, `'mount'`, ... .
   final Map<String, DeviceConnectProgress> byDeviceType;
 
+  /// What kicked this sweep off, e.g. `'Connect All'` or
+  /// `'Startup auto-connect'`. Rendered verbatim by the equipment screen's
+  /// progress strip so an operator who finds a red `guider Failed` chip after
+  /// launch knows it came from startup and not from a button they pressed.
+  final String source;
+
   const DeviceConnectionProgressState({
     required this.isSweeping,
     required this.byDeviceType,
+    this.source = 'Connect All',
   });
 
   static const empty = DeviceConnectionProgressState(
@@ -47,10 +54,12 @@ class DeviceConnectionProgressState {
   DeviceConnectionProgressState copyWith({
     bool? isSweeping,
     Map<String, DeviceConnectProgress>? byDeviceType,
+    String? source,
   }) {
     return DeviceConnectionProgressState(
       isSweeping: isSweeping ?? this.isSweeping,
       byDeviceType: byDeviceType ?? this.byDeviceType,
+      source: source ?? this.source,
     );
   }
 }
@@ -64,10 +73,11 @@ class DeviceConnectionProgressNotifier
 
   /// Begin a new sweep. Clears the prior snapshot so stale chips from a
   /// previous "Connect All" don't bleed into this run.
-  void startSweep() {
-    state = const DeviceConnectionProgressState(
+  void startSweep({String source = 'Connect All'}) {
+    state = DeviceConnectionProgressState(
       isSweeping: true,
-      byDeviceType: <String, DeviceConnectProgress>{},
+      byDeviceType: const <String, DeviceConnectProgress>{},
+      source: source,
     );
   }
 

@@ -623,8 +623,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
             any({'oiii', 'o3'}) &&
             any({'sii', 's2'});
       case SmartNightStrategy.oscOneShot:
-        // OSC works without a wheel — the service falls back to a
-        // synthetic 'OSC' filter row.
+        // OSC works without a wheel — the service plans a single unfiltered
+        // row and emits an ExposureNode with no filter selection.
         return true;
     }
   }
@@ -909,9 +909,11 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     });
   }
 
-  /// Walk every [SmartExposureNode] in `seq` and overwrite its
-  /// per-filter counts with the user-tweaked values. We match by
-  /// filter name within the same TargetHeader.
+  /// Walk every capture node in `seq` and overwrite its per-filter counts
+  /// with the user-tweaked values. We match by filter name within the same
+  /// TargetHeader. A wheel-less target emits a single unfiltered
+  /// [ExposureNode] instead of a [SmartExposureNode]; its count is patched
+  /// from the target's one filter plan.
   Sequence _patchSequenceCounts(
     Sequence seq,
     List<SmartNightPlannedTarget> targets,
@@ -920,21 +922,35 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       for (final t in targets) t.suggestion.targetName: t,
     };
     final newNodes = <String, SequenceNode>{...seq.nodes};
+
+    String? targetNameFor(SequenceNode node) {
+      String? parentId = node.parentId;
+      while (parentId != null) {
+        final parent = seq.nodes[parentId];
+        if (parent is TargetHeaderNode) return parent.targetName;
+        parentId = parent?.parentId;
+      }
+      return null;
+    }
+
     for (final entry in seq.nodes.entries) {
       final node = entry.value;
+      if (node is ExposureNode && node.frameType == FrameType.light) {
+        final targetName = targetNameFor(node);
+        if (targetName == null) continue;
+        final tweaked = byTargetName[targetName];
+        if (tweaked == null || !tweaked.isUnfiltered) continue;
+        final plan = tweaked.filterPlans.single;
+        newNodes[node.id] = node.copyWith(
+          count: plan.count,
+          durationSecs: plan.durationSecs,
+        );
+        continue;
+      }
       if (node is! SmartExposureNode) continue;
       // Walk up to find the parent TargetHeader to identify which
       // planned target this SmartExposure belongs to.
-      String? parentId = node.parentId;
-      String? targetName;
-      while (parentId != null) {
-        final parent = seq.nodes[parentId];
-        if (parent is TargetHeaderNode) {
-          targetName = parent.targetName;
-          break;
-        }
-        parentId = parent?.parentId;
-      }
+      final targetName = targetNameFor(node);
       if (targetName == null) continue;
       final tweaked = byTargetName[targetName];
       if (tweaked == null) continue;

@@ -93,6 +93,33 @@ void main() {
       );
     });
 
+    // aitoffProject normalises x and y into the frame independently, so the
+    // frame has to stay 2:1 or the whole sky is drawn squashed. A card wider
+    // than the map's ceiling must therefore narrow the map, not flatten it.
+    for (final surface in const [Size(2400, 1200), Size(360, 800)]) {
+      testWidgets('the all-sky map keeps a 2:1 frame at $surface',
+          (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = surface;
+        addTearDown(() {
+          tester.view.resetDevicePixelRatio();
+          tester.view.resetPhysicalSize();
+        });
+
+        await tester.pumpWidget(host(AtlasCoverageOverlay(
+          coverage: [_tile(tileId: 1, ra: 180, dec: 0)],
+        )));
+        await tester.pumpAndSettle();
+
+        final sized = tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .where((paint) => !paint.size.isEmpty)
+            .toList(growable: false);
+        expect(sized, hasLength(1));
+        expect(sized.single.size.aspectRatio, closeTo(2.0, 1e-9));
+      });
+    }
+
     testWidgets('an empty atlas shows no map section', (tester) async {
       await tester.pumpWidget(host(
         const AtlasCoverageOverlay(coverage: <AtlasTileCoverage>[]),

@@ -134,20 +134,27 @@ pub fn should_flip_now(
     ha >= threshold_hours
 }
 
-/// Determine which side of the pier the mount should be on for a given hour angle
+/// Determine which side of the pier a German equatorial should be on for a
+/// given hour angle, following the ASCOM `SideOfPier` convention: `pierEast`
+/// is the mount body on the EAST side of the pier looking WEST, `pierWest` is
+/// the body on the WEST side looking EAST.
 ///
 /// # Arguments
 /// * `hour_angle_hours` - Hour angle in hours
 ///
 /// # Returns
-/// The expected pier side based on optimal positioning
+/// The pier side a mount would naturally be placed on by a slew to that hour
+/// angle. Hour angle 0 counts as past the meridian, which is the side a flip
+/// lands on.
 pub fn expected_pier_side(hour_angle_hours: f64) -> PierSide {
     if hour_angle_hours < 0.0 {
-        // Target is east of meridian, mount should be on east side (pointing west)
-        PierSide::East
-    } else {
-        // Target is west of meridian, mount should be on west side (pointing east)
+        // Target has not reached the meridian yet: the mount is on the west
+        // side of the pier looking east.
         PierSide::West
+    } else {
+        // Target is past the meridian: the mount is on the east side of the
+        // pier looking west.
+        PierSide::East
     }
 }
 
@@ -182,6 +189,70 @@ pub fn calculate_altitude(
     let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
 
     sin_alt.asin().to_degrees()
+}
+
+/// Convert equatorial coordinates to horizontal (altitude/azimuth) for an
+/// observer at a given time.
+///
+/// # Arguments
+/// * `ra_hours` - Right Ascension in hours
+/// * `dec_degrees` - Declination in degrees
+/// * `latitude` - Observer's latitude in degrees
+/// * `longitude` - Observer's longitude in degrees (west is negative)
+/// * `time` - UTC time
+///
+/// # Returns
+/// `(altitude_degrees, azimuth_degrees)` with azimuth measured from north
+/// through east, in `[0, 360)`.
+pub fn calculate_alt_az(
+    ra_hours: f64,
+    dec_degrees: f64,
+    latitude: f64,
+    longitude: f64,
+    time: DateTime<Utc>,
+) -> (f64, f64) {
+    let jd = julian_day(&time);
+    let lst = local_sidereal_time(jd, longitude);
+    let ha_rad = (hour_angle(ra_hours, lst) * 15.0).to_radians();
+    let dec_rad = dec_degrees.to_radians();
+    let lat_rad = latitude.to_radians();
+
+    let sin_alt = lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos();
+    let altitude = sin_alt.clamp(-1.0, 1.0).asin();
+
+    let azimuth = (-ha_rad.sin() * dec_rad.cos())
+        .atan2(dec_rad.sin() * lat_rad.cos() - dec_rad.cos() * lat_rad.sin() * ha_rad.cos());
+
+    let azimuth_degrees = azimuth.to_degrees().rem_euclid(360.0);
+    (altitude.to_degrees(), azimuth_degrees)
+}
+
+/// Inverse of [`calculate_alt_az`]: convert horizontal coordinates back to
+/// equatorial for an observer at a given time.
+///
+/// # Returns
+/// `(ra_hours, dec_degrees)` with RA normalized to `[0, 24)`.
+pub fn alt_az_to_ra_dec(
+    altitude_degrees: f64,
+    azimuth_degrees: f64,
+    latitude: f64,
+    longitude: f64,
+    time: DateTime<Utc>,
+) -> (f64, f64) {
+    let alt_rad = altitude_degrees.to_radians();
+    let az_rad = azimuth_degrees.to_radians();
+    let lat_rad = latitude.to_radians();
+
+    let sin_dec = alt_rad.sin() * lat_rad.sin() + alt_rad.cos() * lat_rad.cos() * az_rad.cos();
+    let dec = sin_dec.clamp(-1.0, 1.0).asin();
+
+    let ha = (-az_rad.sin() * alt_rad.cos())
+        .atan2(alt_rad.sin() * lat_rad.cos() - alt_rad.cos() * lat_rad.sin() * az_rad.cos());
+
+    let jd = julian_day(&time);
+    let lst = local_sidereal_time(jd, longitude);
+    let ra = (lst - ha.to_degrees() / 15.0).rem_euclid(24.0);
+    (ra, dec.to_degrees())
 }
 
 /// Calculate Julian Day from UTC DateTime
@@ -268,18 +339,25 @@ mod tests {
         assert!((-12.0..=12.0).contains(&ha2));
     }
 
+    /// ASCOM `pierEast` means the mount body is on the EAST side of the pier
+    /// looking WEST, which is where a German equatorial sits once its target
+    /// has crossed the meridian (hour angle > 0). The mapping was inverted, so
+    /// the simulated mount reported the opposite side from the one a real GEM
+    /// would be on for the same pointing.
     #[test]
     fn test_expected_pier_side() {
-        // Target east of meridian (HA < 0) should be on east side of pier
-        assert_eq!(expected_pier_side(-1.0), PierSide::East);
-        assert_eq!(expected_pier_side(-5.0), PierSide::East);
+        // Target east of the meridian (HA < 0): the mount is on the WEST side
+        // of the pier, looking east.
+        assert_eq!(expected_pier_side(-1.0), PierSide::West);
+        assert_eq!(expected_pier_side(-5.0), PierSide::West);
 
-        // Target west of meridian (HA > 0) should be on west side of pier
-        assert_eq!(expected_pier_side(1.0), PierSide::West);
-        assert_eq!(expected_pier_side(5.0), PierSide::West);
+        // Target west of the meridian (HA > 0): the mount is on the EAST side
+        // of the pier, looking west.
+        assert_eq!(expected_pier_side(1.0), PierSide::East);
+        assert_eq!(expected_pier_side(5.0), PierSide::East);
 
-        // Exactly on meridian (HA = 0) should be west side (just flipped)
-        assert_eq!(expected_pier_side(0.0), PierSide::West);
+        // Exactly on the meridian counts as past it — the side a flip lands on.
+        assert_eq!(expected_pier_side(0.0), PierSide::East);
     }
 
     #[test]
@@ -338,6 +416,94 @@ mod tests {
 
         // Altitude should be reasonable (between 0 and 90 degrees)
         assert!((0.0..=90.0).contains(&alt));
+    }
+
+    /// The celestial pole sits at altitude = latitude, due north, for every
+    /// observer at every instant. Any error in the transform breaks this.
+    #[test]
+    fn pole_sits_at_latitude_due_north() {
+        let time = Utc.with_ymd_and_hms(2026, 7, 28, 3, 17, 0).unwrap();
+        for latitude in [10.0, 40.0, 65.0] {
+            let (alt, az) = calculate_alt_az(6.0, 90.0, latitude, -75.0, time);
+            assert!(
+                (alt - latitude).abs() < 0.01,
+                "pole altitude {alt} should equal latitude {latitude}"
+            );
+            let north_error = (az - 360.0).abs().min(az.abs());
+            assert!(north_error < 0.01, "pole azimuth {az} should be due north");
+        }
+    }
+
+    /// A target whose declination equals the observer's latitude passes through
+    /// the zenith at transit, when LST equals its RA.
+    #[test]
+    fn target_at_transit_reaches_the_zenith() {
+        let latitude = 40.0;
+        let longitude = -75.0;
+        let time = Utc.with_ymd_and_hms(2026, 7, 28, 3, 17, 0).unwrap();
+        let lst = local_sidereal_time(julian_day(&time), longitude);
+
+        let (alt, _) = calculate_alt_az(lst, latitude, latitude, longitude, time);
+        assert!(
+            (alt - 90.0).abs() < 0.01,
+            "a target at Dec=latitude transiting overhead should read 90°, got {alt}"
+        );
+    }
+
+    /// Transit altitude of a southern target from a northern site is
+    /// `90 - lat + dec`, and it culminates due south.
+    #[test]
+    fn southern_target_transits_due_south_at_known_altitude() {
+        let latitude = 40.0;
+        let longitude = -75.0;
+        let dec = 10.0;
+        let time = Utc.with_ymd_and_hms(2026, 7, 28, 3, 17, 0).unwrap();
+        let lst = local_sidereal_time(julian_day(&time), longitude);
+
+        let (alt, az) = calculate_alt_az(lst, dec, latitude, longitude, time);
+        assert!(
+            (alt - (90.0 - latitude + dec)).abs() < 0.01,
+            "transit altitude {alt} should be {}",
+            90.0 - latitude + dec
+        );
+        assert!((az - 180.0).abs() < 0.01, "culmination azimuth {az} != 180");
+    }
+
+    /// Dec −80° from latitude +40° never rises: its maximum possible altitude
+    /// is 90 − 40 − 80 = −30°. The mount telemetry has to say so at every hour
+    /// angle, which is what makes a horizon limit testable.
+    #[test]
+    fn permanently_invisible_target_never_reads_above_the_horizon() {
+        let base = Utc.with_ymd_and_hms(2026, 7, 28, 0, 0, 0).unwrap();
+        for hour in 0..24 {
+            let time = base + chrono::Duration::hours(hour);
+            let (alt, _) = calculate_alt_az(5.5, -80.0, 40.0, -75.0, time);
+            assert!(
+                alt <= -29.99,
+                "Dec -80 from lat +40 reported altitude {alt} at hour {hour}; it can never \
+                 exceed -30"
+            );
+        }
+    }
+
+    /// The horizontal transform must be invertible, or an alt/az slew cannot be
+    /// stored as the equatorial pointing it actually produced.
+    #[test]
+    fn alt_az_round_trips_through_ra_dec() {
+        let latitude = 40.0;
+        let longitude = -75.0;
+        let time = Utc.with_ymd_and_hms(2026, 7, 28, 3, 17, 0).unwrap();
+
+        for (ra, dec) in [(5.5, 30.0), (18.25, -12.0), (0.5, 65.0), (12.0, 0.0)] {
+            let (alt, az) = calculate_alt_az(ra, dec, latitude, longitude, time);
+            let (ra_back, dec_back) = alt_az_to_ra_dec(alt, az, latitude, longitude, time);
+            assert!(
+                (dec_back - dec).abs() < 1e-6,
+                "Dec {dec} round-tripped to {dec_back}"
+            );
+            let ra_error = (ra_back - ra).abs().min(24.0 - (ra_back - ra).abs());
+            assert!(ra_error < 1e-6, "RA {ra} round-tripped to {ra_back}");
+        }
     }
 
     #[test]

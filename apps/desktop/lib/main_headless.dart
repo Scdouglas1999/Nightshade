@@ -209,6 +209,20 @@ void main(List<String> args) async {
     stdout.writeln('[OK] Data directory: ${bootPaths.dataDirectory}');
     stdout.writeln('[OK] Profile and settings storage initialized');
 
+    // Single-instance invariant. The headless service and the GUI resolve the
+    // SAME default database path, so running both on one machine used to put
+    // two SQLite writers on one file — and the loser's SQLITE_BUSY was misread
+    // as corruption, quarantining the operator's real database. Refuse before
+    // any service starts. Use NIGHTSHADE_DATABASE_DIR to give this daemon its
+    // own data directory if it is genuinely meant to run alongside a GUI.
+    final contended = await SingleInstanceLock.probe(
+      await resolveDefaultDatabaseFile(),
+    );
+    if (contended != null) {
+      stderr.writeln('Nightshade: ${contended.message}');
+      exit(75); // EX_TEMPFAIL — retry once the other instance exits.
+    }
+
     stdout.writeln('Initializing services...');
     container = ProviderContainer(
       overrides: [

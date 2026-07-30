@@ -316,3 +316,59 @@ final profileConnectionStatusProvider =
         connections: connections,
       );
     });
+
+/// Slots holding a device that is CONNECTED but that the active profile does not
+/// assign — i.e. an ad-hoc connection made from the Discovery panel.
+///
+/// These connections are session-only: nothing writes them to
+/// `equipment_profiles`, so the next launch reconnects only the profile devices
+/// and the rest are silently gone. Observed: nine devices connected from
+/// Discovery, header reading "9 connected", every card rendering identically to
+/// the profile devices — then a restart brought back four with no notice. The
+/// consequence is worst for the dome and safety monitor, where a user who set up
+/// at dusk reasonably assumes the rig is configured.
+///
+/// Empty when there is no active profile. With no profile NOTHING can have been
+/// saved, but "no equipment profile is set up yet" is already a BLOCKED readiness
+/// item — repeating it as a per-card warning on every device would be noise, not
+/// information. This provider answers the narrower, more useful question: which
+/// devices did the operator connect *outside* the profile they are running.
+final sessionOnlyConnectedSlotsProvider = Provider<Set<ProfileDeviceSlot>>((
+  ref,
+) {
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  if (profile == null) return const <ProfileDeviceSlot>{};
+  final status = ref.watch(profileConnectionStatusProvider(profile));
+  return <ProfileDeviceSlot>{
+    for (final connection in status.connections)
+      if (connection.connectedState == DeviceConnectionState.connected &&
+          !connection.matchesProfile)
+        connection.slot,
+  };
+});
+
+/// Display names of the ACTIVE profile's assigned device slots that are not
+/// currently connected, in canonical slot order.
+///
+/// This is the "what did the profile promise that the rig has not got" signal.
+/// It exists because both readiness and equipment health were blind to it: a
+/// profile device that never connected has no heartbeat and no session history,
+/// so the degradation score deducted nothing and the rig scored
+/// `100 - Excellent` while its guider had silently failed to come up. A device
+/// in `connecting`, `error`, or `disconnected` — or a slot occupied by a
+/// DIFFERENT device than the profile assigned — all count as offline here,
+/// matching the fail-closed rule the rest of readiness uses.
+///
+/// Empty when there is no active profile: absence of a profile is a separate
+/// readiness item, not a device fault.
+final offlineProfileDeviceNamesProvider = Provider<List<String>>((ref) {
+  final profile = ref.watch(activeEquipmentProfileProvider);
+  if (profile == null) return const <String>[];
+  final status = ref.watch(profileConnectionStatusProvider(profile));
+  return <String>[
+    for (final connection in status.connections)
+      if (connection.isAssigned &&
+          connection.profileState != DeviceConnectionState.connected)
+        connection.slot.displayName,
+  ];
+});

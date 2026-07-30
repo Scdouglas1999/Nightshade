@@ -49,6 +49,79 @@ void main() {
       expect(ShellNavigation.primaryRouteForIndex(6), '/planner');
     });
 
+    // A lit rail item is the shell's strongest claim about where the operator
+    // is. `primaryIndexForLocation` used to be exact-match only and the shell
+    // defaulted an unmatched location to 0, so every route no rail destination
+    // hosts — Tonight, the Flat Wizard, the mosaic / session-review /
+    // stack-result viewers, /diagnostics/dump, /settings/plate-solving — lit up
+    // Dashboard while showing something else entirely.
+    test('non-rail routes select nothing rather than falling back to Dashboard',
+        () {
+      for (final location in [
+        '/tonight',
+        '/flat-wizard',
+        '/mosaic',
+        '/mosaic/7',
+        '/session-review?session=3',
+        '/stack-result?id=9',
+        '/diagnostics/dump',
+        '/settings',
+        '/settings/plate-solving',
+        '/polar-alignment',
+        '/tutorial/first-night',
+      ]) {
+        expect(
+          ShellNavigation.primaryIndexForLocation(location),
+          -1,
+          reason: '$location must not highlight a rail destination',
+        );
+      }
+    });
+
+    test('a sub-route resolves to the destination that hosts it', () {
+      // The image-ready notification deep link renders the Imaging screen.
+      expect(
+        ShellNavigation.primaryIndexForLocation('/imaging/preview/42'),
+        ShellNavigation.primaryRoutes.indexOf('/imaging'),
+      );
+      expect(
+        ShellNavigation.primaryIndexForLocation('/imaging/preview/42?x=1'),
+        ShellNavigation.primaryRoutes.indexOf('/imaging'),
+      );
+    });
+
+    test('locationIsUnder matches on segment boundaries only', () {
+      expect(ShellNavigation.locationIsUnder('/planner', '/planner'), isTrue);
+      expect(
+        ShellNavigation.locationIsUnder('/planner?tab=discover', '/planner'),
+        isTrue,
+      );
+      expect(
+        ShellNavigation.locationIsUnder('/planner/queue', '/planner'),
+        isTrue,
+      );
+      // A sibling route that merely shares a prefix is NOT nested.
+      expect(
+        ShellNavigation.locationIsUnder('/planner-archive', '/planner'),
+        isFalse,
+      );
+      expect(
+        ShellNavigation.locationIsUnder('/imaging', '/dashboard'),
+        isFalse,
+      );
+    });
+
+    test('every primary route still resolves to its own index', () {
+      for (var i = 0; i < ShellNavigation.primaryRoutes.length; i++) {
+        expect(
+          ShellNavigation.primaryIndexForLocation(
+            ShellNavigation.primaryRoutes[i],
+          ),
+          i,
+        );
+      }
+    });
+
     test('isBottomNavRoute covers consolidated routes only', () {
       expect(ShellNavigation.isBottomNavRoute('/guiding'), isTrue);
       expect(ShellNavigation.isBottomNavRoute('/weather'), isTrue);

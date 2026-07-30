@@ -13,6 +13,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../services/finder_chart_service.dart';
 import '../../services/fov_presets_sync_service.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
+import 'providers/sequenced_object_ids_provider.dart';
 import 'widgets/filter_sidebar.dart';
 import 'widgets/top_overlay.dart';
 import 'widgets/bottom_info_bar.dart';
@@ -29,9 +30,13 @@ import '../../services/mount_command_service.dart';
 import '../../utils/exported_file_reveal.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/planetarium_keys.dart';
+import 'sky_imagery/planetarium_sky_imagery_layer.dart';
+import 'sky_imagery/planetarium_sky_imagery_providers.dart';
 import 'widgets/full_screen_sky_view.dart';
+import 'widgets/star_catalog_fallback_banner.dart';
 import 'widgets/redesign/command_bar.dart';
 import 'widgets/redesign/layers_panel.dart';
+import 'show_in_sky.dart';
 import '../imaging/centering_dialog.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 
@@ -94,7 +99,6 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
   bool _showPopup = false;
   Offset _popupPosition = Offset.zero;
   CelestialObject? _popupObject;
-  CelestialCoordinate? _popupCoordinates;
   final GlobalKey _skyViewKey = GlobalKey();
 
   // Slew mode state
@@ -105,6 +109,11 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
 
   // Track if initial sync has been done
   bool _initialSyncDone = false;
+
+  // Last `?ra=&dec=&name=` hand-off already applied, so re-running the parse on
+  // an unrelated dependency change doesn't yank the view back to it after the
+  // user has panned away.
+  String? _appliedSkyTargetQuery;
 
   // Filter sidebar state (legacy desktop layout — retained, no longer mounted)
   bool _filterSidebarExpanded = false;
@@ -137,6 +146,15 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // `GoRouterState.of` registers an inherited dependency, so this re-runs when
+    // the location changes while the planetarium is already mounted (the Plan
+    // Tonight IndexedStack keeps it built, so initState will not run again).
+    _applySkyTargetQuery();
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _mountSyncDebounce?.cancel();
@@ -151,6 +169,12 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
     // Activate FOV-preset persistence: hydrate on first build, then write back
     // any preset edits to durable storage. Kept alive for the screen's lifetime.
     ref.watch(fovPresetsSyncProvider);
+
+    // Activate the equipment→FOV binding so the "F" overlay reflects the rig
+    // that is actually connected (active profile optics + connected camera
+    // sensor + live rotator angle) without the user configuring anything. It
+    // clears itself when the rig is unknown, so nothing bogus is drawn.
+    ref.watch(equipmentFovBindingProvider);
 
     // Sync mount state from equipment provider to planetarium mount position provider
     ref.listen<MountState>(mountStateProvider, (previous, next) {
@@ -175,14 +199,6 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
         );
       } else {
         mountNotifier.setDisconnected();
-      }
-    });
-
-    // Sync rotator position to equipment FOV rotation
-    ref.listen<RotatorState>(rotatorStateProvider, (previous, next) {
-      if (next.connectionState == DeviceConnectionState.connected &&
-          next.position != null) {
-        ref.read(equipmentFOVProvider.notifier).setRotation(next.position!);
       }
     });
 
@@ -235,6 +251,9 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
       description: 'Learn how to navigate the sky and find targets.',
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
+      // The sky is a full-bleed canvas: float the nudge over its empty
+      // bottom-right corner instead of insetting the map by the card's height.
+      reserveSpaceForCard: false,
       child: _NightVisionFilter(
         enabled: nightVision,
         child: Focus(

@@ -33,9 +33,50 @@ class MosaicPanelCenter {
 }
 
 /// Normalize an RA value in hours into the half-open range [0, 24).
+///
+/// The final `>= 24` fold is not redundant: for a tiny negative input such as
+/// `-1e-16`, `raHours % 24.0` is `24.0 - 1e-16`, which rounds to exactly
+/// `24.0` in double precision — so the naive version could return 24.0 and
+/// break the half-open contract every caller (and every `ra < 24` assertion)
+/// relies on.
 double normalizeRaHours(double raHours) {
-  final normalized = raHours % 24.0;
-  return normalized < 0 ? normalized + 24.0 : normalized;
+  if (raHours.isNaN || raHours.isInfinite) return raHours;
+  var normalized = raHours % 24.0;
+  if (normalized < 0) normalized += 24.0;
+  if (normalized >= 24.0) normalized = 0.0;
+  return normalized;
+}
+
+/// The mean of a set of RA values (hours), computed as a **circular** mean so
+/// the 0h/24h seam does not corrupt the answer.
+///
+/// A plain arithmetic mean is wrong for an angle: a mosaic straddling RA 0 has
+/// panels at (say) 23.97h and 0.03h, whose arithmetic mean is 12.0h — the
+/// opposite side of the sky from the grid it describes. Averaging the unit
+/// vectors instead and taking `atan2` gives 0.0h, which is where the mosaic
+/// actually is.
+///
+/// Returns null for an empty input, and for the degenerate case where the
+/// vectors cancel to (near) zero — RA values spread symmetrically around the
+/// whole circle have no meaningful mean direction, and reporting one would be
+/// another confident fiction. Callers should show "unknown" in that case.
+double? meanRaHours(Iterable<double> raHours) {
+  var sumX = 0.0;
+  var sumY = 0.0;
+  var count = 0;
+  for (final ra in raHours) {
+    if (ra.isNaN || ra.isInfinite) continue;
+    final angle = ra * math.pi / 12.0; // 24h == 2*pi
+    sumX += math.cos(angle);
+    sumY += math.sin(angle);
+    count++;
+  }
+  if (count == 0) return null;
+  // Resultant length per sample; below this the directions cancel out and the
+  // mean angle is numerically meaningless rather than merely imprecise.
+  final resultant = math.sqrt(sumX * sumX + sumY * sumY) / count;
+  if (resultant < 1e-9) return null;
+  return normalizeRaHours(math.atan2(sumY, sumX) * 12.0 / math.pi);
 }
 
 /// Convert an east-pointing angular offset (degrees on the sky) into an RA

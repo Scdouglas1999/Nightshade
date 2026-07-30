@@ -3390,6 +3390,12 @@ impl FitsWriteHeaderRich {
             set_temp: ctx.set_temp_c,
             ra: ctx.target_ra_hours,
             dec: ctx.target_dec_degrees,
+            // FrameContext carries no altitude, so sequenced frames get no
+            // AIRMASS card. That is a real (separate) metadata gap, not a
+            // safety valve: `set_optional_airmass` already omits the keyword
+            // rather than failing the write, so supplying a real altitude here
+            // would be safe. Populating it needs the site location and capture
+            // time threaded into FrameContext.
             altitude: None,
             telescope: ctx.telescope_name.clone(),
             instrument,
@@ -3437,6 +3443,86 @@ impl FitsWriteHeaderRich {
             // Dual-rig — carry the rig attribution into the FITS header.
             rig_label: ctx.rig_label.clone(),
         }
+    }
+}
+
+/// Format a signed sexagesimal angle as `±DD MM SS.SS`, the space-separated
+/// form MaxIm DL / N.I.N.A. write for `OBJCTRA` / `OBJCTDEC`.
+#[flutter_rust_bridge::frb(ignore)]
+fn format_sexagesimal(value: f64, signed: bool) -> String {
+    let negative = value < 0.0;
+    let mut total_seconds = value.abs() * 3600.0;
+    // Round to 1/100 s first so a value like 7.9999999 h renders as 08 00 00.00
+    // instead of 07 59 60.00.
+    total_seconds = (total_seconds * 100.0).round() / 100.0;
+    let units = (total_seconds / 3600.0).floor();
+    let minutes = ((total_seconds - units * 3600.0) / 60.0).floor();
+    let seconds = total_seconds - units * 3600.0 - minutes * 60.0;
+    let sign = if signed {
+        if negative {
+            "-"
+        } else {
+            "+"
+        }
+    } else if negative {
+        "-"
+    } else {
+        ""
+    };
+    format!(
+        "{}{:02} {:02} {:05.2}",
+        sign, units as i64, minutes as i64, seconds
+    )
+}
+
+/// Write the pointing keywords for a frame.
+///
+/// Nightshade carries RA in **hours** everywhere internally (the ASCOM
+/// `RightAscension` convention) while Dec is in degrees. The numeric FITS
+/// `RA` card, however, is degrees by universal convention — PixInsight,
+/// Siril, ASTAP, AstroImageJ and astrometry.net all read it that way — so
+/// passing the hour value straight through mis-located every frame by 15x
+/// in RA. Convert here, at the one boundary where the unit changes, and
+/// also emit the unambiguous sexagesimal `OBJCTRA`/`OBJCTDEC` pair that
+/// MaxIm DL and N.I.N.A. write.
+#[flutter_rust_bridge::frb(ignore)]
+fn set_pointing_keywords(header: &mut FitsHeader, ra_hours: Option<f64>, dec_degrees: Option<f64>) {
+    if let Some(ra) = ra_hours {
+        if ra.is_finite() {
+            header.set_float("RA", ra * 15.0);
+            header.set_string("OBJCTRA", &format_sexagesimal(ra, false));
+        }
+    }
+    if let Some(dec) = dec_degrees {
+        if dec.is_finite() {
+            header.set_float("DEC", dec);
+            header.set_string("OBJCTDEC", &format_sexagesimal(dec, true));
+        }
+    }
+}
+
+/// Write the optional `AIRMASS` card, omitting it when it cannot be computed.
+///
+/// AIRMASS is a convenience keyword — every stacker works without it — but
+/// [`calculate_airmass`] deliberately refuses sub-horizon altitudes, and
+/// darks and flats are by definition taken parked or capped (Alt < 0). The
+/// previous code propagated that refusal with `?`, which aborted the entire
+/// FITS write and destroyed the frame: the thumbnail landed on disk and the
+/// science data did not. Losing an optional keyword is always better than
+/// losing the exposure, so warn and skip the card instead.
+#[flutter_rust_bridge::frb(ignore)]
+fn set_optional_airmass(header: &mut FitsHeader, altitude_degrees: Option<f64>) {
+    let Some(altitude) = altitude_degrees else {
+        return;
+    };
+    match calculate_airmass(altitude) {
+        Ok(airmass) => header.set_float("AIRMASS", airmass),
+        Err(e) => tracing::warn!(
+            "Omitting AIRMASS from FITS header: cannot compute for altitude {}°: {}. \
+             The frame itself is unaffected.",
+            altitude,
+            e
+        ),
     }
 }
 
@@ -3532,26 +3618,10 @@ pub async fn api_save_fits_file(
         header.set_float("SITEELEV", elev);
     }
 
-    // Target coordinates and airmass
-    if let Some(ra) = header_data.ra {
-        header.set_float("RA", ra);
-    }
-    if let Some(dec) = header_data.dec {
-        header.set_float("DEC", dec);
-    }
-    if let Some(altitude) = header_data.altitude {
-        // Why: airmass returns Err for below-horizon inputs. Surface
-        // that as an OperationFailed so the caller knows the frame metadata was
-        // attempted with an invalid altitude rather than silently writing a
-        // sentinel value or omitting the keyword.
-        let airmass = calculate_airmass(altitude).map_err(|e| {
-            NightshadeError::OperationFailed(format!(
-                "Cannot compute AIRMASS for altitude {}°: {}",
-                altitude, e
-            ))
-        })?;
-        header.set_float("AIRMASS", airmass);
-    }
+    // Target coordinates and airmass. RA arrives in hours and leaves in
+    // degrees; AIRMASS is optional and never fatal (see helpers above).
+    set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
+    set_optional_airmass(&mut header, header_data.altitude);
 
     // Validate header completeness
     let header_validation = validate_fits_header(&header);
@@ -3691,23 +3761,11 @@ pub async fn save_fits_file_rich(
     }
 
     // ------------------------------------------------------------------
-    // Target coordinates + airmass.
+    // Target coordinates + airmass. RA arrives in hours and leaves in
+    // degrees; AIRMASS is optional and never fatal (see helpers above).
     // ------------------------------------------------------------------
-    if let Some(ra) = header_data.ra {
-        header.set_float("RA", ra);
-    }
-    if let Some(dec) = header_data.dec {
-        header.set_float("DEC", dec);
-    }
-    if let Some(altitude) = header_data.altitude {
-        let airmass = calculate_airmass(altitude).map_err(|e| {
-            NightshadeError::OperationFailed(format!(
-                "Cannot compute AIRMASS for altitude {}°: {}",
-                altitude, e
-            ))
-        })?;
-        header.set_float("AIRMASS", airmass);
-    }
+    set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
+    set_optional_airmass(&mut header, header_data.altitude);
 
     // ------------------------------------------------------------------
     // Image Grading: live device telemetry.
@@ -3997,26 +4055,10 @@ pub async fn api_save_fits_from_last_capture(
         header.set_float("SITEELEV", elev);
     }
 
-    // Target coordinates and airmass
-    if let Some(ra) = header_data.ra {
-        header.set_float("RA", ra);
-    }
-    if let Some(dec) = header_data.dec {
-        header.set_float("DEC", dec);
-    }
-    if let Some(altitude) = header_data.altitude {
-        // Why: airmass returns Err for below-horizon inputs. Surface
-        // that as an OperationFailed so the caller knows the frame metadata was
-        // attempted with an invalid altitude rather than silently writing a
-        // sentinel value or omitting the keyword.
-        let airmass = calculate_airmass(altitude).map_err(|e| {
-            NightshadeError::OperationFailed(format!(
-                "Cannot compute AIRMASS for altitude {}°: {}",
-                altitude, e
-            ))
-        })?;
-        header.set_float("AIRMASS", airmass);
-    }
+    // Target coordinates and airmass. RA arrives in hours and leaves in
+    // degrees; AIRMASS is optional and never fatal (see helpers above).
+    set_pointing_keywords(&mut header, header_data.ra, header_data.dec);
+    set_optional_airmass(&mut header, header_data.altitude);
 
     // Validate header completeness
     let header_validation = validate_fits_header(&header);
@@ -5615,9 +5657,17 @@ mod rich_header_tests {
         assert_eq!(parsed.get_float("SITELONG"), Some(-74.0060));
         assert_eq!(parsed.get_float("SITEELEV"), Some(50.0));
 
-        // Target coordinates.
-        assert_eq!(parsed.get_float("RA"), Some(0.7123));
+        // Target coordinates. `target_ra_hours` is hours; the numeric FITS
+        // RA card is degrees, so the writer multiplies by 15.
+        let ra_deg = parsed.get_float("RA").expect("RA card");
+        assert!(
+            (ra_deg - 0.7123 * 15.0).abs() < 1e-6,
+            "RA must be written in degrees, got {ra_deg}"
+        );
         assert_eq!(parsed.get_float("DEC"), Some(41.269));
+        // Unambiguous sexagesimal pair (MaxIm / N.I.N.A. convention).
+        assert_eq!(parsed.get_string("OBJCTRA"), Some("00 42 44.28"));
+        assert_eq!(parsed.get_string("OBJCTDEC"), Some("+41 16 08.40"));
 
         // Live device telemetry — the audit's key complaint that these
         // weren't being written.
@@ -5743,6 +5793,135 @@ mod rich_header_tests {
         assert!(
             header_empty.session_id.is_none(),
             "empty session_id should be normalised to None"
+        );
+    }
+
+    /// Regression: a below-horizon altitude used to abort the whole FITS
+    /// write via `?` on `calculate_airmass`, so the thumbnail landed on
+    /// disk and the science frame did not. Darks and flats are taken
+    /// parked/capped (Alt < 0) by definition, so this destroyed entire
+    /// calibration runs. AIRMASS is optional: omit it, keep the frame.
+    #[tokio::test]
+    async fn below_horizon_altitude_still_writes_the_frame() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![7u16; (width * height) as usize];
+
+        let scratch = temp_scratch_dir("below_horizon");
+        let temp_path = scratch.join("parked.fits");
+
+        let ctx = FrameContext::new_light("sess", 1, 1, 3.0, 1);
+        let mut header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        // Mount parked: the exact altitude the sim mount reports.
+        header.altitude = Some(-9.9);
+
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("a parked mount must not stop the frame from being saved");
+
+        assert!(
+            temp_path.exists(),
+            "FITS file must exist on disk for a below-horizon capture"
+        );
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+        assert_eq!(
+            parsed.get_float("AIRMASS"),
+            None,
+            "AIRMASS must be omitted (not faked) when it cannot be computed"
+        );
+    }
+
+    /// Above the horizon the AIRMASS card is still written, so omission is
+    /// genuinely conditional rather than a blanket removal.
+    #[tokio::test]
+    async fn above_horizon_altitude_writes_airmass() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![1u16; (width * height) as usize];
+
+        let scratch = temp_scratch_dir("above_horizon");
+        let temp_path = scratch.join("high.fits");
+
+        let ctx = FrameContext::new_light("sess", 1, 1, 3.0, 1);
+        let mut header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        header.altitude = Some(78.98);
+
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+        let airmass = parsed.get_float("AIRMASS").expect("AIRMASS card");
+        assert!(
+            (airmass - 1.0185).abs() < 0.001,
+            "AIRMASS at Alt 78.98° should be ~1.0185, got {airmass}"
+        );
+    }
+
+    /// Unit pin: RA is carried internally in hours but the numeric FITS RA
+    /// card is degrees. Without this conversion every frame pointed
+    /// PixInsight / Siril / ASTAP / astrometry.net 15x off in RA.
+    #[tokio::test]
+    async fn ra_is_written_in_degrees_not_hours() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![0u16; (width * height) as usize];
+
+        let scratch = temp_scratch_dir("ra_units");
+        let temp_path = scratch.join("pointing.fits");
+
+        let mut ctx = FrameContext::new_light("sess", 1, 1, 3.0, 1);
+        // The exact pointing from the audit repro: 08h00m / +40°.
+        ctx.target_ra_hours = Some(8.0);
+        ctx.target_dec_degrees = Some(40.0);
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+        assert_eq!(
+            parsed.get_float("RA"),
+            Some(120.0),
+            "RA(deg) must equal 15 x mount hours"
+        );
+        assert_eq!(parsed.get_float("DEC"), Some(40.0));
+        assert_eq!(parsed.get_string("OBJCTRA"), Some("08 00 00.00"));
+        assert_eq!(parsed.get_string("OBJCTDEC"), Some("+40 00 00.00"));
+    }
+
+    /// Negative declinations must keep their sign in the sexagesimal card.
+    #[test]
+    fn sexagesimal_formatting_handles_sign_and_rounding() {
+        assert_eq!(super::format_sexagesimal(8.0, false), "08 00 00.00");
+        assert_eq!(super::format_sexagesimal(40.0, true), "+40 00 00.00");
+        assert_eq!(
+            super::format_sexagesimal(-5.5083333333, true),
+            "-05 30 30.00"
+        );
+        // 7.99999999 h must not render as 07 59 60.00.
+        assert_eq!(
+            super::format_sexagesimal(7.999_999_99, false),
+            "08 00 00.00"
         );
     }
 }

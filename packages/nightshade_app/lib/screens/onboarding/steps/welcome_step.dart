@@ -51,7 +51,11 @@ class OnboardingWelcomeStep extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "Let's get your rig set up. This takes about 2 minutes.",
+                      // No stopwatch promise: the run is gated on device
+                      // discovery finding your gear, and "about 2 minutes" was
+                      // a specific number nothing measured.
+                      "Let's get your rig set up. You can leave and pick this "
+                      'back up at any point.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: colors.textSecondary,
                       ),
@@ -83,8 +87,15 @@ class OnboardingWelcomeStep extends ConsumerWidget {
                     'Picking your camera, mount, focuser, filter wheel, and guider'),
                 _bullet(theme, colors, LucideIcons.ruler,
                     'Optical train details: focal length, aperture, reducer'),
+                // The list has to name every step that follows, or the wizard
+                // asks for things it said it would not — the observing site in
+                // particular is written to global settings, not just the profile.
+                _bullet(theme, colors, NightshadeIcons.sliders,
+                    'Capture defaults: gain, offset, binning, cooling'),
                 _bullet(theme, colors, NightshadeIcons.folder,
                     'Where Nightshade will save captured images'),
+                _bullet(theme, colors, LucideIcons.mapPin,
+                    'Where you observe from (optional, powers Tonight and the planner)'),
               ],
             ),
           ),

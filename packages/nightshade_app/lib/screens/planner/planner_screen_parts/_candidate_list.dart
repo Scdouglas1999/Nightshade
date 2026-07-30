@@ -18,45 +18,101 @@ class _CandidateList extends ConsumerWidget {
     required this.isMobile,
   });
 
+  /// How many candidate cards to put side by side.
+  ///
+  /// A candidate card needs roughly 1000-1150px to be comfortable: ~610px of
+  /// intrinsic info content (name, chip row, one-line rationale, four buttons)
+  /// plus the altitude panel, which `clampPanelWidth` caps at 380px. Every
+  /// pixel beyond that used to become dead space in the middle of the card —
+  /// ~1240px (54% of the card) on a 2560px window, growing linearly with the
+  /// window — while only three of 1200+ candidates fit on screen. Splitting
+  /// into columns spends the extra width on MORE candidates instead of more
+  /// void.
+  static int _columnsFor(double availableWidth) {
+    if (!availableWidth.isFinite || availableWidth <= 0) return 1;
+    // Capped at 4: this workstation's maximised window is 5120px wide, where a
+    // single column left ~74% of every card empty.
+    final columns = (availableWidth / 1150).round();
+    return columns.clamp(1, 4);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final visibleCount =
         ref.watch(_plannerVisibleCountProvider).clamp(0, candidates.length);
     final visible = candidates.take(visibleCount).toList(growable: false);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final candidate in visible)
-          Padding(
-            padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
-            child: _CandidateRow(
-              key: ValueKey('candidate-${candidate.targetId}'),
-              suggestion: candidate,
-              colors: colors,
-              isMobile: isMobile,
-            ),
-          ),
-        if (visibleCount < candidates.length)
-          Padding(
-            padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
-            child: Align(
-              alignment: Alignment.center,
-              child: NightshadeButton(
-                label:
-                    'Load more (${candidates.length - visibleCount} remaining)',
-                icon: LucideIcons.chevronDown,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () {
-                  final next = (visibleCount + _kPlannerPageSize)
-                      .clamp(0, candidates.length);
-                  ref.read(_plannerVisibleCountProvider.notifier).state = next;
-                },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = isMobile ? 1 : _columnsFor(constraints.maxWidth);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (columns == 1)
+              for (final candidate in visible)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                  child: _CandidateRow(
+                    key: ValueKey('candidate-${candidate.targetId}'),
+                    suggestion: candidate,
+                    colors: colors,
+                    isMobile: isMobile,
+                  ),
+                )
+            else
+              for (var start = 0; start < visible.length; start += columns)
+                Padding(
+                  padding:
+                      const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var column = 0; column < columns; column++) ...[
+                        if (column > 0)
+                          const SizedBox(width: NightshadeTokens.spaceMd),
+                        Expanded(
+                          child: start + column < visible.length
+                              ? _CandidateRow(
+                                  key: ValueKey(
+                                    'candidate-${visible[start + column].targetId}',
+                                  ),
+                                  suggestion: visible[start + column],
+                                  colors: colors,
+                                  isMobile: isMobile,
+                                )
+                              // Keeps the last row's cards the same width as
+                              // every other row's instead of stretching one
+                              // card across the full width.
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+            if (visibleCount < candidates.length)
+              Padding(
+                padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: NightshadeButton(
+                    label: 'Load more '
+                        '(${candidates.length - visibleCount} remaining)',
+                    icon: LucideIcons.chevronDown,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    onPressed: () {
+                      final next = (visibleCount + _kPlannerPageSize)
+                          .clamp(0, candidates.length);
+                      ref.read(_plannerVisibleCountProvider.notifier).state =
+                          next;
+                    },
+                  ),
+                ),
               ),
-            ),
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -67,6 +123,7 @@ class _CandidateRowInfo extends ConsumerWidget {
   final NightshadeColors colors;
   final VoidCallback onReviewInSequencer;
   final VoidCallback onSendToFraming;
+  final VoidCallback onShowInSky;
   final VoidCallback onAddToObservingList;
 
   const _CandidateRowInfo({
@@ -74,6 +131,7 @@ class _CandidateRowInfo extends ConsumerWidget {
     required this.colors,
     required this.onReviewInSequencer,
     required this.onSendToFraming,
+    required this.onShowInSky,
     required this.onAddToObservingList,
   });
 
@@ -130,8 +188,18 @@ class _CandidateRowInfo extends ConsumerWidget {
               ),
             _StatChip(
               icon: LucideIcons.arrowUp,
-              label: 'Peak ${peakAlt.toStringAsFixed(0)}°',
+              // Same l10n string as the hero card so the two never drift, and
+              // the label says WHICH peak this is: the chart's "Transit alt"
+              // is a different (also correct) number.
+              label: context.l10n.text(
+                'plannerPeak',
+                params: {'value': peakAlt.toStringAsFixed(0)},
+              ),
               colors: colors,
+              tooltip:
+                  'Highest altitude this target reaches while the sky is astronomically '
+                  'dark tonight. The altitude chart\'s "Transit alt" is the '
+                  'altitude at culmination, which may fall in daylight.',
             ),
             _IntegrationEstimateChip(
               targetId: suggestion.targetId,
@@ -206,6 +274,15 @@ class _CandidateRowInfo extends ConsumerWidget {
               size: ButtonSize.small,
               onPressed: onAddToObservingList,
             ),
+            // Appended, not inserted: the three existing actions keep their
+            // familiar positions (and their reach in a short viewport).
+            NightshadeButton(
+              label: context.l10n.text('plannerOpenPlanetarium'),
+              icon: LucideIcons.globe,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onShowInSky,
+            ),
           ],
         ),
       ],
@@ -255,6 +332,7 @@ class _CandidateRow extends ConsumerWidget {
       colors: colors,
       onReviewInSequencer: () => _reviewInSequencer(context, ref),
       onSendToFraming: () => _sendToFraming(context, ref),
+      onShowInSky: () => _showInSky(context, ref),
       onAddToObservingList: () => _addToObservingList(context, ref),
     );
     final chartPanel = _CandidateAltitudePanel(
@@ -329,6 +407,19 @@ class _CandidateRow extends ConsumerWidget {
     context.goNamed('framing');
   }
 
+  /// Jump to this candidate in the planetarium — the sky-context counterpart to
+  /// "Send to Framing", so a candidate can be judged against its neighbourhood
+  /// (horizon, moon, neighbouring targets) before it is committed.
+  void _showInSky(BuildContext context, WidgetRef ref) {
+    showTargetInSky(
+      context,
+      ref,
+      raHours: suggestion.raHours,
+      decDegrees: suggestion.decDegrees,
+      name: suggestion.targetName,
+    );
+  }
+
   Future<void> _addToObservingList(
     BuildContext context,
     WidgetRef ref,
@@ -372,11 +463,17 @@ class _CandidateObservingListDialogState
   bool _saving = false;
   String? _error;
 
+  /// Lists that already contain this target. Empty also means "not known yet /
+  /// could not be determined", which is why membership only ever *annotates* a
+  /// row — the add path still handles a duplicate gracefully on its own.
+  Set<int> _listsContaining = const <int>{};
+
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _authority = ref.read(backendProvider);
+    _loadExistingMembership();
     _backendSubscription = ref.listenManual<NightshadeBackend>(
       backendProvider,
       (previous, next) {
@@ -403,6 +500,25 @@ class _CandidateObservingListDialogState
   bool get _isCurrentAuthority =>
       identical(ref.read(backendProvider), _authority);
 
+  /// Mark the lists this target is already in, so the user is not invited to
+  /// perform an add that can only be a no-op. Best-effort: a failure leaves
+  /// the annotations off rather than blocking the dialog.
+  Future<void> _loadExistingMembership() async {
+    final catalogId = widget.suggestion.catalogId;
+    if (catalogId == null) return;
+    try {
+      final lists = await ref
+          .read(observingListNotifierProvider.notifier)
+          .getListsContaining(catalogId);
+      if (!mounted || !_isCurrentAuthority) return;
+      setState(() {
+        _listsContaining = lists.map((list) => list.id).toSet();
+      });
+    } catch (_) {
+      // Membership is an affordance, not a gate — stay silent.
+    }
+  }
+
   Future<void> _addToList(int listId) async {
     if (_saving || !_isCurrentAuthority) return;
     setState(() {
@@ -422,17 +538,30 @@ class _CandidateObservingListDialogState
         );
     if (!mounted || !_isCurrentAuthority) return;
 
+    final uiState = ref.read(observingListNotifierProvider);
     if (id == null) {
+      // No row was written. Two very different reasons, and they must not read
+      // the same: a genuine write failure sets errorMessage, while "the target
+      // is already in this list" sets only a neutral statusMessage. The latter
+      // used to render the raw Dart exception ("Failed to add item: Bad state:
+      // …") in red for what is a harmless no-op.
+      final alreadyThere =
+          uiState.errorMessage == null ? uiState.statusMessage : null;
+      if (alreadyThere != null) {
+        _showOutcomeAndClose(alreadyThere, success: false);
+        return;
+      }
       setState(() {
         _saving = false;
-        _error = ref.read(observingListNotifierProvider).errorMessage ??
-            'Could not add the target to this list';
+        _error =
+            uiState.errorMessage ?? 'Could not add the target to this list';
       });
       return;
     }
 
-    _showSuccessAndClose(
+    _showOutcomeAndClose(
       'Added ${widget.suggestion.targetName} to the list',
+      success: true,
     );
   }
 
@@ -471,18 +600,23 @@ class _CandidateObservingListDialogState
       return;
     }
 
-    _showSuccessAndClose(
+    _showOutcomeAndClose(
       'Created "$name" and added ${widget.suggestion.targetName}',
+      success: true,
     );
   }
 
-  void _showSuccessAndClose(String message) {
+  /// Close the dialog and report what actually happened. [success] only tints
+  /// the toast green for a real write; a benign no-op (already in the list)
+  /// gets the default neutral toast rather than a green "success" or a red
+  /// "failure".
+  void _showOutcomeAndClose(String message, {required bool success}) {
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
     messenger.showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: widget.colors.success,
+        backgroundColor: success ? widget.colors.success : null,
       ),
     );
   }
@@ -539,17 +673,11 @@ class _CandidateObservingListDialogState
                           shrinkWrap: true,
                           children: [
                             for (final list in lists)
-                              ListTile(
-                                dense: true,
-                                enabled: !_saving,
-                                title: Text(
-                                  list.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: widget.colors.textPrimary,
-                                  ),
-                                ),
+                              _ObservingListRow(
+                                name: list.name,
+                                colors: widget.colors,
+                                alreadyContainsTarget:
+                                    _listsContaining.contains(list.id),
                                 onTap:
                                     _saving ? null : () => _addToList(list.id),
                               ),
@@ -619,6 +747,93 @@ class _CandidateObservingListDialogState
             onPressed: _saving ? null : () => Navigator.of(context).pop(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One selectable observing list inside the add-to-list dialog.
+///
+/// Previously a bare `ListTile` with unstyled text: nothing signalled that the
+/// list names were tappable, in contrast to the bordered "Create new list…"
+/// button right below them. This gives the rows real chrome (icon, border,
+/// chevron) and states plainly when the target is already in a list instead of
+/// inviting an add that can only be a no-op.
+class _ObservingListRow extends StatelessWidget {
+  final String name;
+  final NightshadeColors colors;
+  final bool alreadyContainsTarget;
+  final VoidCallback? onTap;
+
+  const _ObservingListRow({
+    required this.name,
+    required this.colors,
+    required this.alreadyContainsTarget,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null && !alreadyContainsTarget;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+          onTap: enabled ? onTap : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.list,
+                  size: 14,
+                  color: enabled ? colors.textSecondary : colors.textMuted,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color:
+                          enabled ? colors.textPrimary : colors.textSecondary,
+                    ),
+                  ),
+                ),
+                if (alreadyContainsTarget)
+                  Row(
+                    children: [
+                      Icon(LucideIcons.check, size: 12, color: colors.success),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Already added',
+                        style: NightshadeTypography.labelQuiet.copyWith(
+                          color: colors.success,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Icon(
+                    LucideIcons.chevronRight,
+                    size: 14,
+                    color: colors.textMuted,
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -720,17 +935,22 @@ class _StatChip extends StatelessWidget {
   final NightshadeColors colors;
   final bool isWarning;
 
+  /// Optional explanation shown on hover/long-press. Used where a compact
+  /// chip label alone would be ambiguous (e.g. which "peak" altitude this is).
+  final String? tooltip;
+
   const _StatChip({
     required this.icon,
     required this.label,
     required this.colors,
     this.isWarning = false,
+    this.tooltip,
   });
 
   @override
   Widget build(BuildContext context) {
     final chipColor = isWarning ? colors.warning : colors.textSecondary;
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: isWarning
           ? NightshadeDecorations.emphasisSurface(
@@ -755,6 +975,8 @@ class _StatChip extends StatelessWidget {
         ],
       ),
     );
+    if (tooltip == null) return chip;
+    return Tooltip(message: tooltip!, child: chip);
   }
 }
 

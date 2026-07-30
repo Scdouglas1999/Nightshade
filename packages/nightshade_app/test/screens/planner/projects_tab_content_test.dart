@@ -152,7 +152,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('No campaigns yet'), findsOneWidget);
+    // One word for one object: the empty state used to say "No campaigns yet"
+    // above a body that said "project" and a button that said "New Project".
+    expect(find.text('No projects yet'), findsOneWidget);
+    expect(find.textContaining('campaign'), findsNothing);
     expect(
         find.widgetWithText(NightshadeButton, 'New Project'), findsOneWidget);
   });

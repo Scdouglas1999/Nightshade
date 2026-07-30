@@ -133,6 +133,12 @@ class _FilteredEmptyState extends ConsumerWidget {
               ],
             ],
             const SizedBox(height: NightshadeTokens.spaceLg),
+            // The scorer having nothing to offer is exactly when the two
+            // sky-work surfaces are most useful: the planetarium answers "what
+            // IS up right now", framing answers "does anything I own fit it".
+            // Both were reachable only by hunting for a tab until now.
+            _NextStepsBlock(colors: colors),
+            const SizedBox(height: NightshadeTokens.spaceLg),
             Align(
               alignment: Alignment.centerLeft,
               child: NightshadeButton(
@@ -151,6 +157,100 @@ class _FilteredEmptyState extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// "Next steps" pair shown under the empty planner: open the planetarium to see
+/// what is genuinely up, or framing to check the field fits.
+///
+/// Renders the `plannerTry*` / `plannerOpen*` strings, which have been
+/// translated since the planner shipped but had no call site.
+class _NextStepsBlock extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _NextStepsBlock({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.text('plannerTryThis'),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        _NextStep(
+          colors: colors,
+          icon: LucideIcons.globe,
+          body: l10n.text('plannerTryPlanetarium'),
+          action: l10n.text('plannerOpenPlanetarium'),
+          onPressed: () => context.go('/planetarium'),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        _NextStep(
+          colors: colors,
+          icon: LucideIcons.crop,
+          body: l10n.text('plannerTryFraming'),
+          action: l10n.text('plannerOpenFraming'),
+          onPressed: () => context.goNamed('framing'),
+        ),
+      ],
+    );
+  }
+}
+
+class _NextStep extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String body;
+  final String action;
+  final VoidCallback onPressed;
+
+  const _NextStep({
+    required this.colors,
+    required this.icon,
+    required this.body,
+    required this.action,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 14, color: colors.primary),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                body,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceXs),
+              NightshadeButton(
+                label: action,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: onPressed,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

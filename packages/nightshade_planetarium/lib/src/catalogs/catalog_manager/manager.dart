@@ -145,13 +145,19 @@ class CatalogManager {
   /// Check if star catalog is installed
   Future<CatalogStatus> getStarCatalogStatus() async {
     if (!isInitialized) return CatalogStatus.notInstalled();
-    return _getCatalogStatus(hygStarCatalog.fileName, 'stars');
+    return _getCatalogStatus(
+      hygStarCatalog.resolveInstalledName(catalogDirectory),
+      'stars',
+    );
   }
 
   /// Check if DSO catalog is installed
   Future<CatalogStatus> getDsoCatalogStatus() async {
     if (!isInitialized) return CatalogStatus.notInstalled();
-    return _getCatalogStatus(openNgcCatalog.fileName, 'dso');
+    return _getCatalogStatus(
+      openNgcCatalog.resolveInstalledName(catalogDirectory),
+      'dso',
+    );
   }
 
   Future<CatalogStatus> _getCatalogStatus(String fileName, String type) async {
@@ -212,12 +218,16 @@ class CatalogManager {
   }
 
   /// Get the file path for the star catalog
-  String get starCatalogPath =>
-      path.join(catalogDirectory, hygStarCatalog.fileName);
+  String get starCatalogPath => path.join(
+    catalogDirectory,
+    hygStarCatalog.resolveInstalledName(catalogDirectory),
+  );
 
   /// Get the file path for the DSO catalog
-  String get dsoCatalogPath =>
-      path.join(catalogDirectory, openNgcCatalog.fileName);
+  String get dsoCatalogPath => path.join(
+    catalogDirectory,
+    openNgcCatalog.resolveInstalledName(catalogDirectory),
+  );
 
   /// Get the file path for the annotation catalog (GLADE+)
   String get annotationCatalogPath =>
@@ -290,6 +300,7 @@ class CatalogManager {
     displayName: displayNameOverride ?? source.name,
     description: source.description,
     fileName: source.fileName,
+    legacyFileNames: source.legacyFileNames,
     metadataFileName: metadataFileName,
     version: source.version,
     approximateSizeBytes: approximateSizeBytes,

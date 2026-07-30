@@ -35,11 +35,31 @@ class HipsSurveyEntry {
   /// Whether [baseUrl] has been live-verified against the published pyramid.
   final bool baseUrlVerified;
 
+  /// The survey's publisher acknowledgement, as a STATIC string.
+  ///
+  /// Attribution is a licence obligation attached to the IMAGERY, so it must
+  /// not depend on a `properties` fetch succeeding — and for the surveys whose
+  /// pyramid is resolved at runtime, no `properties` document is fetched at all
+  /// while their imagery still streams through the hips2fits cutout path. That
+  /// is exactly how six of the eight surveys came to render publisher imagery
+  /// with no credit anywhere on screen.
+  ///
+  /// A live `properties` document's `obs_copyright` (when one is resolved) is
+  /// the more current source and takes precedence; this is the floor that
+  /// guarantees a credit is always available offline.
+  final String attributionCredit;
+
+  /// Canonical attribution / copyright page for [attributionCredit], or null
+  /// when the publisher does not host one.
+  final String? attributionUrl;
+
   const HipsSurveyEntry({
     required this.source,
     required this.hipsId,
     required this.baseUrl,
     required this.baseUrlVerified,
+    required this.attributionCredit,
+    this.attributionUrl,
   });
 
   /// True when [baseUrl] is known and verified and can be used directly.
@@ -80,6 +100,19 @@ class HipsSurveyRegistry {
   /// Every [SurveySource] is present; this is asserted by
   /// [debugAssertExhaustive] and the registry test so adding a new survey
   /// without an entry fails loudly rather than producing a silent gap.
+  /// The DSS acknowledgement STScI requires with any DSS-derived image.
+  static const String _dssCredit =
+      'Digitized Sky Survey - STScI/NASA, Healpixed by CDS';
+  static const String _dssCreditUrl =
+      'http://archive.stsci.edu/dss/copyright.html';
+
+  /// The 2MASS acknowledgement (all three bands share one publisher set).
+  static const String _twomassCredit =
+      'Two Micron All Sky Survey (2MASS) - University of Massachusetts and '
+      'IPAC/Caltech, funded by NASA and NSF, Healpixed by CDS';
+  static const String _twomassCreditUrl =
+      'https://irsa.ipac.caltech.edu/Missions/2mass.html';
+
   static const Map<SurveySource, HipsSurveyEntry> entries = {
     // DSS2 red — live-verified direct pyramid (the framing default source).
     SurveySource.dss2Red: HipsSurveyEntry(
@@ -87,6 +120,8 @@ class HipsSurveyRegistry {
       hipsId: 'CDS/P/DSS2/red',
       baseUrl: '$cdsHost/DSS/DSS2Merged',
       baseUrlVerified: true,
+      attributionCredit: _dssCredit,
+      attributionUrl: _dssCreditUrl,
     ),
     // DSS2 blue — live-verified direct pyramid. Together with DSS2 red
     // (DSS2Merged) this is one of the two mono DSS2 pyramids CDS publishes and
@@ -97,44 +132,62 @@ class HipsSurveyRegistry {
       hipsId: 'CDS/P/DSS2/blue',
       baseUrl: '$cdsHost/DSS/DSS2-blue-XJ-S',
       baseUrlVerified: true,
+      attributionCredit: _dssCredit,
+      attributionUrl: _dssCreditUrl,
     ),
     // Remaining surveys: canonical hips id only; base URL resolved at runtime
-    // from the CDS registry + properties (never fabricated here).
+    // from the CDS registry + properties (never fabricated here). Their
+    // attribution is still baked in — their imagery reaches the screen via the
+    // hips2fits cutout path whether or not a pyramid is ever resolved, and the
+    // publishers' acknowledgement requirements apply to that imagery too.
     SurveySource.dss2IR: HipsSurveyEntry(
       source: SurveySource.dss2IR,
       hipsId: 'CDS/P/DSS2/NIR',
       baseUrl: null,
       baseUrlVerified: false,
+      attributionCredit: _dssCredit,
+      attributionUrl: _dssCreditUrl,
     ),
     SurveySource.sdss: HipsSurveyEntry(
       source: SurveySource.sdss,
       hipsId: 'CDS/P/SDSS9/color',
       baseUrl: null,
       baseUrlVerified: false,
+      attributionCredit:
+          'Sloan Digital Sky Survey (SDSS DR9), Healpixed by CDS',
+      attributionUrl: 'https://www.sdss.org/collaboration/citing-sdss/',
     ),
     SurveySource.twomassJ: HipsSurveyEntry(
       source: SurveySource.twomassJ,
       hipsId: 'CDS/P/2MASS/J',
       baseUrl: null,
       baseUrlVerified: false,
+      attributionCredit: _twomassCredit,
+      attributionUrl: _twomassCreditUrl,
     ),
     SurveySource.twomassH: HipsSurveyEntry(
       source: SurveySource.twomassH,
       hipsId: 'CDS/P/2MASS/H',
       baseUrl: null,
       baseUrlVerified: false,
+      attributionCredit: _twomassCredit,
+      attributionUrl: _twomassCreditUrl,
     ),
     SurveySource.twomassK: HipsSurveyEntry(
       source: SurveySource.twomassK,
       hipsId: 'CDS/P/2MASS/K',
       baseUrl: null,
       baseUrlVerified: false,
+      attributionCredit: _twomassCredit,
+      attributionUrl: _twomassCreditUrl,
     ),
     SurveySource.wise12: HipsSurveyEntry(
       source: SurveySource.wise12,
       hipsId: 'CDS/P/WISE/W3',
       baseUrl: null,
       baseUrlVerified: false,
+      attributionCredit: 'WISE - NASA/JPL-Caltech/UCLA, Healpixed by CDS',
+      attributionUrl: 'https://irsa.ipac.caltech.edu/Missions/wise.html',
     ),
   };
 
@@ -156,6 +209,16 @@ class HipsSurveyRegistry {
 
   /// The canonical CDS HiPS id for [source] (e.g. `CDS/P/DSS2/red`).
   static String hipsIdFor(SurveySource source) => entryFor(source).hipsId;
+
+  /// The publisher acknowledgement to display whenever [source]'s imagery is on
+  /// screen. Always non-empty — every survey in the registry carries one.
+  static String attributionCreditFor(SurveySource source) =>
+      entryFor(source).attributionCredit;
+
+  /// The canonical attribution page for [source], or null when none is
+  /// published.
+  static String? attributionUrlFor(SurveySource source) =>
+      entryFor(source).attributionUrl;
 
   /// The verified direct base URL for [source], or `null` if it must be
   /// resolved at runtime.

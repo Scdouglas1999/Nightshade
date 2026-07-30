@@ -140,12 +140,34 @@ class NotificationEventClassifier {
           },
         );
       case 'NodeCompleted':
+        // The verdict is `status` — a string ('success' / 'failed' /
+        // 'cancelled' / 'skipped'), see `SequencerEvent.nodeCompleted`. This
+        // read a `success` BOOL that no producer emits and defaulted it to
+        // TRUE, so had this branch ever fired for a failed autofocus it would
+        // have pushed "Autofocus Completed" to the operator's phone — the worst
+        // possible direction for an alert you are asleep for. Anything that is
+        // not an explicit success is treated as a failure here; an absent
+        // status is not evidence of success.
         final nodeType = (event.data['node_type'] as String? ?? '')
             .toLowerCase();
-        final success = event.data['success'] as bool? ?? true;
+        if (nodeType.isEmpty) {
+          // `NodeCompleted` carries only `node_id` + `status` on the wire (see
+          // `ffi_backend/event_mapping.dart`), so this branch is inert today
+          // and no autofocus-specific notification is raised from it. A failed
+          // autofocus still reaches the operator: the instruction failure is
+          // emitted separately as a sequencer `Error`, which classifies
+          // critical below. Populating `node_type` on the event (producer-side)
+          // is all that is needed to light this up.
+          return null;
+        }
+        final status = event.data['status'] as String?;
+        final succeeded =
+            status == 'success' ||
+            // Legacy bool from an older producer.
+            (status == null && event.data['success'] == true);
         if (nodeType.contains('autofocus')) {
           return (
-            success
+            succeeded
                 ? NotificationCategory.autofocusCompleted
                 : NotificationCategory.autofocusFailed,
             <String, String>{},

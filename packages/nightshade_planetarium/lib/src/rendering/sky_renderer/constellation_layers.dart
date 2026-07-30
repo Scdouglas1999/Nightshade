@@ -17,6 +17,15 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
     final boundaries = ConstellationBoundaries.all;
     final path = Path();
 
+    // Boundary edges run along constant RA or constant declination, so they are
+    // small circles on the sphere, not straight screen lines. Drawing each edge
+    // as a single chord between its two projected endpoints cut across the sky:
+    // the data contains edges spanning tens of degrees (e.g. Apus runs 4.6h of
+    // RA — 69 deg — at a constant Dec of -67.5), and those chords sliced right
+    // through the polar region. Subdivide instead, interpolating in RA/Dec so
+    // the drawn line follows the actual boundary.
+    final stepDeg = (viewState.fieldOfView / 8.0).clamp(0.05, 2.0);
+
     for (final entry in boundaries.entries) {
       final vertices = entry.value;
       if (vertices.length < 3) continue;
@@ -25,37 +34,63 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
         final v0 = vertices[i];
         final v1 = vertices[(i + 1) % vertices.length];
 
-        final start = _celestialToScreen(
-          CelestialCoordinate(ra: v0.ra, dec: v0.dec),
-          center,
-          scale,
-        );
-        final end = _celestialToScreen(
-          CelestialCoordinate(ra: v1.ra, dec: v1.dec),
-          center,
-          scale,
-        );
+        // Take the short way around the 0h/24h seam.
+        var dRaHours = v1.ra - v0.ra;
+        if (dRaHours > 12) dRaHours -= 24;
+        if (dRaHours < -12) dRaHours += 24;
+        final dDec = v1.dec - v0.dec;
 
-        if (start == null || end == null) continue;
-        if (!_isInView(start, size) && !_isInView(end, size)) continue;
+        // Angular extent, weighted so RA converges toward the poles.
+        final meanDecRad = (v0.dec + v1.dec) / 2 * SkyCanvasPainter._deg2rad;
+        final raSpanDeg = (dRaHours * 15.0 * math.cos(meanDecRad)).abs();
+        final spanDeg = math.sqrt(raSpanDeg * raSpanDeg + dDec * dDec);
+        final steps = (spanDeg / stepDeg).ceil().clamp(1, 512);
 
-        // Draw dashed line segments
-        final dx = end.dx - start.dx;
-        final dy = end.dy - start.dy;
-        final length = math.sqrt(dx * dx + dy * dy);
-        if (length < 1) continue;
+        Offset? prev;
+        for (var s = 0; s <= steps; s++) {
+          final t = s / steps;
+          var ra = v0.ra + dRaHours * t;
+          ra = ra % 24.0;
+          if (ra < 0) ra += 24.0;
+          final dec = v0.dec + dDec * t;
 
-        const dashLength = 4.0;
-        const gapLength = 4.0;
-        final unitDx = dx / length;
-        final unitDy = dy / length;
+          if (_cull!.isCulled(ra * 15, dec)) {
+            prev = null;
+            continue;
+          }
+          final pt = _celestialToScreen(
+            CelestialCoordinate(ra: ra, dec: dec),
+            center,
+            scale,
+          );
+          if (pt == null) {
+            prev = null;
+            continue;
+          }
 
-        var dist = 0.0;
-        while (dist < length) {
-          final segEnd = math.min(dist + dashLength, length);
-          path.moveTo(start.dx + unitDx * dist, start.dy + unitDy * dist);
-          path.lineTo(start.dx + unitDx * segEnd, start.dy + unitDy * segEnd);
-          dist += dashLength + gapLength;
+          final start = prev;
+          prev = pt;
+          if (start == null) continue;
+          if (!_isInView(start, size) && !_isInView(pt, size)) continue;
+
+          // Dash along this (short) sub-segment.
+          final dx = pt.dx - start.dx;
+          final dy = pt.dy - start.dy;
+          final length = math.sqrt(dx * dx + dy * dy);
+          if (length < 1) continue;
+
+          const dashLength = 4.0;
+          const gapLength = 4.0;
+          final unitDx = dx / length;
+          final unitDy = dy / length;
+
+          var dist = 0.0;
+          while (dist < length) {
+            final segEnd = math.min(dist + dashLength, length);
+            path.moveTo(start.dx + unitDx * dist, start.dy + unitDy * dist);
+            path.lineTo(start.dx + unitDx * segEnd, start.dy + unitDy * segEnd);
+            dist += dashLength + gapLength;
+          }
         }
       }
     }
@@ -72,11 +107,15 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
     // Check if we can reuse a cached Picture of constellation lines.
     // Constellation lines are static relative to the sky — they only change
     // when the view moves, so caching saves redrawing hundreds of line segments.
+    // The cached geometry is only reusable at the same full pose — including
+    // roll, projection, frame and (in the horizontal frame) sidereal time.
+    final poseLst = viewState.viewMode == SkyViewMode.horizontal
+        ? _lstHours
+        : null;
     if (_constellationLineCache.isValid(
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
+      viewState,
       size,
+      poseLst,
       constellations.length,
     )) {
       canvas.drawPicture(_constellationLineCache.picture!);
@@ -120,10 +159,9 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
     final picture = recorder.endRecording();
     _constellationLineCache.store(
       picture,
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
+      viewState,
       size,
+      poseLst,
       constellations.length,
     );
 
@@ -144,6 +182,16 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
     );
 
     for (final constellation in constellations) {
+      // A constellation centred below the observer's horizon is not in the sky
+      // they are looking at. Printing 'GRUS' or 'CRUX' across the ground was the
+      // loudest version of this: those figures are never visible from 40N.
+      if (_isBehindGround(
+        constellation.center.raDegrees,
+        constellation.center.dec,
+      )) {
+        continue;
+      }
+
       final offset = _celestialToScreen(constellation.center, center, scale);
 
       if (offset != null && _isInView(offset, size)) {
@@ -152,10 +200,17 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
           constellation.name.toUpperCase(),
           textStyle,
         );
-        textPainter.paint(
-          canvas,
+        // Route through the shared layout manager rather than painting blind.
+        // These were the labels most often seen collided with a star or planet
+        // name (e.g. "CANIS MINOR" printed through "Procyon"), because the
+        // constellation pass was the only label pass that never reserved space.
+        final labelPos = _labelManager.findPlacement(
           offset - Offset(textPainter.width / 2, textPainter.height / 2),
+          Size(textPainter.width, textPainter.height),
+          size,
         );
+        if (labelPos == null) continue;
+        textPainter.paint(canvas, labelPos);
       }
     }
   }
@@ -201,37 +256,72 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
         continue;
       }
 
-      // Build the Canvas path from the art segments
+      // Build the Canvas path from the art segments.
+      //
+      // Any vertex can project to null (the projector rejects anything ~89.4
+      // deg or more from the view center). When that happens the current
+      // subpath must END — it must never be continued with a `lineTo` from
+      // whatever came before. Previously a culled `ArtMoveTo` left the subpath
+      // unopened and the following `ArtLineTo` still ran, so Skia injected an
+      // implicit start at (0, 0) and the figure was drawn as a filled goldenrod
+      // wedge anchored to the top-left corner of the canvas.
       final path = Path();
-      bool hasVisiblePoint = false;
+      var hasVisiblePoint = false;
+      var subpathOpen = false;
+
+      void moveTo(Offset p) {
+        path.moveTo(p.dx, p.dy);
+        subpathOpen = true;
+      }
+
+      /// Extend the current subpath, or start a new one if the previous vertex
+      /// was culled.
+      void lineOrMoveTo(Offset p) {
+        if (subpathOpen) {
+          path.lineTo(p.dx, p.dy);
+        } else {
+          moveTo(p);
+        }
+      }
 
       for (final segment in figure.segments) {
         switch (segment) {
           case ArtMoveTo(:final point):
             final screenPt = _celestialToScreen(point, center, scale);
-            if (screenPt != null) {
-              path.moveTo(screenPt.dx, screenPt.dy);
-              if (_isInView(screenPt, size)) hasVisiblePoint = true;
+            if (screenPt == null) {
+              subpathOpen = false;
+              continue;
             }
+            moveTo(screenPt);
+            if (_isInView(screenPt, size)) hasVisiblePoint = true;
           case ArtLineTo(:final point):
             final screenPt = _celestialToScreen(point, center, scale);
-            if (screenPt != null) {
-              path.lineTo(screenPt.dx, screenPt.dy);
-              if (_isInView(screenPt, size)) hasVisiblePoint = true;
+            if (screenPt == null) {
+              subpathOpen = false;
+              continue;
             }
+            lineOrMoveTo(screenPt);
+            if (_isInView(screenPt, size)) hasVisiblePoint = true;
           case ArtQuadTo(:final control, :final point):
             final ctrlPt = _celestialToScreen(control, center, scale);
             final endPt = _celestialToScreen(point, center, scale);
-            if (ctrlPt != null && endPt != null) {
-              path.quadraticBezierTo(ctrlPt.dx, ctrlPt.dy, endPt.dx, endPt.dy);
-              if (_isInView(endPt, size)) hasVisiblePoint = true;
-            } else if (endPt != null) {
-              // Fallback to lineTo if control point is behind projection
-              path.lineTo(endPt.dx, endPt.dy);
-              if (_isInView(endPt, size)) hasVisiblePoint = true;
+            if (endPt == null) {
+              subpathOpen = false;
+              continue;
             }
+            if (ctrlPt != null && subpathOpen) {
+              path.quadraticBezierTo(ctrlPt.dx, ctrlPt.dy, endPt.dx, endPt.dy);
+            } else {
+              // Control point behind the projection, or no open subpath to
+              // curve from: fall back to a straight segment / fresh start.
+              lineOrMoveTo(endPt);
+            }
+            if (_isInView(endPt, size)) hasVisiblePoint = true;
           case ArtClose():
-            path.close();
+            if (subpathOpen) {
+              path.close();
+              subpathOpen = false;
+            }
         }
       }
 

@@ -204,8 +204,11 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    final labelX =
-        (bestX + 4).clamp(plotRect.left, plotRect.right - peakLabel.width);
+    // A label wider than the plot would drop the right bound below the left
+    // one and throw out of paint(); pin it to the left edge and let it clip.
+    final double maxLabelX =
+        math.max(plotRect.left, plotRect.right - peakLabel.width);
+    final labelX = (bestX + 4).clamp(plotRect.left, maxLabelX);
     peakLabel.paint(canvas, Offset(labelX, plotRect.top + 2));
   }
 

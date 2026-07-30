@@ -49,9 +49,31 @@ class MosaicConfig {
 
   int get totalPanels => panelsHorizontal * panelsVertical;
 
+  /// The mosaic's total angular extent on the sky, in degrees.
+  ///
+  /// Overlapping panels do NOT add their full width: adjacent centres are
+  /// [overlapPercent] closer than a panel width, so an N-panel row spans
+  /// `panelWidth * (1 + (N-1) * (1 - overlap))`, not `panelWidth * N`. This is
+  /// the same overlap-reduced step [MosaicService.generatePanels] lays the grid
+  /// out with, so the reported extent describes the grid that will actually be
+  /// imaged.
+  (double widthDeg, double heightDeg) get totalExtentDegrees {
+    final overlapFactor = 1.0 - (overlapPercent / 100.0);
+    final widthDeg =
+        panelWidthArcmin * (1 + (panelsHorizontal - 1) * overlapFactor) / 60.0;
+    final heightDeg =
+        panelHeightArcmin * (1 + (panelsVertical - 1) * overlapFactor) / 60.0;
+    return (widthDeg, heightDeg);
+  }
+
+  /// Sky area the finished mosaic covers, in square degrees.
+  ///
+  /// Derived from [totalExtentDegrees], so it accounts for overlap. It used to
+  /// sum the panel areas as if the panels were edge-to-edge, which overstated
+  /// the coverage of every mosaic with a non-zero overlap — at the default 10%
+  /// a 3x3 was reported as covering 33% more sky than it does.
   double get totalAreaSquareDegrees {
-    final widthDeg = (panelWidthArcmin * panelsHorizontal) / 60.0;
-    final heightDeg = (panelHeightArcmin * panelsVertical) / 60.0;
+    final (widthDeg, heightDeg) = totalExtentDegrees;
     return widthDeg * heightDeg;
   }
 }
@@ -270,18 +292,16 @@ class MosaicService {
         .toList();
   }
 
-  /// Calculate total mosaic area in square degrees (pure Dart implementation)
-  double calculateMosaicArea(MosaicConfig config) {
-    // Total width and height in arcminutes
-    final totalWidthArcmin = config.panelWidthArcmin * config.panelsHorizontal;
-    final totalHeightArcmin = config.panelHeightArcmin * config.panelsVertical;
-
-    // Convert to degrees and calculate area
-    final widthDeg = totalWidthArcmin / 60.0;
-    final heightDeg = totalHeightArcmin / 60.0;
-
-    return widthDeg * heightDeg;
-  }
+  /// Calculate the sky area the mosaic covers, in square degrees.
+  ///
+  /// Delegates to [MosaicConfig.totalAreaSquareDegrees] so the one definition
+  /// of coverage — the overlap-reduced extent the grid is actually laid out
+  /// with — is used everywhere. This method previously multiplied the panel
+  /// count by the panel size, ignoring overlap entirely, so the number it
+  /// handed the operator (and `POST /api/mosaic/calculate-area`) claimed more
+  /// sky than the mosaic would ever cover.
+  double calculateMosaicArea(MosaicConfig config) =>
+      config.totalAreaSquareDegrees;
 
   /// Estimate total imaging time in seconds (pure Dart implementation).
   ///

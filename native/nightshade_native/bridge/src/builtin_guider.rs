@@ -437,11 +437,23 @@ struct BuiltinGuiderState {
     /// Absolute deadline after which settling is considered failed
     settle_timeout_deadline: Option<Instant>,
     dither_pending: bool,
+    /// Offset the pending dither started from, restored when that dither has to
+    /// be abandoned so an unsatisfiable dither leaves guiding where it was.
+    dither_origin: Vec2,
+    /// Consecutive frames the pending dither has failed to match stars on.
+    dither_misses: u32,
+    /// Set when a pending dither was abandoned (rolled back) instead of settled,
+    /// so the waiting `dither()` reports failure while guiding keeps running.
+    dither_abandoned: bool,
     /// Last Dec direction actually pulsed, used to apply backlash compensation
     /// exactly on a reversal. `None` until the first Dec correction.
     last_dec_direction: Option<DecDirection>,
-    /// Monotonic dither step count, advancing the spiral pattern so successive
-    /// dithers walk to fresh pixels instead of re-treading the same ones.
+    /// Signed per-axis correction demand (ms) that was too short for the mount
+    /// to honour and is being carried into the next frame. See [`PulseDebt`].
+    pulse_debt: PulseDebt,
+    /// Index into the bounded dither pattern, advanced once per dither and wrapped
+    /// by [`DITHER_PATTERN_POINTS`] so successive dithers walk to fresh pixels
+    /// without walking away from the target.
     dither_step: u32,
     /// Recent per-frame total RMS (pixels), newest last, capped in length. Drives
     /// adaptive dither settle tolerance (poorer seeing -> looser settle).
@@ -485,7 +497,11 @@ impl Default for BuiltinGuiderState {
             settle_deadline: None,
             settle_timeout_deadline: None,
             dither_pending: false,
+            dither_origin: Vec2::default(),
+            dither_misses: 0,
+            dither_abandoned: false,
             last_dec_direction: None,
+            pulse_debt: PulseDebt::default(),
             dither_step: 0,
             rms_history: Vec::new(),
             rms_samples_arcsec: Vec::new(),
@@ -776,7 +792,16 @@ async fn stop_locked() -> Result<(), NightshadeError> {
         guard.settle_deadline = None;
         guard.settle_timeout_deadline = None;
         guard.dither_pending = false;
+        guard.dither_origin = Vec2::default();
+        guard.dither_misses = 0;
+        guard.dither_abandoned = false;
+        // The pattern index is per guiding session: carrying it across a
+        // start/stop left the next session resuming mid-pattern.
+        guard.dither_step = 0;
         guard.last_dec_direction = None;
+        // Carried sub-minimum pulse demand belongs to the session that measured
+        // it; a new session starts from a fresh star field and lock position.
+        guard.pulse_debt = PulseDebt::default();
         guard.rms_history.clear();
         // Carrying the previous session's samples into the next one would make
         // the first frames of a new session report the old target's guiding.
@@ -807,37 +832,94 @@ async fn stop_locked() -> Result<(), NightshadeError> {
 /// circle without ever repeating, the basis of the sunflower/spiral dither.
 const DITHER_GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
 
-/// Compute the next dither offset.
+/// Number of points in the dither pattern before it wraps. The pattern is a
+/// Vogel disc: `DITHER_PATTERN_POINTS` points spread over a disc of radius
+/// `amount`, so the pattern index is bounded and so is the offset it produces.
+const DITHER_PATTERN_POINTS: u32 = 16;
+
+/// Largest single move a dither may command, in guide-camera pixels. A jump
+/// larger than the star-matching window ([`GUIDE_MAX_MATCH_DISTANCE_PX`]) moves
+/// every reference star's expected position beyond its detection, so the next
+/// frame matches nothing and the loop dies with "Unable to match guide stars".
+/// A dither that would exceed this is applied partially — it still lands inside
+/// the (convex) dither disc, just closer to where it started.
+const DITHER_MAX_JUMP_PX: f64 = GUIDE_MAX_MATCH_DISTANCE_PX * 0.75;
+
+/// Consecutive unmatched frames tolerated while a dither is in flight before the
+/// dither is abandoned and rolled back.
+const DITHER_MATCH_GRACE_FRAMES: u32 = 3;
+
+/// Compute the dither POSITION for pattern index `step`, as an offset from the
+/// guiding reference — not an increment to the current offset.
 ///
-/// Uses a sunflower spiral: step `n`'s angle is `n * golden_angle` and its radius
-/// grows as `amount * sqrt(n+1)`, so consecutive dithers land on fresh,
-/// non-overlapping pixels rather than re-walking a fixed grid or random jitter
-/// around one spot. The radius is additionally scaled up when `recent_rms` shows
-/// poor seeing (adaptive: a bigger move stays distinguishable from guiding noise
-/// and gives a cleaner settle target). `ra_only` collapses the move to the RA
-/// (x) axis with a deterministic sign alternation so it still walks both ways.
+/// Uses a Vogel (sunflower) disc of [`DITHER_PATTERN_POINTS`] points: index `n`
+/// sits at angle `n * golden_angle` and radius `amount * sqrt((n+1)/N)`, so the
+/// points spread evenly over the disc, consecutive dithers land on fresh pixels,
+/// and the radius never exceeds `amount` — the configured dither amplitude is a
+/// bound on the offset, not a step size that compounds. The index wraps at `N`,
+/// so an all-night run re-treads the same bounded pattern instead of walking off
+/// the target. The radius is scaled up when `recent_rms` shows poor seeing
+/// (adaptive: a bigger move stays distinguishable from guiding noise), still
+/// clamped to `amount`. `ra_only` collapses the move to the RA (x) axis with a
+/// deterministic sign alternation so it still walks both ways.
 fn dither_offset(amount: f64, ra_only: bool, step: u32, recent_rms: Option<f64>) -> Vec2 {
+    let limit = amount.abs();
     // Adaptive scale: 1.0 in good seeing, growing with recent RMS up to ~2x.
     let rms = recent_rms.unwrap_or(0.0).max(0.0);
     let adaptive = (1.0 + rms.min(amount.max(1.0)) / amount.max(1.0)).clamp(1.0, 2.0);
-    let base = amount * adaptive;
+    let base = limit * adaptive;
+    let index = step % DITHER_PATTERN_POINTS;
 
     if ra_only {
-        // Alternate sign and grow slowly so repeated RA-only dithers still spread.
-        let sign = if step % 2 == 0 { 1.0 } else { -1.0 };
-        let radius = base * (1.0 + (step / 2) as f64 * 0.5);
+        // Alternate sign each dither and step out along the axis, wrapping with
+        // the pattern so the excursion stays inside `amount`.
+        let sign = if index % 2 == 0 { 1.0 } else { -1.0 };
+        let rings = (DITHER_PATTERN_POINTS / 2) as f64;
+        let radius = (base * (((index / 2) as f64 + 1.0) / rings).sqrt()).min(limit);
         return Vec2 {
             x: sign * radius,
             y: 0.0,
         };
     }
 
-    let n = step as f64;
+    let n = index as f64;
     let angle = n * DITHER_GOLDEN_ANGLE;
-    let radius = base * (n + 1.0).sqrt();
+    let radius = (base * ((n + 1.0) / DITHER_PATTERN_POINTS as f64).sqrt()).min(limit);
     Vec2 {
         x: radius * angle.cos(),
         y: radius * angle.sin(),
+    }
+}
+
+/// Give up on the in-flight dither: restore the offset it started from, clear the
+/// settle bookkeeping, and flag it so the waiting [`dither`] call reports failure.
+/// Guiding is deliberately left running — the target offset is back where guiding
+/// was already locked, so the loop resumes against a known-good position.
+fn abandon_dither(guard: &mut BuiltinGuiderState) {
+    guard.desired_offset = guard.dither_origin;
+    guard.dither_pending = false;
+    guard.dither_misses = 0;
+    guard.dither_abandoned = true;
+    guard.settle_deadline = None;
+    guard.settle_timeout_deadline = None;
+}
+
+/// Move `from` toward the pattern position `to`, capped at [`DITHER_MAX_JUMP_PX`].
+/// Returns the offset to command. The disc is convex, so a partial move is still
+/// inside the dither disc.
+fn dither_target_within_jump(from: Vec2, to: Vec2) -> Vec2 {
+    let delta = Vec2 {
+        x: to.x - from.x,
+        y: to.y - from.y,
+    };
+    let distance = delta.magnitude();
+    if distance <= DITHER_MAX_JUMP_PX || distance <= f64::EPSILON {
+        return to;
+    }
+    let scale = DITHER_MAX_JUMP_PX / distance;
+    Vec2 {
+        x: from.x + delta.x * scale,
+        y: from.y + delta.y * scale,
     }
 }
 
@@ -862,20 +944,29 @@ pub async fn dither(
                 "Built-in guider dither requires active guiding; not guiding".to_string(),
             ));
         }
-        // Spiral step: advance a monotonic counter so each dither walks to fresh
-        // pixels instead of re-treading the same spot (a fixed/random small jump
+        // Advance the bounded pattern so each dither walks to fresh pixels
+        // instead of re-treading the same spot (a fixed/random small jump
         // re-walks the same neighbourhood). Adaptive: scale by recent RMS so the
         // dither moves further when seeing is poor, keeping it distinguishable
         // from guiding noise.
+        //
+        // `dither_offset` returns the POSITION for this pattern index, so the
+        // offset is assigned, never accumulated: the star stays inside a disc of
+        // radius `amount` around the guiding reference for the whole session.
         let step = guard.dither_step;
         guard.dither_step = step.wrapping_add(1);
         let rms = recent_rms(&guard.rms_history);
-        offset = dither_offset(amount, ra_only, step, rms);
-
-        guard.desired_offset = Vec2 {
-            x: guard.desired_offset.x + offset.x,
-            y: guard.desired_offset.y + offset.y,
+        let origin = guard.desired_offset;
+        let target = dither_target_within_jump(origin, dither_offset(amount, ra_only, step, rms));
+        offset = Vec2 {
+            x: target.x - origin.x,
+            y: target.y - origin.y,
         };
+
+        guard.desired_offset = target;
+        guard.dither_origin = origin;
+        guard.dither_misses = 0;
+        guard.dither_abandoned = false;
         guard.dither_pending = true;
         // Reset settle state and arm the timeout for this dither settle
         guard.settle_deadline = None;
@@ -905,6 +996,15 @@ pub async fn dither(
         {
             let guard = state().read().await;
             if !guard.dither_pending {
+                // Rolled back by the guiding loop: the move could not be made,
+                // but guiding survived it. Report the failed dither without
+                // claiming the settle succeeded.
+                if guard.dither_abandoned {
+                    return Err(NightshadeError::OperationFailed(
+                        "Built-in guider dither was abandoned and rolled back; guiding continues"
+                            .to_string(),
+                    ));
+                }
                 // Cleared by apply_settle_state on a successful settle.
                 if guard.guiding {
                     return Ok(());
@@ -1408,10 +1508,32 @@ async fn run_guiding_loop(
                 y: selected.y,
             });
             let desired = guard.desired_offset;
-            let offset =
-                measure_offset(&guard.reference_stars, &frame.stars, desired).ok_or_else(|| {
-                    NightshadeError::OperationFailed("Unable to match guide stars".to_string())
-                })?;
+            let matched = measure_offset(&guard.reference_stars, &frame.stars, desired);
+            // A dither in flight has already moved every expected position; if the
+            // stars cannot be found there, the dither is the thing that failed, so
+            // roll it back and keep guiding instead of failing the loop task (which
+            // stops guiding AND reports the guider disconnected).
+            let Some(offset) = matched else {
+                if guard.dither_pending {
+                    guard.dither_misses += 1;
+                    if guard.dither_misses < DITHER_MATCH_GRACE_FRAMES {
+                        continue;
+                    }
+                    abandon_dither(&mut guard);
+                    drop(guard);
+                    tracing::warn!(
+                        "Built-in guider abandoned a dither: guide stars did not match at the \
+                         dithered position; rolled back and continuing to guide"
+                    );
+                    get_state()
+                        .publish_guiding_event(GuidingEvent::LostStar, EventSeverity::Warning);
+                    continue;
+                }
+                return Err(NightshadeError::OperationFailed(
+                    "Unable to match guide stars".to_string(),
+                ));
+            };
+            guard.dither_misses = 0;
             // Record per-star residuals so the per-star UI can show how far each
             // tracked star drifted this frame, not just the aggregate centroid.
             record_per_star_residuals(&mut guard.reference_stars, &frame.stars, desired);
@@ -1980,9 +2102,37 @@ fn guide_reference_weight(reference: &GuideReferenceStar) -> f64 {
     }
 }
 
+/// Signed per-axis correction demand (milliseconds) that was computed but not
+/// issued because it was shorter than `min_pulse_ms`, carried into the next
+/// frame.
+///
+/// Why this exists: `min_pulse_ms` (75 ms by default) is a property of the
+/// MOUNT — the shortest pulse it will honour — while `min_move_px` (0.15 px) is
+/// the guider's declared noise floor. Discarding every sub-minimum pulse turned
+/// the mount limit into the real dead band, and it is much larger: with a
+/// typical calibration of ~1.5 px per 250 ms pulse and 0.7 aggressiveness, a
+/// 75 ms floor means any error under ~0.6 px was never corrected at all. Under
+/// a one-directional drift (periodic error, imperfect polar alignment, or the
+/// simulator's constant 0.05 px/s) a proportional loop with that dead band
+/// parks at a standing offset: the guide graph sawtooths entirely on one side of
+/// zero and the bullseye scatter never leaves one quadrant, so the user cannot
+/// read drift direction, backlash or oscillation from either display.
+///
+/// Carrying the demand instead of dropping it keeps every ISSUED pulse at or
+/// above the mount's minimum while letting sustained sub-minimum error
+/// accumulate until one honourable pulse cancels it. Symmetric noise cancels
+/// itself because the debt is signed, and anything below `min_move_px` clears
+/// the debt outright, so noise still cannot accumulate into a pulse.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct PulseDebt {
+    ra_ms: f64,
+    dec_ms: f64,
+}
+
 /// A single computed pulse command for one axis: signed milliseconds (sign =
 /// direction) after aggressiveness, min-move, max-clamp, and (for Dec) backlash
-/// compensation. `None` means "no pulse" (below min-move / min-pulse).
+/// compensation. `None` means "no pulse" (below min-move, or still short of the
+/// mount's minimum pulse — in which case the demand is carried in [`Self::debt`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct AxisPulse {
     ra_ms: Option<f64>,
@@ -1990,6 +2140,9 @@ struct AxisPulse {
     /// The Dec direction this correction commands, if any — recorded so the next
     /// correction can detect a reversal and avoid re-paying backlash.
     new_dec_direction: Option<DecDirection>,
+    /// Demand to carry into the next frame (zero on an axis that just pulsed or
+    /// that is quieter than the noise floor).
+    debt: PulseDebt,
 }
 
 /// Pure correction math: convert a measured guide `offset` (pixels) into signed
@@ -2010,6 +2163,7 @@ fn compute_pulse_durations(
     offset: Vec2,
     config: &GuiderConfig,
     last_dec_direction: Option<DecDirection>,
+    debt: PulseDebt,
 ) -> AxisPulse {
     let determinant =
         calibration.east.x * calibration.north.y - calibration.east.y * calibration.north.x;
@@ -2028,7 +2182,7 @@ fn compute_pulse_durations(
     let north_scale = (calibration.east.x * target.y - calibration.east.y * target.x) / determinant;
 
     let ra_ms_raw = east_scale * calibration.pulse_ms * config.ra_aggressiveness;
-    let mut dec_ms_raw = north_scale * calibration.pulse_ms * config.dec_aggressiveness;
+    let dec_ms_raw = north_scale * calibration.pulse_ms * config.dec_aggressiveness;
 
     // Project the measured offset onto each calibration axis so the min-move
     // threshold is evaluated in the axis frame (matches how the correction is
@@ -2037,7 +2191,14 @@ fn compute_pulse_durations(
     let dec_axis_move = project_offset(offset, calibration.north);
 
     // --- Dec backlash compensation on direction reversal.
-    let new_dec_direction = if dec_ms_raw >= 0.0 {
+    //
+    // The backlash term is a one-shot addition that only makes sense on a pulse
+    // that is actually issued, so it is passed as a `bonus` rather than folded
+    // into the carried demand: folding it in would re-add it on every frame the
+    // pulse stayed below the mount minimum (the reversal is only recorded once a
+    // pulse fires) and the debt would run away.
+    let dec_demand = dec_ms_raw + debt.dec_ms;
+    let new_dec_direction = if dec_demand >= 0.0 {
         DecDirection::North
     } else {
         DecDirection::South
@@ -2045,18 +2206,31 @@ fn compute_pulse_durations(
     let reversing = last_dec_direction
         .map(|prev| prev != new_dec_direction)
         .unwrap_or(true); // first-ever Dec pulse pays backlash once
-    if reversing && calibration.dec_backlash_ms > 0.0 && dec_ms_raw.abs() >= 1e-9 {
-        let sign = if dec_ms_raw >= 0.0 { 1.0 } else { -1.0 };
-        dec_ms_raw += sign * calibration.dec_backlash_ms;
-    }
+    let dec_backlash_bonus =
+        if reversing && calibration.dec_backlash_ms > 0.0 && dec_demand.abs() >= 1e-9 {
+            let sign = if dec_demand >= 0.0 { 1.0 } else { -1.0 };
+            sign * calibration.dec_backlash_ms
+        } else {
+            0.0
+        };
 
-    let ra_ms = clamp_axis_pulse(ra_ms_raw, ra_axis_move, config);
-    let dec_ms = clamp_axis_pulse(dec_ms_raw, dec_axis_move, config);
+    let (ra_ms, ra_debt) = resolve_axis_pulse(ra_ms_raw, ra_axis_move, debt.ra_ms, 0.0, config);
+    let (dec_ms, dec_debt) = resolve_axis_pulse(
+        dec_ms_raw,
+        dec_axis_move,
+        debt.dec_ms,
+        dec_backlash_bonus,
+        config,
+    );
 
     AxisPulse {
         ra_ms,
         dec_ms,
         new_dec_direction: dec_ms.map(|_| new_dec_direction),
+        debt: PulseDebt {
+            ra_ms: ra_debt,
+            dec_ms: dec_debt,
+        },
     }
 }
 
@@ -2070,19 +2244,42 @@ fn project_offset(offset: Vec2, axis: Vec2) -> f64 {
     (offset.x * axis.x + offset.y * axis.y) / mag
 }
 
-/// Apply min-move (in pixels along the axis) and min/max pulse clamps to a signed
-/// pulse duration. Returns `None` when the axis move is below the noise floor or
-/// the resulting pulse is below the minimum pulse length.
-fn clamp_axis_pulse(pulse_ms: f64, axis_move_px: f64, config: &GuiderConfig) -> Option<f64> {
+/// Resolve one axis: apply min-move (pixels along the axis), fold in any carried
+/// [`PulseDebt`], apply the min/max pulse clamps, and report what remains owed.
+///
+/// Returns `(pulse_to_issue, debt_to_carry)`:
+///   * axis quieter than `min_move_px` -> `(None, 0.0)`; the error is inside the
+///     declared noise floor, so nothing is owed and any carried demand is
+///     forgotten (this is what stops noise accumulating into a pulse).
+///   * demand shorter than the mount's `min_pulse_ms` -> `(None, demand)`; the
+///     correction is carried instead of discarded, so a sustained error is not
+///     permanently ignored just because each frame's share is small.
+///   * otherwise -> `(Some(signed clamped pulse), 0.0)`.
+///
+/// `bonus_ms` is added only when deciding/issuing the pulse (Dec backlash) and is
+/// never carried in the debt.
+fn resolve_axis_pulse(
+    pulse_ms: f64,
+    axis_move_px: f64,
+    debt_ms: f64,
+    bonus_ms: f64,
+    config: &GuiderConfig,
+) -> (Option<f64>, f64) {
     if axis_move_px.abs() < config.min_move_px {
-        return None;
+        return (None, 0.0);
     }
-    let magnitude = pulse_ms.abs();
-    if magnitude < config.min_pulse_ms {
-        return None;
+    let demand = pulse_ms + debt_ms;
+    let issue = demand + bonus_ms;
+    if issue.abs() < config.min_pulse_ms {
+        // Bound the carry so a pathological config (min_pulse above max_pulse,
+        // an axis that can never fire) cannot integrate without limit.
+        return (
+            None,
+            demand.clamp(-config.max_pulse_ms, config.max_pulse_ms),
+        );
     }
-    let clamped = magnitude.clamp(config.min_pulse_ms, config.max_pulse_ms);
-    Some(if pulse_ms >= 0.0 { clamped } else { -clamped })
+    let clamped = issue.abs().clamp(config.min_pulse_ms, config.max_pulse_ms);
+    (Some(if issue >= 0.0 { clamped } else { -clamped }), 0.0)
 }
 
 async fn apply_guide_correction(
@@ -2090,12 +2287,22 @@ async fn apply_guide_correction(
     offset: Vec2,
     controller: &Arc<RwLock<BuiltinGuiderState>>,
 ) -> Result<(), NightshadeError> {
-    let (config, last_dec) = {
+    let (config, last_dec, debt) = {
         let guard = controller.read().await;
-        (guard.config.clone(), guard.last_dec_direction)
+        (
+            guard.config.clone(),
+            guard.last_dec_direction,
+            guard.pulse_debt,
+        )
     };
 
-    let plan = compute_pulse_durations(calibration, offset, &config, last_dec);
+    let plan = compute_pulse_durations(calibration, offset, &config, last_dec, debt);
+
+    // Record the carried demand before issuing pulses: a mount error mid-plan
+    // must not leave the debt describing a correction that was never attempted.
+    if plan.debt != debt {
+        controller.write().await.pulse_debt = plan.debt;
+    }
 
     if let Some(ra_ms) = plan.ra_ms {
         pulse_axis("east", "west", ra_ms, &config).await?;
@@ -2148,16 +2355,25 @@ async fn apply_settle_state(
         if Instant::now() >= timeout_deadline {
             guard.settle_deadline = None;
             guard.settle_timeout_deadline = None;
-            let was_dithering = guard.dither_pending;
-            guard.dither_pending = false;
-            let context = if was_dithering {
-                "dither settle"
-            } else {
-                "guide settle"
-            };
+            // A dither that will not settle is a failed dither, not a failed
+            // guiding session: roll it back and keep guiding. Returning `Err`
+            // here fails the loop task, which stops guiding and reports the
+            // guider disconnected.
+            if guard.dither_pending {
+                abandon_dither(&mut guard);
+                drop(guard);
+                tracing::warn!(
+                    "Built-in guider abandoned a dither: settle timeout exceeded ({:.0}s) with \
+                     RMS {:.2}px above threshold {:.2}px; rolled back and continuing to guide",
+                    settle_timeout,
+                    rms_total,
+                    settle_pixels,
+                );
+                return Ok(());
+            }
             return Err(NightshadeError::OperationFailed(format!(
-                "Settle timeout exceeded ({:.0}s) during {}; guiding RMS {:.2}px still above threshold {:.2}px",
-                settle_timeout, context, rms_total, settle_pixels,
+                "Settle timeout exceeded ({:.0}s) during guide settle; guiding RMS {:.2}px still above threshold {:.2}px",
+                settle_timeout, rms_total, settle_pixels,
             )));
         }
     }
@@ -2954,7 +3170,13 @@ mod tests {
         config.max_pulse_ms = 100000.0;
         // Offset of (10, 10) px -> to null it, pulse -10 px each axis = -1000 ms
         // raw; at 0.5 aggressiveness => -500 ms.
-        let plan = compute_pulse_durations(calib, Vec2 { x: 10.0, y: 10.0 }, &config, None);
+        let plan = compute_pulse_durations(
+            calib,
+            Vec2 { x: 10.0, y: 10.0 },
+            &config,
+            None,
+            PulseDebt::default(),
+        );
         let ra = plan.ra_ms.expect("ra");
         // First Dec pulse pays backlash, but backlash=0 here.
         let dec = plan.dec_ms.expect("dec");
@@ -2970,7 +3192,13 @@ mod tests {
             ..GuiderConfig::default()
         };
         // 0.1 px offset is below min_move -> no pulses.
-        let plan = compute_pulse_durations(calib, Vec2 { x: 0.1, y: 0.1 }, &config, None);
+        let plan = compute_pulse_durations(
+            calib,
+            Vec2 { x: 0.1, y: 0.1 },
+            &config,
+            None,
+            PulseDebt::default(),
+        );
         assert!(plan.ra_ms.is_none());
         assert!(plan.dec_ms.is_none());
     }
@@ -2986,7 +3214,13 @@ mod tests {
             ..GuiderConfig::default()
         };
         // 50 px offset -> 5000 ms raw, clamped to 300 ms.
-        let plan = compute_pulse_durations(calib, Vec2 { x: 50.0, y: 0.0 }, &config, None);
+        let plan = compute_pulse_durations(
+            calib,
+            Vec2 { x: 50.0, y: 0.0 },
+            &config,
+            None,
+            PulseDebt::default(),
+        );
         assert!((plan.ra_ms.expect("ra").abs() - 300.0).abs() < 1e-6);
     }
 
@@ -3007,6 +3241,7 @@ mod tests {
             Vec2 { x: 0.0, y: 5.0 },
             &config,
             Some(DecDirection::North),
+            PulseDebt::default(),
         );
         let dec_rev = reversal.dec_ms.expect("dec");
         assert!(
@@ -3021,8 +3256,214 @@ mod tests {
             Vec2 { x: 0.0, y: 5.0 },
             &config,
             Some(DecDirection::South),
+            PulseDebt::default(),
         );
         assert!((same_dir.dec_ms.expect("dec") + 500.0).abs() < 1e-6);
+    }
+
+    // --- Sub-minimum pulse carry (standing-offset defect) -------------------
+
+    /// A realistic rig: 1.5 px per 250 ms pulse (what the simulator produces and
+    /// the same order as a real short guide scope), stock aggressiveness and the
+    /// stock 75 ms mount minimum.
+    fn realistic_calib() -> GuideCalibration {
+        build_calibration(Vec2 { x: 1.5, y: 0.0 }, Vec2 { x: 0.0, y: 1.5 }, 250.0, 0.0)
+            .expect("calib")
+    }
+
+    /// The defect this carry exists to fix: with the pulse floor applied to each
+    /// frame in isolation, a real error well above the configured 0.15 px noise
+    /// floor produces no correction at all, forever.
+    #[test]
+    fn small_but_real_error_is_below_the_mount_pulse_floor() {
+        let calib = realistic_calib();
+        let config = GuiderConfig::default();
+        // 0.3 px is twice the configured min-move, so the guider considers it a
+        // real error and not noise...
+        let offset = Vec2 { x: 0.3, y: 0.0 };
+        assert!(offset.x > config.min_move_px);
+
+        // ...yet a single frame in isolation still issues nothing, because the
+        // pulse that would null it is shorter than the mount's minimum. Asserted
+        // through `compute_pulse_durations` rather than by recomputing the
+        // arithmetic here: a test that re-derives the formula it is checking
+        // passes even if the function stops using it.
+        let plan = compute_pulse_durations(calib, offset, &config, None, PulseDebt::default());
+        assert!(
+            plan.ra_ms.is_none(),
+            "one isolated frame cannot correct a sub-minimum error (got {:?}ms); \
+             that is precisely why the demand has to be carried across frames",
+            plan.ra_ms
+        );
+        // The demand must be REMEMBERED rather than dropped — dropping it is the
+        // defect, and it is invisible from the pulse alone.
+        assert!(
+            plan.debt.ra_ms != 0.0,
+            "the uncorrected demand was discarded instead of carried, so a \
+             standing error can never be worked off"
+        );
+    }
+
+    #[test]
+    fn sustained_sub_minimum_error_accumulates_into_one_honourable_pulse() {
+        let calib = realistic_calib();
+        let config = GuiderConfig::default();
+        let offset = Vec2 { x: 0.3, y: 0.0 };
+
+        let mut debt = PulseDebt::default();
+        let mut issued: Vec<f64> = Vec::new();
+        for _ in 0..8 {
+            let plan = compute_pulse_durations(calib, offset, &config, None, debt);
+            debt = plan.debt;
+            if let Some(ra) = plan.ra_ms {
+                issued.push(ra);
+            }
+        }
+
+        assert!(
+            !issued.is_empty(),
+            "a sustained 0.3px error must eventually be corrected; it was silently \
+             ignored on every frame, which is what parks the guide graph off zero"
+        );
+        for ms in &issued {
+            assert!(
+                ms.abs() >= config.min_pulse_ms,
+                "issued pulse {ms}ms is shorter than the mount minimum"
+            );
+            assert!(ms < &0.0, "a +x offset must be corrected westward: {ms}");
+        }
+    }
+
+    #[test]
+    fn carried_demand_never_exceeds_one_minimum_pulse_of_overshoot() {
+        let calib = realistic_calib();
+        let config = GuiderConfig::default();
+        let offset = Vec2 { x: 0.3, y: 0.0 };
+
+        let mut debt = PulseDebt::default();
+        for _ in 0..40 {
+            let plan = compute_pulse_durations(calib, offset, &config, None, debt);
+            debt = plan.debt;
+            assert!(
+                debt.ra_ms.abs() < config.min_pulse_ms,
+                "carried demand {}ms must stay under one minimum pulse",
+                debt.ra_ms
+            );
+        }
+    }
+
+    #[test]
+    fn symmetric_noise_cancels_instead_of_accumulating() {
+        let calib = realistic_calib();
+        let config = GuiderConfig {
+            // Treat the wobble as real so it reaches the carry logic at all.
+            min_move_px: 0.0,
+            ..GuiderConfig::default()
+        };
+
+        let mut debt = PulseDebt::default();
+        let mut pulses = 0;
+        for i in 0..40 {
+            let x = if i % 2 == 0 { 0.2 } else { -0.2 };
+            let plan = compute_pulse_durations(calib, Vec2 { x, y: 0.0 }, &config, None, debt);
+            debt = plan.debt;
+            if plan.ra_ms.is_some() {
+                pulses += 1;
+            }
+        }
+        assert_eq!(
+            pulses, 0,
+            "zero-mean noise must not integrate into a correction"
+        );
+    }
+
+    #[test]
+    fn quiet_axis_forgets_carried_demand() {
+        let calib = realistic_calib();
+        let config = GuiderConfig::default();
+
+        // Build up some demand from a real error...
+        let plan = compute_pulse_durations(
+            calib,
+            Vec2 { x: 0.3, y: 0.0 },
+            &config,
+            None,
+            PulseDebt::default(),
+        );
+        assert!(plan.ra_ms.is_none());
+        assert!(plan.debt.ra_ms.abs() > 0.0);
+
+        // ...then drop inside the noise floor: the demand is abandoned, so a
+        // settled star can never be nudged by history.
+        let quiet =
+            compute_pulse_durations(calib, Vec2 { x: 0.01, y: 0.0 }, &config, None, plan.debt);
+        assert!(quiet.ra_ms.is_none());
+        assert_eq!(quiet.debt.ra_ms, 0.0);
+    }
+
+    #[test]
+    fn a_pulse_that_fires_clears_its_debt() {
+        let calib = ortho_calib(0.0);
+        let config = GuiderConfig {
+            ra_aggressiveness: 1.0,
+            dec_aggressiveness: 1.0,
+            min_move_px: 0.0,
+            ..GuiderConfig::default()
+        };
+        // 10 px on a 1 px/100 ms rig is a 1000 ms correction: issued outright,
+        // and nothing is owed afterwards.
+        let plan = compute_pulse_durations(
+            calib,
+            Vec2 { x: 10.0, y: 0.0 },
+            &config,
+            None,
+            PulseDebt {
+                ra_ms: 40.0,
+                dec_ms: 0.0,
+            },
+        );
+        let ra = plan.ra_ms.expect("ra");
+        // The carried 40 ms is spent on this pulse rather than lost.
+        assert!((ra + 960.0).abs() < 1e-6, "ra={ra}");
+        assert_eq!(plan.debt.ra_ms, 0.0);
+    }
+
+    #[test]
+    fn dec_backlash_is_not_re_added_while_the_pulse_is_still_being_carried() {
+        let calib = realistic_calib_with_backlash(500.0);
+        let config = GuiderConfig::default();
+        let offset = Vec2 { x: 0.0, y: 0.3 };
+
+        let mut debt = PulseDebt::default();
+        let mut fired = 0;
+        for _ in 0..6 {
+            let plan = compute_pulse_durations(calib, offset, &config, None, debt);
+            debt = plan.debt;
+            if plan.dec_ms.is_some() {
+                fired += 1;
+            }
+            // The 500 ms backlash term must never leak into the carried demand,
+            // which would fabricate a huge correction after a few quiet frames.
+            assert!(
+                debt.dec_ms.abs() < config.min_pulse_ms,
+                "carried Dec demand {}ms shows backlash leaking into the debt",
+                debt.dec_ms
+            );
+        }
+        assert!(
+            fired > 0,
+            "a reversal-eligible Dec error plus backlash should still correct"
+        );
+    }
+
+    fn realistic_calib_with_backlash(backlash_ms: f64) -> GuideCalibration {
+        build_calibration(
+            Vec2 { x: 1.5, y: 0.0 },
+            Vec2 { x: 0.0, y: 1.5 },
+            250.0,
+            backlash_ms,
+        )
+        .expect("calib")
     }
 
     // --- Adaptive / spiral dither -------------------------------------------
@@ -3058,6 +3499,103 @@ mod tests {
             good.magnitude(),
             poor.magnitude()
         );
+    }
+
+    /// A night's worth of dithers must stay inside the requested amplitude and
+    /// must never command a jump the star matcher cannot follow.
+    ///
+    /// The shipped 6.0.0 build derived the offset from an ever-increasing step
+    /// (`radius = amount * sqrt(n+1)`) and ADDED it to the standing offset, so
+    /// the commanded move grew every dither: with the default 5 px the 8th
+    /// dither already exceeded GUIDE_MAX_MATCH_DISTANCE_PX and the next frame
+    /// matched no stars, killing guiding for the night.
+    #[test]
+    fn dither_offsets_stay_bounded_over_a_whole_night() {
+        for &(amount, ra_only, rms) in &[
+            (5.0, false, None),
+            (5.0, false, Some(10.0)),
+            (2.0, false, Some(4.0)),
+            (15.0, false, None),
+            (4.0, true, None),
+            (4.0, true, Some(8.0)),
+        ] {
+            let mut current = Vec2::default();
+            for step in 0..200u32 {
+                let target =
+                    dither_target_within_jump(current, dither_offset(amount, ra_only, step, rms));
+                let jump = (Vec2 {
+                    x: target.x - current.x,
+                    y: target.y - current.y,
+                })
+                .magnitude();
+                assert!(
+                    jump <= DITHER_MAX_JUMP_PX + 1e-9,
+                    "dither {step} jumped {jump} px (amount={amount}, ra_only={ra_only})"
+                );
+                assert!(
+                    jump < GUIDE_MAX_MATCH_DISTANCE_PX,
+                    "dither {step} jumped past the star-match window: {jump} px"
+                );
+                current = target;
+                assert!(
+                    current.magnitude() <= amount + 1e-9,
+                    "dither {step} left the target: |offset|={} px exceeds the configured {amount} px \
+                     (amount={amount}, ra_only={ra_only})",
+                    current.magnitude()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn dither_pattern_wraps_instead_of_growing() {
+        let first = dither_offset(5.0, false, 3, None);
+        let wrapped = dither_offset(5.0, false, 3 + DITHER_PATTERN_POINTS, None);
+        assert!((first.x - wrapped.x).abs() < 1e-9);
+        assert!((first.y - wrapped.y).abs() < 1e-9);
+    }
+
+    #[tokio::test]
+    async fn dither_step_resets_when_guiding_stops() {
+        let _serial = test_serial().lock().await;
+        reset_guider_state().await;
+        state().write().await.dither_step = 11;
+
+        {
+            let _op = op_lock().lock().await;
+            stop_locked().await.expect("stop");
+        }
+
+        assert_eq!(state().read().await.dither_step, 0);
+        reset_guider_state().await;
+    }
+
+    /// An unsatisfiable dither must roll back and leave guiding running: the
+    /// shipped build failed the loop task, which stopped guiding AND reported
+    /// the guider disconnected, so recovery had to reconnect it first.
+    #[test]
+    fn abandoned_dither_rolls_back_and_leaves_guiding_running() {
+        let mut guard = BuiltinGuiderState {
+            guiding: true,
+            desired_offset: Vec2 { x: 4.0, y: -3.0 },
+            dither_origin: Vec2 { x: 1.0, y: 1.0 },
+            dither_pending: true,
+            dither_misses: DITHER_MATCH_GRACE_FRAMES,
+            settle_deadline: Some(Instant::now()),
+            settle_timeout_deadline: Some(Instant::now()),
+            ..BuiltinGuiderState::default()
+        };
+
+        abandon_dither(&mut guard);
+
+        assert!(guard.guiding, "guiding must survive an abandoned dither");
+        assert!((guard.desired_offset.x - 1.0).abs() < 1e-9);
+        assert!((guard.desired_offset.y - 1.0).abs() < 1e-9);
+        assert!(!guard.dither_pending);
+        assert!(guard.dither_abandoned);
+        assert_eq!(guard.dither_misses, 0);
+        assert!(guard.settle_deadline.is_none());
+        assert!(guard.settle_timeout_deadline.is_none());
     }
 
     #[test]

@@ -41,28 +41,7 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
       effectiveSimulationMode(settings.useSimulationMode),
     );
 
-    // When weather safety is DISABLED the operator has opted out of
-    // weather-driven aborts. The Rust safety poll fail-closes on a rig with no
-    // safety-monitor device, so pushing a stale `failClosed` here would keep
-    // the always-armed in-sequencer `WeatherUnsafe` trigger firing (via
-    // `!weather_safe`) even with monitoring off — aborting every sequence.
-    // Force the executor poll permissive (`failOpen`) while disabled; the Dart
-    // verdict already abstains (see weather_safety_provider), so nothing drives
-    // an unsafe verdict. Re-enabling restores the configured mode on the next
-    // sync (this runs at every run start).
-    final weatherSafetyEnabled = _ref
-        .read(weatherSettingsProvider)
-        .weatherSafetyEnabled;
-    final effectiveFailMode = weatherSafetyEnabled
-        ? settings.safetyFailMode
-        : SafetyFailMode.failOpen;
-    final safetyFailMode = _safetyFailModeToBackendString(effectiveFailMode);
-    await backend.sequencerSetSafetyFailMode(safetyFailMode);
-    _logger.debug(
-      'Safety fail mode set to: $safetyFailMode '
-      '(weatherSafetyEnabled=$weatherSafetyEnabled)',
-      source: 'SequenceExecutor',
-    );
+    await _pushEffectiveSafetyFailMode(backend, settings.safetyFailMode);
 
     final savePath = settings.imageOutputPath;
     if (savePath.isNotEmpty) {
@@ -192,6 +171,44 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
     // tear down blind.
     _nativeLaunchAttempted = true;
     await backend.sequencerStart();
+  }
+
+  /// Resolve the safety fail mode the native executor must actually run with,
+  /// given the operator's configured [configured] mode.
+  ///
+  /// When weather safety is DISABLED the operator has opted out of
+  /// weather-driven aborts. The Rust safety poll fail-closes on a rig with no
+  /// safety-monitor device, so pushing a stale `failClosed` would keep the
+  /// always-armed in-sequencer `WeatherUnsafe` trigger firing (via
+  /// `!weather_safe`) even with monitoring off — parking the mount and
+  /// aborting every sequence within milliseconds of start. Force the executor
+  /// poll permissive (`failOpen`) while disabled; the Dart verdict already
+  /// abstains (see weather_safety_provider), so nothing drives an unsafe
+  /// verdict. Re-enabling restores the configured mode on the next push.
+  ///
+  /// This lives in ONE place because three call sites push the fail mode —
+  /// run start, checkpoint resume, and the mid-run settings watcher — and the
+  /// resume path used to push the raw configured value, which is why resuming
+  /// a crashed run on a rig with no safety monitor aborted instantly.
+  SafetyFailMode _effectiveSafetyFailMode(SafetyFailMode configured) {
+    final weatherSafetyEnabled = _ref
+        .read(weatherSettingsProvider)
+        .weatherSafetyEnabled;
+    return weatherSafetyEnabled ? configured : SafetyFailMode.failOpen;
+  }
+
+  /// Push [configured] through [_effectiveSafetyFailMode] to the executor.
+  Future<void> _pushEffectiveSafetyFailMode(
+    NightshadeBackend backend,
+    SafetyFailMode configured,
+  ) async {
+    final effective = _effectiveSafetyFailMode(configured);
+    final wire = _safetyFailModeToBackendString(effective);
+    await backend.sequencerSetSafetyFailMode(wire);
+    _logger.debug(
+      'Safety fail mode set to: $wire (configured=${configured.name})',
+      source: 'SequenceExecutor',
+    );
   }
 
   /// Push every user-controlled RuntimeConfig field into the loaded executor.
@@ -730,9 +747,10 @@ extension _SequenceExecutorRuntimeConfigOperations on SequenceExecutor {
             'Safety fail mode changed during execution, propagating to backend',
             source: 'SequenceExecutor',
           );
-          backend.sequencerSetSafetyFailMode(
-            _safetyFailModeToBackendString(nextSettings.safetyFailMode),
-          );
+          // Same weather-safety guard as the start path: a mid-run switch to
+          // failClosed on a rig with weather safety disabled would otherwise
+          // arm the WeatherUnsafe trigger and abort the running sequence.
+          _pushEffectiveSafetyFailMode(backend, nextSettings.safetyFailMode);
         }
 
         // Propagate image-grading changes mid-run so the next

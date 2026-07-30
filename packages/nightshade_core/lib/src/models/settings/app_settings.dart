@@ -241,6 +241,12 @@ abstract class AppSettings with _$AppSettings {
 
     /// Allow a blind (no-hint) solve fallback. DB key `blind_solve`.
     @Default(false) bool blindSolve,
+
+    /// Sync the mount to the plate-solved position between centering
+    /// iterations. Without the sync the correction re-issues the slew that
+    /// produced the mis-pointed frame, so centering cannot converge.
+    /// DB key `centering_sync_mount`.
+    @Default(true) bool centeringSyncMount,
     // Site / horizon.
     /// Bortle dark-sky class (1-9). DB key `bortle_class`.
     @Default(5) int bortleClass,

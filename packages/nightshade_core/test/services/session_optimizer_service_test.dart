@@ -282,6 +282,45 @@ void main() {
       },
     );
 
+    test('a rig with no filters recommends no filter name', () {
+      final plan = service.buildPlanFromSuggestions(
+        [
+          const TargetSuggestion(
+            targetId: 31,
+            targetName: 'M31',
+            raHours: 0.712,
+            decDegrees: 41.2,
+            totalScore: 84,
+            visibility: TargetVisibilityInfo(
+              currentAltitude: 60,
+              currentAzimuth: 90,
+              airmass: 1.15,
+              moonDistance: 100,
+              peakAltitude: 72,
+              hoursAboveMinAlt: 6,
+            ),
+            objectType: 'Galaxy',
+          ),
+        ],
+        generatedAt: DateTime(2026, 8, 1, 22),
+        exposureContext: const SmartNightExposureContext(
+          camera: CameraExposureSpec(
+            readNoiseE: 1.5,
+            fullWellE: 51000,
+            qePeak: 0.91,
+          ),
+          bortleClass: 5,
+          focalLengthMm: 250,
+          apertureMm: 51,
+          pixelSizeMicrons: 3.76,
+        ),
+      );
+
+      expect(plan.recommendedExposureSeconds, greaterThan(0));
+      expect(plan.recommendedFilterName, isNull);
+      expect(plan.recommendedFilterNames, isEmpty);
+    });
+
     test('planetary nebula prefers luminance over narrowband for exposure', () {
       const context = SmartNightExposureContext(
         camera: CameraExposureSpec(

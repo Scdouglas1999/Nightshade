@@ -68,11 +68,16 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
 
   /// Zoom at a specific screen position, keeping that position fixed
   void _zoomAtPosition(Offset mousePosition, Size viewSize, double zoomFactor) {
-    // The cursor-anchored math inverts the equatorial projection self-contained
-    // (no time/location needed). The horizontal frame's inverse requires
-    // sidereal time, which this notifier does not hold, so fall back to a plain
-    // center zoom there — correct, just not cursor-anchored.
-    if (state.viewMode == SkyViewMode.horizontal) {
+    // The cursor-anchored math inverts the equatorial STEREOGRAPHIC projection
+    // self-contained (no time/location needed). Two cases fall back to a plain
+    // center zoom — correct, just not cursor-anchored:
+    //  * the horizontal frame, whose inverse needs sidereal time this notifier
+    //    does not hold;
+    //  * the orthographic and azimuthal-equidistant projections, whose inverses
+    //    differ from the stereographic one. Anchoring them with the wrong
+    //    inverse slid the sky out from under the cursor as it zoomed.
+    if (state.viewMode == SkyViewMode.horizontal ||
+        state.projection != SkyProjection.stereographic) {
       state = state.copyWith(
         fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180),
       );
@@ -265,4 +270,71 @@ final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
   );
 
   return (az, alt);
+});
+
+/// Aspect ratio (width / height) of the sky view's canvas.
+///
+/// The catalogue queries take a SHORT-AXIS field of view, so without this they
+/// fetch a square region regardless of window shape. On a 3.6:1 ultrawide that
+/// left the outer ~58% of the screen width with no star data at all, and stars
+/// popped in and out at the region boundary while panning. Published by
+/// [InteractiveSkyView] from its own LayoutBuilder; 1.0 until first layout.
+final skyViewAspectRatioProvider = StateProvider<double>((ref) => 1.0);
+
+/// The view center expressed in equatorial coordinates, whichever frame the
+/// view is actually in. Returns (raHours, decDegrees).
+///
+/// Catalog lookups are indexed by RA/Dec, so every "what is in view" query must
+/// go through this rather than reading [SkyViewState.centerRA] / `centerDec`
+/// directly: in [SkyViewMode.horizontal] those two fields are the *preserved
+/// inactive* equatorial pose, not where the user is looking. Querying them in
+/// alt/az mode fetched an unrelated patch of sky, which is why the horizontal
+/// view rendered nearly starless while the constellation figures — drawn from
+/// the full catalog rather than from a viewport query — still covered the
+/// screen and appeared detached from their stars.
+///
+/// Minute precision (via [_currentMinuteProvider]) keeps the sky from
+/// re-querying on every clock tick; a minute of rotation is ~0.25 deg, far
+/// inside the query's margin.
+/// Where the Home / reset-view control should point: the observer's zenith.
+///
+/// Returns (raHours, decDegrees). Home used to be the fixed point RA 0h / Dec 0,
+/// which is only overhead at one instant a year on the equator — at the audited
+/// site and time it sat at altitude -14 deg, so the planetarium's own "reset"
+/// button aimed the map at the ground with nothing on screen saying so. The
+/// zenith is above the horizon by definition and is what "home" means to someone
+/// standing under the sky.
+///
+/// Minute precision, matching the rest of the sky clock.
+final skyViewHomeCenterProvider = Provider<(double raHours, double decDeg)>((
+  ref,
+) {
+  final location = ref.watch(observerLocationProvider);
+  final lst = AstronomyCalculations.localSiderealTime(
+    ref.watch(_currentMinuteProvider),
+    location.longitude,
+  );
+  var ra = lst % 24;
+  if (ra < 0) ra += 24;
+  // The pole itself is a projection singularity, so stop just short of it.
+  return (ra, location.latitude.clamp(-89.5, 89.5));
+});
+
+final viewCenterEquatorialProvider = Provider<(double, double)>((ref) {
+  final viewState = ref.watch(skyViewStateProvider);
+  if (viewState.viewMode == SkyViewMode.equatorial) {
+    return (viewState.centerRA, viewState.centerDec);
+  }
+
+  final location = ref.watch(observerLocationProvider);
+  final time = ref.watch(_currentMinuteProvider);
+  final lst = AstronomyCalculations.localSiderealTime(time, location.longitude);
+
+  final (raDeg, decDeg) = AstronomyCalculations.horizontalToEquatorial(
+    altDeg: viewState.centerAltitude,
+    azDeg: viewState.centerAz,
+    latitudeDeg: location.latitude,
+    lstHours: lst,
+  );
+  return (raDeg / 15.0, decDeg);
 });

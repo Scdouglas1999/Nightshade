@@ -155,6 +155,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   label: 'Gain',
                   controller: _gainController,
                   hint: 'e.g., 100',
+                  errorText: _fieldErrors[ProfileEditorField.gain],
+                  onChanged: (_) => clearFieldError(ProfileEditorField.gain),
                   keyboardType: TextInputType.number,
                 ),
               ),
@@ -164,6 +166,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   label: 'Offset',
                   controller: _offsetController,
                   hint: 'e.g., 10',
+                  errorText: _fieldErrors[ProfileEditorField.offset],
+                  onChanged: (_) => clearFieldError(ProfileEditorField.offset),
                   keyboardType: TextInputType.number,
                 ),
               ),
@@ -228,6 +232,9 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   controller: _coolingTargetController,
                   hint: 'e.g., -10',
                   suffix: '\u00B0C',
+                  errorText: _fieldErrors[ProfileEditorField.coolingTarget],
+                  onChanged: (_) =>
+                      clearFieldError(ProfileEditorField.coolingTarget),
                   keyboardType: const TextInputType.numberWithOptions(
                       signed: true, decimal: true),
                 ),
@@ -283,6 +290,9 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   controller: _centeringExposureController,
                   hint: 'e.g., 5',
                   suffix: 's',
+                  errorText: _fieldErrors[ProfileEditorField.centeringExposure],
+                  onChanged: (_) =>
+                      clearFieldError(ProfileEditorField.centeringExposure),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                 ),

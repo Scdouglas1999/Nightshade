@@ -23,9 +23,9 @@ class MosaicPanelGrid extends StatelessWidget {
 
   /// Collaborative Sky WS2 — when true (the project is published to a hub and a
   /// collaborative service is wired) each tile renders per-panel distributed
-  /// affordances: 'Claim' on an unclaimed panel and 'Upload' on an
-  /// integrated-but-not-yet-uploaded panel. Off by default so a local-only
-  /// project shows the plain grid.
+  /// affordances: 'Claim' on an unclaimed panel, 'Release' on one this rig
+  /// holds, and 'Upload' on an integrated-but-not-yet-uploaded panel. Off by
+  /// default so a local-only project shows the plain grid.
   final bool collaborative;
 
   /// Invoked with a panel's index to take the hub claim baton for it (WS2).
@@ -34,6 +34,13 @@ class MosaicPanelGrid extends StatelessWidget {
   /// Invoked with a panel's index to upload its integrated master to the hub
   /// (WS2).
   final void Function(int panelIndex)? onUploadPanel;
+
+  /// Invoked with a panel's index to hand THIS device's own claim back to the
+  /// pool (WS2). Surfaced on a panel this rig holds a live claim on, for owner
+  /// and participant alike — without it a contributor cannot undo their own
+  /// claim and the panel stays locked until the hub TTL expires or the owner
+  /// force-releases it one panel at a time.
+  final void Function(int panelIndex)? onReleasePanel;
 
   /// Owner/admin recovery (WS2): invoked with a panel's index to force-release a
   /// squatting claim or a poisoned upload back to `pending` on the hub. Only
@@ -53,6 +60,7 @@ class MosaicPanelGrid extends StatelessWidget {
     this.collaborative = false,
     this.onClaimPanel,
     this.onUploadPanel,
+    this.onReleasePanel,
     this.onForceReleasePanel,
     this.collaborativeBusy = false,
   });
@@ -93,6 +101,7 @@ class MosaicPanelGrid extends StatelessWidget {
                   collaborative: collaborative,
                   onClaim: onClaimPanel,
                   onUpload: onUploadPanel,
+                  onRelease: onReleasePanel,
                   onForceRelease: onForceReleasePanel,
                   collaborativeBusy: collaborativeBusy,
                 ),
@@ -113,6 +122,7 @@ class _PanelTile extends StatelessWidget {
   final bool collaborative;
   final void Function(int panelIndex)? onClaim;
   final void Function(int panelIndex)? onUpload;
+  final void Function(int panelIndex)? onRelease;
   final void Function(int panelIndex)? onForceRelease;
   final bool collaborativeBusy;
 
@@ -122,6 +132,7 @@ class _PanelTile extends StatelessWidget {
     this.collaborative = false,
     this.onClaim,
     this.onUpload,
+    this.onRelease,
     this.onForceRelease,
     this.collaborativeBusy = false,
   });
@@ -140,6 +151,16 @@ class _PanelTile extends StatelessWidget {
     final showUpload = collaborative &&
         onUpload != null &&
         panel.isIntegrated &&
+        !panel.isUploaded;
+
+    // WS2 self-release: a live claim on the LOCAL mirror is only ever written by
+    // this device's own successful claim, so `isClaimed` here means "this rig
+    // holds the baton" — exactly the case the hub's per-account release accepts.
+    // An uploaded panel is past the point of release (the hub refuses it), so
+    // recovering that one stays the owner's force-release.
+    final showRelease = collaborative &&
+        onRelease != null &&
+        panel.isClaimed &&
         !panel.isUploaded;
 
     // WS2 owner/admin recovery: a claimed or already-uploaded panel can be
@@ -189,13 +210,17 @@ class _PanelTile extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceXs),
           Row(
             children: [
-              Text(
-                mosaicPanelStatusLabel(panel.status),
-                style: NightshadeTypography.captionSm.copyWith(
-                  color: mosaicPanelStatusColor(panel.status, colors),
+              Expanded(
+                child: Text(
+                  mosaicPanelStatusLabel(panel.status),
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: mosaicPanelStatusColor(panel.status, colors),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: NightshadeTokens.spaceXs),
               Text(
                 '${panel.capturedCount} sub${panel.capturedCount == 1 ? '' : 's'}',
                 style: NightshadeTypography.captionSm
@@ -263,6 +288,17 @@ class _PanelTile extends StatelessWidget {
                   ),
                 ],
               ),
+          ],
+          if (showRelease) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            NightshadeButton(
+              label: 'Release',
+              icon: NightshadeIcons.unlock,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed:
+                  collaborativeBusy ? null : () => onRelease!(panel.panelIndex),
+            ),
           ],
           if (showForceRelease) ...[
             const SizedBox(height: NightshadeTokens.spaceXs),

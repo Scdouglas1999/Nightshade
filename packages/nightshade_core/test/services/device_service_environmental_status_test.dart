@@ -1,17 +1,21 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart'
-    show DeviceConnectionState;
+    show DeviceConnectionState, ShutterStatus;
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
 class _EnvironmentalBackend extends Mock
-    implements NightshadeBackend, EnvironmentalStatusBackend {}
+    implements
+        NightshadeBackend,
+        EnvironmentalStatusBackend,
+        DomeStatusBackend {}
 
 class _BackendNotifier extends BackendNotifier {
   _BackendNotifier(super.ref, NightshadeBackend backend) {
@@ -107,4 +111,179 @@ void main() {
       expect(state.lastError?.message, contains('safety sensor unavailable'));
     },
   );
+
+  // Simulator campaign 2026-07-28 (S1): a safety monitor that started failing
+  // its status reads dropped to `error`, and the poll loop skipped every
+  // non-connected device — so it was never read again, even after the sensor
+  // came back reporting UNSAFE. Only a manual reconnect resumed polling.
+  test('polling resumes after a safety monitor read failure recovers', () {
+    const deviceId = 'simulator:safety-1';
+    var failReads = false;
+    when(
+      () => backend.connectDevice(DeviceType.safetyMonitor, deviceId),
+    ).thenAnswer((_) async {});
+    when(() => backend.getHardwareSafetyStatus(deviceId)).thenAnswer((_) async {
+      if (failReads) throw StateError('safety sensor unavailable');
+      return true;
+    });
+
+    fakeAsync((async) {
+      unawaited(
+        container.read(deviceServiceProvider).connectSafetyMonitor(deviceId),
+      );
+      async.elapse(const Duration(seconds: 1));
+      expect(
+        container.read(safetyMonitorStateProvider).connectionState,
+        DeviceConnectionState.connected,
+      );
+
+      failReads = true;
+      async.elapse(const Duration(seconds: 10));
+      expect(
+        container.read(safetyMonitorStateProvider).connectionState,
+        DeviceConnectionState.error,
+      );
+
+      // Sensor comes back, now reporting UNSAFE.
+      failReads = false;
+      when(
+        () => backend.getHardwareSafetyStatus(deviceId),
+      ).thenAnswer((_) async => false);
+      async.elapse(const Duration(seconds: 30));
+
+      final recovered = container.read(safetyMonitorStateProvider);
+      expect(recovered.connectionState, DeviceConnectionState.connected);
+      expect(recovered.isSafe, isFalse);
+    });
+  });
+
+  // No-hardware campaign 2026-07-29: a driver that accepts the status read and
+  // never answers used to pin `_environmentPollInFlight` for the rest of the
+  // process. Every later tick returned early, `setError` was never reached, and
+  // the safety card kept rendering the last good "SAFE" indefinitely. The read
+  // is now capped so a wedged sensor becomes a visible error.
+  test('a status read that never completes surfaces as an error', () {
+    const deviceId = 'simulator:safety-1';
+    var wedge = false;
+    when(
+      () => backend.connectDevice(DeviceType.safetyMonitor, deviceId),
+    ).thenAnswer((_) async {});
+    when(() => backend.getHardwareSafetyStatus(deviceId)).thenAnswer((_) async {
+      if (wedge) return Completer<bool>().future;
+      return true;
+    });
+
+    fakeAsync((async) {
+      unawaited(
+        container.read(deviceServiceProvider).connectSafetyMonitor(deviceId),
+      );
+      async.elapse(const Duration(seconds: 1));
+      expect(
+        container.read(safetyMonitorStateProvider).connectionState,
+        DeviceConnectionState.connected,
+      );
+
+      wedge = true;
+      async.elapse(const Duration(seconds: 30));
+
+      final state = container.read(safetyMonitorStateProvider);
+      expect(
+        state.connectionState,
+        DeviceConnectionState.error,
+        reason: 'a hung driver read must not keep reporting the last SAFE',
+      );
+      expect(state.isSafe, isFalse);
+    });
+  });
+
+  group('dome telemetry', () {
+    const deviceId = 'simulator:dome-1';
+
+    setUp(() {
+      when(
+        () => backend.connectDevice(DeviceType.dome, deviceId),
+      ).thenAnswer((_) async {});
+    });
+
+    test('connect seeds azimuth + shutter from the driver read', () async {
+      when(() => backend.getHardwareDomeStatus(deviceId)).thenAnswer(
+        (_) async => const HardwareDomeStatus(
+          azimuth: 137.5,
+          shutterStatus: 1,
+          isParked: true,
+        ),
+      );
+
+      await container.read(deviceServiceProvider).connectDome(deviceId);
+
+      final state = container.read(domeStateProvider);
+      expect(state.connectionState, DeviceConnectionState.connected);
+      expect(state.azimuth, 137.5);
+      expect(state.shutterStatus, ShutterStatus.closed);
+      expect(state.isParked, isTrue);
+    });
+
+    // The regression this file guards: `updateAzimuth` / `updateShutterStatus`
+    // had zero callers, so a connected dome rendered `Azimuth ---` /
+    // `Shutter Unknown` forever and the shutter button never flipped no matter
+    // what the hardware did.
+    test('the poll keeps shutter state live after the shutter opens', () {
+      var shutterCode = 1;
+      when(() => backend.getHardwareDomeStatus(deviceId)).thenAnswer(
+        (_) async =>
+            HardwareDomeStatus(azimuth: 90, shutterStatus: shutterCode),
+      );
+
+      fakeAsync((async) {
+        unawaited(container.read(deviceServiceProvider).connectDome(deviceId));
+        async.elapse(const Duration(seconds: 1));
+        expect(
+          container.read(domeStateProvider).shutterStatus,
+          ShutterStatus.closed,
+        );
+
+        shutterCode = 2; // opening
+        async.elapse(const Duration(seconds: 6));
+        expect(
+          container.read(domeStateProvider).shutterStatus,
+          ShutterStatus.opening,
+        );
+
+        shutterCode = 0; // open
+        async.elapse(const Duration(seconds: 6));
+        expect(
+          container.read(domeStateProvider).shutterStatus,
+          ShutterStatus.open,
+        );
+      });
+    });
+
+    test('an unreported shutter stays unknown rather than reading closed', () {
+      when(
+        () => backend.getHardwareDomeStatus(deviceId),
+      ).thenAnswer((_) async => const HardwareDomeStatus(azimuth: 12.0));
+
+      fakeAsync((async) {
+        unawaited(container.read(deviceServiceProvider).connectDome(deviceId));
+        async.elapse(const Duration(seconds: 1));
+
+        final state = container.read(domeStateProvider);
+        expect(state.shutterStatus, ShutterStatus.unknown);
+        expect(state.azimuth, 12.0);
+      });
+    });
+
+    test('a failed first read still leaves the dome connected', () async {
+      when(
+        () => backend.getHardwareDomeStatus(deviceId),
+      ).thenThrow(StateError('dome status unsupported'));
+
+      await container.read(deviceServiceProvider).connectDome(deviceId);
+
+      final state = container.read(domeStateProvider);
+      expect(state.connectionState, DeviceConnectionState.connected);
+      expect(state.azimuth, isNull);
+      expect(state.shutterStatus, ShutterStatus.unknown);
+    });
+  });
 }

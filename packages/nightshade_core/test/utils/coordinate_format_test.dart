@@ -26,6 +26,62 @@ void main() {
     });
   });
 
+  group('CoordinateParser.formatRaHms / formatDecDms', () {
+    // These two formatters rounded each sexagesimal field independently, so a
+    // value whose minutes land just under a whole minute rendered an impossible
+    // time: formatRaHms(5.6) produced '05:35:60.00'. The parser above already
+    // rejects '23:59:60', so the app was printing coordinates it would itself
+    // refuse to read back — and the mosaic project header was printing them as
+    // the authoritative target region.
+    test('carries a rounded 60 instead of printing it', () {
+      expect(CoordinateParser.formatRaHms(5.6), '05:36:00.00');
+      expect(CoordinateParser.formatDecDms(5.6), '+05:36:00.00');
+      expect(CoordinateParser.formatDecDms(-5.6), '-05:36:00.00');
+    });
+
+    test('every formatted value round-trips through the strict parser', () {
+      for (var i = 0; i < 2400; i++) {
+        final ra = i * 0.01;
+        final formatted = CoordinateParser.formatRaHms(ra);
+        expect(
+          CoordinateParser.parseRa(formatted),
+          isNotNull,
+          reason: 'formatRaHms($ra) = "$formatted" is not parseable',
+        );
+      }
+      for (var i = -8900; i <= 8900; i += 7) {
+        final dec = i * 0.01;
+        final formatted = CoordinateParser.formatDecDms(dec);
+        expect(
+          CoordinateParser.parseDec(formatted),
+          isNotNull,
+          reason: 'formatDecDms($dec) = "$formatted" is not parseable',
+        );
+      }
+    });
+
+    test('exact values still format exactly', () {
+      expect(CoordinateParser.formatRaHms(0.0), '00:00:00.00');
+      expect(CoordinateParser.formatRaHms(5.5), '05:30:00.00');
+      expect(CoordinateParser.formatDecDms(45.5), '+45:30:00.00');
+      expect(CoordinateParser.formatDecDms(-0.5), '-00:30:00.00');
+      expect(CoordinateParser.formatDecDms(90.0), '+90:00:00.00');
+    });
+
+    test('folds an out-of-range RA into a real time of day', () {
+      // 24h is not a time; neither is a negative hour.
+      expect(CoordinateParser.formatRaHms(24.0), '00:00:00.00');
+      expect(CoordinateParser.formatRaHms(25.5), '01:30:00.00');
+      expect(CoordinateParser.formatRaHms(-0.5), '23:30:00.00');
+    });
+
+    test('says so rather than printing a bogus number for a non-finite '
+        'coordinate', () {
+      expect(CoordinateParser.formatRaHms(double.nan), '--:--:--.--');
+      expect(CoordinateParser.formatDecDms(double.infinity), '+--:--:--.--');
+    });
+  });
+
   group('CoordinateFormat.ra', () {
     test('paddedLetters + oneDecimal (default) matches legacy output', () {
       // 12h 20m 42.0s for 12.345 hours.

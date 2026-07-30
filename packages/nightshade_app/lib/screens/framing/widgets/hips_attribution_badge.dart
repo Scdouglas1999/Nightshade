@@ -19,6 +19,8 @@
 // attribution-page link), matching how the settings screens launch external
 // URLs. When no URL is published the badge is non-interactive text.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 // HipsProperties is the parsed survey metadata carrying the attribution fields.
@@ -46,22 +48,58 @@ class HipsAttributionBadge extends StatelessWidget {
   /// screen passes its "layer active and has imagery" condition here.
   final bool visible;
 
+  /// A static publisher acknowledgement to show when no `properties` document
+  /// is resolved (see [HipsSurveyEntry.attributionCredit]).
+  ///
+  /// Attribution attaches to the IMAGERY, so it cannot be contingent on a
+  /// metadata fetch. Six of the eight framing surveys have no verified pyramid,
+  /// so no `properties` is fetched for them — yet their imagery still streams
+  /// through the hips2fits cutout path, and it rendered with no credit at all.
+  /// The caller passes the registry's static credit here as the floor.
+  final String? fallbackCredit;
+
+  /// Attribution page paired with [fallbackCredit].
+  final String? fallbackCreditUrl;
+
   const HipsAttributionBadge({
     super.key,
     required this.properties,
     required this.visible,
+    this.fallbackCredit,
+    this.fallbackCreditUrl,
   });
 
   /// The credit text to display: the survey copyright, else the creator, else
-  /// `null` when nothing is published.
+  /// the caller's static [fallbackCredit], else `null` when nothing is known.
+  ///
+  /// A live `properties` document is preferred because it is the publisher's
+  /// current wording; the static credit is the guarantee that *some* correct
+  /// credit is always shown.
   String? get _creditText {
     final props = properties;
-    if (props == null) return null;
-    final copyright = props.obsCopyright;
+    final copyright = props?.obsCopyright;
     if (copyright != null && copyright.isNotEmpty) return copyright;
-    final creator = props.creator;
+    final creator = props?.creator;
     if (creator != null && creator.isNotEmpty) return creator;
+    final fallback = fallbackCredit;
+    if (fallback != null && fallback.isNotEmpty) return fallback;
     return null;
+  }
+
+  /// The attribution URL matching whichever credit [_creditText] resolved to.
+  String? get _creditUrl {
+    final props = properties;
+    final copyright = props?.obsCopyright;
+    final creator = props?.creator;
+    final fromProperties = (copyright != null && copyright.isNotEmpty) ||
+        (creator != null && creator.isNotEmpty);
+    if (fromProperties) {
+      final url = props?.obsCopyrightUrl;
+      // A resolved credit with no published URL must not borrow the static
+      // entry's link — it could point at a different publisher's page.
+      return (url != null && url.isNotEmpty) ? url : null;
+    }
+    return fallbackCreditUrl;
   }
 
   Future<void> _openAttributionUrl(String url) async {
@@ -79,48 +117,79 @@ class HipsAttributionBadge extends StatelessWidget {
     }
 
     final colors = context.nightshadeColors;
-    final url = properties?.obsCopyrightUrl;
+    final url = _creditUrl;
     final hasUrl = url != null && url.isNotEmpty;
 
-    final pill = Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceXs,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceOverlay
-            .withValues(alpha: NightshadeTokens.opacityHoverBorder),
-        borderRadius: NightshadeTokens.borderRadiusMd,
-        border: Border.all(
-          color:
-              colors.border.withValues(alpha: NightshadeTokens.opacitySubtle),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            NightshadeIcons.info,
-            size: NightshadeTokens.iconXs,
-            color: colors.textMuted,
+    // The credit cap has to be derived from the space actually available, not
+    // fixed. `maxWidth: 360` was a constant, so on a 360 px phone the pill came
+    // to 360 + icon + gap + padding + border and overflowed the canvas by 44 px
+    // (34 px landscape, 14 px at 390 px). 360 survives only as an UPPER bound so
+    // a long DSS copyright still ellipsizes rather than running the full width of
+    // a desktop canvas.
+    //
+    // Chrome subtracted below = the pill's own horizontal padding (both sides),
+    // the leading icon, the gap after it, and the 1 px border on each side.
+    const chromeWidth = NightshadeTokens.spaceMd * 2 +
+        NightshadeTokens.iconXs +
+        NightshadeTokens.spaceXs +
+        2;
+    const preferredCreditWidth = 360.0;
+
+    final pill = LayoutBuilder(
+      builder: (context, constraints) {
+        // An unbounded width (an unconstrained Row/Stack parent) means "take
+        // what you need", so fall back to the preferred cap rather than
+        // producing Infinity.
+        final available = constraints.maxWidth.isFinite
+            ? constraints.maxWidth - chromeWidth
+            : preferredCreditWidth;
+        // Never below a legible floor: at that point ellipsizing to a few
+        // characters is worse than letting the pill be the widest thing in the
+        // band, and the canvas is too narrow to be showing this chrome anyway.
+        final creditMaxWidth =
+            math.max(64.0, math.min(preferredCreditWidth, available));
+
+        return Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceMd,
+            vertical: NightshadeTokens.spaceXs,
           ),
-          const SizedBox(width: NightshadeTokens.spaceXs),
-          // Constrain the credit so a long copyright string wraps/ellipsizes
-          // rather than overflowing the canvas chrome.
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Text(
-              credit,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: NightshadeTypography.overline.copyWith(
-                color: hasUrl ? colors.textSecondary : colors.textMuted,
-                decoration: hasUrl ? TextDecoration.underline : null,
-              ),
+          decoration: BoxDecoration(
+            color: colors.surfaceOverlay
+                .withValues(alpha: NightshadeTokens.opacityHoverBorder),
+            borderRadius: NightshadeTokens.borderRadiusMd,
+            border: Border.all(
+              color: colors.border
+                  .withValues(alpha: NightshadeTokens.opacitySubtle),
             ),
           ),
-        ],
-      ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                NightshadeIcons.info,
+                size: NightshadeTokens.iconXs,
+                color: colors.textMuted,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceXs),
+              // Constrain the credit so a long copyright string wraps/ellipsizes
+              // rather than overflowing the canvas chrome.
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: creditMaxWidth),
+                child: Text(
+                  credit,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.overline.copyWith(
+                    color: hasUrl ? colors.textSecondary : colors.textMuted,
+                    decoration: hasUrl ? TextDecoration.underline : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
 
     if (!hasUrl) return pill;

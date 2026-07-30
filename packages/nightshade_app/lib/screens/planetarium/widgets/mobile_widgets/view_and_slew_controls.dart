@@ -60,7 +60,14 @@ class MobileViewControls extends ConsumerWidget {
           MobileControlButton(
             icon: NightshadeIcons.home,
             onTap: () {
-              ref.read(skyViewStateProvider.notifier).setCenter(0, 0);
+              // Home = the observer's zenith, not the fixed point RA 0h/Dec 0
+              // (which is usually below the horizon). See
+              // [skyViewHomeCenterProvider].
+              final (ra, dec) = ref.read(skyViewHomeCenterProvider);
+              ref.read(skyViewStateProvider.notifier).setCenter(ra, dec);
+              ref
+                  .read(skyViewStateProvider.notifier)
+                  .setHorizontalCenter(0, 90);
               ref.read(skyViewStateProvider.notifier).setFieldOfView(60);
             },
           ),

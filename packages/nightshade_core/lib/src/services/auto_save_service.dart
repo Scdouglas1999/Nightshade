@@ -821,7 +821,11 @@ const _sequenceMinutesKey = 'autosave.sequence_interval_minutes';
 const _backupEnabledKey = 'autosave.backup_enabled';
 const _backupHoursKey = 'autosave.backup_interval_hours';
 const _maxBackupsKey = 'autosave.max_backups';
-const _lastBackupKey = 'autosave.last_backup_at';
+
+/// Same key [BackupService] writes on every successful backup, manual or
+/// scheduled — one owner, so the displayed "Last Full Backup" cannot disagree
+/// with what is actually on disk.
+const _lastBackupKey = BackupService.lastBackupSettingKey;
 
 Future<AutoSaveConfig> _loadAutoSaveConfig(SettingsDao dao) async {
   final values = await dao.getAllSettings();

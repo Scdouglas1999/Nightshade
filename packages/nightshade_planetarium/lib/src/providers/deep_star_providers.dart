@@ -66,8 +66,8 @@ final deepStarManifestRefreshProvider = StateProvider<int>((ref) => 0);
 final deepStarsInViewProvider = FutureProvider<List<Star>>((ref) async {
   if (!ref.watch(showDeepStarsProvider)) return const [];
 
-  final viewState = ref.watch(skyViewStateProvider);
-  if (viewState.fieldOfView >= kDeepStarFovThresholdDegrees) return const [];
+  final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
+  if (fov >= kDeepStarFovThresholdDegrees) return const [];
 
   final manifest = await ref.watch(deepStarManifestProvider.future);
   if (manifest == null) return const [];
@@ -76,16 +76,21 @@ final deepStarsInViewProvider = FutureProvider<List<Star>>((ref) async {
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
   // Don't out-draw the HYG budget: the deep tier shares the renderer's cap.
   final maxStars = ref.watch(fovAdaptiveQualityProvider).maxStarsToRender;
+  // Tiles are indexed by RA/Dec, so the alt/az frame must be converted first
+  // (see [viewCenterEquatorialProvider]).
+  final (centerRa, centerDec) = ref.watch(viewCenterEquatorialProvider);
+  final aspect = ref.watch(skyViewAspectRatioProvider);
 
   try {
     return await store.queryBrightest(
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
+      centerRa,
+      centerDec,
+      fov,
       maxMagnitude: starMagLimit,
       // Hand off at the HYG floor so the two tiers never double-draw a star.
       minMagnitude: kHygFaintFloorMag,
       maxResults: maxStars,
+      aspectRatio: aspect,
     );
   } catch (e) {
     developer.log(

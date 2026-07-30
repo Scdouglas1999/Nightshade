@@ -613,7 +613,7 @@ Star? _parseHygLinePublic(String line) {
   return Star(
     id: id,
     name: starName.trim(),
-    coordinates: CelestialCoordinate(ra: raHours * 15, dec: dec),
+    coordinates: CelestialCoordinate(ra: raHours, dec: dec),
     magnitude: magnitude,
     spectralType: spectralType?.isNotEmpty == true ? spectralType : null,
     colorIndex: colorIndex,

@@ -239,21 +239,24 @@ class CelestialGridPainter extends CustomPainter {
     final textHeight = paragraph.height;
     const padding = 2.0;
 
-    // Position label near the edge
+    // Position label near the edge. A label wider (or taller) than the canvas
+    // minus its padding would push the far bound under the 2.0 near bound and
+    // throw out of paint(), taking the whole overlay down; floor the far bound
+    // so an oversized label starts on canvas and clips instead.
+    final maxLabelX = math.max(2.0, size.width - textWidth - padding * 2);
+    final maxLabelY = math.max(2.0, size.height - textHeight - padding * 2);
     double labelX;
     double labelY;
 
     switch (alignment) {
       case _LabelEdge.left:
         // Clamp to left edge, vertically at the point
-        labelX = position.dx.clamp(2.0, size.width - textWidth - padding * 2);
-        labelY = (position.dy - textHeight / 2)
-            .clamp(2.0, size.height - textHeight - padding * 2);
+        labelX = position.dx.clamp(2.0, maxLabelX);
+        labelY = (position.dy - textHeight / 2).clamp(2.0, maxLabelY);
       case _LabelEdge.top:
         // Horizontally at the point, clamp to top edge
-        labelX = (position.dx - textWidth / 2)
-            .clamp(2.0, size.width - textWidth - padding * 2);
-        labelY = position.dy.clamp(2.0, size.height - textHeight - padding * 2);
+        labelX = (position.dx - textWidth / 2).clamp(2.0, maxLabelX);
+        labelY = position.dy.clamp(2.0, maxLabelY);
     }
 
     // Draw background

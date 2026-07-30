@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
@@ -65,10 +66,27 @@ class DashboardClockWidget extends ConsumerWidget {
 
   const DashboardClockWidget({super.key, required this.colors});
 
-  String _formatLST(double lstHours) {
-    final h = lstHours.floor();
-    final m = ((lstHours - h) * 60).floor();
-    final s = (((lstHours - h) * 60 - m) * 60).floor();
+  /// `lstHours` is null when there is no site to compute it for.
+  ///
+  /// This chip rendered [localSiderealTimeProvider] unconditionally, so on a
+  /// fresh profile it asserted a precise "LST 12:16:27" while the widgets
+  /// beside it correctly said "Set an observing location" and showed
+  /// moonrise/moonset as "--:--". The value was Greenwich's — the app's
+  /// documented 0/0 "not set" sentinel fed straight into the sidereal
+  /// calculation. Sidereal time is precisely what an operator reads to decide
+  /// what is transiting, so a confident wrong LST is worse than none.
+  ///
+  /// The status-bar chip (`status_bar/temperature_and_time.dart`) was fixed for
+  /// this finding; this is the second surface the same evidence named.
+  String _formatLST(double? lstHours) {
+    if (lstHours == null) return '--:--:--';
+    // Normalized to [0, 24) upstream; fold defensively so a bad input can never
+    // render as "-1:-30:-45".
+    var hours = lstHours % 24;
+    if (hours < 0) hours += 24;
+    final h = hours.floor();
+    final m = ((hours - h) * 60).floor();
+    final s = (((hours - h) * 60 - m) * 60).floor();
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
@@ -78,43 +96,59 @@ class DashboardClockWidget extends ConsumerWidget {
     // This provider already updates every second, no need for a separate timer
     final timeState = ref.watch(observationTimeProvider);
     final now = timeState.time;
-    final lst = ref.watch(localSiderealTimeProvider);
+    // Only read the LST once we know whose LST it is. `isLocationSet` is the
+    // canonical model-level test for the 0/0 sentinel, so this chip and every
+    // other location-gated surface cannot drift apart on the rule.
+    final settings = ref.watch(appSettingsProvider).valueOrNull;
+    final siteIsSet = settings?.isLocationSet ?? false;
+    final lst = siteIsSet ? ref.watch(localSiderealTimeProvider) : null;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: NightshadeDecorations.emphasisSurface(
-        colors.primary,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.clock, size: 16, color: colors.primary),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+    return Tooltip(
+      // A dash needs to explain itself, or it reads as a bug rather than as a
+      // setting the operator has not supplied yet.
+      message: settings == null
+          ? 'Loading your observing site…'
+          : siteIsSet
+              ? 'Local sidereal time at your observing site'
+              : 'No observing site set — sidereal time is unknown. '
+                  'Set it in Settings → Location.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: NightshadeDecorations.emphasisSurface(
+          colors.primary,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.clock, size: 16, color: colors.primary),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize16,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
-              ),
-              Text(
-                'LST ${_formatLST(lst)}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                Text(
+                  'LST ${_formatLST(lst)}',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    // An unknown LST must not wear the confident body colour.
+                    color: siteIsSet ? colors.textSecondary : colors.textMuted,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

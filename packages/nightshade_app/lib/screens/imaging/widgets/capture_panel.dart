@@ -51,7 +51,21 @@ final captureSavePathWriterProvider = Provider<CaptureSavePathWriter>((ref) {
 class CapturePanel extends ConsumerWidget {
   final NightshadeColors colors;
 
-  const CapturePanel({super.key, required this.colors});
+  /// Duration / Snapshot / Loop cluster, pinned above the scrolling settings.
+  ///
+  /// Supplied only by the layouts that omit the persistent bottom capture bar
+  /// (the landscape side-by-side split, where that bar would overflow the short
+  /// height). This panel used to carry no exposure-start control at all, so in
+  /// that band the Imaging screen had no shutter anywhere — the comment
+  /// suppressing the bar claimed these buttons were "already visible beside the
+  /// image", and they were not.
+  final Widget? captureActions;
+
+  const CapturePanel({
+    super.key,
+    required this.colors,
+    this.captureActions,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -78,6 +92,10 @@ class CapturePanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (captureActions != null) ...[
+            captureActions!,
+            const SizedBox(height: 20),
+          ],
           // Exposure Settings
           PanelSection(
             title: 'Exposure Settings$hostSuffix',
@@ -267,17 +285,30 @@ class CapturePanel extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
+                      // Ad-hoc Snapshot/Loop captures never open a database
+                      // session — only the sequencer calls startSession — so
+                      // gating this button on dbSessionId made it assert "no
+                      // active session" while the counter above it reported a
+                      // real, non-zero frame count. Those frames are not
+                      // stranded: they are persisted as standalone rows and
+                      // Analytics renders them under "Quick Capture". Route
+                      // there instead of denying they exist, and when there is
+                      // genuinely nothing to show, disable the button rather
+                      // than offer an action that cannot work.
                       child: SmallButton(
-                        label: 'View Gallery',
+                        label: sessionState.dbSessionId != null
+                            ? 'View Gallery'
+                            : 'View Quick Captures',
                         icon: LucideIcons.galleryHorizontal,
                         colors: colors,
+                        isEnabled: sessionState.dbSessionId != null ||
+                            sessionImages.isNotEmpty,
                         onTap: () {
                           final sessionId = sessionState.dbSessionId;
                           if (sessionId != null) {
                             context.push('/session-review?session=$sessionId');
                           } else {
-                            context.showWarningSnackBar(
-                                'No active session to review');
+                            context.push('/analytics?tab=session');
                           }
                         },
                       ),

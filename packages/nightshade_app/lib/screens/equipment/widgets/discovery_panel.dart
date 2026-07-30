@@ -307,6 +307,12 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     final coverCalibrators = groupedDevices
         .where((d) => d.type == DeviceType.coverCalibrator)
         .toList();
+    // Switches (power boxes, dew-heater controllers) were the only first-class
+    // device type with NO discovery section, so the profile editor was the sole
+    // way to reach one — even though the backend runs a Switch discovery pass and
+    // reports it identically to cover calibrators, which DID get an empty state.
+    final switches =
+        groupedDevices.where((d) => d.type == DeviceType.switch_).toList();
 
     final totalDevices = groupedDevices.length;
     final lastScanText = _formatLastScanTime(
@@ -604,6 +610,15 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                         LucideIcons.sunMedium,
                         coverCalibrators,
                       ),
+                      const SizedBox(height: 12),
+                      _buildDeviceGroupSection(
+                        context,
+                        colors,
+                        'SWITCHES',
+                        DeviceType.switch_,
+                        LucideIcons.toggleRight,
+                        switches,
+                      ),
                     ],
                   ),
                 ),
@@ -796,8 +811,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         return deviceService.connectSafetyMonitor(deviceId);
       case DeviceType.coverCalibrator:
         return deviceService.connectCoverCalibrator(deviceId);
-      default:
-        throw Exception('Unsupported device type: $type');
+      case DeviceType.switch_:
+        return deviceService.connectSwitch(deviceId);
     }
   }
 
@@ -836,8 +851,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         case DeviceType.coverCalibrator:
           await deviceService.disconnectCoverCalibrator();
           break;
-        default:
-          throw Exception('Unsupported device type: $deviceType');
+        case DeviceType.switch_:
+          await deviceService.disconnectSwitch();
+          break;
       }
       if (mounted) {
         context.showSuccessSnackBar(

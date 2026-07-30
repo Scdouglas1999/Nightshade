@@ -71,6 +71,7 @@ mixin _GuidingDesktopSections
     Phd2GuideStats guideStats,
   ) {
     final stateColor = _getStateColor(phd2State);
+    final hasRmsSamples = guideStats.frameCount > 0;
     final guiderState = ref.watch(guiderStateProvider);
     final guiderId = guiderState.deviceId;
     final isPhd2Guider = guiderId == null || isPhd2DeviceId(guiderId);
@@ -174,19 +175,21 @@ mixin _GuidingDesktopSections
                 key: GuidingTutorialKeys.rmsDisplay,
                 child: _buildRmsChip('Total', guideStats.rmsTotal,
                     guideStats.pixelScale, colors.primary, colors,
-                    bold: true, compact: true),
+                    bold: true, compact: true, hasSamples: hasRmsSamples),
               ),
             ] else ...[
               // Desktop shows RMS in graph header, not here
               _buildRmsChip('RA', guideStats.rmsRa, guideStats.pixelScale,
-                  colors.error, colors),
+                  colors.error, colors,
+                  hasSamples: hasRmsSamples),
               const SizedBox(width: 10),
               _buildRmsChip('Dec', guideStats.rmsDec, guideStats.pixelScale,
-                  colors.info, colors),
+                  colors.info, colors,
+                  hasSamples: hasRmsSamples),
               const SizedBox(width: 10),
               _buildRmsChip('Total', guideStats.rmsTotal, guideStats.pixelScale,
                   colors.primary, colors,
-                  bold: true),
+                  bold: true, hasSamples: hasRmsSamples),
             ],
             SizedBox(width: isMobile ? 8 : 20),
           ] else if (isMobile) ...[
@@ -282,6 +285,19 @@ mixin _GuidingDesktopSections
     return (value: raw, unit: ' px');
   }
 
+  /// Text for one RMS readout. `Phd2GuideStats` defaults every RMS field to
+  /// 0.0, which is indistinguishable from a real, perfect measurement — and
+  /// "Total: 0.00" reads as flawless guiding to someone glancing at the screen
+  /// half asleep. Until at least one guide step has been measured
+  /// (`frameCount > 0`, reset by `GuidingStopped`) there is no measurement to
+  /// report, so render the same em dash the Equipment and Dashboard guider
+  /// cards already use.
+  String _rmsText(double value, double pixelScale, {required bool hasSamples}) {
+    if (!hasSamples) return '—';
+    final readout = _rmsReadout(value, pixelScale);
+    return '${readout.value.toStringAsFixed(2)}${readout.unit}';
+  }
+
   Widget _buildRmsChip(
     String label,
     double value,
@@ -290,8 +306,9 @@ mixin _GuidingDesktopSections
     NightshadeColors colors, {
     bool bold = false,
     bool compact = false,
+    bool hasSamples = true,
   }) {
-    final readout = _rmsReadout(value, pixelScale);
+    final text = _rmsText(value, pixelScale, hasSamples: hasSamples);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 6 : 8,
@@ -312,9 +329,9 @@ mixin _GuidingDesktopSections
             ),
           ),
           Text(
-            '${readout.value.toStringAsFixed(2)}${readout.unit}',
+            text,
             style: NightshadeTypography.monoSm.copyWith(
-              color: color,
+              color: hasSamples ? color : colors.textMuted,
               fontWeight: bold ? FontWeight.bold : FontWeight.w500,
               fontSize: compact ? 11 : null,
             ),
@@ -366,11 +383,11 @@ mixin _GuidingDesktopSections
                       isConnected ? (x, y) => _selectStar(x, y) : null,
                   statusMessage: 'No star selected',
                 ),
-                loading: () => const GuideStarView(
-                  statusMessage: 'Waiting for image...',
+                loading: () => GuideStarView(
+                  statusMessage: _starViewIdleMessage(),
                 ),
                 error: (_, __) => const GuideStarView(
-                  statusMessage: 'No star selected',
+                  statusMessage: 'Guide star image unavailable',
                 ),
               ),
             ),
@@ -387,14 +404,19 @@ mixin _GuidingDesktopSections
                 key: GuidingTutorialKeys.targetDisplay,
                 errorHistory: errorHistory
                     .map((e) => GuideErrorPoint(
-                          raError: e.raError,
-                          decError: e.decError,
+                          raError:
+                              _errorForDisplay(e.raError, stats.pixelScale),
+                          decError:
+                              _errorForDisplay(e.decError, stats.pixelScale),
                           timestamp: e.timestamp,
                         ))
                     .toList(),
-                currentRaError: currentError?.raError ?? 0,
-                currentDecError: currentError?.decError ?? 0,
+                currentRaError: _errorForDisplay(
+                    currentError?.raError ?? 0, stats.pixelScale),
+                currentDecError: _errorForDisplay(
+                    currentError?.decError ?? 0, stats.pixelScale),
                 scaleArcsec: _yScale.arcsec / 2,
+                unitSuffix: _errorUnit(stats.pixelScale),
                 numRings: 3,
               ),
             ),
@@ -408,11 +430,14 @@ mixin _GuidingDesktopSections
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildStatRow('SNR', stats.snr.toStringAsFixed(1),
+                _buildStatRow('SNR', _starMetricText(stats.snr),
                     _getSnrColor(stats.snr, colors), colors),
                 const SizedBox(height: 10),
-                _buildStatRow('Star Mass', stats.starMass.toStringAsFixed(0),
-                    colors.textPrimary, colors),
+                _buildStatRow(
+                    'Star Mass',
+                    _starMetricText(stats.starMass, decimals: 0),
+                    stats.starMass > 0 ? colors.textPrimary : colors.textMuted,
+                    colors),
                 const SizedBox(height: 10),
                 _buildStatRow('Frame Count', stats.frameCount.toString(),
                     colors.textPrimary, colors),
@@ -496,8 +521,31 @@ mixin _GuidingDesktopSections
     );
   }
 
+  /// Pane height below which the graph card drops its own title row on a
+  /// phone. The title costs ~38 dp of a pane that a banner-squeezed viewport
+  /// can cut to ~120 dp, and it is the least load-bearing thing in the card —
+  /// the screen is already named Guiding, the scale selectors stay, and the
+  /// plot is what the user came for.
+  static const double _graphTitleMinPaneHeight = 220.0;
+
   Widget _buildCenterPanel(NightshadeColors colors, Phd2GuideStats stats) {
+    return LayoutBuilder(
+      builder: (context, constraints) => _buildGraphCard(
+        colors,
+        stats,
+        showTitle: !_isPhoneViewport(context) ||
+            constraints.maxHeight >= _graphTitleMinPaneHeight,
+      ),
+    );
+  }
+
+  Widget _buildGraphCard(
+    NightshadeColors colors,
+    Phd2GuideStats stats, {
+    required bool showTitle,
+  }) {
     final graphData = ref.watch(guideGraphProvider);
+    final hasRmsSamples = stats.frameCount > 0;
     final isMobile = _isPhoneViewport(context);
     final iconSize = isMobile ? 12.0 : 14.0;
     final iconPadding = isMobile ? 4.0 : 6.0;
@@ -510,63 +558,66 @@ mixin _GuidingDesktopSections
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Header
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 10 : 16,
-              vertical: isMobile ? 8 : 10,
-            ),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(8)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(iconPadding),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.15),
-                    borderRadius: NightshadeTokens.borderRadiusMd,
+          if (showTitle)
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 10 : 16,
+                vertical: isMobile ? 8 : 10,
+              ),
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(8)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(iconPadding),
+                    decoration: BoxDecoration(
+                      color: colors.primary.withValues(alpha: 0.15),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
+                    ),
+                    child: Icon(NightshadeIcons.chart,
+                        size: iconSize, color: colors.primary),
                   ),
-                  child: Icon(NightshadeIcons.chart,
-                      size: iconSize, color: colors.primary),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Guide Graph',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: titleFontSize,
-                  ),
-                ),
-                const Spacer(),
-                // RMS display in header - hide on mobile (shown in status bar)
-                if (!isMobile)
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        key: GuidingTutorialKeys.rmsDisplay,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _buildCompactRms('RA', stats.rmsRa, stats.pixelScale,
-                              colors.error, colors),
-                          const SizedBox(width: 12),
-                          _buildCompactRms('Dec', stats.rmsDec,
-                              stats.pixelScale, colors.info, colors),
-                          const SizedBox(width: 12),
-                          _buildCompactRms('Total', stats.rmsTotal,
-                              stats.pixelScale, colors.primary, colors,
-                              bold: true),
-                        ],
-                      ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Guide Graph',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: titleFontSize,
                     ),
                   ),
-              ],
+                  const Spacer(),
+                  // RMS display in header - hide on mobile (shown in status bar)
+                  if (!isMobile)
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          key: GuidingTutorialKeys.rmsDisplay,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildCompactRms('RA', stats.rmsRa,
+                                stats.pixelScale, colors.error, colors,
+                                hasSamples: hasRmsSamples),
+                            const SizedBox(width: 12),
+                            _buildCompactRms('Dec', stats.rmsDec,
+                                stats.pixelScale, colors.info, colors,
+                                hasSamples: hasRmsSamples),
+                            const SizedBox(width: 12),
+                            _buildCompactRms('Total', stats.rmsTotal,
+                                stats.pixelScale, colors.primary, colors,
+                                bold: true, hasSamples: hasRmsSamples),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
           // Graph content
           Expanded(
             child: Padding(
@@ -576,15 +627,26 @@ mixin _GuidingDesktopSections
                 data: graphData
                     .map((p) => GuideDataPoint(
                           timestamp: p.time,
-                          raError: p.ra,
-                          decError: p.dec,
+                          raError: _errorForDisplay(p.ra, stats.pixelScale),
+                          decError: _errorForDisplay(p.dec, stats.pixelScale),
                         ))
                     .toList(),
+                valueUnit: _errorUnit(stats.pixelScale),
                 timeScale: _timeScale,
                 yScale: _yScale,
-                rmsRa: stats.rmsRa,
-                rmsDec: stats.rmsDec,
-                rmsTotal: stats.rmsTotal,
+                // Values are converted here (and nulled out when nothing has
+                // been measured) so the graph's own stats row cannot label raw
+                // pixels as arcseconds or print a fabricated 0.00.
+                rmsRa: hasRmsSamples
+                    ? _rmsReadout(stats.rmsRa, stats.pixelScale).value
+                    : null,
+                rmsDec: hasRmsSamples
+                    ? _rmsReadout(stats.rmsDec, stats.pixelScale).value
+                    : null,
+                rmsTotal: hasRmsSamples
+                    ? _rmsReadout(stats.rmsTotal, stats.pixelScale).value
+                    : null,
+                rmsUnit: _rmsReadout(0, stats.pixelScale).unit,
                 onTimeScaleChanged: (scale) =>
                     setState(() => _timeScale = scale),
                 onYScaleChanged: (scale) => setState(() => _yScale = scale),
@@ -603,8 +665,9 @@ mixin _GuidingDesktopSections
     Color color,
     NightshadeColors colors, {
     bool bold = false,
+    bool hasSamples = true,
   }) {
-    final readout = _rmsReadout(value, pixelScale);
+    final text = _rmsText(value, pixelScale, hasSamples: hasSamples);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -616,9 +679,9 @@ mixin _GuidingDesktopSections
         ),
         const SizedBox(width: 4),
         Text(
-          '${readout.value.toStringAsFixed(2)}${readout.unit}',
+          text,
           style: NightshadeTypography.monoSm.copyWith(
-            color: color,
+            color: hasSamples ? color : colors.textMuted,
             fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
@@ -901,10 +964,52 @@ mixin _GuidingDesktopSections
   }
 
   Color _getSnrColor(double snr, NightshadeColors colors) {
+    // A real star measurement is strictly positive. Zero means "no star has
+    // been measured", which is not an alarm — painting it error-red made an
+    // idle guider look like it had just lost the star.
+    if (snr <= 0) return colors.textMuted;
     if (snr >= 10) return colors.success;
     if (snr >= 5) return colors.warning;
     return colors.error;
   }
+
+  /// Per-frame guide error, converted for display the same way the RMS
+  /// readouts are. The guider reports residuals in guide-camera pixels; the
+  /// graph and bullseye used to plot those raw pixels against axes labelled in
+  /// arcseconds, so at a typical 2-4"/px guide scale the plot understated the
+  /// real error several-fold.
+  double _errorForDisplay(double px, double pixelScale) =>
+      pixelScale > 0 ? px * pixelScale : px;
+
+  /// Unit suffix matching [_errorForDisplay].
+  String _errorUnit(double pixelScale) => pixelScale > 0 ? '"' : ' px';
+
+  /// Copy for the guide-star preview while [starImageProvider] holds no image.
+  ///
+  /// The notifier only polls while the guider is looping / guiding /
+  /// calibrating and otherwise sits in `AsyncValue.loading()` forever, so an
+  /// idle guider was told "Waiting for image..." when nothing had been asked
+  /// for. Say what is actually true, and what the user has to do next.
+  String _starViewIdleMessage() {
+    final phd2State = ref.watch(phd2StateProvider);
+    final isAcquiring = phd2State == Phd2State.looping ||
+        phd2State == Phd2State.guiding ||
+        phd2State == Phd2State.calibrating ||
+        phd2State == Phd2State.settling;
+    if (isAcquiring) return 'Waiting for image...';
+    if (ref.watch(guiderStateProvider).connectionState !=
+        DeviceConnectionState.connected) {
+      return 'Connect a guider to acquire a guide star';
+    }
+    return 'Press Loop Exposures or Start to acquire a guide star';
+  }
+
+  /// SNR / star-mass readouts share the "positive means measured" rule: the
+  /// guider only reports them once it has actually measured a star, so a 0
+  /// is an absence of data and is rendered as such instead of as a real,
+  /// alarming value.
+  String _starMetricText(double value, {int decimals = 1}) =>
+      value > 0 ? value.toStringAsFixed(decimals) : '—';
 
   Color _getStateColor(Phd2State state) {
     final colors = NightshadeColors.of(context);

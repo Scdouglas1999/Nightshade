@@ -246,10 +246,15 @@ class _BigActionButtonState extends State<BigActionButton>
   @override
   void initState() {
     super.initState();
+    // NOT started here. Two of these buttons are mounted for as long as the
+    // imaging screen is open, but the spinner this controller drives is only
+    // built while `isLoading`. Repeating unconditionally kept a ticker
+    // scheduling a frame on every vsync the whole time the screen was up, which
+    // stops the app from ever idling. Driven by isLoading in build() instead.
     _loadingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1),
-    )..repeat();
+    );
   }
 
   @override
@@ -297,19 +302,23 @@ class _BigActionButtonState extends State<BigActionButton>
             mainAxisSize: MainAxisSize.min,
             children: [
               widget.isLoading
-                  ? AnimatedBuilder(
-                      animation: _loadingController,
-                      builder: (context, child) {
-                        return Transform.rotate(
-                          angle: _loadingController.value * 2 * math.pi,
-                          child: Icon(
-                            NightshadeIcons.loading,
-                            size: 24,
-                            color: primaryForeground.withValues(
-                                alpha: widget.isEnabled ? 1.0 : 0.5),
-                          ),
-                        );
-                      },
+                  ? OnScreenAnimationGate(
+                      controller: _loadingController,
+                      repeating: true,
+                      child: AnimatedBuilder(
+                        animation: _loadingController,
+                        builder: (context, child) {
+                          return Transform.rotate(
+                            angle: _loadingController.value * 2 * math.pi,
+                            child: Icon(
+                              NightshadeIcons.loading,
+                              size: 24,
+                              color: primaryForeground.withValues(
+                                  alpha: widget.isEnabled ? 1.0 : 0.5),
+                            ),
+                          );
+                        },
+                      ),
                     )
                   : Icon(
                       widget.icon,

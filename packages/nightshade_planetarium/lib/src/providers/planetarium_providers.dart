@@ -27,7 +27,6 @@ part 'planetarium_providers/catalog_astronomy.dart';
 part 'planetarium_providers/equipment_view.dart';
 part 'planetarium_providers/mosaic_targets.dart';
 part 'planetarium_providers/object_search.dart';
-part 'planetarium_providers/density_hotspots.dart';
 
 /// Get display name for search matching
 (String, String) _getDsoDisplayInfoForSearch(DeepSkyObject dso) {

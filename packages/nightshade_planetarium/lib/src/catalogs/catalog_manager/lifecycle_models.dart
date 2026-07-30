@@ -10,6 +10,11 @@ class CatalogDescriptor {
   final String displayName;
   final String description;
   final String fileName;
+
+  /// File names this catalog used to be materialized under (see
+  /// [CatalogSource.legacyFileNames]).
+  final List<String> legacyFileNames;
+
   final String metadataFileName;
   final String version;
   final int approximateSizeBytes;
@@ -39,9 +44,23 @@ class CatalogDescriptor {
     required this.downloadUrl,
     required this.isGzipped,
     required this.requiredForPlateSolve,
+    this.legacyFileNames = const [],
     this.githubAssetName = '',
     this.sha256 = '',
   });
+
+  /// Every file name that counts as this catalog on disk, current name first.
+  List<String> get candidateFileNames => [fileName, ...legacyFileNames];
+
+  /// The file name to read under [directory] — see
+  /// [CatalogSource.resolveInstalledName].
+  String resolveInstalledName(String directory) {
+    for (final candidate in candidateFileNames) {
+      final file = File(path.join(directory, candidate));
+      if (file.existsSync() && file.lengthSync() > 0) return candidate;
+    }
+    return fileName;
+  }
 }
 
 /// Status of one catalog on disk.

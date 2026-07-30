@@ -122,7 +122,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
         final defaults = available
             .where((d) => d != DriverType.simulator)
             .toSet();
-        state = draft.copyWith(selectedDrivers: defaults);
+        // Same `mounted` guard as the other branch: the hydrate is in flight
+        // across an await, and writing state after disposal throws.
+        if (mounted) state = draft.copyWith(selectedDrivers: defaults);
       } else if (mounted) {
         state = draft;
       }
@@ -308,9 +310,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
 
   /// Set (or override) the camera acquisition defaults captured at the
   /// camera-defaults step. Any argument left null preserves the existing draft
-  /// value, except [coolingTempC]: pass [clearCoolingTempC] true to explicitly
-  /// null out the cooling set-point (e.g. the user toggled cooling off), since
-  /// a plain null cannot distinguish "leave unchanged" from "clear".
+  /// value; pass the matching `clear*` flag to null a set-point out explicitly
+  /// (the user emptied the field, or toggled regulated cooling off), since a
+  /// plain null cannot distinguish "leave unchanged" from "clear".
   Future<void> setCameraDefaults({
     int? gain,
     int? offset,
@@ -318,6 +320,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     int? binY,
     double? coolingTempC,
     bool clearCoolingTempC = false,
+    bool clearGain = false,
+    bool clearOffset = false,
+    bool clearBinX = false,
+    bool clearBinY = false,
   }) async {
     state = state.copyWith(
       defaultGain: gain ?? state.defaultGain,
@@ -326,6 +332,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       defaultBinY: binY ?? state.defaultBinY,
       defaultCoolingTempC: coolingTempC ?? state.defaultCoolingTempC,
       clearCoolingTempC: clearCoolingTempC,
+      clearGain: clearGain,
+      clearOffset: clearOffset,
+      clearBinX: clearBinX,
+      clearBinY: clearBinY,
     );
     await _persistDraft();
   }

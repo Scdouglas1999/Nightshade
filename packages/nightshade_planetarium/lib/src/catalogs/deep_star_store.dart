@@ -123,6 +123,7 @@ class DeepStarTileStore {
     required double maxMagnitude,
     required int maxResults,
     double minMagnitude = double.negativeInfinity,
+    double aspectRatio = 1.0,
   }) async {
     if (_manifest == null || maxResults <= 0 || maxMagnitude <= minMagnitude) {
       return const [];
@@ -132,6 +133,7 @@ class DeepStarTileStore {
       centerRaHours,
       centerDecDeg,
       fovDegrees,
+      aspectRatio: aspectRatio,
     );
     final keys = DeepStarTileScheme.tilesForViewport(
       centerRaHours,

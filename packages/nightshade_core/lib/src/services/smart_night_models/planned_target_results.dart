@@ -20,6 +20,12 @@ class SmartNightPlannedTarget {
   /// Rationale string surfaced to the user: `"Picked because (reason)"`.
   final String rationale;
 
+  /// True when this target plans a single unfiltered row — the rig has no
+  /// filter wheel, so the emitted sub-tree captures with no filter selection
+  /// instead of rotating one.
+  bool get isUnfiltered =>
+      filterPlans.length == 1 && filterPlans.single.isUnfiltered;
+
   const SmartNightPlannedTarget({
     required this.suggestion,
     required this.windowStart,
@@ -74,6 +80,10 @@ class SmartNightFilterPlan {
   });
 
   double get integrationSecs => count * durationSecs;
+
+  /// True when this row carries no filter selection. Emitted as an
+  /// [ExposureNode] with a null `filter`, never as a filter change.
+  bool get isUnfiltered => filterName.trim().isEmpty;
 
   Map<String, dynamic> toJson() => {
     'filterName': filterName,

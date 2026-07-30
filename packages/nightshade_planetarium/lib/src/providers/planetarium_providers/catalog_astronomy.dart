@@ -72,19 +72,26 @@ final dsoSpatialIndexProvider = FutureProvider<DsoSpatialIndex>((ref) async {
 final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
   final indexAsync = ref.watch(starSpatialIndexProvider);
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
-  final viewState = ref.watch(skyViewStateProvider);
+  // The center must come from [viewCenterEquatorialProvider], not from
+  // skyViewState directly — in alt/az mode centerRA/centerDec point somewhere
+  // else entirely. Rotation is deliberately not a dependency: rolling the view
+  // does not change which objects are in it.
+  final (centerRa, centerDec) = ref.watch(viewCenterEquatorialProvider);
+  final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
   final maxStars = ref.watch(fovAdaptiveQualityProvider).maxStarsToRender;
+  final aspect = ref.watch(skyViewAspectRatioProvider);
 
   return indexAsync.whenData((index) {
     // Return only the brightest [maxStars] in view — the exact set the renderer
     // draws (it caps to maxStarsToRender). At wide fields this avoids gathering
     // and full-sorting tens of thousands of stars every pan frame.
     return index.queryBrightestInViewport(
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
+      centerRa,
+      centerDec,
+      fov,
       maxMagnitude: starMagLimit,
       maxResults: maxStars,
+      aspectRatio: aspect,
     );
   });
 });
@@ -97,16 +104,19 @@ final fovFilteredDsosProvider = Provider<AsyncValue<List<DeepSkyObject>>>((
 ) {
   final indexAsync = ref.watch(dsoSpatialIndexProvider);
   final (_, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
-  final viewState = ref.watch(skyViewStateProvider);
+  final (centerRa, centerDec) = ref.watch(viewCenterEquatorialProvider);
+  final fov = ref.watch(skyViewStateProvider.select((s) => s.fieldOfView));
   final maxDsos = ref.watch(fovAdaptiveQualityProvider).maxDsosToRender;
+  final aspect = ref.watch(skyViewAspectRatioProvider);
 
   return indexAsync.whenData((index) {
     return index.queryBrightestInViewport(
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
+      centerRa,
+      centerDec,
+      fov,
       maxMagnitude: dsoMagLimit,
       maxResults: maxDsos,
+      aspectRatio: aspect,
     );
   });
 });
@@ -123,8 +133,12 @@ final constellationDataProvider = Provider<List<ConstellationData>>((ref) {
 /// This prevents unnecessary recalculations of date-dependent values like twilight.
 final _currentDateProvider = Provider<DateTime>((ref) {
   final time = ref.watch(observationTimeProvider);
-  // Return only the date portion, so it only changes at midnight
-  return DateTime(time.time.year, time.time.month, time.time.day);
+  // Return only the date portion, so it only changes at midnight. Preserves
+  // UTC-ness for the same reason as [_currentMinuteProvider].
+  final t = time.time;
+  return t.isUtc
+      ? DateTime.utc(t.year, t.month, t.day)
+      : DateTime(t.year, t.month, t.day);
 });
 
 /// Provider that only updates when the minute changes (not every second)
@@ -132,14 +146,17 @@ final _currentDateProvider = Provider<DateTime>((ref) {
 /// which don't need per-second precision for sky rendering.
 final _currentMinuteProvider = Provider<DateTime>((ref) {
   final time = ref.watch(observationTimeProvider);
-  // Return only up to minute precision, ignoring seconds
-  return DateTime(
-    time.time.year,
-    time.time.month,
-    time.time.day,
-    time.time.hour,
-    time.time.minute,
-  );
+  // Return only up to minute precision, ignoring seconds.
+  //
+  // Truncating through the local `DateTime(...)` constructor DROPS the UTC flag,
+  // so a UTC observation time came back out as a local wall-clock time and every
+  // downstream sidereal-time, sun-altitude and alt/az calculation was off by the
+  // host's UTC offset. Local times (the app's own clock is `DateTime.now()`) are
+  // unaffected either way; this just stops silently relabelling a UTC instant.
+  final t = time.time;
+  return t.isUtc
+      ? DateTime.utc(t.year, t.month, t.day, t.hour, t.minute)
+      : DateTime(t.year, t.month, t.day, t.hour, t.minute);
 });
 
 /// Public provider for observation time at minute precision.
@@ -226,6 +243,23 @@ final localSiderealTimeProvider = Provider<double>((ref) {
   final time = ref.watch(observationTimeProvider);
 
   return AstronomyCalculations.localSiderealTime(time.time, location.longitude);
+});
+
+/// Apparent Sun altitude in degrees at the observing site and the planetarium's
+/// current observation time. Negative means the Sun is below the horizon.
+///
+/// Public because observability is not a function of target altitude alone:
+/// anything that grades a target ("Excellent", green pill, above-horizon
+/// colouring) has to know whether the sky is dark enough to use it.
+final sunAltitudeProvider = Provider<double>((ref) {
+  final location = ref.watch(observerLocationProvider);
+  final time = ref.watch(_currentMinuteProvider);
+
+  return AstronomyCalculations.sunAltitude(
+    dt: time,
+    latitudeDeg: location.latitude,
+    longitudeDeg: location.longitude,
+  );
 });
 
 /// Sun position for current time

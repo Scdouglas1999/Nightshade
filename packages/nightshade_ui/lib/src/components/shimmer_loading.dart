@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
+import '../utils/on_screen_animation_gate.dart';
 
 /// A shimmer loading effect for skeleton screens
 class ShimmerLoading extends StatefulWidget {
@@ -36,22 +37,28 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   // skeleton stays visible but static.
   static const Duration _shimmerAnimateCap = Duration(seconds: 6);
   Timer? _capTimer;
+  bool _capReached = false;
+
+  // Whether the shimmer WANTS to animate. Whether it actually may is decided by
+  // [OnScreenAnimationGate], which additionally requires the skeleton to be on
+  // screen. Never call `_controller.repeat()` directly here — an unconditional
+  // repeat is what pins the whole app off idle.
+  bool get _wantsShimmer => widget.isLoading && !_capReached;
 
   void _startShimmer() {
     _capTimer?.cancel();
-    _controller.repeat();
+    _capReached = false;
     _capTimer = Timer(_shimmerAnimateCap, () {
-      if (mounted && _controller.isAnimating) {
-        _controller.stop();
+      if (!mounted || _capReached) {
+        return;
       }
+      setState(() => _capReached = true);
     });
   }
 
   void _stopShimmer() {
     _capTimer?.cancel();
-    if (_controller.isAnimating) {
-      _controller.stop();
-    }
+    _capReached = false;
   }
 
   @override
@@ -120,27 +127,31 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
     // RepaintBoundary isolates the per-frame ShaderMask repaint so it can't
     // bubble out and dirty sibling/ancestor widgets every frame.
     return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return ShaderMask(
-            shaderCallback: (bounds) {
-              return LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: _cachedColors!,
-                stops: [
-                  (_controller.value - 0.3).clamp(0.0, 1.0),
-                  _controller.value,
-                  (_controller.value + 0.3).clamp(0.0, 1.0),
-                ],
-              ).createShader(bounds);
-            },
-            blendMode: BlendMode.srcATop,
-            child: child,
-          );
-        },
-        child: widget.child,
+      child: OnScreenAnimationGate(
+        controller: _controller,
+        repeating: _wantsShimmer,
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return ShaderMask(
+              shaderCallback: (bounds) {
+                return LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: _cachedColors!,
+                  stops: [
+                    (_controller.value - 0.3).clamp(0.0, 1.0),
+                    _controller.value,
+                    (_controller.value + 0.3).clamp(0.0, 1.0),
+                  ],
+                ).createShader(bounds);
+              },
+              blendMode: BlendMode.srcATop,
+              child: child,
+            );
+          },
+          child: widget.child,
+        ),
       ),
     );
   }

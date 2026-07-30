@@ -229,4 +229,27 @@ void main() {
     expect(download.onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a scope refusal tells the operator to re-pair with admin',
+      (tester) async {
+    final backend = _MockNetworkBackend();
+    _stubCatalogs(
+      backend,
+      status: const [_missingStars],
+      available: const [_availableStars],
+    );
+    when(() => backend.downloadCatalog('stars')).thenThrow(
+      Exception('Access denied: Token scope is not permitted for this '
+          'endpoint'),
+    );
+    await _pump(tester, backend);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Download'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('Admin access'), findsOneWidget);
+    expect(find.textContaining('Token scope is not permitted'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

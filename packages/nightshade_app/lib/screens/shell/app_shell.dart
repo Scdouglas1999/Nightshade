@@ -336,10 +336,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       // Initialize the checkpoint directory on desktop so checkpoints are
       // actually persisted this session. The desktop GUI never set it, so no
       // checkpoint was ever written and a mid-night crash was unrecoverable
-      // (no resume banner, all sequence state lost). Mobile sets its own
-      // checkpoint dir in its bootstrap, so restrict this to desktop to avoid
-      // overriding the mobile path with a different directory.
-      if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+      // (no resume banner, all sequence state lost). Only when this process IS
+      // the backend: a remote host owns its own storage layout, and pushing
+      // this machine's support directory at it would point the rig's crash
+      // recovery at a path that does not exist there.
+      final isLocalBackend = backend is! NetworkBackend;
+      if (isLocalBackend &&
+          (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
         try {
           final supportDir = await getApplicationSupportDirectory();
           await backend.sequencerSetCheckpointDir(supportDir.path);
@@ -529,22 +532,16 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
 
-    final primaryIndex = ShellNavigation.primaryIndexForLocation(location);
-    if (primaryIndex >= 0) {
-      return primaryIndex;
-    }
-
-    // Scheduler / diagnostics redirect into tabbed parents; settings and
-    // polar alignment are title-bar or overflow routes.
-    switch (location.split('?').first) {
-      case '/scheduler':
-      case '/diagnostics':
-      case '/settings':
-      case '/polar-alignment':
-        return -1;
-      default:
-        return 0;
-    }
+    // -1 = nothing highlighted, and that is the correct answer for every route
+    // no rail destination hosts: Settings (+ its plate-solving child), Polar
+    // Alignment, Tonight, the Flat Wizard, the mosaic / session-review /
+    // stack-result viewers and /diagnostics/dump. Defaulting to 0 lit up
+    // Dashboard on all of them, so the rail confidently claimed the operator was
+    // on a screen they were not — the strongest signal the shell gives about
+    // where you are was simply wrong. Sub-routes still resolve to their host
+    // (/imaging/preview/:id lights Imaging), which the old exact-match default
+    // also got wrong.
+    return ShellNavigation.primaryIndexForLocation(location);
   }
 
   void _onTabSelected(int index, BuildContext context) {

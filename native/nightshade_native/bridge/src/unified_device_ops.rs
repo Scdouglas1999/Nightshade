@@ -876,7 +876,7 @@ impl DeviceOps for UnifiedDeviceOps {
                     star_count,
                 },
                 exposure_time: duration_secs,
-                timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+                timestamp: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
                 is_color,
             };
 
@@ -1308,7 +1308,8 @@ impl DeviceOps for UnifiedDeviceOps {
         let header = FitsWriteHeader {
             object_name: Some("Plate Solve".to_string()),
             exposure_time: image_data.exposure_secs,
-            capture_timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+            capture_timestamp: chrono::Utc::now()
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             frame_type: "Light".to_string(),
             filter: image_data.filter.clone(),
             gain: image_data.gain,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -96,7 +98,13 @@ class OnboardingTooltipCard extends StatelessWidget {
     final placeBelow = rect.center.dy < screenSize.height / 2;
 
     double left = rect.center.dx - cardWidth / 2;
-    left = left.clamp(margin, screenSize.width - cardWidth - margin);
+    // Under 600 px the card is sized to `width - 32`, which lands this bound
+    // exactly on `margin`; anything that widens the card past that would
+    // invert it and throw. Floor it against the near margin.
+    left = left.clamp(
+      margin,
+      math.max(margin, screenSize.width - cardWidth - margin),
+    );
 
     double top;
     if (placeBelow) {

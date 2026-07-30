@@ -276,6 +276,9 @@ class SeededReviewController extends SessionReviewController {
       targetId: 1,
       targetName: 'NGC 7000',
       masters: [seededMaster()],
+      // The reviewed master is now an explicit, scope-resolved field rather than
+      // "newest row in the library" — the seed states it.
+      reviewedMaster: seededMaster(),
       lastOutcome: seededOutcome(previewPath: previewPath),
       nightReport: seededNightReport(),
       improvementCurve: seededImprovementCurve(),

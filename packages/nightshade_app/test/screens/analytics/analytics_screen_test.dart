@@ -5,6 +5,8 @@
 // deterministic test doubles that emit a single empty list, so the tab
 // chrome renders without the heavy database stack.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -254,6 +256,65 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // The Share action used to throw
+  // "UnimplementedError: shareXFiles() has not been implemented on Linux" into
+  // a red toast on the shipping desktop build, after already writing an
+  // orphaned CSV. It is now offered only where an OS share sheet exists; the
+  // CSV button beside it covers desktop.
+  testWidgets('desktop session detail offers no Share action', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final session = ImagingSession(
+      id: 9,
+      name: 'Local M81',
+      startTime: DateTime(2026, 7, 25),
+      totalExposures: 8,
+      successfulExposures: 8,
+      failedExposures: 0,
+      totalIntegrationSecs: 24,
+      autofocusCount: 0,
+      status: 'completed',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          allSessionsProvider.overrideWith(
+            (ref) => Stream<List<ImagingSession>>.value([session]),
+          ),
+          dbSessionImagesProvider(9).overrideWith(
+            (ref) => Stream<List<DbCapturedImage>>.value(const []),
+          ),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(
+            body: AnalyticsScreen(initialTab: AnalyticsTab.history),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.text('Local M81'));
+    // pump, not pumpAndSettle: in local mode the screen's image/thumbnail
+    // futures never go idle.
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    // The dialog is open (its export actions are there)…
+    expect(find.byTooltip('Export to CSV'), findsOneWidget);
+    // …and the unimplemented-on-desktop Share action is not.
+    expect(find.byTooltip('Share'), findsNothing);
+  }, skip: Platform.isAndroid || Platform.isIOS);
 
   // ===========================================================================
   // Phone responsiveness: the six-tab bar must not overflow on a phone in

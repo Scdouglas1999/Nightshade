@@ -496,15 +496,24 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                               ? l10n.text('remoteAccessScopeLocal')
                               : l10n.text('remoteAccessScopeLan'),
                         ),
+                        // This row is about the bundled dashboard FILES, not
+                        // about reachability. Rendered green next to "Server
+                        // Status: Stopped" it read as "the dashboard is up", so
+                        // it now says whether it is actually being served and
+                        // only claims success while the server is running.
                         _StatusRow(
                           icon: LucideIcons.monitor,
-                          iconColor: webState.dashboardAvailable
-                              ? NightshadeColors.of(context).success
-                              : NightshadeColors.of(context).warning,
+                          iconColor: !webState.dashboardAvailable
+                              ? NightshadeColors.of(context).warning
+                              : webState.isRunning
+                                  ? NightshadeColors.of(context).success
+                                  : NightshadeColors.of(context).textMuted,
                           label: l10n.text('remoteAccessDashboard'),
-                          value: webState.dashboardAvailable
-                              ? l10n.text('remoteAccessDashboardAvailable')
-                              : l10n.text('remoteAccessDashboardMissing'),
+                          value: !webState.dashboardAvailable
+                              ? l10n.text('remoteAccessDashboardMissing')
+                              : webState.isRunning
+                                  ? l10n.text('remoteAccessDashboardServing')
+                                  : l10n.text('remoteAccessDashboardIdle'),
                         ),
                         _StatusRow(
                           icon: LucideIcons.users,
@@ -514,6 +523,11 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           label: l10n.text('remoteAccessActiveViewers'),
                           value: webState.activeViewers.toString(),
                         ),
+                        // The error is the only actionable content on this
+                        // panel, and it used to clip after two lines — cutting
+                        // off the port number the operator needs. Show a
+                        // plain-language summary, let it wrap, and keep the raw
+                        // text selectable + copyable.
                         _StatusRow(
                           icon: webState.lastError.isEmpty
                               ? LucideIcons.info
@@ -524,7 +538,14 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           label: l10n.text('remoteAccessLastError'),
                           value: webState.lastError.isEmpty
                               ? l10n.text('remoteAccessNoErrors')
+                              : explainRemoteAccessError(
+                                  webState.lastError,
+                                  webState.configuredPort,
+                                ),
+                          copyValue: webState.lastError.isEmpty
+                              ? null
                               : webState.lastError,
+                          valueMaxLines: webState.lastError.isEmpty ? 2 : 6,
                           isLast: true,
                         ),
                       ],

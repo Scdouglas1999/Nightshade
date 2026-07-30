@@ -8,12 +8,34 @@ mixin _GuidingMobileSections
         ConsumerState<GuidingScreen>,
         _GuidingStateFields,
         _GuidingDesktopSections {
-  /// Minimum height the live guide graph is given on a phone so it never
+  /// Preferred height the live guide graph is given on a phone so it never
   /// collapses to an unreadable sliver — especially in landscape where the
   /// viewport height is small. The graph stays mounted (so it keeps streaming)
   /// in both orientations because the same [_buildCenterPanel] instance is the
   /// `start`/top pane in either branch.
+  ///
+  /// This is a *preference*, not a hard floor: [_stackedGraphHeight] caps it
+  /// against the ceiling so the two bounds can never invert.
   static const double _phoneGraphMinHeight = 200.0;
+
+  /// Height below which the stacked layout trades chrome for content — the
+  /// graph panel's outer gutter shrinks so the plot keeps a usable share of a
+  /// short viewport instead of spending it on padding.
+  static const double _phoneCompactHeight = 380.0;
+
+  /// Height of the graph pane in the stacked (portrait / narrow landscape)
+  /// phone layout.
+  ///
+  /// Total-order safe by construction: the preferred height is raised to
+  /// [_phoneGraphMinHeight] and only then capped at 60% of what is available,
+  /// so a short viewport (a persistent banner above this screen, a small
+  /// device, a split-screen window) degrades to the cap instead of inverting a
+  /// clamp's bounds and throwing.
+  static double _stackedGraphHeight(double availableHeight) {
+    final ceiling = availableHeight * 0.6;
+    final preferred = math.max(availableHeight * 0.42, _phoneGraphMinHeight);
+    return math.min(preferred, ceiling);
+  }
 
   Widget _buildMobileLayout(
     NightshadeColors colors,
@@ -25,10 +47,6 @@ mixin _GuidingMobileSections
     // are the secondary region. In phone landscape we place them side-by-side
     // (graph left, controls right) via TwoPane; in portrait they stack with the
     // graph pinned to a sensible min height and the tabs filling the rest.
-    final graph = Padding(
-      padding: const EdgeInsets.all(12),
-      child: _buildCenterPanel(colors, guideStats),
-    );
     final tabs = _buildMobileTabSection(
       colors,
       isConnected,
@@ -50,26 +68,40 @@ mixin _GuidingMobileSections
           }
           final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
+          Widget graphPane(double gutter) => Padding(
+                padding: EdgeInsets.all(gutter),
+                child: _buildCenterPanel(colors, guideStats),
+              );
+
           // Landscape with enough width: graph beside controls. TwoPane keeps
-          // both panes mounted so the graph keeps streaming.
+          // both panes mounted so the graph keeps streaming, and each pane
+          // already has the full viewport height to work with.
           if (isLandscape && constraints.maxWidth >= 560) {
             return TwoPane(
-              start: graph,
+              start: graphPane(NightshadeTokens.spaceMd),
               end: tabs,
               startFlex: 3,
               endFlex: 2,
             );
           }
 
-          // Portrait / narrow landscape: stack. Give the graph a fixed,
-          // legible height (clamped to leave room for the tab section) and let
-          // the tabbed controls take the remainder.
-          final graphHeight = (constraints.maxHeight * 0.42)
-              .clamp(_phoneGraphMinHeight, constraints.maxHeight * 0.6);
+          // Portrait / narrow landscape: stack. Give the graph its preferred
+          // legible height, capped to leave room for the tab section, and let
+          // the tabbed controls take the remainder. Here the graph only gets a
+          // fraction of the viewport, so a short one spends its gutter on the
+          // plot instead.
+          final graphHeight = _stackedGraphHeight(constraints.maxHeight);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(height: graphHeight, child: graph),
+              SizedBox(
+                height: graphHeight,
+                child: graphPane(
+                  constraints.maxHeight < _phoneCompactHeight
+                      ? NightshadeTokens.spaceSm
+                      : NightshadeTokens.spaceMd,
+                ),
+              ),
               Expanded(child: tabs),
             ],
           );
@@ -229,11 +261,11 @@ mixin _GuidingMobileSections
                             ),
                             loading: () => GuideStarView(
                               key: GuidingTutorialKeys.starView,
-                              statusMessage: 'Waiting for image...',
+                              statusMessage: _starViewIdleMessage(),
                             ),
                             error: (_, __) => GuideStarView(
                               key: GuidingTutorialKeys.starView,
-                              statusMessage: 'No star selected',
+                              statusMessage: 'Guide star image unavailable',
                             ),
                           ),
                         ),
@@ -251,14 +283,19 @@ mixin _GuidingMobileSections
                             key: GuidingTutorialKeys.targetDisplay,
                             errorHistory: errorHistory
                                 .map((e) => GuideErrorPoint(
-                                      raError: e.raError,
-                                      decError: e.decError,
+                                      raError: _errorForDisplay(
+                                          e.raError, stats.pixelScale),
+                                      decError: _errorForDisplay(
+                                          e.decError, stats.pixelScale),
                                       timestamp: e.timestamp,
                                     ))
                                 .toList(),
-                            currentRaError: currentError?.raError ?? 0,
-                            currentDecError: currentError?.decError ?? 0,
+                            currentRaError: _errorForDisplay(
+                                currentError?.raError ?? 0, stats.pixelScale),
+                            currentDecError: _errorForDisplay(
+                                currentError?.decError ?? 0, stats.pixelScale),
                             scaleArcsec: _yScale.arcsec / 2,
+                            unitSuffix: _errorUnit(stats.pixelScale),
                             numRings: 3,
                           ),
                         ),
@@ -304,11 +341,11 @@ mixin _GuidingMobileSections
                         ),
                         loading: () => GuideStarView(
                           key: GuidingTutorialKeys.starView,
-                          statusMessage: 'Waiting for image...',
+                          statusMessage: _starViewIdleMessage(),
                         ),
                         error: (_, __) => GuideStarView(
                           key: GuidingTutorialKeys.starView,
-                          statusMessage: 'No star selected',
+                          statusMessage: 'Guide star image unavailable',
                         ),
                       ),
                     ),
@@ -324,14 +361,19 @@ mixin _GuidingMobileSections
                         key: GuidingTutorialKeys.targetDisplay,
                         errorHistory: errorHistory
                             .map((e) => GuideErrorPoint(
-                                  raError: e.raError,
-                                  decError: e.decError,
+                                  raError: _errorForDisplay(
+                                      e.raError, stats.pixelScale),
+                                  decError: _errorForDisplay(
+                                      e.decError, stats.pixelScale),
                                   timestamp: e.timestamp,
                                 ))
                             .toList(),
-                        currentRaError: currentError?.raError ?? 0,
-                        currentDecError: currentError?.decError ?? 0,
+                        currentRaError: _errorForDisplay(
+                            currentError?.raError ?? 0, stats.pixelScale),
+                        currentDecError: _errorForDisplay(
+                            currentError?.decError ?? 0, stats.pixelScale),
                         scaleArcsec: _yScale.arcsec / 2,
+                        unitSuffix: _errorUnit(stats.pixelScale),
                         numRings: 3,
                       ),
                     ),
@@ -349,11 +391,14 @@ mixin _GuidingMobileSections
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildStatRow('SNR', stats.snr.toStringAsFixed(1),
+                _buildStatRow('SNR', _starMetricText(stats.snr),
                     _getSnrColor(stats.snr, colors), colors),
                 const SizedBox(height: 10),
-                _buildStatRow('Star Mass', stats.starMass.toStringAsFixed(0),
-                    colors.textPrimary, colors),
+                _buildStatRow(
+                    'Star Mass',
+                    _starMetricText(stats.starMass, decimals: 0),
+                    stats.starMass > 0 ? colors.textPrimary : colors.textMuted,
+                    colors),
                 const SizedBox(height: 10),
                 _buildStatRow('Frame Count', stats.frameCount.toString(),
                     colors.textPrimary, colors),

@@ -120,6 +120,7 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     // Plate-solving extra.
     'plate_solver',
     'blind_solve',
+    'centering_sync_mount',
     // Site / horizon.
     'bortle_class',
     'effective_horizon_deg',
@@ -368,6 +369,12 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           : null,
       blindSolve: settings.containsKey('blind_solve')
           ? _parseBool(settings['blind_solve'], current.blindSolve)
+          : null,
+      centeringSyncMount: settings.containsKey('centering_sync_mount')
+          ? _parseBool(
+              settings['centering_sync_mount'],
+              current.centeringSyncMount,
+            )
           : null,
       phd2Path: settings['phd2_path'],
       phd2Host: settings['phd2_host'],

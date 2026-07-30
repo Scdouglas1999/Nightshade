@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -230,11 +232,14 @@ class _MinimapPainter extends CustomPainter {
           (scrollController.offset / totalContentHeight) * size.height;
       final viewportSize = (viewportHeight / totalContentHeight) * size.height;
 
+      // The 8 px readability floor cannot exceed the strip it sits in — a
+      // minimap under 8 px tall would invert the bounds and throw out of
+      // paint().
       final viewportRect = Rect.fromLTWH(
         0,
         viewportTop,
         size.width,
-        viewportSize.clamp(8, size.height),
+        viewportSize.clamp(math.min(8, size.height), size.height),
       );
 
       // Semi-transparent overlay outside viewport

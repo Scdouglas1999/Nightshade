@@ -147,6 +147,82 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // Regression: reserving the band is right for a page of cards and WRONG for a
+  // full-bleed canvas.
+  //
+  // On first entry to the Planetarium the sky canvas stopped ~150px short of its
+  // container and the strip below it was flat page background with the tour card
+  // floating in it — measured at a constant ~150px across 1600x900, 1400x1300,
+  // 1920x1200 and 5120x1400, i.e. ~25% of the viewport on a 1366x768 laptop. It
+  // snapped back to full height the moment the card was dismissed. The card
+  // already sits in the sky's empty bottom-right corner, so on such a screen it
+  // must float instead.
+  testWidgets('a full-bleed host can opt out and keep all of its height',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      const ContextualTourPrompt(
+        screenId: 'tour-no-reservation-test',
+        tourCategory: TutorialCategory.planetariumTour,
+        title: 'Planetarium Tour',
+        description: 'Learn how to navigate the sky and find targets.',
+        reserveSpaceForCard: false,
+        child: SizedBox.expand(
+          child: ColoredBox(color: Color(0xFF102030), key: _childKey),
+        ),
+      ),
+      size: const Size(1600, 900),
+      settle: false,
+    );
+    await tester.pumpAndSettle();
+
+    final before = tester.getRect(find.byKey(_childKey));
+    await _waitForPrompt(tester);
+
+    expect(
+      find.byKey(contextualTourPromptCardKey),
+      findsOneWidget,
+      reason: 'the prompt did not appear, so the test proves nothing',
+    );
+    expect(
+      tester.getRect(find.byKey(_childKey)),
+      before,
+      reason: 'an opted-out host must not lose a pixel of its canvas to the '
+          'nudge; on the planetarium that band was ~150px of dead black',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opting out still floats the card inside the host',
+      (tester) async {
+    await pumpAppScreen(
+      tester,
+      const ContextualTourPrompt(
+        screenId: 'tour-no-reservation-overlap-test',
+        tourCategory: TutorialCategory.planetariumTour,
+        title: 'Planetarium Tour',
+        description: 'Learn how to navigate the sky and find targets.',
+        reserveSpaceForCard: false,
+        child: SizedBox.expand(
+          child: ColoredBox(color: Color(0xFF102030), key: _childKey),
+        ),
+      ),
+      size: const Size(1600, 900),
+      settle: false,
+    );
+    await tester.pumpAndSettle();
+    await _waitForPrompt(tester);
+
+    final childRect = tester.getRect(find.byKey(_childKey));
+    final cardRect = tester.getRect(find.byKey(contextualTourPromptCardKey));
+
+    // Deliberately the inverse of the reserved-band assertion: here the card is
+    // SUPPOSED to sit over the canvas, in the corner that holds only sky.
+    expect(childRect.overlaps(cardRect), isTrue);
+    expect(cardRect.bottom, lessThanOrEqualTo(childRect.bottom + 1));
+    expect(cardRect.right, lessThanOrEqualTo(childRect.right + 1));
+  });
+
   testWidgets('dismissing returns the reserved band to the content',
       (tester) async {
     await _pumpPrompt(tester, size: const Size(800, 600));

@@ -65,17 +65,42 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                           final listedIds =
                               ref.watch(listedCatalogIdsProvider).valueOrNull ??
                                   {};
+                          // Targets of tonight's sequence get their own
+                          // marker on the sky, so the plan is visible where the
+                          // user is choosing what to shoot.
+                          final sequencedIds = ref.watch(
+                            sequencedObjectIdsProvider,
+                          );
                           final bortleClass = ref.watch(bortleClassProvider);
                           final horizonProfile =
                               ref.watch(horizonProfileProvider);
+                          // Sky-survey imagery behind the chart, for the narrow
+                          // fields where the star catalogue runs out (~3 stars
+                          // per square degree). Off unless the user turns it on
+                          // AND the view is zoomed in past the threshold, so
+                          // the common case allocates nothing. `occludes` is
+                          // false until tiles are actually on screen, which is
+                          // what keeps the view from ever going blank while
+                          // imagery loads — or forever, offline.
+                          final imageryActive =
+                              ref.watch(planetariumSkyImageryActiveProvider);
                           return FullScreenSkyView(
                             key: PlanetariumTutorialKeys.skyView,
                             showFOV: _showFOV,
                             onObjectTapped: _handleObjectTapped,
                             observedObjectIds: observedIds,
                             listedObjectIds: listedIds,
+                            sequencedObjectIds: sequencedIds,
                             bortleClass: bortleClass,
                             measurementMode: ref.watch(measurementModeProvider),
+                            backgroundLayer: imageryActive
+                                ? SkyBackgroundLayer(
+                                    child: const PlanetariumSkyImageryLayer(),
+                                    occludesSkyGradient: ref.watch(
+                                      planetariumSkyImageryVisibleProvider,
+                                    ),
+                                  )
+                                : null,
                             horizonAltitudes: horizonProfile.isFlat
                                 ? null
                                 : List<double>.generate(
@@ -122,6 +147,32 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                         },
                       ),
                     ),
+
+                  // --- Star catalog fallback warning ---
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    width: _fallbackBannerWidth(constraints.maxWidth),
+                    child: const StarCatalogFallbackBanner(),
+                  ),
+
+                  // --- Sky-survey imagery credit ---
+                  // A licence obligation, not chrome: CDS and the survey
+                  // publishers require the credit whenever their imagery is on
+                  // screen. Top-centre is the one free band (the fallback
+                  // banner is top-left, the perf HUD top-right, and the compass
+                  // / minimap / time control / info bar own the bottom edge).
+                  // Only the pill itself is hit-testable, so the Align over
+                  // empty space does not steal the sky's pan gestures.
+                  const Positioned(
+                    top: 12,
+                    left: 0,
+                    right: 0,
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: PlanetariumSkyImageryAttribution(),
+                    ),
+                  ),
 
                   // --- Performance HUD (debug / opt-in) ---
                   if (kDebugMode || ref.watch(showPerfHudProvider))
@@ -253,20 +304,19 @@ extension _PlanetariumShell on _PlanetariumScreenState {
                     ObjectInfoPopup(
                       colors: colors,
                       object: _popupObject!,
-                      coordinates:
-                          _popupCoordinates ?? _popupObject!.coordinates,
-                      selectedObjectState: selectedObject,
+                      coordinates: _popupObject!.coordinates,
                       position: _popupPosition,
                       onDismiss: _dismissPopup,
                       onSendToFraming: _sendToFraming,
                       onAddToSequencer: _addToSequencer,
+                      onAddToQueue: _addPopupObjectToTargetQueue,
                       onSlewToTarget: _handleSlewToTarget,
                       onSlewAndCenter: () => _handleSlewAndCenter(
-                        _popupCoordinates ?? _popupObject!.coordinates,
+                        _popupObject!.coordinates,
                         _popupObject!.name,
                       ),
                       onSlewCenterRotate: () => _handleSlewCenterRotate(
-                        _popupCoordinates ?? _popupObject!.coordinates,
+                        _popupObject!.coordinates,
                         _popupObject!.name,
                       ),
                       onExportChart: () => _exportFinderChart(context),
@@ -290,6 +340,12 @@ extension _PlanetariumShell on _PlanetariumScreenState {
 
   double _shellPanelWidth(double maxWidth) {
     return clampPanelWidth(maxWidth, fraction: 0.30, min: 280, max: 380);
+  }
+
+  /// Width of the catalog-fallback warning: clear of the perf HUD on the right
+  /// on desktop, near full-bleed on a phone.
+  double _fallbackBannerWidth(double maxWidth) {
+    return (maxWidth - 24).clamp(0.0, 460.0);
   }
 
   /// Plan/object panel content — reuses the exact desktop composition:

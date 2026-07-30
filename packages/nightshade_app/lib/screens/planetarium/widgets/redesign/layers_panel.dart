@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import '../../../settings/catalog_settings_screen.dart';
+import '../../sky_imagery/planetarium_sky_imagery_providers.dart';
+
 /// Unified layers panel — the single source of truth for sky visibility.
 ///
 /// Replaces the scattered toggles that used to live in the left rail,
@@ -43,11 +46,24 @@ class LayersPanel extends ConsumerWidget {
                     value: config.showStars,
                     onChanged: (_) => notifier.toggleStars(),
                   ),
+                  // Gated on an actually-installed tileset. No official deep
+                  // tileset is published, so on a stock install flipping this
+                  // switch could never do anything: the sky was pixel-identical
+                  // with no toast, no progress and no "not installed" state, and
+                  // the switch stayed on. A control that cannot act must say so.
+                  _DeepStarsSwitch(),
+                  // The catalogue thins out to nothing at imaging fields, so
+                  // this streams real DSS imagery behind the chart instead.
+                  // Needs the internet, hence off by default and labelled with
+                  // the zoom it engages at, so an offline user is not left
+                  // wondering why a switch they flipped did nothing.
                   _LayerSwitch(
-                    label: 'Deep stars (Tycho-2 / Gaia tier)',
-                    value: ref.watch(showDeepStarsProvider),
-                    onChanged: (v) =>
-                        ref.read(showDeepStarsProvider.notifier).state = v,
+                    label: 'Survey imagery (DSS, below '
+                        '${kPlanetariumSkyImageryMaxFovDegrees.toStringAsFixed(0)}°)',
+                    value: ref.watch(planetariumSkyImageryEnabledProvider),
+                    onChanged: (v) => ref
+                        .read(planetariumSkyImageryEnabledProvider.notifier)
+                        .state = v,
                   ),
                   _LayerSwitch(
                     label: 'Deep-sky objects',
@@ -98,20 +114,30 @@ class LayersPanel extends ConsumerWidget {
                 title: 'Grids & Lines',
                 colors: colors,
                 children: [
-                  _LayerSwitch(
-                    label: 'Equatorial grid',
-                    value: config.showEquatorialGrid,
-                    onChanged: (_) => notifier.toggleEquatorialGrid(),
-                  ),
-                  _LayerSwitch(
-                    label: 'Alt/Az grid',
-                    value: config.showAltAzGrid,
-                    onChanged: (_) => notifier.toggleAltAzGrid(),
-                  ),
+                  // 'Coordinate grid' is the master switch; the two frame
+                  // switches under it only choose WHICH grid it draws. Listed as
+                  // three peers (with the master last) they read as independent
+                  // layers, so turning 'Equatorial grid' on while the master was
+                  // off drew nothing and said nothing. Master first, dependents
+                  // indented and visibly disabled until it is on.
                   _LayerSwitch(
                     label: 'Coordinate grid',
                     value: config.showCoordinateGrid,
                     onChanged: (_) => notifier.toggleGrid(),
+                  ),
+                  _LayerSwitch(
+                    label: 'Equatorial (RA/Dec) lines',
+                    value: config.showEquatorialGrid,
+                    enabled: config.showCoordinateGrid,
+                    indented: true,
+                    onChanged: (_) => notifier.toggleEquatorialGrid(),
+                  ),
+                  _LayerSwitch(
+                    label: 'Alt/Az lines',
+                    value: config.showAltAzGrid,
+                    enabled: config.showCoordinateGrid,
+                    indented: true,
+                    onChanged: (_) => notifier.toggleAltAzGrid(),
                   ),
                   _LayerSwitch(
                     label: 'Ecliptic',
@@ -182,7 +208,10 @@ class LayersPanel extends ConsumerWidget {
                     onChanged: (_) => notifier.toggleHorizon(),
                   ),
                   _LayerSwitch(
-                    label: 'Ground plane',
+                    // The ground is occluding terrain, which only the horizon
+                    // view has — the equatorial star atlas draws none, so
+                    // leaving this unqualified made it look broken there.
+                    label: 'Ground plane (horizon view)',
                     value: ref.watch(showGroundPlaneProvider),
                     onChanged: (v) =>
                         ref.read(showGroundPlaneProvider.notifier).state = v,
@@ -302,38 +331,146 @@ class _LayerSwitch extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
+    this.indented = false,
+    this.trailing,
+    this.subtitle,
   });
 
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// False for a row whose effect is currently impossible (a missing catalog, a
+  /// master switch that is off). Renders inert and greyed rather than accepting
+  /// a flip that silently does nothing.
+  final bool enabled;
+
+  /// Indents the row to show it modifies the switch above it.
+  final bool indented;
+
+  /// Optional affordance shown instead of the switch (e.g. an install action).
+  final Widget? trailing;
+
+  /// Optional second line explaining an inert row.
+  final String? subtitle;
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final labelColor = !enabled
+        ? colors.textMuted
+        : (value ? colors.textPrimary : colors.textSecondary);
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged(!value) : null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: EdgeInsets.only(
+          left: indented ? 32 : 16,
+          right: 16,
+          top: 4,
+          bottom: 4,
+        ),
         child: Row(
           children: [
             Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: value ? colors.textPrimary : colors.textSecondary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize13,
+                      color: labelColor,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                ],
               ),
             ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: colors.accent,
-            ),
+            if (trailing != null)
+              trailing!
+            else
+              Switch(
+                value: enabled && value,
+                onChanged: enabled ? onChanged : null,
+                activeThumbColor: colors.accent,
+              ),
           ],
         ),
       ),
     );
+  }
+}
+
+/// The deep-star tier row.
+///
+/// Reads [deepStarManifestProvider] so the row reflects whether a tileset is
+/// actually installed. No tileset is published by default (the shipped
+/// `deep_stars/config.json` points at a dev localhost host), so without this
+/// gate the switch was a live-looking control that could never draw a star.
+class _DeepStarsSwitch extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final manifest = ref.watch(deepStarManifestProvider);
+    const label = 'Deep stars (Tycho-2 / Gaia tier)';
+
+    if (manifest.isLoading) {
+      return _LayerSwitch(
+        label: label,
+        value: false,
+        enabled: false,
+        subtitle: 'Checking for an installed tileset...',
+        onChanged: (_) {},
+      );
+    }
+
+    if (manifest.valueOrNull == null) {
+      return _LayerSwitch(
+        label: label,
+        value: false,
+        enabled: false,
+        subtitle: 'No tileset installed - stars below mag '
+            '${kHygFaintFloorMag.toStringAsFixed(1)} are unavailable',
+        trailing: NightshadeButton(
+          label: 'Install',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: () => _openCatalogSettings(context, ref),
+        ),
+        onChanged: (_) {},
+      );
+    }
+
+    return _LayerSwitch(
+      label: label,
+      value: ref.watch(showDeepStarsProvider),
+      subtitle: 'Engages below '
+          '${kDeepStarFovThresholdDegrees.toStringAsFixed(0)}\u00b0 field',
+      onChanged: (v) => ref.read(showDeepStarsProvider.notifier).state = v,
+    );
+  }
+
+  void _openCatalogSettings(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 800,
+            designMaxHeight: 700,
+          ),
+          child: const CatalogSettingsScreen(),
+        ),
+      ),
+    ).then((_) => ref.read(deepStarManifestRefreshProvider.notifier).state++);
   }
 }

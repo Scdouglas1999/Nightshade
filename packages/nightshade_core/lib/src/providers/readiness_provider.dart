@@ -6,6 +6,7 @@ import 'dark_library_provider.dart';
 import 'equipment/camera_state_provider.dart';
 import 'equipment/focuser_state_provider.dart';
 import 'equipment/mount_state_provider.dart';
+import 'equipment/profile_connection_status_provider.dart';
 import 'plate_solver_provider.dart';
 import 'profiles_provider.dart';
 import 'settings_provider.dart';
@@ -98,6 +99,18 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
       focuser.connectionState == DeviceConnectionState.connected &&
       focuser.position != null;
 
+  // --- Other assigned profile devices --------------------------------------
+  // Camera and mount are already covered by the critical-devices item, so they
+  // are filtered out here to avoid double-reporting the same fault.
+  final offlineProfileDevices = ref
+      .watch(offlineProfileDeviceNamesProvider)
+      .where(
+        (name) =>
+            name != ProfileDeviceSlot.camera.displayName &&
+            name != ProfileDeviceSlot.mount.displayName,
+      )
+      .toList(growable: false);
+
   return buildReadinessReport(
     cameraConnected: cameraConnected,
     mountConnected: mountConnected,
@@ -107,6 +120,7 @@ final readinessReportProvider = Provider<ReadinessReport>((ref) {
     plateSolverReady: plateSolverReady,
     darkLibraryHasCoverage: darkLibraryHasCoverage,
     focusKnown: focusKnown,
+    offlineProfileDevices: offlineProfileDevices,
   );
 });
 

@@ -366,6 +366,15 @@ impl Trigger {
                     return false;
                 }
 
+                // A flip only means anything for a target we are tracking.
+                // Hour angle comes from the MOUNT, so without this the trigger
+                // fires on a run that never set a target — and the flip arm
+                // then either slews to whatever coordinates were left over or
+                // reports a flip failure the operator cannot act on.
+                if state.target_ra.is_none() || state.target_dec.is_none() {
+                    return false;
+                }
+
                 match config.trigger_method {
                     crate::MeridianTriggerMethod::MinutesPastMeridian => {
                         if let Some(ha) = state.current_hour_angle {
@@ -1121,6 +1130,13 @@ pub struct TriggerState {
     /// Most recent timestamp at which we received a transparency update.
     /// Surfaced to the run dashboard for staleness checks.
     pub transparency_last_update: Option<Instant>,
+
+    /// Set by [`crate::checkpoint::TriggerStateSnapshot::restore_into`] and
+    /// consumed by [`Self::reset_for_new_run`]. A resumed run re-enters its
+    /// tree with the already-completed `TargetHeader` short-circuited, so its
+    /// restored target must survive the run-start reset; a fresh run's must
+    /// not.
+    pub restored_from_checkpoint: bool,
 }
 
 impl Default for TriggerState {
@@ -1194,6 +1210,7 @@ impl Default for TriggerState {
             // Dart science pipeline pushes the first `UpdateTransparency`.
             current_transparency: None,
             transparency_last_update: None,
+            restored_from_checkpoint: false,
         }
     }
 }
@@ -1323,8 +1340,16 @@ impl TriggerState {
     ///
     /// Deliberately NOT cleared here: operator/runtime configuration
     /// (thresholds, retention windows, meridian config) and live device
-    /// telemetry (weather verdict, pier side, altitude), which are properties of
-    /// the rig rather than of a run.
+    /// telemetry (weather verdict, pier side), which are properties of the rig
+    /// rather than of a run.
+    ///
+    /// Simulator campaign 2026-07-28 (Q1/Q2): the target is a property of the
+    /// RUN and was previously left alone, so a sequence with no `TargetHeader`
+    /// anywhere inherited the previous run's coordinates. Its altitude-limit
+    /// trigger fired 4 ms after start (on an altitude computed from a target
+    /// this run never had) and skipped the whole tree while reporting
+    /// `completed`; its meridian trigger slewed the mount to the previous
+    /// target in daylight.
     pub fn reset_for_new_run(&mut self) {
         self.baseline_hfr = None;
         self.current_hfr = None;
@@ -1338,6 +1363,31 @@ impl TriggerState {
         self.completed_exposures = 0;
         self.last_autofocus_frame = 0;
         self.last_dither_frame = 0;
+        if std::mem::take(&mut self.restored_from_checkpoint) {
+            return;
+        }
+        self.clear_target_state();
+    }
+
+    /// Drop everything derived from a target: the coordinates themselves, the
+    /// values computed from them (altitude, hour angle, flip time), and the
+    /// plate-solve reference they are compared against.
+    ///
+    /// `current_altitude` matters as much as the coordinates: the executor's
+    /// monitor loop only recomputes it while a target is set, so a stale
+    /// altitude left behind here keeps the altitude-limit trigger firing for a
+    /// run that has no target at all.
+    pub fn clear_target_state(&mut self) {
+        self.current_target_name = None;
+        self.target_ra = None;
+        self.target_dec = None;
+        self.current_altitude = None;
+        self.current_hour_angle = None;
+        self.next_meridian_flip_time = None;
+        self.tracking_limit_detected_at = None;
+        self.last_plate_solve_ra = None;
+        self.last_plate_solve_dec = None;
+        self.last_plate_solve_pixel_scale = None;
     }
 
     /// Mark that dither was just performed
@@ -3107,6 +3157,9 @@ mod tests {
     /// Helper to create a TriggerState simulating a mount that hit its tracking limit
     fn make_limit_hit_state() -> TriggerState {
         let mut state = TriggerState::new();
+        // A mount only reaches its tracking limit while tracking a target, and
+        // the flip trigger now requires one.
+        state.set_target(270.0, 60.0);
         state.mount_tracking_expected = true;
         state.mount_tracking_lost = true;
         state.mount_is_tracking = Some(false);
@@ -3438,6 +3491,7 @@ mod tests {
         );
 
         let mut state = TriggerState::new();
+        state.set_target(270.0, 60.0);
         state.mount_tracking_expected = true;
         state.mount_tracking_lost = true;
         state.mount_is_tracking = Some(false);
@@ -4238,6 +4292,139 @@ mod filter_change_edge_tests {
         assert!(
             second.iter().any(|(id, _)| id == "filter_change"),
             "a genuinely new filter change must fire again"
+        );
+    }
+}
+
+#[cfg(test)]
+mod cross_run_target_hygiene_tests {
+    use super::*;
+
+    #[test]
+    fn reset_for_new_run_drops_the_previous_runs_target() {
+        let mut state = TriggerState::new();
+        state.set_target(270.0, 60.0);
+        state.set_meridian_target("B".to_string());
+        state.current_altitude = Some(10.5);
+        state.current_hour_angle = Some(11.18);
+        state.next_meridian_flip_time = Some(1);
+        state.tracking_limit_detected_at = Some(1);
+        state.update_plate_solve(270.1, 60.1, 1.2);
+
+        state.reset_for_new_run();
+
+        assert_eq!(state.target_ra, None);
+        assert_eq!(state.target_dec, None);
+        assert_eq!(state.current_target_name, None);
+        assert_eq!(state.current_altitude, None);
+        assert_eq!(state.current_hour_angle, None);
+        assert_eq!(state.next_meridian_flip_time, None);
+        assert_eq!(state.tracking_limit_detected_at, None);
+        assert_eq!(state.last_plate_solve_ra, None);
+        assert_eq!(state.last_plate_solve_dec, None);
+        assert_eq!(state.last_plate_solve_pixel_scale, None);
+    }
+
+    #[test]
+    fn a_resumed_run_keeps_the_target_restored_from_its_checkpoint() {
+        let mut state = TriggerState::new();
+        state.set_target(270.0, 60.0);
+        state.set_meridian_target("B".to_string());
+        state.restored_from_checkpoint = true;
+
+        state.reset_for_new_run();
+
+        assert_eq!(state.target_ra, Some(270.0));
+        assert_eq!(state.target_dec, Some(60.0));
+        assert_eq!(state.current_target_name, Some("B".to_string()));
+        assert!(
+            !state.restored_from_checkpoint,
+            "the resume flag is one-shot: the run after the resume must clear the target"
+        );
+
+        state.reset_for_new_run();
+        assert_eq!(state.target_ra, None);
+    }
+
+    #[tokio::test]
+    async fn altitude_limit_does_not_fire_for_a_run_with_no_target() {
+        // A dark/flat sequence with no TargetHeader used to inherit the
+        // previous run's altitude and skip its whole tree 4 ms after start,
+        // reporting `completed` with zero frames.
+        let mut state = TriggerState::new();
+        state.set_target(270.0, 60.0);
+        state.current_altitude = Some(10.5);
+
+        let mut previous_run = Trigger::new(
+            "altitude_limit",
+            "Altitude Limit",
+            TriggerType::AltitudeLimit { min_altitude: 30.0 },
+            RecoveryAction::NextTarget,
+        );
+        assert!(
+            previous_run.check(&state).await,
+            "a genuinely low target must still fire the altitude limit"
+        );
+
+        state.reset_for_new_run();
+
+        let mut next_run = Trigger::new(
+            "altitude_limit",
+            "Altitude Limit",
+            TriggerType::AltitudeLimit { min_altitude: 30.0 },
+            RecoveryAction::NextTarget,
+        );
+        assert!(
+            !next_run.check(&state).await,
+            "a run with no target has no altitude and must not fire the altitude limit"
+        );
+    }
+
+    #[tokio::test]
+    async fn meridian_flip_does_not_fire_for_a_run_with_no_target() {
+        // Hour angle comes from the mount, so it keeps arriving even on a
+        // target-less run. Without a target the flip drove a real daylight
+        // slew to the previous run's coordinates.
+        let config = crate::MeridianFlipConfig {
+            trigger_method: crate::MeridianTriggerMethod::MinutesPastMeridian,
+            minutes_past_meridian: 5.0,
+            ..Default::default()
+        };
+        let mut state = TriggerState::new();
+        state.set_target(270.0, 60.0);
+        state.update_hour_angle(11.18);
+        state.pier_side = Some(PierSide::West);
+
+        let mut previous_run = Trigger::new(
+            "meridian_flip",
+            "Meridian Flip",
+            TriggerType::MeridianFlip {
+                config: config.clone(),
+            },
+            RecoveryAction::MeridianFlip(config.clone()),
+        );
+        assert!(
+            previous_run.check(&state).await,
+            "a tracked target past the meridian must still fire the flip"
+        );
+
+        state.reset_for_new_run();
+        // The mount keeps reporting; the monitor loop refreshes hour angle and
+        // pier side every tick regardless of whether a target is set.
+        state.update_hour_angle(11.18);
+        state.pier_side = Some(PierSide::West);
+
+        let mut next_run = Trigger::new(
+            "meridian_flip",
+            "Meridian Flip",
+            TriggerType::MeridianFlip {
+                config: config.clone(),
+            },
+            RecoveryAction::MeridianFlip(config),
+        );
+        assert!(
+            !next_run.check(&state).await,
+            "a run with no target must not flip"
         );
     }
 }

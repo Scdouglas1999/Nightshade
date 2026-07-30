@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/nightshade_tokens.dart';
+import '../utils/on_screen_animation_gate.dart';
 
 /// Visual treatment for [StatusDot].
 enum StatusDotVariant {
@@ -87,11 +88,16 @@ class _StatusDotState extends State<StatusDot>
         ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
         _controller.value = 0.0;
       case StatusDotVariant.urgent:
+        // The pulse is deliberately NOT started here. An urgent dot is a
+        // long-lived state, and one parked off screen (an unselected tab, a
+        // collapsed panel) would re-schedule a frame on every vsync for as
+        // long as it stayed urgent, stopping the whole app from ever idling.
+        // [OnScreenAnimationGate] in build() runs it only while the dot is
+        // actually being drawn.
         _controller.duration = NightshadeTokens.durationPulse;
         _opacity = Tween<double>(begin: 0.55, end: 1.0).animate(
           CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
         );
-        _controller.repeat(reverse: true);
     }
   }
 
@@ -114,9 +120,17 @@ class _StatusDotState extends State<StatusDot>
       return _dot(opacity: 1.0);
     }
 
-    return AnimatedBuilder(
-      animation: _opacity,
-      builder: (context, _) => _dot(opacity: _opacity.value),
+    // `repeating` is only true for the urgent pulse; the one-shot `attention`
+    // flash drives the same controller with forward(), and the gate leaves
+    // animations it did not start alone.
+    return OnScreenAnimationGate(
+      controller: _controller,
+      repeating: widget.variant == StatusDotVariant.urgent,
+      reverse: true,
+      child: AnimatedBuilder(
+        animation: _opacity,
+        builder: (context, _) => _dot(opacity: _opacity.value),
+      ),
     );
   }
 

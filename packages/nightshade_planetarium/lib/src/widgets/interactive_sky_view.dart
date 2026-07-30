@@ -24,6 +24,7 @@ import '../providers/minor_planet_providers.dart';
 
 part 'interactive_sky_view/fov_overlay_painter.dart';
 part 'interactive_sky_view/measurement_overlay_painter.dart';
+part 'interactive_sky_view/sky_background_layer.dart';
 part 'interactive_sky_view/toolbar.dart';
 
 /// Interactive sky view widget with pan, zoom, and object selection
@@ -34,7 +35,10 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
   /// Callback when coordinates are tapped
   final ValueChanged<CelestialCoordinate>? onCoordinateTapped;
 
-  /// Callback when an object is tapped with position info for popup display
+  /// Callback when an object is tapped with position info for popup display.
+  ///
+  /// `coordinates` is the CATALOG position of `object` whenever the tap hit
+  /// one; it falls back to the tapped sky coordinate only for empty sky.
   final void Function(
     CelestialObject? object,
     CelestialCoordinate coordinates,
@@ -59,6 +63,11 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
   /// A small amber bookmark is drawn on matching DSOs in the sky view.
   final Set<String> listedObjectIds;
 
+  /// Set of catalog IDs/names that are targets of the currently loaded
+  /// sequence. A small cyan target ring is drawn on matching DSOs, so the sky
+  /// shows what tonight's plan is actually pointed at.
+  final Set<String> sequencedObjectIds;
+
   /// Bortle dark-sky scale (1-9). Controls light pollution dome intensity.
   final int bortleClass;
 
@@ -70,6 +79,14 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
   /// between two sky points (drawn as an overlay ruler) instead of panning.
   final bool measurementMode;
 
+  /// An optional layer composited beneath the star field — real sky imagery,
+  /// typically, for the narrow fields where the star catalogue runs out.
+  ///
+  /// See [SkyBackgroundLayer]: the host supplies the widget and states whether
+  /// it is currently opaque, and the sky view stops painting its own background
+  /// gradient while it is. Null (the default) is the plain star chart.
+  final SkyBackgroundLayer? backgroundLayer;
+
   const InteractiveSkyView({
     super.key,
     this.onObjectSelected,
@@ -80,9 +97,11 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
     this.fovCenter,
     this.observedObjectIds = const {},
     this.listedObjectIds = const {},
+    this.sequencedObjectIds = const {},
     this.bortleClass = 5,
     this.horizonAltitudes,
     this.measurementMode = false,
+    this.backgroundLayer,
   });
 
   @override
@@ -126,16 +145,37 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   Duration _lastMomentumElapsed = Duration.zero;
   final List<_PanSample> _panSamples = [];
 
-  /// Velocity (px/s) below which momentum is considered finished and the ticker
-  /// stops. Keeps the glide from creeping indefinitely.
-  static const double _momentumStopSpeed = 8.0;
+  /// Speed below which momentum is finished and the ticker stops, as a
+  /// FRACTION OF THE VIEW'S SHORT SIDE per second.
+  ///
+  /// Expressed relatively because a fling's meaning is "how much of the sky did
+  /// you throw", not "how many pixels did your finger cover": the same physical
+  /// gesture covers 4x the pixels on a 5120-wide window as on a 1280-wide one.
+  /// As a fixed px/s threshold this made flings refuse to glide on a large
+  /// display and over-glide on a small one. Converted to px/s against the live
+  /// canvas by [_momentumSpeedPx].
+  static const double _momentumStopFraction = 0.011;
 
   /// Exponential velocity decay per second. At 4.0 the speed falls to ~1.8% of
   /// its initial value after one second — a natural, quick-settling glide.
+  ///
+  /// Unitless, so unlike the speed thresholds this is already resolution
+  /// independent and deliberately stays a plain constant.
   static const double _momentumDecayPerSecond = 4.0;
 
-  /// Minimum fling speed (px/s) required to start a momentum glide at all.
-  static const double _momentumMinLaunchSpeed = 120.0;
+  /// Minimum fling speed required to start a glide, as a fraction of the view's
+  /// short side per second (see [_momentumStopFraction]).
+  static const double _momentumMinLaunchFraction = 0.17;
+
+  /// Convert a view-relative speed [fraction] (short-sides per second) into the
+  /// px/s the gesture velocities are measured in.
+  double _momentumSpeedPx(double fraction) {
+    final size = _lastViewSize;
+    final shortSide = size == null
+        ? 720.0 // pre-layout fallback; the reference these were tuned at
+        : math.min(size.width, size.height);
+    return fraction * shortSide;
+  }
 
   // Star pop-in animation (tracks previous magnitude threshold)
   double _previousMagLimit = 6.0;
@@ -147,6 +187,47 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
   // Parallax effect - tracks current pan delta for dim star offset
   Offset _currentPanDelta = Offset.zero;
+
+  /// Last laid-out canvas size, captured in the [LayoutBuilder] so gesture
+  /// handlers that run outside the build (the momentum ticker) can convert
+  /// pixels to sky angle with the same scale the painter uses.
+  Size? _lastViewSize;
+
+  /// Translate a screen-pixel drag into a view-center move.
+  ///
+  /// The painter's scale is `min(w, h) / fov` pixels per degree
+  /// (see `SkyCanvasPainter._paint`), so degrees-per-pixel is its reciprocal.
+  /// This previously used a hardcoded `fov / 500`, which made the sky move at
+  /// the wrong speed on every canvas that is not 500px on its short side — the
+  /// sky visibly failed to track the pointer.
+  ///
+  /// The horizontal component is additionally divided by the cosine of the
+  /// center's latitude (declination, or altitude in the horizontal frame),
+  /// because a degree of longitude subtends `cos(lat)` degrees on the sky.
+  /// Without it a horizontal drag crawls near the poles and does nothing at all
+  /// at the alt/az zenith, which is where the horizontal frame opens.
+  void _panByPixels(Offset deltaPixels, Size size) {
+    final viewState = ref.read(skyViewStateProvider);
+    final shortSide = math.min(size.width, size.height);
+    if (shortSide <= 0) return;
+    final degreesPerPixel = viewState.fieldOfView / shortSide;
+
+    final centerLatDeg = viewState.viewMode == SkyViewMode.horizontal
+        ? viewState.centerAltitude
+        : viewState.centerDec;
+    // Clamped so the pole is a fast pivot rather than a division by zero.
+    final cosLat = math
+        .cos(centerLatDeg * math.pi / 180)
+        .abs()
+        .clamp(0.05, 1.0);
+
+    ref
+        .read(skyViewStateProvider.notifier)
+        .pan(
+          -deltaPixels.dx * degreesPerPixel / cosLat / 15, // degrees -> hours
+          deltaPixels.dy * degreesPerPixel,
+        );
+  }
 
   // Angular-measurement tool. Endpoints are stored as celestial coordinates so
   // the ruler stays pinned to the sky under pan/zoom; the overlay re-projects
@@ -198,17 +279,31 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     // below _momentumStopSpeed or a new touch cancels it.
     _momentumTicker = createTicker(_onMomentumTick);
 
-    // Star pop-in animation (600ms with elastic out)
+    // Star pop-in animation (600ms with elastic out).
+    //
+    // Seeded at 1.0 — see the DSO controller below for why the resting value
+    // matters.
     _popinController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
+      value: 1.0,
     );
     // No setState listener - value read directly via ListenableBuilder
 
-    // DSO pop-in animation (300ms smooth fade/scale)
+    // DSO pop-in animation (300ms smooth fade/scale).
+    //
+    // The resting value MUST be 1.0, not the AnimationController default of
+    // `lowerBound` (0.0). The painter reads this controller as "how far
+    // through the pop-in are we", and 0.0 means "just started fading in", i.e.
+    // every DSO glyph is tinted at alpha 0 and every DSO label is drawn fully
+    // transparent. This controller is only ever driven by `forward(from: 0)`
+    // when an animated zoom reveals fainter DSOs, so a controller left at its
+    // default sat at 0.0 from launch and the entire deep-sky layer — glyphs
+    // AND labels — was invisible until (and only until) such a zoom happened.
     _dsoPopinController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
+      value: 1.0,
     );
     // No setState listener - value read directly via ListenableBuilder
 
@@ -322,20 +417,20 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     if (dtMicros <= 0) return;
     final dt = dtMicros / 1e6;
 
-    final viewState = ref.read(skyViewStateProvider);
-    final panScale = viewState.fieldOfView / 500;
+    final size = _lastViewSize;
+    if (size == null) {
+      _stopMomentum();
+      return;
+    }
 
     // Pixel translation this frame from the current velocity (px/s).
-    final pixelDelta = _panVelocity * dt;
-    ref
-        .read(skyViewStateProvider.notifier)
-        .pan(-pixelDelta.dx * panScale / 15, pixelDelta.dy * panScale);
+    _panByPixels(_panVelocity * dt, size);
 
     // Exponential decay: v *= e^(-decay * dt).
     final decay = math.exp(-_momentumDecayPerSecond * dt);
     _panVelocity = _panVelocity * decay;
 
-    if (_panVelocity.distance < _momentumStopSpeed) {
+    if (_panVelocity.distance < _momentumSpeedPx(_momentumStopFraction)) {
       _stopMomentum();
     }
   }
@@ -484,7 +579,6 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final planets = ref.watch(planetPositionsProvider);
     final milkyWayPoints = ref.watch(milkyWayPointsProvider);
     final qualityConfig = ref.watch(fovAdaptiveQualityProvider);
-    final densityHotspots = ref.watch(densityHotspotsProvider);
     final satellites = ref.watch(currentSatellitesProvider);
     final variableStars = ref.watch(variableStarDataProvider);
     final minorPlanets = ref.watch(currentMinorPlanetsProvider);
@@ -525,8 +619,39 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       }
     }
 
+    // The overlay layer exists only to animate cheaply on top of a static
+    // base. When nothing on it actually animates, the split is pure cost: a
+    // SECOND full-canvas offscreen texture to allocate, rasterize and
+    // composite every frame. On a large window that is the dominant GPU cost —
+    // measured at 5120x1440, rasterizing the sky is the whole frame budget, so
+    // halving the number of full-screen targets is the single biggest lever.
+    //
+    // Collapse to one `full`-scope painter unless something on the overlay is
+    // genuinely moving. `full` draws the bright-star pass too, so nothing is
+    // lost visually.
+    final overlayAnimates =
+        qualityConfig.animateStarTwinkle ||
+        selectedObject.coordinates != null ||
+        renderConfig.showPlanningOverlays;
+
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Cached so the momentum ticker, which runs outside build, converts
+        // pixels to sky angle at the same scale the painter uses.
+        _lastViewSize = Size(constraints.maxWidth, constraints.maxHeight);
+        // Publish the canvas shape so the catalogue queries fetch a region that
+        // actually covers the window. They take a SHORT-AXIS field of view, so
+        // without this a wide window's outer columns have no star data at all.
+        // Deferred: providers must not be written during a build.
+        final aspect = constraints.maxHeight > 0
+            ? constraints.maxWidth / constraints.maxHeight
+            : 1.0;
+        if ((ref.read(skyViewAspectRatioProvider) - aspect).abs() > 0.01) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            ref.read(skyViewAspectRatioProvider.notifier).state = aspect;
+          });
+        }
         return Listener(
           onPointerSignal: (event) {
             if (event is PointerScrollEvent) {
@@ -604,10 +729,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               // Pan — single-finger drag only.
               if (!isPinch && _lastFocalPoint != null) {
                 final delta = details.focalPoint - _lastFocalPoint!;
-                final panScale = viewState.fieldOfView / 500;
-                viewNotifier.pan(
-                  -delta.dx * panScale / 15, // Convert to hours
-                  delta.dy * panScale,
+                _panByPixels(
+                  delta,
+                  Size(constraints.maxWidth, constraints.maxHeight),
                 );
 
                 // Track pan delta for parallax effect (decays over time).
@@ -656,7 +780,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               // pinch path clears _panSamples, so a pinch-release yields zero
               // velocity here and never glides.
               _panVelocity = _calculatePanVelocity();
-              if (_panVelocity.distance > _momentumMinLaunchSpeed) {
+              if (_panVelocity.distance >
+                  _momentumSpeedPx(_momentumMinLaunchFraction)) {
                 _lastMomentumElapsed = Duration.zero;
                 _momentumTicker.start();
               } else {
@@ -724,6 +849,12 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
             child: Stack(
               fit: StackFit.expand,
               children: [
+                // BACKGROUND slot (bottom, optional): a host-supplied imagery
+                // layer. It is only visible while it reports itself opaque,
+                // because that is also what stops the base layer's painter
+                // filling the canvas with the twilight gradient on top of it.
+                if (widget.backgroundLayer != null)
+                  widget.backgroundLayer!.child,
                 RepaintBoundary(
                   // The base layer is driven only by the DSO pop-in controller
                   // (a brief ~300ms transient after a zoom reveals fainter
@@ -738,7 +869,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                       return ClipRect(
                         child: CustomPaint(
                           painter: _buildSkyPainter(
-                            scope: SkyRenderScope.base,
+                            scope: overlayAnimates
+                                ? SkyRenderScope.base
+                                : SkyRenderScope.full,
                             viewState: viewState,
                             renderConfig: renderConfig,
                             qualityConfig: qualityConfig,
@@ -757,7 +890,6 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                             variableStars: variableStars,
                             minorPlanets: minorPlanets,
                             milkyWayPoints: milkyWayPoints,
-                            densityHotspots: densityHotspots,
                           ),
                           foregroundPainter: widget.showFOV
                               ? _FOVOverlayPainter(
@@ -778,60 +910,60 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                     },
                   ),
                 ),
-                RepaintBoundary(
-                  child: ListenableBuilder(
-                    listenable: _overlayAnimations,
-                    builder: (context, child) {
-                      return ClipRect(
-                        child: CustomPaint(
-                          painter: _buildSkyPainter(
-                            scope: SkyRenderScope.overlay,
-                            viewState: viewState,
-                            renderConfig: renderConfig,
-                            qualityConfig: qualityConfig,
-                            stars: stars.valueOrNull ?? const [],
-                            dsos: dsos.valueOrNull ?? const [],
-                            constellations: constellations,
-                            observationMinute: observationMinute,
-                            location: location,
-                            selectedObject: selectedObject,
-                            mountPosition: mountPosition,
-                            sunPos: sunPos,
-                            moonPos: moonPos,
-                            moonIllumination: moonIllumination,
-                            planets: planets,
-                            satellites: satellites,
-                            variableStars: variableStars,
-                            minorPlanets: minorPlanets,
-                            milkyWayPoints: milkyWayPoints,
-                            densityHotspots: densityHotspots,
+                if (overlayAnimates)
+                  RepaintBoundary(
+                    child: ListenableBuilder(
+                      listenable: _overlayAnimations,
+                      builder: (context, child) {
+                        return ClipRect(
+                          child: CustomPaint(
+                            painter: _buildSkyPainter(
+                              scope: SkyRenderScope.overlay,
+                              viewState: viewState,
+                              renderConfig: renderConfig,
+                              qualityConfig: qualityConfig,
+                              stars: stars.valueOrNull ?? const [],
+                              dsos: dsos.valueOrNull ?? const [],
+                              constellations: constellations,
+                              observationMinute: observationMinute,
+                              location: location,
+                              selectedObject: selectedObject,
+                              mountPosition: mountPosition,
+                              sunPos: sunPos,
+                              moonPos: moonPos,
+                              moonIllumination: moonIllumination,
+                              planets: planets,
+                              satellites: satellites,
+                              variableStars: variableStars,
+                              minorPlanets: minorPlanets,
+                              milkyWayPoints: milkyWayPoints,
+                            ),
+                            // The angular-measurement ruler rides the overlay
+                            // layer's foreground so drawing/clearing it never
+                            // repaints the static base.
+                            foregroundPainter:
+                                (_measureStart != null && _measureEnd != null)
+                                ? _MeasurementOverlayPainter(
+                                    viewState: viewState,
+                                    start: _measureStart!,
+                                    end: _measureEnd!,
+                                    latitude: location.latitude,
+                                    lstHours:
+                                        viewState.viewMode ==
+                                            SkyViewMode.horizontal
+                                        ? AstronomyCalculations.localSiderealTime(
+                                            observationMinute,
+                                            location.longitude,
+                                          )
+                                        : null,
+                                  )
+                                : null,
+                            size: Size.infinite,
                           ),
-                          // The angular-measurement ruler rides the overlay
-                          // layer's foreground so drawing/clearing it never
-                          // repaints the static base.
-                          foregroundPainter:
-                              (_measureStart != null && _measureEnd != null)
-                              ? _MeasurementOverlayPainter(
-                                  viewState: viewState,
-                                  start: _measureStart!,
-                                  end: _measureEnd!,
-                                  latitude: location.latitude,
-                                  lstHours:
-                                      viewState.viewMode ==
-                                          SkyViewMode.horizontal
-                                      ? AstronomyCalculations.localSiderealTime(
-                                          observationMinute,
-                                          location.longitude,
-                                        )
-                                      : null,
-                                )
-                              : null,
-                          size: Size.infinite,
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -868,11 +1000,15 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     required List<VariableStarData> variableStars,
     required List<MinorBodyData> minorPlanets,
     required List<MilkyWayPoint>? milkyWayPoints,
-    required List<(double, double, int, int)> densityHotspots,
   }) {
     final isOverlay = scope == SkyRenderScope.overlay;
-    final isBase = scope == SkyRenderScope.base;
-    return SkyCanvasPainter(
+    // "Base" here means "this painter owns the static, non-animated content" —
+    // which is true both for the split base layer AND for the single
+    // full-scope painter the view collapses to when nothing on the overlay
+    // animates. Testing `== base` alone silently dropped the background
+    // suppression (and the pop-in phases) in the collapsed case.
+    final isBase = scope != SkyRenderScope.overlay;
+    final painter = SkyCanvasPainter(
       renderScope: scope,
       viewState: viewState,
       config: renderConfig,
@@ -902,21 +1038,43 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
           ? _selectionController.value
           : null,
       // DSO pop-in + parallax drive the base only.
-      popinAnimationPhase: (isBase && qualityConfig.enableStarPopin)
+      //
+      // A pop-in phase is only meaningful while the pop-in is actually
+      // running: the painter reads it as "how far through the fade/scale-in
+      // are we" and a phase below 1 dims the layer. Passing it only while the
+      // controller animates makes the resting state unambiguous (null = draw
+      // at full strength) instead of depending on where the controller happens
+      // to be parked.
+      popinAnimationPhase:
+          (isBase &&
+              qualityConfig.enableStarPopin &&
+              _popinController.isAnimating)
           ? _popinController.value
           : null,
-      dsoPopinAnimationPhase: (isBase && qualityConfig.enableDsoPopin)
+      dsoPopinAnimationPhase:
+          (isBase &&
+              qualityConfig.enableDsoPopin &&
+              _dsoPopinController.isAnimating)
           ? _dsoPopinController.value
           : null,
       parallaxPanDelta: (isBase && qualityConfig.enableParallax)
           ? _currentPanDelta
           : null,
-      densityHotspots: densityHotspots,
       observedObjectIds: widget.observedObjectIds,
       listedObjectIds: widget.listedObjectIds,
+      sequencedObjectIds: widget.sequencedObjectIds,
       bortleClass: widget.bortleClass,
       horizonAltitudes: widget.horizonAltitudes,
+      // The gradient is drawn by the base layer only, so only the base painter
+      // needs to skip it. The host promises, via
+      // [SkyBackgroundLayer.occludesSkyGradient], that its layer is covering
+      // the canvas right now; if it is not, the gradient stays and the sky
+      // chart is unchanged.
+      paintsOpaqueBackground:
+          !isBase || !(widget.backgroundLayer?.occludesSkyGradient ?? false),
     );
+
+    return painter;
   }
 
   /// Handle double-tap: reset the view to the default 60 degree field of view.
@@ -1055,8 +1213,16 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       widget.onObjectSelected?.call(null);
     }
 
-    // Always call the position callback for popup handling
-    widget.onObjectTapped?.call(nearestObject, coord, position);
+    // Always call the position callback for popup handling. A hit object
+    // reports its OWN catalog coordinate, never the tap coordinate: the tap is
+    // a screen-space guess that lands anywhere inside the glyph's hit radius,
+    // and this coordinate is what the popup shows and what Slew / Framing /
+    // Sequencer act on.
+    widget.onObjectTapped?.call(
+      nearestObject,
+      nearestObject?.coordinates ?? coord,
+      position,
+    );
   }
 
   CelestialCoordinate? _screenToCelestial(
@@ -1064,103 +1230,24 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     Size size,
     SkyViewState viewState,
   ) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final scale =
-        math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
-
-    // Offset from center in screen pixels
-    final dx = -(position.dx - center.dx) / scale;
-    final dy = -(position.dy - center.dy) / scale;
-
-    // Reverse rotation
-    final rotRad = -viewState.rotation * math.pi / 180;
-    final x = dx * math.cos(rotRad) - dy * math.sin(rotRad);
-    final y = dx * math.sin(rotRad) + dy * math.cos(rotRad);
-
-    if (viewState.viewMode == SkyViewMode.horizontal) {
-      // Invert the horizontal-mode projection: the forward path maps
-      // (-azimuth, altitude) through the stereographic projector, so undo it to
-      // (alt, az) then convert back to equatorial RA/Dec for the caller.
-      final location = ref.read(observerLocationProvider);
-      final time = ref.read(observationTimeProvider).time;
-      final lst = AstronomyCalculations.localSiderealTime(
-        time,
-        location.longitude,
-      );
-      final (lon, lat) = _inverseStereographic(
-        x: x,
-        y: y,
-        centerLonDeg: -viewState.centerAz,
-        centerLatDeg: viewState.centerAltitude,
-      );
-      final az = -lon;
-      final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
-        altDeg: lat,
-        azDeg: az,
-        latitudeDeg: location.latitude,
-        lstHours: lst,
-      );
-      var raHours = ra / 15;
-      if (raHours < 0) raHours += 24;
-      if (raHours >= 24) raHours -= 24;
-      return CelestialCoordinate(ra: raHours, dec: dec.clamp(-90, 90));
-    }
-
-    // Convert to RA/Dec (inverse of stereographic projection)
-    final (raDeg, decDeg) = _inverseStereographic(
-      x: x,
-      y: y,
-      centerLonDeg: viewState.centerRA * 15,
-      centerLatDeg: viewState.centerDec,
+    // Delegate to the shared projector so the inverse can never drift from the
+    // forward projection the painter uses. The old code here hardcoded the
+    // STEREOGRAPHIC inverse while the painter has three projection branches, so
+    // in orthographic or azimuthal-equidistant mode a tap resolved to the wrong
+    // sky coordinate — increasingly wrong away from the view centre — and
+    // selected the wrong object or empty sky.
+    final projector = SkyFovProjector.forSize(
+      viewState,
+      size,
+      latitude: ref.read(observerLocationProvider).latitude,
+      lstHours: viewState.viewMode == SkyViewMode.horizontal
+          ? AstronomyCalculations.localSiderealTime(
+              ref.read(observationTimeProvider).time,
+              ref.read(observerLocationProvider).longitude,
+            )
+          : null,
     );
-
-    var raHours = raDeg / 15;
-    if (raHours < 0) raHours += 24;
-    if (raHours >= 24) raHours -= 24;
-
-    return CelestialCoordinate(ra: raHours, dec: decDeg.clamp(-90, 90));
-  }
-
-  /// Inverse stereographic projection: screen-space offset ([x], [y], in the
-  /// same scaled degree units the forward projector emits) back to a sphere
-  /// point (longitude, latitude in degrees) about the projection center.
-  ///
-  /// Shared by both view modes — equatorial passes RA/Dec as the center,
-  /// horizontal passes (-azimuth, altitude) — so the inverse geometry, like the
-  /// forward geometry, lives in exactly one place.
-  (double lonDeg, double latDeg) _inverseStereographic({
-    required double x,
-    required double y,
-    required double centerLonDeg,
-    required double centerLatDeg,
-  }) {
-    final xRad = x * math.pi / 180;
-    final yRad = y * math.pi / 180;
-    final centerLonRad = centerLonDeg * math.pi / 180;
-    final centerLatRad = centerLatDeg * math.pi / 180;
-
-    final rho = math.sqrt(xRad * xRad + yRad * yRad);
-    if (rho < 0.0001) {
-      return (centerLonDeg, centerLatDeg);
-    }
-
-    final c = 2 * math.atan(rho / 2);
-    final sinc = math.sin(c);
-    final cosc = math.cos(c);
-
-    final lat = math.asin(
-      cosc * math.sin(centerLatRad) +
-          yRad * sinc * math.cos(centerLatRad) / rho,
-    );
-    final lon =
-        centerLonRad +
-        math.atan2(
-          xRad * sinc,
-          rho * math.cos(centerLatRad) * cosc -
-              yRad * math.sin(centerLatRad) * sinc,
-        );
-
-    return (lon * 180 / math.pi, lat * 180 / math.pi);
+    return projector.unproject(position);
   }
 
   double _angularDistance(CelestialCoordinate a, CelestialCoordinate b) {

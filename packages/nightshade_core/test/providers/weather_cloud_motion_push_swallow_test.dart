@@ -36,7 +36,7 @@ class _FixedBackendNotifier extends BackendNotifier {
 class _NoopSafeRigService extends SafeRigService {
   _NoopSafeRigService(super.ref) : super(stopSecondaryRig: _stopSecondaryRig);
 
-  static Future<void> _stopSecondaryRig() async {}
+  static Future<bool> _stopSecondaryRig() async => false;
 
   @override
   Future<SafeRigResult> safeTheRig({

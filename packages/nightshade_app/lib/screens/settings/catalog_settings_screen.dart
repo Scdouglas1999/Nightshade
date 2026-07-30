@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
@@ -77,6 +79,14 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   CatalogStatus? _annotationStatus;
   bool _isLoading = true;
 
+  /// Catalogs installed on the connected appliance, when this app is driving a
+  /// remote backend. The cards above read the LOCAL filesystem, which on a
+  /// paired phone says nothing at all about the machine that actually runs
+  /// plate solving, target search, framing and annotation.
+  RemoteCatalogStatusResponse? _rigCatalogs;
+  String? _rigCatalogError;
+  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+
   /// UI flag the card builders read to disable controls. Derived from both a
   /// locally-running download/import method and the manager's in-flight
   /// registry (see [_recomputeDownloading]), so it stays correct even when a
@@ -118,6 +128,17 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     _recomputeDownloading();
     _progressSub =
         CatalogManager.instance.downloadProgress.listen(_onDownloadProgress);
+    _backendSubscription = ref.listenManual<NightshadeBackend>(
+      backendProvider,
+      (previous, next) {
+        if (identical(previous, next) || !mounted) return;
+        setState(() {
+          _rigCatalogs = null;
+          _rigCatalogError = null;
+        });
+        unawaited(_loadCatalogStatus());
+      },
+    );
     _loadCatalogStatus();
   }
 
@@ -125,6 +146,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   void dispose() {
     _statusGeneration++;
     _progressSub?.cancel();
+    _backendSubscription?.close();
     super.dispose();
   }
 
@@ -165,17 +187,31 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     setState(() => _isLoading = true);
 
     try {
+      final backend = ref.read(backendProvider);
+      final rig = backend is NetworkBackend ? backend : null;
       final statuses = await Future.wait<CatalogStatus>([
         CatalogManager.instance.getStarCatalogStatus(),
         CatalogManager.instance.getDsoCatalogStatus(),
         CatalogManager.instance.getAnnotationCatalogStatus(),
       ]);
 
+      RemoteCatalogStatusResponse? rigCatalogs;
+      String? rigError;
+      if (rig != null) {
+        try {
+          rigCatalogs = await rig.getCatalogStatus();
+        } catch (e) {
+          rigError = '$e';
+        }
+      }
+
       if (mounted && generation == _statusGeneration) {
         setState(() {
           _starStatus = statuses[0];
           _dsoStatus = statuses[1];
           _annotationStatus = statuses[2];
+          _rigCatalogs = rigCatalogs;
+          _rigCatalogError = rigError;
           _isLoading = false;
         });
         // Keep the shared catalog-state provider (planner empty-state, "needs
@@ -381,6 +417,103 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     }
   }
 
+  /// The appliance's status for [type] (`stars`, `dso`, `annotation`), or null
+  /// when this is a local session or the appliance could not be asked. A rig
+  /// that answered but does not list the catalog is reporting it missing.
+  String? _rigStatusFor(String type) {
+    final catalogs = _rigCatalogs?.catalogs;
+    if (catalogs == null) return null;
+    for (final catalog in catalogs) {
+      if (catalog.name.toLowerCase() == type) {
+        return catalog.status.toLowerCase();
+      }
+    }
+    return 'missing';
+  }
+
+  bool get _rigMissingImagingCatalogs {
+    for (final type in const ['stars', 'dso']) {
+      final status = _rigStatusFor(type);
+      if (status != null && !_CatalogCardBuilders._rigHasCatalog(status)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Warn when the appliance lacks catalogs the rig-side features need. The
+  /// cards below describe this device only; a green install record here says
+  /// nothing about the machine that plate-solves.
+  Widget _buildRigScopeNotice(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final missing = _rigMissingImagingCatalogs;
+    final router = GoRouter.maybeOf(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(
+          color:
+              missing ? colors.warning.withValues(alpha: 0.4) : colors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                missing ? NightshadeIcons.warning : NightshadeIcons.info,
+                size: 18,
+                color: missing ? colors.warning : colors.textSecondary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _rigCatalogError != null
+                      ? 'Could not read the rig\'s catalogs: $_rigCatalogError. '
+                          'The cards below describe this device only.'
+                      : missing
+                          ? 'The rig is missing catalogs it needs — plate '
+                              'solving, target search, framing and annotation '
+                              'run on the rig, not on this device, so '
+                              'downloading here will not fix them.'
+                          : 'The cards below describe catalogs stored on this '
+                              'device. The rig keeps its own copies.',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: NightshadeTypography.fontSize13,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          NightshadeButton(
+            label: 'Manage rig catalogs',
+            icon: NightshadeIcons.download,
+            variant: missing ? ButtonVariant.primary : ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: router == null
+                ? null
+                : () {
+                    // This screen is also shown as a dialog from Imaging;
+                    // routing under an open dialog would look like a dead
+                    // button.
+                    if (ModalRoute.of(context) is PopupRoute) {
+                      Navigator.of(context).pop();
+                    }
+                    router.go('/settings?section=rig-catalogs');
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -413,6 +546,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   Widget _buildContent(BuildContext context) {
     final colors = context.nightshadeColors;
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -440,6 +574,14 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           const SizedBox(height: 32),
         ],
 
+        // Whose catalogs these are. Reading the local filesystem while driving
+        // a rig told the operator a capability was installed on the machine
+        // that did not have it.
+        if (isRemote) ...[
+          _buildRigScopeNotice(context),
+          const SizedBox(height: 24),
+        ],
+
         // Star catalog card
         _buildCatalogCard(
           context: context,
@@ -453,6 +595,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           usedFor:
               'Required for plate solving; draws the star field in the planetarium and finder.',
           latestVersion: '4.2',
+          rigStatus: isRemote ? _rigStatusFor('stars') : null,
         ),
         const SizedBox(height: 16),
 
@@ -471,11 +614,12 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           usedFor:
               'Powers deep-sky target search, framing, and on-image NGC/IC labels.',
           latestVersion: '2023.12',
+          rigStatus: isRemote ? _rigStatusFor('dso') : null,
         ),
         const SizedBox(height: 32),
 
         // Annotation catalog section
-        _buildAnnotationCatalogSection(context),
+        _buildAnnotationCatalogSection(context, isRemote),
         const SizedBox(height: 32),
 
         // Deep-star tier (downloadable Tycho-2 / Gaia subset).
@@ -768,9 +912,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     );
   }
 
-  Widget _buildAnnotationCatalogSection(BuildContext context) {
+  Widget _buildAnnotationCatalogSection(BuildContext context, bool isRemote) {
     final colors = context.nightshadeColors;
     final isInstalled = _annotationStatus?.isInstalled ?? false;
+    final rigStatus = isRemote ? _rigStatusFor('annotation') : null;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -803,30 +948,35 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           'GLADE+ Galaxy Catalog',
                           style: NightshadeTypography.h4
                               .copyWith(color: colors.textPrimary),
                         ),
-                        const SizedBox(width: 8),
                         if (isInstalled)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.success.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                            ),
-                            child: Text(
-                              'Installed',
-                              style: NightshadeTypography.labelQuiet
-                                  .copyWith(color: colors.success),
-                            ),
+                          _buildBadge(
+                            context: context,
+                            label: rigStatus == null
+                                ? 'Installed'
+                                : 'On this device',
+                            color: colors.success,
+                          ),
+                        if (rigStatus != null)
+                          _buildBadge(
+                            context: context,
+                            label:
+                                _CatalogCardBuilders._rigHasCatalog(rigStatus)
+                                    ? 'On the rig'
+                                    : 'Not on the rig',
+                            color:
+                                _CatalogCardBuilders._rigHasCatalog(rigStatus)
+                                    ? colors.success
+                                    : colors.warning,
                           ),
                       ],
                     ),

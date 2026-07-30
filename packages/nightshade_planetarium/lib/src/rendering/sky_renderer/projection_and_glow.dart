@@ -215,8 +215,23 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
       // Medium stars - moderate scaling
       baseRadius = 1.5 + (4 - magnitude) * 0.75;
     } else {
-      // Faint stars - small but visible
-      baseRadius = math.max(0.5, (6.5 - magnitude) * 0.3);
+      // Faint stars: continue smoothly from the mag-4 value (1.5 px).
+      //
+      // The old branch was `max(0.5, (6.5 - m) * 0.3)`, which is 0.75 at mag 4
+      // against the 1.5 the branch above returns at the same magnitude — a 2x
+      // step across a hair's width of brightness, which gave the field a
+      // visible two-population look. It also hit its 0.5 floor by mag 4.83, so
+      // every star fainter than that drew at exactly the same size.
+      //
+      // Geometric decay keeps the gradation going, then flattens at a floor
+      // that is still a visible dot. Below that floor the fade is carried by
+      // alpha (see [_magnitudeToBrightness]) rather than by size, which is how
+      // a real star field thins out — and is necessary because a sub-pixel
+      // sprite would simply vanish.
+      baseRadius = math.max(
+        0.55,
+        1.5 * math.pow(0.78, magnitude - 4.0).toDouble(),
+      );
     }
 
     // Scale with zoom (stars appear larger when zoomed in)
@@ -225,8 +240,21 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
   }
 
   double _magnitudeToBrightness(double mag) {
-    // Brighter stars are more opaque
-    return math.min(1.0, math.max(0.3, (7 - mag) / 6));
+    // Opacity falls geometrically with magnitude, mirroring the way flux does,
+    // and keeps falling across the whole rendered range.
+    //
+    // The old form `max(0.3, (7 - mag) / 6)` reached its floor at about mag
+    // 5.2, so every star fainter than that drew at identical alpha — and, with
+    // the old radius curve, identical size too, making the deep field
+    // completely flat. That barely showed while the renderer capped out at mag
+    // 8; now that the FOV-adaptive limit reaches mag 12, most stars on screen
+    // at a narrow field sit in exactly that range.
+    //
+    // Tuned to stay close to the previous values through the mid range
+    // (mag 3: 0.64 vs 0.67, mag 5: 0.41 vs 0.33) so bright fields look
+    // familiar, while continuing down to a faint-but-present floor.
+    if (mag <= 1.0) return 1.0;
+    return math.pow(0.80, mag - 1.0).toDouble().clamp(0.10, 1.0);
   }
 
   /// Get font size based on magnitude and object type for label hierarchy
@@ -244,6 +272,25 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     if (magnitude < 1) return FontWeight.w600;
     if (magnitude < 3) return FontWeight.w500;
     return FontWeight.w400;
+  }
+
+  /// Colour for a star, preferring its measured B-V colour index over its
+  /// spectral-type letter.
+  ///
+  /// The renderer used to call `_spectralTypeToColor(star.spectralType ?? 'G')`
+  /// and never look at [Star.colorIndex] at all — even though the HYG loader
+  /// populates it. Two consequences: every star with a blank spectral field
+  /// (and every prefixed type like `sdB` or `DA`, which `spectralType[0]` also
+  /// mishandles) was drawn cream-yellow as though it were a G star; and the
+  /// colours that were right came from seven discrete buckets, so the field had
+  /// no gradation. B-V is a continuous measurement, so it can drive a
+  /// continuous ramp — see [_bvToColor].
+  Color _starColor(Star star) {
+    final bv = star.colorIndex;
+    if (bv != null && bv.isFinite) return _bvToColor(bv);
+    final type = star.spectralType;
+    if (type == null || type.isEmpty) return Colors.white;
+    return _spectralTypeToColor(type);
   }
 
   Color _spectralTypeToColor(String spectralType) {
@@ -417,4 +464,68 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
       );
     }
   }
+}
+
+// ===== B-V colour index -> display colour =====
+//
+// B-V is a continuous measurement, so it can drive a continuous colour ramp
+// instead of the seven discrete buckets the spectral-type path produces.
+// Quantised and memoised because this is evaluated per star per frame.
+
+const double _bvLutMin = -0.4;
+const double _bvLutMax = 2.0;
+const double _bvLutStep = 0.05;
+final int _bvLutCount = ((_bvLutMax - _bvLutMin) / _bvLutStep).round() + 1;
+final List<Color?> _bvColorLut = List<Color?>.filled(
+  ((_bvLutMax - _bvLutMin) / _bvLutStep).round() + 1,
+  null,
+);
+
+Color _bvToColor(double bv) {
+  final clamped = bv.clamp(_bvLutMin, _bvLutMax);
+  final index = ((clamped - _bvLutMin) / _bvLutStep).round().clamp(
+    0,
+    _bvLutCount - 1,
+  );
+  return _bvColorLut[index] ??= _computeBvColor(_bvLutMin + index * _bvLutStep);
+}
+
+Color _computeBvColor(double bv) {
+  // Ballesteros (2012): effective temperature from the B-V colour index.
+  final t = 4600.0 * (1.0 / (0.92 * bv + 1.7) + 1.0 / (0.92 * bv + 0.62));
+  return _blackbodyColor(t.clamp(1500.0, 40000.0));
+}
+
+/// Approximate sRGB for a blackbody at [kelvin] (Tanner Helland's fit).
+///
+/// Normalised so the brightest channel is full: the renderer carries per-star
+/// brightness separately (alpha and the atlas tint), so only the hue matters
+/// here — otherwise cool stars would be dimmed twice.
+Color _blackbodyColor(double kelvin) {
+  final t = kelvin / 100.0;
+  double r, g, b;
+
+  if (t <= 66) {
+    r = 255;
+    g = (99.4708025861 * math.log(t) - 161.1195681661).clamp(0.0, 255.0);
+    b = t <= 19
+        ? 0
+        : (138.5177312231 * math.log(t - 10) - 305.0447927307).clamp(
+            0.0,
+            255.0,
+          );
+  } else {
+    r = (329.698727446 * math.pow(t - 60, -0.1332047592)).clamp(0.0, 255.0);
+    g = (288.1221695283 * math.pow(t - 60, -0.0755148492)).clamp(0.0, 255.0);
+    b = 255;
+  }
+
+  final peak = math.max(r, math.max(g, b));
+  if (peak > 0) {
+    final k = 255.0 / peak;
+    r *= k;
+    g *= k;
+    b *= k;
+  }
+  return Color.fromARGB(255, r.round(), g.round(), b.round());
 }

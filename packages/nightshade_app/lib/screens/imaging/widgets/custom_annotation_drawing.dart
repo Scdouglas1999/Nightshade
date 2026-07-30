@@ -553,55 +553,54 @@ class _CustomAnnotationDrawingLayerState
     bool required = false,
   }) async {
     final controller = TextEditingController();
+    final title = switch (annotation.type) {
+      CustomAnnotationType.circle => 'Circle Label',
+      CustomAnnotationType.arrow => 'Arrow Label',
+      CustomAnnotationType.text => 'Text Note',
+    };
+    // Built on NightshadeDialog like every other dialog on this screen. It was
+    // previously a stock Material AlertDialog with a hardcoded #1A1A2E navy
+    // surface and Material's greenAccent (#00E676) on both the focused
+    // underline and the confirm action — the brightest, most saturated thing on
+    // a dark-adapted display at 2 a.m., and the only place in the app where the
+    // primary action is not the Nightshade accent.
     final label = await showDialog<String>(
       context: context,
       barrierDismissible: !required,
       builder: (ctx) {
-        // absolute: fixed-palette annotation dialog (matches the image-overlay tool)
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1A1A2E),
-          title: Text(
-            switch (annotation.type) {
-              CustomAnnotationType.circle => 'Circle Label',
-              CustomAnnotationType.arrow => 'Arrow Label',
-              CustomAnnotationType.text => 'Text Note',
-            },
-            style: const TextStyle(
-                color: Colors.white, fontSize: NightshadeTypography.fontSize16),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: required ? 'Enter text...' : 'Optional label...',
-              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-              enabledBorder: UnderlineInputBorder(
-                borderSide:
-                    BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: Color(0xFF00E676)),
-              ),
-            ),
-            onSubmitted: (value) => Navigator.of(ctx).pop(value),
-          ),
+        return NightshadeDialog(
+          title: title,
+          icon: annotation.type == CustomAnnotationType.text
+              ? NightshadeIcons.edit
+              : NightshadeIcons.target,
+          width: 420,
+          showCloseButton: !required,
+          onClose: () => Navigator.of(ctx).pop(null),
+          scrollableBody: false,
           actions: [
-            TextButton(
+            NightshadeButton(
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
               onPressed: () => Navigator.of(ctx).pop(null),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-              ),
             ),
-            TextButton(
+            NightshadeButton(
+              label: 'Add',
+              variant: ButtonVariant.primary,
               onPressed: () => Navigator.of(ctx).pop(controller.text),
-              child: const Text(
-                'Add',
-                style: TextStyle(color: Color(0xFF00E676)),
-              ),
             ),
           ],
+          child: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              context,
+              designMaxWidth: 400,
+            ),
+            child: NightshadeTextField(
+              controller: controller,
+              autofocus: true,
+              hint: required ? 'Enter text…' : 'Optional label…',
+              onSubmitted: (value) => Navigator.of(ctx).pop(value),
+            ),
+          ),
         );
       },
     );

@@ -594,6 +594,78 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .watch();
   }
 
+  // =========================================================================
+  // Standalone (sessionless) EXPORT queries — complete, un-capped datasets
+  // =========================================================================
+  //
+  // The `watchSessionless*Recent({limit})` streams above are UI *preview* feeds:
+  // they cap at a recent-data window so a list/chart stays cheap. Reusing them
+  // for CSV export silently dropped 27–62% of the user's science data (measured:
+  // 275 photometry rows in the DB, 200 in the file; 1320 PSF tiles, 500 in the
+  // file) while the confirmation truthfully reported only the truncated count.
+  // Exports read these instead: same filter and ordering, no limit.
+
+  /// Every session-less photometry measurement, newest first.
+  Future<List<PhotometryMeasurementRow>> getAllSessionlessPhotometry() {
+    return (select(photometryMeasurements)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)]))
+        .get();
+  }
+
+  /// Every session-less frame-quality metric row, newest first.
+  Future<List<ScienceFrameQualityMetricsRow>>
+  getAllSessionlessFrameQualityMetrics() {
+    return (select(scienceFrameQualityMetrics)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)]))
+        .get();
+  }
+
+  /// Every session-less transparency sample, newest first.
+  Future<List<TransparencySampleRow>> getAllSessionlessTransparency() {
+    return (select(transparencySamples)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)]))
+        .get();
+  }
+
+  /// Every session-less PSF field tile, newest frame first then tile order.
+  Future<List<PsfFieldTileRow>> getAllSessionlessPsfTiles() {
+    return (select(psfFieldTiles)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([
+            (tbl) => OrderingTerm.desc(tbl.timestamp),
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ]))
+        .get();
+  }
+
+  /// Every session-less astrometric residual vector, newest first.
+  Future<List<AstrometryResidualVectorRow>> getAllSessionlessResiduals() {
+    return (select(astrometryResidualVectors)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)]))
+        .get();
+  }
+
+  /// Every session-less photometric-calibration row, newest first.
+  Future<List<FramePhotometricCalibrationRow>> getAllSessionlessCalibrations() {
+    return (select(framePhotometricCalibration)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)]))
+        .get();
+  }
+
+  /// Every session-less moving-object candidate, most confident first.
+  Future<List<MovingObjectCandidateRow>> getAllSessionlessMovingObjects() {
+    return (select(movingObjectCandidates)
+          ..where((tbl) => tbl.sessionId.isNull())
+          ..orderBy([(tbl) => OrderingTerm.desc(tbl.confidence)]))
+        .get();
+  }
+
   /// Returns true if any sessionless science data exists (for showing the
   /// standalone tab even when no sequence session is available).
   Future<bool> hasSessionlessScienceData() async {

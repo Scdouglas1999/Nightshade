@@ -168,7 +168,28 @@ void main() {
   });
 
   group('MosaicService - Area Calculation', () {
-    test('calculates correct area for simple grid', () {
+    test('edge-to-edge grid sums the panel areas', () {
+      const config = MosaicConfig(
+        centerRa: 12.0,
+        centerDec: 30.0,
+        panelWidthArcmin: 60.0,
+        panelHeightArcmin: 60.0,
+        overlapPercent: 0.0,
+        panelsHorizontal: 2,
+        panelsVertical: 2,
+      );
+
+      final area = service.calculateMosaicArea(config);
+
+      // 2x2 grid of 60'x60' panels with NO overlap = 2°x2° = 4 sq°
+      expect(area, closeTo(4.0, 0.01));
+    });
+
+    test('overlap reduces the reported coverage', () {
+      // The same 2x2 grid at the DEFAULT 10% overlap. Adjacent centres are
+      // 0.9° apart, so the grid spans 1° + 0.9° = 1.9° per axis, not 2°.
+      // The old implementation ignored overlap and still reported 4 sq°,
+      // overstating the coverage of every real mosaic by ~10% per axis.
       const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
@@ -178,26 +199,58 @@ void main() {
         panelsVertical: 2,
       );
 
-      final area = service.calculateMosaicArea(config);
-
-      // 2x2 grid of 60'x60' panels = 120'x120' = 2°x2° = 4 sq°
-      expect(area, closeTo(4.0, 0.01));
+      expect(config.overlapPercent, 10.0, reason: 'default overlap changed');
+      expect(service.calculateMosaicArea(config), closeTo(1.9 * 1.9, 0.001));
+      final (widthDeg, heightDeg) = config.totalExtentDegrees;
+      expect(widthDeg, closeTo(1.9, 0.001));
+      expect(heightDeg, closeTo(1.9, 0.001));
     });
 
-    test('calculates correct area for rectangular panels', () {
+    test('a 3x3 at the default overlap does not claim a full 3 panels of '
+        'sky per axis', () {
+      const config = MosaicConfig(
+        centerRa: 12.0,
+        centerDec: 30.0,
+        panelWidthArcmin: 60.0,
+        panelHeightArcmin: 60.0,
+        panelsHorizontal: 3,
+        panelsVertical: 3,
+      );
+
+      // 1 + 2*0.9 = 2.8° per axis -> 7.84 sq°, not the old 9 sq°.
+      expect(service.calculateMosaicArea(config), closeTo(7.84, 0.001));
+    });
+
+    test('a single panel is its own extent regardless of overlap', () {
       const config = MosaicConfig(
         centerRa: 12.0,
         centerDec: 30.0,
         panelWidthArcmin: 90.0,
         panelHeightArcmin: 60.0,
+        overlapPercent: 40.0,
         panelsHorizontal: 1,
         panelsVertical: 1,
       );
 
-      final area = service.calculateMosaicArea(config);
+      // 90' x 60' = 1.5° x 1° = 1.5 sq° — nothing to overlap with.
+      expect(service.calculateMosaicArea(config), closeTo(1.5, 0.01));
+    });
 
-      // 90' x 60' = 1.5° x 1° = 1.5 sq°
-      expect(area, closeTo(1.5, 0.01));
+    test('calculateMosaicArea and MosaicConfig agree', () {
+      const config = MosaicConfig(
+        centerRa: 3.0,
+        centerDec: -12.0,
+        panelWidthArcmin: 47.0,
+        panelHeightArcmin: 31.0,
+        overlapPercent: 22.5,
+        panelsHorizontal: 4,
+        panelsVertical: 3,
+      );
+
+      expect(
+        service.calculateMosaicArea(config),
+        closeTo(config.totalAreaSquareDegrees, 1e-12),
+      );
     });
   });
 

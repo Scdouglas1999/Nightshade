@@ -185,6 +185,10 @@ impl DeviceManager {
                 ))
             }
             DriverType::Simulator => {
+                use crate::device_manager::ops::sim_faults;
+                sim_faults::check("focuser.move")
+                    .await
+                    .map_err(|e| DeviceOpError::driver(e))?;
                 let f = crate::api::devices::simulation::get_sim_focuser();
                 let mut f = f.write().await;
                 if !f.status.connected {
@@ -193,7 +197,28 @@ impl DeviceManager {
                         crate::device_manager::ops::sim_gate::not_connected_focuser(),
                     ));
                 }
-                f.status.position = position;
+                // Backlash: the mechanism lands short of the commanded position
+                // when reversing direction. An autofocus routine that trusts
+                // the commanded position instead of re-reading the reached one
+                // fits its V-curve against positions the focuser was never at,
+                // which is why the curve minimum can be real and the resulting
+                // focus still wrong.
+                let reached = match sim_faults::backlash_steps("focuser.move") {
+                    Some(backlash) if backlash != 0 => {
+                        let reversing = position < f.status.position;
+                        if reversing {
+                            position + backlash
+                        } else {
+                            position - backlash
+                        }
+                    }
+                    _ => position,
+                };
+                // A stalled focuser accepts the move and stays put.
+                if sim_faults::is_stalled("focuser.move") {
+                    return Ok(());
+                }
+                f.status.position = reached;
                 Ok(())
             }
         }

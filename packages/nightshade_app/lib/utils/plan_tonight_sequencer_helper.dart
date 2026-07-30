@@ -82,11 +82,19 @@ Future<SingleTargetSequenceResult> _buildPlanTonightTargetSequenceCore({
     );
   }
 
+  // An empty filter list is the normal state of an OSC rig with no wheel —
+  // Smart Night plans a single unfiltered row for it. A wheel that IS
+  // connected but reports no slots is a real fault, so that one still fails
+  // loud rather than silently planning unfiltered frames on a rig that has
+  // filters in the light path.
   final filters = ref.read(effectiveFiltersProvider);
-  if (filters.isEmpty) {
+  final wheel = ref.read(filterWheelStateProvider);
+  if (filters.isEmpty &&
+      wheel.connectionState == DeviceConnectionState.connected) {
     throw const SmartNightBuildException(
-      'No filters configured on the equipment profile or connected filter '
-      'wheel.',
+      'The connected filter wheel reports no filter slots. Reconnect the '
+      'wheel or name its filters on the equipment profile before building '
+      'a sequence.',
     );
   }
 
@@ -767,7 +775,9 @@ Future<bool> loadPlanTonightSequenceIntoEditor({
 }
 
 String planTonightSequenceSummary(SingleTargetSequenceResult result) {
-  final filters = result.filterPlans.map((p) => p.filterName).join(', ');
+  final filters = result.filterPlans
+      .map((p) => smartNightFilterLabel(p.filterName))
+      .join(', ');
   final totalFrames = result.filterPlans.fold<int>(
     0,
     (sum, plan) => sum + plan.count,

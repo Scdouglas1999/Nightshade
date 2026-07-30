@@ -27,16 +27,53 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
       );
     }
 
-    // Initial rotator sync
-    final rotatorState = ref.read(rotatorStateProvider);
-    if (rotatorState.connectionState == DeviceConnectionState.connected &&
-        rotatorState.position != null) {
-      ref
-          .read(equipmentFOVProvider.notifier)
-          .setRotation(rotatorState.position!);
-    }
+    // The rotator angle and the sensor geometry are seeded and kept current by
+    // `equipmentFovBindingProvider` (watched in build), so there is nothing to
+    // sync here — a second writer would race it.
   }
 
+  /// Honour an inbound `/planetarium?ra=<hours>&dec=<deg>&name=<n>` hand-off.
+  ///
+  /// Mirrors [FramingView]'s `_applyQueryParamsTarget`. The route redirects onto
+  /// the Plan Tonight host, which forwards the query, so this reads it from
+  /// whichever router state is above us.
+  ///
+  /// Must be called from `didChangeDependencies`: reading `GoRouterState.of`
+  /// there is what makes a later location change re-run this while the view
+  /// stays mounted (Plan Tonight's IndexedStack keeps it built, so `initState`
+  /// runs only once). The write itself is deferred to the next frame because
+  /// Riverpod forbids mutating a provider inside a widget life-cycle.
+  ///
+  /// Idempotent per query, so panning away after arriving is not undone by an
+  /// unrelated dependency change.
+  void _applySkyTargetQuery() {
+    if (!mounted) return;
+    final Uri uri;
+    try {
+      uri = GoRouterState.of(context).uri;
+    } catch (_) {
+      // Why: the planetarium is reachable outside the GoRouter tree (tests, the
+      // mosaic/target pickers that embed the view directly).
+      return;
+    }
+
+    final params = uri.queryParameters;
+    final signature = '${params['ra']}|${params['dec']}|${params['name']}';
+    if (signature == _appliedSkyTargetQuery) return;
+
+    final coordinate = parseSkyTargetQuery(params);
+    if (coordinate == null) return;
+
+    _appliedSkyTargetQuery = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      focusSkyOn(ref, coordinate);
+    });
+  }
+
+  /// [coordinates] is the catalog position of [object] when the tap hit one,
+  /// and the tapped sky position only for empty sky — so slew mode aims at the
+  /// object, not at the pixel the finger landed on.
   void _handleObjectTapped(CelestialObject? object,
       CelestialCoordinate coordinates, Offset screenPosition) {
     // If in slew mode, handle slew instead of normal tap behavior
@@ -63,7 +100,6 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
           _showPopup = true;
           _popupPosition = globalPosition;
           _popupObject = object;
-          _popupCoordinates = coordinates;
         });
       }
     } else {
@@ -76,7 +112,6 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
       _update(() {
         _showPopup = false;
         _popupObject = null;
-        _popupCoordinates = null;
       });
     }
   }
@@ -86,14 +121,10 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     _update(() => _finderChartExportInFlight = true);
 
     try {
-      final catalog = await ref.read(finderChartCatalogSnapshotProvider.future);
-      if (!mounted) return;
       final viewState = ref.read(skyViewStateProvider);
       final renderConfig = ref.read(skyRenderConfigProvider);
       final location = ref.read(observerLocationProvider);
       final time = ref.read(observationTimeProvider);
-      final stars = catalog.stars;
-      final dsos = catalog.dsos;
       final constellations = ref.read(constellationDataProvider);
       final selectedState = ref.read(selectedObjectProvider);
       final sunPos = ref.read(sunPositionProvider);
@@ -126,6 +157,21 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         }
       }
 
+      // Centre the chart on the object it is named for; fall back to where the
+      // view is actually pointing (never viewState.centerRA/Dec directly — in
+      // alt/az mode those hold the stale inactive equatorial pose).
+      final (region: chartRegion, pose: chartPose) = finderChartPose(
+        viewState: viewState,
+        viewCenter: ref.read(viewCenterEquatorialProvider),
+        subject: obj?.coordinates ?? selectedState.coordinates,
+      );
+      final catalog = await ref.read(
+        finderChartCatalogSnapshotProvider(chartRegion).future,
+      );
+      if (!mounted) return;
+      final stars = catalog.stars;
+      final dsos = catalog.dsos;
+
       final suggestedName = FinderChartService.suggestedFilename(
         objectName: objectName,
       );
@@ -144,7 +190,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
 
       await FinderChartService.generateChart(
         outputPath: target.path,
-        viewState: viewState,
+        viewState: chartPose,
         renderConfig: renderConfig,
         stars: stars,
         dsos: dsos,
@@ -197,7 +243,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     if (_popupObject == null) return;
 
     final obj = _popupObject!;
-    final coords = _popupCoordinates ?? obj.coordinates;
+    final coords = obj.coordinates;
 
     // Set the framing target
     ref.read(framingProvider.notifier).setTargetCoordinates(
@@ -220,7 +266,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     if (_popupObject == null) return;
 
     final obj = _popupObject!;
-    final coords = _popupCoordinates ?? obj.coordinates;
+    final coords = obj.coordinates;
     final meta = celestialObjectMetadata(obj);
 
     final target = await catalogTargetSuggestion(
@@ -248,11 +294,40 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     if (mounted) _dismissPopup();
   }
 
+  /// Queue [object] as a wishlist target.
+  ///
+  /// [targetQueueProvider] is the planetarium→sequencer bridge: the sequencer
+  /// Builder's Target Queue panel is a pure view over the same provider, so an
+  /// object queued from the sky is immediately visible there and draggable onto
+  /// the instruction tree. Unlike "Add to sequence" this writes no sequence
+  /// nodes — the queue is a shortlist the user commits from later.
+  void _addToTargetQueue(CelestialObject object) {
+    final name = object.name.isNotEmpty ? object.name : object.id;
+    final queue = ref.read(targetQueueProvider);
+    final duplicate = queue.targets.any(
+      (t) => t.displayName.toLowerCase() == name.toLowerCase(),
+    );
+    if (duplicate) {
+      context.showInfoSnackBar('$name is already in the target queue');
+      return;
+    }
+
+    ref.read(targetQueueProvider.notifier).addTarget(object);
+    context.showSuccessSnackBar('Added $name to the target queue');
+  }
+
+  void _addPopupObjectToTargetQueue() {
+    final object = _popupObject;
+    if (object == null) return;
+    _addToTargetQueue(object);
+    _dismissPopup();
+  }
+
   Future<void> _handleSlewToTarget() async {
     if (_popupObject == null) return;
 
     final obj = _popupObject!;
-    final coords = _popupCoordinates ?? obj.coordinates;
+    final coords = obj.coordinates;
 
     final result = await ref
         .read(mountCommandServiceProvider)
@@ -572,8 +647,14 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
   }
 
   void _resetView() {
-    ref.read(skyViewStateProvider.notifier).setCenter(0, 0);
-    ref.read(skyViewStateProvider.notifier).setFieldOfView(60);
+    // Home is the observer's zenith in whichever frame is active, not the fixed
+    // point RA 0h / Dec 0 — which at the audited site sat 14 deg BELOW the
+    // horizon, so "reset view" pointed the map at the ground.
+    final (ra, dec) = ref.read(skyViewHomeCenterProvider);
+    final notifier = ref.read(skyViewStateProvider.notifier);
+    notifier.setCenter(ra, dec);
+    notifier.setHorizontalCenter(0, 90);
+    notifier.setFieldOfView(60);
   }
 
   void _showFilterBottomSheet(BuildContext context) {
@@ -652,7 +733,11 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
                         .toggleConstellationLines(),
                   ),
                   SwitchListTile(
-                    title: const Text('Ground'),
+                    // Scoped in the title because the ground is terrain that
+                    // occludes, and only the horizon view has terrain: the
+                    // equatorial star atlas draws no ground at all, so an
+                    // unqualified "Ground" switch would do nothing there.
+                    title: const Text('Ground (horizon view)'),
                     value: ref.watch(showGroundPlaneProvider),
                     onChanged: (v) =>
                         ref.read(showGroundPlaneProvider.notifier).state = v,
@@ -782,6 +867,10 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
                   selectedObject: selectedObject,
                   onSendToFraming: _sendToFraming,
                   onAddToSequencer: _addToSequencer,
+                  onAddToQueue: () {
+                    final object = selectedObject.object;
+                    if (object != null) _addToTargetQueue(object);
+                  },
                   onSlewToTarget: _handleSlewToTarget,
                   onSlewAndCenter: () {
                     final coords = selectedObject.coordinates;

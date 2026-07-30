@@ -59,7 +59,7 @@ class _ConnectAllProgressStrip extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              state.isSweeping ? 'Connecting…' : 'Connect All result',
+              state.isSweeping ? 'Connecting…' : '${state.source} result',
               style: NightshadeTypography.labelStrongSm
                   .copyWith(color: colors.textSecondary),
             ),
@@ -226,30 +226,48 @@ class _ConnectionStatusSummary extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: NightshadeDecorations.statusChip(
-        colors.success,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: colors.success,
+    // How many of those connections are NOT the profile's devices. Without this
+    // the header read a green "9 connected" while the persistent bottom status
+    // bar read "My Equipment 4/4" — two numbers, one screen, no explanation, and
+    // the five extra devices silently vanished on the next launch.
+    final sessionOnly = ref.watch(sessionOnlyConnectedSlotsProvider).length;
+    final barColor = sessionOnly > 0 ? colors.warning : colors.success;
+
+    return Tooltip(
+      message: sessionOnly > 0
+          ? '$connectedCount device(s) connected, of which $sessionOnly are not '
+              'saved to the active profile and will not reconnect on the next '
+              'launch.'
+          : '$connectedCount device(s) connected, all saved to the active '
+              'profile.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: NightshadeDecorations.statusChip(
+          barColor,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: barColor,
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$connectedCount connected',
-            style: NightshadeTypography.labelStrongSm
-                .copyWith(color: colors.success),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              sessionOnly > 0
+                  ? '$connectedCount connected · $sessionOnly unsaved'
+                  : '$connectedCount connected',
+              style: NightshadeTypography.labelStrongSm.copyWith(
+                color: barColor,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -321,6 +339,13 @@ class _DeviceDashboard extends ConsumerWidget {
     final coverCalibratorState = ref.watch(coverCalibratorStateProvider);
     final switchState = ref.watch(switchStateProvider);
 
+    // Which connected slots are NOT the profile's devices. Resolved here, where
+    // the profile is already in scope, and handed to each card as a plain flag —
+    // a single card must not depend on the profiles provider (on a remote backend
+    // that starts a periodic host poll).
+    final sessionOnlySlots = ref.watch(sessionOnlyConnectedSlotsProvider);
+    bool adHoc(ProfileDeviceSlot slot) => sessionOnlySlots.contains(slot);
+
     // Build list of connected device cards
     final connectedCards = <Widget>[];
 
@@ -328,6 +353,7 @@ class _DeviceDashboard extends ConsumerWidget {
       connectedCards.add(ConnectedDeviceCard(
         key: EquipmentTutorialKeys.cameraCard,
         type: ConnectedDeviceType.camera,
+        sessionOnly: adHoc(ProfileDeviceSlot.camera),
       ));
     }
 
@@ -335,55 +361,64 @@ class _DeviceDashboard extends ConsumerWidget {
       connectedCards.add(ConnectedDeviceCard(
         key: EquipmentTutorialKeys.mountCard,
         type: ConnectedDeviceType.mount,
+        sessionOnly: adHoc(ProfileDeviceSlot.mount),
       ));
     }
 
     if (focuserState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.focuser,
+        sessionOnly: adHoc(ProfileDeviceSlot.focuser),
       ));
     }
 
     if (filterWheelState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.filterWheel,
+        sessionOnly: adHoc(ProfileDeviceSlot.filterWheel),
       ));
     }
 
     if (guiderState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.guider,
+        sessionOnly: adHoc(ProfileDeviceSlot.guider),
       ));
     }
 
     if (rotatorState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.rotator,
+        sessionOnly: adHoc(ProfileDeviceSlot.rotator),
       ));
     }
 
     if (domeState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.dome,
+        sessionOnly: adHoc(ProfileDeviceSlot.dome),
       ));
     }
 
     if (weatherState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.weather,
+        sessionOnly: adHoc(ProfileDeviceSlot.weather),
       ));
     }
 
     if (safetyMonitorState.connectionState == DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.safetyMonitor,
+        sessionOnly: adHoc(ProfileDeviceSlot.safetyMonitor),
       ));
     }
 
     if (coverCalibratorState.connectionState ==
         DeviceConnectionState.connected) {
-      connectedCards.add(const ConnectedDeviceCard(
+      connectedCards.add(ConnectedDeviceCard(
         type: ConnectedDeviceType.coverCalibrator,
+        sessionOnly: adHoc(ProfileDeviceSlot.coverCalibrator),
       ));
     }
 
@@ -554,15 +589,84 @@ class _DeviceDashboard extends ConsumerWidget {
           if (header != null) header!,
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: connectedCards,
-            ),
+            child: _EqualHeightCardGrid(cards: connectedCards),
           ),
           if (_boundedFooter != null) _boundedFooter!,
         ],
       ),
+    );
+  }
+}
+
+/// Lays the fixed-width device cards out in rows whose members share a height.
+///
+/// The dashboard used a plain `Wrap` (spacing + runSpacing only, no cross-axis
+/// stretch), so every card sized to its own content. Cards whose action buttons
+/// wrap to a second line then hung below their row-mates: measured on a 2560 px
+/// window with nine devices connected, row 1 shared top y=133 with bottoms at 328
+/// except the Mount at 364 (36 px lower), and row 2 shared top y=382 with bottoms
+/// at 577 except the Dome at 649 (72 px lower). The result was a visibly ragged
+/// grid.
+///
+/// Chunking into explicit rows and wrapping each in [IntrinsicHeight] with a
+/// stretching [Row] makes each run share its tallest card's height, which is what
+/// `Wrap` cannot express. Row count is derived from the same fixed tile width the
+/// cards use, so the packing matches what `Wrap` produced.
+class _EqualHeightCardGrid extends StatelessWidget {
+  final List<Widget> cards;
+
+  const _EqualHeightCardGrid({required this.cards});
+
+  /// Must match `ConnectedDeviceCard`'s desktop tile width.
+  static const double _cardWidth = 320.0;
+  static const double _spacing = 16.0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (cards.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available =
+            constraints.hasBoundedWidth ? constraints.maxWidth : _cardWidth;
+        final perRow = ((available + _spacing) / (_cardWidth + _spacing))
+            .floor()
+            .clamp(1, cards.length);
+
+        final rows = <Widget>[];
+        for (var start = 0; start < cards.length; start += perRow) {
+          final end = (start + perRow).clamp(0, cards.length);
+          final rowCards = cards.sublist(start, end);
+          if (rows.isNotEmpty) {
+            rows.add(const SizedBox(height: _spacing));
+          }
+          rows.add(
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < rowCards.length; i++) ...[
+                    if (i > 0) const SizedBox(width: _spacing),
+                    // Bound the tile width explicitly. `Wrap` handed its
+                    // children a loose maxWidth; a `Row` hands out UNBOUNDED
+                    // width, which a card that does not pin its own width
+                    // (SwitchControlCard) cannot lay out. ConnectedDeviceCard
+                    // already pins the same 320, so this is a no-op for it.
+                    SizedBox(width: _cardWidth, child: rowCards[i]),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: rows,
+        );
+      },
     );
   }
 }

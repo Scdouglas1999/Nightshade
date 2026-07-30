@@ -54,7 +54,14 @@ class NightshadeBottomNavigation extends StatelessWidget {
                       child: _BottomNavItem(
                         icon: dest.icon,
                         label: dest.bottomNavLabel(l10n),
-                        isSelected: currentPath == dest.route,
+                        // Sub-route aware: the image-ready deep link
+                        // (/imaging/preview/:id) renders the Imaging screen, so
+                        // the Imaging slot must own it. Exact matching left the
+                        // whole bar unlit on those routes.
+                        isSelected: ShellNavigation.locationIsUnder(
+                          currentPath,
+                          dest.route,
+                        ),
                         compact: isLandscape,
                         colors: colors,
                         onTap: () => onRouteSelected(dest.route),
@@ -62,7 +69,7 @@ class NightshadeBottomNavigation extends StatelessWidget {
                     ),
                   ),
                 // "More" overflow so the primary features without a fixed slot
-                // (Analytics, Your Sky, Constellation) are reachable on phone.
+                // (Weather, Analytics) are reachable on phone.
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -72,7 +79,10 @@ class NightshadeBottomNavigation extends StatelessWidget {
                       icon: LucideIcons.menu,
                       label: l10n.text('navMore'),
                       isSelected: ShellNavigation.overflowDestinations.any(
-                        (d) => d.route == currentPath,
+                        (d) => ShellNavigation.locationIsUnder(
+                          currentPath,
+                          d.route,
+                        ),
                       ),
                       compact: isLandscape,
                       colors: colors,
@@ -89,8 +99,8 @@ class NightshadeBottomNavigation extends StatelessWidget {
   }
 
   /// Bottom-sheet overflow listing the primary destinations without a fixed
-  /// bottom-nav slot (Analytics, Your Sky, Constellation). Selecting one routes
-  /// to it and dismisses the sheet.
+  /// bottom-nav slot (today: Weather and Analytics — Your Sky and Constellation
+  /// are Plan Tonight tabs). Selecting one routes to it and dismisses the sheet.
   void _showMoreSheet(
     BuildContext context,
     NightshadeLocalizations l10n,
@@ -108,34 +118,35 @@ class NightshadeBottomNavigation extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final dest in ShellNavigation.overflowDestinations)
-                ListTile(
-                  leading: Icon(
-                    dest.icon,
-                    color: currentPath == dest.route
-                        ? colors.primary
-                        : colors.textSecondary,
-                  ),
-                  title: Text(
-                    dest.label(l10n),
-                    style: NightshadeTypography.body.copyWith(
-                      color: colors.textPrimary,
-                      fontWeight: currentPath == dest.route
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                Builder(builder: (context) {
+                  final isCurrent =
+                      ShellNavigation.locationIsUnder(currentPath, dest.route);
+                  return ListTile(
+                    leading: Icon(
+                      dest.icon,
+                      color: isCurrent ? colors.primary : colors.textSecondary,
                     ),
-                  ),
-                  subtitle: Text(
-                    dest.description(l10n),
-                    style: NightshadeTypography.captionSm.copyWith(
-                      color: colors.textSecondary,
+                    title: Text(
+                      dest.label(l10n),
+                      style: NightshadeTypography.body.copyWith(
+                        color: colors.textPrimary,
+                        fontWeight:
+                            isCurrent ? FontWeight.w700 : FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  selected: currentPath == dest.route,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    onRouteSelected(dest.route);
-                  },
-                ),
+                    subtitle: Text(
+                      dest.description(l10n),
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    selected: isCurrent,
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      onRouteSelected(dest.route);
+                    },
+                  );
+                }),
             ],
           ),
         );

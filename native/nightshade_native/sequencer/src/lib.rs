@@ -320,6 +320,30 @@ pub enum NodeType {
     SciencePhotometry(SciencePhotometryConfig),
 }
 
+impl NodeType {
+    /// True for the variants whose executor actually descends into children.
+    ///
+    /// Every other variant is a leaf: its instruction runs, returns a status,
+    /// and the node tree never looks at `children`. Anything parented under a
+    /// leaf is therefore UNREACHABLE — it is stored, drawn in the builder's
+    /// flat list, counted in the header chip, and then silently never
+    /// executed. That is what made a run of Target → Unpark → SlewToTarget →
+    /// TakeExposure (each nested inside the previous) execute one instruction
+    /// and report `completed` with 0 frames and no errors.
+    pub fn accepts_children(&self) -> bool {
+        matches!(
+            self,
+            NodeType::TargetHeader(_)
+                | NodeType::TargetGroup(_)
+                | NodeType::Loop(_)
+                | NodeType::Parallel(_)
+                | NodeType::Conditional(_)
+                | NodeType::Recovery(_)
+                | NodeType::TargetScheduler(_)
+        )
+    }
+}
+
 // =============================================================================
 // Science: SciencePhotometry configuration
 // =============================================================================

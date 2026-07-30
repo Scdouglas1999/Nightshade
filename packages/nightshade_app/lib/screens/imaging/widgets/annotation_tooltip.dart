@@ -61,12 +61,27 @@ class _AnnotationOverlayWrapperState
       Responsive.previewOverlayMaxWidth(_previewViewportWidth, maxAbsolute: 300)
           .clamp(200.0, 300.0);
 
+  /// This overlay's own laid-out box, i.e. the live-preview viewport it fills.
+  ///
+  /// The tooltip is `Positioned` in THIS box's coordinate space, so it has to
+  /// be fenced by this box. Fencing it with the window instead let it run off
+  /// the preview by however much chrome surrounds the preview — on a wide
+  /// desktop window that is most of the screen, so the tooltip for a star near
+  /// the right edge of the frame simply hung outside the image.
+  Size get _overlayViewport {
+    final box = context.findRenderObject();
+    if (box is RenderBox && box.hasSize && !box.size.isEmpty) {
+      return box.size;
+    }
+    return MediaQuery.sizeOf(context);
+  }
+
   Offset _computeTooltipPosition(Offset anchor, {bool preferRight = true}) {
-    final screenSize = MediaQuery.sizeOf(context);
+    final viewport = _overlayViewport;
     final isPanelVisible = ref.read(annotationPanelVisibleProvider);
     final reservedRight = isPanelVisible ? _objectsPanelWidth : 0.0;
     final availableRight =
-        (screenSize.width - reservedRight).clamp(0.0, screenSize.width);
+        (viewport.width - reservedRight).clamp(0.0, viewport.width);
 
     final preferX =
         preferRight ? anchor.dx + 20 : anchor.dx - _tooltipWidth - 20;
@@ -77,9 +92,9 @@ class _AnnotationOverlayWrapperState
         : fallbackX;
 
     final preferredY = anchor.dy - (_tooltipHeight / 2);
-    final y = preferredY.clamp(
+    final maxY = math.max(
       _tooltipMargin,
-      screenSize.height - _tooltipHeight - _tooltipMargin,
+      viewport.height - _tooltipHeight - _tooltipMargin,
     );
     final maxX = math.max(
       _tooltipMargin,
@@ -88,7 +103,7 @@ class _AnnotationOverlayWrapperState
 
     return Offset(
       x.clamp(_tooltipMargin, maxX),
-      y,
+      preferredY.clamp(_tooltipMargin, maxY),
     );
   }
 

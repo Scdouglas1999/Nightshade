@@ -46,6 +46,53 @@ abstract interface class EnvironmentalStatusBackend {
   Future<bool> getHardwareSafetyStatus(String deviceId);
 }
 
+/// Live dome telemetry read back from the driver.
+///
+/// Mirrors the fields the native `api_get_dome_status` / headless
+/// `GET /api/dome/status` already return. `shutterStatus` is the raw ASCOM
+/// shutter code so both backends can map into it without importing the UI's
+/// `ShutterStatus` enum:
+/// 0 = open, 1 = closed, 2 = opening, 3 = closing, 4 = error. Anything else
+/// (including a driver that does not implement the property) is reported as
+/// `null` — "unknown" — never silently coerced to `closed`.
+class HardwareDomeStatus {
+  final double? azimuth;
+  final double? altitude;
+  final int? shutterStatus;
+  final bool isSlewing;
+  final bool isAtHome;
+  final bool isParked;
+  final bool isSlaved;
+
+  const HardwareDomeStatus({
+    this.azimuth,
+    this.altitude,
+    this.shutterStatus,
+    this.isSlewing = false,
+    this.isAtHome = false,
+    this.isParked = false,
+    this.isSlaved = false,
+  });
+}
+
+/// Optional capability implemented by backends that can read live dome state.
+///
+/// Separate from [DeviceBackend] for the same reason as
+/// [EnvironmentalStatusBackend]: lightweight test backends must not be forced
+/// to fake dome telemetry.
+///
+/// Why this exists: the dome card's azimuth / shutter readouts were
+/// structurally unpopulatable — `DomeStateNotifier.updateAzimuth` and
+/// `updateShutterStatus` had no callers outside their own declaration, so a
+/// connected dome rendered `Azimuth ---` / `Shutter Unknown` forever and the
+/// "Open Shutter" button never flipped to "Close Shutter" no matter what the
+/// hardware did. The read existed at every other layer (Rust
+/// `api_get_dome_status`, headless `GET /api/dome/status`); only the Dart
+/// backend role and the poll were missing.
+abstract interface class DomeStatusBackend {
+  Future<HardwareDomeStatus> getHardwareDomeStatus(String deviceId);
+}
+
 /// Role interface covering driver-bound device operations.
 ///
 /// What this role owns:

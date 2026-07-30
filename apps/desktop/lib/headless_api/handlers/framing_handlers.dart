@@ -72,7 +72,15 @@ class FramingHandlers {
     final binning = optionalInt(payload, 'binning', min: 1, max: 16) ?? 2;
     final gain = optionalInt(payload, 'gain', min: 0);
     final offset = optionalInt(payload, 'offset', min: 0);
-    final syncMount = optionalBool(payload, 'syncMount') ?? false;
+    // Default from Settings -> Plate Solving -> "Sync mount when centering".
+    // Without the sync every correction re-issues the slew that produced the
+    // mis-pointed frame, so centering cannot converge.
+    final storedSyncMount = await container
+        .read(databaseProvider)
+        .settingsDao
+        .getSetting('centering_sync_mount');
+    final syncMount =
+        optionalBool(payload, 'syncMount') ?? storedSyncMount != 'false';
 
     Map<String, Object?> resultToJson(CenteringResult result) => {
       'success': result.success,

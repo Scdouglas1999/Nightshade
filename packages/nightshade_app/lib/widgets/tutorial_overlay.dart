@@ -180,11 +180,19 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
       curve: Curves.easeOut,
     );
 
-    // Pulse controller for the expanding ring effect (2 second cycle)
+    // Pulse controller for the expanding ring effect (2 second cycle).
+    //
+    // NOT started here. This overlay wraps the whole app and stays mounted on
+    // every screen, but it only draws its spotlight ring while a tutorial is
+    // actually running. Repeating unconditionally kept a Ticker alive forever,
+    // which keeps Flutter's vsync loop alive: the app produced ~30 frames per
+    // second, running the full build/layout/paint/semantics pipeline, on every
+    // screen, permanently — for a ring that is not on screen. It is started and
+    // stopped in build, alongside the fade controller.
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
-    )..repeat();
+    );
 
     // Ring expands from 0 to 1 (spotlight edge to outer ring)
     _ringAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -256,11 +264,18 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     // Note: this overlay only renders spotlight coach marks for an actively
     // running tutorial; it does not gate a separate welcome takeover.
 
-    // Animate when tutorial state changes
+    // Animate when tutorial state changes. The pulse ring only exists while a
+    // tutorial is running, so its ticker is stopped the rest of the time (see
+    // initState) — otherwise it holds the whole app at ~30fps forever.
     if (tutorialState.activeCategory != null) {
       _animController.forward();
+      if (!_pulseController.isAnimating) _pulseController.repeat();
     } else {
       _animController.reverse();
+      if (_pulseController.isAnimating) {
+        _pulseController.stop();
+        _pulseController.value = 0;
+      }
     }
 
     return Stack(

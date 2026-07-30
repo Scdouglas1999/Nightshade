@@ -16,6 +16,7 @@ import '../../providers/science_status_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
 import '../../models/science/science_models.dart';
+import '../../utils/utc_timestamp.dart';
 import '../wcs/gnomonic_projection.dart';
 import '../wcs/wcs_sip_codec.dart';
 import 'default_science_backend.dart';

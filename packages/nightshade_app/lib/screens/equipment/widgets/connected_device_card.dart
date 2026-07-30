@@ -205,15 +205,52 @@ String _getDeviceDisplayName(
 /// - Quick action buttons for common operations
 /// - Expandable section for additional telemetry
 class ConnectedDeviceCard extends ConsumerStatefulWidget {
+  /// 1 s, deliberately FASTER than the 5 s environmental poll it describes.
+  ///
+  /// This was 5 s, reasoned as "advance the label at the same cadence the
+  /// reading can change". That is what broke it: sampling an age at exactly the
+  /// period of the thing being aged makes the observed value a constant — the
+  /// fixed phase offset between the two timers — instead of elapsed time. Both
+  /// timers also start from the same event (connect calls
+  /// `_ensureEnvironmentPolling()`, and this card's `initState` starts the ticker
+  /// milliseconds later), so that offset was ~0 and "Last checked" read
+  /// "0s ago" forever: 42 consecutive live samples over ~50 s never showed
+  /// anything else. It only ever changed when the card happened to be re-mounted
+  /// at a different tick phase, which is the proof it was a phase artifact and
+  /// not an age.
+  ///
+  /// To display an age spanning 0-4 s the clock has to tick inside that window.
+  /// 1 s is one cheap `setState` per second on an already-visible card, and it is
+  /// the granularity the label prints anyway.
+  ///
+  /// Exposed so a test can assert the invariant (`< DeviceService
+  /// .environmentPollInterval`) rather than the literal, since it is the
+  /// RELATIONSHIP between the two periods that was wrong.
+  @visibleForTesting
+  static const freshnessTick = Duration(seconds: 1);
+
   final ConnectedDeviceType type;
   final VoidCallback? onDisconnect;
   final VoidCallback? onSettings;
+
+  /// True when this device is connected but is NOT the device the active profile
+  /// assigns to its slot — an ad-hoc "Connect" from the Discovery panel that
+  /// nothing persists, so it will not come back on the next launch.
+  ///
+  /// Supplied by the dashboard (which already holds the profile) rather than read
+  /// from a provider here: `sessionOnlyConnectedSlotsProvider` depends on
+  /// `activeEquipmentProfileProvider`, and on a remote backend that provider runs
+  /// a periodic host poll — a dependency a single card has no business dragging
+  /// in, and one that leaves a pending timer in every widget test that mounts a
+  /// card on its own.
+  final bool sessionOnly;
 
   const ConnectedDeviceCard({
     super.key,
     required this.type,
     this.onDisconnect,
     this.onSettings,
+    this.sessionOnly = false,
   });
 
   @override
@@ -232,6 +269,12 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
+
+  /// Clock behind the freshness ("… ago") labels. See [_startFreshnessTicker].
+  Timer? _freshnessTimer;
+  DateTime _freshnessNow = DateTime.now();
+
+  static const _freshnessTick = ConnectedDeviceCard.freshnessTick;
 
   @override
   void initState() {
@@ -263,10 +306,37 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       parent: _expandController,
       curve: Curves.easeOut,
     );
+    _startFreshnessTicker();
   }
+
+  /// Drive the "Last Checked / Last Updated" age labels from a clock.
+  ///
+  /// These labels used to compute `DateTime.now().difference(...)` at BUILD
+  /// time, and the widget only rebuilt when the provider that SETS the
+  /// timestamp emitted — i.e. exactly when the timestamp became `now`. The
+  /// safety-monitor card therefore read "0s ago" permanently: sampled every 3 s
+  /// for 42 s against a 5 s poll it never once showed 1-4 s, and it kept reading
+  /// "0s ago" while the underlying reading was minutes old.
+  ///
+  /// A local timer rather than the shared app ticker: the shared
+  /// `tickerProvider` is not auto-disposed, so a widget that watches it leaves
+  /// its periodic timer running for the lifetime of the ProviderContainer. This
+  /// one is owned by the card and cancelled in [dispose], and it is only started
+  /// for the two device types that actually show a freshness label.
+  void _startFreshnessTicker() {
+    if (!_needsFreshnessClock) return;
+    _freshnessTimer = Timer.periodic(_freshnessTick, (_) {
+      if (mounted) setState(() => _freshnessNow = DateTime.now());
+    });
+  }
+
+  bool get _needsFreshnessClock =>
+      widget.type == ConnectedDeviceType.safetyMonitor ||
+      widget.type == ConnectedDeviceType.weather;
 
   @override
   void dispose() {
+    _freshnessTimer?.cancel();
     _backendSubscription?.close();
     _expandController.dispose();
     super.dispose();
@@ -447,6 +517,12 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
               // Troubleshooter-backed error subtitle + Diagnose
               // affordance, shown only when the device is in an error state.
               _buildErrorSubtitle(colors, connectionState),
+
+              // "Connected but not saved to the profile" notice. A full-width
+              // row rather than a header chip: the 320 px header already seats
+              // the icon, name and connection badge, and squeezing a fourth
+              // element in overflowed it by 81 px.
+              _buildSessionOnlyNotice(colors, connectionState),
 
               SizedBox(height: sectionGap),
 

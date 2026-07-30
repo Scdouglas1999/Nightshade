@@ -78,10 +78,50 @@ class IntegrityRecoveryReport {
 /// to a support email without spelunking through OS-specific paths.
 const String _corruptBackupPrefix = 'nightshade-corrupt-';
 
+/// Filename prefix for the database that a restore displaced. Deliberately
+/// NOT [_corruptBackupPrefix] so a restored-over file is never offered back
+/// to the user as "the database we quarantined".
+const String _replacedBackupPrefix = 'nightshade-replaced-';
+
 /// Filename prefix for the one-time UI marker that signals "we just recovered
 /// from corruption — please tell the user." The marker is consumed +
 /// unlinked by the UI layer on the next launch.
 const String _recoveryMarkerPrefix = '.recovered-on-';
+
+/// Name of the file that requests a quarantined database be swapped back in
+/// on the next launch. Restoring cannot happen while the app is running —
+/// drift holds the live file open — so the UI stages the request and the
+/// pre-flight in [applyPendingRestore] performs the swap before anything
+/// opens the database.
+const String _restoreRequestName = '.restore-pending.txt';
+
+/// SQLite primary result codes that mean "this file is not a usable SQLite
+/// database" — the ONLY two conditions under which we are allowed to move a
+/// user's database out of the way.
+///
+/// Everything else SQLite can raise at open time (`SQLITE_BUSY`,
+/// `SQLITE_LOCKED`, `SQLITE_CANTOPEN`, `SQLITE_READONLY`, `SQLITE_PERM`,
+/// `SQLITE_IOERR`, ...) describes the *environment*, not the file: another
+/// process holds a lock, the directory is read-only, a hot journal needs
+/// replaying, the volume is unmounted. Rotating on those destroys a perfectly
+/// good database — which is exactly the data-loss bug this list exists to
+/// prevent. Those cases are rethrown so the operator sees the real error.
+const int _sqliteCorrupt = 11; // SQLITE_CORRUPT
+const int _sqliteNotADb = 26; // SQLITE_NOTADB
+
+/// Primary result codes that mean "I need write access to even read this
+/// file" rather than "this file is broken": a WAL database whose `-shm` we
+/// could not create, or a rollback journal that has to be replayed before the
+/// database is readable. Both are recoverable by re-opening read/write and
+/// letting SQLite do its normal crash recovery.
+const int _sqliteCantOpen = 14; // SQLITE_CANTOPEN
+const int _sqliteReadOnly = 8; // SQLITE_READONLY
+
+bool _isCorruption(SqliteException e) =>
+    e.resultCode == _sqliteCorrupt || e.resultCode == _sqliteNotADb;
+
+bool _needsWritableRetry(SqliteException e) =>
+    e.resultCode == _sqliteCantOpen || e.resultCode == _sqliteReadOnly;
 
 /// Open the database file once, run `PRAGMA integrity_check`, and on failure
 /// rotate the corrupt file to a forensic backup so that drift's `onCreate`
@@ -99,39 +139,97 @@ const String _recoveryMarkerPrefix = '.recovered-on-';
 /// corrupt file because of an open file handle). Per project policy we
 /// surface that as a hard failure rather than silently continuing on a
 /// half-broken state.
+///
+/// Also throws — deliberately, without touching the file — when the database
+/// could not be *reached* rather than could not be *parsed*: another instance
+/// holds a lock (`SQLITE_BUSY`/`SQLITE_LOCKED`), the file or directory is not
+/// writable (`SQLITE_PERM`, `SQLITE_READONLY`), the volume is gone
+/// (`SQLITE_IOERR`). Those are operator-visible faults, not corruption, and
+/// quarantining the database in response silently destroys real data.
 Future<IntegrityRecoveryReport> runIntegrityCheckAndRecover(File dbFile) async {
   if (!await dbFile.exists()) {
     return IntegrityRecoveryReport.freshInstall();
   }
 
-  String? failureReason;
+  final String failureReason;
   try {
-    final db = sqlite3.open(dbFile.path, mode: OpenMode.readOnly);
-    try {
-      final result = db.select('PRAGMA integrity_check;');
-      // PRAGMA integrity_check returns either a single row {integrity_check:
-      // 'ok'} on a healthy database, or one or more rows describing the
-      // corruption (e.g. {integrity_check: 'database disk image is
-      // malformed'}). The single-row 'ok' shape is the only healthy case.
-      if (result.length == 1 &&
-          result.first.values.length == 1 &&
-          result.first.values.first == 'ok') {
-        return IntegrityRecoveryReport.healthy();
-      }
-      failureReason = result
-          .map((row) => row.values.isNotEmpty ? '${row.values.first}' : '?')
-          .join('; ');
-    } finally {
-      db.close();
-    }
+    failureReason = _checkIntegrity(dbFile.path, mode: OpenMode.readOnly);
   } on SqliteException catch (e) {
-    // Why we treat open-time SqliteException as corruption too: SQLite
-    // reports SQLITE_NOTADB / SQLITE_CORRUPT during `sqlite3_open` when the
-    // header is mangled. The recovery path is identical to a failed
-    // integrity_check — rotate the file, recreate, mark the UI.
-    failureReason = 'open-time error: ${e.message}';
+    if (!await dbFile.exists()) {
+      // The file was there a moment ago and is gone now: deleted underneath
+      // us, or its volume went away. There is nothing left to verify and —
+      // critically — nothing to quarantine. The old code reached its rotate
+      // path here and renamed whatever it could find; treat it as the fresh
+      // install the next open is about to create anyway.
+      return IntegrityRecoveryReport.freshInstall();
+    }
+    if (_needsWritableRetry(e)) {
+      // SQLite is telling us it must write to read: a WAL database whose
+      // `-shm` does not exist yet, or a hot rollback journal left by a crash
+      // that has to be replayed first. A read-only handle can never satisfy
+      // either, so the read-only probe reports SQLITE_READONLY_RECOVERY /
+      // _ROLLBACK / _CANTINIT for a database that is completely healthy.
+      // Re-open read/write (never create) and let SQLite do its normal
+      // crash recovery.
+      final String retry;
+      try {
+        retry = _checkIntegrity(dbFile.path, mode: OpenMode.readWrite);
+      } on SqliteException catch (retryError) {
+        // Same rule on the second attempt: only a file SQLite calls corrupt
+        // or not-a-database may be moved. Anything else (still unwritable,
+        // now locked, volume gone) is the operator's to see.
+        if (!_isCorruption(retryError)) rethrow;
+        return _quarantine(dbFile, 'open-time error: ${retryError.message}');
+      }
+      if (retry.isEmpty) return IntegrityRecoveryReport.healthy();
+      return _quarantine(dbFile, retry);
+    }
+    if (!_isCorruption(e)) {
+      // NOT corruption — the database is fine and something else is wrong.
+      // Rethrowing keeps the operator's data on disk and puts the real
+      // SQLite error in front of them, which is what
+      // `_openConnection`'s contract already promised.
+      rethrow;
+    }
+    // SQLITE_CORRUPT / SQLITE_NOTADB at open time: the header itself is
+    // unreadable. Same recovery path as a failed integrity_check.
+    return _quarantine(dbFile, 'open-time error: ${e.message}');
   }
 
+  if (failureReason.isEmpty) {
+    return IntegrityRecoveryReport.healthy();
+  }
+  return _quarantine(dbFile, failureReason);
+}
+
+/// Runs `PRAGMA integrity_check` against [path]. Returns an empty string when
+/// the database is healthy, or the joined failure rows when it is not.
+/// Propagates [SqliteException] to the caller for classification.
+String _checkIntegrity(String path, {required OpenMode mode}) {
+  final db = sqlite3.open(path, mode: mode);
+  try {
+    final result = db.select('PRAGMA integrity_check;');
+    // PRAGMA integrity_check returns either a single row {integrity_check:
+    // 'ok'} on a healthy database, or one or more rows describing the
+    // corruption (e.g. {integrity_check: 'database disk image is
+    // malformed'}). The single-row 'ok' shape is the only healthy case.
+    if (result.length == 1 &&
+        result.first.values.length == 1 &&
+        result.first.values.first == 'ok') {
+      return '';
+    }
+    return result
+        .map((row) => row.values.isNotEmpty ? '${row.values.first}' : '?')
+        .join('; ');
+  } finally {
+    db.close();
+  }
+}
+
+Future<IntegrityRecoveryReport> _quarantine(
+  File dbFile,
+  String failureReason,
+) async {
   // Corruption confirmed. Rotate the file, drop a marker, and let the caller
   // proceed with `NativeDatabase.createInBackground` which will trigger
   // drift's onCreate on a now-absent file.
@@ -327,4 +425,236 @@ Future<String?> _findMostRecentBackup(Directory dbDirectory) async {
     (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
   );
   return backups.first.path;
+}
+
+/// What a quarantined `nightshade-corrupt-*.db` file actually turned out to
+/// be when we looked at it again.
+///
+/// Why this exists: builds before the result-code fix quarantined databases
+/// on ANY open failure, including `SQLITE_BUSY` from a second app instance.
+/// Those files are named `nightshade-corrupt-…` but are perfectly healthy,
+/// and the UI must not repeat the lie. Anything that shows a quarantined file
+/// to a user asks here first.
+class QuarantinedDatabaseCheck {
+  /// False when the quarantined file named in the recovery marker is no
+  /// longer on disk (user deleted it, or moved it off for support).
+  final bool exists;
+
+  /// True iff the file opened cleanly AND `PRAGMA integrity_check` said `ok`.
+  /// When this is true the word "corrupt" must not appear in the UI.
+  final bool integrityOk;
+
+  /// Human-readable outcome of the re-check: the failing `integrity_check`
+  /// rows, or the SQLite error, or null when [integrityOk].
+  final String? detail;
+
+  /// Size on disk, for a "restore 4.2 MB of history" style confirmation.
+  final int sizeBytes;
+
+  const QuarantinedDatabaseCheck({
+    required this.exists,
+    required this.integrityOk,
+    required this.sizeBytes,
+    this.detail,
+  });
+
+  static const QuarantinedDatabaseCheck missing = QuarantinedDatabaseCheck(
+    exists: false,
+    integrityOk: false,
+    sizeBytes: 0,
+    detail: 'The quarantined database file is no longer on disk.',
+  );
+
+  /// True when the file is present and readable enough to be worth putting
+  /// back. Only healthy files are offered: swapping a genuinely corrupt file
+  /// back in would just re-trigger the quarantine on the next launch.
+  bool get canRestore => exists && integrityOk;
+}
+
+/// Re-runs the integrity check against a quarantined backup so callers can
+/// tell "this really was corrupt" apart from "we quarantined a healthy
+/// database because something else went wrong".
+///
+/// Deliberately short-circuits before touching sqlite3 when the file is
+/// absent, so a UI that only needs the missing/present answer does not pay
+/// for loading the native library.
+Future<QuarantinedDatabaseCheck> inspectQuarantinedDatabase(
+  String backupPath,
+) async {
+  final file = File(backupPath);
+  if (!await file.exists()) {
+    return QuarantinedDatabaseCheck.missing;
+  }
+  final sizeBytes = await file.length();
+  try {
+    // Read-only: inspecting evidence must never modify it. A backup that
+    // needs journal replay reports SQLITE_READONLY here and is honestly
+    // described as "could not be verified" rather than "corrupt".
+    final failure = _checkIntegrity(backupPath, mode: OpenMode.readOnly);
+    return QuarantinedDatabaseCheck(
+      exists: true,
+      integrityOk: failure.isEmpty,
+      sizeBytes: sizeBytes,
+      detail: failure.isEmpty ? null : failure,
+    );
+  } on SqliteException catch (e) {
+    return QuarantinedDatabaseCheck(
+      exists: true,
+      integrityOk: false,
+      sizeBytes: sizeBytes,
+      detail: e.message,
+    );
+  }
+}
+
+/// Every quarantined database in [dbDirectory], newest first.
+Future<List<String>> findQuarantinedDatabases(Directory dbDirectory) async {
+  if (!await dbDirectory.exists()) return const [];
+  final backups = await dbDirectory
+      .list()
+      .where(
+        (e) =>
+            e is File &&
+            p.basename(e.path).startsWith(_corruptBackupPrefix) &&
+            !p.basename(e.path).endsWith('-wal') &&
+            !p.basename(e.path).endsWith('-shm') &&
+            !p.basename(e.path).endsWith('-journal'),
+      )
+      .cast<File>()
+      .toList();
+  backups.sort(
+    (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+  );
+  return backups.map((e) => e.path).toList();
+}
+
+/// Records the user's request to put [backupPath] back as the live database.
+///
+/// The swap itself is deferred to the next launch ([applyPendingRestore]):
+/// drift holds the current file open in a background isolate, so renaming it
+/// underneath a live connection would either fail or silently strand writes.
+Future<String> stageDatabaseRestore({
+  required File dbFile,
+  required String backupPath,
+}) async {
+  if (!await File(backupPath).exists()) {
+    throw FileSystemException(
+      'Cannot restore a database that is not on disk',
+      backupPath,
+    );
+  }
+  final requestPath = p.join(dbFile.parent.path, _restoreRequestName);
+  await File(requestPath).writeAsString(
+    'restore_from=$backupPath\n'
+    'requested_at_utc=${DateTime.now().toUtc().toIso8601String()}\n',
+    flush: true,
+  );
+  return requestPath;
+}
+
+/// The quarantined path a pending restore names, or null when none is staged.
+Future<String?> readPendingRestore(Directory dbDirectory) async {
+  final request = File(p.join(dbDirectory.path, _restoreRequestName));
+  if (!await request.exists()) return null;
+  for (final line in (await request.readAsString()).split(RegExp(r'\r?\n'))) {
+    final idx = line.indexOf('=');
+    if (idx <= 0) continue;
+    if (line.substring(0, idx) == 'restore_from') {
+      return line.substring(idx + 1);
+    }
+  }
+  return null;
+}
+
+/// Drops a staged restore request without performing it.
+Future<void> cancelPendingRestore(Directory dbDirectory) async {
+  final request = File(p.join(dbDirectory.path, _restoreRequestName));
+  if (await request.exists()) {
+    await request.delete();
+  }
+}
+
+/// Result of the restore pre-flight.
+class DatabaseRestoreOutcome {
+  final bool restored;
+
+  /// The quarantined file that was swapped in. Null when [restored] is false.
+  final String? restoredFrom;
+
+  /// Where the database that was live at restore time got moved to, so a
+  /// mistaken restore is itself reversible. Null on a fresh install.
+  final String? replacedPath;
+
+  /// Why the restore did not happen. Null when [restored].
+  final String? failureReason;
+
+  const DatabaseRestoreOutcome({
+    required this.restored,
+    this.restoredFrom,
+    this.replacedPath,
+    this.failureReason,
+  });
+}
+
+/// Performs a restore staged by [stageDatabaseRestore], if one is pending.
+///
+/// Must run BEFORE anything opens the database. Ordering is: move the live
+/// database aside (never delete — a wrong restore has to be undoable), then
+/// rename the quarantined file into place along with its companions.
+///
+/// Returns null when no restore was staged. Clears the request either way so
+/// a failing restore cannot wedge every subsequent launch.
+Future<DatabaseRestoreOutcome?> applyPendingRestore(File dbFile) async {
+  final dir = dbFile.parent;
+  final source = await readPendingRestore(dir);
+  if (source == null) return null;
+  await cancelPendingRestore(dir);
+
+  final backup = File(source);
+  if (!await backup.exists()) {
+    return DatabaseRestoreOutcome(
+      restored: false,
+      failureReason: 'The database to restore is no longer at $source.',
+    );
+  }
+
+  final ts = DateTime.now().toUtc().millisecondsSinceEpoch;
+  final baseName = p.basename(dbFile.path);
+  String? replacedPath;
+  if (await dbFile.exists()) {
+    replacedPath = p.join(dir.path, '$_replacedBackupPrefix$ts-$baseName');
+    await dbFile.rename(replacedPath);
+    for (final suffix in const ['-wal', '-shm', '-journal']) {
+      final companion = File('${dbFile.path}$suffix');
+      if (await companion.exists()) {
+        try {
+          await companion.rename('$replacedPath$suffix');
+        } on FileSystemException {
+          // Best effort. The main file is preserved, which is what makes the
+          // restore reversible; a stranded -shm is rebuilt by SQLite.
+        }
+      }
+    }
+  }
+
+  await backup.rename(dbFile.path);
+  // The rotation moved `-wal`/`-shm`/`-journal` alongside the main file, so
+  // bring the matched set back too — a database and its WAL are one unit.
+  for (final suffix in const ['-wal', '-shm', '-journal']) {
+    final companion = File('$source$suffix');
+    if (await companion.exists()) {
+      try {
+        await companion.rename('${dbFile.path}$suffix');
+      } on FileSystemException {
+        // Tolerable: SQLite rebuilds a missing -shm, and a WAL we could not
+        // move just means the restored database is at its last checkpoint.
+      }
+    }
+  }
+
+  return DatabaseRestoreOutcome(
+    restored: true,
+    restoredFrom: source,
+    replacedPath: replacedPath,
+  );
 }

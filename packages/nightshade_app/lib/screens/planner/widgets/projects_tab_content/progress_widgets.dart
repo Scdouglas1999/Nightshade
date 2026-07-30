@@ -37,7 +37,7 @@ class _ActiveProjectProgress extends ConsumerWidget {
           return const EmptyState.compact(
             icon: LucideIcons.folderOpen,
             title: 'Select a project',
-            body: 'Choose a campaign above to see its targets and progress.',
+            body: 'Choose a project above to see its targets and progress.',
           );
         }
 
@@ -83,7 +83,7 @@ class _ActiveProjectProgress extends ConsumerWidget {
                   ? EmptyState.compact(
                       icon: LucideIcons.target,
                       title: 'No targets yet',
-                      body: 'Add catalog targets to this campaign and set '
+                      body: 'Add catalog targets to this project and set '
                           'per-filter integration goals to track progress.',
                       action: NightshadeButton(
                         label: 'Add Target',

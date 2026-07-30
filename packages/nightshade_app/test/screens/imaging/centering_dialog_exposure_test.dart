@@ -92,8 +92,12 @@ class _SpyCenteringService extends CenteringService {
 /// Fake app-settings notifier that returns defaults without touching the DB or
 /// backend — the dialog only reads astapPath/timeout off it.
 class _FakeAppSettingsNotifier extends AppSettingsNotifier {
+  _FakeAppSettingsNotifier([this.settings = const AppSettingsState()]);
+
+  final AppSettingsState settings;
+
   @override
-  Future<AppSettingsState> build() async => const AppSettingsState();
+  Future<AppSettingsState> build() async => settings;
 }
 
 void main() {
@@ -105,13 +109,16 @@ void main() {
     CenteringResult? centerResult,
     double? targetRa = 12.34,
     double? targetDec = -45.67,
+    AppSettingsState settings = const AppSettingsState(),
   }) async {
     final recorder = _Recorder();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           activeEquipmentProfileProvider.overrideWithValue(profile),
-          appSettingsProvider.overrideWith(_FakeAppSettingsNotifier.new),
+          appSettingsProvider.overrideWith(
+            () => _FakeAppSettingsNotifier(settings),
+          ),
           plateSolveServiceProvider.overrideWith(
             (ref) => _SpyPlateSolveService(ref, recorder, error: ensureError),
           ),
@@ -268,6 +275,34 @@ void main() {
     // No lingering validation error on the happy path.
     expect(
         find.text('Solve exposure must be a number in seconds.'), findsNothing);
+  });
+
+  // Shipping 6.0.0 hard-coded `syncMount: false` here, so the correction step
+  // re-issued the slew that produced the mis-pointed frame and centering could
+  // only ever end on "Maximum iterations". The dialog must carry the user's
+  // configured preference, and the default must be the one that converges.
+  testWidgets('centering syncs the mount by default', (tester) async {
+    final recorder = await pumpDialog(tester);
+    await tester.enterText(find.byType(TextField), '3');
+    await tester.tap(find.text('Start Centering'));
+    await tester.pumpAndSettle();
+
+    expect(recorder.centerCalls, 1);
+    expect(recorder.lastConfig!.syncMount, isTrue);
+  });
+
+  testWidgets('centering honours the configured sync preference',
+      (tester) async {
+    final recorder = await pumpDialog(
+      tester,
+      settings: const AppSettingsState(centeringSyncMount: false),
+    );
+    await tester.enterText(find.byType(TextField), '3');
+    await tester.tap(find.text('Start Centering'));
+    await tester.pumpAndSettle();
+
+    expect(recorder.centerCalls, 1);
+    expect(recorder.lastConfig!.syncMount, isFalse);
   });
 
   testWidgets('a missing solver shows the banner and stays retryable',

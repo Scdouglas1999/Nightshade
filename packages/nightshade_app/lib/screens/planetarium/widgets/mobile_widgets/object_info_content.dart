@@ -6,6 +6,10 @@ class MobileObjectInfoContent extends ConsumerWidget {
   final SelectedObjectState selectedObject;
   final VoidCallback onSendToFraming;
   final VoidCallback onAddToSequencer;
+
+  /// Queue this object in the shared target queue (the sequencer Builder's
+  /// Target Queue panel renders the same provider).
+  final VoidCallback onAddToQueue;
   final VoidCallback onSlewToTarget;
   final VoidCallback onSlewAndCenter;
   final bool hasRotator;
@@ -17,6 +21,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
     required this.selectedObject,
     required this.onSendToFraming,
     required this.onAddToSequencer,
+    required this.onAddToQueue,
     required this.onSlewToTarget,
     required this.onSlewAndCenter,
     required this.hasRotator,
@@ -54,7 +59,27 @@ class MobileObjectInfoContent extends ConsumerWidget {
     }
 
     final coords = selectedObject.coordinates;
-    final altAz = selectedObject.currentAltAz;
+    // Derived from the planetarium clock, not cached at selection time, so
+    // scrubbing/time-travelling moves this the way the user expects.
+    final altAz = ref.watch(selectedObjectAltAzProvider);
+    final sunAltitude = ref.watch(sunAltitudeProvider);
+    final grade = altAz == null
+        ? null
+        : gradeObservability(
+            altitudeDeg: altAz.$1,
+            sunAltitudeDeg: sunAltitude,
+          );
+    final gradeColor = switch (grade) {
+      ObservabilityGrade.excellent => colors.success,
+      ObservabilityGrade.good ||
+      ObservabilityGrade.low ||
+      ObservabilityGrade.twilight =>
+        colors.warning,
+      ObservabilityGrade.belowHorizon ||
+      ObservabilityGrade.daylight =>
+        colors.error,
+      null => colors.textMuted,
+    };
 
     return ListView(
       controller: scrollController,
@@ -150,7 +175,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
         const SizedBox(height: 12),
 
         // Current position
-        if (altAz != null)
+        if (altAz != null && grade != null)
           MobileInfoCard(
             title: 'Current Position',
             colors: colors,
@@ -161,11 +186,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
                     label: 'Altitude',
                     value: altAz.$1.toStringAsFixed(1),
                     colors: colors,
-                    valueColor: altAz.$1 > 30
-                        ? colors.success
-                        : altAz.$1 > 0
-                            ? colors.warning
-                            : colors.error,
+                    valueColor: gradeColor,
                   ),
                 ),
                 Expanded(
@@ -179,31 +200,18 @@ class MobileObjectInfoContent extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (altAz.$1 > 30
-                            ? colors.success
-                            : altAz.$1 > 0
-                                ? colors.warning
-                                : colors.error)
-                        .withValues(alpha: 0.15),
+                    color: gradeColor.withValues(alpha: 0.15),
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
-                    altAz.$1 > 30
-                        ? 'Excellent'
-                        : altAz.$1 > 15
-                            ? 'Good'
-                            : altAz.$1 > 0
-                                ? 'Low'
-                                : 'Below',
+                    grade == ObservabilityGrade.belowHorizon
+                        ? 'Below'
+                        : grade.label,
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize10,
                       fontWeight: FontWeight.w500,
-                      color: altAz.$1 > 30
-                          ? colors.success
-                          : altAz.$1 > 0
-                              ? colors.warning
-                              : colors.error,
+                      color: gradeColor,
                     ),
                   ),
                 ),
@@ -269,6 +277,16 @@ class MobileObjectInfoContent extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        MobileActionButton(
+          icon: LucideIcons.listChecks,
+          label: 'Add to Target Queue',
+          colors: colors,
+          onTap: () {
+            Navigator.of(context).pop();
+            onAddToQueue();
+          },
         ),
 
         const SizedBox(height: 16),

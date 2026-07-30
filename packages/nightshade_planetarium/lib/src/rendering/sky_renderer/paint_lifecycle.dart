@@ -26,16 +26,16 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     );
     SkyCanvasPainter._projectionCache.ensurePose(viewState, size, lstHours);
 
-    // Use cached label layout if view hasn't moved significantly.
-    // When the cache is valid (view moved <0.5 deg, zoom changed <5%),
-    // we skip clearing and reuse the prior frame's placement grid.
-    // This means labels placed in the previous frame block the same
-    // positions, providing stable labels that don't flicker between frames.
-    _labelManager.clearIfViewChanged(
-      viewState.centerRA,
-      viewState.centerDec,
-      viewState.fieldOfView,
-    );
+    // Label occupancy is per-paint (Flutter recreates the painter every frame),
+    // but the scene is split across two painters. The base layer lays out the
+    // DSO / solar-system / grid labels; the overlay layer then lays out the
+    // bright-star names on top. Seeding the overlay with the base layer's
+    // placements is what stops those two sets from colliding — previously each
+    // started empty and star names were drawn straight through DSO and planet
+    // labels.
+    if (renderScope == SkyRenderScope.overlay) {
+      _labelManager.seed(SkyCanvasPainter._baseLabelRects);
+    }
 
     // Per-section timing for diagnostic breakdown (collected once, then printed)
     final doTiming =
@@ -66,6 +66,38 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
       mwUs = sw!.elapsedMicroseconds;
       sw.reset();
       sw.start();
+    }
+
+    // In the EQUATORIAL frame the horizon is a REFERENCE, never terrain, and
+    // no ground is filled at all.
+    //
+    // The flat-horizon ground model is a horizontal screen band whose Y comes
+    // from the view centre's altitude (see [_altitudeScreenY]). That is only a
+    // description of the horizon in the frame where "up the screen" means
+    // "higher in the sky" — the horizontal one. Rotate the equatorial view, or
+    // pan it off the meridian, and the band stops corresponding to anything.
+    // Worse, it has three completely different whole-screen regimes (no fill /
+    // gradient band / the entire canvas flooded with opaque ground once the
+    // centre drops below the horizon), so simply panning or rotating flipped
+    // the background between a night-sky gradient and flat brown-black. That
+    // is what "the sky colour changes depending on where I rotate" was.
+    //
+    // Dropping it is also the right call on its own terms: this frame is the
+    // planning atlas, and composing a session around a target that has not
+    // risen yet is a first-class use of it, so the chart must stay legible and
+    // consistently coloured whichever way it is pointed.
+    //
+    // A custom horizon PROFILE is still drawn, as a line: that path projects
+    // real alt/az samples through the same projection as everything else, so
+    // it is geometrically correct in this frame and is a genuine reference.
+    //
+    // The HORIZONTAL frame is the opposite case — there the ground is real
+    // terrain that occludes — and draws it much later; see the call after the
+    // solar-system pass.
+    if (_drawBase &&
+        viewState.viewMode == SkyViewMode.equatorial &&
+        config.showHorizon) {
+      _drawHorizon(canvas, size, center, scale);
     }
 
     // Draw coordinate grids
@@ -101,23 +133,25 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
         _drawMeridianLine(canvas, size, center, scale);
       }
 
-      // Draw ground plane (gradient transition from sky to ground)
-      if (config.showGroundPlane) {
-        _drawGroundPlane(canvas, size, center, scale);
-      }
-
-      // Draw horizon
-      if (config.showHorizon) {
-        _drawHorizon(canvas, size, center, scale);
-        // Draw horizon glow effect
-        if (qualityConfig.enableHorizonGlow) {
+      // Airglow and the light-pollution dome are HORIZONTAL-frame layers, for
+      // the same reason the ground fill is: both are horizontal screen bands
+      // anchored to the view centre's altitude, which only tracks the real
+      // horizon where screen-up is altitude. Drawn in the equatorial frame
+      // they slid a warm band across the middle of the chart as the view
+      // panned — a second, subtler source of "the sky colour keeps changing",
+      // and a claim about where the murk is that was simply not true. With the
+      // equatorial ground fill gone they would also be orphaned: a glow fading
+      // toward a horizon that is not drawn.
+      if (viewState.viewMode == SkyViewMode.horizontal) {
+        // Horizon glow is airglow, so it always belongs UNDER the stars.
+        if (config.showHorizon && qualityConfig.enableHorizonGlow) {
           _drawHorizonGlow(canvas, size, center, scale);
         }
-      }
 
-      // Draw light pollution dome effect (quality mode only)
-      if (qualityConfig.enableLightPollution) {
-        _drawLightPollutionDome(canvas, size, center, scale);
+        // Draw light pollution dome effect (quality mode only)
+        if (qualityConfig.enableLightPollution) {
+          _drawLightPollutionDome(canvas, size, center, scale);
+        }
       }
     }
     if (doTiming) {
@@ -209,6 +243,17 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
         _drawMinorPlanets(canvas, size, center, scale);
       }
     }
+    // In the HORIZONTAL frame the ground goes down here, AFTER the sky objects,
+    // so it genuinely occludes them. That frame is "the sky from where I
+    // stand", so the ground is real terrain; drawn beneath the objects (as both
+    // frames used to do) every below-horizon star, DSO and even the Sun punched
+    // straight through the terrain fill and it read as a translucent wash. The
+    // gradient is fully transparent above the horizon line, so objects that are
+    // genuinely up are unaffected either way.
+    if (_drawBase && viewState.viewMode == SkyViewMode.horizontal) {
+      _drawGroundAndHorizon(canvas, size, center, scale);
+    }
+
     if (doTiming) {
       solarUs = sw!.elapsedMicroseconds;
       sw.reset();
@@ -226,6 +271,12 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
         _drawCardinalDirections(canvas, size);
       }
     }
+    if (_drawBase) {
+      // Hand this layer's occupancy to the overlay layer, which paints next and
+      // must not draw star names over what was just placed here.
+      SkyCanvasPainter._baseLabelRects = _labelManager.occupancy;
+    }
+
     if (doTiming) {
       labelUs = sw!.elapsedMicroseconds;
       sw.reset();
@@ -388,7 +439,8 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
         config != oldDelegate.config ||
         qualityConfig != oldDelegate.qualityConfig ||
         selectedObject != oldDelegate.selectedObject ||
-        highlightedObject != oldDelegate.highlightedObject) {
+        highlightedObject != oldDelegate.highlightedObject ||
+        paintsOpaqueBackground != oldDelegate.paintsOpaqueBackground) {
       return true;
     }
 
@@ -490,11 +542,6 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
       return true;
     }
 
-    // Density hotspots change
-    if (densityHotspots.length != oldDelegate.densityHotspots.length) {
-      return true;
-    }
-
     // Observed object IDs change
     if (observedObjectIds.length != oldDelegate.observedObjectIds.length ||
         !observedObjectIds.containsAll(oldDelegate.observedObjectIds)) {
@@ -504,6 +551,13 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     // Listed object IDs change
     if (listedObjectIds.length != oldDelegate.listedObjectIds.length ||
         !listedObjectIds.containsAll(oldDelegate.listedObjectIds)) {
+      return true;
+    }
+
+    // Sequence target IDs change (a target added or removed from tonight's plan
+    // must move its marker on the sky).
+    if (sequencedObjectIds.length != oldDelegate.sequencedObjectIds.length ||
+        !sequencedObjectIds.containsAll(oldDelegate.sequencedObjectIds)) {
       return true;
     }
 

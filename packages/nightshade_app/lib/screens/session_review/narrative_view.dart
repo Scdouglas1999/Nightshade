@@ -124,6 +124,41 @@ Future<void> _runFinishing(
   }
 }
 
+/// Wraps [child] in a [Tooltip] only when there is something to say — an empty
+/// tooltip would pop a blank bubble on hover.
+class _MaybeTooltip extends StatelessWidget {
+  final String? message;
+  final Widget child;
+
+  const _MaybeTooltip({required this.message, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final message = this.message;
+    if (message == null || message.isEmpty) return child;
+    return Tooltip(message: message, child: child);
+  }
+}
+
+/// Why "Integrate now" / "Re-integrate" cannot run for [state], or null when it
+/// can. Mirrors exactly the conditions that disable the button so the empty
+/// state and its tooltip can never disagree with whether the action fires.
+String? _integrateBlockedReason(SessionReviewState state) {
+  if (state.integrating) return 'An integration is already running.';
+  if (state.busy) {
+    return 'Another processing step is running — it has to finish first.';
+  }
+  if (state.lights.isEmpty) {
+    return 'This session captured no light frames, so there is nothing to '
+        'integrate.';
+  }
+  if (state.acceptedCount == 0) {
+    return 'Every one of this session’s ${state.lights.length} light frames is '
+        'rejected. Accept at least one sub to integrate.';
+  }
+  return null;
+}
+
 /// The narrative hero: the finished master rendered through [MasterOverlayView]
 /// (which extends the on-disk [MasterPreviewView] load/stretch path). The
 /// narrative shows annotations on by default and leaves the dense rejection /
@@ -144,6 +179,10 @@ class _HeroSection extends StatelessWidget {
         outcome?.result.previewPath ?? state.reviewedMaster?.previewPngPath;
 
     if (previewPath == null) {
+      // Why the action cannot run, or null when it can. A dimmed button with no
+      // explanation is not an affordance at 2am — the workbench already knows
+      // this reason, so the narrative states it too.
+      final blockedReason = _integrateBlockedReason(state);
       return NightshadeCard(
         variant: CardVariant.subtle,
         padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
@@ -151,24 +190,28 @@ class _HeroSection extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const EmptyState(
+            EmptyState(
               icon: NightshadeIcons.image,
               title: 'No finished master yet',
-              body: 'Run an integration to see tonight’s master here, '
-                  'annotated with the objects in frame.',
+              body: blockedReason ??
+                  'Run an integration to see tonight’s master here, '
+                      'annotated with the objects in frame.',
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
             Align(
               alignment: Alignment.center,
-              child: NightshadeButton(
-                label: state.lastOutcome == null
-                    ? 'Integrate now'
-                    : 'Re-integrate',
-                icon: NightshadeIcons.play,
-                isLoading: state.integrating,
-                onPressed: (state.busy || state.acceptedCount == 0)
-                    ? null
-                    : () => controller.reIntegrate(state.settings),
+              child: _MaybeTooltip(
+                message: blockedReason,
+                child: NightshadeButton(
+                  label: state.lastOutcome == null
+                      ? 'Integrate now'
+                      : 'Re-integrate',
+                  icon: NightshadeIcons.play,
+                  isLoading: state.integrating,
+                  onPressed: blockedReason != null
+                      ? null
+                      : () => controller.reIntegrate(state.settings),
+                ),
               ),
             ),
           ],

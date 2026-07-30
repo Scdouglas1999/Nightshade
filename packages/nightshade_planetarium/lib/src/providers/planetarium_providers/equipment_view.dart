@@ -74,79 +74,39 @@ final mountPositionProvider =
 // Selected Object Provider
 // ============================================================================
 
-/// Currently selected celestial object
+/// Currently selected celestial object.
+///
+/// Deliberately holds only *identity* — the object and its catalog coordinates.
+/// Anything that depends on when you are looking (alt/az, rise/transit/set,
+/// observability) is derived per-frame by [selectedObjectAltAzProvider] /
+/// [selectedObjectVisibilityProvider] from the planetarium clock.
+///
+/// It used to cache an `currentAltAz` / `visibility` tuple computed at
+/// selection time. That made the HUD lie the moment the user did the one thing
+/// the time controls exist for: after clicking TONIGHT the bar still read
+/// "Selected Alt: 63.6 deg" in above-horizon green for a target that was by
+/// then 17 deg BELOW the horizon. A planning altitude that does not move when
+/// you scrub time is worse than no altitude at all, so the cache is gone rather
+/// than merely refreshed.
 class SelectedObjectState {
   final CelestialObject? object;
   final CelestialCoordinate? coordinates;
-  final ObjectVisibility? visibility;
-  final (double alt, double az)? currentAltAz;
 
-  const SelectedObjectState({
-    this.object,
-    this.coordinates,
-    this.visibility,
-    this.currentAltAz,
-  });
+  const SelectedObjectState({this.object, this.coordinates});
 }
 
 class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
-  final Ref _ref;
-
-  SelectedObjectNotifier(this._ref) : super(const SelectedObjectState());
+  SelectedObjectNotifier() : super(const SelectedObjectState());
 
   void selectObject(CelestialObject object) {
-    final location = _ref.read(observerLocationProvider);
-    final time = _ref.read(observationTimeProvider);
-
-    final visibility = AstronomyCalculations.calculateObjectVisibility(
-      raDeg: object.coordinates.raDegrees,
-      decDeg: object.coordinates.dec,
-      date: time.time,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-    );
-
-    final altAz = AstronomyCalculations.objectAltAz(
-      raDeg: object.coordinates.raDegrees,
-      decDeg: object.coordinates.dec,
-      dt: time.time,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-    );
-
     state = SelectedObjectState(
       object: object,
       coordinates: object.coordinates,
-      visibility: visibility,
-      currentAltAz: altAz,
     );
   }
 
   void selectCoordinates(CelestialCoordinate coord) {
-    final location = _ref.read(observerLocationProvider);
-    final time = _ref.read(observationTimeProvider);
-
-    final visibility = AstronomyCalculations.calculateObjectVisibility(
-      raDeg: coord.raDegrees,
-      decDeg: coord.dec,
-      date: time.time,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-    );
-
-    final altAz = AstronomyCalculations.objectAltAz(
-      raDeg: coord.raDegrees,
-      decDeg: coord.dec,
-      dt: time.time,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-    );
-
-    state = SelectedObjectState(
-      coordinates: coord,
-      visibility: visibility,
-      currentAltAz: altAz,
-    );
+    state = SelectedObjectState(coordinates: coord);
   }
 
   void clearSelection() {
@@ -156,8 +116,47 @@ class SelectedObjectNotifier extends StateNotifier<SelectedObjectState> {
 
 final selectedObjectProvider =
     StateNotifierProvider<SelectedObjectNotifier, SelectedObjectState>((ref) {
-      return SelectedObjectNotifier(ref);
+      return SelectedObjectNotifier();
     });
+
+/// The selected object's altitude/azimuth **at the planetarium's current
+/// observation time**, or null when nothing is selected.
+///
+/// Minute precision (the sky's own clock granularity) keeps this from rebuilding
+/// the HUD every second; an object moves at most ~0.25 deg per minute.
+final selectedObjectAltAzProvider = Provider<(double alt, double az)?>((ref) {
+  final coords = ref.watch(selectedObjectProvider.select((s) => s.coordinates));
+  if (coords == null) return null;
+
+  final location = ref.watch(observerLocationProvider);
+  final time = ref.watch(observationMinuteProvider);
+
+  return AstronomyCalculations.objectAltAz(
+    raDeg: coords.raDegrees,
+    decDeg: coords.dec,
+    dt: time,
+    latitudeDeg: location.latitude,
+    longitudeDeg: location.longitude,
+  );
+});
+
+/// Rise / transit / set for the selected object on the planetarium's current
+/// observation date, or null when nothing is selected.
+final selectedObjectVisibilityProvider = Provider<ObjectVisibility?>((ref) {
+  final coords = ref.watch(selectedObjectProvider.select((s) => s.coordinates));
+  if (coords == null) return null;
+
+  final location = ref.watch(observerLocationProvider);
+  final date = ref.watch(_currentDateProvider);
+
+  return AstronomyCalculations.calculateObjectVisibility(
+    raDeg: coords.raDegrees,
+    decDeg: coords.dec,
+    date: date,
+    latitudeDeg: location.latitude,
+    longitudeDeg: location.longitude,
+  );
+});
 
 // ============================================================================
 // Equipment FOV Provider
@@ -228,6 +227,30 @@ class EquipmentFOVNotifier extends StateNotifier<EquipmentFOVState> {
 
   void setTelescope(TelescopeSpecs telescope) {
     state = state.copyWith(telescope: telescope);
+  }
+
+  /// Replace both optics slots at once, clearing either when null.
+  ///
+  /// [setCamera] / [setTelescope] can only ever *set* a slot (their copyWith
+  /// falls back to the previous value), so a rig that stops being knowable —
+  /// profile switched to one with no focal length, camera disconnected — would
+  /// otherwise leave the previous rig's box on the sky as if it were still
+  /// installed. This is the entry point the equipment binding uses so an
+  /// unknown rig draws nothing instead of a stale one.
+  ///
+  /// Rotation is deliberately preserved: it is the user's framing angle (or the
+  /// live rotator's), not a property of the optics.
+  void setRig({CameraSensorSpecs? camera, TelescopeSpecs? telescope}) {
+    if (identical(camera, state.camera) &&
+        identical(telescope, state.telescope)) {
+      return;
+    }
+    state = EquipmentFOVState(
+      camera: camera,
+      telescope: telescope,
+      focalReducer: state.focalReducer,
+      rotation: state.rotation,
+    );
   }
 
   void setFocalReducer(double multiplier) {

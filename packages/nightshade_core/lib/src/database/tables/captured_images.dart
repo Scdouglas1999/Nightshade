@@ -68,7 +68,15 @@ class CapturedImages extends Table {
   RealColumn get guidingRmsDec => real().nullable()();
   RealColumn get guidingRmsTotal => real().nullable()();
 
-  // Mount position
+  // Mount position.
+  //
+  // UNITS: `mountRa` is HOURS (0-24), the ASCOM `RightAscension` convention
+  // Nightshade carries internally, while `mountDec`/`mountAltitude`/
+  // `mountAzimuth` are DEGREES. The mixed pair is deliberate and validated
+  // (see the 0-24 bound in the headless session handler), but it is NOT the
+  // FITS convention: the numeric FITS `RA` card is degrees, so the bridge
+  // multiplies by 15 when it writes a header. Do not copy this value into a
+  // degrees-valued field without converting.
   RealColumn get mountRa => real().nullable()();
   RealColumn get mountDec => real().nullable()();
   RealColumn get mountAltitude => real().nullable()();

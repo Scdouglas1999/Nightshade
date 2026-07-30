@@ -157,8 +157,8 @@ extension AnnotationPipeline on AnnotationService {
       try {
         final mountState = _ref.read(mountStateProvider);
         if (mountState.ra != null && mountState.dec != null) {
-          // Mount RA is typically tracked in hours; plate-solve hints expect degrees.
-          hintRa = _normalizeRaHintDegrees(mountState.ra!);
+          // `mountState.ra` is HOURS (ASCOM RightAscension); hints are degrees.
+          hintRa = _raHoursToSolverDegrees(mountState.ra!);
           hintDec = mountState.dec;
           _logger.debug(
             'Using mount position hints: RA=$hintRa, Dec=$hintDec',

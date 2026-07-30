@@ -478,18 +478,38 @@ fn score_altitude(altitude: f64) -> f64 {
 }
 
 fn score_moon_distance(distance: f64, illumination: f64) -> f64 {
-    let moon_factor = illumination / 100.0;
+    // Clamped for parity with the Dart twin (`_scoreMoonDistance`), which clamps
+    // before use. An out-of-range illumination would otherwise push
+    // `best_achievable` above 100 or below 0 here but not there.
+    let moon_factor = (illumination / 100.0).clamp(0.0, 1.0);
     if illumination < 10.0 {
+        // New moon - distance doesn't matter much.
         return 90.0 + (distance / 180.0) * 10.0;
     }
     let min_good_dist = 30.0 + 70.0 * moon_factor;
+
+    // The best achievable moon score falls as the moon brightens. Returning a
+    // flat 100.0 for "far enough away" meant a FULL moon at 120 deg scored
+    // 100.0 while a NEW moon at the same separation scored 96.7 — the factor
+    // literally rewarded the worse night. Moonlight raises the sky background
+    // over the whole hemisphere, so no separation earns a perfect moon score
+    // under a bright moon.
+    //
+    // This is a line-for-line port of the Dart fix in
+    // `nightshade_planetarium/lib/src/planning/target_scoring.dart`. The Dart
+    // side was corrected and this twin was not, which silently broke the
+    // cross-language parity contract stated at the top of this file — and it is
+    // the copy that matters most at runtime, because `score_targets` here is
+    // what the in-run target scheduler calls to pick what to image next.
+    let best_achievable = 100.0 - 22.0 * moon_factor;
+
     if distance >= min_good_dist {
-        return 100.0;
+        return best_achievable;
     }
     if distance < 10.0 {
         return 10.0 * (1.0 - moon_factor * 0.8);
     }
-    (distance / min_good_dist) * 100.0
+    (distance / min_good_dist) * best_achievable
 }
 
 fn score_transit_proximity(visibility: &ObjectVisibility, time: &DateTime<Utc>) -> f64 {
@@ -605,10 +625,41 @@ mod tests {
         assert!((s - 95.0).abs() < 1e-9, "got {s}");
     }
 
+    /// A bright moon can never score as well as a dark sky at the same
+    /// separation. This test previously asserted 100.0 and so ENSHRINED the
+    /// inversion: a full moon at 120 deg scored a perfect 100.0 while a new moon
+    /// at 120 deg scored 96.7, i.e. the scorer preferred the worse night.
     #[test]
-    fn moon_distance_bright_moon_far_target_is_100() {
-        // illumination 100 → min_good_dist = 100; d >= 100 → 100.
-        assert_eq!(score_moon_distance(120.0, 100.0), 100.0);
+    fn moon_distance_bright_moon_never_scores_perfect() {
+        // illumination 100 -> moon_factor 1.0 -> best_achievable = 78.0, and
+        // min_good_dist = 100 so 120 deg clears the "far enough" branch.
+        let full_moon_far = score_moon_distance(120.0, 100.0);
+        assert!(
+            (full_moon_far - 78.0).abs() < 1e-9,
+            "expected 78.0, got {full_moon_far}"
+        );
+
+        // The ordering is the property that actually matters: the same target,
+        // same separation, under a darker moon must score HIGHER.
+        let new_moon_far = score_moon_distance(120.0, 5.0);
+        assert!(
+            new_moon_far > full_moon_far,
+            "a new moon at 120 deg scored {new_moon_far} but a FULL moon at the \
+             same separation scored {full_moon_far} — the moon factor is rewarding \
+             the worse night"
+        );
+
+        // And it has to be monotonic in illumination, not just right at the ends.
+        let mut previous = f64::INFINITY;
+        for illumination in [10.0, 25.0, 50.0, 75.0, 100.0] {
+            let score = score_moon_distance(150.0, illumination);
+            assert!(
+                score < previous,
+                "score at illumination {illumination} was {score}, not below the \
+                 previous {previous}"
+            );
+            previous = score;
+        }
     }
 
     #[test]

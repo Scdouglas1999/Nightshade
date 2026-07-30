@@ -14,7 +14,7 @@ class _NoProjectsState extends StatelessWidget {
   Widget build(BuildContext context) {
     return EmptyState(
       icon: LucideIcons.folderOpen,
-      title: 'No campaigns yet',
+      title: 'No projects yet',
       body: 'Create a multi-night project to track targets and integration '
           'goals across clear nights.',
       action: NightshadeButton(

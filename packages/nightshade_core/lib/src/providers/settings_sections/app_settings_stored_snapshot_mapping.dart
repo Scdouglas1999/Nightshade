@@ -111,6 +111,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         30.0,
       ),
       blindSolve: _parseBool(allSettings['blind_solve'], false),
+      centeringSyncMount: _parseBool(allSettings['centering_sync_mount'], true),
 
       // PHD2 Guiding
       phd2Path: allSettings['phd2_path'] ?? '',
@@ -553,6 +554,7 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'plate_solve_timeout': s.plateSolveTimeout.toString(),
       'plate_solve_search_radius': s.plateSolveSearchRadius.toString(),
       'blind_solve': s.blindSolve.toString(),
+      'centering_sync_mount': s.centeringSyncMount.toString(),
 
       // PHD2 Guiding
       'phd2_path': s.phd2Path,

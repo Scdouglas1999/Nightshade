@@ -90,6 +90,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       ditherRaOnly: remote.ditherRaOnly,
       plateSolver: remote.plateSolver,
       blindSolve: remote.blindSolve,
+      centeringSyncMount: remote.centeringSyncMount,
       bortleClass: remote.bortleClass,
       effectiveHorizonDeg: remote.effectiveHorizonDeg,
       preflightStrictness: _parsePreflightStrictness(
@@ -277,6 +278,7 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       ditherRaOnly: settings.ditherRaOnly,
       plateSolver: settings.plateSolver,
       blindSolve: settings.blindSolve,
+      centeringSyncMount: settings.centeringSyncMount,
       bortleClass: settings.bortleClass,
       effectiveHorizonDeg: settings.effectiveHorizonDeg,
       // PreflightStrictness lives in the provider library; carry its `.name` so
@@ -650,6 +652,10 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         return value is String ? current.copyWith(plateSolver: value) : null;
       case 'blindSolve':
         return value is bool ? current.copyWith(blindSolve: value) : null;
+      case 'centeringSyncMount':
+        return value is bool
+            ? current.copyWith(centeringSyncMount: value)
+            : null;
       case 'bortleClass':
         return value is num
             ? current.copyWith(bortleClass: value.toInt())

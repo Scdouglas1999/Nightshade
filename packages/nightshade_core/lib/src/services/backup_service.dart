@@ -130,6 +130,15 @@ class BackupService {
   /// Fallback for isolated tests/embedders that do not inject package info.
   /// Production providers always supply appVersionProvider.
   static const String appVersion = 'unknown';
+
+  /// Settings key holding the time of the most recent successful backup.
+  ///
+  /// Owned here rather than by the auto-save timer because it answers "when was
+  /// this database last backed up", which is equally true of a manual backup.
+  /// It used to be written only by the scheduled path, so the Backup & Restore
+  /// screen kept reporting a stale (or "Never") time directly above the Create
+  /// Backup button the operator had just pressed.
+  static const String lastBackupSettingKey = 'autosave.last_backup_at';
   final String runtimeAppVersion;
 
   BackupService({
@@ -267,10 +276,13 @@ class BackupService {
         source: 'BackupService',
       );
 
+      final completedAt = DateTime.now();
+      await _recordLastBackupTime(completedAt);
+
       return BackupResult(
         success: true,
         filePath: filePath,
-        timestamp: DateTime.now(),
+        timestamp: completedAt,
         itemsBackedUp: totalItems,
       );
     } catch (e, stackTrace) {
@@ -659,6 +671,25 @@ class BackupService {
     return [for (final entry in dated) entry.file];
   }
 
+  /// Persist the time of a successful backup.
+  ///
+  /// Best-effort: a settings-write failure must not turn a backup that is
+  /// already safely on disk into a reported failure. It is logged instead, so
+  /// the displayed time can lag but can never claim a backup that did not
+  /// happen.
+  Future<void> _recordLastBackupTime(DateTime completedAt) async {
+    try {
+      await SettingsDao(
+        database,
+      ).setSetting(lastBackupSettingKey, completedAt.toIso8601String());
+    } catch (e) {
+      _logger.warning(
+        'Backup succeeded but the last-backup time could not be recorded: $e',
+        source: 'BackupService',
+      );
+    }
+  }
+
   /// Auto-save a backup with timestamp
   Future<BackupResult> autoSaveBackup() async {
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
@@ -773,6 +804,13 @@ class BackupService {
       'lineRatioProducts': await _dumpTable(database.lineRatioProducts),
       // Focus models
       'focusModels': await _dumpTable(database.focusModels),
+      // Weather-safety configuration. NOT a key/value setting — it lives in its
+      // own single-row table, so it was absent from every backup: restoring on
+      // a new machine silently reset every safety threshold (and the master
+      // switch) to defaults while the page promised "restoring replaces local
+      // configuration". Imported by [_importWeatherSettings], which updates the
+      // singleton row instead of insert-or-ignoring a second one.
+      'weatherSettings': await _dumpTable(database.weatherSettings),
     };
   }
 
@@ -900,7 +938,48 @@ class BackupService {
       (json) => FocusModelEntry.fromJson(json),
       database.focusModels,
     ),
+    'weatherSettings': _importWeatherSettings,
   };
+
+  /// Restore the single weather-safety configuration row.
+  ///
+  /// Deliberately NOT [_importRows]: this table always already holds a row (the
+  /// DAO creates a defaults row on first read), so `insertOrIgnore` would keep
+  /// the destination's defaults and silently drop the operator's restored
+  /// thresholds — the same silent reset this key was added to fix. Configuration
+  /// is exactly the case where the backup must win, so the existing row is
+  /// updated in place; the auto-increment `id` from the source machine is
+  /// ignored on purpose.
+  Future<int> _importWeatherSettings(List<dynamic> rows) async {
+    if (rows.isEmpty) return 0;
+    final raw = rows.first;
+    if (raw is! Map) {
+      throw const FormatException(
+        'Extended table row 0 of "weatherSettings" is not an object',
+      );
+    }
+    final row = WeatherSettingRow.fromJson(raw.cast<String, dynamic>());
+    final current = await database.weatherSettingsDao.getOrCreateSettings();
+    await (database.update(
+      database.weatherSettings,
+    )..where((table) => table.id.equals(current.id))).write(
+      WeatherSettingsCompanion(
+        triggerDistanceKm: Value(row.triggerDistanceKm),
+        cloudDensityThreshold: Value(row.cloudDensityThreshold),
+        leadTimeMinutes: Value(row.leadTimeMinutes),
+        weatherSafetyEnabled: Value(row.weatherSafetyEnabled),
+        maxHumidityPercent: Value(row.maxHumidityPercent),
+        maxWindSpeedKph: Value(row.maxWindSpeedKph),
+        maxCloudCoverPercent: Value(row.maxCloudCoverPercent),
+        autoParkEnabled: Value(row.autoParkEnabled),
+        autoResumeEnabled: Value(row.autoResumeEnabled),
+        preferredProvider: Value(row.preferredProvider),
+        refreshIntervalSeconds: Value(row.refreshIntervalSeconds),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    return 1;
+  }
 
   /// Generic per-row import. Each row's JSON is decoded into its companion
   /// via `fromJson`, then inserted with [InsertMode.insertOrIgnore] so

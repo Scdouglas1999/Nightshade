@@ -174,7 +174,10 @@ class FilterSidebar extends ConsumerWidget {
                     .toggleConstellationArt(),
               ),
               _FilterToggle(
-                label: 'Ground',
+                // The ground is occluding terrain, which only the horizon view
+                // has — the equatorial star atlas draws none, so leaving this
+                // unqualified made it look broken there.
+                label: 'Ground (horizon view)',
                 value: ref.watch(showGroundPlaneProvider),
                 onChanged: (v) =>
                     ref.read(showGroundPlaneProvider.notifier).state = v,

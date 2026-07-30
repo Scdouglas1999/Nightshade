@@ -559,9 +559,15 @@ mixin _MobileReconnectOps on _MobileConnectionState {
       try {
         final executor = ref.read(sequenceExecutorProvider);
 
-        // Initialize checkpoint directory
-        final docsDir = await getApplicationDocumentsDirectory();
-        await executor.initializeCheckpoints(docsDir.path);
+        // Initialize the checkpoint directory only when this device IS the
+        // backend. Against a remote host the directory belongs to the host —
+        // pushing this phone's documents path replaced the rig's checkpoint
+        // directory with one that cannot exist there, so every checkpoint
+        // write failed and a mid-night crash became unrecoverable.
+        if (ref.read(backendProvider) is! NetworkBackend) {
+          final docsDir = await getApplicationDocumentsDirectory();
+          await executor.initializeCheckpoints(docsDir.path);
+        }
 
         // Get checkpoint info
         final info = await executor.getCheckpointInfo();

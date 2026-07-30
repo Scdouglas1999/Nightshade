@@ -1,5 +1,52 @@
 part of '../weather_screen.dart';
 
+/// What the Safety Status card says, given the live verdict AND whether the
+/// operator has weather safety switched on at all.
+///
+/// Audit 2026-07-29: the provider reports [WeatherSafetyStatus.safe] when
+/// monitoring is OFF, because there is no verdict to act on. Rendering that as
+/// "Conditions safe for imaging" told the operator the sky was being watched
+/// when nothing was checking it, so monitoring-off has its own wording.
+@visibleForTesting
+String weatherSafetyStatusText({
+  required WeatherSafetyStatus status,
+  required bool monitoring,
+  DateTime? snoozeUntil,
+  DateTime? now,
+}) {
+  if (!monitoring) {
+    return 'Not monitoring — weather safety is off, conditions are not '
+        'being checked';
+  }
+  switch (status) {
+    case WeatherSafetyStatus.safe:
+      return 'Conditions safe for imaging';
+    case WeatherSafetyStatus.unsafe:
+      return 'Unsafe conditions detected';
+    case WeatherSafetyStatus.snoozed:
+      if (snoozeUntil != null) {
+        final remaining = snoozeUntil.difference(now ?? DateTime.now());
+        return 'Alerts snoozed for ${remaining.inMinutes} more minutes; '
+            'safety unknown';
+      }
+      return 'Alerts snoozed';
+  }
+}
+
+/// How an auto-park / auto-resume policy is reported.
+///
+/// A toggle that is on but cannot fire (its prerequisites are off) is neither
+/// "Enabled" nor "Disabled" — say so instead of showing a green promise the rig
+/// will not keep.
+@visibleForTesting
+String weatherPolicyArmedLabel({
+  required bool armed,
+  required bool toggledOn,
+}) {
+  if (armed) return 'Enabled';
+  return toggledOn ? 'On, not armed' : 'Disabled';
+}
+
 /// Weather safety status card with snooze controls
 class _WeatherSafetyCard extends ConsumerWidget {
   final NightshadeColors colors;
@@ -12,11 +59,18 @@ class _WeatherSafetyCard extends ConsumerWidget {
     final isSafe = safetyState.isSafe;
     final status = safetyState.status;
     final snoozeUntil = safetyState.snoozeUntil;
-    final statusColor = status == WeatherSafetyStatus.safe
-        ? colors.success
-        : status == WeatherSafetyStatus.snoozed
-            ? colors.warning
-            : colors.error;
+    // With the master switch off nothing is evaluated, and the provider reports
+    // `safe` only because it has no verdict to give. Rendering that as a green
+    // "conditions safe for imaging" shield tells the operator the sky is being
+    // watched when it is not, so monitoring-off gets its own neutral state.
+    final monitoring = safetyState.monitoringEnabled;
+    final statusColor = !monitoring
+        ? colors.textMuted
+        : status == WeatherSafetyStatus.safe
+            ? colors.success
+            : status == WeatherSafetyStatus.snoozed
+                ? colors.warning
+                : colors.error;
 
     return NightshadeCard(
       variant: CardVariant.subtle,
@@ -34,9 +88,11 @@ class _WeatherSafetyCard extends ConsumerWidget {
                   borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
-                  isSafe
-                      ? NightshadeIcons.shieldOk
-                      : NightshadeIcons.shieldAlert,
+                  !monitoring
+                      ? NightshadeIcons.shieldOff
+                      : isSafe
+                          ? NightshadeIcons.shieldOk
+                          : NightshadeIcons.shieldAlert,
                   size: 16,
                   color: statusColor,
                 ),
@@ -52,7 +108,11 @@ class _WeatherSafetyCard extends ConsumerWidget {
                           .copyWith(color: colors.textPrimary),
                     ),
                     Text(
-                      _getStatusText(status, snoozeUntil),
+                      weatherSafetyStatusText(
+                        status: status,
+                        monitoring: monitoring,
+                        snoozeUntil: snoozeUntil,
+                      ),
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
@@ -110,22 +170,6 @@ class _WeatherSafetyCard extends ConsumerWidget {
       ),
     );
   }
-
-  String _getStatusText(WeatherSafetyStatus status, DateTime? snoozeUntil) {
-    switch (status) {
-      case WeatherSafetyStatus.safe:
-        return 'Conditions safe for imaging';
-      case WeatherSafetyStatus.unsafe:
-        return 'Unsafe conditions detected';
-      case WeatherSafetyStatus.snoozed:
-        if (snoozeUntil != null) {
-          final remaining = snoozeUntil.difference(DateTime.now());
-          final minutes = remaining.inMinutes;
-          return 'Alerts snoozed for $minutes more minutes; safety unknown';
-        }
-        return 'Alerts snoozed';
-    }
-  }
 }
 
 /// Weather settings quick access card
@@ -137,6 +181,12 @@ class _WeatherSettingsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(weatherSettingsProvider);
+    // The auto-park / auto-resume toggles are only half of the truth: each also
+    // needs the weather-safety master switch (and auto-park needs the Sequencer
+    // "Park on unsafe weather" policy). Report the composed, armed value so this
+    // panel cannot promise protection the rig does not have.
+    final safetyState = ref.watch(weatherSafetyProvider);
+    final monitoring = safetyState.monitoringEnabled;
 
     return NightshadeCard(
       variant: CardVariant.subtle,
@@ -173,6 +223,12 @@ class _WeatherSettingsCard extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _SettingRow(
+            label: 'Weather Safety',
+            value: monitoring ? 'Monitoring' : 'Off — not monitoring',
+            colors: colors,
+            valueColor: monitoring ? colors.success : colors.warning,
+          ),
+          _SettingRow(
             key: WeatherTutorialKeys.alertRadius,
             label: 'Alert Radius',
             value: '${settings.triggerDistanceKm.toInt()} km',
@@ -190,22 +246,62 @@ class _WeatherSettingsCard extends ConsumerWidget {
           ),
           _SettingRow(
             label: 'Auto-Park',
-            value: settings.autoParkEnabled ? 'Enabled' : 'Disabled',
+            value: weatherPolicyArmedLabel(
+              armed: safetyState.autoParkArmed,
+              toggledOn: settings.autoParkEnabled,
+            ),
             colors: colors,
-            valueColor:
-                settings.autoParkEnabled ? colors.success : colors.textMuted,
+            valueColor: _armedColor(
+              colors,
+              armed: safetyState.autoParkArmed,
+              toggledOn: settings.autoParkEnabled,
+            ),
           ),
           _SettingRow(
             label: 'Auto-Resume',
-            value: settings.autoResumeEnabled ? 'Enabled' : 'Disabled',
+            value: weatherPolicyArmedLabel(
+              armed: safetyState.autoResumeArmed,
+              toggledOn: settings.autoResumeEnabled,
+            ),
             colors: colors,
-            valueColor:
-                settings.autoResumeEnabled ? colors.success : colors.textMuted,
+            valueColor: _armedColor(
+              colors,
+              armed: safetyState.autoResumeArmed,
+              toggledOn: settings.autoResumeEnabled,
+            ),
             isLast: true,
           ),
+          if (!monitoring) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Weather safety is switched off, so none of the above is in '
+              'effect. Turn it on in Settings → Automation & Safety → Weather '
+              'Safety.',
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textMuted),
+            ),
+          ] else if (settings.autoParkEnabled &&
+              !safetyState.autoParkArmed) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Auto-park also needs Settings → Automation & Safety → Sequencer '
+              '→ "Park on unsafe weather", which is currently off.',
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.warning),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  static Color _armedColor(
+    NightshadeColors colors, {
+    required bool armed,
+    required bool toggledOn,
+  }) {
+    if (armed) return colors.success;
+    return toggledOn ? colors.warning : colors.textMuted;
   }
 }
 

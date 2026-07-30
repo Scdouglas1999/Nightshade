@@ -20,6 +20,7 @@ import '../services/imaging_service.dart' show exposureProgressProvider;
 import '../services/phd2_status_poll.dart';
 import '../services/sequence_file_service.dart'
     show sequenceFileServiceProvider;
+import '../utils/utc_timestamp.dart';
 import 'database_provider.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
@@ -37,7 +38,11 @@ import 'scheduler_provider.dart'
         targetConstraintsStreamProvider;
 import 'sequence_provider.dart';
 import 'sequence_stats_provider.dart'
-    show sequenceRunsProvider, liveSequenceStatsProvider, SequenceRunStats;
+    show
+        currentRunIdProvider,
+        sequenceRunsProvider,
+        liveSequenceStatsProvider,
+        SequenceRunStats;
 import 'session_provider.dart';
 import 'settings_provider.dart' show appSettingsProvider;
 import 'target_progress_provider.dart'
@@ -518,35 +523,70 @@ void _applySequencerEvent(
   final progressNotifier = _read(reader, sequenceProgressProvider.notifier);
   final data = event.data;
 
+  // A local [SequenceExecutor] that owns a run (it created the sequence_runs
+  // row, hence a non-null currentRunId) is the authority on lifecycle state:
+  // it publishes `finalizing` on a terminal event and only settles once
+  // durable cleanup succeeds. Writing a settled state from here would race
+  // that transaction, so mirrored lifecycle only drives state when no local
+  // run is owned — i.e. we are watching someone else's run, which is the
+  // whole point of this handler.
+  final executorOwnsRun = _read(reader, currentRunIdProvider) != null;
+
+  // The bare names are what a host actually emits (see
+  // `ffi_backend/event_mapping.dart`); the `Sequence`-prefixed spellings were
+  // the only ones matched here, so a mirrored run stayed `running` on the
+  // phone after the host had finished, failed or been stopped, until the next
+  // status poll or reconnect happened to correct it.
   switch (event.eventType) {
+    case 'Started':
     case 'SequenceStarted':
       final sequenceName = data['sequence_name'] as String? ?? 'Unknown';
-      progressNotifier.updateState(SequenceExecutionState.running);
       progressNotifier.updateProgress(
         message: 'Started sequence: $sequenceName',
       );
+      if (executorOwnsRun) break;
+      progressNotifier.updateState(SequenceExecutionState.running);
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.running;
       break;
+    case 'Paused':
     case 'SequencePaused':
+      if (executorOwnsRun) break;
       progressNotifier.updateState(SequenceExecutionState.paused);
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.paused;
       break;
+    case 'Resumed':
     case 'SequenceResumed':
+      if (executorOwnsRun) break;
       progressNotifier.updateState(SequenceExecutionState.running);
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.running;
       break;
+    case 'Stopped':
     case 'SequenceStopped':
+      if (executorOwnsRun) break;
       progressNotifier.updateState(SequenceExecutionState.idle);
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.idle;
       break;
+    case 'Completed':
     case 'SequenceCompleted':
+      if (executorOwnsRun) break;
       progressNotifier.updateState(SequenceExecutionState.completed);
       _read(reader, sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.completed;
+      break;
+    // Terminal failure was not handled at all, so a mirrored run that died
+    // kept reporting the state it had before the failure — and the failure
+    // reason never reached the phone.
+    case 'SequenceFailed':
+      final error = data['error'] as String? ?? 'Unknown error';
+      progressNotifier.updateProgress(message: 'Sequence failed: $error');
+      if (executorOwnsRun) break;
+      progressNotifier.updateState(SequenceExecutionState.failed);
+      _read(reader, sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.failed;
       break;
     case 'NodeStarted':
       progressNotifier.updateProgress(
@@ -961,7 +1001,7 @@ Future<void> _publishRemoteCurrentFrame(
 
     DateTime capturedAt;
     try {
-      capturedAt = DateTime.parse(result.timestamp);
+      capturedAt = parseUtcTimestamp(result.timestamp);
     } catch (_) {
       capturedAt = DateTime.now();
     }

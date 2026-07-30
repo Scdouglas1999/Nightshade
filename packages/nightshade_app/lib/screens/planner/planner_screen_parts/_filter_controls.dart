@@ -107,70 +107,61 @@ class _ObjectTypeMultiSelect extends ConsumerWidget {
       label: label,
       active: selected.isNotEmpty,
       onTap: () async {
-        final result = await showModalBottomSheet<Set<String>>(
+        // A centered dialog, like every other filter chip in this row
+        // (magnitude, size, altitude, moon separation). This one used to be
+        // the only `showModalBottomSheet` on the desktop planner, so clicking
+        // two neighbouring chips threw their panels to opposite ends of the
+        // window.
+        final result = await showDialog<Set<String>>(
           context: context,
-          backgroundColor: colors.surface,
-          builder: (sheetCtx) {
+          builder: (dialogCtx) {
             final draft = Set<String>.of(selected);
             return StatefulBuilder(
-              builder: (sheetCtx, setSheetState) {
-                return SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Object types',
-                          style: NightshadeTypography.h5.copyWith(
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: NightshadeTokens.spaceMd),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: _options
-                              .map((opt) => FilterChip(
-                                    label: Text(_displayLabel(opt)),
-                                    selected: draft.contains(opt),
-                                    onSelected: (on) {
-                                      setSheetState(() {
-                                        if (on) {
-                                          draft.add(opt);
-                                        } else {
-                                          draft.remove(opt);
-                                        }
-                                      });
-                                    },
-                                  ))
-                              .toList(),
-                        ),
-                        const SizedBox(height: NightshadeTokens.spaceLg),
-                        Row(
-                          children: [
-                            NightshadeButton(
-                              label: 'Clear',
-                              variant: ButtonVariant.ghost,
-                              size: ButtonSize.small,
-                              onPressed: () {
-                                setSheetState(draft.clear);
-                              },
-                            ),
-                            const Spacer(),
-                            NightshadeButton(
-                              label: 'Apply',
-                              variant: ButtonVariant.primary,
-                              size: ButtonSize.small,
-                              onPressed: () =>
-                                  Navigator.of(sheetCtx).pop(draft),
-                            ),
-                          ],
-                        ),
-                      ],
+              builder: (dialogCtx, setDialogState) {
+                return AlertDialog(
+                  backgroundColor: colors.surface,
+                  title: Text(
+                    'Object types',
+                    style: NightshadeTypography.h5.copyWith(
+                      color: colors.textPrimary,
                     ),
                   ),
+                  content: SizedBox(
+                    width: dialogMaxWidth(context, 380),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _options
+                          .map((opt) => FilterChip(
+                                label: Text(_displayLabel(opt)),
+                                selected: draft.contains(opt),
+                                onSelected: (on) {
+                                  setDialogState(() {
+                                    if (on) {
+                                      draft.add(opt);
+                                    } else {
+                                      draft.remove(opt);
+                                    }
+                                  });
+                                },
+                              ))
+                          .toList(),
+                    ),
+                  ),
+                  actions: [
+                    NightshadeButton(
+                      label: 'Clear',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                      onPressed: () => setDialogState(draft.clear),
+                    ),
+                    NightshadeButton(
+                      label: 'Apply',
+                      variant: ButtonVariant.primary,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(dialogCtx).pop(draft),
+                    ),
+                  ],
                 );
               },
             );
@@ -549,6 +540,7 @@ class _MinAltitudeControl extends ConsumerWidget {
           initial: seed,
           min: 0,
           max: 89,
+          isSet: active,
         );
         if (result != null) {
           final notifier = ref.read(suggestionFilterProvider.notifier);
@@ -588,6 +580,7 @@ class _MoonSeparationControl extends ConsumerWidget {
           initial: value ?? 30.0,
           min: 0,
           max: 180,
+          isSet: active,
         );
         if (result != null) {
           final notifier = ref.read(suggestionFilterProvider.notifier);
@@ -726,6 +719,17 @@ class _ControlChip extends StatelessWidget {
   }
 }
 
+/// [isSet] tells the sheet whether the filter it edits is currently ACTIVE.
+///
+/// When it is not, the sheet must not present [initial] as if the user had
+/// chosen it. The moon chip read "Moon: any" while this dialog opened with the
+/// slider parked at 30 deg and the readout showing "30°", so pressing Apply
+/// without touching anything silently changed the filter — live, the chip flipped
+/// to "Moon >= 30" and the candidate count dropped from 1202 to 1174 on a value
+/// the user never picked. [initial] is still honoured as the slider's STARTING
+/// POSITION (a useful hint, and for altitude it is derived from the horizon
+/// profile), but until the slider is actually moved the readout says "Any" and
+/// Apply is disabled, so the only way to set a value is to choose one.
 Future<double?> _showAngleSlider({
   required BuildContext context,
   required NightshadeColors colors,
@@ -734,11 +738,15 @@ Future<double?> _showAngleSlider({
   required double initial,
   required double min,
   required double max,
+  required bool isSet,
 }) async {
   return showDialog<double>(
     context: context,
     builder: (dCtx) {
       double val = initial.clamp(min, max);
+      // An already-set filter may be re-applied unchanged (a harmless no-op), so
+      // only an UNSET one starts untouched.
+      bool touched = isSet;
       return StatefulBuilder(
         builder: (dCtx, setDState) {
           return AlertDialog(
@@ -749,9 +757,9 @@ Future<double?> _showAngleSlider({
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  '${val.toStringAsFixed(0)}$unit',
+                  touched ? '${val.toStringAsFixed(0)}$unit' : 'Any',
                   style: NightshadeTypography.h4.copyWith(
-                    color: colors.textPrimary,
+                    color: touched ? colors.textPrimary : colors.textMuted,
                   ),
                 ),
                 Slider(
@@ -760,8 +768,18 @@ Future<double?> _showAngleSlider({
                   max: max,
                   divisions: (max - min).round(),
                   label: '${val.toStringAsFixed(0)}$unit',
-                  onChanged: (v) => setDState(() => val = v),
+                  onChanged: (v) => setDState(() {
+                    val = v;
+                    touched = true;
+                  }),
                 ),
+                if (!touched)
+                  Text(
+                    'No limit is set. Drag the slider to choose one.',
+                    style: NightshadeTypography.caption.copyWith(
+                      color: colors.textMuted,
+                    ),
+                  ),
               ],
             ),
             actions: [
@@ -775,7 +793,9 @@ Future<double?> _showAngleSlider({
                 label: 'Apply',
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,
-                onPressed: () => Navigator.of(dCtx).pop(val),
+                // Disabled until there is a real choice to apply, so Apply can
+                // never commit a value the sheet invented.
+                onPressed: touched ? () => Navigator.of(dCtx).pop(val) : null,
               ),
             ],
           );
@@ -789,4 +809,35 @@ Future<double?> _showAngleSlider({
     if (value < 0) return double.nan;
     return value;
   });
+}
+
+/// Test-only seam exposing the shared angle-filter sheet.
+///
+/// The sheet is what regressed (it applied a value the user never chose), but it
+/// is a private helper inside a `part` file, so the only other way to exercise it
+/// is to pump the whole `PlannerScreen` — which runs a 1 s periodic sky clock and
+/// therefore never settles, making such a test slow and flaky rather than
+/// trustworthy. Driving the sheet from a bare host gives a fast, deterministic
+/// test of the exact behaviour. Nothing in production calls this.
+@visibleForTesting
+Future<double?> showAngleSliderForTest({
+  required BuildContext context,
+  required NightshadeColors colors,
+  required String title,
+  required String unit,
+  required double initial,
+  required double min,
+  required double max,
+  required bool isSet,
+}) {
+  return _showAngleSlider(
+    context: context,
+    colors: colors,
+    title: title,
+    unit: unit,
+    initial: initial,
+    min: min,
+    max: max,
+    isSet: isSet,
+  );
 }

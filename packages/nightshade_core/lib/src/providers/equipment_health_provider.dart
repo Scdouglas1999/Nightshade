@@ -5,9 +5,14 @@ import '../services/equipment_health_service.dart';
 import 'database_provider.dart';
 import 'equipment/camera_state_provider.dart';
 import 'equipment/filter_wheel_state_provider.dart';
+import 'equipment/dome_state_provider.dart';
 import 'equipment/focuser_state_provider.dart';
+import 'equipment/guider_state_provider.dart';
 import 'equipment/mount_state_provider.dart';
+import 'equipment/profile_connection_status_provider.dart';
 import 'equipment/rotator_state_provider.dart';
+import 'equipment/safety_monitor_state_provider.dart';
+import 'equipment/weather_state_provider.dart';
 import 'usb_disconnect_log_provider.dart';
 
 /// Service provider for EquipmentHealthService.
@@ -97,6 +102,33 @@ final deviceHealthSnapshotsProvider = Provider<List<DeviceHealthSnapshot>>((
     rotator.connectionState,
     rotator.hasError,
   );
+  // The guider and the auxiliary devices were missing entirely, so an errored
+  // guider deducted NOTHING from the health score — the observed failure where a
+  // profile guider that never came up still rendered "100 - Excellent" in green.
+  // Every device the app tracks a connection state for belongs here.
+  final guider = ref.watch(guiderStateProvider);
+  addBasic(
+    guider.deviceId,
+    guider.deviceName,
+    guider.connectionState,
+    guider.hasError,
+  );
+  final dome = ref.watch(domeStateProvider);
+  addBasic(dome.deviceId, dome.deviceName, dome.connectionState, dome.hasError);
+  final weather = ref.watch(weatherStateProvider);
+  addBasic(
+    weather.deviceId,
+    weather.deviceName,
+    weather.connectionState,
+    weather.hasError,
+  );
+  final safetyMonitor = ref.watch(safetyMonitorStateProvider);
+  addBasic(
+    safetyMonitor.deviceId,
+    safetyMonitor.deviceName,
+    safetyMonitor.connectionState,
+    safetyMonitor.hasError,
+  );
 
   return service.buildSnapshots(
     connected: descriptors,
@@ -112,6 +144,14 @@ final equipmentHealthReportProvider =
     Provider<AsyncValue<EquipmentHealthReport>>((ref) {
       final sessionsAsync = ref.watch(allSessionsProvider);
       final deviceHealth = ref.watch(deviceHealthSnapshotsProvider);
+      // A device the active profile assigns but that is not connected is the
+      // failure mode the heartbeat-based score is structurally blind to: no
+      // connection means no heartbeat means nothing to deduct. Feed it in
+      // explicitly so a rig whose guider never came up cannot read
+      // "100 - Excellent".
+      final offlineProfileDevices = ref.watch(
+        offlineProfileDeviceNamesProvider,
+      );
       final service = ref.watch(equipmentHealthServiceProvider);
 
       return sessionsAsync.when(
@@ -119,6 +159,7 @@ final equipmentHealthReportProvider =
           final report = service.analyze(
             sessions: sessions,
             deviceHealth: deviceHealth,
+            offlineProfileDevices: offlineProfileDevices,
           );
           return AsyncValue.data(report);
         },

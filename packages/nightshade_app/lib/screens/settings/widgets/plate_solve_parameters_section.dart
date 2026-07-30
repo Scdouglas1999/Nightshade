@@ -6,14 +6,16 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../../widgets/help/field_help_copy.dart';
 import 'settings_widgets.dart';
 
-/// Shared "Solve parameters" editor — timeout, search radius, and blind-solve.
+/// Shared "Solve parameters" editor — timeout, search radius, blind-solve, and
+/// the centering mount sync.
 ///
-/// Single source of truth for these three runtime knobs so the in-shell
+/// Single source of truth for these runtime knobs so the in-shell
 /// Settings → Plate Solving section and the dedicated `/settings/plate-solving`
-/// screen never diverge. All three persist through [AppSettingsNotifier]
-/// (`plate_solve_timeout` / `plate_solve_search_radius` / `blind_solve`); the
-/// desktop solve path honours them via `PlateSolveService.solveWithFallback`
-/// and the headless handlers read them directly.
+/// screen never diverge. All persist through [AppSettingsNotifier]
+/// (`plate_solve_timeout` / `plate_solve_search_radius` / `blind_solve` /
+/// `centering_sync_mount`); the desktop solve path honours them via
+/// `PlateSolveService.solveWithFallback` and the headless handlers read them
+/// directly.
 class PlateSolveParametersSection extends ConsumerStatefulWidget {
   const PlateSolveParametersSection({super.key});
 
@@ -118,6 +120,21 @@ class _PlateSolveParametersSectionState
                   return ref
                       .read(appSettingsProvider.notifier)
                       .setBlindSolve(value);
+                },
+              ),
+            ),
+            SettingRow(
+              icon: LucideIcons.crosshair,
+              title: 'Sync mount when centering',
+              subtitle: 'Sync the mount to each solved position so Slew & '
+                  'Center converges. Turn off only for mounts that build a '
+                  'pointing model from syncs',
+              trailing: SettingsSwitch(
+                value: settings.centeringSyncMount,
+                onChanged: (value) {
+                  return ref
+                      .read(appSettingsProvider.notifier)
+                      .setCenteringSyncMount(value);
                 },
               ),
               isLast: true,

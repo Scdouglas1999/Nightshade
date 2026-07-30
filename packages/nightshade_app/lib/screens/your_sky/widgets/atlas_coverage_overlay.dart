@@ -114,6 +114,10 @@ class _AllSkyCoverageMap extends StatelessWidget {
 
   const _AllSkyCoverageMap({required this.coverage, required this.maxSeconds});
 
+  /// Widest the map is drawn, keeping the card compact. Capping the *width*
+  /// rather than the height is what preserves the 2:1 frame — see [build].
+  static const double _maxMapWidth = 440.0;
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -127,60 +131,65 @@ class _AllSkyCoverageMap extends StatelessWidget {
       label: summary,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          // Aitoff fills a 2:1 frame; clamp the height so the card stays compact.
-          final height = (width / 2).clamp(120.0, 220.0);
-          return Stack(
-            children: [
-              SizedBox(
-                width: width,
-                height: height,
-                child: GestureDetector(
-                  onTapUp: (details) => _handleTap(
-                    context,
-                    details.localPosition,
-                    Size(width, height),
-                  ),
-                  child: CustomPaint(
-                    painter: _AitoffPainter(
-                      coverage: coverage,
-                      maxSeconds: maxSeconds,
-                      grid: colors.border.withValues(alpha: 0.35),
-                      outline: colors.border.withValues(alpha: 0.55),
-                      surface: colors.surfaceHover,
-                      deep: colors.primary,
+          // [aitoffProject] normalises x and y into the frame independently, so
+          // the frame MUST stay 2:1 or the whole sky is squashed. Capping the
+          // height instead broke that on any card wider than 440 px — on a wide
+          // desktop window the map flattened into a lens and the tiles landed
+          // at the wrong declinations. Cap the width and derive the height.
+          final mapWidth = math.min(constraints.maxWidth, _maxMapWidth);
+          final mapSize = Size(mapWidth, mapWidth / 2);
+          return Center(
+            child: SizedBox.fromSize(
+              size: mapSize,
+              child: Stack(
+                children: [
+                  GestureDetector(
+                    onTapUp: (details) => _handleTap(
+                      context,
+                      details.localPosition,
+                      mapSize,
                     ),
-                    size: Size(width, height),
+                    child: CustomPaint(
+                      painter: _AitoffPainter(
+                        coverage: coverage,
+                        maxSeconds: maxSeconds,
+                        grid: colors.border.withValues(alpha: 0.35),
+                        outline: colors.border.withValues(alpha: 0.55),
+                        surface: colors.surfaceHover,
+                        deep: colors.primary,
+                      ),
+                      size: mapSize,
+                    ),
                   ),
-                ),
+                  // Per-tile accessibility labels: invisible Semantics nodes at
+                  // each projected point so a screen reader can enumerate
+                  // coverage that the CustomPaint alone cannot expose.
+                  for (final tile in coverage)
+                    if (aitoffProject(
+                      tile.centerRaDeg,
+                      tile.centerDecDeg,
+                      mapSize,
+                    )
+                        case final Offset pos)
+                      Positioned(
+                        left: pos.dx - 8,
+                        top: pos.dy - 8,
+                        width: 16,
+                        height: 16,
+                        child: Semantics(
+                          button: true,
+                          label:
+                              '${formatCenter(tile.centerRaDeg, tile.centerDecDeg)}, '
+                              '${formatIntegration(tile.integrationSeconds)}, '
+                              '${tile.totalFrames} frame'
+                              '${tile.totalFrames == 1 ? '' : 's'}',
+                          onTap: () => _showTile(context, tile),
+                          child: const SizedBox.shrink(),
+                        ),
+                      ),
+                ],
               ),
-              // Per-tile accessibility labels: invisible Semantics nodes at each
-              // projected point so a screen reader can enumerate coverage that
-              // the CustomPaint alone cannot expose.
-              for (final tile in coverage)
-                if (aitoffProject(
-                  tile.centerRaDeg,
-                  tile.centerDecDeg,
-                  Size(width, height),
-                )
-                    case final Offset pos)
-                  Positioned(
-                    left: pos.dx - 8,
-                    top: pos.dy - 8,
-                    width: 16,
-                    height: 16,
-                    child: Semantics(
-                      button: true,
-                      label:
-                          '${formatCenter(tile.centerRaDeg, tile.centerDecDeg)}, '
-                          '${formatIntegration(tile.integrationSeconds)}, '
-                          '${tile.totalFrames} frame'
-                          '${tile.totalFrames == 1 ? '' : 's'}',
-                      onTap: () => _showTile(context, tile),
-                      child: const SizedBox.shrink(),
-                    ),
-                  ),
-            ],
+            ),
           );
         },
       ),

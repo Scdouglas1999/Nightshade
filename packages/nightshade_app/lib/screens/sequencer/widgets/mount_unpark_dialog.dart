@@ -53,10 +53,13 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
     _remainingSeconds = widget.countdownSeconds;
     _startCountdown();
 
+    // Started by the OnScreenAnimationGate in build(), not here: a repeat that
+    // outlives visibility schedules a frame on every vsync and stops the whole
+    // app from idling.
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
+    );
   }
 
   @override
@@ -142,31 +145,36 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
             mainAxisSize: MainAxisSize.min,
             children: [
               // Icon with pulse animation
-              AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  return Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: colors.warning.withValues(
-                          alpha: 0.1 + _pulseController.value * 0.1),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.warning
-                              .withValues(alpha: 0.2 * _pulseController.value),
-                          blurRadius: 20,
-                          spreadRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      LucideIcons.parkingCircle,
-                      size: 40,
-                      color: colors.warning,
-                    ),
-                  );
-                },
+              OnScreenAnimationGate(
+                controller: _pulseController,
+                repeating: true,
+                reverse: true,
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: colors.warning.withValues(
+                            alpha: 0.1 + _pulseController.value * 0.1),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.warning.withValues(
+                                alpha: 0.2 * _pulseController.value),
+                            blurRadius: 20,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        LucideIcons.parkingCircle,
+                        size: 40,
+                        color: colors.warning,
+                      ),
+                    );
+                  },
+                ),
               ),
 
               const SizedBox(height: 20),

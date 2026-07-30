@@ -67,8 +67,10 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
         final state = ref.read(coverCalibratorStateProvider);
         return state.connectionState == DeviceConnectionState.connected &&
             _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
-      default:
-        return false;
+      case DeviceType.switch_:
+        final state = ref.read(switchStateProvider);
+        return state.connectionState == DeviceConnectionState.connected &&
+            _deviceIdsMatch(state.deviceId, widget.device.activeDeviceId);
     }
   }
 
@@ -311,6 +313,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
     ref.watch(domeStateProvider);
     ref.watch(weatherStateProvider);
     ref.watch(safetyMonitorStateProvider);
+    ref.watch(switchStateProvider);
     ref.watch(coverCalibratorStateProvider);
 
     final isConnected = _isDeviceConnected();
@@ -416,15 +419,28 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
 
           const SizedBox(width: 8),
 
-          // Connect/Disconnect button
-          NightshadeButton(
-            label: isConnected ? 'Disconnect' : 'Connect',
-            variant: isConnected ? ButtonVariant.ghost : ButtonVariant.outline,
-            size: ButtonSize.small,
-            isLoading: _isConnecting,
-            onPressed: _isConnecting
-                ? null
-                : (isConnected ? widget.onDisconnect : _handleConnect),
+          // Connect/Disconnect button.
+          //
+          // "Assign" persists the device to a profile; "Connect" does not — it
+          // is a session-only connection that is silently gone after a restart.
+          // The two sat side by side with nothing saying so, so the difference is
+          // spelled out in the tooltip here and marked on the resulting card.
+          Tooltip(
+            message: isConnected
+                ? 'Disconnect this device now.'
+                : 'Connect for this session only. It is NOT saved to a '
+                    'profile and will not reconnect on the next launch — use '
+                    'Assign for that.',
+            child: NightshadeButton(
+              label: isConnected ? 'Disconnect' : 'Connect',
+              variant:
+                  isConnected ? ButtonVariant.ghost : ButtonVariant.outline,
+              size: ButtonSize.small,
+              isLoading: _isConnecting,
+              onPressed: _isConnecting
+                  ? null
+                  : (isConnected ? widget.onDisconnect : _handleConnect),
+            ),
           ),
         ],
       ),

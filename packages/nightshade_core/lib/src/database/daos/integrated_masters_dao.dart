@@ -431,6 +431,52 @@ class IntegratedMastersDao {
     );
   }
 
+  /// Ids of the masters that folded at least one of [imageIds], newest first.
+  ///
+  /// The *scoping* query for a review surface: `target_id` is frequently NULL on
+  /// a master row (a session with no catalog target still integrates), so it
+  /// cannot answer "which master belongs to the night I am looking at". The
+  /// `integrated_master_frames` join can — it records exactly which subs went
+  /// into which master. Session Review uses this so a night that produced no
+  /// master shows its empty state instead of the newest master in the library
+  /// (which would then be what "Calibrate colour" / "Extract gradient" operate
+  /// on).
+  ///
+  /// [imageIds] is chunked to stay well inside SQLite's bound-variable limit, so
+  /// a multi-night target review with thousands of subs is safe to pass whole.
+  Future<List<int>> masterIdsForImages(Iterable<int> imageIds) async {
+    final ids = imageIds.toSet().toList(growable: false);
+    if (ids.isEmpty) return const [];
+
+    const chunkSize = 400;
+    // (created_at, id) per matched master, so the merged result across chunks
+    // can be ordered exactly like the single-query newest-first ordering.
+    final found = <int, int>{};
+    for (var offset = 0; offset < ids.length; offset += chunkSize) {
+      final chunk = ids.skip(offset).take(chunkSize).toList(growable: false);
+      final placeholders = List.filled(chunk.length, '?').join(', ');
+      final rows = await _db
+          .customSelect(
+            'SELECT DISTINCT m.id AS id, m.created_at AS created_at '
+            'FROM integrated_masters m '
+            'INNER JOIN integrated_master_frames f ON f.master_id = m.id '
+            'WHERE f.image_id IN ($placeholders)',
+            variables: [for (final id in chunk) Variable<int>(id)],
+          )
+          .get();
+      for (final row in rows) {
+        found[row.read<int>('id')] = row.read<int>('created_at');
+      }
+    }
+
+    final ordered = found.keys.toList()
+      ..sort((a, b) {
+        final byCreated = found[b]!.compareTo(found[a]!);
+        return byCreated != 0 ? byCreated : b.compareTo(a);
+      });
+    return List.unmodifiable(ordered);
+  }
+
   /// The set of `captured_images.id` already folded into [masterId]. The dedup
   /// source of truth: [MasterAccumulationService] subtracts this from the
   /// freshly-selected subs before an `add`.

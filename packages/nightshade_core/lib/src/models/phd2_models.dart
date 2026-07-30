@@ -196,13 +196,17 @@ abstract class Phd2BrainParams with _$Phd2BrainParams {
 }
 
 /// Guide error point for target display history
+///
+/// Same unit contract as [Phd2GuideStats]: these come from the raw `GuideStep`
+/// residuals, i.e. **guide-camera pixels**, and are converted for display only
+/// where a pixel scale is known.
 @freezed
 abstract class GuideErrorPoint with _$GuideErrorPoint {
   const factory GuideErrorPoint({
-    /// RA error in arcseconds
+    /// RA error (guide-camera pixels; see class docs)
     required double raError,
 
-    /// Dec error in arcseconds
+    /// Dec error (guide-camera pixels; see class docs)
     required double decError,
 
     /// Timestamp when this error was recorded
@@ -214,22 +218,37 @@ abstract class GuideErrorPoint with _$GuideErrorPoint {
 }
 
 /// PHD2 guide statistics snapshot
+///
+/// UNITS — read before formatting any of these values:
+/// `GuideStatsNotifier` computes the RMS/peak fields from the raw per-step
+/// residuals carried on `GuideStep` events (`RADistanceRaw`/`DECDistanceRaw`
+/// from PHD2, `ra_raw`/`dec_raw` from the built-in guider). Both report those
+/// in **guide-camera pixels**, so these fields are pixels, NOT arcseconds —
+/// they only become arcseconds after multiplying by [pixelScale], and
+/// [pixelScale] is 0 (unknown) unless something populates it.
+///
+/// The doc comments here previously claimed arcseconds, which is why the
+/// Guiding screen ended up printing the same number twice with contradictory
+/// units. Do not "fix" that by relabelling pixels as arcseconds: at a 0.78"/px
+/// guide scale a 0.53 px residual is 0.41", so the suffix change alone would
+/// overstate the error by ~28%. Either convert with a real [pixelScale] or say
+/// px.
 @freezed
 abstract class Phd2GuideStats with _$Phd2GuideStats {
   const factory Phd2GuideStats({
-    /// RMS error in RA (arcseconds)
+    /// RMS error in RA (guide-camera pixels; see class docs)
     @Default(0.0) double rmsRa,
 
-    /// RMS error in Dec (arcseconds)
+    /// RMS error in Dec (guide-camera pixels; see class docs)
     @Default(0.0) double rmsDec,
 
-    /// Total RMS error (arcseconds)
+    /// Total RMS error (guide-camera pixels; see class docs)
     @Default(0.0) double rmsTotal,
 
-    /// Peak RA error (arcseconds)
+    /// Peak RA error (guide-camera pixels; see class docs)
     @Default(0.0) double peakRa,
 
-    /// Peak Dec error (arcseconds)
+    /// Peak Dec error (guide-camera pixels; see class docs)
     @Default(0.0) double peakDec,
 
     /// SNR of guide star

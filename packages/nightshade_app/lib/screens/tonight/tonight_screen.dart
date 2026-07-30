@@ -5,7 +5,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../localization/nightshade_localizations.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
+import '../planetarium/show_in_sky.dart';
 import 'one_tap_target_provider.dart';
 import 'one_tap_tonight_controller.dart';
 
@@ -349,6 +351,28 @@ class _TargetConfirmCard extends StatelessWidget {
                   .copyWith(color: colors.textSecondary, height: 1.4),
             ),
           ],
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          // The one-tap screen deliberately hides the toolset, but "where is
+          // this thing?" is a fair question to ask before handing the rig a
+          // whole night. One link out to the sky, then back.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Consumer(
+              builder: (context, ref, _) => NightshadeButton(
+                label: context.l10n.text('plannerOpenPlanetarium'),
+                icon: LucideIcons.globe,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => showTargetInSky(
+                  context,
+                  ref,
+                  raHours: target.raHours,
+                  decDegrees: target.decDegrees,
+                  name: target.targetName,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -14,7 +14,14 @@ class BottomInfoBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final viewState = ref.watch(skyViewStateProvider);
-    final selectedObject = ref.watch(selectedObjectProvider);
+    // NOT viewState.centerRA/centerDec: in the horizontal (Alt/Az) frame those
+    // two fields hold the PRESERVED equatorial pose from before the mode
+    // switch, so the bar reported a centre tens of degrees from where the view
+    // was actually pointing (and never moved as you dragged). This provider
+    // converts the live alt/az camera back to RA/Dec in that mode.
+    final (centerRA, centerDec) = ref.watch(viewCenterEquatorialProvider);
+    final selectedAltAz = ref.watch(selectedObjectAltAzProvider);
+    final sunAltitude = ref.watch(sunAltitudeProvider);
     final bortle = ref.watch(bortleClassProvider);
     final limMag = BortleScale.limitingMagnitude(bortle);
 
@@ -29,22 +36,30 @@ class BottomInfoBar extends ConsumerWidget {
         final items = <Widget>[
           InfoItem(
             label: 'Center RA',
-            value: CoordinateFormatUtils.formatRAShort(viewState.centerRA),
+            compactLabel: 'RA',
+            value: CoordinateFormatUtils.formatRAShort(centerRA),
             colors: colors,
             compact: isCompact,
           ),
           SizedBox(width: itemSpacing),
           InfoItem(
             label: 'Center Dec',
+            compactLabel: 'Dec',
             value: isCompact
-                ? CoordinateFormatUtils.formatDecCompact(viewState.centerDec)
-                : CoordinateFormatUtils.formatDec(viewState.centerDec),
+                ? CoordinateFormatUtils.formatDecCompact(centerDec)
+                : CoordinateFormatUtils.formatDec(centerDec),
             colors: colors,
             compact: isCompact,
           ),
           SizedBox(width: itemSpacing),
           InfoItem(
-            label: 'FOV',
+            // The renderer scales by min(width, height), so the field of view
+            // spans the canvas's SHORT axis; the long axis is wider. The compact
+            // form keeps the qualifier — a bare "FOV: 60.0deg" reads as the
+            // whole frame, which is the very ambiguity the full label exists to
+            // remove.
+            label: 'FOV (short axis)',
+            compactLabel: 'FOV (short)',
             value: CoordinateFormatUtils.formatFOV(viewState.fieldOfView),
             colors: colors,
             compact: isCompact,
@@ -63,23 +78,33 @@ class BottomInfoBar extends ConsumerWidget {
                       : colors.error,
             ),
           ],
-          if (!isCompact && selectedObject.currentAltAz != null) ...[
+          if (!isCompact && selectedAltAz != null) ...[
             SizedBox(width: itemSpacing * 2),
             InfoItem(
               label: 'Selected Alt',
-              value: CoordinateFormatUtils.formatAltitude(
-                  selectedObject.currentAltAz!.$1),
+              value: CoordinateFormatUtils.formatAltitude(selectedAltAz.$1),
               colors: colors,
               compact: isCompact,
-              valueColor: selectedObject.currentAltAz!.$1 > 0
-                  ? colors.success
-                  : colors.error,
+              // Green here means "usable now", so it has to survive daylight
+              // too: a target 63 deg up with the Sun 63 deg up is not green.
+              valueColor: switch (gradeObservability(
+                altitudeDeg: selectedAltAz.$1,
+                sunAltitudeDeg: sunAltitude,
+              )) {
+                ObservabilityGrade.excellent => colors.success,
+                ObservabilityGrade.good ||
+                ObservabilityGrade.low ||
+                ObservabilityGrade.twilight =>
+                  colors.warning,
+                ObservabilityGrade.belowHorizon ||
+                ObservabilityGrade.daylight =>
+                  colors.error,
+              },
             ),
             SizedBox(width: itemSpacing),
             InfoItem(
               label: 'Az',
-              value: CoordinateFormatUtils.formatAzimuth(
-                  selectedObject.currentAltAz!.$2),
+              value: CoordinateFormatUtils.formatAzimuth(selectedAltAz.$2),
               colors: colors,
               compact: isCompact,
             ),
@@ -104,13 +129,16 @@ class BottomInfoBar extends ConsumerWidget {
               ],
             ),
           ),
-          child: isVeryCompact
-              ? FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Row(mainAxisSize: MainAxisSize.min, children: items),
-                )
-              : Row(children: items),
+          // Scale-to-fit at every width, not just the very-compact branch: the
+          // two "Selected Alt / Az" items only appear once something is
+          // selected, and the six-item row overflows a ~1200 px window (195 px
+          // on the right) the moment it does. A HUD that reports the sky must
+          // not itself be the thing that breaks.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(mainAxisSize: MainAxisSize.min, children: items),
+          ),
         );
       },
     );
@@ -119,6 +147,15 @@ class BottomInfoBar extends ConsumerWidget {
 
 class InfoItem extends StatelessWidget {
   final String label;
+
+  /// Label to use when [compact] is set.
+  ///
+  /// Defaults to [label]'s first word, which is fine for "FOV (short axis)" but
+  /// was actively wrong for the coordinate pair: "Center RA" and "Center Dec"
+  /// both compacted to "Center", so a 900 px window printed two adjacent,
+  /// identically-labelled fields holding different quantities. Fields whose
+  /// discriminator is not the first word pass it explicitly.
+  final String? compactLabel;
   final String value;
   final NightshadeColors colors;
   final Color? valueColor;
@@ -127,6 +164,7 @@ class InfoItem extends StatelessWidget {
   const InfoItem({
     super.key,
     required this.label,
+    this.compactLabel,
     required this.value,
     required this.colors,
     this.valueColor,
@@ -139,7 +177,7 @@ class InfoItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '${compact ? label.split(' ').first : label}:',
+          '${compact ? (compactLabel ?? label.split(' ').first) : label}:',
           style: TextStyle(
             fontSize: compact
                 ? NightshadeTypography.fontSize10

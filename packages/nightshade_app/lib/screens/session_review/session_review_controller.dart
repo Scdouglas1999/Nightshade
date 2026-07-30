@@ -214,8 +214,22 @@ class SessionReviewState {
   /// The integration settings the next run / re-integrate will use.
   final IntegrationSettings settings;
 
-  /// Persisted masters for this target (newest first); empty when none.
+  /// Persisted masters for this target (newest first); empty when none. This is
+  /// the *library* list (what the master-library panel offers), NOT the master
+  /// this screen is reviewing — see [reviewedMaster].
   final List<IntegratedMaster> masters;
+
+  /// The persisted master that actually belongs to the scope under review — the
+  /// one the hero image, the smart panels (improvement curve, growth,
+  /// annotations) and the finishing actions (colour calibration, background
+  /// extraction) operate on. Null when this session/target has no master yet.
+  ///
+  /// Resolved from the `integrated_master_frames` fold records for the subs in
+  /// scope, NOT from "newest master in the library": `integrated_masters.target_id`
+  /// is frequently NULL, so the old `masters.first` fallback rendered another
+  /// night's stack under this night's heading and pointed the finishing actions
+  /// at the wrong file.
+  final IntegratedMaster? reviewedMaster;
 
   /// True while subs are loading.
   final bool loading;
@@ -311,6 +325,7 @@ class SessionReviewState {
     this.targetName,
     this.settings = IntegrationSettings.defaults,
     this.masters = const [],
+    this.reviewedMaster,
     this.loading = true,
     this.integrating = false,
     this.integrationProgress,
@@ -333,11 +348,6 @@ class SessionReviewState {
     this.narrowbandComposite,
     this.narrowbandComposites = const [],
   });
-
-  /// The newest persisted master in scope — the one the smart panels analyse
-  /// (improvement curve, growth, annotations). Null when no masters exist.
-  IntegratedMaster? get reviewedMaster =>
-      masters.isNotEmpty ? masters.first : null;
 
   /// On-disk coverage-map PNG for the reviewed master, when drizzle wrote one.
   String? get coverageMapPath => reviewedMaster?.coverageMapPreviewPath;
@@ -390,6 +400,8 @@ class SessionReviewState {
     String? targetName,
     IntegrationSettings? settings,
     List<IntegratedMaster>? masters,
+    IntegratedMaster? reviewedMaster,
+    bool clearReviewedMaster = false,
     bool? loading,
     bool? integrating,
     double? integrationProgress,
@@ -427,6 +439,8 @@ class SessionReviewState {
       targetName: targetName ?? this.targetName,
       settings: settings ?? this.settings,
       masters: masters ?? this.masters,
+      reviewedMaster:
+          clearReviewedMaster ? null : (reviewedMaster ?? this.reviewedMaster),
       loading: loading ?? this.loading,
       integrating: integrating ?? this.integrating,
       integrationProgress: clearProgress
@@ -530,6 +544,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       final masters = targetId != null
           ? await _mastersDao.getForTarget(targetId)
           : await _mastersDao.getAll();
+      // Scope the reviewed master to THIS review's subs (see
+      // [SessionReviewState.reviewedMaster]); `masters` stays the library list.
+      final reviewed = await _resolveReviewedMaster(masters, subs);
 
       if (!mounted) return;
       state = state.copyWith(
@@ -539,6 +556,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         targetName: targetName,
         settings: settings,
         masters: masters,
+        reviewedMaster: reviewed,
+        clearReviewedMaster: reviewed == null,
         loading: false,
         clearError: true,
       );
@@ -585,20 +604,32 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     return (t.ra, t.dec);
   }
 
+  /// The header title for this review.
+  ///
+  /// A session scope is titled with the SESSION (its name plus start date/time),
+  /// never `Night of <date>`: two sequences run twenty minutes apart are two
+  /// separate reviews with disjoint sub sets, and titling both "Night of
+  /// 2026-07-25" claimed the screen aggregated the night when it does not — and
+  /// gave the user no way to tell the two apart. A target scope keeps the target
+  /// name, which is accurate (it really does span every night of that target).
   Future<String> _resolveTitle(String? targetName) async {
-    if (targetName != null && targetName.trim().isNotEmpty) {
-      return targetName.trim();
+    final target = targetName?.trim();
+    if (!_scope.isSession) {
+      return (target != null && target.isNotEmpty) ? target : 'Target Review';
     }
-    if (_scope.isSession) {
-      final session = await _ref
-          .read(sessionsDaoProvider)
-          .getSessionById(_scope.sessionId!);
-      if (session != null) {
-        final d = session.startTime.toLocal();
-        return 'Night of ${d.year}-${_two(d.month)}-${_two(d.day)}';
-      }
+    final session =
+        await _ref.read(sessionsDaoProvider).getSessionById(_scope.sessionId!);
+    if (session == null) {
+      return (target != null && target.isNotEmpty) ? target : 'Session Review';
     }
-    return 'Session Review';
+    final sessionName = session.name?.trim();
+    final label = (sessionName != null && sessionName.isNotEmpty)
+        ? sessionName
+        : (target != null && target.isNotEmpty ? target : 'Session');
+    final d = session.startTime.toLocal();
+    final stamp = '${d.year}-${_two(d.month)}-${_two(d.day)} '
+        '${_two(d.hour)}:${_two(d.minute)}';
+    return '$label · $stamp';
   }
 
   static String _two(int v) => v.toString().padLeft(2, '0');
@@ -710,15 +741,16 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
           return p.join(outDir, '$base${filterTag}_master_$stamp.fits');
         },
       );
-      final masters = await _refreshMasters();
       final first = outcomes.isNotEmpty ? outcomes.first : null;
       if (!mounted) return first;
-      state = state.copyWith(
-        integrating: false,
-        clearProgress: true,
-        clearLiveProgress: true,
-        lastOutcome: first,
-        masters: masters,
+      await _publishMasters(
+        pinMasterId: first?.masterId,
+        extra: (s) => s.copyWith(
+          integrating: false,
+          clearProgress: true,
+          clearLiveProgress: true,
+          lastOutcome: first,
+        ),
       );
       // A fresh master invalidates the smart backbone — re-derive it.
       unawaited(loadSmartData());
@@ -1031,9 +1063,7 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         master.id,
         colorCalibratedPath: result.outputPath,
       );
-      final masters = await _refreshMasters();
-      if (!mounted) return result.outputPath;
-      state = state.copyWith(masters: masters);
+      await _publishMasters();
       return result.outputPath;
     } catch (e) {
       if (mounted) {
@@ -1181,9 +1211,7 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
       }
       await persist(master.id, written);
       if (alsoMark != null) await alsoMark(master.id);
-      final masters = await _refreshMasters();
-      if (!mounted) return written;
-      state = state.copyWith(masters: masters);
+      await _publishMasters();
       return written;
     } catch (e) {
       if (mounted) state = state.copyWith(error: '$label failed: $e');
@@ -1411,11 +1439,11 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         label: label,
         settings: state.settings,
       );
-      final masters = await _refreshMasters();
-      if (!mounted) return result;
-      state = state.copyWith(
-        integrating: false,
-        masters: masters,
+      // The night was folded INTO this master, so it is now the master under
+      // review for this scope.
+      await _publishMasters(
+        pinMasterId: master.id,
+        extra: (s) => s.copyWith(integrating: false),
       );
       return result;
     } catch (e) {
@@ -1466,9 +1494,10 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
           settings: state.settings,
         );
       }
-      final masters = await _refreshMasters();
-      if (!mounted) return masterId;
-      state = state.copyWith(integrating: false, masters: masters);
+      await _publishMasters(
+        pinMasterId: masterId,
+        extra: (s) => s.copyWith(integrating: false),
+      );
       return masterId;
     } catch (e) {
       if (!mounted) return null;
@@ -1496,9 +1525,10 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         masterFitsPath: fits,
         previewPngPath: preview,
       );
-      final masters = await _refreshMasters();
-      if (!mounted) return;
-      state = state.copyWith(integrating: false, masters: masters);
+      await _publishMasters(
+        pinMasterId: master.id,
+        extra: (s) => s.copyWith(integrating: false),
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
@@ -1511,9 +1541,9 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   /// Delete a master row (its fold records cascade in the DB).
   Future<void> deleteMaster(IntegratedMaster master) async {
     await _mastersDao.deleteMaster(master.id);
-    final masters = await _refreshMasters();
-    if (!mounted) return;
-    state = state.copyWith(masters: masters);
+    // The reviewed master may be the row just deleted; _publishMasters
+    // re-resolves the scope when the pinned id no longer exists.
+    await _publishMasters();
   }
 
   DbCapturedImage _bestReference(List<DbCapturedImage> subs) {
@@ -1534,6 +1564,87 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   Future<List<IntegratedMaster>> _refreshMasters() {
     final tid = state.targetId;
     return tid != null ? _mastersDao.getForTarget(tid) : _mastersDao.getAll();
+  }
+
+  /// Refresh the master library AND re-resolve [SessionReviewState.reviewedMaster],
+  /// then publish both plus any [extra] state produced by the caller's action.
+  ///
+  /// [pinMasterId] pins the reviewed master to a specific row — the id an
+  /// integration run just produced — so the screen shows the master the user
+  /// just made even before its fold records are queried back. Without a pin the
+  /// currently-reviewed master is kept when it still exists, else the scope is
+  /// re-resolved from the fold records.
+  Future<void> _publishMasters({
+    int? pinMasterId,
+    SessionReviewState Function(SessionReviewState)? extra,
+  }) async {
+    final library = await _refreshMasters();
+    final wanted = pinMasterId ?? state.reviewedMaster?.id;
+    IntegratedMaster? reviewed;
+    if (wanted != null) {
+      reviewed = _masterInListById(library, wanted) ??
+          await _mastersDao.getById(wanted);
+    }
+    reviewed ??= await _resolveReviewedMaster(library, state.subs);
+    if (!mounted) return;
+    final next = state.copyWith(
+      masters: library,
+      reviewedMaster: reviewed,
+      clearReviewedMaster: reviewed == null,
+    );
+    state = extra == null ? next : extra(next);
+  }
+
+  /// The persisted master that belongs to this review, or null when the
+  /// session/target has produced none.
+  ///
+  /// Resolution is by fold record (`integrated_master_frames`): a master is in
+  /// scope when it folded at least one of the subs on screen. A target-wide
+  /// review additionally accepts the newest master for that target, because
+  /// every master for the target is in scope by definition (and legacy rows may
+  /// pre-date fold recording). A session review does NOT fall back — an honest
+  /// "no finished master yet" beats another night's stack presented as this
+  /// night's result.
+  Future<IntegratedMaster?> _resolveReviewedMaster(
+    List<IntegratedMaster> library,
+    List<DbCapturedImage> subs,
+  ) async {
+    if (subs.isNotEmpty) {
+      try {
+        final scoped = await _mastersDao.masterIdsForImages(
+          subs.map((s) => s.id),
+        );
+        if (scoped.isNotEmpty) {
+          final scopedSet = scoped.toSet();
+          // `library` is newest-first, so the first hit is the newest in-scope
+          // master the library slice knows about.
+          for (final m in library) {
+            if (scopedSet.contains(m.id)) return m;
+          }
+          // In scope but outside the library slice (e.g. a master row with a
+          // NULL target_id while this review resolved a target) — read it.
+          final direct = await _mastersDao.getById(scoped.first);
+          if (direct != null) return direct;
+        }
+      } catch (_) {
+        // Fail soft: a scoping-query failure must not sink the screen. Fall
+        // through to the target-scope rule below.
+      }
+    }
+    if (!_scope.isSession && _scope.targetId != null) {
+      return library.isNotEmpty ? library.first : null;
+    }
+    return null;
+  }
+
+  static IntegratedMaster? _masterInListById(
+    List<IntegratedMaster> masters,
+    int id,
+  ) {
+    for (final m in masters) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   Future<String> _outputDir() async {

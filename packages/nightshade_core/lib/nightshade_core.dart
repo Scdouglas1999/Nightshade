@@ -26,6 +26,7 @@ export 'src/database/database_aliases.dart';
 // FirstNightWizard model vs nightshade_app FirstNightWizard widget).
 export 'src/legacy_aliases.dart';
 export 'src/database/integrity_check.dart';
+export 'src/database/single_instance_lock.dart';
 export 'src/database/seed_data.dart';
 
 // DAOs
@@ -655,3 +656,5 @@ export 'src/utils/resilient_poll_stream.dart';
 export 'src/utils/dither_settle_presets.dart';
 export 'src/utils/plate_solver_utils.dart';
 export 'src/utils/export_target.dart';
+export 'src/utils/temperature_format.dart';
+export 'src/utils/utc_timestamp.dart';

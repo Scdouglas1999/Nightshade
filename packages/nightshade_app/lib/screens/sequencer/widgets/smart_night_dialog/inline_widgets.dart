@@ -734,7 +734,8 @@ class _PlannedTargetCard extends StatelessWidget {
                 child: Text(
                   'Total: '
                   '${(planned.integrationSecs / 3600).toStringAsFixed(1)}h '
-                  'across ${planned.filterPlans.length} filter(s).',
+                  '${planned.isUnfiltered ? 'unfiltered.' : 'across '
+                      '${planned.filterPlans.length} filter(s).'}',
                   style: TextStyle(
                     color: colors.textMuted,
                     fontSize: NightshadeTypography.fontSize11,
@@ -776,7 +777,7 @@ class _FilterRow extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(
-              plan.filterName,
+              plan.isUnfiltered ? 'None' : plan.filterName,
               style: NightshadeTypography.labelStrongSm
                   .copyWith(color: colors.primary),
             ),

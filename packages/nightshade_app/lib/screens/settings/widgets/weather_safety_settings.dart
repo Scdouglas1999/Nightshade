@@ -69,11 +69,28 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
         );
   }
 
+  /// Append the master-switch prerequisite to a row description when weather
+  /// safety is off, so a row showing "on" cannot read as active protection.
+  static String _withPrerequisite(String description, bool masterEnabled) {
+    if (masterEnabled) return description;
+    return '$description — inactive until "Enable weather safety" is on';
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final settingsAsync = ref.watch(weatherSettingsDataProvider);
     final settings = settingsAsync.valueOrNull;
+    // Auto-park is gated by the Sequencer "Park on unsafe weather" policy as
+    // well as by this page's toggle, and both are gated by the master switch.
+    // Show the composed truth and disclose the prerequisite instead of letting
+    // this page claim protection another page has switched off.
+    final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+    // While app settings are still loading fall back to the weather-side toggle
+    // rather than defaulting the composed value to false: flashing "off" for a
+    // setting that is on is its own small lie.
+    final parkPolicyEnabled =
+        appSettings?.parkOnUnsafeWeather ?? settings?.autoParkEnabled ?? false;
 
     if (settings == null) {
       return SettingsPage(
@@ -127,17 +144,28 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
             SettingRow(
               icon: LucideIcons.mapPin,
               title: l10n.text('weatherSafetyAutoPark'),
-              subtitle: l10n.text('weatherSafetyAutoParkDesc'),
+              subtitle: _withPrerequisite(
+                l10n.text('weatherSafetyAutoParkDesc'),
+                settings.weatherSafetyEnabled,
+              ),
               trailing: SettingsSwitch(
-                value: settings.autoParkEnabled,
-                onChanged: (value) => _updateSettings(autoParkEnabled: value),
+                // One logical setting, two stores: writing it here also writes
+                // the Sequencer "Park on unsafe weather" policy, so the two
+                // pages can no longer disagree about whether auto-park is on.
+                value: settings.autoParkEnabled && parkPolicyEnabled,
+                onChanged: (value) => ref
+                    .read(weatherSettingsActionsProvider)
+                    .setAutoParkOnUnsafe(value),
               ),
               isMobile: widget.isMobile,
             ),
             SettingRow(
               icon: LucideIcons.play,
               title: l10n.text('weatherSafetyAutoResume'),
-              subtitle: l10n.text('weatherSafetyAutoResumeDesc'),
+              subtitle: _withPrerequisite(
+                l10n.text('weatherSafetyAutoResumeDesc'),
+                settings.weatherSafetyEnabled,
+              ),
               trailing: SettingsSwitch(
                 value: settings.autoResumeEnabled,
                 onChanged: (value) => _updateSettings(autoResumeEnabled: value),

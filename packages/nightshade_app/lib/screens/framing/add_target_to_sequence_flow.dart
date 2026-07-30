@@ -87,6 +87,48 @@ TargetHeaderNode bareTargetHeaderForFramedTarget({
   );
 }
 
+/// Build one bare [TargetHeaderNode] per drawn mosaic panel.
+///
+/// With Mosaic enabled the framing canvas draws an NxM grid of panels, each at
+/// its own RA/Dec — that grid IS the composition the user made. Inserting only
+/// [bareTargetHeaderForFramedTarget] threw the panels away and dropped a single
+/// header at the grid's CENTRE, so a 2x2 mosaic silently became one frame of the
+/// middle of it.
+///
+/// Each header carries the panel's own centre and is named
+/// `"<target> Panel N"`, in the panel order the sidebar lists (capture order),
+/// so the Sequencer shows the same panels in the same order as the canvas.
+/// Panels also get [MosaicPanelInfo] so the frames they capture are stamped with
+/// their mosaic identity in FITS, exactly as the wizard-built path does.
+List<TargetHeaderNode> bareTargetHeadersForMosaicPanels({
+  required FramingTarget target,
+  required List<FramingMosaicPanel> panels,
+  double? rotationDegrees,
+}) {
+  final rotation = (rotationDegrees != null && rotationDegrees != 0)
+      ? rotationDegrees
+      : null;
+  final baseName = target.name.isEmpty ? 'Mosaic' : target.name;
+  return [
+    for (var i = 0; i < panels.length; i++)
+      TargetHeaderNode(
+        name: '$baseName Panel ${panels[i].index + 1}',
+        targetName: '$baseName Panel ${panels[i].index + 1}',
+        raHours: panels[i].centerRaHours,
+        decDegrees: panels[i].centerDecDegrees,
+        rotation: rotation,
+        priority: i,
+        mosaicPanel: MosaicPanelInfo(
+          mosaicName: baseName,
+          panelIndex: panels[i].index,
+          totalPanels: panels.length,
+          row: panels[i].row,
+          column: panels[i].column,
+        ),
+      ),
+  ];
+}
+
 /// Present the destination picker and insert a bare target header for [target].
 ///
 /// Returns `true` when a header was added, `false` when the user cancelled or
@@ -98,7 +140,14 @@ Future<bool> addFramedTargetToExistingSequence({
   required WidgetRef ref,
   required FramingTarget target,
   double? rotationDegrees,
+  List<FramingMosaicPanel> mosaicPanels = const [],
 }) async {
+  // A drawn mosaic of 2+ panels is inserted as one target group PER PANEL. It
+  // used to be discarded entirely in favour of a single centre-frame header, so
+  // the panels the user composed on the canvas never reached the sequence and
+  // nothing said so.
+  final panels =
+      mosaicPanels.length >= 2 ? mosaicPanels : const <FramingMosaicPanel>[];
   final current = ref.read(currentSequenceProvider);
   List<Sequence>? saved;
   while (saved == null) {
@@ -150,13 +199,27 @@ Future<bool> addFramedTargetToExistingSequence({
       targetName: target.name,
       destinations: destinations,
       initialIndex: initialIndex,
+      mosaicPanelCount: panels.length,
     ),
   );
   if (chosen == null || !context.mounted) return false;
 
-  final header = bareTargetHeaderForFramedTarget(
-      target: target, rotationDegrees: rotationDegrees);
+  final headers = panels.isEmpty
+      ? [
+          bareTargetHeaderForFramedTarget(
+              target: target, rotationDegrees: rotationDegrees),
+        ]
+      : bareTargetHeadersForMosaicPanels(
+          target: target,
+          panels: panels,
+          rotationDegrees: rotationDegrees,
+        );
   final notifier = ref.read(currentSequenceProvider.notifier);
+  void addAll() {
+    for (final header in headers) {
+      notifier.addTargetHeader(header);
+    }
+  }
 
   try {
     if (chosen.isNew) {
@@ -164,14 +227,14 @@ Future<bool> addFramedTargetToExistingSequence({
         name: target.name.isEmpty ? 'New Sequence' : target.name,
         discardUnsaved: false,
       );
-      notifier.addTargetHeader(header);
+      addAll();
     } else if (chosen.isCurrent) {
-      notifier.addTargetHeader(header);
+      addAll();
     } else {
       // A different saved sequence — open a fresh-ID copy into the editor,
-      // then append the header.
+      // then append the header(s).
       notifier.loadCopyForEditing(chosen.savedSequence!);
-      notifier.addTargetHeader(header);
+      addAll();
     }
     return true;
   } on UnsavedChangesException catch (e) {
@@ -192,7 +255,7 @@ Future<bool> addFramedTargetToExistingSequence({
         notifier.loadCopyForEditing(chosen.savedSequence!,
             discardUnsaved: true);
       }
-      notifier.addTargetHeader(header);
+      addAll();
       return true;
     } on SequenceLockedException catch (lockErr) {
       if (context.mounted) {
@@ -296,10 +359,16 @@ class _DestinationPickerDialog extends StatefulWidget {
   final List<_SequenceDestination> destinations;
   final int initialIndex;
 
+  /// How many mosaic panels will be inserted (0 when no mosaic is drawn). The
+  /// dialog says so explicitly: it used to promise a single target group while a
+  /// 2x2 grid was on the canvas, and silently drop the panels.
+  final int mosaicPanelCount;
+
   const _DestinationPickerDialog({
     required this.targetName,
     required this.destinations,
     required this.initialIndex,
+    this.mosaicPanelCount = 0,
   });
 
   @override
@@ -310,11 +379,14 @@ class _DestinationPickerDialog extends StatefulWidget {
 class _DestinationPickerDialogState extends State<_DestinationPickerDialog> {
   late int _selected = widget.initialIndex;
 
+  bool get _isMosaic => widget.mosaicPanelCount >= 2;
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final panelCount = widget.mosaicPanelCount;
     return NightshadeDialog(
-      title: 'Add target to sequence',
+      title: _isMosaic ? 'Add mosaic to sequence' : 'Add target to sequence',
       icon: LucideIcons.listPlus,
       width: 460,
       actions: [
@@ -327,7 +399,7 @@ class _DestinationPickerDialogState extends State<_DestinationPickerDialog> {
         NightshadeButton(
           onPressed: () =>
               Navigator.of(context).pop(widget.destinations[_selected]),
-          label: 'Add target',
+          label: _isMosaic ? 'Add $panelCount panels' : 'Add target',
           icon: NightshadeIcons.add,
           size: ButtonSize.small,
         ),
@@ -337,8 +409,12 @@ class _DestinationPickerDialogState extends State<_DestinationPickerDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Insert "${widget.targetName}" as a new target group. You add the '
-            'imaging instructions under it in the Sequencer.',
+            _isMosaic
+                ? 'Insert the drawn mosaic as $panelCount target groups — one '
+                    'per panel, each at its own coordinates. You add the '
+                    'imaging instructions under them in the Sequencer.'
+                : 'Insert "${widget.targetName}" as a new target group. You add '
+                    'the imaging instructions under it in the Sequencer.',
             style: NightshadeTypography.bodySm
                 .copyWith(color: colors.textSecondary),
           ),

@@ -17,6 +17,57 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc, RwLock};
 
+/// A detached handle onto the run's operator-pause state, obtained from
+/// [`ExecutionContext::pause_gate`].
+///
+/// Instruction code receives an [`InstructionContext`], not an
+/// `ExecutionContext`, so it cannot see `is_paused`. Anything that loops over
+/// several units of work inside a single instruction (exposure bursts,
+/// autofocus sweeps) takes one of these and calls
+/// [`wait_while_paused`](Self::wait_while_paused) between units.
+///
+/// [`Default`] is the never-paused gate, which is what standalone callers
+/// (bridge one-shots, wizards, tests) get.
+#[derive(Clone, Default)]
+pub struct PauseGate {
+    handles: Option<(Arc<AtomicBool>, Arc<tokio::sync::Notify>)>,
+}
+
+impl PauseGate {
+    pub fn is_paused(&self) -> bool {
+        self.handles
+            .as_ref()
+            .is_some_and(|(paused, _)| paused.load(Ordering::Relaxed))
+    }
+
+    /// Block while the run is paused. Returns `false` when `cancellation_token`
+    /// fires while waiting, so the caller unwinds instead of resuming into a
+    /// cancelled run.
+    pub async fn wait_while_paused(&self, cancellation_token: &AtomicBool) -> bool {
+        let Some((paused, resume_notify)) = self.handles.as_ref() else {
+            return true;
+        };
+        if !paused.load(Ordering::Relaxed) {
+            return true;
+        }
+        tracing::info!("Paused: holding before the next unit of work in this instruction");
+        loop {
+            if cancellation_token.load(Ordering::Relaxed) {
+                tracing::info!("Cancelled while paused inside an instruction");
+                return false;
+            }
+            if !paused.load(Ordering::Relaxed) {
+                tracing::info!("Resumed: continuing the instruction");
+                return true;
+            }
+            tokio::select! {
+                _ = resume_notify.notified() => {}
+                _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+            }
+        }
+    }
+}
+
 /// snapshot of the latest cloud-motion analyzer reading.
 ///
 /// Pushed from Dart via `ExecutorCommand::UpdateCloudMotion`; consumed by
@@ -54,6 +105,32 @@ pub type ProgressCallback = Arc<dyn Fn(ProgressUpdate) + Send + Sync>;
 /// Polar-alignment live-image callback. Same Arc-wrapping rationale.
 pub type PolarAlignImageCallback =
     Arc<dyn Fn(crate::polar_align::PolarAlignmentImageData) + Send + Sync>;
+
+/// Per-device exclusion locks, keyed by device id.
+///
+/// `Parallel` derives every branch context with `ctx.clone()`, so two branches
+/// can reach the same physical device at the same time. A camera cannot expose
+/// twice at once: the live rig produced two overlapping bursts on
+/// `sim_camera_1`, two `captured_images` rows and one file on disk. Instruction
+/// code takes the handle for the device it is about to drive and holds the
+/// guard for the whole operation. Keyed by id, so a genuinely dual-camera
+/// parallel block still runs concurrently.
+#[derive(Default)]
+pub struct DeviceLockRegistry {
+    locks: parking_lot::Mutex<std::collections::HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+impl DeviceLockRegistry {
+    pub fn handle(&self, device_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+        let mut locks = self.locks.lock();
+        if let Some(existing) = locks.get(device_id) {
+            return existing.clone();
+        }
+        let created = Arc::new(tokio::sync::Mutex::new(()));
+        locks.insert(device_id.to_string(), created.clone());
+        created
+    }
+}
 
 /// Context passed to nodes during execution.
 ///
@@ -132,6 +209,8 @@ pub struct ExecutionContext {
     pub longitude: Option<f64>,
     /// Device operations handler
     pub device_ops: SharedDeviceOps,
+    /// Per-device exclusion locks shared across every derived branch context.
+    pub device_locks: Arc<DeviceLockRegistry>,
     /// Completed integration time in seconds (shared counter)
     pub completed_integration_secs: Arc<RwLock<f64>>,
     /// Trigger state (for updating during execution)
@@ -561,6 +640,7 @@ impl ExecutionContext {
             latitude: None,
             longitude: None,
             device_ops: Arc::new(NullDeviceOps),
+            device_locks: Arc::new(DeviceLockRegistry::default()),
             completed_integration_secs: Arc::new(RwLock::new(0.0)),
             trigger_state: None,
             safety_fail_mode: Arc::new(parking_lot::RwLock::new(SafetyFailMode::default())),
@@ -799,6 +879,22 @@ impl ExecutionContext {
     pub fn resume(&self) {
         self.is_paused.store(false, Ordering::Relaxed);
         self.resume_notify.notify_waiters();
+    }
+
+    /// Detachable handle onto this run's pause state.
+    ///
+    /// [`wait_while_paused`](Self::wait_while_paused) only reaches code that
+    /// holds an `ExecutionContext`, which is the node tree — every check
+    /// therefore lands *between* instructions. Instructions that loop over
+    /// units of work internally (an exposure burst is N frames inside ONE
+    /// node) never saw the flag at all, so an operator Pause showed a PAUSED
+    /// badge while the camera kept opening the shutter for the rest of the
+    /// burst. This handle is what those loops take so they can honour the
+    /// same flag without the whole context.
+    pub fn pause_gate(&self) -> PauseGate {
+        PauseGate {
+            handles: Some((self.is_paused.clone(), self.resume_notify.clone())),
+        }
     }
 
     /// Request that execution skips the current target and advances to the next one.

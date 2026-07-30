@@ -199,4 +199,82 @@ void main() {
       expect(snapshots.single.disconnectCountLast24h, 0);
     });
   });
+
+  // No-hardware campaign 2026-07-29: reproduced on 3 of 3 restarts — the
+  // profile's guider failed to connect on launch and the equipment screen still
+  // read "System Health 100 - Excellent" in green above "Ready to image",
+  // because a device that never connected has no heartbeat and therefore
+  // deducted nothing from the degradation score.
+  group('EquipmentHealthService offline profile devices', () {
+    const service = EquipmentHealthService();
+
+    test('an offline profile device cannot score Excellent', () {
+      final report = service.analyze(
+        sessions: const [],
+        deviceHealth: const [
+          DeviceHealthSnapshot(
+            deviceId: 'sim_camera_1',
+            lastSuccessfulTimestampMs: 1,
+            isHealthy: true,
+          ),
+        ],
+        offlineProfileDevices: const ['Guider'],
+      );
+
+      expect(report.assessed, isTrue);
+      expect(
+        report.score,
+        lessThan(85),
+        reason: '>= 85 renders as the green "Excellent" badge',
+      );
+      final insight = report.insights.singleWhere(
+        (i) => i.title == 'Profile device not connected',
+      );
+      expect(insight.severity, EquipmentHealthSeverity.critical);
+      expect(insight.message, contains('Guider'));
+    });
+
+    test('names every offline device and pluralises', () {
+      final report = service.analyze(
+        sessions: const [],
+        deviceHealth: const [],
+        offlineProfileDevices: const ['Guider', 'Filter Wheel'],
+      );
+
+      final insight = report.insights.singleWhere(
+        (i) => i.title == 'Profile devices not connected',
+      );
+      expect(insight.message, contains('Guider, Filter Wheel'));
+      expect(insight.message, contains('they are'));
+      expect(report.assessed, isTrue);
+    });
+
+    test('all profile devices up leaves the score untouched', () {
+      final report = service.analyze(
+        sessions: const [],
+        deviceHealth: const [
+          DeviceHealthSnapshot(
+            deviceId: 'sim_camera_1',
+            lastSuccessfulTimestampMs: 1,
+            isHealthy: true,
+          ),
+        ],
+      );
+      expect(report.score, 100);
+      expect(
+        report.insights.any((i) => i.title.contains('not connected')),
+        isFalse,
+      );
+    });
+
+    test('reports are value-equal so the status rail does not churn', () {
+      EquipmentHealthReport build() => service.analyze(
+        sessions: const [],
+        deviceHealth: const [],
+        offlineProfileDevices: const ['Guider'],
+      );
+      expect(build(), equals(build()));
+      expect(build().hashCode, equals(build().hashCode));
+    });
+  });
 }

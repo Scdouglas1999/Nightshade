@@ -124,6 +124,14 @@ class CatalogSource {
   /// Local (materialized) file name under the catalog directory. For gzipped
   /// sources this is the DECOMPRESSED file, not the downloaded `.gz`.
   final String fileName;
+
+  /// File names this catalog used to be materialized under, newest first.
+  ///
+  /// An install made before a rename still has the old file on disk. Status,
+  /// load and delete all accept these so an upgrade does not orphan a catalog
+  /// the user already downloaded (see [CatalogSource.resolveInstalledName]).
+  final List<String> legacyFileNames;
+
   final String checksumUrl;
 
   /// File name of the immutable GitHub release asset that is the PRIMARY
@@ -147,11 +155,27 @@ class CatalogSource {
     required this.version,
     required this.downloadUrl,
     required this.fileName,
+    this.legacyFileNames = const [],
     this.checksumUrl = '',
     this.githubAssetName = '',
     this.sha256 = '',
     this.isGzipped = false,
   });
+
+  /// Every file name that counts as this catalog on disk: the current one
+  /// first, then the legacy names in order.
+  List<String> get candidateFileNames => [fileName, ...legacyFileNames];
+
+  /// The file name to read under [directory]: [fileName] when it is present
+  /// with content, otherwise the first legacy name that is, otherwise
+  /// [fileName] so callers still get the canonical (missing) path.
+  String resolveInstalledName(String directory) {
+    for (final candidate in candidateFileNames) {
+      final file = File(path.join(directory, candidate));
+      if (file.existsSync() && file.lengthSync() > 0) return candidate;
+    }
+    return fileName;
+  }
 }
 
 /// HYG Star Database source.
@@ -172,6 +196,8 @@ const hygStarCatalog = CatalogSource(
   downloadUrl:
       'https://codeberg.org/astronexus/hyg/media/branch/main/data/hyg/CURRENT/hyg_v44.csv.gz',
   fileName: 'hyg_v44.csv',
+  // Installs made before the v44 rename still hold hyg_v42.csv.
+  legacyFileNames: ['hyg_v42.csv'],
   isGzipped: true,
 );
 

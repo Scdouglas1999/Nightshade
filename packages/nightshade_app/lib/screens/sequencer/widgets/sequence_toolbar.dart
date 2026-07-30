@@ -15,6 +15,7 @@ import 'run_dashboard/run_dashboard_providers.dart';
 import 'run_dashboard/sequence_status_visuals.dart';
 import 'equipment_status_widget.dart';
 import 'flat_wizard_dialog.dart';
+import 'mosaic_wizard_dialog.dart';
 import 'quick_start_wizard_dialog.dart';
 import 'smart_night_dialog.dart';
 import 'trigger_configuration_dialog.dart';
@@ -124,6 +125,23 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                 barrierDismissible: false,
                 builder: (_) => const FlatWizardDialog(),
               );
+
+          // Mosaic planner. This dialog (visual planner + grid/overlap/filter
+          // controls + "Create mosaic project") had NO production call site at
+          // all — it was reachable only from its own tests, so the suite
+          // reported the whole surface as covered while no user could open it.
+          // Seeded from the framed target when there is one, so opening it after
+          // framing something lands on that object rather than at 0h/0deg.
+          void openMosaicWizard() {
+            final framedTarget = ref.read(framingProvider).target;
+            showDialog<void>(
+              context: context,
+              builder: (_) => MosaicWizardDialog(
+                initialRa: framedTarget?.raHours,
+                initialDec: framedTarget?.decDegrees,
+              ),
+            );
+          }
 
           // Smart Night auto-builder. One-click "Plan Tonight"
           // entry point. Always reachable while the sequencer is idle so
@@ -437,6 +455,11 @@ class _SequenceToolbarState extends ConsumerState<SequenceToolbar> {
                   ? 'Calibrate Flat Exposures (create or open a sequence first)'
                   : 'Calibrate Flat Exposures$lockedTooltipSuffix',
               onPressed: canEdit && sequence != null ? openFlatWizard : null,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.grid,
+              label: 'Plan Mosaic$lockedTooltipSuffix',
+              onPressed: canEdit ? openMosaicWizard : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.sparkles,

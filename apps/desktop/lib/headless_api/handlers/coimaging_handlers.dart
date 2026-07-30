@@ -396,7 +396,7 @@ class CoImagingHandlers {
         if (decision.claim?.claimToken != null)
           'claimToken': decision.claim!.claimToken,
         if (decision.claim?.expiresAt != null)
-          'expiresAt': decision.claim!.expiresAt!.toIso8601String(),
+          'expiresAt': decision.claim!.expiresAt!.toUtc().toIso8601String(),
       });
     } catch (e) {
       return _hubError(
@@ -424,7 +424,7 @@ class CoImagingHandlers {
         'sessionId': sessionId,
         'claimToken': claim.claimToken,
         if (claim.expiresAt != null)
-          'expiresAt': claim.expiresAt!.toIso8601String(),
+          'expiresAt': claim.expiresAt!.toUtc().toIso8601String(),
       });
     } catch (e) {
       return _hubError(

@@ -113,6 +113,38 @@ void main(List<String> args) async {
   }
 
   await initialiseDesktopLogging();
+
+  // Single-instance invariant, checked before any window or database work.
+  // The GUI and the headless service resolve the SAME default database path,
+  // so "launch it twice" or "run both on this machine" used to point two
+  // SQLite writers at one file — and the second opener's SQLITE_BUSY was
+  // misread as corruption, which quarantined the user's real database and
+  // replaced it with an empty one. Refuse here, in the same shape as the
+  // --serve/--remote-host conflict above, so the operator gets a sentence
+  // instead of a data-loss incident.
+  //
+  // Advisory: the authoritative claim is taken when the database is actually
+  // opened, so a launch that races past this still fails safely.
+  final contended = await SingleInstanceLock.probe(
+    await resolveDefaultDatabaseFile(),
+  );
+  if (contended != null) {
+    stderr.writeln('Nightshade: ${contended.message}');
+    developer.log(
+      contended.message,
+      name: 'desktop.main',
+      level: 1000,
+      error: contended,
+    );
+    // exit(), not `exitCode = …; return;`: the native bridge has already
+    // started its hot-plug poll watcher and USB hotplug listener by the time
+    // main() runs, and those keep the Dart isolate alive forever. Returning
+    // here leaves a windowless process running against the other instance's
+    // rig — verified on Linux, where the refused launch sat at 0% CPU
+    // indefinitely instead of exiting.
+    exit(75); // EX_TEMPFAIL — try again once the other instance exits.
+  }
+
   final appVersion = await loadDesktopAppVersion();
 
   await windowManager.ensureInitialized();

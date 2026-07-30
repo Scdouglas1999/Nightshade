@@ -498,12 +498,33 @@ class AnnotationService {
     return trimmed;
   }
 
-  double _normalizeRaHintDegrees(double raValue) {
-    // Heuristic: treat values in [0, 24] as hours; otherwise assume degrees.
-    final degrees = (raValue >= 0.0 && raValue <= 24.0)
-        ? raValue * 15.0
-        : raValue;
-    return ((degrees % 360.0) + 360.0) % 360.0;
+  /// Convert a mount RA reading (HOURS, the ASCOM `RightAscension` /
+  /// INDI `EQUATORIAL_EOD_COORD` convention) to the degrees a plate-solve
+  /// hint expects.
+  ///
+  /// The unit is a CONTRACT, not something to be inferred. This used to guess
+  /// — "values in [0, 24] are hours, anything larger is degrees" — which reads
+  /// as defensive but cannot work: [0, 24] is the *entire* legal hours domain,
+  /// so a caller that genuinely had degrees and happened to be pointing inside
+  /// RA 0h-1.6h got silently multiplied by 15 and sent a hint ~15x off, while
+  /// a caller with hours was indistinguishable from it. A guess that rescales
+  /// data is worse than a value you can see is wrong.
+  ///
+  /// Out-of-range input therefore means a driver violated the contract. Say so
+  /// and pass it through un-rescaled rather than quietly inventing a unit: a
+  /// bad hint only costs solve time (solvers fall back to blind), whereas a
+  /// silently rescaled one is indistinguishable from a correct hint.
+  double _raHoursToSolverDegrees(double raHours) {
+    if (!raHours.isFinite || raHours < 0.0 || raHours > 24.0) {
+      _logger.warning(
+        'Mount reported RA $raHours outside the legal 0-24h range; sending it '
+        'to the solver without hour-to-degree conversion. The mount driver is '
+        'not honouring the ASCOM RightAscension (hours) contract.',
+        source: 'Annotation',
+      );
+      return ((raHours.isFinite ? raHours : 0.0) % 360.0 + 360.0) % 360.0;
+    }
+    return ((raHours * 15.0) % 360.0 + 360.0) % 360.0;
   }
 
   /// Generate a deduplication key for a celestial object annotation.

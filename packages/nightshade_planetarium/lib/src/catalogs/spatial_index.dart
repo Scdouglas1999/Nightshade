@@ -98,11 +98,18 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// the brightest few thousand — this avoids gathering and full-sorting the
   /// whole region every frame (the dominant per-frame pan cost). The result is
   /// identical to taking the brightest [maxResults] of [queryViewportFiltered].
-  /// FOV (degrees) below which the grid-cell query is cheaper than walking the
-  /// magnitude-sorted list. At narrow fields few objects fall in view, so the
-  /// magnitude walk would scan most of the catalog before collecting
-  /// [maxResults]; the cell query touches only a handful of cells instead.
-  static const double _magWalkMinFovDegrees = 12.0;
+  /// Magnitude-walk length beyond which it is worth consulting the grid to see
+  /// whether the cell query would touch fewer objects.
+  ///
+  /// Below this the walk is short enough that the comparison is not worth the
+  /// cell-length reads — and, importantly, the grid stays unbuilt, preserving
+  /// the cold-start behaviour where a freshly-loaded index serving the default
+  /// wide view never pays the grid build on the UI thread.
+  static const int _gridConsultThreshold = 8000;
+
+  /// How much cheaper the grid path must look before it is chosen, to pay for
+  /// its sort of the gathered candidates (the walk emits in magnitude order).
+  static const int _gridPreferenceFactor = 3;
 
   List<T> queryBrightestInViewport(
     double centerRA,
@@ -110,24 +117,9 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     double fovDegrees, {
     required double maxMagnitude,
     required int maxResults,
+    double aspectRatio = 1.0,
   }) {
     if (maxResults <= 0 || _allObjects.isEmpty) return const [];
-
-    // Narrow field: the grid cells already restrict to a small candidate set,
-    // so gather + sort + cap is cheaper than a whole-catalog magnitude walk.
-    if (fovDegrees < _magWalkMinFovDegrees) {
-      final candidates = queryViewport(centerRA, centerDec, fovDegrees);
-      final filtered = <T>[];
-      for (final o in candidates) {
-        if ((o.magnitude ?? 99.0) <= maxMagnitude) filtered.add(o);
-      }
-      filtered.sort(
-        (a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0),
-      );
-      return filtered.length > maxResults
-          ? filtered.sublist(0, maxResults)
-          : filtered;
-    }
 
     var sorted = _byMagnitude;
     if (sorted == null) {
@@ -136,14 +128,57 @@ class CelestialSpatialIndex<T extends CelestialObject> {
       _byMagnitude = sorted;
     }
 
-    // Region bounds match queryViewport (1.5x FOV margin).
-    final queryFov = fovDegrees * 1.5;
-    final decRangeHalf = queryFov / 2;
+    // Pick the cheaper strategy by how many objects each would actually touch,
+    // rather than by a fixed FOV threshold.
+    //
+    // The magnitude walk scans the magnitude-sorted list and stops once it
+    // passes [maxMagnitude], so it touches exactly the number of objects at or
+    // brighter than the limit. That is cheap while the limit bites — but the
+    // FOV-adaptive limit reaches the catalogue's own depth at every field
+    // below ~30 deg, and then nothing terminates the walk and it scans the
+    // whole catalogue on every pan and zoom frame. The old fixed 12 deg
+    // threshold left 12-30 deg — precisely the framing range an imager works
+    // in — on the wrong side of that cliff.
+    //
+    // The grid path instead touches only the objects in the cells overlapping
+    // the query region, so it scales with sky area.
+    final magWalkCandidates = _countAtOrBrighterThan(sorted, maxMagnitude);
+    if (magWalkCandidates > _gridConsultThreshold) {
+      _ensureGrid();
+      final gridCandidates = _countViewportCellObjects(
+        centerRA,
+        centerDec,
+        fovDegrees,
+        aspectRatio: aspectRatio,
+      );
+      if (gridCandidates * _gridPreferenceFactor < magWalkCandidates) {
+        final candidates = queryViewport(
+          centerRA,
+          centerDec,
+          fovDegrees,
+          aspectRatio: aspectRatio,
+        );
+        final filtered = <T>[];
+        for (final o in candidates) {
+          if ((o.magnitude ?? 99.0) <= maxMagnitude) filtered.add(o);
+        }
+        filtered.sort(
+          (a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0),
+        );
+        return filtered.length > maxResults
+            ? filtered.sublist(0, maxResults)
+            : filtered;
+      }
+    }
+
+    // Region bounds match queryViewport (1.5x FOV margin, aspect-corrected).
+    final (raFov, decFov) = _extents(fovDegrees, aspectRatio);
+    final decRangeHalf = decFov / 2;
     final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
     final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
     final cosDec = math.cos(centerDec.abs() * math.pi / 180);
     final raRangeHalf = cosDec > 0.1
-        ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2
+        ? (raFov / 15 / cosDec).clamp(0.0, 12.0) / 2
         : 12.0;
     final raWrapsWholeSky = raRangeHalf >= 12.0;
 
@@ -164,6 +199,93 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     return results;
   }
 
+  /// Number of entries in the magnitude-sorted [sorted] list at or brighter
+  /// than [maxMagnitude] — i.e. exactly how far the magnitude walk would run.
+  /// Binary search, so this costs ~17 comparisons on a 120k catalogue.
+  static int _countAtOrBrighterThan<E extends CelestialObject>(
+    List<E> sorted,
+    double maxMagnitude,
+  ) {
+    var lo = 0;
+    var hi = sorted.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if ((sorted[mid].magnitude ?? 99.0) <= maxMagnitude) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo;
+  }
+
+  /// Total objects held by the grid cells overlapping the query region — what
+  /// the cell path would gather, without gathering it. Requires the grid.
+  int _countViewportCellObjects(
+    double centerRA,
+    double centerDec,
+    double fovDegrees, {
+    double aspectRatio = 1.0,
+  }) {
+    final grid = _grid;
+    if (grid == null) return _allObjects.length;
+
+    // Same region bounds queryViewport uses (1.5x FOV margin, aspect-corrected).
+    final (raFov, decFov) = _extents(fovDegrees, aspectRatio);
+    final decRangeHalf = decFov / 2;
+    final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
+    final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
+    final cosDec = math.cos(centerDec.abs() * math.pi / 180);
+    final raRangeHours = cosDec > 0.1
+        ? (raFov / 15 / cosDec).clamp(0.0, 12.0)
+        : 12.0;
+    final minRA = centerRA - raRangeHours / 2;
+    final maxRA = centerRA + raRangeHours / 2;
+
+    final startDecCell = _decToCell(minDec);
+    final endDecCell = _decToCell(maxDec);
+
+    var total = 0;
+    void countCellRange(int startCell, int endCell) {
+      for (var r = startCell; r <= endCell; r++) {
+        for (var d = startDecCell; d <= endDecCell; d++) {
+          total += grid[r][d].length;
+        }
+      }
+    }
+
+    final startRaCell = _raToCell(minRA);
+    final endRaCell = _raToCell(maxRA);
+    if (maxRA > 24.0 || minRA < 0.0) {
+      // Region crosses the 0h/24h seam: two contiguous cell runs.
+      countCellRange(startRaCell, raCells - 1);
+      countCellRange(0, endRaCell);
+    } else {
+      countCellRange(startRaCell, endRaCell);
+    }
+    return total;
+  }
+
+  /// Angular extents (degrees) the query region must span, given the view's
+  /// short-axis [fovDegrees] and the canvas [aspectRatio] (width / height).
+  ///
+  /// [fovDegrees] describes the SHORT axis of the canvas, so the long axis
+  /// subtends that much again multiplied by the aspect ratio. Ignoring this
+  /// left the query covering a square region regardless of window shape: on a
+  /// 3.6:1 ultrawide only the middle ~42% of the screen width had any star
+  /// data, and stars popped in and out at the region boundary while panning.
+  /// The 1.5x factor is the pre-existing margin that keeps objects whose glow
+  /// or label spills in from just outside the frame.
+  static (double raFov, double decFov) _extents(
+    double fovDegrees,
+    double aspectRatio,
+  ) {
+    final a = (aspectRatio.isFinite && aspectRatio > 0) ? aspectRatio : 1.0;
+    final wide = a >= 1.0 ? a : 1.0;
+    final tall = a < 1.0 ? 1.0 / a : 1.0;
+    return (fovDegrees * 1.5 * wide, fovDegrees * 1.5 * tall);
+  }
+
   /// Get all objects in the index
   List<T> get all => _allObjects;
 
@@ -181,13 +303,14 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     double centerDec,
     double fovDegrees, {
     int? maxResults,
+    double aspectRatio = 1.0,
   }) {
     _ensureGrid();
     // Calculate the RA and Dec ranges that might be visible.
     // Use a generous margin (1.5x FOV) to avoid clipping objects at viewport edges
     // — the stereographic projection shows objects beyond the nominal FOV circle.
-    final queryFov = fovDegrees * 1.5;
-    final decRangeHalf = queryFov / 2;
+    final (raFov, decFov) = _extents(fovDegrees, aspectRatio);
+    final decRangeHalf = decFov / 2;
     final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
     final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
 
@@ -195,7 +318,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     // At dec=90, all RA values are at the same point
     final cosDec = math.cos(centerDec.abs() * math.pi / 180);
     final raRangeHours = cosDec > 0.1
-        ? (queryFov / 15 / cosDec).clamp(0.0, 12.0)
+        ? (raFov / 15 / cosDec).clamp(0.0, 12.0)
         : 12.0;
 
     final minRA = centerRA - raRangeHours / 2;

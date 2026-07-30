@@ -155,9 +155,10 @@ abstract final class ShellNavigation {
   ];
 
   /// Primary destinations that do NOT have a fixed bottom-nav slot on phone, in
-  /// side-nav order. Surfaced through the bottom bar's "More" overflow so every
-  /// top-level feature (notably Your Sky + Constellation) is reachable on mobile,
-  /// not just the six core slots + Settings gear.
+  /// side-nav order — today Weather and Analytics. Surfaced through the bottom
+  /// bar's "More" overflow so every top-level feature is reachable on mobile,
+  /// not just the six core slots + Settings gear. (Your Sky and Constellation
+  /// are Plan Tonight tabs, not rail destinations, so they arrive via Planner.)
   static List<ShellPrimaryDestination> get overflowDestinations {
     final bottomRoutes =
         bottomNavigationDestinations.map((d) => d.route).toSet();
@@ -171,10 +172,30 @@ abstract final class ShellNavigation {
   static final List<String> primaryRoutes =
       primaryDestinations.map((d) => d.route).toList(growable: false);
 
+  /// Index of the primary destination that HOSTS [location], or -1 when none
+  /// does.
+  ///
+  /// Sub-routes resolve to their host: `/imaging/preview/42` (the
+  /// image-ready deep link) is Imaging, `/settings/plate-solving` is not a rail
+  /// destination at all. -1 means "no rail selection" — the shell must render
+  /// nothing highlighted rather than pick a plausible-looking tab, because a lit
+  /// rail item is a statement about where the operator is.
   static int primaryIndexForLocation(String location) {
     final path = _normalizePath(location);
-    final idx = primaryRoutes.indexOf(path);
-    return idx;
+    final exact = primaryRoutes.indexOf(path);
+    if (exact >= 0) return exact;
+    for (var i = 0; i < primaryRoutes.length; i++) {
+      if (locationIsUnder(path, primaryRoutes[i])) return i;
+    }
+    return -1;
+  }
+
+  /// True when [location] is [route] itself or a route nested beneath it.
+  ///
+  /// Segment-aware: `/planner-archive` is not under `/planner`.
+  static bool locationIsUnder(String location, String route) {
+    final path = _normalizePath(location);
+    return path == route || path.startsWith('$route/');
   }
 
   static String? primaryRouteForIndex(int index) {

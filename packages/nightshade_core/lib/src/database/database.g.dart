@@ -23993,7 +23993,12 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
   /// When the run ended (null if still running)
   final DateTime? endedAt;
 
-  /// Final status: 'completed', 'failed', 'aborted', 'running'
+  /// Final status: 'completed', 'failed', 'aborted', 'stopped',
+  /// 'paused-stopped', 'interrupted', or 'running' while in flight.
+  ///
+  /// 'interrupted' is assigned at startup to any row still marked 'running'
+  /// when the database opens: the executor that owned it lives in memory, so
+  /// such a row can only be residue from a process that died mid-run.
   final String status;
 
   /// JSON blob with detailed statistics

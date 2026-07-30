@@ -170,6 +170,86 @@ void main() {
       expect(logs, hasLength(1), reason: 'restore must be idempotent');
     });
 
+    // Audit 2026-07-29: the weather_settings table was in no backup at all, so
+    // migrating machines silently reset every safety threshold AND the master
+    // switch to defaults while the Backup page promised "restoring replaces
+    // local configuration". Configuration must win on restore, which also means
+    // it cannot ride on the insert-or-ignore path the history tables use.
+    test(
+      'weather-safety configuration round-trips through a restore',
+      () async {
+        await srcDb.weatherSettingsDao.getOrCreateSettings();
+        await srcDb.weatherSettingsDao.updateSettings(
+          weatherSafetyEnabled: true,
+          maxHumidityPercent: 55,
+          maxWindSpeedKph: 12,
+          maxCloudCoverPercent: 40,
+          autoParkEnabled: false,
+          autoResumeEnabled: true,
+          triggerDistanceKm: 75,
+          leadTimeMinutes: 25,
+          cloudDensityThreshold: 35,
+        );
+
+        final backupFile = File(p.join(tempDir.path, 'weather.nsbackup'));
+        final backupResult = await serviceFor(
+          srcDb,
+        ).createBackup(customPath: backupFile.path);
+        expect(backupResult.success, isTrue, reason: backupResult.errorMessage);
+
+        // The destination already holds a defaults row, exactly as a fresh
+        // install does — this is what made insert-or-ignore drop the payload.
+        final before = await dstDb.weatherSettingsDao.getOrCreateSettings();
+        expect(before.maxHumidityPercent, isNot(55));
+
+        final restore = await serviceFor(
+          dstDb,
+        ).restoreBackup(filePath: backupFile.path);
+        expect(restore.success, isTrue, reason: restore.errorMessage);
+        expect(restore.categoryCounts['weatherSettings'], 1);
+
+        final restored = await dstDb.weatherSettingsDao.getOrCreateSettings();
+        expect(restored.weatherSafetyEnabled, isTrue);
+        expect(restored.maxHumidityPercent, 55);
+        expect(restored.maxWindSpeedKph, 12);
+        expect(restored.maxCloudCoverPercent, 40);
+        expect(restored.autoParkEnabled, isFalse);
+        expect(restored.autoResumeEnabled, isTrue);
+        expect(restored.triggerDistanceKm, 75);
+        expect(restored.leadTimeMinutes, 25);
+        expect(restored.cloudDensityThreshold, 35);
+
+        // Still a single configuration row, not a second one carrying the
+        // source machine's auto-increment id.
+        final rows = await dstDb.select(dstDb.weatherSettings).get();
+        expect(rows, hasLength(1));
+      },
+    );
+
+    // Audit 2026-07-29: two manual backups were written to disk and the Backup
+    // & Restore card still read "Last Full Backup: Never" — only the scheduled
+    // path recorded the time. The record now belongs to whoever writes the file.
+    test('a manual backup records the last-backup time', () async {
+      final dao = srcDb.settingsDao;
+      expect(await dao.getSetting(BackupService.lastBackupSettingKey), isNull);
+
+      final backupFile = File(p.join(tempDir.path, 'manual.nsbackup'));
+      final before = DateTime.now().subtract(const Duration(seconds: 1));
+      final result = await serviceFor(
+        srcDb,
+      ).createBackup(customPath: backupFile.path);
+      expect(result.success, isTrue, reason: result.errorMessage);
+
+      final raw = await dao.getSetting(BackupService.lastBackupSettingKey);
+      expect(raw, isNotNull);
+      final recorded = DateTime.parse(raw!);
+      expect(recorded.isAfter(before), isTrue);
+      expect(
+        recorded.difference(result.timestamp).abs(),
+        lessThan(const Duration(seconds: 2)),
+      );
+    });
+
     test('modern sequence nodes survive a full backup and restore', () async {
       final sourceRepository = SequenceRepository(srcDb.sequencesDao);
       await sourceRepository.saveSequence(

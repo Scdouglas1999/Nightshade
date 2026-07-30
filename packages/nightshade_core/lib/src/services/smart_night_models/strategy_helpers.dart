@@ -11,6 +11,32 @@ part of '../smart_night_models.dart';
 // import.
 // ---------------------------------------------------------------------------
 
+/// Filter-plan name used by a rig with no filter wheel.
+///
+/// The empty name is the wire contract for "capture the frame as it comes":
+/// the emitted `ExposureNode` leaves `filter` null, so no filter-change
+/// instruction is produced and the executor renders the `${filter}` filename
+/// token as `nofilter` — the same path manual capture takes on a wheel-less
+/// rig.
+const String smartNightUnfilteredName = '';
+
+/// The filter list Smart Night plans against for a rig.
+///
+/// A rig that reports no named filters plans one unfiltered row rather than
+/// refusing to plan — OSC / one-shot-colour imagers have no wheel at all.
+List<String> smartNightPlanningFilters(List<String> availableFilters) {
+  final named = availableFilters
+      .map((f) => f.trim())
+      .where((f) => f.isNotEmpty)
+      .toList(growable: false);
+  return named.isEmpty ? const [smartNightUnfilteredName] : named;
+}
+
+/// Human-readable label for a filter name that may be the unfiltered
+/// sentinel. Used in plan prose and node titles.
+String smartNightFilterLabel(String filterName) =>
+    filterName.trim().isEmpty ? 'no filter' : filterName;
+
 /// Map a Smart Night strategy to the actual filter slots present on a rig.
 ///
 /// This is intentionally public because the sequence builder and pre-build
@@ -63,7 +89,7 @@ List<String> resolveSmartNightFilterSet({
           present('Light');
       if (preferred != null) return [preferred];
       if (availableFilters.isNotEmpty) return [availableFilters.first];
-      return ['OSC'];
+      return const [smartNightUnfilteredName];
   }
 }
 

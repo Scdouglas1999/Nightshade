@@ -54,20 +54,32 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
       12,
     );
     const samples = 48; // every 30 minutes
-    final altitudes = <double>[];
-    var maxAlt = -90.0;
-    for (var i = 0; i <= samples; i++) {
-      final t = localNoon.add(Duration(minutes: (24 * 60 * i ~/ samples)));
-      final lst = AstronomyCalculations.localSiderealTime(t, longitude);
-      final (alt, _) = AstronomyCalculations.equatorialToHorizontal(
-        raDeg: raDeg,
-        decDeg: decDeg,
-        latitudeDeg: latitude,
-        lstHours: lst,
-      );
-      altitudes.add(alt);
-      if (alt > maxAlt) maxAlt = alt;
-    }
+    // Memoized on (target, day, site): this runs on the animated overlay layer,
+    // so without the cache the 49 sidereal-time solves below ran every frame.
+    final (altitudes, maxAlt) = _planningAstronomyCache.altitudeTrack(
+      raDeg: raDeg,
+      decDeg: decDeg,
+      localNoon: localNoon,
+      latitudeDeg: latitude,
+      longitudeDeg: longitude,
+      compute: () {
+        final result = <double>[];
+        var peak = -90.0;
+        for (var i = 0; i <= samples; i++) {
+          final t = localNoon.add(Duration(minutes: (24 * 60 * i ~/ samples)));
+          final lst = AstronomyCalculations.localSiderealTime(t, longitude);
+          final (alt, _) = AstronomyCalculations.equatorialToHorizontal(
+            raDeg: raDeg,
+            decDeg: decDeg,
+            latitudeDeg: latitude,
+            lstHours: lst,
+          );
+          result.add(alt);
+          if (alt > peak) peak = alt;
+        }
+        return (result, peak);
+      },
+    );
 
     // Sparkline geometry: a small panel floating up-right of the target.
     const trackWidth = 96.0;
@@ -202,10 +214,17 @@ extension _SkyCanvasPainterPlanningOverlays on SkyCanvasPainter {
   /// the night between dusk and dawn, with the current time and the
   /// astronomical dusk/dawn clock times — the "shaded twilight band".
   void _drawTwilightIndicator(Canvas canvas, Size size) {
-    final twilight = AstronomyCalculations.calculateTwilightTimes(
+    // Memoized on (day, site) — see [_PlanningAstronomyCache]. This overlay is
+    // on the animated layer, and the solve is iterative.
+    final twilight = _planningAstronomyCache.twilight(
       date: observationTime,
       latitudeDeg: latitude,
       longitudeDeg: longitude,
+      compute: () => AstronomyCalculations.calculateTwilightTimes(
+        date: observationTime,
+        latitudeDeg: latitude,
+        longitudeDeg: longitude,
+      ),
     );
 
     final dusk = twilight.astronomicalDusk ?? twilight.nauticalDusk;

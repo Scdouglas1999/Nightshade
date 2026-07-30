@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -108,6 +109,77 @@ void main() {
     await _pumpAt(tester, const Size(1200, 800), _host());
     expect(find.text('Session'), findsOneWidget);
     expect(find.text('Calibration'), findsOneWidget);
+  });
+
+  group('overflow is discoverable and reachable with a mouse', () {
+    // A clipped strip used to look exactly like a strip that fits: no fade, no
+    // chevron, no scrollbar. Plain vertical wheel did nothing and mouse DRAG is
+    // excluded from Flutter's dragDevices, so the only recovery was shift+wheel
+    // — which nothing on screen advertised.
+    Finder chevrons() =>
+        find.byWidgetPredicate((w) => w is Tooltip && w.message == 'More tabs');
+
+    testWidgets('a clipped strip shows a scroll affordance', (tester) async {
+      await _pumpAt(tester, const Size(600, 300), _host());
+      expect(
+        chevrons(),
+        findsOneWidget,
+        reason: 'Tabs overflow at 600px, so the trailing edge must say so.',
+      );
+    });
+
+    testWidgets('a strip that fits shows no affordance', (tester) async {
+      await _pumpAt(tester, const Size(2200, 300), _host());
+      expect(chevrons(), findsNothing);
+    });
+
+    testWidgets('vertical mouse wheel scrolls the horizontal strip', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(600, 300), _host());
+      final scrollable = find.descendant(
+        of: find.byType(AdaptiveTabBar),
+        matching: find.byType(SingleChildScrollView),
+      );
+      final controller = tester
+          .widget<SingleChildScrollView>(scrollable)
+          .controller!;
+      expect(controller.offset, 0);
+
+      final center = tester.getCenter(scrollable);
+      final pointer = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(pointer.hover(center));
+      await tester.sendEventToBinding(pointer.scroll(const Offset(0, 160)));
+      await tester.pumpAndSettle();
+
+      expect(
+        controller.offset,
+        greaterThan(0),
+        reason:
+            'A plain vertical wheel must move a horizontal tab strip; it '
+            'was previously a no-op with no other mouse-only recovery.',
+      );
+    });
+
+    testWidgets('tapping the chevron scrolls further tabs into view', (
+      tester,
+    ) async {
+      await _pumpAt(tester, const Size(600, 300), _host());
+      final scrollable = find.descendant(
+        of: find.byType(AdaptiveTabBar),
+        matching: find.byType(SingleChildScrollView),
+      );
+      final controller = tester
+          .widget<SingleChildScrollView>(scrollable)
+          .controller!;
+
+      await tester.tap(chevrons());
+      await tester.pumpAndSettle();
+      expect(controller.offset, greaterThan(0));
+
+      // Now that the strip is scrolled, a LEADING affordance appears too.
+      expect(chevrons(), findsNWidgets(2));
+    });
   });
 
   testWidgets('labels collapse inside a narrow pane on a wide viewport', (

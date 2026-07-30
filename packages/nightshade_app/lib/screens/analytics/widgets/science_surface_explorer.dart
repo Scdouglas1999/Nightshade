@@ -6,6 +6,27 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'adaptive_chart_container.dart';
 
+/// Lowest / highest elevation the surface can be tipped to, in radians.
+const double _minPitch = 0.1;
+const double _maxPitch = 1.45;
+
+/// Yaw/pitch a drag of [drag] should produce on a plot of [plot] logical pixels.
+///
+/// Expressed as a fraction of the plot dragged — a full-width drag is one
+/// revolution of yaw, a full-height drag a half-turn of pitch — rather than a
+/// fixed radians-per-pixel rate. The rate version tied the sensitivity to the
+/// window: the same wrist flick spun the surface several times over on a wide
+/// desktop plot and barely nudged it in a narrow one.
+@visibleForTesting
+({double yaw, double pitch}) surfaceOrbitDelta(Offset drag, Size plot) {
+  final width = plot.width.isFinite && plot.width > 0 ? plot.width : 1.0;
+  final height = plot.height.isFinite && plot.height > 0 ? plot.height : 1.0;
+  return (
+    yaw: 2 * math.pi * drag.dx / width,
+    pitch: math.pi * drag.dy / height,
+  );
+}
+
 class ScienceSurfaceExplorer extends StatefulWidget {
   final NightshadeColors colors;
   final List<ScienceTileMetricRow> tiles;
@@ -93,24 +114,33 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
                 }
 
                 final useAspect = constraints.maxWidth >= 520;
-                final plot = GestureDetector(
-                  onPanUpdate: (details) {
-                    setState(() {
-                      _yaw += details.delta.dx * 0.01;
-                      _pitch =
-                          (_pitch - details.delta.dy * 0.01).clamp(0.1, 1.45);
-                    });
-                  },
-                  child: CustomPaint(
-                    painter: _SurfacePainter(
-                      tiles: selectedTiles,
-                      yaw: _yaw,
-                      pitch: _pitch,
-                      zExaggeration: _zExaggeration,
-                      showContour: _showContour,
-                      colors: widget.colors,
+                final plot = LayoutBuilder(
+                  builder: (context, plotConstraints) => GestureDetector(
+                    onPanUpdate: (details) {
+                      final orbit = surfaceOrbitDelta(
+                        details.delta,
+                        Size(
+                          plotConstraints.maxWidth,
+                          plotConstraints.maxHeight,
+                        ),
+                      );
+                      setState(() {
+                        _yaw += orbit.yaw;
+                        _pitch =
+                            (_pitch - orbit.pitch).clamp(_minPitch, _maxPitch);
+                      });
+                    },
+                    child: CustomPaint(
+                      painter: _SurfacePainter(
+                        tiles: selectedTiles,
+                        yaw: _yaw,
+                        pitch: _pitch,
+                        zExaggeration: _zExaggeration,
+                        showContour: _showContour,
+                        colors: widget.colors,
+                      ),
+                      child: const SizedBox.expand(),
                     ),
-                    child: const SizedBox.expand(),
                   ),
                 );
 

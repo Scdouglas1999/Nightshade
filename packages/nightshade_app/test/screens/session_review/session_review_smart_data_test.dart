@@ -206,6 +206,18 @@ void main() {
     expect(state().narrowbandChannels, isEmpty);
   });
 
+  /// Record fold rows for [masterId] over this session's subs, exactly as the
+  /// post-session pipeline's `_persist` does. The reviewed-master resolution is
+  /// by fold record (a master with no folds belongs to no review), so a seeded
+  /// master needs them to be in scope.
+  Future<void> foldSessionSubsInto(int masterId) async {
+    final images = container.read(imagesDaoProvider);
+    final masters = container.read(integratedMastersDaoProvider);
+    for (final sub in await images.getImagesForSession(sessionId)) {
+      await masters.recordFoldedFrame(masterId: masterId, imageId: sub.id);
+    }
+  }
+
   /// Insert a finalized master carrying an improvement curve whose recommendation
   /// keeps [keepN] of the population [populationPaths], so the controller picks
   /// it up as the reviewed master and loads the curve + population.
@@ -245,6 +257,7 @@ void main() {
     final stored = curve.toJson()..['population'] = populationPaths;
     await masters.updateSmartFields(id,
         improvementCurveJson: jsonEncode(stored));
+    await foldSessionSubsInto(id);
   }
 
   test(
@@ -337,6 +350,7 @@ void main() {
     );
     await masters.updateSmartFields(id,
         improvementCurveJson: jsonEncode(curve.toJson()));
+    await foldSessionSubsInto(id);
 
     final c = controller();
     await waitUntilLoaded();
@@ -357,5 +371,150 @@ void main() {
     expect(out, isNull);
     expect(state().error, isNotNull);
     expect(fakeSeam.lastCombineArgs, isNull);
+  });
+
+  group('header title identifies the session, not "the night"', () {
+    /// Two sequences on the same night both used to render the header "Night of
+    /// 2026-07-25" over mutually exclusive sub sets, with no session name
+    /// anywhere on screen — the title claimed an aggregation the screen does
+    /// not do.
+    Future<int> namedSessionAt(String name, DateTime start) async {
+      final sessions = container.read(sessionsDaoProvider);
+      final images = container.read(imagesDaoProvider);
+      final id = await sessions.createSession(
+        ImagingSessionsCompanion.insert(
+          name: Value(name),
+          startTime: start,
+        ),
+      );
+      await images.createImage(
+        CapturedImagesCompanion.insert(
+          filePath: '/subs/$name.fits',
+          fileName: '$name.fits',
+          sessionId: Value(id),
+          exposureDuration: 60,
+          frameType: const Value('light'),
+          capturedAt: start,
+        ),
+      );
+      return id;
+    }
+
+    Future<String> titleFor(int id) async {
+      final scope = SessionReviewScope.session(id);
+      container.read(sessionReviewControllerProvider(scope).notifier);
+      for (var i = 0; i < 50; i++) {
+        final s = container.read(sessionReviewControllerProvider(scope));
+        if (!s.loading && !s.loadingSmartData) return s.title;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      return container.read(sessionReviewControllerProvider(scope)).title;
+    }
+
+    test('two sessions on one night get distinct, session-named titles',
+        () async {
+      final first = await namedSessionAt(
+        'MF PROBE B',
+        DateTime(2026, 7, 25, 17, 4),
+      );
+      final second = await namedSessionAt(
+        'MF PROBE C',
+        DateTime(2026, 7, 25, 17, 6),
+      );
+
+      final firstTitle = await titleFor(first);
+      final secondTitle = await titleFor(second);
+
+      expect(firstTitle, 'MF PROBE B · 2026-07-25 17:04');
+      expect(secondTitle, 'MF PROBE C · 2026-07-25 17:06');
+      expect(firstTitle, isNot(secondTitle));
+      expect(firstTitle, isNot(contains('Night of')));
+    });
+
+    test('an unnamed session still gets a dated, non-"night" title', () async {
+      final sessions = container.read(sessionsDaoProvider);
+      final id = await sessions.createSession(
+        ImagingSessionsCompanion.insert(
+          startTime: DateTime(2026, 7, 28, 14, 27),
+        ),
+      );
+      final title = await titleFor(id);
+      expect(title, 'Session · 2026-07-28 14:27');
+      expect(title, isNot(contains('Night of')));
+    });
+  });
+
+  group('reviewedMaster is scoped to the session under review', () {
+    /// Insert a finalized master that folded [imageIds] (empty = another
+    /// session's subs), with a null target_id like the real pipeline writes for
+    /// an un-catalogued session.
+    Future<int> insertMasterFolding(
+      String name,
+      List<int> imageIds,
+    ) async {
+      final masters = container.read(integratedMastersDaoProvider);
+      final id = await masters.insertMaster(
+        targetId: null,
+        name: name,
+        masterFitsPath: '/tmp/$name.fits',
+        previewPngPath: '/tmp/$name.png',
+        status: IntegratedMasterStatus.finalized,
+        accumulationMode: AccumulationMode.batch,
+        frameCount: imageIds.length,
+        totalIntegrationSeconds: imageIds.length * 60.0,
+      );
+      for (final imageId in imageIds) {
+        await masters.recordFoldedFrame(masterId: id, imageId: imageId);
+      }
+      return id;
+    }
+
+    test('another night\'s master is NOT presented as this session\'s',
+        () async {
+      // A different session, integrated into its own master. Nothing in THIS
+      // session has been integrated.
+      final sessions = container.read(sessionsDaoProvider);
+      final images = container.read(imagesDaoProvider);
+      final otherSessionId = await sessions.createSession(
+        ImagingSessionsCompanion.insert(
+          startTime: DateTime.now().subtract(const Duration(days: 3)),
+        ),
+      );
+      final otherImageId = await images.createImage(
+        CapturedImagesCompanion.insert(
+          filePath: 'C:/other/o0.fits',
+          fileName: 'o0.fits',
+          sessionId: Value(otherSessionId),
+          exposureDuration: 60,
+          frameType: const Value('light'),
+          capturedAt: DateTime.now().subtract(const Duration(days: 3)),
+        ),
+      );
+      await insertMasterFolding('other_night', [otherImageId]);
+
+      controller();
+      await waitUntilLoaded();
+
+      // The library still lists it (target-less masters are library-wide), but
+      // it must not be the master this session claims as its result — the hero
+      // image and every finishing action read reviewedMaster.
+      expect(state().masters, isNotEmpty);
+      expect(state().reviewedMaster, isNull);
+    });
+
+    test('this session\'s own master IS the reviewed master', () async {
+      final images = container.read(imagesDaoProvider);
+      final subs = await images.getImagesForSession(sessionId);
+      final mineId =
+          await insertMasterFolding('mine', [subs.first.id, subs[1].id]);
+      // A newer, unrelated master exists too — recency must not win.
+      await insertMasterFolding('newer_other', const []);
+
+      controller();
+      await waitUntilLoaded();
+
+      expect(state().reviewedMaster, isNotNull);
+      expect(state().reviewedMaster!.id, mineId);
+    });
   });
 }

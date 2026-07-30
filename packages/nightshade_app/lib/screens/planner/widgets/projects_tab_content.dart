@@ -269,7 +269,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
             style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           content: Text(
-            'Deleting "${project.name}" removes the campaign and detaches its '
+            'Deleting "${project.name}" removes the project and detaches its '
             'targets. Your captured frames and integration goals are kept — '
             'only the project grouping is removed.',
             style: NightshadeTypography.bodySm.copyWith(
@@ -411,13 +411,13 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
             side: BorderSide(color: colors.border),
           ),
           title: Text(
-            'Remove from campaign?',
+            'Remove from project?',
             style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           content: Text(
-            'Removing "$targetName" detaches it from this campaign. Your '
+            'Removing "$targetName" detaches it from this project. Your '
             'captured frames and integration goals are kept — only the '
-            'campaign grouping is removed.',
+            'project grouping is removed.',
             style: NightshadeTypography.bodySm.copyWith(
               color: colors.textSecondary,
               height: 1.45,

@@ -9,6 +9,7 @@ import 'package:nightshade_core/src/providers/dark_library_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/camera_state_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/focuser_state_provider.dart';
 import 'package:nightshade_core/src/providers/equipment/mount_state_provider.dart';
+import 'package:nightshade_core/src/providers/equipment/profile_connection_status_provider.dart';
 import 'package:nightshade_core/src/providers/plate_solver_provider.dart';
 import 'package:nightshade_core/src/providers/profiles_provider.dart';
 import 'package:nightshade_core/src/providers/readiness_provider.dart';
@@ -118,11 +119,18 @@ ProviderContainer _container({
   DarkLibraryStats darkStats = _coveredStats,
   DeviceConnectionState focuser = _connected,
   int? focuserPosition = 5000,
+  List<String> offlineProfileDevices = const <String>[],
 }) {
   final container = ProviderContainer(
     overrides: [
       equipmentProfileListProvider.overrideWithValue(
         hasProfile ? [_sampleProfile] : const [],
+      ),
+      // Derived from the active profile + every per-device notifier in
+      // production; overridden here so the report stays exercisable without a
+      // Drift database (reading the real provider opens one).
+      offlineProfileDeviceNamesProvider.overrideWithValue(
+        offlineProfileDevices,
       ),
       cameraStateProvider.overrideWith(
         (ref) =>
@@ -247,6 +255,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           equipmentProfileListProvider.overrideWithValue([_sampleProfile]),
+          offlineProfileDeviceNamesProvider.overrideWithValue(const <String>[]),
           cameraStateProvider.overrideWith(
             (ref) => _FakeCameraNotifier(
               const CameraStateSnapshot(connectionState: _connected),
@@ -435,6 +444,38 @@ void main() {
         container.read(readinessOverallProvider),
         container.read(readinessReportProvider).overall,
       );
+    });
+
+    // No-hardware campaign 2026-07-29: the profile's guider failed to connect
+    // on every launch and the readiness rail read "Ready to image / 2 items to
+    // review" where the 2 items were the plate solver and the dark library —
+    // the failed guider was not one of them, and appeared nowhere else in the
+    // product except a tooltip on a ~6 px dot.
+    test('an offline profile device is named as a readiness item', () async {
+      final container = _container(offlineProfileDevices: const ['Guider']);
+      final report = await _resolveReport(container);
+
+      final item = report.itemFor(ReadinessItemId.profileDevices);
+      expect(item, isNotNull);
+      expect(item!.level, ReadinessLevel.caution);
+      expect(item.detail, contains('Guider'));
+      expect(item.fixRoute, '/equipment');
+      expect(
+        report.cautionItems.map((i) => i.id),
+        contains(ReadinessItemId.profileDevices),
+      );
+      expect(report.overall, ReadinessLevel.caution);
+    });
+
+    test('all profile devices connected -> profileDevices ready', () async {
+      final container = _container();
+      final report = await _resolveReport(container);
+
+      expect(
+        report.itemFor(ReadinessItemId.profileDevices)!.level,
+        ReadinessLevel.ready,
+      );
+      expect(report.overall, ReadinessLevel.ready);
     });
   });
 }

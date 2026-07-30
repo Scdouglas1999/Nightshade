@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
+import '../utils/on_screen_animation_gate.dart';
 
 /// Progress bar style variants
 enum NightshadeProgressStyle {
@@ -206,36 +207,73 @@ class _StandardProgressBar extends StatefulWidget {
 }
 
 class _StandardProgressBarState extends State<_StandardProgressBar> {
+  /// Key on the painted fill so tests can measure it directly. Without a
+  /// handle on the fill, a bar that renders 100% full at `value: 0` is
+  /// indistinguishable from a correct one in a widget test.
+  static const fillKey = ValueKey<String>('nightshade-progress-fill');
+
   @override
   Widget build(BuildContext context) {
     final colors = context.nightshadeColors;
-    final isComplete = widget.value >= 1.0;
+    final raw = widget.value;
+    final fraction = raw.isFinite ? raw.clamp(0.0, 1.0) : 0.0;
+    final isComplete = fraction >= 1.0;
     final effectiveFgColor = isComplete
         ? colors.success
         : widget.foregroundColor;
 
-    return Container(
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: widget.backgroundColor,
-        borderRadius: BorderRadius.circular(widget.height / 2),
-        border: Border.all(color: colors.border.withValues(alpha: 0.45)),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return AnimatedContainer(
-            duration: widget.animationDuration,
-            curve: NightshadeTokens.curvePrecise,
-            width: constraints.maxWidth * widget.value.clamp(0.0, 1.0),
-            height: widget.height,
-            decoration: BoxDecoration(
-              color: effectiveFgColor,
-              borderRadius: BorderRadius.circular(widget.height / 2),
-            ),
-          );
-        },
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Why the track width is set explicitly and the FILL is a fraction of
+        // it, rather than the reverse:
+        //
+        // Setting the fill's own `width` does not work. `Container(width: w)`
+        // lowers to a RenderConstrainedBox whose constraints are `enforce`d
+        // against the incoming ones, and a tight parent (`Expanded` inside a
+        // `Row` — how almost every call site uses this widget) hands down
+        // min == max == full width. The requested fraction width was therefore
+        // clamped back UP to the full width and silently discarded, so every
+        // determinate bar in the app painted 100% full regardless of `value`.
+        // Symmetrically, under LOOSE constraints the track used to shrink-wrap
+        // to the fill instead of spanning its slot.
+        final trackWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : null;
+        return Container(
+          width: trackWidth,
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: widget.backgroundColor,
+            borderRadius: BorderRadius.circular(widget.height / 2),
+            border: Border.all(color: colors.border.withValues(alpha: 0.45)),
+          ),
+          clipBehavior: Clip.hardEdge,
+          // A bar handed unbounded width cannot express a fraction of its
+          // slot; paint the track only rather than guessing (or throwing).
+          child: trackWidth == null
+              ? null
+              : TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: fraction, end: fraction),
+                  duration: widget.animationDuration,
+                  curve: NightshadeTokens.curvePrecise,
+                  builder: (context, animatedFraction, _) {
+                    return FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: animatedFraction.clamp(0.0, 1.0),
+                      child: DecoratedBox(
+                        key: fillKey,
+                        decoration: BoxDecoration(
+                          color: effectiveFgColor,
+                          borderRadius: BorderRadius.circular(
+                            widget.height / 2,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        );
+      },
     );
   }
 }
@@ -326,7 +364,10 @@ class _IndeterminateProgressBarState extends State<_IndeterminateProgressBar>
       begin: -0.5,
       end: 1.5,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _controller.repeat();
+    // Deliberately NOT started here. An indeterminate bar left mounted in a
+    // state that never resolves would otherwise re-schedule a frame on every
+    // vsync forever and stop the whole app from ever idling.
+    // [OnScreenAnimationGate] in build() runs it only while it is on screen.
   }
 
   @override
@@ -344,20 +385,24 @@ class _IndeterminateProgressBarState extends State<_IndeterminateProgressBar>
         borderRadius: BorderRadius.circular(widget.height / 2),
       ),
       clipBehavior: Clip.hardEdge,
-      child: AnimatedBuilder(
-        animation: _animation,
-        builder: (context, child) {
-          return FractionallySizedBox(
-            alignment: Alignment((_animation.value * 2) - 1, 0),
-            widthFactor: 0.4,
-            child: Container(
-              decoration: BoxDecoration(
-                color: widget.foregroundColor,
-                borderRadius: BorderRadius.circular(widget.height / 2),
+      child: OnScreenAnimationGate(
+        controller: _controller,
+        repeating: true,
+        child: AnimatedBuilder(
+          animation: _animation,
+          builder: (context, child) {
+            return FractionallySizedBox(
+              alignment: Alignment((_animation.value * 2) - 1, 0),
+              widthFactor: 0.4,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: widget.foregroundColor,
+                  borderRadius: BorderRadius.circular(widget.height / 2),
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
