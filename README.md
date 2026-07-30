@@ -98,8 +98,8 @@ Everything else in this README describes capability that exists in the source an
 </tr>
 <tr>
 <td valign="top">
-<img src="docs/screenshots/sequence-library.png" width="100%" alt="Nightshade sequence library listing saved multi-target imaging sequences with their node, target and exposure counts">
-<p><b>3 · Sequence.</b> Build the run from instruction nodes and reuse it. A saved sequence carries its targets, exposures, and planned integration with it.</p>
+<img src="docs/screenshots/sequencer.png" width="100%" alt="Nightshade sequencer builder with a loaded sequence: the target card showing its altitude curve and rise, transit and set times, above the ordered instruction nodes that unpark, slew, select a filter and autofocus">
+<p><b>3 · Sequence.</b> Build the run from instruction nodes. The target card carries its own altitude curve and planned integration, and the nodes below it are what actually execute.</p>
 </td>
 <td valign="top">
 <img src="assets/screenshots/guiding.png" width="100%" alt="Nightshade guiding workspace with a guide-star image and RA/Dec error and RMS telemetry">
