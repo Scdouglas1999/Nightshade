@@ -5,7 +5,11 @@ for a release candidate. Do not use it to hide blockers. An accepted limitation
 must be documented, understandable to users, paired with a workaround when one
 exists, and reflected in release notes.
 
-## 6.0.0 Verified Scope
+## 6.1.0 Verified Scope
+
+> **6.1.0 adds no new hardware validation.** The most recent real-hardware evidence remains the 6.0.0 Windows bench run between 22 and 26 July 2026 against an ASCOM Pegasus NYX-101 mount, a native ZWO ASI1600MM-Cool camera, and a ZWO EFW filter wheel, alongside a simulator instance. Camera connect, cooling, exposure, and image download are exercised on that hardware. **The mount was never commanded to move**, so slew, sync, park, unpark, homing, and meridian flip are unexercised on real equipment. **No frame was taken under a real sky** — the acquisition path is validated, the sky is not. 6.1.0 changes guiding correction behaviour and native target scoring; both are unit-tested only and **neither has been run on sky**. The web dashboard and the Android companion were driven against a running host, but a second physical device on a real LAN with a firewall in the path was not tested for either release. Fully-unattended **headless** acquisition and a full-night soak are **not** verified and must be supervised. **Linux** is early testing; **macOS** and **iOS** are unbuilt, untested, and ship no artifact. Every other device path — switches, domes, covers, and the remaining vendor SDKs — is **capability-gated**: present in the app, but not a support guarantee until it is verified on your rig.
+
+## 6.0.0 Verified Scope (previous release)
 
 This is the scoped capability statement for the current release. It must match
 the README "What is actually verified" section and the `## What's verified`

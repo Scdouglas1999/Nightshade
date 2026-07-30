@@ -14,7 +14,7 @@ Plan the target, connect the rig, frame and solve the field, run the sequence, g
 [![Companion](https://img.shields.io/badge/companion-Android-7c3aed)](#remote-observatory)
 [![License](https://img.shields.io/badge/license-source_available-64748b)](LICENSE)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [6.0.0 release notes](docs/release/v6.0.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [Documentation](docs/index.md) · [6.1.0 release notes](docs/release/v6.1.0.md) · [Known limitations](docs/known-limitations.md) · [Support development](https://www.patreon.com/cw/SeanDouglas)
 
 <img src="docs/screenshots/planetarium.png?v=20260730" width="920" alt="Nightshade planetarium: an interactive sky view with constellation lines and the solar system, beside a panel listing tonight's twilight times and total darkness">
 
@@ -31,9 +31,9 @@ A Rust core owns the running sequence and the imaging pipeline. The Flutter desk
 
 ## What is actually verified
 
-This project scopes support to evidence, not to the presence of a code path. The statement below is the release's scoped capability claim, and it is repeated word for word in the [6.0.0 release notes](docs/release/v6.0.0.md) and in [`docs/known-limitations.md`](docs/known-limitations.md).
+This project scopes support to evidence, not to the presence of a code path. The statement below is the release's scoped capability claim, and it is repeated word for word in the [6.1.0 release notes](docs/release/v6.1.0.md) and in [`docs/known-limitations.md`](docs/known-limitations.md).
 
-> Real-hardware validation for 6.0.0 was a Windows bench run between 22 and 26 July 2026 against an ASCOM Pegasus NYX-101 mount, a native ZWO ASI1600MM-Cool camera, and a ZWO EFW filter wheel, alongside a simulator instance. Camera connect, cooling, exposure, and image download are exercised on that hardware. **The mount was never commanded to move**, so slew, sync, park, unpark, homing, and meridian flip are unexercised on real equipment. **No frame was taken under a real sky** — the acquisition path is validated, the sky is not. The web dashboard and the Android companion were driven against a running host, but a second physical device on a real LAN with a firewall in the path was not tested. Fully-unattended **headless** acquisition and a full-night soak are **not** verified and must be supervised. **Linux** is early testing; **macOS** and **iOS** are unbuilt, untested, and ship no artifact. Every other device path — switches, domes, covers, and the remaining vendor SDKs — is **capability-gated**: present in the app, but not a support guarantee until it is verified on your rig.
+> **6.1.0 adds no new hardware validation.** The most recent real-hardware evidence remains the 6.0.0 Windows bench run between 22 and 26 July 2026 against an ASCOM Pegasus NYX-101 mount, a native ZWO ASI1600MM-Cool camera, and a ZWO EFW filter wheel, alongside a simulator instance. Camera connect, cooling, exposure, and image download are exercised on that hardware. **The mount was never commanded to move**, so slew, sync, park, unpark, homing, and meridian flip are unexercised on real equipment. **No frame was taken under a real sky** — the acquisition path is validated, the sky is not. 6.1.0 changes guiding correction behaviour and native target scoring; both are unit-tested only and **neither has been run on sky**. The web dashboard and the Android companion were driven against a running host, but a second physical device on a real LAN with a firewall in the path was not tested for either release. Fully-unattended **headless** acquisition and a full-night soak are **not** verified and must be supervised. **Linux** is early testing; **macOS** and **iOS** are unbuilt, untested, and ship no artifact. Every other device path — switches, domes, covers, and the remaining vendor SDKs — is **capability-gated**: present in the app, but not a support guarantee until it is verified on your rig.
 
 Everything else in this README describes capability that exists in the source and is reachable from the user interface. That is a weaker claim than "verified on your hardware", and it is deliberately kept separate from it.
 
@@ -172,9 +172,9 @@ The release workflow builds and publishes exactly three products:
 
 | Artifact | Platform | Distribution status |
 |---|---|---|
-| `nightshade-6.0.0-windows-x64.zip` | Windows x64 | Portable desktop app; Authenticode-signed only when the release owner has provisioned a certificate |
-| `nightshade-6.0.0-linux-x64.tar.gz` | Linux x64 | Portable bundle, glibc 2.35-linked; early testing |
-| `nightshade-6.0.0-android-arm64-v8a.apk` | Android | Companion app; also built for `armeabi-v7a` and `x86_64`. Debug-signed until a keystore is provisioned |
+| `nightshade-6.1.0-windows-x64.zip` | Windows x64 | Portable desktop app; Authenticode-signed only when the release owner has provisioned a certificate |
+| `nightshade-6.1.0-linux-x64.tar.gz` | Linux x64 | Portable bundle, glibc 2.35-linked; early testing |
+| `nightshade-6.1.0-android-arm64-v8a.apk` | Android | Companion app; also built for `armeabi-v7a` and `x86_64`. Debug-signed until a keystore is provisioned |
 
 There is **no macOS and no iOS artifact**. The macOS desktop app compiles in CI as a debug build, but its native Rust bridge build is not enforced there, no packaged artifact is produced, and neither macOS nor iOS has been run against hardware. Treat both as source-only.
 
@@ -245,7 +245,7 @@ CI pins Flutter 3.44.1 and tracks stable Rust. Platform prerequisites and FFI tr
 | [Installation](docs/getting-started/installation.md) | [Supported hardware](docs/supported-hardware-by-platform.md) | [Architecture](docs/architecture.md) |
 | [First connection](docs/getting-started/first-connection.md) | [Known limitations](docs/known-limitations.md) | [Plugin SDK](docs/plugin_sdk/README.md) |
 | [First image](docs/getting-started/first-image.md) | [Headless security](docs/headless-secure-setup.md) | [Headless API](docs/api/README.md) |
-| [6.0.0 release notes](docs/release/v6.0.0.md) | [Backup and migration](docs/migration-backup-restore.md) | [Contributing](.github/CONTRIBUTING.md) |
+| [6.1.0 release notes](docs/release/v6.1.0.md) | [Backup and migration](docs/migration-backup-restore.md) | [Contributing](.github/CONTRIBUTING.md) |
 | [Troubleshooting](docs/troubleshooting/common-issues.md) | [Remote control](docs/remote-control.md) | [Changelog](docs/CHANGELOG.md) |
 
 The [Plugin SDK](docs/plugin_sdk/README.md) covers plugins compiled into the app, and working examples ship in `packages/nightshade_plugins`. Installing a third-party plugin binary into a released build is **not** supported: that endpoint returns `501`.
