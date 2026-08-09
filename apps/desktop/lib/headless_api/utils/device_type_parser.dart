@@ -6,7 +6,12 @@ import 'package:nightshade_core/nightshade_core.dart';
 DeviceType? parseDeviceType(String value) {
   final normalized = value.toLowerCase();
   for (final dt in DeviceType.values) {
-    if (dt.name.toLowerCase() == normalized) {
+    final name = dt.name.toLowerCase();
+    // The trailing underscore is a Dart artefact, not part of the vocabulary:
+    // `DeviceType.switch_` is spelled that way only because `switch` is a
+    // reserved word. No client guesses `switch_`, and one that sends the
+    // obvious `switch` was being told the rig had no switches at all.
+    if (name == normalized || name == '${normalized}_') {
       return dt;
     }
   }

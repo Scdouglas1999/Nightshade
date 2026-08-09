@@ -1,6 +1,19 @@
 part of '../settings_widgets.dart';
 
 class SettingsColorPicker extends StatefulWidget {
+  /// The offered accents as `(hex, name)`. The name is not decoration: it is
+  /// the swatch's accessible label and its tooltip, so a control whose only
+  /// other description is its own pixels can be found and read.
+  static const List<(String, String)> accentColors = [
+    ('#5B9EC4', 'Cyan-blue'),
+    ('#10B981', 'Emerald'),
+    ('#F59E0B', 'Amber'),
+    ('#EF4444', 'Red'),
+    ('#2878A8', 'Deep sky'),
+    ('#EC4899', 'Pink'),
+    ('#06B6D4', 'Cyan'),
+  ];
+
   final String selectedColor;
 
   /// May be asynchronous so a failed save can restore the confirmed color.
@@ -72,16 +85,6 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
     unawaited(operation);
   }
 
-  static const accentColors = [
-    ('#5B9EC4', 'Cyan-blue'),
-    ('#10B981', 'Emerald'),
-    ('#F59E0B', 'Amber'),
-    ('#EF4444', 'Red'),
-    ('#2878A8', 'Deep sky'),
-    ('#EC4899', 'Pink'),
-    ('#06B6D4', 'Cyan'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
@@ -99,31 +102,55 @@ class _SettingsColorPickerState extends State<SettingsColorPicker> {
       spacing: spacing,
       runSpacing: spacing,
       alignment: WrapAlignment.end,
-      children: accentColors.map((colorData) {
-        final (hex, _) = colorData;
+      children: SettingsColorPicker.accentColors.map((colorData) {
+        final (hex, name) = colorData;
 
-        return _buildColorCircle(colors, hex, circleSize);
+        return _buildColorCircle(colors, hex, name, circleSize);
       }).toList(),
     );
   }
 
-  Widget _buildColorCircle(NightshadeColors colors, String hex, double size) {
+  Widget _buildColorCircle(
+    NightshadeColors colors,
+    String hex,
+    String name,
+    double size,
+  ) {
     final color = Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000);
 
     final isSelected = _selectedColor.toLowerCase() == hex.toLowerCase();
 
-    return GestureDetector(
-      key: ValueKey('settings-color-$hex'),
-      onTap: () => _selectColor(hex),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected ? colors.textPrimary : colors.border,
-            width: isSelected ? 2 : 1,
+    // These were seven bare GestureDetectors: no name, no role, no focus. The
+    // live accessibility tree for Settings → Appearance listed "Accent color"
+    // with ZERO children, so a screen-reader or keyboard user could neither
+    // find the swatches nor tell which one was active — while the switch in the
+    // row below reported itself as "toggle button … [off]". The colour names
+    // were already in `accentColors` and simply thrown away; a swatch whose
+    // only description is its pixels needs them most.
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        inMutuallyExclusiveGroup: true,
+        selected: isSelected,
+        label: name,
+        child: Tooltip(
+          message: name,
+          child: InkWell(
+            key: ValueKey('settings-color-$hex'),
+            onTap: () => _selectColor(hex),
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? colors.textPrimary : colors.border,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+            ),
           ),
         ),
       ),

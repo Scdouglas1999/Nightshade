@@ -33,8 +33,21 @@ USAGE
   drive_linux.py click-xy 400 300
   drive_linux.py key Escape
   drive_linux.py type "M31"
+  drive_linux.py resize 420 900          # reflow to a phone-width viewport
+  drive_linux.py resize --show           # report the current window geometry
   drive_linux.py log [--tail N]
   drive_linux.py stop
+
+WHY `resize` EXISTS
+-------------------
+The window came up at a fixed 1600x900 and the harness could not change it, so
+every responsive branch below the phone/tablet breakpoints -- the sequencer's
+phone builder, the guiding screen's mobile tabs, the fullscreen image viewer
+that is gated on `Responsive.isPhone` -- was unreachable and the coverage
+ledger recorded them all as "needs an emulator". Most of them do not: they are
+window-width branches on the very same desktop binary. `resize` drives
+`xdotool windowsize`, which works without a window manager because Flutter's
+GTK window accepts the configure directly.
 """
 from __future__ import annotations
 
@@ -480,6 +493,60 @@ def cmd_click_xy(args: argparse.Namespace) -> int:
     return _click_xy(args.profile, args.x, args.y)
 
 
+def _geometry(profile: str, wid: str) -> dict[str, int]:
+    r = subprocess.run(["xdotool", "getwindowgeometry", "--shell", wid],
+                       env=_env(profile), capture_output=True, text=True)
+    return {
+        k: int(v) for k, v in
+        (line.split("=", 1) for line in r.stdout.strip().splitlines()
+         if "=" in line)
+        if v.lstrip("-").isdigit()
+    }
+
+
+def cmd_resize(args: argparse.Namespace) -> int:
+    """Resize the app window so responsive breakpoints actually flip.
+
+    Reports the size the window ACTUALLY took, not the size that was asked
+    for. Those differ in two ways that would otherwise be invisible: the X
+    server clamps to the Xvfb screen (1920x1200 by default), and GTK enforces
+    the widget tree's own minimum. A sweep that assumed its request was
+    honoured would record "the phone layout did not appear at 420px" when the
+    window never actually got to 420px.
+    """
+    win = _app_window(args.profile)
+    if win is None:
+        print("error: no app window; is the app running?", file=sys.stderr)
+        return 1
+    wid = win[0]
+
+    if args.show or args.width is None:
+        g = _geometry(args.profile, wid)
+        print(f"{g.get('WIDTH')}x{g.get('HEIGHT')}+{g.get('X')}+{g.get('Y')}")
+        return 0
+
+    height = args.height if args.height is not None else \
+        _geometry(args.profile, wid).get("HEIGHT", 900)
+    subprocess.run(["xdotool", "windowsize", "--sync", wid,
+                    str(args.width), str(height)],
+                   env=_env(args.profile), check=True)
+    # Without a window manager nothing repositions the window, so a shrink
+    # leaves it wherever it was and a grow can push it off the screen edge --
+    # where `import -window` captures a truncated image. Pin it to the origin.
+    subprocess.run(["xdotool", "windowmove", "--sync", wid, "0", "0"],
+                   env=_env(args.profile), check=True)
+    # Flutter relayouts on the next frame; softpipe needs a beat to paint it.
+    time.sleep(args.settle)
+
+    g = _geometry(args.profile, wid)
+    got_w, got_h = g.get("WIDTH"), g.get("HEIGHT")
+    print(f"window is now {got_w}x{got_h}")
+    if got_w != args.width or got_h != height:
+        print(f"  note: requested {args.width}x{height}; the server or GTK "
+              f"clamped it. Breakpoint decisions must use the actual size.")
+    return 0
+
+
 def cmd_key(args: argparse.Namespace) -> int:
     subprocess.run(["xdotool", "key", "--clearmodifiers", args.keys],
                    env=_env(args.profile), check=True)
@@ -488,8 +555,12 @@ def cmd_key(args: argparse.Namespace) -> int:
 
 
 def cmd_type(args: argparse.Namespace) -> int:
+    # `--` terminates xdotool's own option parsing. Without it, typing a value
+    # that starts with a dash ("-74.0" into a Longitude field) is swallowed as
+    # a flag: xdotool errors, nothing is typed, and the sweep records an empty
+    # field as an app defect.
     subprocess.run(["xdotool", "type", "--clearmodifiers", "--delay", "30",
-                    args.text],
+                    "--", args.text],
                    env=_env(args.profile), check=True)
     time.sleep(0.3)
     return 0
@@ -564,6 +635,17 @@ def main() -> int:
     s.add_argument("x", type=int)
     s.add_argument("y", type=int)
     s.set_defaults(fn=cmd_click_img)
+
+    s = add("resize")
+    s.add_argument("width", type=int, nargs="?",
+                   help="target window width in pixels (omit to just report)")
+    s.add_argument("height", type=int, nargs="?",
+                   help="target window height (default: keep the current one)")
+    s.add_argument("--show", action="store_true",
+                   help="print the current geometry and change nothing")
+    s.add_argument("--settle", type=float, default=1.5,
+                   help="seconds to wait for the relayout to paint")
+    s.set_defaults(fn=cmd_resize)
 
     s = add("key")
     s.add_argument("keys")

@@ -860,9 +860,22 @@ pub(crate) async fn camera_start_exposure_configured_opt(
             camera.status.state = CameraState::Reading;
         }
 
-        // Generate simulated image. The simulator commands no real hardware,
-        // so an unspecified (None) gain falls back to 0 for brightness math —
-        // stars are added regardless, keeping the frame solvable.
+        // Render the frame through THE simulated-capture renderer — the same one
+        // the sequencer's DeviceManager download uses.
+        //
+        // This branch used to call a local `generate_simulated_image()` that
+        // painted `rand::thread_rng()` stars at random positions. It was not a
+        // cosmetic difference: two consecutive captures at an IDENTICAL mount
+        // pointing shared zero of their 40 brightest stars, and ASTAP (D05
+        // installed, correct hint) detected 151 stars in one and still answered
+        // `No solution found!` at every FOV from 9.5 deg down to 0.4 deg. So
+        // everything downstream of a solve — Slew & Center, framing, mosaic
+        // tiles, meridian-flip recentre, polar alignment — could never be
+        // exercised from the Imaging screen, while the sequencer path solved
+        // fine. One renderer now serves both.
+        //
+        // The simulator commands no real hardware, so an unspecified (None)
+        // gain falls back to 0 for brightness math.
         let sim_gain = gain.unwrap_or(0);
         // The geometry the camera ADVERTISES, not a second hardcoded sensor.
         // These were 4144x2822 while `get_camera_status` reported SIM_W x SIM_H
@@ -870,19 +883,96 @@ pub(crate) async fn camera_start_exposure_configured_opt(
         // for the frames the same camera was delivering, and no measurement
         // taken through the manual-capture path could be compared with one from
         // the sequencer path.
-        let (advertised_width, advertised_height) = {
+        let (advertised_width, advertised_height, sim_pixel_size, sim_offset, sim_max_adu) = {
             let camera = get_sim_camera().read().await;
-            (camera.status.sensor_width, camera.status.sensor_height)
+            (
+                camera.status.sensor_width,
+                camera.status.sensor_height,
+                camera.status.pixel_size_x,
+                camera.status.offset,
+                camera.status.max_adu,
+            )
         };
-        let full_width = advertised_width / bin_x.max(1) as u32;
-        let full_height = advertised_height / bin_y.max(1) as u32;
-        let (sensor_width, sensor_height) = subframe
-            .as_ref()
-            .map(|roi| (roi.width, roi.height))
-            .unwrap_or((full_width, full_height));
+        let sim_frame =
+            crate::sim_capture::render_sim_frame(crate::sim_capture::SimCaptureRequest {
+                exposure_secs: duration_secs,
+                sensor_width: advertised_width.max(1),
+                sensor_height: advertised_height.max(1),
+                pixel_size_um: sim_pixel_size,
+                gain: sim_gain,
+                offset: offset.unwrap_or(sim_offset),
+                bin_x: bin_x.max(1) as u32,
+                bin_y: bin_y.max(1) as u32,
+                subframe: subframe
+                    .as_ref()
+                    .map(|roi| (roi.start_x, roi.start_y, roi.width, roi.height)),
+                frame_type,
+                max_adu: sim_max_adu.clamp(1, u32::from(u16::MAX)) as u16,
+            })
+            .await;
+        // Binning and subframing both change the delivered geometry, so take it
+        // from the renderer rather than re-deriving it here — the two used to
+        // disagree.
+        let (sensor_width, sensor_height) = (sim_frame.width, sim_frame.height);
+        let raw_data = sim_frame.data;
 
-        let (raw_data, display_data_raw, histogram, stats, star_count) =
-            generate_simulated_image(sensor_width, sensor_height, sim_gain, duration_secs);
+        // Measure the simulated frame with the SAME code the real-camera branch
+        // uses. The old branch reported `2.5 + random()` as HFR and
+        // `0.15 + random()` as eccentricity — numbers that tracked nothing, so
+        // an autofocus or guiding regression could not show up in them.
+        let image_bytes: Vec<u8> = raw_data.iter().flat_map(|&val| val.to_le_bytes()).collect();
+        let image = nightshade_imaging::ImageData {
+            width: sensor_width,
+            height: sensor_height,
+            channels: 1,
+            pixel_type: nightshade_imaging::PixelType::U16,
+            data: image_bytes,
+        };
+        let stats = nightshade_imaging::calculate_stats_u16(&image);
+        let stretch_params = nightshade_imaging::auto_stretch_stf(&image);
+        let display_data_raw = nightshade_imaging::apply_stretch(&image, &stretch_params);
+        let mut histogram = vec![0u32; 256];
+        for &pixel in &display_data_raw {
+            histogram[pixel as usize] += 1;
+        }
+        let stars = nightshade_imaging::detect_stars(
+            &image,
+            &nightshade_imaging::StarDetectionConfig::default(),
+        );
+        let star_count = stars.len() as u32;
+        let median_of = |values: &mut Vec<f64>| -> Option<f64> {
+            if values.is_empty() {
+                return None;
+            }
+            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            Some(values[values.len() / 2])
+        };
+        // Top 50% brightest, capped at 50 — mirrors the real-camera branch.
+        let sample = (stars.len() / 2).clamp(1, 50);
+        let mut hfrs: Vec<f64> = stars
+            .iter()
+            .take(sample)
+            .map(|s| s.hfr)
+            .filter(|&h| h > 0.0 && h < 20.0)
+            .collect();
+        let median_hfr = median_of(&mut hfrs);
+        let mut fwhms: Vec<f64> = stars
+            .iter()
+            .take(sample)
+            .map(|s| s.fwhm)
+            .filter(|&f| f > 0.0 && f < 20.0)
+            .collect();
+        let median_fwhm = median_of(&mut fwhms);
+        // Fails closed (None) when too few reliable stars — never fabricated.
+        let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
+        tracing::info!(
+            "Simulated capture: {}x{}, {} stars detected, median HFR: {:?}, median ecc: {:?}",
+            sensor_width,
+            sensor_height,
+            star_count,
+            median_hfr,
+            median_eccentricity
+        );
 
         // Convert grayscale display data to RGBA for Flutter rendering
         let display_data = display_data_to_rgba(&display_data_raw, false);
@@ -900,11 +990,9 @@ pub(crate) async fn camera_start_exposure_configured_opt(
                 mean: stats.mean,
                 median: stats.median,
                 std_dev: stats.std_dev,
-                hfr: Some(2.5 + (rand::random::<f64>() - 0.5) * 0.5), // Simulated HFR
-                // Simulated stars are round Gaussians; report a small,
-                // realistic eccentricity (well-guided rigs sit ~0.1–0.3).
-                eccentricity: Some(0.15 + (rand::random::<f64>() - 0.5) * 0.1),
-                fwhm: None,
+                hfr: median_hfr,
+                eccentricity: median_eccentricity,
+                fwhm: median_fwhm,
                 star_count,
             },
             exposure_time: duration_secs,
@@ -1297,210 +1385,6 @@ pub async fn api_camera_cancel_exposure(device_id: String) -> Result<(), Nightsh
         mgr.camera_abort_exposure(&device_id)
             .await
             .map_err(NightshadeError::from)
-    }
-}
-
-/// Generate a simulated star field image
-pub(crate) fn generate_simulated_image(
-    width: u32,
-    height: u32,
-    gain: i32,
-    exposure_time: f64,
-) -> (
-    Vec<u16>,
-    Vec<u8>,
-    Vec<u32>,
-    nightshade_imaging::ImageStats,
-    u32,
-) {
-    let mut rng = rand::thread_rng();
-    // Why: simulation code; width/height are u32 inputs from a controlled test path
-    // (`generate_simulated_exposure_data` is only invoked with small fake-camera sizes
-    // <= ~16M pixels). Promote to u64 anyway for overflow safety.
-    let pixel_count =
-        usize::try_from((width as u64).saturating_mul(height as u64)).unwrap_or(usize::MAX);
-
-    // Create raw 16-bit image data
-    let mut raw_data: Vec<u16> = vec![0u16; pixel_count];
-
-    // Background level based on gain and exposure
-    let base_background = 500 + (gain as f64 * 5.0 + exposure_time * 10.0) as u16;
-    let noise_level = (50.0 + gain as f64 * 0.5) as u16;
-
-    // Fill with background + noise
-    for pixel in &mut raw_data {
-        let noise = (rng.gen::<f64>() * noise_level as f64) as i32;
-        *pixel = (base_background as i32 + noise - noise_level as i32 / 2).clamp(0, 65535) as u16;
-    }
-
-    // Add stars (more with longer exposure)
-    let num_stars = (100.0 + exposure_time * 50.0).min(500.0) as u32;
-    let mut star_count = 0u32;
-
-    for _ in 0..num_stars {
-        let x = rng.gen_range(5..width - 5);
-        let y = rng.gen_range(5..height - 5);
-        let brightness = rng.gen_range(5000u16..60000u16);
-        let size = rng.gen_range(1.5f64..4.0f64);
-
-        // Draw Gaussian star profile
-        let radius = (size * 3.0) as i32;
-        for dy in -radius..=radius {
-            for dx in -radius..=radius {
-                let px = (x as i32 + dx) as u32;
-                let py = (y as i32 + dy) as u32;
-
-                if px < width && py < height {
-                    let dist_sq = (dx * dx + dy * dy) as f64;
-                    let sigma_sq = size * size;
-                    let intensity = brightness as f64 * (-dist_sq / (2.0 * sigma_sq)).exp();
-
-                    let idx = (py * width + px) as usize;
-                    raw_data[idx] = (raw_data[idx] as f64 + intensity).min(65535.0) as u16;
-                }
-            }
-        }
-        star_count += 1;
-    }
-
-    // Add some hot pixels
-    for _ in 0..20 {
-        let idx = rng.gen_range(0..pixel_count);
-        raw_data[idx] = rng.gen_range(40000u16..65535u16);
-    }
-
-    // Create ImageData for stats calculation
-    let image_bytes: Vec<u8> = raw_data.iter().flat_map(|&val| val.to_le_bytes()).collect();
-
-    let image_data = nightshade_imaging::ImageData {
-        width,
-        height,
-        channels: 1,
-        pixel_type: nightshade_imaging::PixelType::U16,
-        data: image_bytes.clone(),
-    };
-
-    // Calculate stats
-    let stats = nightshade_imaging::calculate_stats_u16(&image_data);
-
-    // Auto stretch for display
-    let stretch_params = nightshade_imaging::auto_stretch_stf(&image_data);
-    let display_data = nightshade_imaging::apply_stretch(&image_data, &stretch_params);
-
-    // Calculate histogram from display data
-    let mut histogram = vec![0u32; 256];
-    for &pixel in &display_data {
-        histogram[pixel as usize] += 1;
-    }
-
-    (raw_data, display_data, histogram, stats, star_count)
-}
-
-/// Internal random utilities - not exposed to Dart FFI
-#[flutter_rust_bridge::frb(ignore)]
-pub mod rand {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    // Note: Range is NOT re-exported because FRB generates invalid code for Range<Self>
-    // The gen_range function is marked as ignored by FRB anyway
-
-    #[flutter_rust_bridge::frb(ignore)]
-    pub fn random<T: RandomValue>() -> T {
-        T::random()
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    pub trait RandomValue {
-        fn random() -> Self;
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    impl RandomValue for f64 {
-        fn random() -> Self {
-            // Use unwrap_or with a fallback value to avoid panic
-            // SystemTime::now() can fail if system clock is set before UNIX_EPOCH
-            let seed = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or(std::time::Duration::from_secs(0))
-                .as_nanos() as u64;
-            // Simple LCG - even with seed=0, this produces valid output
-            let x = seed
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(1442695040888963407);
-            (x as f64) / (u64::MAX as f64)
-        }
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    pub struct Rng {
-        pub state: u64,
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    impl Rng {
-        pub fn gen<T: RandomValue>(&mut self) -> T {
-            T::random()
-        }
-
-        pub fn gen_range<T: RandomRange>(&mut self, range: std::ops::Range<T>) -> T {
-            // Use unwrap_or with a fallback to avoid panic on clock issues
-            let seed = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or(std::time::Duration::from_secs(0))
-                .as_nanos() as u64;
-            self.state = self
-                .state
-                .wrapping_mul(6364136223846793005)
-                .wrapping_add(seed);
-            T::in_range(self.state, range)
-        }
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    pub trait RandomRange: Sized {
-        fn in_range(seed: u64, range: std::ops::Range<Self>) -> Self;
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    impl RandomRange for u32 {
-        fn in_range(seed: u64, range: std::ops::Range<Self>) -> Self {
-            let span = range.end - range.start;
-            range.start + (seed as u32 % span)
-        }
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    impl RandomRange for u16 {
-        fn in_range(seed: u64, range: std::ops::Range<Self>) -> Self {
-            let span = range.end - range.start;
-            range.start + (seed as u16 % span)
-        }
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    impl RandomRange for f64 {
-        fn in_range(seed: u64, range: std::ops::Range<Self>) -> Self {
-            let t = (seed as f64) / (u64::MAX as f64);
-            range.start + t * (range.end - range.start)
-        }
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    impl RandomRange for usize {
-        fn in_range(seed: u64, range: std::ops::Range<Self>) -> Self {
-            let span = range.end - range.start;
-            range.start + (seed as usize % span)
-        }
-    }
-
-    #[flutter_rust_bridge::frb(ignore)]
-    pub fn thread_rng() -> Rng {
-        // Use unwrap_or with a fallback to avoid panic on clock issues
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or(std::time::Duration::from_secs(0))
-            .as_nanos() as u64;
-        Rng { state: seed }
     }
 }
 
@@ -6978,6 +6862,195 @@ mod fits_keyword_update_tests {
 mod sim_exposure_tests {
     use super::*;
 
+    /// The Imaging screen's capture must paint the sky the mount is on.
+    ///
+    /// THE regression guard for this file's half of the two-paths defect. The
+    /// sequencer's DeviceManager download rendered the catalogue field while
+    /// THIS path — `POST /api/camera/expose`, which is what the Imaging screen
+    /// calls — took a `device_id.starts_with("sim_")` shortcut into a
+    /// `rand::thread_rng()` star painter. Measured on the release build before
+    /// the fix: two captures at an identical pointing shared zero of their 40
+    /// brightest stars, and ASTAP found 151 stars and still answered
+    /// `No solution found!` at every FOV from 9.5 deg to 0.4 deg.
+    ///
+    /// Deliberately asserted on `camera_start_exposure_configured_opt` — the
+    /// production call site — and not on the renderer, because the renderer was
+    /// never the broken part. Point this path back at a random generator and
+    /// the centre-star assertion fails: a random field has no reason to put a
+    /// star on the tangent point.
+    ///
+    /// Needs no astap binary and no star database: it synthesises its own area
+    /// file and drives the real parser, index, projection and renderer.
+    #[tokio::test]
+    async fn the_manual_capture_path_renders_the_catalogue_sky() {
+        use crate::api::devices::simulation::{get_sim_camera, get_sim_mount};
+
+        let _serialized = crate::api::devices::simulation::sim_singleton_test_lock()
+            .lock()
+            .await;
+
+        // A grid of catalogue stars centred on the pointing, spaced ~90 px at
+        // the simulated rig's 0.776"/px so the detector resolves them apart.
+        let ra_hours = 5.59_f64;
+        let dec_deg = -5.39_f64;
+        let ra_deg = ra_hours * 15.0;
+        let step_deg =
+            90.0 * crate::sim_capture::sim_plate_scale_arcsec_per_px(
+                3.76,
+                crate::sim_capture::SIM_DEFAULT_FOCAL_LENGTH_MM,
+            ) / 3600.0;
+        let mut stars = Vec::new();
+        for row in -4i32..=4 {
+            for col in -8i32..=8 {
+                stars.push((
+                    ra_deg + f64::from(col) * step_deg / dec_deg.to_radians().cos(),
+                    dec_deg + f64::from(row) * step_deg,
+                    9.0 + f64::from((row + col).rem_euclid(5)),
+                ));
+            }
+        }
+        let catalog = tempfile::TempDir::new().unwrap();
+        crate::sim_sky::astap_integration::write_synthetic_area(
+            &catalog.path().join("d05_0001.1476"),
+            &stars,
+        );
+
+        // Exactly what the Plate Solving settings screen writes. The store is
+        // shared and process-lifetime on purpose — see
+        // `sim_capture::shared_platesolver_store`.
+        crate::sim_capture::shared_platesolver_store();
+        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
+        crate::state::save_platesolver_preference(&crate::storage::PlateSolverPreference {
+            catalog_path: catalog.path().to_string_lossy().to_string(),
+            ..previous.clone()
+        })
+        .expect("save plate-solver preference");
+
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.connected = true;
+            mount.status.right_ascension = ra_hours;
+            mount.status.declination = dec_deg;
+        }
+        // So the field sits where the projection puts it rather than where an
+        // earlier test's accumulated drift left it.
+        crate::api::devices::simulation::reset_sim_guide_offset().await;
+        get_sim_camera().write().await.status.connected = true;
+
+        let device_id = "sim_manual_capture_sky".to_string();
+        let capture = camera_start_exposure_configured_opt(
+            device_id.clone(),
+            1.0,
+            Some(100),
+            Some(10),
+            1,
+            1,
+            None,
+            nightshade_native::camera::FrameType::Light,
+        )
+        .await;
+
+        let raw = get_last_raw_image_info(&device_id).await;
+
+        // Put the singletons back before asserting, so a failure here does not
+        // leave a catalogue sky armed for every other simulator test.
+        get_sim_mount().write().await.status.connected = false;
+        get_sim_camera().write().await.status.connected = false;
+        let _ = crate::state::save_platesolver_preference(&previous);
+        let _ = api_clear_device_image(device_id).await;
+
+        capture.expect("simulated exposure should complete");
+        let raw = raw
+            .expect("raw image lookup should succeed")
+            .expect("a raw frame should be stored");
+
+        let data = nightshade_imaging::ImageData::from_u16(raw.width, raw.height, 1, &raw.data);
+        let found = nightshade_imaging::detect_stars_with_stats(
+            &data,
+            &nightshade_imaging::StarDetectionConfig::default(),
+        );
+        assert!(
+            found.stars.len() > 60,
+            "the manual-capture frame carried {} stars; the catalogue grid holds {}, so the \
+             sky view never reached this path",
+            found.stars.len(),
+            stars.len()
+        );
+
+        // Placed by the projection, not merely present: the grid's centre star
+        // sits at the tangent point, which lands on the sensor's centre pixel at
+        // any plate scale. A randomly scattered field fails this.
+        let centre_x = f64::from(raw.width) / 2.0;
+        let centre_y = f64::from(raw.height) / 2.0;
+        let nearest = found
+            .stars
+            .iter()
+            .map(|star| (star.x - centre_x).hypot(star.y - centre_y))
+            .fold(f64::MAX, f64::min);
+        assert!(
+            nearest < 12.0,
+            "nearest star to the frame centre is {nearest:.1} px away; the Imaging screen is \
+             not rendering the field the mount is pointing at"
+        );
+    }
+
+    /// HFR and eccentricity must be measured, not invented.
+    ///
+    /// This path reported `Some(2.5 + random())` as HFR and
+    /// `Some(0.15 + random())` as eccentricity for every simulated frame, so
+    /// the numbers moved when nothing about the optics had, and an autofocus or
+    /// guiding regression could not show up in them. They now come from the
+    /// same `detect_stars` the real-camera branch uses.
+    #[tokio::test]
+    async fn simulated_frame_stats_track_focus_instead_of_a_random_draw() {
+        use crate::api::devices::simulation::{get_sim_camera, get_sim_focuser};
+
+        let _serialized = crate::api::devices::simulation::sim_singleton_test_lock()
+            .lock()
+            .await;
+        get_sim_camera().write().await.status.connected = true;
+
+        async fn hfr_at_focus(position: i32, device_id: &str) -> Option<f64> {
+            {
+                let mut focuser = get_sim_focuser().write().await;
+                focuser.status.connected = true;
+                focuser.status.position = position;
+            }
+            camera_start_exposure_configured_opt(
+                device_id.to_string(),
+                1.0,
+                Some(100),
+                Some(10),
+                1,
+                1,
+                None,
+                nightshade_native::camera::FrameType::Light,
+            )
+            .await
+            .expect("simulated exposure should complete");
+            let frame = api_get_last_image(device_id.to_string())
+                .await
+                .expect("a frame should be stored");
+            frame.stats.hfr
+        }
+
+        let device_id = "sim_focus_stats_probe";
+        let sharp = hfr_at_focus(crate::sim_frame::SIM_TRUE_FOCUS, device_id).await;
+        let defocused = hfr_at_focus(crate::sim_frame::SIM_TRUE_FOCUS + 150, device_id).await;
+
+        get_sim_focuser().write().await.status.connected = false;
+        get_sim_camera().write().await.status.connected = false;
+        let _ = api_clear_device_image(device_id.to_string()).await;
+
+        let sharp = sharp.expect("an in-focus frame should yield a measurable HFR");
+        let defocused = defocused.expect("a defocused frame should yield a measurable HFR");
+        assert!(
+            defocused > sharp * 1.2,
+            "HFR must grow with defocus: in-focus {sharp:.2} px vs defocused {defocused:.2} px. \
+             A fabricated `2.5 + random()` tracks nothing and would fail here."
+        );
+    }
+
     /// The simulated camera must deliver the sensor it advertises.
     ///
     /// The manual-capture path generated 4144x2822 while `get_camera_status`
@@ -7064,6 +7137,144 @@ mod sim_exposure_tests {
         assert!(
             api_get_last_image(device_id).await.is_err(),
             "an aborted exposure must not store a frame"
+        );
+    }
+
+    /// The operator's actual requirement, end to end: a frame captured FROM THE
+    /// IMAGING SCREEN solves against the real ASTAP binary at the pointing the
+    /// mount reports.
+    ///
+    /// `the_manual_capture_path_renders_the_catalogue_sky` above proves the
+    /// geometry with a synthetic catalogue and no external binary, so it can run
+    /// on CI. It does not prove the frame is SOLVABLE, and "solvable" is the
+    /// whole point of the defect: Slew & Center, framing, mosaic tiles,
+    /// meridian-flip recentre and polar alignment all call a solver, not a star
+    /// detector. The sequencer's download path has had that proof
+    /// (`a_downloaded_simulator_frame_solves_at_the_mounts_pointing`); this path
+    /// — the one the Imaging screen uses — did not, which is precisely how it
+    /// stayed broken while the other path looked fine.
+    ///
+    /// Ignored by default because it needs `astap_cli` and a star database:
+    ///
+    /// ```text
+    /// NIGHTSHADE_SIM_SKY_ASTAP_DIR=~/.local/share/nightshade-audit/astap/bin \
+    ///   cargo test -p nightshade_bridge --lib manual_capture_frame_solves -- --ignored --nocapture
+    /// ```
+    #[tokio::test]
+    #[ignore = "needs astap_cli and a star database; see the doc comment to run it"]
+    async fn a_manual_capture_frame_solves_at_the_mounts_pointing() {
+        use crate::api::devices::simulation::{get_sim_camera, get_sim_mount};
+        use crate::sim_sky::astap_integration::{astap_dir, read_crval, write_fits, PIXEL_UM};
+
+        let _serialized = crate::api::devices::simulation::sim_singleton_test_lock()
+            .lock()
+            .await;
+        let dir = astap_dir();
+        let binary = dir.join("astap_cli");
+        assert!(
+            binary.exists(),
+            "no astap_cli in {dir:?}; set NIGHTSHADE_SIM_SKY_ASTAP_DIR"
+        );
+
+        // Exactly what the Plate Solving settings screen writes, pointed at the
+        // same database ASTAP will match against.
+        crate::sim_capture::shared_platesolver_store();
+        let previous = crate::state::get_platesolver_preference().unwrap_or_default();
+        crate::state::save_platesolver_preference(&crate::storage::PlateSolverPreference {
+            astap_path: binary.to_string_lossy().to_string(),
+            catalog_path: dir.to_string_lossy().to_string(),
+            ..previous.clone()
+        })
+        .expect("save plate-solver preference");
+
+        // M42, and a mount that says so.
+        let ra_hours = 5.59_f64;
+        let dec_deg = -5.39_f64;
+        {
+            let mut mount = get_sim_mount().write().await;
+            mount.status.connected = true;
+            mount.status.right_ascension = ra_hours;
+            mount.status.declination = dec_deg;
+        }
+        crate::api::devices::simulation::reset_sim_guide_offset().await;
+        get_sim_camera().write().await.status.connected = true;
+
+        let device_id = "sim_manual_capture_solve".to_string();
+        let capture = camera_start_exposure_configured_opt(
+            device_id.clone(),
+            0.3,
+            None,
+            None,
+            1,
+            1,
+            None,
+            nightshade_native::camera::FrameType::Light,
+        )
+        .await;
+        let raw = get_last_raw_image_info(&device_id).await;
+
+        // Put the singletons back before asserting, so a failure here does not
+        // leave a catalogue sky armed for every other simulator test.
+        get_sim_mount().write().await.status.connected = false;
+        get_sim_camera().write().await.status.connected = false;
+        let _ = crate::state::save_platesolver_preference(&previous);
+        let _ = api_clear_device_image(device_id).await;
+
+        capture.expect("simulated exposure should complete");
+        let raw = raw
+            .expect("raw image lookup should succeed")
+            .expect("a raw frame should be stored");
+
+        let scratch = tempfile::TempDir::new().unwrap();
+        let path = scratch.path().join("manual_capture.fits");
+        write_fits(
+            &path,
+            &raw.data,
+            ra_hours,
+            dec_deg,
+            crate::sim_capture::SIM_DEFAULT_FOCAL_LENGTH_MM,
+        );
+        let base = path.with_extension("");
+        let scale = crate::sim_capture::sim_plate_scale_arcsec_per_px(
+            PIXEL_UM,
+            crate::sim_capture::SIM_DEFAULT_FOCAL_LENGTH_MM,
+        );
+        let fov_h_deg = scale * f64::from(raw.height) / 3600.0;
+        let output = std::process::Command::new(&binary)
+            .args([
+                "-f".into(),
+                path.to_string_lossy().to_string(),
+                "-r".into(),
+                "10".into(),
+                "-fov".into(),
+                format!("{fov_h_deg:.4}"),
+                "-ra".into(),
+                format!("{ra_hours:.5}"),
+                "-spd".into(),
+                format!("{:.5}", dec_deg + 90.0),
+                "-d".into(),
+                dir.to_string_lossy().to_string(),
+                "-o".into(),
+                base.to_string_lossy().to_string(),
+                "-wcs".into(),
+            ])
+            .output()
+            .expect("run astap_cli");
+
+        let (solved_ra, solved_dec) = read_crval(&base).unwrap_or_else(|| {
+            panic!(
+                "the Imaging screen's captured frame did not solve:\n{}",
+                String::from_utf8_lossy(&output.stdout).trim()
+            )
+        });
+        let error_arcsec = ((solved_ra - ra_hours * 15.0) * dec_deg.to_radians().cos())
+            .hypot(solved_dec - dec_deg)
+            * 3600.0;
+        println!("manual-capture frame solved, centre error {error_arcsec:.1}\"");
+        assert!(
+            error_arcsec < scale,
+            "solved centre {error_arcsec:.1}\" from the mount's pointing, over one \
+             {scale:.2}\" pixel"
         );
     }
 }

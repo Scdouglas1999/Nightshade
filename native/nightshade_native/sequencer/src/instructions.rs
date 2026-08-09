@@ -1902,6 +1902,19 @@ async fn wait_for_meridian_flip_window(
     const SAFETY_MARGIN_SECS: f64 = 30.0;
     const POLL_INTERVAL: Duration = Duration::from_secs(5);
     const MERIDIAN_GATE_MAX_WAIT: Duration = Duration::from_secs(30 * 60);
+    /// How far PAST its predicted fire time a flip may be and still be
+    /// treated as "about to happen".
+    ///
+    /// Sized to outlast a whole flip rather than to be tight: a flip plus
+    /// re-centre takes 5-8 minutes, and the retry ladder
+    /// (`retry_delays_secs` defaults to 30/60/120s on top of the attempts)
+    /// can stretch that towards a quarter of an hour. Inside that window
+    /// "due and not yet flipped" is indistinguishable from "a flip is
+    /// running right now", so the gate keeps waiting. Beyond it the flip
+    /// cannot still be in progress — the trigger monitor re-evaluates every
+    /// second, so one that was ever going to be requested was requested long
+    /// ago.
+    const OVERDUE_GRACE_SECS: f64 = 15.0 * 60.0;
 
     let lock = ctx.trigger_state.as_ref()?;
     let started = tokio::time::Instant::now();
@@ -1954,6 +1967,87 @@ async fn wait_for_meridian_flip_window(
         if fire_in_secs > exposure_secs + SAFETY_MARGIN_SECS {
             return None; // frame finishes comfortably before the flip fires
         }
+        // A flip that is hours OVERDUE is not a flip that is imminent.
+        //
+        // `fire_in_secs` goes arbitrarily negative once the target is past
+        // the meridian — at HA +9.9h with a 5-minute threshold it is about
+        // -35_000. Every negative value used to land in the branch below and
+        // hold, and the announcement clamped the number to zero, so the app
+        // said "the flip fires in ~0s" about a flip that had been due for the
+        // best part of a day. A target hours west of the meridian is routine
+        // (a run that starts on a setting target, or any mount that reports a
+        // pointing position the flip trigger reads differently from the
+        // target's own coordinates), and the trigger in that state never
+        // fires, so nothing ever released the gate: each frame paid the full
+        // MERIDIAN_GATE_MAX_WAIT before proceeding and a 12-frame sequence
+        // took the whole night to not finish.
+        //
+        // `announced` is only ever set once this call has decided to hold, so
+        // testing it here scopes the escape hatch to gate ENTRY. A hold that
+        // began legitimately (the flip was imminent, then a flip started
+        // running) is still governed by MERIDIAN_GATE_MAX_WAIT and is not cut
+        // short by the target drifting further past the meridian while we
+        // wait.
+        if !announced && fire_in_secs < -OVERDUE_GRACE_SECS {
+            let message = format!(
+                "Meridian flip is overdue by {:.0} min and has not fired (hour angle \
+                 {:+.2}h, threshold {:.0} min past meridian) — proceeding with the next \
+                 {:.0}s exposure instead of waiting for it. Check that the flip trigger \
+                 is enabled and that the mount reports its position.",
+                -fire_in_secs / 60.0,
+                ha,
+                threshold_min,
+                exposure_secs
+            );
+            tracing::warn!("{}", message);
+            control.report(&message);
+            return None;
+        }
+        // The gate does not perform the flip — it waits for the TRIGGER to
+        // request one. The trigger decides from the MOUNT's hour angle
+        // (`TriggerState::current_hour_angle`, written by the executor's
+        // mount-poll loop) and returns false outright when the mount has not
+        // reported one, or when that hour angle is not on the pre-flip side.
+        // The gate predicts from the TARGET's hour angle instead, which is the
+        // right question for "would the flip interrupt THIS frame" but says
+        // nothing about whether the flip can be requested at all.
+        //
+        // When the two disagree the gate waits for an event that cannot
+        // arrive. Live repro (headless Linux build, sim camera + sim mount,
+        // site 40N 42E, target pinned 12 min west of the meridian, threshold
+        // 5 min): the run reached 1/3 and reported
+        //   Waiting for the meridian flip before the next 2s exposure: the
+        //   flip became due 423s ago (hour angle +0.20h, threshold 5 min past
+        //   meridian) and would interrupt the frame
+        // then sat there, because the mount was never slewed to the target so
+        // its own hour angle never made the trigger fire. The overdue escape
+        // hatch above does not catch this: at 12 minutes past a 5-minute
+        // threshold the flip is only 7 minutes late, well inside
+        // OVERDUE_GRACE_SECS, so every frame paid the full 30-minute bound.
+        //
+        // Holding is only meaningful while the trigger could still fire. If
+        // the mount has not reported a position, or reports one east of the
+        // meridian, there is no flip to be interrupted by and the honest move
+        // is to expose. Checked at gate ENTRY only (`!announced`) so a hold
+        // that began legitimately still runs to MERIDIAN_GATE_MAX_WAIT while a
+        // flip is actually in progress — during a flip slew the mount's hour
+        // angle legitimately swings around.
+        let trigger_can_fire = polled_ha.is_some_and(|mount_ha| mount_ha > 0.0);
+        if !announced && !trigger_can_fire {
+            let observed = match polled_ha {
+                Some(mount_ha) => format!("reports hour angle {mount_ha:+.2}h"),
+                None => "has not reported a position".to_string(),
+            };
+            let message = format!(
+                "Not holding the next {exposure_secs:.0}s exposure for a meridian flip: the \
+                 target is {ha:+.2}h past the meridian but the mount {observed}, so the flip \
+                 trigger cannot fire. Exposing instead of waiting for a flip that will not \
+                 happen — check that the mount is tracking the target."
+            );
+            tracing::warn!("{}", message);
+            control.report(&message);
+            return None;
+        }
         if started.elapsed() > MERIDIAN_GATE_MAX_WAIT {
             let message = format!(
                 "Meridian gate held the next exposure for {}s without observing a \
@@ -1965,14 +2059,20 @@ async fn wait_for_meridian_flip_window(
             return None;
         }
         if !announced {
+            // Say which side of the fire time we are on. Clamping a negative
+            // `fire_in_secs` to zero reported "fires in ~0s" for a flip that
+            // was already due, which reads as "any second now" when the real
+            // state is "should have happened and has not".
+            let when = if fire_in_secs >= 0.0 {
+                format!("fires in ~{:.0}s", fire_in_secs)
+            } else {
+                format!("became due {:.0}s ago", -fire_in_secs)
+            };
             let message = format!(
                 "Waiting for the meridian flip before the next {:.0}s exposure: the flip \
-                 fires in ~{:.0}s (hour angle {:+.2}h, threshold {:.0} min past meridian) \
+                 {} (hour angle {:+.2}h, threshold {:.0} min past meridian) \
                  and would interrupt the frame",
-                exposure_secs,
-                fire_in_secs.max(0.0),
-                ha,
-                threshold_min
+                exposure_secs, when, ha, threshold_min
             );
             tracing::info!("{}", message);
             control.report(&message);
@@ -9065,6 +9165,204 @@ mod tests {
         );
     }
 
+    /// P1 regression, reproduced live 2026-08-09 against the Linux headless
+    /// build (`--headless`, sim camera + sim mount): 12 x 5s LIGHT on a target
+    /// at RA 12.5h / Dec +70 from a site at 40N 42E. Frame 1 was captured and
+    /// the run then sat at `1/12  8%` indefinitely, state "running", status
+    ///
+    ///   Waiting for the meridian flip before the next 5s exposure: the flip
+    ///   fires in ~0s (hour angle +9.88h, threshold 5 min past meridian) and
+    ///   would interrupt the frame
+    ///
+    /// No "Capturing frame 2/12" ever followed and no flip trigger ever fired:
+    /// `/api/mount/status` showed the mount parked at RA 0.0 with
+    /// `sideOfPier: unknown`, so the TRIGGER (which decides from the MOUNT's
+    /// hour angle) saw a negative HA and could never fire, while the GATE
+    /// (which predicts from the TARGET's hour angle) held for a flip that was
+    /// 9.9 hours overdue. `fire_in_secs` was about -35_000, and every negative
+    /// value counted as "imminent", so each frame paid the gate's full
+    /// 30-minute bound — a routine target past the meridian cost the night.
+    ///
+    /// The live rig tripped BOTH arms of this at once (overdue AND a mount the
+    /// trigger could not fire from). This test isolates the OVERDUE arm — it
+    /// gives the mount a tracking hour angle so the sibling
+    /// `gate_does_not_hold_when_the_mount_cannot_make_the_trigger_fire` guard
+    /// cannot be what releases the burst, and severing the overdue hatch
+    /// therefore still fails this test.
+    ///
+    /// This drives the PRODUCTION call site (the exposure burst), not the gate
+    /// helper. Pre-fix the burst never reaches frame 2 and trips the timeout.
+    #[tokio::test]
+    async fn overdue_meridian_flip_does_not_stall_the_exposure_burst() {
+        // Parked mount: keeps the daylight gate out of the way (a parked rig
+        // is not on-sky) without weakening the meridian gate, which keys only
+        // off frame type + target + mount id.
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_mount_parked(true));
+        let dir = std::env::temp_dir().join(format!("ns-mer-overdue-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let mut ec = crate::node::context::ExecutionContext::new("overdue-node".to_string());
+        ec.device_ops = ops.clone();
+        ec.camera_id = Some("camera-1".to_string());
+        ec.mount_id = Some("mount-1".to_string());
+        ec.save_path = Some(dir.clone());
+        ec.latitude = Some(40.0);
+        ec.longitude = Some(42.0);
+
+        let trigger_state = Arc::new(tokio::sync::RwLock::new(
+            crate::triggers::TriggerState::new(),
+        ));
+        {
+            let mut state = trigger_state.write().await;
+            state.meridian_flip_minutes_past = Some(5.0);
+            state.target_ra = Some(12.5);
+            state.target_dec = Some(70.0);
+            // Exactly what the live rig reported: no pier side, and no mount
+            // hour angle for the trigger to fire on.
+            state.pier_side = None;
+            // A mount that IS tracking the target and IS hours past the
+            // meridian, so `trigger_can_fire` holds and the sibling
+            // "mount cannot make the trigger fire" guard cannot be what
+            // releases this burst. Nothing clears `has_flipped_this_target`,
+            // which is the state a flip that was requested and then failed
+            // (or was retried to exhaustion) leaves behind. Only the overdue
+            // escape hatch can let these frames through.
+            state.current_hour_angle = Some(9.0);
+        }
+        ec.trigger_state = Some(trigger_state);
+
+        let control = BurstControl {
+            pause: ec.pause_gate(),
+            status: None,
+        };
+        let mut ctx = ec.to_instruction_context("overdue-node").await;
+        // Pin the target nine hours WEST of the meridian relative to the
+        // current sidereal time so the case under test does not depend on the
+        // hour of day the suite runs.
+        let lst = crate::meridian::local_sidereal_time(
+            crate::meridian::julian_day(&chrono::Utc::now()),
+            42.0,
+        );
+        ctx.target_ra = Some((lst - 9.0 + 24.0) % 24.0);
+        ctx.target_dec = Some(70.0);
+
+        let config = ExposureConfig {
+            count: 3,
+            duration_secs: 0.0,
+            frame_type: "light".to_string(),
+            ..ExposureConfig::default()
+        };
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(20),
+            execute_exposure_with_renderer(&config, &ctx, None, &control, |_, _| {}),
+        )
+        .await;
+
+        let completed = result.is_ok();
+        let exposures = ops.camera_exposure_calls.load(Ordering::SeqCst);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(
+            completed,
+            "a meridian flip that is hours overdue must not hold the burst; \
+             it stopped after {exposures} of 3 frames"
+        );
+        assert_eq!(
+            exposures, 3,
+            "every frame must be captured when the flip the gate is waiting on \
+             is already hours past due and will never fire"
+        );
+    }
+
+    /// The band the overdue escape hatch does NOT cover, reproduced live on
+    /// the headless Linux build (sim camera + sim mount, site 40N 42E, target
+    /// pinned 12 minutes west of the meridian, default 5-minute threshold):
+    ///
+    ///   19:03:00 | running | prog=0.333 | Waiting for the meridian flip
+    ///   before the next 2s exposure: the flip became due 423s ago (hour angle
+    ///   +0.20h, threshold 5 min past meridian) and would interrupt the frame
+    ///
+    /// and the run then sat at 1/3 for the rest of the watch window. Only 7
+    /// minutes overdue, so `OVERDUE_GRACE_SECS` does not release it — but the
+    /// mount was never slewed to the target, so `current_hour_angle` (the only
+    /// thing the TRIGGER reads) never made the flip fire. The gate was waiting
+    /// on an event that could not arrive, once per frame, 30 minutes a time.
+    ///
+    /// Drives the PRODUCTION call site (the exposure burst), not the helper.
+    #[tokio::test]
+    async fn gate_does_not_hold_when_the_mount_cannot_make_the_trigger_fire() {
+        let ops = Arc::new(ScriptedDomeRotatorOps::new().with_mount_parked(true));
+        let dir = std::env::temp_dir().join(format!("ns-mer-nofire-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let mut ec = crate::node::context::ExecutionContext::new("nofire-node".to_string());
+        ec.device_ops = ops.clone();
+        ec.camera_id = Some("camera-1".to_string());
+        ec.mount_id = Some("mount-1".to_string());
+        ec.save_path = Some(dir.clone());
+        ec.latitude = Some(40.0);
+        ec.longitude = Some(42.0);
+
+        let trigger_state = Arc::new(tokio::sync::RwLock::new(
+            crate::triggers::TriggerState::new(),
+        ));
+        {
+            let mut state = trigger_state.write().await;
+            state.meridian_flip_minutes_past = Some(5.0);
+            state.target_ra = Some(12.5);
+            state.target_dec = Some(70.0);
+            state.pier_side = None;
+            // Exactly the live rig's state: the mount never reported a
+            // position, so the MinutesPastMeridian trigger returns false on
+            // every evaluation and no flip can ever be requested.
+            state.current_hour_angle = None;
+        }
+        ec.trigger_state = Some(trigger_state);
+
+        let control = BurstControl {
+            pause: ec.pause_gate(),
+            status: None,
+        };
+        let mut ctx = ec.to_instruction_context("nofire-node").await;
+        // 12 minutes west of the meridian: past the 5-minute threshold, so the
+        // gate wants to hold, but only 7 minutes overdue — inside the grace
+        // window, so the overdue hatch cannot be what releases this.
+        let lst = crate::meridian::local_sidereal_time(
+            crate::meridian::julian_day(&chrono::Utc::now()),
+            42.0,
+        );
+        ctx.target_ra = Some((lst - 12.0 / 60.0 + 24.0) % 24.0);
+        ctx.target_dec = Some(70.0);
+
+        let config = ExposureConfig {
+            count: 3,
+            duration_secs: 0.0,
+            frame_type: "light".to_string(),
+            ..ExposureConfig::default()
+        };
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(20),
+            execute_exposure_with_renderer(&config, &ctx, None, &control, |_, _| {}),
+        )
+        .await;
+
+        let completed = result.is_ok();
+        let exposures = ops.camera_exposure_calls.load(Ordering::SeqCst);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(
+            completed,
+            "the gate must not hold for a flip the mount cannot make the trigger \
+             request; the burst stopped after {exposures} of 3 frames"
+        );
+        assert_eq!(
+            exposures, 3,
+            "every frame must be captured when no flip can ever be requested"
+        );
+    }
+
     /// The gate must still hold when a flip really is imminent, otherwise the
     /// fix above would just delete the feature.
     #[tokio::test]
@@ -9085,6 +9383,12 @@ mod tests {
             state.target_ra = Some(1.0);
             state.target_dec = Some(40.0);
             state.pier_side = Some(crate::PierSide::West);
+            // A mount that is TRACKING THE TARGET, which is what the executor's
+            // mount poll reports during a healthy run. The gate may only hold
+            // for a flip the trigger can actually request, and the trigger
+            // reads this field; leaving it None described a mount that reports
+            // no position at all, in which case declining to hold is correct.
+            state.current_hour_angle = Some(10.0 / 60.0);
         }
         ec.trigger_state = Some(trigger_state);
 

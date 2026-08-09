@@ -578,6 +578,16 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
     );
   }
 
+  /// True when the appliance has somewhere to check for releases.
+  ///
+  /// Unknown (the version card has not loaded yet) counts as "yes" so the
+  /// button is not disabled by a slow first poll.
+  bool get _hasUpdateServer {
+    final version = _version;
+    if (version == null) return true;
+    return (version.updateServerUrl ?? '').trim().isNotEmpty;
+  }
+
   Widget _buildActions(NightshadeColors colors) {
     final status = _status;
     final state = status?.state;
@@ -605,13 +615,20 @@ class _UpdateSettingsState extends ConsumerState<UpdateSettings> {
         !status.requiresManualUpgrade &&
         status.canAuthenticateUpdates;
     final canRollback = canAct && status.rollbackAvailable;
+    // A check against an appliance with no update server can only ever end
+    // one way: the card already says "No update server configured", the job
+    // is accepted (green "Check request accepted"), and the status then flips
+    // to "Update failed" with a raw UpdateException. Offering the button at
+    // all was an invitation to manufacture a scary failure state; the version
+    // card immediately above already explains what is missing.
+    final canCheck = canAct && _hasUpdateServer;
 
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         NightshadeButton(
-          onPressed: canAct ? () => _run('Check', _doCheck) : null,
+          onPressed: canCheck ? () => _run('Check', _doCheck) : null,
           label: 'Check for Updates',
           icon: LucideIcons.refreshCw,
           variant: ButtonVariant.primary,

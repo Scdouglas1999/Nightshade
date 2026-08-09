@@ -39,6 +39,36 @@ Future<String?> _pickCaptureDirectory(
   );
 }
 
+/// Resolve a leading `~` against this machine's home directory.
+///
+/// Returns [path] unchanged when there is no tilde to expand or no home to
+/// expand it against — a guess is worse than the honest "does not exist".
+/// Exported so the onboarding tests can pin the behaviour without reaching into
+/// the step's private state.
+String expandCaptureDirHome(String path) {
+  if (path != '~' && !path.startsWith('~/')) return path;
+  final home = Platform.environment['HOME'];
+  if (home == null || home.trim().isEmpty) return path;
+  if (path == '~') return home;
+  return '$home${Platform.pathSeparator}${path.substring(2)}';
+}
+
+/// The one line the step shows when the write probe fails.
+///
+/// [FileSystemException.message] is the generic dart:io phrase — a folder the
+/// user has no permission on reports "Cannot open file", which names no cause
+/// and suggests no remedy. The reason they can act on ("Permission denied",
+/// "Read-only file system", "No space left on device") only ever lives in
+/// [OSError.message], so lead with that and keep the generic phrase as the
+/// fallback for the platforms that supply no errno.
+@visibleForTesting
+String describeCaptureDirWriteFailure(FileSystemException error) {
+  final reason = error.osError?.message.trim() ?? '';
+  return reason.isEmpty
+      ? 'Not writable: ${error.message}'
+      : 'Not writable: $reason';
+}
+
 Future<String?> _validateCaptureDirectory(String path) async {
   if (path.trim().isEmpty) return 'Pick a folder to continue.';
   final dir = Directory(path);
@@ -51,7 +81,7 @@ Future<String?> _validateCaptureDirectory(String path) async {
     await probe.delete();
     return null;
   } on FileSystemException catch (error) {
-    return 'Not writable: ${error.message}';
+    return describeCaptureDirWriteFailure(error);
   } catch (error) {
     return 'Validation failed: $error';
   }
@@ -96,7 +126,7 @@ enum _FolderCheck {
 ///
 /// Lets the user pick a folder where Nightshade will save captures.
 /// Validation runs immediately on the chosen path:
-///   * the path must exist (or be creatable),
+///   * the path must already exist — nothing here creates a folder,
 ///   * the process must be able to write a probe file there.
 /// Both checks happen against the real filesystem — no shortcuts — so
 /// the user discovers permission issues before their first session
@@ -179,12 +209,16 @@ class _OnboardingCaptureDirStepState
   /// The failed text is left in the box so it can be corrected rather than
   /// retyped.
   Future<void> _commitTypedPath(String raw) async {
-    final path = raw.trim();
+    final isRemote = ref.read(isRemoteModeProvider);
+    // "~/Astro/Captures" is what people paste out of a terminal, and dart:io
+    // does not expand it, so the step used to answer a perfectly good folder
+    // with "That folder does not exist." Only the local branch may expand it —
+    // a tilde in a host path is the HOST's home, not this machine's.
+    final path = isRemote ? raw.trim() : expandCaptureDirHome(raw.trim());
     final current = ref.read(onboardingDraftProvider).captureDirectory?.trim();
     if (path.isEmpty || path == current) return;
     if (_selecting || _validating) return;
 
-    final isRemote = ref.read(isRemoteModeProvider);
     final authority = ref.read(backendProvider);
     final generation = ++_operationGeneration;
     setState(() {

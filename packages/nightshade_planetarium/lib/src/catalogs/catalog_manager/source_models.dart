@@ -59,12 +59,28 @@ enum CatalogPackage {
   /// Essential package: ~10MB
   /// - Stars: magnitude < 6.5 (~9,000 stars)
   /// - DSOs: Messier + NGC objects magnitude < 10 (~2,000 objects)
-  essential('Essential', 'Basic catalog for visual observation', 10, 6.5, 10.0),
+  essential(
+    'Essential',
+    'Basic catalog for visual observation',
+    10,
+    6.5,
+    10.0,
+    9000,
+    2000,
+  ),
 
   /// Standard package: ~30MB
   /// - Stars: magnitude < 8.0 (~40,000 stars)
   /// - DSOs: All NGC + IC objects magnitude < 12 (~8,000 objects)
-  standard('Standard', 'Recommended for most users', 30, 8.0, 12.0),
+  standard(
+    'Standard',
+    'Recommended for most users',
+    30,
+    8.0,
+    12.0,
+    40000,
+    8000,
+  ),
 
   /// Complete package: ~60MB
   /// - Stars: All HYG stars (~120,000 stars), complete to [kHygFaintFloorMag]
@@ -75,6 +91,8 @@ enum CatalogPackage {
     60,
     kHygFaintFloorMag,
     20.0,
+    120000,
+    13000,
   );
 
   final String displayName;
@@ -91,13 +109,39 @@ enum CatalogPackage {
   final double starMagnitudeLimit;
   final double dsoMagnitudeLimit;
 
+  /// Roughly how many HYG stars this package installs.
+  ///
+  /// A field rather than a doc comment because the setup dialog used to print
+  /// the [complete] figure ("~120,000 stars") above a selector that defaults to
+  /// [standard], so two of the three choices were advertised as delivering
+  /// three to thirteen times what they actually do.
+  final int approximateStarCount;
+
+  /// Roughly how many OpenNGC deep-sky objects this package installs. Same
+  /// reason as [approximateStarCount].
+  final int approximateDsoCount;
+
   const CatalogPackage(
     this.displayName,
     this.description,
     this.approximateSizeMB,
     this.starMagnitudeLimit,
     this.dsoMagnitudeLimit,
+    this.approximateStarCount,
+    this.approximateDsoCount,
   );
+}
+
+/// `9000` -> `9,000`. Thousands separators only; the counts are round
+/// approximations, so no locale-specific formatting is warranted.
+String formatCatalogCount(int count) {
+  final digits = count.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
 }
 
 /// Compile-time default base URL for the immutable GitHub release that hosts

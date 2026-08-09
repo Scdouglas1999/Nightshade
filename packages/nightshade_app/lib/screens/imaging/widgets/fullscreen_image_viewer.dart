@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -8,8 +9,9 @@ import 'image_display.dart';
 ///
 /// Pushed when the operator taps the live preview on a phone, where the in-place
 /// preview otherwise shares the short cover-screen height with the controls
-/// panel. System back or the close button exits; [InteractiveViewer] gives
-/// pinch-zoom + pan so a frame can actually be inspected on a small screen.
+/// panel. System back, Escape, or the close button exits; [InteractiveViewer]
+/// gives pinch-zoom + pan so a frame can actually be inspected on a small
+/// screen.
 class FullscreenImageViewer extends StatelessWidget {
   final CapturedImageData image;
 
@@ -32,6 +34,26 @@ class FullscreenImageViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    // Escape has to close this route. It is an opaque full-screen page whose
+    // ONLY exit on a desktop-sized window is a 40 px circle in the corner:
+    // there is no system back button, no barrier to click away, and the route
+    // covers the whole app. Verified live at 420x900 — Escape did nothing and
+    // the viewer stayed up. Every other modal in the app (pre-flight dialog,
+    // popup menus) dismisses on Escape, so this one silently breaks the habit.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          Navigator.of(context).maybePop();
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: _buildViewer(context, colors),
+      ),
+    );
+  }
+
+  Widget _buildViewer(BuildContext context, NightshadeColors colors) {
     return Scaffold(
       // absolute: image canvas backdrop stays pure black regardless of theme
       backgroundColor: Colors.black,
@@ -60,8 +82,14 @@ class FullscreenImageViewer extends StatelessWidget {
                   color: colors.surface.withValues(alpha: 0.72),
                   shape: const CircleBorder(),
                   child: IconButton(
-                    icon:
-                        Icon(NightshadeIcons.close, color: colors.textPrimary),
+                    icon: Icon(
+                      NightshadeIcons.close,
+                      color: colors.textPrimary,
+                      // The AT-SPI dump of this route was a single `button:`
+                      // with an EMPTY name — the tooltip alone did not reach
+                      // assistive tech, so the only exit was unnamed.
+                      semanticLabel: 'Close fullscreen image',
+                    ),
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),

@@ -976,6 +976,130 @@ void main() {
       );
     }, timeout: const Timeout(Duration(seconds: 90)));
 
+    // ---------------------------------------------------------------------
+    // Stop must not cry wolf when the run really did stop.
+    //
+    // Reproduced on the live rig (ZWO ASI1600MM-Cool / Pegasus NYX101) and
+    // again on the Linux simulator build, both byte-identical:
+    //
+    //   POST /api/sequencer/stop
+    //     -> 500 after 30.07 s, "TimeoutException ... The native executor
+    //        accepted the stop command but never reported a terminal state
+    //        within 30s. The hardware was NOT confirmed stopped, so nothing
+    //        has been torn down."
+    //   GET  /api/sequencer/status -> {"state":"cancelled"}   <- it HAD stopped
+    //
+    // The headless `load` -> `start` path runs the sequence on the NATIVE
+    // executor without calling SequenceExecutor.start(), so this executor
+    // never installs its event subscription and no terminal event can ever
+    // reach `_onTerminalEvent`. The device-service mirror still marks the
+    // state `running`, so Stop passes `canStop`, commands the native stop, and
+    // then waited on an event that structurally could not arrive.
+    // ---------------------------------------------------------------------
+    void stubNativeStatus(String state) {
+      when(
+        () => backend.sequencerGetStatus(),
+      ).thenAnswer((_) async => SequencerStatus(state: state, progress: 0.0));
+    }
+
+    test(
+      'a stop whose terminal event can never arrive is still confirmed from '
+      'the native executor own reported state, instead of a 30s false alarm',
+      () async {
+        final container = buildContainer();
+        final executor = await startRunning(container);
+
+        // The command is ACCEPTED and the native side never emits a terminal
+        // event — exactly the headless load->start path, where this executor
+        // has no subscription for one to arrive on.
+        when(() => backend.sequencerStop()).thenAnswer((_) async {});
+        // ...but the native executor itself says the run is over. That is the
+        // same authority the event carries, pulled instead of pushed.
+        stubNativeStatus('cancelled');
+
+        final watch = Stopwatch()..start();
+        await executor.stop();
+        watch.stop();
+
+        // Confirmed and fully torn down — no TimeoutException, no false claim.
+        expect(session.endedStatuses, ['stopped']);
+        expect(
+          container.read(sequenceExecutionStateProvider),
+          SequenceExecutionState.idle,
+        );
+        expect(container.read(currentRunIdProvider), isNull);
+        // Promptly, not after the 30 s confirmation window. Generous bound so
+        // this asserts "did not wait for the timeout", not a latency budget.
+        expect(
+          watch.elapsed,
+          lessThan(kNativeStopConfirmationTimeout ~/ 3),
+          reason: 'the poll must confirm without burning the timeout',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
+
+    test(
+      'stopping an already-terminal run returns promptly instead of blocking '
+      'for the full confirmation window',
+      () async {
+        final container = buildContainer();
+        final executor = await startRunning(container);
+        when(() => backend.sequencerStop()).thenAnswer((_) async {});
+        stubNativeStatus('cancelled');
+
+        // First stop settles the run.
+        await executor.stop();
+        expect(
+          container.read(sequenceExecutionStateProvider),
+          SequenceExecutionState.idle,
+        );
+
+        // The live rig answered a SECOND stop against the finished run with
+        // another full 30 s block and the same false "NOT confirmed stopped"
+        // message. Repeats must be immediate no-ops.
+        for (var i = 0; i < 2; i++) {
+          final watch = Stopwatch()..start();
+          await executor.stop();
+          watch.stop();
+          expect(
+            watch.elapsed,
+            lessThan(kNativeStopConfirmationTimeout ~/ 3),
+            reason: 'stop #${i + 2} on a finished run must not block',
+          );
+        }
+        expect(session.endedStatuses, ['stopped']);
+      },
+      timeout: const Timeout(Duration(seconds: 90)),
+    );
+
+    test(
+      'a native executor that reports itself still running is NOT treated as '
+      'confirmation — the honest stopFailed is preserved',
+      () async {
+        final container = buildContainer();
+        final executor = await startRunning(container);
+        when(() => backend.sequencerStop()).thenAnswer((_) async {});
+        // The poll must never manufacture a confirmation. If native still says
+        // `running`, the camera may still be exposing and the operator must get
+        // the truthful refusal, not a teardown on a guess.
+        stubNativeStatus('running');
+
+        await expectLater(
+          executor.stop(),
+          throwsA(isA<TimeoutException>()),
+          reason: 'a live native executor must not confirm a stop',
+        );
+        expect(
+          container.read(sequenceExecutionStateProvider),
+          SequenceExecutionState.stopFailed,
+        );
+        expect(container.read(currentRunIdProvider), isNotNull);
+        expect(session.endedStatuses, isEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 120)),
+    );
+
     test('coalesces duplicate stop calls', () async {
       final container = buildContainer();
       final gate = Completer<void>();

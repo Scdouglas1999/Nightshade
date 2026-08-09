@@ -204,11 +204,21 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                         style: TextStyle(color: colors.textPrimary),
                       ),
                       const SizedBox(height: 12),
+                      // Both counts follow the SELECTED package. They used to
+                      // be the Complete figures no matter what was selected,
+                      // which advertised 120,000 stars to a user taking the
+                      // Standard default that installs about 40,000.
                       _buildCatalogInfo(
-                          colors, 'HYG Star Database', '~120,000 stars'),
+                        colors,
+                        'HYG Star Database',
+                        '~${formatCatalogCount(_selectedPackage.approximateStarCount)} stars',
+                      ),
                       const SizedBox(height: 8),
                       _buildCatalogInfo(
-                          colors, 'OpenNGC', '~13,000 DSOs (NGC/IC)'),
+                        colors,
+                        'OpenNGC',
+                        '~${formatCatalogCount(_selectedPackage.approximateDsoCount)} DSOs (NGC/IC)',
+                      ),
                     ],
                   ),
                 ),
@@ -404,6 +414,17 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                     package.description,
                     style: TextStyle(
                       color: colors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  // What the download actually contains. A megabyte figure
+                  // does not tell an imager whether their target will be in
+                  // the catalog; a star/DSO count does.
+                  Text(
+                    '~${formatCatalogCount(package.approximateStarCount)} stars · '
+                    '~${formatCatalogCount(package.approximateDsoCount)} DSOs',
+                    style: TextStyle(
+                      color: colors.textMuted,
                       fontSize: 12,
                     ),
                   ),

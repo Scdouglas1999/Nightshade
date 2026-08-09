@@ -90,6 +90,45 @@ void main() {
       },
     );
 
+    test(
+      'ensureDirectory creates the base URL path when the server 409s',
+      () async {
+        // RFC 4918 §9.3.1: a spec-compliant server answers 409 Conflict when
+        // MKCOL's parent collection is missing. The parent of the first
+        // relative segment is the base URL's own path, so a base folder the
+        // operator has not created by hand used to fail every single push
+        // with "remote state conflict (HTTP 409)".
+        final existing = <String>{
+          '/',
+          '/remote.php/',
+          '/remote.php/dav/',
+          '/remote.php/dav/files/',
+        };
+        final paths = <String>[];
+        final client = MockClient((request) async {
+          expect(request.method, 'MKCOL');
+          final path = request.url.path;
+          paths.add(path);
+          final parent = path.substring(
+            0,
+            path.lastIndexOf('/', path.length - 2) + 1,
+          );
+          if (!existing.contains(parent)) return http.Response('', 409);
+          if (existing.contains(path)) return http.Response('', 405);
+          existing.add(path);
+          return http.Response('', 201);
+        });
+
+        await targetWith(client).ensureDirectory('nightshade-sync/obsy-pi');
+
+        // The 409 is recovered by creating /remote.php/dav/files/astro/ and
+        // then retrying, rather than surfacing as a failed backup.
+        expect(paths.first, endsWith('/astro/nightshade-sync/'));
+        expect(paths, contains('/remote.php/dav/files/astro/'));
+        expect(paths.last, endsWith('/astro/nightshade-sync/obsy-pi/'));
+      },
+    );
+
     test('downloadFile returns body bytes on 200', () async {
       final client = MockClient((request) async {
         expect(request.method, 'GET');

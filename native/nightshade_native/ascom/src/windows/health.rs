@@ -106,6 +106,24 @@ impl HealthMonitor {
         }
     }
 
+    /// Mark the connection failed outright, without waiting for `max_failures`.
+    ///
+    /// `record_failure` is built for *heartbeats*, where one missed poll is
+    /// noise and only a run of them means anything — so it needs three strikes
+    /// before it flips `is_healthy`. A refused connect is not noise: the driver
+    /// has already been given the full read-back budget and did not come up.
+    /// Routing that through `record_failure` leaves `failure_count = 1` of 3
+    /// and `is_healthy = true`, and because `connect()` calls [`Self::reset`]
+    /// on entry (which zeroes `last_success`), `get_health()` then answers
+    /// `Unknown` — which `AscomDeviceConnection::is_healthy` treats as fine.
+    /// Measured against the phantom `ASCOM.ASIMount.Telescope` on 2026-08-09:
+    /// after a connect that was correctly refused, `is_healthy()` still
+    /// returned `true`.
+    pub fn mark_failed(&self) {
+        self.record_failure();
+        self.is_healthy.store(false, Ordering::SeqCst);
+    }
+
     /// Get the current health status
     pub fn get_health(&self) -> ConnectionHealth {
         if !self.is_healthy.load(Ordering::SeqCst) {
@@ -159,5 +177,49 @@ impl HealthMonitor {
         )
         .unwrap_or(u64::MAX);
         Some(now.saturating_sub(last))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shape `AscomDeviceConnection::connect` takes on a refused connect:
+    /// `reset()` on entry, then one failure. `record_failure` alone is not
+    /// enough to make the monitor stop vouching for the device.
+    #[test]
+    fn one_record_failure_after_reset_still_reports_healthy() {
+        let health = HealthMonitor::default();
+        health.reset();
+        health.record_failure();
+
+        // Documents WHY `mark_failed` has to exist. If this ever starts
+        // failing, `record_failure` has become conclusive on its own and
+        // `mark_failed` can collapse into it.
+        assert_eq!(health.get_health(), ConnectionHealth::Unknown);
+    }
+
+    #[test]
+    fn mark_failed_is_conclusive_on_the_first_call() {
+        let health = HealthMonitor::default();
+        health.reset();
+        health.mark_failed();
+
+        assert_eq!(
+            health.get_health(),
+            ConnectionHealth::Failed,
+            "a refused connect must leave the monitor reporting Failed, not Unknown"
+        );
+    }
+
+    /// `mark_failed` must not weaken the heartbeat path it shares state with:
+    /// a later success is still allowed to bring the device back.
+    #[test]
+    fn a_later_success_clears_a_marked_failure() {
+        let health = HealthMonitor::default();
+        health.mark_failed();
+        health.record_success();
+
+        assert_eq!(health.get_health(), ConnectionHealth::Healthy);
     }
 }

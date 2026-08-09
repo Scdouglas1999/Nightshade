@@ -172,6 +172,41 @@ void main() {
   );
 
   testWidgets(
+    'the count stepper keeps incrementing on repeated + taps',
+    (tester) async {
+      // Regression: the popup was built from the node SNAPSHOT captured when
+      // the chip was tapped, so every '+' recomputed `snapshot.count + 1`.
+      // Live on the desktop build, a stepper opened on 4 went 4 -> 5 and then
+      // eight more '+' taps changed nothing while the popup still read '4'.
+      // One tap could never catch this, which is why the test above did not.
+      final container = _container();
+
+      await _pumpTreeWithNode(
+        tester,
+        container,
+        ExposureNode(count: 5, durationSecs: 120, filter: 'Lum'),
+      );
+
+      final countChip = find.ancestor(
+        of: find.text('5'),
+        matching: find.byType(InkWell),
+      );
+      await tester.tap(countChip.first);
+      await tester.pumpAndSettle();
+
+      for (var i = 0; i < 3; i++) {
+        await tester.tap(find.bySemanticsLabel('Increase'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+
+      expect(_exposureFrom(container).count, 8);
+      // The popup must also SHOW the value it committed, not the stale one.
+      expect(find.text('8'), findsWidgets);
+    },
+  );
+
+  testWidgets(
     'tapping the gain chip and typing a value round-trips through updateNode',
     (tester) async {
       final container = _container();

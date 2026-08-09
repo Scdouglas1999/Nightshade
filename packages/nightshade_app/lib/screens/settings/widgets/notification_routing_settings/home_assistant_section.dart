@@ -17,6 +17,16 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
   final _deviceName = TextEditingController();
   bool _initialized = false;
 
+  /// Bumped whenever the publish toggle is refused, to rebuild the switch.
+  ///
+  /// [SettingsSwitch] flips optimistically and only re-reads `value` when a
+  /// write is in flight, so a handler that simply returns leaves the switch
+  /// drawn ON while the stored config stays OFF — the user then presses Save,
+  /// is told "Home Assistant config saved", and finds discovery still off on
+  /// the next visit. Changing the switch's key forces a fresh State whose
+  /// initState reads the real value back.
+  int _refusedFlips = 0;
+
   @override
   void dispose() {
     _deviceName.dispose();
@@ -62,6 +72,7 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
                       'device (uses the MQTT broker above)'
                   : 'Configure the MQTT broker above first',
               trailing: SettingsSwitch(
+                key: ValueKey('ha-publish-$_refusedFlips'),
                 value: cfg.enabled,
                 onChanged: (v) {
                   if (v && !brokerConfigured) {
@@ -71,6 +82,7 @@ class _HomeAssistantSectionState extends ConsumerState<_HomeAssistantSection> {
                               'Set an MQTT broker host above before enabling '
                               'Home Assistant discovery')),
                     );
+                    setState(() => _refusedFlips++);
                     return;
                   }
                   _save((c) => c.copyWith(enabled: v));

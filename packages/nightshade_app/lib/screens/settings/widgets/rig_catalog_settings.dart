@@ -134,6 +134,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     required String actionLabel,
     required String successMessage,
     String? catalogName,
+    String? Function()? successMessageOverride,
     required Future<void> Function(NetworkBackend backend) action,
   }) async {
     if (_busy || _confirmationOpen) return;
@@ -148,7 +149,12 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     try {
       await action(backend);
       if (mounted && _isCurrentAction(backend, token)) {
-        context.showSuccessSnackBar(successMessage);
+        final override = successMessageOverride?.call();
+        if (override != null) {
+          context.showInfoSnackBar(override);
+        } else {
+          context.showSuccessSnackBar(successMessage);
+        }
       }
     } catch (e) {
       if (mounted && _isCurrentAction(backend, token)) {
@@ -205,24 +211,53 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   }
 
   Future<void> _verifyCatalog(RemoteCatalogStatus catalog) {
+    final label = _displayNameFor(catalog);
+    String? note;
     return _run(
       actionLabel: 'Verify',
-      successMessage: '${catalog.name} catalog verified',
+      successMessage: '${_catalogPhrase(label)} verified',
       catalogName: catalog.name,
+      successMessageOverride: () => note,
       action: (backend) async {
+        note = null;
         final results = await backend.verifyCatalog(name: catalog.name);
         final result = results[catalog.name];
         if (result == null) {
           throw StateError('the appliance returned no verification result');
         }
-        if (!result.ok) {
-          final detail = result.errors.isEmpty
-              ? 'hash verification did not match'
-              : result.errors.join('; ');
-          throw StateError(detail);
+        if (result.ok) return;
+        // "No recorded checksum" is NOT a failed verification, and reporting
+        // it as one told operators their plate-solve catalog was corrupt.
+        // Catalogs installed before the installer began recording a sha256
+        // sidecar have nothing to compare against, so say that instead.
+        if (result.errors.length == 1 &&
+            result.errors.single == 'no_expected_hash') {
+          note = 'No checksum was recorded for $label when it was installed, '
+              'so there is nothing to verify it against. Re-download it to '
+              'record one.';
+          return;
         }
+        throw StateError(_describeVerifyErrors(result.errors));
       },
     );
+  }
+
+  /// Plain-English rendering of the verify error codes the appliance returns.
+  static String _describeVerifyErrors(List<String> errors) {
+    if (errors.isEmpty) return 'hash verification did not match';
+    return errors
+        .map(
+          (code) => switch (code) {
+            'hash_mismatch' =>
+              'the file on the appliance does not match its recorded '
+                  'checksum — re-download it',
+            'not_installed' => 'the catalog is not installed on the appliance',
+            'no_expected_hash' =>
+              'no checksum was recorded when this catalog was installed',
+            _ => code,
+          },
+        )
+        .join('; ');
   }
 
   Future<void> _confirmUninstall(RemoteCatalogStatus catalog) async {
@@ -234,7 +269,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     try {
       confirmed = await ConfirmDialog.show(
         context: context,
-        title: 'Remove ${catalog.name} catalog?',
+        title: 'Remove ${_catalogPhrase(_displayNameFor(catalog))}?',
         message: 'Features that depend on this catalog will stop working on '
             'the appliance until it is downloaded again.',
         confirmLabel: 'Remove',
@@ -250,7 +285,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
     }
     await _run(
       actionLabel: 'Remove',
-      successMessage: '${catalog.name} catalog removed',
+      successMessage: '${_catalogPhrase(_displayNameFor(catalog))} removed',
       catalogName: catalog.name,
       action: (authority) => authority.uninstallCatalog(catalog.name),
     );
@@ -269,6 +304,32 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   }
 
   bool get _isInstalled => _installed.isNotEmpty;
+
+  /// The product name for an installed catalog.
+  ///
+  /// The status endpoint identifies catalogs by wire key ('stars', 'dso',
+  /// 'annotation'); the manifest right below on the same page calls the very
+  /// same three things "HYG Star Database", "OpenNGC Deep Sky Objects" and
+  /// "GLADE+ Galaxy Catalog". Showing both spellings on one screen left
+  /// nothing connecting 'annotation' to GLADE+, including in the Remove
+  /// confirmation. Fall back to the key when the manifest is unavailable.
+  String _displayNameFor(RemoteCatalogStatus catalog) {
+    for (final available in _available) {
+      if (available.name.toLowerCase() == catalog.name.toLowerCase()) {
+        final display = available.displayName.trim();
+        if (display.isNotEmpty) return display;
+      }
+    }
+    return catalog.name;
+  }
+
+  /// "<name> catalog", without saying "catalog" twice.
+  ///
+  /// The wire keys ('stars', 'dso') need the noun to read as English; the
+  /// manifest display names ('GLADE+ Galaxy Catalog') already carry it.
+  static String _catalogPhrase(String label) {
+    return label.toLowerCase().contains('catalog') ? label : '$label catalog';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -371,7 +432,7 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
                   size: 16, color: ok ? colors.success : colors.warning),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(c.name,
+                child: Text(_displayNameFor(c),
                     style: TextStyle(
                         color: colors.textPrimary,
                         fontSize: NightshadeTypography.fontSize14,

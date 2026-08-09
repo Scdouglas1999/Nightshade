@@ -193,6 +193,18 @@ class _InlineEditorBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Re-resolve the node from the LIVE sequence on every build. The node the
+    // chip handed to [showInlineNodeEditor] is a snapshot taken at tap time,
+    // and every editor below commits `node.copyWith(...)`. Building from the
+    // snapshot therefore recomputes each edit from the ORIGINAL value: a
+    // stepper opened on count 4 moves to 5 on the first '+', then every later
+    // '+' re-applies 4+1 and is a silent no-op, while the popup keeps
+    // rendering the stale 4. Watching the tree makes each commit build on the
+    // previous one and keeps the displayed value honest.
+    final node = ref.watch(
+          currentSequenceProvider.select((s) => s?.nodes[this.node.id]),
+        ) ??
+        this.node;
     return switch (kind) {
       InlineEditKind.exposureFilter => _ExposureFilterEditor(
           node: _expect<ExposureNode>(node, kind),

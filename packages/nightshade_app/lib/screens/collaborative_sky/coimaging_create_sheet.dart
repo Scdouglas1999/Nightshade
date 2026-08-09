@@ -108,6 +108,12 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
   /// Show per-field "required" errors only after a submit attempt, so the form
   /// does not open pre-scolded; live invalid-format errors show as soon as a
   /// non-empty field cannot parse.
+  ///
+  /// This is why "Start session" stays pressable on an incomplete form: gating
+  /// the button on the form already validating made [_create] — the only thing
+  /// that sets this flag — unreachable, so pressing the primary action on an
+  /// empty sheet did nothing at all and none of the "required" messages could
+  /// ever render.
   bool _submitted = false;
   bool _busy = false;
   String? _error;
@@ -153,11 +159,8 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
     final raDeg = _parseRaDegrees(_raController.text);
     final decDeg = _parseDecDegrees(_decController.text);
     final radiusDeg = _parseRadiusDegrees(_radiusController.text);
-    final canCreate = name.isNotEmpty &&
-        raDeg != null &&
-        decDeg != null &&
-        radiusDeg != null &&
-        !_busy;
+    final isComplete =
+        name.isNotEmpty && raDeg != null && decDeg != null && radiusDeg != null;
 
     // Surface, not NightshadeDialog: showAdaptiveModal already supplies the
     // frame (a Dialog on desktop, a bottom sheet on a phone). Nesting a second
@@ -173,11 +176,14 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
           variant: ButtonVariant.ghost,
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
         ),
+        // Pressable whenever the sheet is idle. An incomplete form is answered
+        // by _create marking the fields that are missing, not by a dead button
+        // that gives the operator nothing to act on.
         NightshadeButton(
           label: _busy ? 'Starting…' : 'Start session',
           icon: LucideIcons.radio,
           isLoading: _busy,
-          onPressed: canCreate ? _create : null,
+          onPressed: _busy ? null : _create,
         ),
       ],
       child: Column(
@@ -270,7 +276,7 @@ class _CoImagingCreateSheetState extends ConsumerState<_CoImagingCreateSheet> {
             textInputAction: TextInputAction.done,
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) {
-              if (canCreate) _create();
+              if (isComplete && !_busy) _create();
             },
             errorText: _fieldError(
               _radiusController.text,

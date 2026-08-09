@@ -820,6 +820,50 @@ fn tree_needs_base_save_path(node: &dyn Node) -> bool {
             .any(|child| tree_needs_base_save_path(&**child))
 }
 
+/// True when some node in the tree cannot run without a camera.
+///
+/// Deliberately NOT the same predicate as [`tree_needs_base_save_path`]: an
+/// absolute `save_to` frees a `TakeExposure` from the run's base save path, but
+/// nothing frees it from needing a camera to expose with.
+fn tree_needs_camera(node: &dyn Node) -> bool {
+    let needs_here = matches!(
+        node.node_type(),
+        NodeType::TakeExposure(_) | NodeType::SmartExposure(_) | NodeType::FlatWizard(_)
+    );
+    needs_here
+        || node
+            .children()
+            .iter()
+            .any(|child| tree_needs_camera(&**child))
+}
+
+/// Confirm the run has a camera to expose with.
+///
+/// `camera_id` stays `None` until something calls `set_devices()`. The Dart
+/// executor does that from the connected-device providers on every start; the
+/// headless `load -> start` path did not, so the run began with no camera, the
+/// first `TakeExposure` failed with "No camera connected", and that string is
+/// classified as a device *disconnect* — which sends the run into the recovery
+/// loop to wait for a device that was never configured to come back.
+///
+/// Reproduced on the live rig (ZWO ASI1600MM-Cool) on 2026-08-09:
+/// `POST /api/sequencer/start` answered `{"status":"started"}` and the run then
+/// sat at `{"state":"recovering","message":"Recovering: Device disconnected",
+/// "progress":0.0}` with no frames, while `GET /api/devices/connected` listed
+/// that same camera. Refuse at Start instead: no amount of waiting can populate
+/// an id, so the retry is futile by construction.
+fn validate_capture_camera(camera_id: Option<&str>) -> Result<(), String> {
+    if camera_id.map(str::trim).is_some_and(|id| !id.is_empty()) {
+        return Ok(());
+    }
+    Err(
+        "This sequence captures frames but no camera is assigned to the run. Connect a \
+         camera and assign it before starting — every exposure would otherwise fail and the \
+         run would sit in recovery waiting for a camera it was never given."
+            .to_string(),
+    )
+}
+
 /// Collect every instruction in the tree that the executor can never reach,
 /// as `"<name>"` labels in tree order.
 ///
@@ -2103,8 +2147,16 @@ pub(crate) async fn run_recovery_attempt(
         }
         RecoveryCause::DeviceDisconnected => {
             if device_ids.is_empty() {
-                return AttemptOutcome::Failed {
-                    message: "No device ids are configured; cannot verify reconnect".to_string(),
+                // Terminal, not retryable. With no ids there is nothing to
+                // reconnect and nothing to poll, so attempt 2 through 9 would
+                // return this identical message — 90 minutes of an unattended
+                // night spent in `recovering / Device disconnected` at
+                // `progress 0.0`. Fail loudly on the first attempt instead.
+                return AttemptOutcome::Unrecoverable {
+                    message: "No devices are assigned to this run, so there is nothing to \
+                              reconnect. The run cannot continue — assign the camera (and any \
+                              other hardware the sequence uses) and start again."
+                        .to_string(),
                 };
             }
 
@@ -2462,6 +2514,21 @@ impl SequenceExecutor {
             .is_some_and(|root| tree_needs_base_save_path(&**root))
         {
             validate_capture_save_path(self.save_path.as_deref())?;
+        }
+
+        // Camera preflight. A sequence that exposes with no camera assigned is
+        // not a run either: the first TakeExposure fails "No camera connected",
+        // which the disconnect classifier promotes to a DeviceDisconnected
+        // recovery, and the run then burns its whole recovery budget waiting for
+        // a device that was never configured. Refuse it here, beside the
+        // save-path check, so every start path (desktop, mobile, headless
+        // load->start) gets the same answer.
+        if self
+            .root_node
+            .as_ref()
+            .is_some_and(|root| tree_needs_camera(&**root))
+        {
+            validate_capture_camera(self.camera_id.as_deref())?;
         }
 
         // Unreachable-instruction preflight. Detected before the mount moves so
@@ -4648,6 +4715,29 @@ impl SequenceExecutor {
                                             context: Box::new(ctx.clone()),
                                         },
                                     );
+                                }
+                                crate::recovery::AttemptOutcome::Unrecoverable { message } => {
+                                    tracing::error!(
+                                        "[RECOVERY] Cause {:?} is not retryable: {} — ending the \
+                                         loop after {} attempt(s) instead of burning the budget",
+                                        ctx.cause,
+                                        message,
+                                        ctx.attempt_count
+                                    );
+                                    // Take the ordinary give-up path (park, close
+                                    // cover/dome, fail) rather than sleeping the
+                                    // retry interval for an answer that cannot change.
+                                    aborted_by_user = false;
+                                    recovered = false;
+                                    ctx.last_error = Some(message);
+                                    ctx.phase = crate::recovery::RecoveryPhase::GaveUp;
+                                    *recovery_driver_current.write() = Some(ctx.clone());
+                                    let _ = recovery_driver_event_tx.send(
+                                        ExecutorEvent::RecoveryProgress {
+                                            context: Box::new(ctx.clone()),
+                                        },
+                                    );
+                                    break;
                                 }
                                 crate::recovery::AttemptOutcome::Cancelled => {
                                     tracing::info!("[RECOVERY] Attempt cancelled — exiting loop");
@@ -7798,11 +7888,152 @@ mod tests {
             .load_sequence(single_exposure_sequence(None))
             .expect("sequence loads");
         executor.set_save_path(Some(dir.clone()));
+        // A camera is now equally mandatory for a capture run; assign one so
+        // this test still isolates the SAVE-PATH gate.
+        executor.set_devices(Some("cam-1".to_string()), None, None, None, None);
 
         let result = executor.start().await;
         executor.stop().await.ok();
         let _ = std::fs::remove_dir_all(&dir);
         assert!(result.is_ok(), "unexpected refusal: {:?}", result.err());
+    }
+
+    /// Live-rig L6 (2026-08-09). A capture sequence started with NO camera
+    /// assigned answered `{"status":"started"}` and then sat at
+    /// `{"state":"recovering","message":"Recovering: Device disconnected",
+    /// "progress":0.0}` writing nothing, because `TakeExposure` failed
+    /// "No camera connected", the disconnect classifier promoted that to a
+    /// `DeviceDisconnected` recovery, and the loop then waited for a device
+    /// that was never configured.
+    ///
+    /// Reverting either `tree_needs_camera` or the `validate_capture_camera`
+    /// call in `start()` puts the run back on that path: this test then sees
+    /// `Ok` from `start()` instead of the refusal.
+    #[tokio::test]
+    async fn start_refuses_a_capture_sequence_with_no_camera() {
+        let dir = std::env::temp_dir().join(format!("ns-cam-gate-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_exposure_sequence(None))
+            .expect("sequence loads");
+        // Save path is fine — this must isolate the CAMERA gate, so the run
+        // cannot be refused for the reason the save-path preflight already
+        // covers.
+        executor.set_save_path(Some(dir.clone()));
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("a capture run with no camera assigned must be refused");
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(
+            error.contains("camera"),
+            "the refusal must name the camera; got: {error}"
+        );
+        assert!(
+            !error.contains("save path"),
+            "must fail on the camera, not fall through to the save-path gate: {error}"
+        );
+    }
+
+    /// The same tree starts once a camera is assigned — proving the gate keys
+    /// on the missing camera and nothing else. This mirrors the live-rig proof:
+    /// with `POST /api/sequencer/devices` pushing the camera id (and the
+    /// equipment profile still empty) the identical sequence ran to
+    /// `{"state":"completed","progress":1.0}`.
+    #[tokio::test]
+    async fn start_accepts_a_capture_sequence_once_a_camera_is_assigned() {
+        let dir = std::env::temp_dir().join(format!("ns-cam-gate-ok-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_exposure_sequence(None))
+            .expect("sequence loads");
+        executor.set_save_path(Some(dir.clone()));
+        executor.set_devices(
+            Some("ascom:ASCOM.ASICamera2.Camera".to_string()),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(result.is_ok(), "unexpected refusal: {:?}", result.err());
+    }
+
+    /// The gate must not over-reach: a sequence that never exposes needs no
+    /// camera, and refusing one would break every park / delay / notification
+    /// utility sequence on a rig with the camera intentionally left off.
+    #[tokio::test]
+    async fn start_allows_a_non_capturing_sequence_with_no_camera() {
+        let mut sequence = SequenceDefinition::new("No capture".to_string());
+        sequence.nodes.push(crate::NodeDefinition {
+            id: "root".to_string(),
+            name: "Wait".to_string(),
+            node_type: crate::NodeType::Delay(crate::DelayConfig { seconds: 0.01 }),
+            enabled: true,
+            children: vec![],
+        });
+        sequence.root_node_id = Some("root".to_string());
+
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor.load_sequence(sequence).expect("sequence loads");
+
+        let result = executor.start().await;
+        executor.stop().await.ok();
+        assert!(
+            result.is_ok(),
+            "a sequence with no exposure must not need a camera: {:?}",
+            result.err()
+        );
+    }
+
+    /// An absolute `save_to` exempts a `TakeExposure` from the base-save-path
+    /// gate, but nothing exempts it from needing a camera. This is the exact
+    /// shape used to reproduce L6 on the rig (an absolute `save_to` was what
+    /// got the run past the save-path preflight and into the recovery hang).
+    #[tokio::test]
+    async fn start_refuses_an_absolute_save_to_capture_with_no_camera() {
+        let dir = std::env::temp_dir().join(format!("ns-cam-abs-{}", uuid::Uuid::new_v4()));
+        let mut executor = SequenceExecutor::new();
+        executor.set_device_ops(Arc::new(crate::device_ops::NullDeviceOps));
+        executor
+            .load_sequence(single_exposure_sequence(Some(
+                dir.to_string_lossy().into_owned(),
+            )))
+            .expect("sequence loads");
+        // Deliberately NO base save path: the absolute save_to is what makes
+        // the save-path gate stand down, exactly as on the rig.
+        executor.set_save_path(None);
+
+        let error = executor
+            .start()
+            .await
+            .expect_err("an absolute save_to does not remove the need for a camera");
+        executor.stop().await.ok();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(
+            error.contains("camera"),
+            "the refusal must name the camera; got: {error}"
+        );
+    }
+
+    /// Unit-level companion to the two `start()` tests above: the whitespace
+    /// case. An id of `"   "` is not an id, and treating it as one would send
+    /// the run straight back into the disconnect-recovery loop.
+    #[test]
+    fn validate_capture_camera_rejects_absent_and_blank_ids() {
+        assert!(validate_capture_camera(None).is_err());
+        assert!(validate_capture_camera(Some("")).is_err());
+        assert!(validate_capture_camera(Some("   ")).is_err());
+        assert!(validate_capture_camera(Some("ascom:ASCOM.ASICamera2.Camera")).is_ok());
     }
 
     #[test]

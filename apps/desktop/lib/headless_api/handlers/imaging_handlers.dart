@@ -228,10 +228,22 @@ class ImagingHandlers {
   Future<Response> handleSetPlateSolverConfig(Request request) async {
     _logInfo('[API] POST /api/plate-solver/config');
     final payload = await readJsonObject(request);
+    // Empty is a legitimate value for all three paths — "no Astrometry.net
+    // installed" is the normal state for the many rigs that only run ASTAP,
+    // and "" is precisely what handleGetPlateSolverConfig hands back for an
+    // unset path. Requiring non-empty made the GET document one the POST
+    // refused, so a remote client could not set the ASTAP catalog directory
+    // at all: the save died with 400 invalid_request on the *other*, untouched
+    // field and the setting silently stayed unset. Only the solver choice is
+    // genuinely mandatory.
     final pref = PlateSolverPreference(
-      astapPath: requireString(payload, 'astapPath'),
-      astrometryPath: requireString(payload, 'astrometryPath'),
-      catalogPath: requireString(payload, 'catalogPath'),
+      astapPath: requireString(payload, 'astapPath', allowEmpty: true),
+      astrometryPath: requireString(
+        payload,
+        'astrometryPath',
+        allowEmpty: true,
+      ),
+      catalogPath: requireString(payload, 'catalogPath', allowEmpty: true),
       choice: PlateSolverChoice.fromSerialized(
         requireString(payload, 'solverChoice'),
       ),

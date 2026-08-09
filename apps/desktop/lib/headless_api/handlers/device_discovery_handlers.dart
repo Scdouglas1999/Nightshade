@@ -68,7 +68,21 @@ class DeviceDiscoveryHandlers {
       final discoveryErrors = <String, String>{};
       if (deviceTypeStr != null) {
         final deviceType = parseDeviceType(deviceTypeStr);
-        if (deviceType != null) {
+        // A type this endpoint cannot parse used to fall straight through to
+        // `allDevices = []` and return 200 {"devices":[]} — telling the caller
+        // authoritatively that the rig has no such hardware when the truth was
+        // that the word was not understood. Found live: `?deviceType=switch`
+        // reported zero switches on a rig with six, because the enum member is
+        // `switch_` (Dart reserves `switch`). Every sibling handler already
+        // rejects an unparseable type; this one now matches them.
+        if (deviceType == null) {
+          throw BadRequestError(
+            field: 'deviceType',
+            expected: 'one of: ${validDeviceTypeList()}',
+            message: 'Unknown device type: $deviceTypeStr',
+          );
+        }
+        {
           try {
             allDevices = await backend.discoverDevices(deviceType);
           } catch (e, stackTrace) {

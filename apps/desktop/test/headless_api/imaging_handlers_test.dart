@@ -39,6 +39,78 @@ void main() {
     });
 
     test(
+      'plate-solver config accepts empty paths so an ASTAP-only rig can save',
+      () async {
+        // Reproduced against a live appliance: setting the ASTAP catalog
+        // directory from a paired remote client died with
+        // 400 invalid_request on astrometryPath, which was empty because no
+        // Astrometry.net is installed. GET returns astrometryPath:"" for that
+        // rig, so requiring non-empty made the document the API serves one it
+        // refuses to accept back, and the setting could never be saved.
+        final backend = _RecordingPlateSolverBackend();
+        final local = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _TestBackendNotifier(ref, backend),
+            ),
+          ],
+        );
+        addTearDown(local.dispose);
+        final localHandlers = ImagingHandlers(local);
+
+        final response = await translateHandlerErrors(
+          localHandlers.handleSetPlateSolverConfig(
+            Request(
+              'POST',
+              Uri.parse('http://localhost/api/plate-solver/config'),
+              body: jsonEncode({
+                'astapPath': '/opt/astap/astap',
+                'astrometryPath': '',
+                'catalogPath': '/opt/astap/catalogs',
+                'solverChoice': 'astap',
+              }),
+            ),
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.ok);
+        expect(backend.saved?.catalogPath, '/opt/astap/catalogs');
+        expect(backend.saved?.astrometryPath, '');
+      },
+    );
+
+    test('plate-solver config still requires a solver choice', () async {
+      final backend = _RecordingPlateSolverBackend();
+      final local = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _TestBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(local.dispose);
+      final localHandlers = ImagingHandlers(local);
+
+      final response = await translateHandlerErrors(
+        localHandlers.handleSetPlateSolverConfig(
+          Request(
+            'POST',
+            Uri.parse('http://localhost/api/plate-solver/config'),
+            body: jsonEncode({
+              'astapPath': '',
+              'astrometryPath': '',
+              'catalogPath': '',
+              'solverChoice': '',
+            }),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      expect(backend.saved, isNull);
+    });
+
+    test(
       'star crops validates maxCrops and trims deviceId before backend work',
       () async {
         final backend = _StarCropBackend();
@@ -315,6 +387,15 @@ Future<void> _pumpUntil(bool Function() condition) async {
     await Future<void>.delayed(Duration.zero);
   }
   expect(condition(), isTrue);
+}
+
+class _RecordingPlateSolverBackend extends DisconnectedBackend {
+  PlateSolverPreference? saved;
+
+  @override
+  Future<void> setPlateSolverConfig(PlateSolverPreference pref) async {
+    saved = pref;
+  }
 }
 
 class _PendingPlateSolveBackend extends DisconnectedBackend {

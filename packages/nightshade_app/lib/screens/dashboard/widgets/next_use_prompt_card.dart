@@ -209,7 +209,14 @@ class _NextUsePromptCardState extends ConsumerState<NextUsePromptCard>
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               NightshadeButton(
-                label: 'Not now',
+                // Not "Not now". This button calls the same _dismissStep as
+                // the overflow menu's "Skip this step": it writes the
+                // `next_use.<id>` dismissal row and the step never comes back.
+                // "Not now" promises a deferral the card does not implement —
+                // live on the dashboard, pressing it retired "Confirm your
+                // plate solver" permanently and the prompt had moved on to the
+                // next step after a screen change. Say what it does.
+                label: 'Skip this step',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
                 onPressed: _busy ? null : () => _dismissStep(step.id),

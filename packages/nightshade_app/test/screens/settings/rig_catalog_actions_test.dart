@@ -106,6 +106,42 @@ void main() {
     );
   });
 
+  testWidgets('a catalog with no recorded checksum is not reported as corrupt',
+      (tester) async {
+    // Live against a real appliance, every installed catalog answered
+    // {"ok":false,"errors":["no_expected_hash"]} — none of the metadata
+    // sidecars carried a sha256 — and the page said
+    // "Verify failed: Bad state: no_expected_hash". "Nothing to compare
+    // against" is not "your plate-solve catalog is corrupt".
+    final backend = _MockNetworkBackend();
+    _stubCatalogs(
+      backend,
+      status: const [_installedStars],
+      available: const [_availableStars],
+    );
+    when(() => backend.verifyCatalog(name: 'stars')).thenAnswer(
+      (_) async => const {
+        'stars': RemoteCatalogVerifyResult(
+          ok: false,
+          errors: ['no_expected_hash'],
+        ),
+      },
+    );
+    await _pump(tester, backend);
+
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Verify'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('Verify failed'), findsNothing);
+    expect(find.textContaining('no_expected_hash'), findsNothing);
+    expect(find.textContaining('No checksum was recorded'), findsOneWidget);
+    // …and it says so about the product name shown in the manifest, not the
+    // wire key.
+    expect(find.textContaining('HYG Stars'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('failed hash result is reported as verification failure',
       (tester) async {
     final backend = _MockNetworkBackend();

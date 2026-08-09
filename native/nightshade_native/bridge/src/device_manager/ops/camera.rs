@@ -53,7 +53,6 @@
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::dispatch::DeviceOpError;
-use crate::sim_frame::SimSkyView;
 use nightshade_native::camera::{ExposureParams, ImageData, SubFrame};
 #[cfg(windows)]
 use nightshade_native::traits::NativeCamera;
@@ -95,97 +94,14 @@ fn parse_fits_card_u32(card: &[u8]) -> Option<u32> {
     value.parse::<u32>().ok()
 }
 
-/// Focal length assumed when no equipment profile has been chosen.
-///
-/// Matches `storage`'s own default, so a simulator run with no profile renders
-/// the same field the default 1000 mm profile would.
-const SIM_DEFAULT_FOCAL_LENGTH_MM: f64 = 1000.0;
-
-/// Arcseconds subtended by one millimetre at one metre of focal length — the
-/// 206265 in `scale = 206265 * pixel_um / focal_mm`.
-const ARCSEC_PER_RADIAN: f64 = 206_264.806_247_096_36;
-
-/// Unbinned plate scale, in arcseconds per pixel.
-///
-/// The one number the whole simulated sky hangs off: get it wrong and every
-/// frame is rendered at a field of view the solver's hint contradicts, which
-/// reads as "ASTAP cannot solve the simulator" rather than as an arithmetic bug.
-fn sim_plate_scale_arcsec_per_px(pixel_size_um: f64, focal_length_mm: f64) -> f64 {
-    ARCSEC_PER_RADIAN * (pixel_size_um / 1000.0) / focal_length_mm
-}
-
-/// The sky the simulated camera is pointing at, or `None` to keep painting the
-/// pseudo-random field.
-///
-/// `None` whenever the simulator cannot honestly say what it is looking at or
-/// what it would be matched against:
-///
-/// * no plate-solver catalogue configured, or the directory holds no `.1476`
-///   files — rendering a sky the solver has no database for produces a frame
-///   that cannot be solved, which is worse than not pretending; and
-/// * no simulated mount connected — a camera-only rig has no pointing, and
-///   inventing one would silently move every focus/HFR measurement the sim's own
-///   test suite takes onto a different star field.
-async fn sim_sky_view(pixel_size_um: f64, sensor_w: usize, sensor_h: usize) -> Option<SimSkyView> {
-    if !pixel_size_um.is_finite() || pixel_size_um <= 0.0 {
-        return None;
-    }
-    let (centre_ra_deg, centre_dec_deg) = {
-        let mount = crate::api::devices::simulation::get_sim_mount()
-            .read()
-            .await;
-        if !mount.status.connected {
-            return None;
-        }
-        (
-            mount.status.right_ascension * 15.0,
-            mount.status.declination,
-        )
-    };
-    if !centre_ra_deg.is_finite() || !centre_dec_deg.is_finite() {
-        return None;
-    }
-
-    // Reads the SAME preference the solver reads, so the simulated sky and the
-    // catalogue ASTAP matches against are the same data by construction.
-    let index = crate::sim_sky::configured_index()?;
-
-    let rotation_deg = {
-        let rotator = crate::api::devices::simulation::get_sim_rotator()
-            .read()
-            .await;
-        if rotator.status.connected {
-            rotator.status.position
-        } else {
-            0.0
-        }
-    };
-    let focal_length_mm = crate::get_state()
-        .get_profile()
-        .await
-        .map(|profile| profile.telescope_focal_length)
-        .filter(|focal| focal.is_finite() && *focal > 0.0)
-        .unwrap_or(SIM_DEFAULT_FOCAL_LENGTH_MM);
-
-    let arcsec_per_px = sim_plate_scale_arcsec_per_px(pixel_size_um, focal_length_mm);
-    let radius_deg = crate::sim_frame::sim_sky_field_radius_deg(sensor_w, sensor_h, arcsec_per_px);
-    let stars = index.field(
-        centre_ra_deg,
-        centre_dec_deg,
-        radius_deg,
-        crate::sim_frame::SIM_SKY_STAR_LIMIT,
-    );
-    if stars.is_empty() {
-        return None;
-    }
-    Some(SimSkyView {
-        centre_ra_deg,
-        centre_dec_deg,
-        rotation_deg,
-        arcsec_per_px,
-        stars,
-    })
-}
+// The simulated sky and the plate scale it hangs off now live in
+// `crate::sim_capture`, next to the renderer, so the Imaging screen's manual
+// capture and this sequencer download cannot drift apart. Imported here only
+// for the tests below, which pin their behaviour.
+#[cfg(test)]
+use crate::sim_capture::{
+    sim_plate_scale_arcsec_per_px, sim_sky_view, SIM_DEFAULT_FOCAL_LENGTH_MM,
+};
 
 impl DeviceManager {
     // =========================================================================
@@ -1187,57 +1103,31 @@ impl DeviceManager {
                         DeviceOpError::hardware(Some(device_id.to_string()), detail)
                     })?;
                 // Synthetic download: an electron-domain frame whose star PSF
-                // tracks focuser defocus. Extracted into `crate::sim_frame` so it
-                // can be unit-tested against the real star detector — an
-                // unverified synthetic frame is worse than none, because every
-                // focus/HFR result measured against it is then unfalsifiable.
-                let focus_position = {
-                    let focuser = crate::api::devices::simulation::get_sim_focuser()
-                        .read()
-                        .await;
-                    if focuser.status.connected {
-                        Some(focuser.status.position)
-                    } else {
-                        None
-                    }
-                };
-                // Star position tracks the simulated mount, so guide pulses and
-                // tracking drift are visible to whatever is measuring the frame.
-                let (offset_x, offset_y) =
-                    crate::api::devices::simulation::sim_guide_offset_px().await;
-                let sensor_w = sim.sensor_width.max(1) as usize;
-                let sensor_h = sim.sensor_height.max(1) as usize;
-                // Paint the sky the mount is actually on when the plate solver's
-                // own star database is available. Without this the simulator
-                // renders a fixed pseudo-random field that no solver can match,
-                // which left Slew & Center, the framing wizard, mosaic tile
-                // solving, meridian-flip recentre, blind solve, the catalog
-                // overlay and polar alignment's solve path unexercisable
-                // offline.
-                let sky = sim_sky_view(sim.pixel_size_x, sensor_w, sensor_h).await;
-                let frame_request = crate::sim_frame::SimFrameRequest {
-                    width: sensor_w,
-                    height: sensor_h,
-                    exposure_secs: request.secs,
-                    gain: sim.gain,
-                    offset: sim.offset,
-                    frame_type: request.frame_type,
-                    focus_position,
-                    offset_x,
-                    offset_y,
-                    bin_x: sim.bin_x.max(1) as u32,
-                    bin_y: sim.bin_y.max(1) as u32,
-                    subframe: request.subframe,
-                    max_adu: sim.max_adu.clamp(1, u32::from(u16::MAX)) as u16,
-                    seed: crate::api::devices::simulation::next_sim_frame_seed(),
-                    sky,
-                };
-                let (width, height) = crate::sim_frame::sim_frame_dimensions(&frame_request);
-                let sim_data = crate::sim_frame::synthesize_sim_frame(&frame_request);
+                // tracks focuser defocus, painting the sky the mount is actually
+                // on. Rendered by `crate::sim_capture`, which is also what the
+                // Imaging screen's manual capture calls — the two paths used to
+                // disagree, and the manual one scattered stars at random so
+                // nothing captured through it could be plate-solved.
+                let frame =
+                    crate::sim_capture::render_sim_frame(crate::sim_capture::SimCaptureRequest {
+                        exposure_secs: request.secs,
+                        sensor_width: sim.sensor_width.max(1),
+                        sensor_height: sim.sensor_height.max(1),
+                        pixel_size_um: sim.pixel_size_x,
+                        gain: sim.gain,
+                        offset: sim.offset,
+                        bin_x: sim.bin_x.max(1) as u32,
+                        bin_y: sim.bin_y.max(1) as u32,
+                        subframe: request.subframe,
+                        frame_type: request.frame_type,
+                        max_adu: sim.max_adu.clamp(1, u32::from(u16::MAX)) as u16,
+                    })
+                    .await;
+                let (width, height) = (frame.width, frame.height);
                 Ok(ImageData {
                     width,
                     height,
-                    data: sim_data,
+                    data: frame.data,
                     bits_per_pixel: 16,
                     bayer_pattern: None,
                     metadata: nightshade_native::camera::ImageMetadata {
@@ -2891,9 +2781,10 @@ mod sim_sky_wiring_tests {
             &stars,
         );
 
-        // Exactly what the Plate Solving settings screen writes.
-        let store = tempfile::TempDir::new().unwrap();
-        let _ = crate::state::init_platesolver_storage(store.path().to_path_buf());
+        // Exactly what the Plate Solving settings screen writes. The store is
+        // shared and process-lifetime on purpose — see
+        // `sim_capture::shared_platesolver_store`.
+        crate::sim_capture::shared_platesolver_store();
         let previous = crate::state::get_platesolver_preference().unwrap_or_default();
         crate::state::save_platesolver_preference(&crate::storage::PlateSolverPreference {
             catalog_path: catalog.path().to_string_lossy().to_string(),

@@ -471,10 +471,17 @@ async fn scenario1_usb_disconnect_during_exposure_reconnects_and_resumes() {
 }
 
 #[tokio::test]
-async fn scenario1b_disconnect_with_no_device_ids_fails_closed() {
+async fn scenario1b_disconnect_with_no_device_ids_is_unrecoverable_not_retried() {
     // Edge of the same scenario: if the cause is DeviceDisconnected but no device
     // ids were captured, the attempt must FAIL (not silently "succeed" and resume
     // into a half-connected rig). Errors are a feature.
+    //
+    // It must fail TERMINALLY, not retryably. With no ids there is nothing to
+    // reconnect and nothing to poll, so every subsequent attempt returns this
+    // identical answer; a `Failed` here buys nine more of them spread over the
+    // shipped 90-minute budget. Live rig 2026-08-09: a run started with no
+    // camera assigned sat at `recovering / Device disconnected, progress 0.0`
+    // with no frames written.
     let ops_concrete = Arc::new(ScriptedDeviceOps::new());
     let ops: SharedDeviceOps = ops_concrete.clone();
     let (manager, _state) = manager_with_state().await;
@@ -489,8 +496,14 @@ async fn scenario1b_disconnect_with_no_device_ids_fails_closed() {
     .await;
 
     assert!(
-        matches!(outcome, AttemptOutcome::Failed { .. }),
-        "no device ids -> recovery cannot verify reconnect -> must fail closed"
+        matches!(outcome, AttemptOutcome::Unrecoverable { .. }),
+        "no device ids -> nothing to reconnect -> must end the loop now, not \
+         schedule another identical attempt; got {outcome:?}"
+    );
+    // Specifically NOT the retryable variant — that is the regression.
+    assert!(
+        !matches!(outcome, AttemptOutcome::Failed { .. }),
+        "a retryable Failed here re-enters the wait timer and burns the budget"
     );
 }
 

@@ -137,9 +137,23 @@ class WebDavSyncTarget implements SyncTarget {
   Future<void> ensureDirectory(String path) async {
     final segments = path.split('/').where((s) => s.isNotEmpty).toList();
     var prefix = '';
+    var createdBaseAncestors = false;
     for (final segment in segments) {
       prefix = prefix.isEmpty ? segment : '$prefix/$segment';
-      final response = await _send('MKCOL', _uriFor(prefix, directory: true));
+      var response = await _send('MKCOL', _uriFor(prefix, directory: true));
+      // RFC 4918 §9.3.1: MKCOL against a path whose PARENT collection does not
+      // exist must answer 409. The parent of the first segment is the base
+      // URL's own path, which this loop never creates — so pointing sync at
+      // https://host/dav/nightshade, where `nightshade` has not been made by
+      // hand, failed every push with "remote state conflict (HTTP 409)".
+      // Permissive servers that auto-create parents hid it. Create the base
+      // path's own collections once, then retry.
+      if (response.statusCode == 409 && !createdBaseAncestors) {
+        createdBaseAncestors = true;
+        if (await _createBaseAncestors()) {
+          response = await _send('MKCOL', _uriFor(prefix, directory: true));
+        }
+      }
       final status = response.statusCode;
       // 201 = created, 405 = already exists. Some servers answer 200/204.
       if (status == 201 || status == 405 || status == 200 || status == 204) {
@@ -147,6 +161,35 @@ class WebDavSyncTarget implements SyncTarget {
       }
       _throwForStatus(response, 'Create directory "$prefix"');
     }
+  }
+
+  /// MKCOL each collection in [baseUrl]'s own path, shallowest first.
+  ///
+  /// Returns true when every hop either existed or was created, i.e. when the
+  /// caller's retry is worth issuing. Failures are swallowed deliberately: on
+  /// a hosted DAV mount the upper hops (`/remote.php/dav/files/me`) are not
+  /// creatable and answer 403/405, which is fine — the caller's retry then
+  /// reports the real error against the directory it actually wanted.
+  Future<bool> _createBaseAncestors() async {
+    final segments = baseUrl.pathSegments
+        .where((s) => s.isNotEmpty)
+        .toList(growable: false);
+    if (segments.isEmpty) return false;
+    for (var i = 1; i <= segments.length; i++) {
+      final uri = baseUrl.replace(pathSegments: [...segments.take(i), '']);
+      final response = await _send('MKCOL', uri);
+      final status = response.statusCode;
+      final ok =
+          status == 201 ||
+          status == 405 ||
+          status == 200 ||
+          status == 204 ||
+          // Already-existing mount roots we may not create are not an error
+          // for our purposes; only a missing parent (409) breaks the chain.
+          status == 403;
+      if (!ok) return false;
+    }
+    return true;
   }
 
   @override

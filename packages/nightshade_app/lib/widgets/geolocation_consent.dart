@@ -23,13 +23,32 @@ Future<bool> confirmGeolocationLookup(
     context: context,
     builder: (dialogContext) => AlertDialog(
       title: const Text('Detect this site’s location?'),
-      content: Text(
-        'Nightshade asks this device for a GPS fix. Desktop computers have '
-        'no GPS receiver, so on those it instead sends an HTTPS request to a '
-        'third-party geolocation service (ipapi.co, falling back to '
-        'ipwho.is) which estimates your position from your public IP '
-        'address to roughly city level — about 10 km.\n\n'
-        '$outcome',
+      // Without a width constraint this AlertDialog sizes to the window: on
+      // the 1600 px desktop it rendered ~1520 px wide, one unbroken line of
+      // body text edge to edge, while every other dialog in the app (the
+      // sequence-issues list, the unwritable-folder confirm) sits at the
+      // 480 px design width. Same constraint helper they use.
+      // The Align is load-bearing, not decoration: AlertDialog stretches its
+      // content to the dialog's own width, which arrives as a TIGHT
+      // constraint, and a ConstrainedBox can only narrow a loose one. Align
+      // loosens it, so the body honours the 480 px cap even when the action
+      // row is what decides how wide the dialog ends up.
+      content: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            dialogContext,
+            designMaxWidth: 480,
+          ),
+          child: Text(
+            'Nightshade asks this device for a GPS fix. Desktop computers have '
+            'no GPS receiver, so on those it instead sends an HTTPS request to a '
+            'third-party geolocation service (ipapi.co, falling back to '
+            'ipwho.is) which estimates your position from your public IP '
+            'address to roughly city level — about 10 km.\n\n'
+            '$outcome',
+          ),
+        ),
       ),
       actions: [
         NightshadeButton(

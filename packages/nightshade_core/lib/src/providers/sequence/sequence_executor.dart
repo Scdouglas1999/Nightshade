@@ -113,6 +113,18 @@ const double kCoolerSetpointBandDegC = 1.0;
 /// the controllable `stopFailed` state with everything retained.
 const Duration kNativeStopConfirmationTimeout = Duration(seconds: 30);
 
+/// How often [SequenceExecutor._awaitNativeStopConfirmation] asks the native
+/// executor for its own state while waiting for the terminal event.
+///
+/// The event remains the fast path — the poll only has to notice a terminal
+/// that no event will ever deliver (the headless load->start path installs no
+/// Dart-side subscription at all; a lagged broadcast channel drops the event on
+/// the owned path). A quarter second keeps an operator-visible Stop feeling
+/// immediate while costing at most a handful of cheap status reads.
+const Duration kNativeStopConfirmationPollInterval = Duration(
+  milliseconds: 250,
+);
+
 /// Sequence executor that manages execution.
 ///
 /// The provider wires `ref.onDispose(executor.dispose)` so owned timers and
@@ -1051,6 +1063,118 @@ class SequenceExecutor {
     unawaited(future.catchError((Object _) {}));
   }
 
+  /// Native executor states that mean the run is over and the hardware is no
+  /// longer being driven by it. Matched case-insensitively against
+  /// [SequencerStatus.state].
+  ///
+  /// This is an ALLOW-list of terminals, deliberately the opposite direction to
+  /// the deny-list the stop endpoint uses for "was anything running". The two
+  /// answer different questions and must fail in opposite directions: that one
+  /// must treat an unknown state as running (so a stop still acts); this one
+  /// must treat an unknown state as NOT terminal (so an unrecognised state can
+  /// never be mistaken for "the camera has stopped exposing"). A new native
+  /// state added later therefore keeps us waiting rather than tearing down.
+  static const Set<String> _nativeTerminalStates = {
+    'idle',
+    'completed',
+    'failed',
+    'cancelled',
+    'stopped',
+    'error',
+  };
+
+  /// Confirm the native executor has actually terminated, from EITHER the
+  /// pushed terminal event or its own reported status, within
+  /// [kNativeStopConfirmationTimeout].
+  ///
+  /// Throws the same [TimeoutException] as before when neither source confirms,
+  /// so the caller's `stopFailed` handling — and the honest "NOT confirmed
+  /// stopped" message — is unchanged for the case where the hardware really
+  /// might still be running. The only thing that changes is how many ways we
+  /// have to notice that it is not.
+  ///
+  /// A status read that throws is treated as "no answer yet", never as
+  /// confirmation: a backend we cannot reach tells us nothing about the camera.
+  Future<void> _awaitNativeStopConfirmation(
+    _RunFinalization f,
+    Completer<void> confirmation,
+  ) async {
+    final deadline = DateTime.now().add(kNativeStopConfirmationTimeout);
+    var loggedPollConfirmation = false;
+    var loggedPollFailure = false;
+
+    while (true) {
+      if (confirmation.isCompleted || f.nativeStopConfirmed) {
+        // Keep the completer and the flag in lockstep so a later retry (and
+        // `_onTerminalEvent`'s guard) sees a settled confirmation either way.
+        f.nativeStopConfirmed = true;
+        if (!confirmation.isCompleted) confirmation.complete();
+        if (loggedPollConfirmation) {
+          _logger.info(
+            'Finalization: native executor reported a terminal state on the '
+            'status poll; treating the stop as confirmed without waiting for '
+            'the terminal event.',
+            source: 'SequenceExecutor',
+          );
+        }
+        return;
+      }
+
+      final remaining = deadline.difference(DateTime.now());
+      if (!remaining.isNegative) {
+        try {
+          // Bounded by whatever is left of the window. The whole point of this
+          // gate is that Stop always answers: a status read that hangs (dead
+          // remote host, wedged driver) must not be able to outlive the
+          // confirmation window and resurrect the never-returning Stop button
+          // this timeout exists to prevent.
+          final probe = remaining < kNativeStopConfirmationPollInterval
+              ? remaining
+              : kNativeStopConfirmationPollInterval;
+          final status = await _backend.sequencerGetStatus().timeout(probe);
+          if (_nativeTerminalStates.contains(status.state.toLowerCase())) {
+            loggedPollConfirmation = true;
+            f.nativeStopConfirmed = true;
+            if (!confirmation.isCompleted) confirmation.complete();
+            continue;
+          }
+        } catch (e) {
+          // Unreachable backend / transport hiccup / slow read. Say nothing
+          // about the hardware; let the event (or a later poll) answer. Logged
+          // once so a persistently unreachable backend is visible without
+          // spraying a line per tick for the whole window.
+          if (!loggedPollFailure) {
+            loggedPollFailure = true;
+            _logger.debug(
+              'Finalization: stop-confirmation status poll failed ($e); '
+              'falling back to the terminal event for confirmation.',
+              source: 'SequenceExecutor',
+            );
+          }
+        }
+      }
+
+      final left = deadline.difference(DateTime.now());
+      if (left.isNegative || left == Duration.zero) {
+        if (confirmation.isCompleted || f.nativeStopConfirmed) continue;
+        throw TimeoutException(
+          'The native executor accepted the stop command but never reported '
+          'a terminal state within '
+          '${kNativeStopConfirmationTimeout.inSeconds}s. The hardware was NOT '
+          'confirmed stopped, so nothing has been torn down.',
+          kNativeStopConfirmationTimeout,
+        );
+      }
+
+      // Wake on whichever comes first: the pushed terminal event, or the next
+      // poll tick. The event path stays as immediate as it always was.
+      final wait = left < kNativeStopConfirmationPollInterval
+          ? left
+          : kNativeStopConfirmationPollInterval;
+      await confirmation.future.timeout(wait, onTimeout: () {});
+    }
+  }
+
   /// Launch (or relaunch, for a Stop retry) the finalization drive, tracking it
   /// as the in-flight future that racing callers join, and clearing that latch
   /// when it settles so a later Stop retry from stopFailed / cleanupFailed can
@@ -1120,16 +1244,33 @@ class SequenceExecutor {
         // The window is deliberately generous — an in-flight exposure abort
         // plus the native state transition is sub-second on real hardware, so
         // this can only fire when the terminal is genuinely never coming.
-        await confirmation.future.timeout(
-          kNativeStopConfirmationTimeout,
-          onTimeout: () => throw TimeoutException(
-            'The native executor accepted the stop command but never reported '
-            'a terminal state within '
-            '${kNativeStopConfirmationTimeout.inSeconds}s. The hardware was NOT '
-            'confirmed stopped, so nothing has been torn down.',
-            kNativeStopConfirmationTimeout,
-          ),
-        );
+        //
+        // Waiting on the EVENT ALONE was not enough, and the failure was not
+        // theoretical — it was reproduced on the live rig and again on the
+        // Linux simulator. The headless `POST /api/sequencer/load` ->
+        // `/api/sequencer/start` path starts the sequence on the NATIVE
+        // executor without ever calling [start], so this executor never
+        // installs `_nativeEventSubscription` and `_onTerminalEvent` can never
+        // fire. The always-on device-service mirror
+        // (`applySequencerEventToSequenceProviders`) still drives
+        // `sequenceExecutionStateProvider` to `running` for that run, so Stop
+        // passes the `canStop` gate, commands the native stop — and then waited
+        // 30 s for an event on a subscription that does not exist. The run had
+        // genuinely stopped (`GET /api/sequencer/status` -> `cancelled`), yet
+        // the operator was told the hardware was NOT confirmed stopped. Worse,
+        // it latched: `stopFailed` is retried through this same gate, so every
+        // later Stop burned another 30 s and repeated the same false alarm,
+        // permanently.
+        //
+        // So confirm from EITHER authoritative source: the pushed terminal
+        // event, or the native executor's own reported state. Polling the
+        // status is not a weaker guess than the event — it is the same
+        // executor's answer to "are you still running?", pulled instead of
+        // pushed, and it is exactly what the operator would read to check us.
+        // That also closes the documented `RecvError::Lagged` hole above for
+        // the normal Dart-owned path, where a dropped terminal previously cost
+        // 30 s and a false alarm too.
+        await _awaitNativeStopConfirmation(f, confirmation);
       } catch (e, st) {
         // The authoritative terminal may race a transport-level error from the
         // command call. Once native has confirmed termination, cleanup is safe

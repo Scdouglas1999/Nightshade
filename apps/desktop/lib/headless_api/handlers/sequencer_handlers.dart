@@ -22,6 +22,18 @@ class SequencerHandlers {
 
   SequencerHandlers(this.container, {this.commandCorrelator});
 
+  /// Device ids a caller assigned on purpose through
+  /// `POST /api/sequencer/devices`, keyed by type. `null` records an explicit
+  /// clear, which is why absence and `null` are kept distinct.
+  ///
+  /// Only that endpoint writes here — never the start-time wiring below. The
+  /// map therefore holds *instructions*, not observations: "use this camera",
+  /// not "this camera happened to be connected last time". Feeding wiring
+  /// results back in would let a camera the operator has since unplugged
+  /// survive as a phantom assignment, and the whole point of the pre-flight is
+  /// to refuse that run at Start.
+  final Map<DeviceType, String?> _explicitlyAssignedDeviceIds = {};
+
   LoggingService get _logger => container.read(loggingServiceProvider);
 
   void _logInfo(String message) =>
@@ -128,6 +140,11 @@ class SequencerHandlers {
     // sequences are validated by handleSequencerLoad before entering the native
     // executor, so this branch may start the already-loaded tree directly.
     final hasInEditorSequence = container.read(currentSequenceProvider) != null;
+    // Set immediately before the native `sequencerStart()` await and nowhere
+    // else, so the catch below can tell a refusal raised BY the native
+    // pre-flight from a failure in the setup calls that precede it. Only the
+    // former is an operator-fixable rejection.
+    var nativeStartAttempted = false;
     try {
       if (hasInEditorSequence) {
         final executor = container.read(sequenceExecutorProvider);
@@ -156,6 +173,18 @@ class SequencerHandlers {
         if (!weatherSafetyEnabled) {
           await backend.sequencerSetSafetyFailMode('fail_open');
         }
+        // Wire the session's CONNECTED devices into the native executor. The
+        // Dart-orchestrated start path does this from the device-state
+        // providers; this bare path did not, so `executor.camera_id` stayed
+        // null and the first TakeExposure failed "No camera connected" — a
+        // string the executor classifies as a device *disconnect*, which sent
+        // the run into the recovery loop waiting for hardware that was never
+        // assigned. Reproduced on the live rig 2026-08-09: start answered
+        // `{"status":"started"}`, the run sat at
+        // `recovering / Device disconnected, progress 0.0` with no frames, and
+        // `GET /api/devices/connected` listed the camera the whole time.
+        await _wireConnectedDevicesIntoNativeExecutor(backend);
+        nativeStartAttempted = true;
         await backend.sequencerStart();
       }
     } on SequenceValidationException catch (e) {
@@ -193,6 +222,9 @@ class SequencerHandlers {
               'No sequence is loaded. Load one first (POST /api/sequencer/load, '
               'or open a sequence in the editor) before starting.',
         });
+      }
+      if (nativeStartAttempted) {
+        return _nativeStartRefusal(error);
       }
       rethrow;
     }
@@ -555,6 +587,121 @@ class SequencerHandlers {
     });
   }
 
+  /// Turn a refusal raised by the native `SequenceExecutor::start()` into the
+  /// structured answer the save-path endpoint already gives, instead of
+  /// `500 internal_error`.
+  ///
+  /// Everything `start()` can return an `Err` for is a precondition it checks
+  /// BEFORE launching the run — executor not idle, no sequence loaded, no
+  /// device ops, no save path, no camera, no plate solver. Not one of them is a
+  /// host fault, and calling them one is the cry-wolf shape: reproduced against
+  /// the Linux appliance on 2026-08-09 with the camera pre-flight,
+  ///
+  /// ```
+  /// POST /api/sequencer/start -> HTTP 500
+  ///   {"error":"internal_error","message":"Failed to start sequence: This
+  ///    sequence captures frames but no camera is assigned to the run. ..."}
+  /// ```
+  ///
+  /// A dashboard renders that as "internal error", and a 5xx invites the
+  /// automatic retry an unattended controller would do — so an operator-fixable
+  /// setup mistake reads as a transient appliance fault. The refusal text is
+  /// already the right words; only the envelope was wrong.
+  Response _nativeStartRefusal(Object error) {
+    final native = error is bridge_api.NightshadeError
+        ? error.maybeMap(
+            operationFailed: (failure) => failure.field0,
+            orElse: () => null,
+          )
+        : null;
+    final message = native ?? error.toString();
+    _logInfo('[API] POST /api/sequencer/start refused by pre-flight: $message');
+
+    // "Cannot start: executor is Running" is a state conflict, not a bad
+    // request: the caller's payload was fine, the appliance is simply busy.
+    if (message.contains('Cannot start: executor is')) {
+      return jsonConflict({'error': 'sequencer_busy', 'message': message});
+    }
+    return jsonBadRequest({
+      'error': 'preflight_rejected',
+      'code': 'preflight_rejected',
+      'message': message,
+    });
+  }
+
+  /// Push the currently-connected camera / mount / focuser / filter wheel /
+  /// rotator into the native executor.
+  ///
+  /// The native executor resolves hardware through the ids handed to it by
+  /// `sequencerSetDevices`, NOT through the device manager's connection table
+  /// and NOT through the equipment profile. Those two can therefore disagree,
+  /// and on the headless `load -> start` path they always did: nothing ever
+  /// called `sequencerSetDevices`, so the executor's ids were all null while
+  /// `GET /api/devices/connected` happily listed live hardware.
+  ///
+  /// [DeviceBackend.getConnectedDevices] is the same source
+  /// `GET /api/devices/connected` renders, so after this call the executor and
+  /// that endpoint agree by construction. First device of each type wins, which
+  /// matches the single-rig assumption the rest of the headless API makes.
+  ///
+  /// A connected device wins, but where none is connected an id the caller
+  /// assigned through `POST /api/sequencer/devices` is kept rather than
+  /// overwritten with null. Without that fallback this method silently undid
+  /// that endpoint — reproduced against the Linux appliance on 2026-08-09:
+  ///
+  /// ```
+  /// POST /api/sequencer/devices {"cameraId":"sim_camera_1"} -> {"status":"ok"}
+  /// POST /api/sequencer/start -> 400 {"error":"preflight_rejected",
+  ///   "message":"... no camera is assigned to the run ..."}
+  /// ```
+  ///
+  /// A camera *was* assigned, through the one endpoint that assigns it, and the
+  /// appliance discarded it a line before reading it back and reporting it
+  /// missing. `POST /api/sequencer/devices` is the only way a headless-only
+  /// operator can assign hardware at all (see L9: `POST /api/profiles` cannot
+  /// be driven), so a silent no-op there strands them with no path forward.
+  ///
+  /// A failure here is not fatal on its own: the native camera preflight in
+  /// `SequenceExecutor::start()` refuses a capture sequence with no camera
+  /// assigned, so a run that could not be wired is rejected loudly a moment
+  /// later with an operator-facing reason rather than dying here with a 500.
+  Future<void> _wireConnectedDevicesIntoNativeExecutor(
+    SequencerBackend backend,
+  ) async {
+    final List<DeviceInfo> connected;
+    try {
+      connected = await container
+          .read(deviceBackendProvider)
+          .getConnectedDevices();
+    } catch (e) {
+      _logInfo(
+        '[API] POST /api/sequencer/start: could not read connected devices '
+        '($e); leaving the native executor device ids untouched',
+      );
+      return;
+    }
+
+    String? idFor(DeviceType type) {
+      for (final device in connected) {
+        if (device.deviceType == type) return device.id;
+      }
+      return _explicitlyAssignedDeviceIds[type];
+    }
+
+    final cameraId = idFor(DeviceType.camera);
+    _logInfo(
+      '[API] POST /api/sequencer/start: wiring devices into the native '
+      'executor (camera=$cameraId)',
+    );
+    await backend.sequencerSetDevices(
+      cameraId: cameraId,
+      mountId: idFor(DeviceType.mount),
+      focuserId: idFor(DeviceType.focuser),
+      filterwheelId: idFor(DeviceType.filterWheel),
+      rotatorId: idFor(DeviceType.rotator),
+    );
+  }
+
   Future<Response> handleSequencerSetSimulationMode(Request request) async {
     _logInfo('[API] POST /api/sequencer/simulation');
     final payload = await readJsonObject(request);
@@ -604,16 +751,34 @@ class SequencerHandlers {
       });
     }
 
+    final cameraId = optionalString(payload, 'cameraId');
+    final mountId = optionalString(payload, 'mountId');
+    final focuserId = optionalString(payload, 'focuserId');
+    final filterwheelId = optionalString(payload, 'filterwheelId');
+    final rotatorId = optionalString(payload, 'rotatorId');
+
     final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetDevices(
-      cameraId: optionalString(payload, 'cameraId'),
-      mountId: optionalString(payload, 'mountId'),
-      focuserId: optionalString(payload, 'focuserId'),
-      filterwheelId: optionalString(payload, 'filterwheelId'),
-      rotatorId: optionalString(payload, 'rotatorId'),
+      cameraId: cameraId,
+      mountId: mountId,
+      focuserId: focuserId,
+      filterwheelId: filterwheelId,
+      rotatorId: rotatorId,
       filterNames: optionalList<String>(payload, 'filterNames'),
       filterFocusOffsets: filterFocusOffsets,
     );
+
+    // Remember the assignment. `POST /api/sequencer/start` rebuilds the
+    // executor's device ids from the connected-device list, and without this
+    // record it would overwrite everything set here with null — making this
+    // endpoint a no-op that still answers `{"status":"ok"}`. Recorded only
+    // after the backend accepted the call, so a failed assignment leaves no
+    // phantom behind.
+    _explicitlyAssignedDeviceIds[DeviceType.camera] = cameraId;
+    _explicitlyAssignedDeviceIds[DeviceType.mount] = mountId;
+    _explicitlyAssignedDeviceIds[DeviceType.focuser] = focuserId;
+    _explicitlyAssignedDeviceIds[DeviceType.filterWheel] = filterwheelId;
+    _explicitlyAssignedDeviceIds[DeviceType.rotator] = rotatorId;
     return jsonOk({'status': 'ok'});
   }
 

@@ -10,7 +10,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_app/screens/settings/widgets/connection_settings.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
@@ -19,6 +21,8 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
   @override
   Future<AppSettingsState> build() async => const AppSettingsState();
 }
+
+class _MockDeviceService extends Mock implements DeviceService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -100,4 +104,71 @@ void main() {
       11111,
     );
   });
+
+  // Found live (coverage closeout, never-claimed cluster B). Test Connection
+  // against a dead localhost:11111 printed:
+  //
+  //   No response on localhost:11111. NightshadeError.connectionFailed(
+  //   deviceId: localhost:11111, reason: Failed to connect to Alpaca server: …)
+  //
+  // — the freezed union's DEBUG rendering, class name and field names and all,
+  // shipped as product copy. And the verdict stayed on screen after the host
+  // was retyped, so a failure report for localhost sat under a field reading
+  // 192.168.1.50 with nothing marking it stale.
+  testWidgets(
+    'a failed probe names the cause, not the error object, and is dropped '
+    'when the address changes',
+    (tester) async {
+      final service = _MockDeviceService();
+      when(() => service.discoverAlpacaAtAddress(any(), any())).thenAnswer(
+        (_) async => throw bridge.NightshadeError.connectionFailed(
+          deviceId: 'localhost:11111',
+          reason: 'Connection refused (os error 111)',
+        ),
+      );
+
+      await pumpAppScreen(
+        tester,
+        const ConnectionSettings(),
+        size: const Size(1280, 1600),
+        extraOverrides: [
+          appSettingsProvider.overrideWith(_StubAppSettingsNotifier.new),
+          deviceServiceProvider.overrideWithValue(service),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Alpaca Server Address'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Configure').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Test Connection'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Connection refused (os error 111)'),
+        findsOneWidget,
+        reason: 'the operator needs the cause the server actually reported',
+      );
+      expect(
+        find.textContaining('NightshadeError.'),
+        findsNothing,
+        reason: 'the Dart union type name is a stack-trace detail, not copy',
+      );
+      expect(find.textContaining('deviceId:'), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('alpaca-host-field')),
+        '192.168.1.50',
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('No response on'),
+        findsNothing,
+        reason: 'a verdict about localhost must not survive into a new address',
+      );
+    },
+  );
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
 
@@ -63,6 +64,42 @@ void main() {
     expect(_colorBorderWidth(tester, '#5B9EC4'), 2);
     expect(_colorBorderWidth(tester, '#10B981'), 1);
     expect(tester.takeException(), isNull);
+  });
+
+  // Found live (coverage closeout, never-claimed cluster B): the accessibility
+  // tree for Settings → Appearance listed "Accent color" with ZERO children —
+  // seven bare GestureDetectors, no name, no role, no selected state — while
+  // the switch in the row below reported itself as "toggle button … [off]".
+  // A swatch whose only description is its own pixels is the control that most
+  // needs a name, and the names were already sitting unused in accentColors.
+  testWidgets('every accent swatch is a named, selectable control', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+
+    await pumpAppScreen(
+      tester,
+      _ColorHarness(save: (_) async {}),
+    );
+
+    for (final (hex, name) in SettingsColorPicker.accentColors) {
+      final node = tester.getSemantics(
+        find.byKey(ValueKey('settings-color-$hex')),
+      );
+      expect(
+        node.label,
+        contains(name),
+        reason: 'the $hex swatch must announce its colour name',
+      );
+      expect(node.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(
+        node.hasFlag(SemanticsFlag.isSelected),
+        hex == '#5B9EC4',
+        reason: 'only the active accent may report itself as selected',
+      );
+    }
+
+    semantics.dispose();
   });
 
   testWidgets('path browse ignores repeat taps while the picker is active',

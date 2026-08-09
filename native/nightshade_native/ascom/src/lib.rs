@@ -7,6 +7,11 @@
 #[cfg(windows)]
 mod windows;
 
+// Not gated: the connect read-back policy is pure timing and message logic, so
+// it stays testable on the Linux workstation where the COM plumbing cannot even
+// compile.
+pub mod connect_verify;
+
 /// ASCOM device information discovered from Windows Registry
 #[derive(Debug, Clone)]
 pub struct AscomDevice {

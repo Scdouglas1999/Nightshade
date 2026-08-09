@@ -567,7 +567,9 @@ class _GuiderCard extends ConsumerWidget {
           return;
         }
         try {
-          await ref.read(guiderStateProvider.notifier).connect(id);
+          await ref
+              .read(guiderStateProvider.notifier)
+              .connect(id, deviceName: profile?.guiderName);
         } catch (e) {
           if (context.mounted) _showError(context, e);
         }

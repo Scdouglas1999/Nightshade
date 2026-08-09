@@ -1,6 +1,9 @@
 //! COM initialization, ASCOM device discovery, and the
 //! `AscomDeviceConnection` core wrapper plus RAII cleanup guards.
 
+use crate::connect_verify::{
+    verify_connected_readback, CONNECT_VERIFY_POLL, CONNECT_VERIFY_TIMEOUT,
+};
 use crate::AscomDevice;
 use std::ptr;
 use windows::{
@@ -383,9 +386,64 @@ impl AscomDeviceConnection {
         }
     }
 
+    /// Connect, and then CHECK that the driver agrees.
+    ///
+    /// Setting `Connected = true` without an exception is not evidence that a
+    /// device is there. Measured on a real rig 2026-08-09: with no ASI mount
+    /// attached, `ASCOM.ASIMount.Telescope` accepted `Connected = true`
+    /// silently, then reported `Connected = False`, `Slewing = True`,
+    /// `SiderealTime = -1` and RA/Dec/Alt/Az all zero. This function believed
+    /// it, so the app announced a connected mount, and every consumer
+    /// downstream was handed `slewing: true` for ever — which is the shape that
+    /// hangs an unattended run all night on a wait-for-slew that can never
+    /// finish. The operator had only picked the wrong driver from a list where
+    /// ASCOM advertises installed DRIVERS, not present HARDWARE.
+    ///
+    /// The read-back is polled rather than instant: ASCOM permits a driver to
+    /// take a moment to come up, and rejecting a slow-but-genuine device would
+    /// trade one false report for another.
     pub fn connect(&mut self) -> Result<(), String> {
         self.health.reset(); // Reset health state on new connection
-        self.set_bool_property("Connected", true)?;
+
+        // A failed write is already conclusive; only a *silent* write needs
+        // verifying. Mark the object down first so that every early return
+        // below leaves `self.connected` telling the truth — this matters on a
+        // reconnect, where the field still holds `true` from the last
+        // successful session.
+        self.connected = false;
+        if let Err(e) = self.set_bool_property("Connected", true) {
+            self.health.mark_failed();
+            return Err(e);
+        }
+
+        let started = std::time::Instant::now();
+        let verdict = verify_connected_readback(
+            &self.prog_id,
+            CONNECT_VERIFY_TIMEOUT,
+            CONNECT_VERIFY_POLL,
+            || self.get_bool_property("Connected"),
+            std::thread::sleep,
+            || started.elapsed(),
+        );
+
+        if let Err(message) = verdict {
+            // Put the driver back down rather than leaving a half-open handle
+            // for the next attempt to fight. Measured against the phantom ASI
+            // mount: this write is accepted without an exception, so the
+            // cleanup is real and not merely hopeful.
+            let _ = self.set_bool_property("Connected", false);
+            // The health monitor was reset to "healthy" at the top of this
+            // function. Leaving it there would have `is_healthy()` vouch for a
+            // device that just failed to connect. `record_failure()` is NOT
+            // enough here: it needs three strikes before it flips the flag, so
+            // one call leaves the monitor answering `Unknown`, which
+            // `is_healthy()` reads as fine (measured on the phantom ASI Mount,
+            // 2026-08-09). A refused connect is conclusive, so say so.
+            self.health.mark_failed();
+            tracing::warn!("ASCOM device {} failed to come online", self.prog_id);
+            return Err(message);
+        }
+
         self.connected = true;
         self.health.record_success();
         tracing::info!("ASCOM device {} connected", self.prog_id);

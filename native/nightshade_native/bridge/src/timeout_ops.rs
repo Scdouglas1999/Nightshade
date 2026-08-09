@@ -532,4 +532,45 @@ mod tests {
         assert!(!deadline.is_expired());
         assert!(deadline.remaining() > Duration::from_secs(9));
     }
+
+    /// The ASCOM connect read-back budget must finish INSIDE this crate's own
+    /// connect deadline, or the diagnostic it produces is never delivered.
+    ///
+    /// Every ASCOM wrapper in `ascom_wrapper` awaits its worker's `connect`
+    /// reply under `Timeouts::connection()`. `AscomDeviceConnection::connect`
+    /// spends up to `CONNECT_VERIFY_TIMEOUT` polling `Connected` back before it
+    /// can report a phantom device (finding L4: a driver with no hardware
+    /// behind it accepts `Connected = true` and then reads back false for
+    /// ever). If the polling budget reaches the transport deadline, the caller
+    /// has already dropped the receiver: the operator is shown the generic
+    /// `"... connect timed out after 30s"` and the message naming the real
+    /// causes — not powered, not plugged in, already open elsewhere — is
+    /// discarded unread.
+    ///
+    /// That is not hypothetical. Measured on the reference rig 2026-08-09 with
+    /// the budget set equal to the transport deadline, the phantom
+    /// `ASCOM.ASIMount.Telescope` was correctly refused — at 30.064 s, i.e.
+    /// after `Timeouts::connection()` had already fired, on every attempt.
+    ///
+    /// This test is the only place in the tree that can see both numbers, so it
+    /// is what stops either of them drifting back into collision.
+    #[test]
+    fn ascom_connect_readback_budget_fits_inside_the_connection_timeout() {
+        use nightshade_ascom::connect_verify::{
+            CONNECT_VERIFY_TIMEOUT, CONNECT_VERIFY_TRANSPORT_HEADROOM,
+        };
+
+        let needed = CONNECT_VERIFY_TIMEOUT + CONNECT_VERIFY_TRANSPORT_HEADROOM;
+        assert!(
+            needed <= Timeouts::connection(),
+            "ASCOM connect read-back needs {:?} ({:?} polling + {:?} for the two property \
+             writes that bracket it) but the transport gives up at {:?}. The phantom-device \
+             message would be composed and then thrown away, and the operator would see a bare \
+             timeout instead. Lower CONNECT_VERIFY_TIMEOUT or raise Timeouts::connection().",
+            needed,
+            CONNECT_VERIFY_TIMEOUT,
+            CONNECT_VERIFY_TRANSPORT_HEADROOM,
+            Timeouts::connection(),
+        );
+    }
 }

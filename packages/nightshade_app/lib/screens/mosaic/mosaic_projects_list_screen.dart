@@ -88,13 +88,27 @@ class MosaicProjectsListScreen extends ConsumerWidget {
                   ),
                   data: (projects) => projects.isEmpty
                       ? _refreshableCenter(
-                          const EmptyState(
+                          // The old copy sent the operator to Framing or the
+                          // Planetarium while "New mosaic" sat in the header of
+                          // this very screen. Lead with the control that is
+                          // here, and keep the other two routes as the aside
+                          // they are.
+                          EmptyState(
                             icon: NightshadeIcons.grid,
                             title: 'No mosaic projects yet',
                             body:
-                                'Design a mosaic in Framing or the Planetarium '
-                                'and save it as a project to capture and stitch '
-                                'it here.',
+                                'Start one with "New mosaic" above, or design '
+                                'a mosaic in Framing or the Planetarium and '
+                                'save it as a project.',
+                            action: NightshadeButton(
+                              label: 'New mosaic',
+                              icon: NightshadeIcons.add,
+                              size: ButtonSize.small,
+                              onPressed: () => showDialog<void>(
+                                context: context,
+                                builder: (_) => const MosaicWizardDialog(),
+                              ),
+                            ),
                           ),
                         )
                       : ListView.separated(
@@ -139,24 +153,37 @@ class _BackBar extends StatelessWidget {
         vertical: NightshadeTokens.spaceXs,
       ),
       alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(
-              NightshadeIcons.chevronLeft,
-              size: NightshadeTokens.iconMd,
+      // One tap target for the whole "< Back" affordance. The label used to sit
+      // outside the IconButton, so a press on the word "Back" — the part that
+      // reads as the control — did nothing and only the chevron popped.
+      child: Tooltip(
+        message: 'Back',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+          onTap: () => _leave(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm,
+              vertical: NightshadeTokens.spaceSm,
             ),
-            color: colors.textSecondary,
-            tooltip: 'Back',
-            onPressed: () => _leave(context),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  NightshadeIcons.chevronLeft,
+                  size: NightshadeTokens.iconMd,
+                  color: colors.textSecondary,
+                ),
+                const SizedBox(width: NightshadeTokens.spaceXs),
+                Text(
+                  'Back',
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textMuted),
+                ),
+              ],
+            ),
           ),
-          Text(
-            'Back',
-            style:
-                NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
-          ),
-        ],
+        ),
       ),
     );
   }

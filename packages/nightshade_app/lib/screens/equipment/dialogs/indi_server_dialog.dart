@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../utils/user_facing_error.dart';
+
 /// INDI Server Configuration Dialog (Linux/macOS)
 class IndiServerDialog extends ConsumerStatefulWidget {
   const IndiServerDialog({super.key});
@@ -104,6 +106,18 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
     return (host: host, port: port);
   }
 
+  /// Drop a Test Connection verdict once the address it describes is gone.
+  ///
+  /// The status line names the endpoint it probed ("No response on
+  /// localhost:7624."). Leaving it up while the operator retypes the host
+  /// leaves a failure report attached to an address that is no longer in the
+  /// dialog, and the natural reading is that the NEW address failed. Must be
+  /// called from inside a `setState`.
+  void _clearStaleProbeResult() {
+    _statusMessage = null;
+    _statusSuccess = null;
+  }
+
   Future<void> _testConnection() async {
     if (_isTesting || _isSaving) return;
     final inputs = _validatedInputs();
@@ -148,7 +162,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
         _statusSuccess = false;
         // Name the endpoint that was actually probed, matching the PHD2 test's
         // wording on the guider step.
-        _statusMessage = 'No response on ${inputs.host}:${inputs.port}. $e';
+        _statusMessage = 'No response on ${inputs.host}:${inputs.port}. '
+            '${userFacingError(e)}';
       });
     }
   }
@@ -246,7 +261,10 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               style: TextStyle(color: colors.textPrimary),
               onChanged: (_) {
                 _hostEdited = true;
-                if (_hostError != null) setState(() => _hostError = null);
+                setState(() {
+                  _hostError = null;
+                  _clearStaleProbeResult();
+                });
               },
               decoration: InputDecoration(
                 labelText: 'INDI Server Host',
@@ -273,7 +291,10 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               keyboardType: TextInputType.number,
               onChanged: (_) {
                 _portEdited = true;
-                if (_portError != null) setState(() => _portError = null);
+                setState(() {
+                  _portError = null;
+                  _clearStaleProbeResult();
+                });
               },
               decoration: InputDecoration(
                 labelText: 'Port',

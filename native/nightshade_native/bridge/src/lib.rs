@@ -67,6 +67,10 @@ mod imaging_ops;
 mod real_device_ops;
 mod sequencer_api;
 mod sequencer_ops;
+/// THE simulated-capture entry point: the one place a simulated frame is
+/// produced, shared by the sequencer download and the Imaging screen's manual
+/// capture so both see the same sky.
+mod sim_capture;
 /// Synthetic frame generation for the simulator camera (unit-tested against the
 /// real star detector; see the module docs for why that matters).
 mod sim_frame;

@@ -66,28 +66,54 @@ class RunDashboardLiveFrame extends ConsumerWidget {
             hfrHistory: _hfrHistory(sessionImages),
           );
 
-          if (!showHistory) {
-            return main;
-          }
+          // The dashboard lays its tiles out in a vertical scroll view, so this
+          // widget is built with an UNBOUNDED height. Nothing below supplies one:
+          // `Row(crossAxisAlignment: stretch)` hands `constraints.maxHeight`
+          // straight to its children as a tight height, and [_FramePane] is a
+          // Stack whose children are all `Positioned.fill`, so it takes whatever
+          // it is given. The infinity reached InteractiveViewer's transform, the
+          // engine logged "TransformLayer is constructed with an invalid matrix"
+          // and dropped the layer subtree — which blanked not just this tile but
+          // the whole primary column it shared. Bound the box here so every
+          // descendant is finite; honour a real bound when the parent gives one.
+          final Widget body = !showHistory
+              ? main
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: main),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    SizedBox(
+                      width: _historyColumnWidth,
+                      child: _HistoryColumn(
+                        colors: colors,
+                        images: sessionImages,
+                        currentImage: currentImage,
+                      ),
+                    ),
+                  ],
+                );
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: main),
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              SizedBox(
-                width: _historyColumnWidth,
-                child: _HistoryColumn(
-                  colors: colors,
-                  images: sessionImages,
-                  currentImage: currentImage,
-                ),
-              ),
-            ],
+          if (constraints.hasBoundedHeight) {
+            return body;
+          }
+          return SizedBox(
+            height: _unboundedHeightFor(constraints.maxWidth),
+            child: body,
           );
         },
       ),
     );
+  }
+
+  /// Height to adopt when the parent imposes none (a dashboard scroll zone).
+  ///
+  /// A 4:3 box is what this panel documents itself as; the clamp keeps it
+  /// readable on a narrow tile and stops it eating the whole viewport on a
+  /// wide one.
+  static double _unboundedHeightFor(double maxWidth) {
+    if (!maxWidth.isFinite) return 320;
+    return (maxWidth * 3 / 4).clamp(180.0, 420.0);
   }
 
   /// Recent per-frame HFR values (oldest→newest) for the inline sparkline.

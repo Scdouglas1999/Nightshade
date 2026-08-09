@@ -20,21 +20,37 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
 
   GuiderStateNotifier(this._ref) : super(const GuiderState());
 
+  /// Connect [deviceId], showing [deviceName] while the attempt is in flight.
+  ///
+  /// [deviceName] exists because this method used to pass the raw id as the
+  /// name. The moment the operator pressed Connect, a card that had been
+  /// reading "Built-in Multi-Star Guider" from the profile flipped to
+  /// `native:builtin_guider:multi_star` — and stayed that way for the rest of
+  /// the session, in the device card and in the guide-health card, because
+  /// nothing later overwrites the name. Callers that know the friendly name
+  /// should pass it; omitting it keeps the previous id fallback.
   Future<void> connect(
     String deviceId, {
+    String? deviceName,
     int maxRetries = kDefaultMaxRetries,
   }) async {
     final revision = ++_connectionRevision;
     _retryAttempts = 0;
-    _setConnectingState(deviceId, deviceId);
-    await _connectWithRetry(deviceId, maxRetries, revision);
+    _setConnectingState(deviceId, deviceName ?? deviceId);
+    await _connectWithRetry(
+      deviceId,
+      maxRetries,
+      revision,
+      deviceName: deviceName,
+    );
   }
 
   Future<void> _connectWithRetry(
     String deviceId,
     int maxRetries,
-    int revision,
-  ) async {
+    int revision, {
+    String? deviceName,
+  }) async {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.connectGuider(deviceId);
@@ -54,8 +70,13 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
         state = state.copyWith(lastError: error);
         await Future.delayed(kDefaultRetryDelay * _retryAttempts);
         if (!_isCurrentAttempt(deviceId, revision)) return;
-        _setConnectingState(deviceId, deviceId);
-        await _connectWithRetry(deviceId, maxRetries, revision);
+        _setConnectingState(deviceId, deviceName ?? deviceId);
+        await _connectWithRetry(
+          deviceId,
+          maxRetries,
+          revision,
+          deviceName: deviceName,
+        );
       } else {
         state = state.copyWith(
           connectionState: DeviceConnectionState.error,

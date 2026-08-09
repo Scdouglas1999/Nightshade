@@ -375,6 +375,22 @@ pub enum AttemptOutcome {
     /// the sky cleared, so hand the night to the operator instead of
     /// oscillating fail → wait → "recovered" → fail on a fresh budget.
     PauseForOperator { message: String },
+    /// Retrying cannot possibly clear this cause, so the loop must end NOW
+    /// rather than spend its whole budget re-learning a fact it already knows.
+    ///
+    /// Unlike `Failed` (sleep `retry_interval_secs`, try again until the
+    /// attempt/time budget runs out) this breaks out on the first attempt and
+    /// takes the ordinary give-up path — park the mount, close cover and dome,
+    /// fail the run loudly.
+    ///
+    /// The case that motivated it: a `DeviceDisconnected` recovery entered with
+    /// NO device ids configured at all. `connect_device` has nothing to call and
+    /// `device_is_connected` has nothing to poll, so every attempt returns the
+    /// same answer; with the shipped defaults (10 min interval, 90 min cap) that
+    /// is nine identical failures spread over an hour and a half of an
+    /// unattended night, presented to the operator as `recovering` at
+    /// `progress 0.0`.
+    Unrecoverable { message: String },
 }
 
 /// Record of a single completed recovery loop for the post-session report.

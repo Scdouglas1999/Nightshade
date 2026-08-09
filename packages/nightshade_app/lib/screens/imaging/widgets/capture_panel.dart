@@ -648,13 +648,19 @@ class _CaptureSavePathButtonState extends ConsumerState<CaptureSavePathButton> {
   Future<void> _choosePath() async {
     final generation = ++_operationGeneration;
     final authority = ref.read(backendProvider);
-    final initialPath = widget.currentPath.trim();
+    // An unset capture directory persists as '.', which the label above
+    // already renders as "Not set". Passing it through as a real starting
+    // point sent the host picker to the appliance's process working
+    // directory — on a systemd Pi, whatever directory the unit happened to
+    // start in — and hid the curated "Host roots" listing the browse API
+    // serves when no path is supplied.
+    final initialPath = _normalizeInitialPath(widget.currentPath);
     setState(() => _busy = true);
     try {
       final result = await ref.read(captureSavePathPickerProvider)(
         context,
         isRemote: widget.isRemote,
-        initialPath: initialPath.isEmpty ? null : initialPath,
+        initialPath: initialPath,
       );
       if (result == null || !_isCurrent(generation, authority)) return;
 
@@ -671,6 +677,17 @@ class _CaptureSavePathButtonState extends ConsumerState<CaptureSavePathButton> {
         setState(() => _busy = false);
       }
     }
+  }
+
+  /// The path the picker should open at, or null for "nowhere in particular".
+  ///
+  /// Both the empty string and '.' mean "no capture directory chosen yet".
+  /// Returning null for either lets the remote picker ask the host for its
+  /// root list instead of resolving '.' against the host's working directory.
+  static String? _normalizeInitialPath(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty || trimmed == '.') return null;
+    return trimmed;
   }
 
   bool _isCurrent(int generation, NightshadeBackend authority) {

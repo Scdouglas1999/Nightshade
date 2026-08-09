@@ -888,6 +888,67 @@ class _TransientSettingsDialogState
                 onChanged: (val) =>
                     _run(() => notifier.setAutoQueueBright(val)),
               ),
+              // The threshold this switch acts on. It defaults to mag 10, which
+              // is brighter than almost every transient an amateur rig can
+              // reach (most TNS supernovae sit at mag 13-17), so auto-queue
+              // shipped switchable but effectively inert: the number was
+              // settable over the headless API and by nothing in the app.
+              if (settings.autoQueueBright) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        '5',
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textMuted),
+                      ),
+                      Expanded(
+                        child: Slider(
+                          value: settings.autoQueueMagnitude.clamp(5.0, 20.0),
+                          min: 5.0,
+                          max: 20.0,
+                          divisions: 30,
+                          label: settings.autoQueueMagnitude.toStringAsFixed(1),
+                          semanticFormatterCallback: (value) =>
+                              'Auto-queue magnitude ${value.toStringAsFixed(1)}',
+                          onChanged: (val) =>
+                              _run(() => notifier.setAutoQueueMagnitude(val)),
+                        ),
+                      ),
+                      Text(
+                        '20',
+                        style: TextStyle(
+                            fontSize: NightshadeTypography.fontSize11,
+                            color: colors.textMuted),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '<= ${settings.autoQueueMagnitude.toStringAsFixed(1)}',
+                        style: NightshadeTypography.h6.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // An auto-queue threshold fainter than the display threshold
+                // can never fire: the feed drops those alerts before
+                // auto-queue ever sees them.
+                if (settings.autoQueueMagnitude > settings.magnitudeThreshold)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      'Alerts fainter than the magnitude threshold '
+                      '(${settings.magnitudeThreshold.toStringAsFixed(1)}) are '
+                      'filtered out before auto-queue sees them.',
+                      style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize11,
+                          color: colors.warning),
+                    ),
+                  ),
+              ],
             ],
           ),
         ),
